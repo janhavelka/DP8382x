@@ -1,0 +1,822 @@
+--- PDF page 1 ---
+Application Note
+DP838xx Wake-on-LAN
+Ross Pimentel and Gerome Cacho
+ABSTRACT
+Texas Instruments 10/100 Mbps family DP8382x (DP83822, DP83825, DP83826) and 10/100/1000 Mbps 
+family DP8386x (DP83867 and DP83869) were designed to meet the needs of rugged and high performance 
+applications while still offering a wide range of options for minimizing power consumption. This application note 
+provides how these PHYs, referred to as DP838xx, Wake-on-LAN features work and how to implement each 
+Wake-on-LAN mode.
+Table of Contents
+1 Introduction.............................................................................................................................................................................2
+2 Wake-on-LAN.......................................................................................................................................................................... 3
+2.1 WoL – Principles of Operation............................................................................................................................................3
+2.2 WoL - Implementation........................................................................................................................................................ 7
+3 Summary............................................................................................................................................................................... 13
+4 Revision History................................................................................................................................................................... 14
+Trademarks
+All trademarks are the property of their respective owners.
+www.ti.com
+Table of Contents
+SNLA261A – AUGUST 2016 – REVISED MARCH 2024
+Submit Document Feedback
+DP838xx Wake-on-LAN
+1
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 2 ---
+1 Introduction
+DP838xx 10/100/1000 Mbps Industrial Ethernet PHYs offer a wide range of power saving modes that can be 
+applied individually or in combination with each other depending on the desired operation. This application note 
+discusses the Wake-on-LAN feature.
+Table 1-1. Terminology
+Acronym
+Definition
+DUT
+Device Under Test
+LP
+Link Partner
+WoL
+Wake-on-LAN
+PHY
+Physical Layer Transceiver
+SMI
+Serial Management Interface
+LPI
+Low-Power Idle
+NLP
+Normal Link Pulse
+TX
+Transmit – Digital Pins
+RX
+Receive – Digital Pins
+MDI
+Media Dependent Interface
+Introduction
+www.ti.com
+2
+DP838xx Wake-on-LAN
+SNLA261A – AUGUST 2016 – REVISED MARCH 2024
+Submit Document Feedback
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 3 ---
+2 Wake-on-LAN
+This section discusses the principles behind WoL and implementation of WoL.
+2.1 WoL – Principles of Operation
+Wake-on-LAN (WoL) is a mechanism that maintains full function of the PHY, but allows for an interrupt trigger 
+based on specific frame detection. By using WoL, backend equipment (for example, FPGAs, SoCs, Processors, 
+ASICs, MCUs) can be powered-down until the PHY receives information that passes the specific frame detection 
+criteria. An application solution will need to be created using the PHY's trigger once the frame detection criteria 
+is met.
+At the PHY level, an active link with a LP is required and maintained in WoL mode as the backend equipment 
+is powered-down while the PHY is fully functional. When a qualifying frame is received, DP838xx can be 
+configured to either send a level change or pulse indication to the GPIO pins. Additionally, DP838xx allows for 
+interrupt configuration on INT/PWDN_N pin with polarity specification as active HIGH or active LOW.
+There are three main WoL functions to allow for user flexibility and security; Magic Packet Detection, Magic 
+Packet Detection with Secure-ON, and Custom Pattern Detection (also known as Pattern Matching).
+Table 2-1 indicates which WoL features are supported on which PHYs.
+Table 2-1. WoL Features Support on PHYs
+Magic Packet Detection
+Magic Packet Detection with Secure-ON
+Pattern Matching
+DP83822
+Yes
+Yes
+Yes
+DP83825
+Yes
+Yes
+No
+DP83826
+Yes
+Yes
+No
+DP838671
+Unicast Only
+Unicast Only
+Yes
+DP83869
+Yes
+Yes
+Yes
+1.
+Unicast packets have unique Destination Address fields, as opposed to Broadcast packets which have a 
+Destination Address of FF:FF:FF.
+www.ti.com
+Wake-on-LAN
+SNLA261A – AUGUST 2016 – REVISED MARCH 2024
+Submit Document Feedback
+DP838xx Wake-on-LAN
+3
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 4 ---
+2.1.1 Magic Packet Detection
+When configured for Magic Packet Detection, DP838xx scans all incoming frames addressed to the node for a 
+specific data sequence. This sequence identifies the frame as a Magic Packet frame.
+A Magic Packet frame must also meet the basic requirements for the LAN technology chosen, such as SOURCE 
+ADDRESS, DESTINATION ADDRESS (which can be the receiving station’s IEEE address or a BROADCAST 
+ADDRESS), MISC (for example, Ethertype), and CRC.
+The specific Magic Packet sequence consists of 16 duplications of the MAC address of this node, with no breaks 
+or interruptions. This sequence is located within the payload portion of the packet, but must be preceded by a 
+synchronization stream of 6 bytes of 0xFF.
+DEST (6 bytes)
+SRC (6 bytes)
+MISC (X bytes, X >= 0)
+&&Y&&(6 bytes)
+DEST * 16
+Secure-On Password (6 bytes)
+MISC (Y bytes, Y >= 0)
+CRC (4 bytes)
+MAGIC Pattern
+Only if Secure-On is 
+Enabled
+Figure 2-1. WoL Magic Packet Structure
+2.1.2 Magic Packet Detection with Secure-ON
+DP838xx also offers Magic Packet Detection with Secure-ON for increased security. Traditional Magic Packets 
+are vulnerable to hacks because it only requires one to know the MAC address of the node connected. Magic 
+Packet Detection with Secure-ON adds an additional 6-byte user defined password to allow for extra protection 
+from such attacks while also providing a Hack Flag for a Magic Packet that arrives with an invalid Secure-ON 
+password. The flag and configurable password for this functionality is available through register access.
+A Magic Packet frame with Secure-ON must also meet the basic requirements outlined in Figure 2-1. The 
+Secure-ON Password immediately succeeds the Magic Pattern described in the prior section.
+Wake-on-LAN
+www.ti.com
+4
+DP838xx Wake-on-LAN
+SNLA261A – AUGUST 2016 – REVISED MARCH 2024
+Submit Document Feedback
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 5 ---
+2.1.3 Custom Pattern Detection
+When configured for Custom Pattern Detection, DP838xx scans all incoming frames addressed to the node for a 
+specific configurable data sequence. This sequence identifies the frame as a Custom Pattern frame.
+A Custom Pattern frame does not need to adhere to the basic requirements for LAN technology.
+The Custom Pattern frame can be up to a 64-byte sequence that is defined by the user in registers. An optional 
+Byte Mask register within DP838xx provides more customization by allowing the user to selectively mask the 
+incoming sequence to specify a smaller sequence in the range of 1-byte to 64-byte.
+2.1.4 WoL - Mechanisms
+When the appropriate WoL pattern has been properly received by the PHY, there is configurability for the trigger 
+generated by the PHY. System designs have the option to have the trigger be a pulse waveform as long as 8, 
+16, 32, or 64 cycles of a 125MHz clock, or be a latch-able level change which can cause the PHY to generate a 
+high signal. The signal's latch can only be cleared by writing to a field to clear.
+In Figure 2-2, the PHY is set to output a pulse with 256.3ns long. This is equivalent to 32 periods of a 125MHz 
+waveform.
+Figure 2-2. WoL Mechanism - 32 Clock Cycle
+www.ti.com
+Wake-on-LAN
+SNLA261A – AUGUST 2016 – REVISED MARCH 2024
+Submit Document Feedback
+DP838xx Wake-on-LAN
+5
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 6 ---
+In Figure 2-3, the PHY is set to output a pulse with 512.4ns long. This is equivalent to 64 periods of a 125MHz 
+waveform.
+Figure 2-3. WoL Mechanism - 64 Clock Cycle
+In Figure 2-4, the PHY is set to a level change upon receipt of the appropriate frame. This level change is active 
+high and can only be cleared with a register write to the WoL configuration register.
+Figure 2-4. WoL Mechanism - Level
+Wake-on-LAN
+www.ti.com
+6
+DP838xx Wake-on-LAN
+SNLA261A – AUGUST 2016 – REVISED MARCH 2024
+Submit Document Feedback
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 7 ---
+2.2 WoL - Implementation
+WoL must be enabled through register configuration using the SMI. All WoL registers are located in the vendor 
+specific register map, which requires the vendor specific DEVAD [4:0] = ‘11111’.
+2.2.1 Magic Packet Detection - Implementation
+WoL Magic Packet detection requires use of the following registers:
+Table 2-2. Magic Packet Detection Registers
+Register Name
+DP8382x Address
+DP8386x Address
+Receive Configuration Register
+Reg 0x4A0
+Reg 0x134
+Receive Status Register
+Reg 0x4A1
+Reg 0x135
+MAC Destination Address Registers
+Reg 0x4A2-0x4A4
+Reg 0x136-0x138
+Note
+While these registers are common to the DP8382x and DP8386x families, please consult PHY's 
+individual data sheet for configuring specific GPIO pins for WoL with registers.
+Examples Table 2-3 and Table 2-4 are intended to display various configuration options for DP8382x WoL Magic 
+Packet detection feature.
+Note
+For all examples below, the first byte (0) as listed in data sheet is the left-most byte. IE if pattern is 
+"A1-C3-D7-AB-CD-FC-87", the first byte is A1, not 87.
+2.2.1.1 Example 1 – Pulse Mode Indication on LED_1 (DP83822)
+MAC ADDRESS = 00:17:83:E2:FC:73
+To enable Magic Packet detection with pulse (32 clock cycles) indication on LED_1 use the following register 
+writes:
+Table 2-3. WoL Magic Packet Configuration Steps; Pulse Mode
+Step
+Register
+Value
+Description
+1
+04A2
+1700
+MAC Address Bytes 1 and 0
+2
+04A3
+E283
+MAC Address Bytes 3 and 2
+3
+04A4
+73FC
+MAC Address Bytes 5 and 4
+4
+0462
+0002
+Configures LED_1 pin for WoL Indication
+5
+04A0
+0481
+WoL Enabled, Pulse Indication, 32 clock cycles
+2.2.1.2 Example 2 – Level Change Mode Indication on COL (DP83822)
+MAC ADDRESS = 00:17:83:B2:F7:45
+To enable Magic Packet detection with level change indication on COL use the following register writes:
+Table 2-4. WoL Magic Packet Configuration Steps; Level Change Mode
+Step
+Register
+Value
+Description
+1
+04A2
+1700
+MAC Address Bytes 1 and 0
+2
+04A3
+B283
+MAC Address Bytes 3 and 2
+3
+04A4
+45F7
+MAC Address Bytes 5 and 4
+4
+0463
+0002
+Configures COL pin for WoL Indication
+5
+04A0
+0181
+WoL Enabled, Level Change
+6
+04A0
+0981
+Clear Level Change while retaining previously configuration
+www.ti.com
+Wake-on-LAN
+SNLA261A – AUGUST 2016 – REVISED MARCH 2024
+Submit Document Feedback
+DP838xx Wake-on-LAN
+7
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 8 ---
+2.2.1.3 Example 3 – Pulse Mode indication on GPIO_1 (DP83867)
+MAC ADDRESS = 30:11:23:30:11:23
+To enable Magic Packet detection with pulse (8 clock cycles) indication on GPIO_0 of DP83867, use the 
+following register writes:
+Table 2-5. WoL Magic Packet Configuration Steps; Pulse Mode DP83867
+Step
+Register
+Value
+Description
+1
+0134
+1081
+WoL Enabled, Pulse Indication, 8 clock cycles
+2
+0172
+0030
+Configure Pin 31 (GPIO_1) for WoL
+3
+0136
+1130
+MAC Address Bytes 1 and 0
+4
+0137
+3023
+MAC Address Bytes 3 and 2
+5
+0138
+2311
+MAC Address Bytes 5 and 4
+Note
+DP83867's Magic Packet functionality is only applicable for Unicast packets only; not Broadcast. 
+DP83869's Magic Packet functionality is applicable for Unicast and Broadcast packets.
+Wake-on-LAN
+www.ti.com
+8
+DP838xx Wake-on-LAN
+SNLA261A – AUGUST 2016 – REVISED MARCH 2024
+Submit Document Feedback
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 9 ---
+2.2.2 Magic Packet Detection with Secure-ON - Implementation
+WoL Magic Packet detection with Secure-ON requires use of the following registers:
+Register Name
+DP8382x Address
+DP8386x Address
+Receive Configuration Register
+Reg 0x4A0
+Reg 0x134
+Receive Status Register
+Reg 0x4A1
+Reg 0x135
+MAC Destination Address Registers
+Reg 0x4A2-0x4A4
+Reg 0x136-0x138
+Receive Secure-ON Password Registers
+Reg 0x4A5 - 0x4A7
+Reg 0x139 - 0x13B
+Note
+While these registers are common to the DP8382x and DP8386x families, please consult PHY's 
+individual data sheet for configuring specific GPIO pins for WoL with registers.
+Table 2-6 and Table 2-7 are intended to display various configuration options for DP838xx WoL Magic Packet 
+detection with Secure-ON feature.
+2.2.2.1 Example 1 – Pulse Mode Indication on COL with Secure-ON (DP83822)
+MAC ADDRESS = 00:17:83:F3:A1:38
+Secure-ON Password = 3C-41-9D-44-BB-5E
+To enable Magic Packet detection with Secure-ON using pulse (64 clock cycles) indication on COL use the 
+following register writes:
+Table 2-6. WoL Magic Packet with Secure-ON Configuration Steps; Pulse Mode
+Step
+Register
+Value
+Description
+1
+04A2
+1700
+MAC Address Bytes 1 and 0
+2
+04A3
+F383
+MAC Address Bytes 3 and 2
+3
+04A4
+38A1
+MAC Address Bytes 5 and 4
+4
+04A5
+413C
+Secure-ON Bytes 1 and 0
+5
+04A6
+449D
+Secure-ON Bytes 3 and 2
+6
+04A7
+5EBB
+Secure-ON Bytes 5 and 4
+7
+0463
+0002
+Configures COL pin for WoL Indication
+8
+04A0
+06A1
+WoL Enabled, Pulse Indication, 64 clock cycles
+www.ti.com
+Wake-on-LAN
+SNLA261A – AUGUST 2016 – REVISED MARCH 2024
+Submit Document Feedback
+DP838xx Wake-on-LAN
+9
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 10 ---
+2.2.2.2 Example 2 – Level Change Mode Indication on RX_D3 with Secure-ON (DP83822)
+MAC ADDRESS = 00:17:83:DD:23:79
+Secure-ON Password = DF-CB-85-68-17-05
+To enable Magic Packet detection with Secure-ON using level change indication on RX_D3 use the following 
+register writes:
+Note: MAC IF must be in RMII operation since RX_D3 is used in MII and RGMII operation.
+Table 2-7. WoL Magic Packet with Secure-ON Configuration Steps; Level Change Mode
+Step
+Register
+Value
+Description
+1
+04A2
+1700
+MAC Address Bytes 5 and 4
+2
+04A3
+DD83
+MAC Address Bytes 3 and 2
+3
+04A4
+7923
+MAC Address Bytes 1 and 0
+4
+04A5
+CBDF
+Secure-ON Bytes 1 and 0
+5
+04A6
+6885
+Secure-ON Bytes 3 and 2
+6
+04A7
+0517
+Secure-ON Bytes 5 and 4
+7
+0462
+0200
+Configures RX_D3 pin for WoL Indication
+8
+04A0
+01A1
+WoL Enabled, Level Change
+9
+04A0
+09A1
+WoL Enabled, Level Change, Clear Level Change
+2.2.2.3 Example 3 – Pulse Mode indication on GPIO_1 (DP83869)
+MAC ADDRESS = 30:11:23:30:11:23
+Secure-ON = 05-08-15-01-07-23
+To enable Magic Packet detection with pulse (8 clock cycles) indication on GPIO_0 of DP83869, use the 
+following register writes:
+Table 2-8. WoL Magic Packet Configuration Steps; Pulse Mode DP83869
+Step
+Register
+Value
+Description
+1
+0134
+1081
+WoL Enabled, Pulse Indication, 8 clock cycles
+2
+01E0
+417A
+Configure Pin 31 (GPIO_1) for WoL
+3
+0136
+1130
+MAC Address Bytes 1 and 0
+4
+0137
+3023
+MAC Address Bytes 3 and 2
+5
+0138
+2311
+MAC Address Bytes 5 and 4
+6
+0139
+0805
+Secure-ON Bytes 1 and 0
+7
+013A
+0115
+Secure-ON Bytes 3 and 2
+8
+013B
+0723
+Secure-ON Bytes 5 and 4
+Note
+DP83867's Magic Packet functionality is only applicable for Unicast packets only; not Broadcast. 
+DP83869's Magic Packet functionality is applicable for both Unicast and Broadcast packets.
+Wake-on-LAN
+www.ti.com
+10
+DP838xx Wake-on-LAN
+SNLA261A – AUGUST 2016 – REVISED MARCH 2024
+Submit Document Feedback
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 11 ---
+2.2.3 Custom Pattern Detection - Implementation
+WoL Custom Pattern detection requires use of the following registers:
+Table 2-9. Custom Pattern Detection Registers
+Register Name
+DP83822 Address
+DP8386x Address
+Receive Configuration Register
+Reg 0x4A0
+Reg 0x134
+Receive Status Register
+Reg 0x4A1
+Reg 0x135
+Pattern Matching Registers
+Reg 0x4A8-0x4C7
+Reg 0x13C - 0x15B
+Byte Mask
+Reg 0x4C8 - 0x4CB
+Reg 0x15C - 0x15F
+Note
+While these registers are common to the DP8382x and DP8386x families, please consult PHY's 
+individual data sheet for configuring specific GPIO pins for WoL with registers.
+Table 2-10 and Table 2-11 intended to display configuration options for DP838xx WoL Custom Pattern detection 
+with byte masking.
+2.2.3.1 Example 1 – Pulse Mode Indication on COL with Byte Mask (DP83822)
+Byte Mask = 00-FF-FF-FF-FF-FF-FF-FF (Masking Bytes 8 to 63 of the 64-byte pattern)
+Pattern = 01-23-45-67-89-AB-CD-EF (First eight Bytes programmed, Byte 8 to Byte 63 default to ‘0’ since they 
+are don’t cares due to Byte Mask)
+To enable Custom Pattern detection with pulse (8 clock cycles) indication on COL use the following register 
+writes:
+Table 2-10. WoL Pattern Match Configuration Steps; Pulse Mode
+Step
+Register
+Value
+Description
+1
+04A8
+2301
+Pattern Bytes 0 and 1
+2
+04A9
+6745
+Pattern Bytes 2 and 3
+3
+04AA
+AB89
+Pattern Bytes 4 and 5
+4
+04AB
+EFCD
+Pattern Bytes 6 and 7
+5
+04C8
+FF00
+Byte Mask 0 to 15
+6
+04C9
+FFFF
+Byte Mask 16 to 31
+7
+04CA
+FFFF
+Byte Mask 32 to 47
+8
+04CB
+FFFF
+Byte Mask 48 to 63
+9
+0463
+0002
+Configures COL pin for WoL Indication
+10
+04A0
+0082
+WoL Enabled, Pulse Indication, 8 clock cycles
+www.ti.com
+Wake-on-LAN
+SNLA261A – AUGUST 2016 – REVISED MARCH 2024
+Submit Document Feedback
+DP838xx Wake-on-LAN
+11
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 12 ---
+2.2.3.2 Example 2 – Pulse Mode Indication on GPIO_0 with Byte Mask (DP83867)
+Byte Mask = 00-00-00-00-00-00-00-00
+Pattern = 5F-47-0C-0E-
+FB-4B-1D-64-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-
+00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-49-E6-54-FB
+To enable Custom Pattern detection with pulse (8 clock cycles) indication on GPIO_0 use the following register 
+writes:
+Table 2-11. WoL Magic Packet Configuration Steps; Pulse Mode
+Step
+Register
+Value
+Description
+1
+013C
+475F
+Pattern Bytes 0 and 1
+2
+013D
+0E0C
+Pattern Bytes 2 and 3
+3
+013E
+4BFB
+Pattern Bytes 4 and 5
+4
+013F
+641D
+Pattern Bytes 6 and 7
+5
+0140
+0000
+Pattern Bytes 8 and 7
+6
+0141
+0000
+Pattern Bytes 10 and 11
+7
+0142
+0000
+Pattern Bytes 12 and 13
+8
+0143
+0000
+Pattern Bytes 14 and 15
+9
+0144
+0000
+Pattern Bytes 16 and 17
+10
+0145
+0000
+Pattern Bytes 18 and 19
+11
+0146
+0000
+Pattern Bytes 20 and 21
+12
+0147
+0000
+Pattern Bytes 22 and 23
+13
+0148
+0000
+Pattern Bytes 24 and 25
+14
+0149
+0000
+Pattern Bytes 26 and 27
+15
+014A
+0000
+Pattern Bytes 28 and 29
+16
+014B
+0000
+Pattern Bytes 30 and 31
+17
+014C
+0000
+Pattern Bytes 32 and 33
+18
+014D
+0000
+Pattern Bytes 34 and 35
+19
+014E
+0000
+Pattern Bytes 36 and 37
+20
+014F
+0000
+Pattern Bytes 38 and 39
+21
+0150
+0000
+Pattern Bytes 40 and 41
+22
+0151
+0000
+Pattern Bytes 42 and 43
+23
+0152
+0000
+Pattern Bytes 44 and 45
+24
+0153
+0000
+Pattern Bytes 46 and 47
+25
+0154
+0000
+Pattern Bytes 48 and 49
+26
+0155
+0000
+Pattern Bytes 50 and 51
+27
+0156
+0000
+Pattern Bytes 52 and 53
+28
+0157
+0000
+Pattern Bytes 54 and 55
+29
+0158
+0000
+Pattern Bytes 56 and 57
+30
+0159
+0000
+Pattern Bytes 58 and 59
+31
+015A
+E649
+Pattern Bytes 60 and 61
+32
+015B
+FB54
+Pattern Bytes 62 and 63
+33
+015C
+0000
+Byte Mask 0 to 15
+34
+015D
+0000
+Byte Mask 16 to 31
+35
+015E
+0000
+Byte Mask 32 to 47
+36
+015F
+0000
+Byte Mask 48 to 63
+37
+0172
+0033
+Configures GPIO_0 pin for WoL Indication
+38
+0134
+0082
+WoL Enabled, Pulse Indication, 8 clock cycles
+Wake-on-LAN
+www.ti.com
+12
+DP838xx Wake-on-LAN
+SNLA261A – AUGUST 2016 – REVISED MARCH 2024
+Submit Document Feedback
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 13 ---
+3 Summary
+This application note provides details on the principles behind each WoL mode and the mechanisms to enable 
+each mode in DP838xx.
+www.ti.com
+Summary
+SNLA261A – AUGUST 2016 – REVISED MARCH 2024
+Submit Document Feedback
+DP838xx Wake-on-LAN
+13
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 14 ---
+4 Revision History
+Changes from Revision * (August 2016) to Revision A (March 2024)
+Page
+•
+Updated the numbering format for tables, figures, and cross-references throughout the document................. 1
+•
+Added references and examples of all TI standard Ethernet PHYs (DP83825, DP83826, DP83867, DP83869) 
+that support WoL................................................................................................................................................ 1
+Revision History
+www.ti.com
+14
+DP838xx Wake-on-LAN
+SNLA261A – AUGUST 2016 – REVISED MARCH 2024
+Submit Document Feedback
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 15 ---
+IMPORTANT NOTICE AND DISCLAIMER
+TI PROVIDES TECHNICAL AND RELIABILITY DATA (INCLUDING DATA SHEETS), DESIGN RESOURCES (INCLUDING REFERENCE 
+DESIGNS), APPLICATION OR OTHER DESIGN ADVICE, WEB TOOLS, SAFETY INFORMATION, AND OTHER RESOURCES “AS IS” 
+AND WITH ALL FAULTS, AND DISCLAIMS ALL WARRANTIES, EXPRESS AND IMPLIED, INCLUDING WITHOUT LIMITATION ANY 
+IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT OF THIRD 
+PARTY INTELLECTUAL PROPERTY RIGHTS.
+These resources are intended for skilled developers designing with TI products. You are solely responsible for (1) selecting the appropriate 
+TI products for your application, (2) designing, validating and testing your application, and (3) ensuring your application meets applicable 
+standards, and any other safety, security, regulatory or other requirements.
+These resources are subject to change without notice. TI grants you permission to use these resources only for development of an 
+application that uses the TI products described in the resource. Other reproduction and display of these resources is prohibited. No license 
+is granted to any other TI intellectual property right or to any third party intellectual property right. TI disclaims responsibility for, and you 
+will fully indemnify TI and its representatives against, any claims, damages, costs, losses, and liabilities arising out of your use of these 
+resources.
+TI’s products are provided subject to TI’s Terms of Sale or other applicable terms available either on ti.com or provided in conjunction with 
+such TI products. TI’s provision of these resources does not expand or otherwise alter TI’s applicable warranties or warranty disclaimers for 
+TI products.
+TI objects to and rejects any additional or different terms you may have proposed. IMPORTANT NOTICE
+Mailing Address: Texas Instruments, Post Office Box 655303, Dallas, Texas 75265
+Copyright © 2024, Texas Instruments Incorporated

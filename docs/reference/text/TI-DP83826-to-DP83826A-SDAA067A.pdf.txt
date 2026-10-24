@@ -1,0 +1,485 @@
+--- PDF page 1 ---
+Application Note
+DP83826 to DP83826A Hardware Rollover Document
+ABSTRACT
+Texas Instruments offers a variety of Ethernet PHY transceivers which provide designs to multiple end 
+equipment use cases. This application note refers to the differences between two of the PHYs within the 
+10/100Mbps portfolio (DP83826x(1) and DP83826Ax(2)) and the necessary design changes to fully utilize 
+DP83826Ax's enhanced EMC performance.
+•
+DP83826x refers to DP83826I and DP83826E.
+•
+DP83826Ax refers to DP83826AI and DP83826AE.
+Table of Contents
+1 Introduction.............................................................................................................................................................................2
+2 Critical Design Change for DP83826Ax Rollover.................................................................................................................3
+3 Difference Between DP83826x and DP83826Ax.................................................................................................................. 4
+3.1 Fast Link-Drop (FLD) Strap Configuration......................................................................................................................... 4
+3.2 EMC Performance..............................................................................................................................................................7
+4 Summary................................................................................................................................................................................. 8
+5 References.............................................................................................................................................................................. 8
+6 Revision History......................................................................................................................................................................9
+Trademarks
+All trademarks are the property of their respective owners.
+www.ti.com
+Table of Contents
+SDAA067A – AUGUST 2025 – REVISED MARCH 2026
+Submit Document Feedback
+DP83826 to DP83826A Hardware Rollover Document
+1
+Copyright © 2026 Texas Instruments Incorporated
+
+
+--- PDF page 2 ---
+1 Introduction
+The DP83826x and DP83826Ax are a single-port physical layer transceivers compliant to IEEE802.3 10BASE-
+Te and 100BASE-TX standards. The DP83826x and DP83826Ax are designed to meet stringent industrial field 
+bus application requirements and offers very low latency, deterministic variation in latency (across reset, power 
+cycle), fixed phase between XI and TX_CLK, low power, and configuration using hardware bootstraps to achieve 
+fast link up.
+The DP83826x and DP83826Ax are single-port Ethernet PHY transceivers supporting standard MII and RMII 
+interfaces, designed for robust operation with features like a dedicated CLKOUT pin and flexible power supply 
+options. These devices operate from a 3.3V supply with an integrated LDO, support both 3.3V and 1.8V I/O, and 
+utilize mixed-signal processing for reliable data transmission over CAT5e cabling.
+Texas Instruments offers the DP83826x and DP83826Ax Ethernet PHY transceivers, with the DP83826Ax 
+providing enhancements, notably in Electromagnetic Compatibility (EMC) performance and Fast Link-Drop 
+(FLD) mechanisms. This document outlines the key differences between these devices to assist in transitioning 
+existing DP83826x designs to the DP83826Ax. While largely similar, implementing the DP83826Ax effectively 
+requires attention to specific strap configuration to unlock its full potential.
+Introduction
+www.ti.com
+2
+DP83826 to DP83826A Hardware Rollover Document
+SDAA067A – AUGUST 2025 – REVISED MARCH 2026
+Submit Document Feedback
+Copyright © 2026 Texas Instruments Incorporated
+
+
+--- PDF page 3 ---
+2 Critical Design Change for DP83826Ax Rollover
+Change Needed for Optimal DP83826Ax Implementation:
+•
+Enhanced EMC Performance: Pull Strap11 HIGH to enable optimal EMC performance in both basic and 
+enhanced mode or use register configuration (0xB = 0x0001) if FLD is used. See Table 3-4 for DP83826Ax's 
+EMC performance enhancement.
+www.ti.com
+Critical Design Change for DP83826Ax Rollover
+SDAA067A – AUGUST 2025 – REVISED MARCH 2026
+Submit Document Feedback
+DP83826 to DP83826A Hardware Rollover Document
+3
+Copyright © 2026 Texas Instruments Incorporated
+
+
+--- PDF page 4 ---
+3 Difference Between DP83826x and DP83826Ax
+3.1 Fast Link-Drop (FLD) Strap Configuration
+The DP83826x and DP83826Ax supports an enhanced link-drop mechanism, also called fast link-drop (FLD), 
+which shortens the observation window for determining a link. There are multiple ways of determining the link 
+status, which can be enabled or disabled based on user preference.
+3.1.1 Basic Mode
+In DP83826x BASIC mode, fast link-drop is enabled by default. Fast link-drop is enabled for RX Error Count and 
+Signal/Energy Loss mechanisms.
+In DP83826Ax BASIC mode, fast link-drop is still enabled by default. Additional FLD mechanisms in BASIC 
+mode can be determined by Strap11 as shown in Table 2-1.
+Table 3-1. DP83826Ax Basic Mode FLD Configuration
+Strap Configuration
+RX Error Count
+MLT3 Error Count Low SNR Threshold Signal/Energy Loss
+Descrambler Link 
+Loss
+Strap11 = Low (default)
+Enabled
+Enabled
+Disabled
+Enabled
+Disabled
+Strap11 = High
+Disabled
+Disabled
+For both DP83826x/DP83826Ax, additional configuration can be programmed using the Control Register #3 
+(CR3 Register, register address 0x000B). Bits[3:0] and bit[10] allow for various FLD conditions to be enabled.
+For best EMC performance that DP83826Ax can offer, TI recommends enabling only the Signal/Energy loss 
+FLD mechanism. This can be achieved by writing 0x000B = 0x0001 in register configuration or setting strap11 
+HIGH.
+3.1.2 Enhanced Mode
+Table 2-2 and Figure 2-1 list the DP83826x FLD detection mode configuration. Note in FLD Strap Option 2, 3, 4, 
+the MLT3 Error Count is disabled while RX Error Count is enabled.
+Table 3-2. DP83826x FLD Detection Modes by Bootstrap Configuration
+FLD Strap Option Strap 
+Configuration
+RX Error Count
+MLT3 Error 
+Count
+Low SNR 
+Threshold
+Signal/Energy 
+Loss
+Descrambler 
+Link Loss
+1
+(Default)
+Strap7 = LOW
+Strap1 = X
+Strap8 = X
+Disabled
+Disabled
+Disabled
+Disabled
+Disabled
+2
+Strap7 = HIGH
+Strap1 = HIGH
+Strap8 = LOW
+Enabled
+Enabled
+Enabled
+Enabled
+3
+Strap7 = HIGH
+Strap1 = LOW
+Strap8 = LOW
+Enabled
+Disabled
+Enabled
+Disabled
+4
+Strap7 = HIGH
+Strap1 = LOW
+Strap8 = HIGH
+Enabled
+Disabled
+Disabled
+Disabled
+Difference Between DP83826x and DP83826Ax
+www.ti.com
+4
+DP83826 to DP83826A Hardware Rollover Document
+SDAA067A – AUGUST 2025 – REVISED MARCH 2026
+Submit Document Feedback
+Copyright © 2026 Texas Instruments Incorporated
+
+
+--- PDF page 5 ---
+CLKOUT/LED1/Strap1
+Odd Nibble Enabled
+Strap 8 selects MAC IF
+Odd Nibble Disable
+PHY automatically in MII
+‘0’
+Strap7/RX_D3
+‘0’
+FLD disabled
+Strap8/RX_D2
+‘0’
+RMII mode enabled
+MII mode enabled
+‘1’
+‘0’
+FLD Enabled
+(Everything except MLT-3)
+FLD Disabled
+TX_CLK/Strap5
+‘1’
+‘0’
+RMII Follower
+RMII Leader
+‘1’
+FLD enabled 
+(RX_Error)
+Strap8/RX_D2
+‘1’
+‘0’
+Signal Energy Detect 
+Disabled
+Signal Energy Detect 
+Enabled
+‘1’
+Strap7/RX_D3
+‘1’
+‘0’
+Pin 18 is
+CRS_DV
+Pin 18 is RX_DV
+(RMII Repeater)
+Strap7/RX_D3
+Pin Name
+Legend
+‘1’
+Device function
+Figure 3-1. DP83826x Bootstrap Configurations Flowchart
+Table 3-3 and Figure 3-2 list the DP83826Ax FLD Detection Mode configuration. Note under the same strap 
+configuration, both the MLT3 Error Count and the RX error count is enabled. The RX Error Count is a superset 
+of MLT-3 Error Count so RX Error Count FLD triggers before MLT-3 error. Therefore, there is no behavioral 
+difference between DP83826x and DP83826Ax even though the configuration may differ.
+www.ti.com
+Difference Between DP83826x and DP83826Ax
+SDAA067A – AUGUST 2025 – REVISED MARCH 2026
+Submit Document Feedback
+DP83826 to DP83826A Hardware Rollover Document
+5
+Copyright © 2026 Texas Instruments Incorporated
+
+
+--- PDF page 6 ---
+Table 3-3. DP83826Ax FLD Detection Modes by BootStrap Configuration
+FLD Strap 
+Option
+Strap Configuration
+RX Error 
+Count(1)
+MLT3 Error 
+Count
+Low SNR 
+Threshold
+Signal/Energy 
+Loss(1) (2)
+Descrambler 
+Link Loss
+1
+Strap1 = X
+Strap8 = X
+Strap11 = X
+Disabled
+Disabled
+Disabled
+Disabled
+Disabled
+2
+Strap7 = HIGH
+Strap1 = HIGH
+Strap8 = LOW
+Strap11 = LOW
+Enabled
+Enabled
+Enabled
+Enabled
+Enabled
+3
+Strap7 = HIGH
+Strap1= LOW
+Strap8= LOW
+Strap11 = LOW
+Enabled
+Enabled
+Disabled
+Enabled
+Disabled
+4
+Strap7 = HIGH
+Strap1 = LOW
+Strap8 = HIGH
+Strap11 = LOW
+Enabled
+Enabled
+Disabled
+Disabled
+Disabled
+5(1)
+Strap7 = HIGH
+Strap1 = LOW
+Strap8 = HIGH
+Strap11 = HIGH
+Disabled
+Disabled
+Disabled
+Enabled
+Disabled
+6
+Strap7 = HIGH
+Strap1 = HIGH
+Strap8 = LOW
+Strap11 = HIGH
+Disabled
+Disabled
+Enabled
+Enabled
+Enabled
+CLKOUT/LED1/
+Strap1
+Odd Nibble Enabled
+Strap 8 selects MAC IF
+Strap8/
+RX_D2
+MII Enabled
+‘1’
+‘0’
+FLD Enabled
+FLD Disabled
+Strap7/
+RX_D3
+‘1’
+‘1’
+‘0’
+SNR,
+Energy Detect, 
+Descrambler
+All 
+Mechanisms
+Strap 11/
+RX_CLK
+‘1’
+‘0’
+Pin 18 is RX_DV
+(RMII Repeater)
+RMII Enabled
+FLD Disabled
+TX_CLK/
+Strap5
+‘1’
+‘0’
+RMII Follower
+RMII Leader
+Strap7/
+RX_D3
+‘1’
+‘0’
+Pin 18 is
+CRS_DV
+‘0’
+Odd Nibble Disable
+PHY automatically in MII
+Strap7/
+RX_D3
+‘0’
+FLD disabled
+‘1’
+Strap8/
+RX_D2
+‘1’
+‘1’
+‘0’
+Energy Detect
+RX and MLT-3 Error, 
+Energy Detect
+Strap 11/
+RX_CLK
+‘1’
+‘0’
+FLD Disabled
+FLD Active
+(RX and MLT-3 Errors)
+Strap 11/
+RX_CLK
+‘0’
+FLD Enabled
+Pin Name
+Legend
+Device function
+Figure 3-2. DP83826Ax Bootstrap Configuration Flowchart
+For both DP83826x and DP83826Ax, additional configuration can be programmed using the Control Register #3 
+(CR3 Register, register address 0x000B). Bits[3:0] and bit[10] allow for various FLD conditions to be enabled.
+For best EMC performance that DP83826Ax can offer, TI recommends enabling only the Signal/Energy loss 
+FLD mechanism or FLD disabled. This can be achieved by writing 0x000B = 0x0001 in register configuration or 
+setting to FLD mode 5 if FLD is enabled.
+Difference Between DP83826x and DP83826Ax
+www.ti.com
+6
+DP83826 to DP83826A Hardware Rollover Document
+SDAA067A – AUGUST 2025 – REVISED MARCH 2026
+Submit Document Feedback
+Copyright © 2026 Texas Instruments Incorporated
+
+
+--- PDF page 7 ---
+3.2 EMC Performance
+DP83826Ax offers significant EMC performance boost over DP83826x in both the basic and the enhanced 
+mode. Table 3-4 lists the DP83826x and DP83826Ax performance difference. To enable better EMC 
+performance, Strap11 MUST be pulled HIGH regardless of mode in DP83826Ax.
+The EMI/EMC compliance testings are done on DP83826AEVM. Please see section 4 of the DP83826AEVM 
+User's Guide for detailed EMI test results.
+Table 3-4. DP83826x and DP83826Ax EMC Performance Comparison
+Test
+Standard
+Test Level
+DP83826x
+DP83826Ax
+ESD
+IEC 61000 4-2
++/-4kV Contact (RJ-45)
++/-15kV Air (on cable)
++/- 4kV Criteria A
++/- 8kV Criteria B
++/- 8kV Criteria A
+Surge
+IEC 61000-4-5
++/-2kV: line to line
++/-4kV: line to GND
++/- 2kV Criteria B
++/- 2kV Criteria A
+Radiated Immunity
+IEC 61000-4-6
+10V/m (150kHz - 80MHz)
+Criteria A at 3Vrms
+Criteria B at 10Vrms
+Criteria A at 10Vrms
+Criteria A: No link drop of packet error and loss during the EMC testing.
+Criteria B: Link drop is allowed, but PHY must recover the link without reset.
+www.ti.com
+Difference Between DP83826x and DP83826Ax
+SDAA067A – AUGUST 2025 – REVISED MARCH 2026
+Submit Document Feedback
+DP83826 to DP83826A Hardware Rollover Document
+7
+Copyright © 2026 Texas Instruments Incorporated
+
+
+--- PDF page 8 ---
+4 Summary
+DP83826x and DP83826Ax are similar 10/100 Mbps PHYs which can be used in similar applications. This 
+document notes the similarities and differences between the devices from an implementation perspective.
+5 References
+1.
+Texas Instruments, DP83826 Deterministic, Low-Latency, Low-Power, 10/100Mbps, Industrial Ethernet PHY, 
+data sheet.
+2.
+Texas Instruments, DP83826Ax Deterministic, Low-Latency, Low-Power, 10/100Mbps, Industrial Ethernet 
+PHY, data sheet.
+Summary
+www.ti.com
+8
+DP83826 to DP83826A Hardware Rollover Document
+SDAA067A – AUGUST 2025 – REVISED MARCH 2026
+Submit Document Feedback
+Copyright © 2026 Texas Instruments Incorporated
+
+
+--- PDF page 9 ---
+6 Revision History
+Changes from Revision * (August 2025) to Revision A (March 2026)
+Page
+•
+Updated the numbering format for tables, figures, and cross-references throughout the document................. 2
+•
+Included Section 2 .............................................................................................................................................3
+www.ti.com
+Revision History
+SDAA067A – AUGUST 2025 – REVISED MARCH 2026
+Submit Document Feedback
+DP83826 to DP83826A Hardware Rollover Document
+9
+Copyright © 2026 Texas Instruments Incorporated
+
+
+--- PDF page 10 ---
+IMPORTANT NOTICE AND DISCLAIMER
+TI PROVIDES TECHNICAL AND RELIABILITY DATA (INCLUDING DATASHEETS), DESIGN RESOURCES (INCLUDING REFERENCE 
+DESIGNS), APPLICATION OR OTHER DESIGN ADVICE, WEB TOOLS, SAFETY INFORMATION, AND OTHER RESOURCES “AS IS” 
+AND WITH ALL FAULTS, AND DISCLAIMS ALL WARRANTIES, EXPRESS AND IMPLIED, INCLUDING WITHOUT LIMITATION ANY 
+IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT OF THIRD 
+PARTY INTELLECTUAL PROPERTY RIGHTS.
+These resources are intended for skilled developers designing with TI products. You are solely responsible for (1) selecting the appropriate 
+TI products for your application, (2) designing, validating and testing your application, and (3) ensuring your application meets applicable 
+standards, and any other safety, security, regulatory or other requirements.
+These resources are subject to change without notice. TI grants you permission to use these resources only for development of an 
+application that uses the TI products described in the resource. Other reproduction and display of these resources is prohibited. No license 
+is granted to any other TI intellectual property right or to any third party intellectual property right. TI disclaims responsibility for, and you fully 
+indemnify TI and its representatives against any claims, damages, costs, losses, and liabilities arising out of your use of these resources.
+TI’s products are provided subject to TI’s Terms of Sale, TI’s General Quality Guidelines, or other applicable terms available either on 
+ti.com or provided in conjunction with such TI products. TI’s provision of these resources does not expand or otherwise alter TI’s applicable 
+warranties or warranty disclaimers for TI products. Unless TI explicitly designates a product as custom or customer-specified, TI products 
+are standard, catalog, general purpose devices.
+TI objects to and rejects any additional or different terms you may propose.
+IMPORTANT NOTICE
+Copyright © 2026, Texas Instruments Incorporated
+Last updated 10/2025

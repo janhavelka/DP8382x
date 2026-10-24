@@ -1,0 +1,1388 @@
+--- PDF page 1 ---
+Application Note
+How and Why to Use the DP83826 for EtherCAT® 
+Applications
+Kristen Mogensen, Gerome Cacho
+ABSTRACT
+This document describes how to connect DP83826 onto an EtherCAT® ESC.
+Table of Contents
+1 Introduction.............................................................................................................................................................................2
+2 EtherCAT® Specification Requirements and Recommendations......................................................................................2
+3 Different Methods of Setting up the PHY..............................................................................................................................5
+3.1 Using Strap Configuration to Set Up DP83826 PHY for EtherCAT® Configuration...........................................................5
+3.2 Using Serial Management Interface to Setup DP83826 PHY............................................................................................9
+4 References.............................................................................................................................................................................11
+5 Revision History....................................................................................................................................................................11
+List of Figures
+Figure 3-1. DP83826 Enhanced Mode Example......................................................................................................................... 5
+Figure 3-2. Example Strap Connections......................................................................................................................................6
+Figure 3-3. Enhanced Bootstrap Flowchart................................................................................................................................. 7
+Figure 3-4. DP83826 Basic Mode Example.................................................................................................................................9
+List of Tables
+Table 2-1. PHY Selection Guide.................................................................................................................................................. 2
+Table 2-2. PHY Selection Guide.................................................................................................................................................. 4
+Table 3-1. 2-Level Strap Resistor Ratios .................................................................................................................................... 6
+Table 3-2. DP83826 Strap Pin Configuration for EtherCAT® ...................................................................................................... 8
+Table 3-3. DP83826 Register Dump in Working EtherCAT® Configuration...............................................................................10
+Trademarks
+EtherCAT® is a registered trademark of Beckhoff Automation GmbH.
+All trademarks are the property of their respective owners.
+www.ti.com
+Table of Contents
+SNLA344C – MARCH 2022 – REVISED OCTOBER 2023
+Submit Document Feedback
+How and Why to Use the DP83826 for EtherCAT® Applications
+1
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 2 ---
+1 Introduction
+When starting an EtherCAT® design, first review EtherCAT® Protocol, Physical Layer, EtherCAT® Processing 
+Unit, FMMU, SyncManager, SII EEPROM, Distributed Clocks Data Sheet. This document describes how to 
+connect an Ethernet PHY onto an EtherCAT® ESC. It also describes the needed interfaces between the ESC 
+and Ethernet PHYs. These interfaces are the PHY Management Interface (PHY MI) and EtherCAT Interface, 
+and are illustrated in Figure 1 from the previously referenced data sheet. In chapter 4 (Physical Layer Common 
+Features) and 5 (Ethernet Physical Layer), the interface between the ESC and the PHY is described. Some key 
+points to takeaway here include:
+•
+ESC in reset state has to leave the PHY disabled (No link connection until active ESC)
+•
+MII interface has special use for TX_CLK, COL, CRS, TX_ER pins; for details, see table 14 (Special/Unused 
+MII Interface signals).
+•
+EtherCAT® has a special setup to determine Link Detection in several steps; see section 5.6 for details
+•
+LINK_MII signal, this is typically an LED output signal which indicate a 100 Mbit/s Full Duplex link
+•
+Enhanced link detection which is ensuring that the link signal is checked every approximately 10 µs; see 
+section 5.6.2 for details
+2 EtherCAT® Specification Requirements and Recommendations
+Another reference to look into is for EtherCAT PHY specification. This is found in the Application Note – 
+PHY Selection Guide on the EtherCAT® home page. Table 2-1 shows a copy of that document version 2.6 
+(2017-10-04) compared with DP83826's compliance to the requirement. Additional data sheet reference for 
+DP83826 is provided.
+Table 2-1. PHY Selection Guide
+PHY Selection Guide Requirement
+DP83826 Compliance to Requirement
+Data Sheet Reference 
+Sections(1)
+The PHYs have to comply with IEEE 802.3 100Base-TX or 
+100Base-FX.
+DP83826 is IEEE 802.3 compliant
+9.1
+The PHYs have to support 100 Mbit/s Full Duplex links.
+DP83826 supports full duplex operation for both 
+10Mbit/s and 100Mbit/s
+9.5.1 ANAR (0x4)
+The PHYs have to provide an MII (or RMII/RGMII) 
+interface.
+DP83826 provides a MII and RMII (2) interface 
+connection
+9.1, 8.6 (Latency 
+Timing)
+The PHYs have to use auto-negotiation in 100Base-TX 
+mode.
+DP83826 has an Auto-negotiation feature which is 
+strap-controlled
+9.3.1, 9.4
+The PHYs have to support the MII management interface.
+DP83826 supports serial management interface (SMI) 
+up to a maximum clock rate of 24 MHz
+9.3.11
+The PHYs have to support MDI/MDI-X auto-crossover in 
+100Base-TX mode.
+DP83826 supports this via Auto-MDIX feature
+9.3.2, 9.5 PHYCR 
+(0x19)
+PHY link loss reaction time (link loss to link signal/LED 
+output change) has to be faster than 15 μs to enable 
+redundancy operation.
+DP83826 has Fast link-Drop functionality, called 
+"FLD", which shortens the observation window to 10 
+μs before enabling the link loss indication
+8.6 (Link Up Timing), 
+9.3.16.2
+The PHYs must not modify the preamble length.
+DP83826 does not modify the preamble length
+N/A
+The PHYs must not use IEEE802.3az Energy Efficient 
+Ethernet.
+DP83826 supports the IEEE802.3az standard. This 
+feature is disabled by default
+9.3.3.1
+The PHYs must offer the RX_ER signal (MII/RMII) or 
+RX_ER as part of the RX_CTL signal (RGMII).
+DP83826 supports MII/RMII with standard interface 
+including the RX_ER signal
+9.3.9, 9.3.10
+The PHYs have to provide a signal indicating a 100 Mbit/s 
+(Full Duplex) link, typically a configurable LED output. The 
+signal polarity is active low or configurable for some ESCs.
+DP83826 has four (3) (4) possible programmable LED 
+outputs which can each show 100 Mbit/s (Full Duplex) 
+link.
+9.3.17, 9.5 
+MLEDCR (0x25), 
+LEDX_GPIO_CFG 
+(0x303 - 0x306), and 
+LEDCFG (0x460)
+Introduction
+www.ti.com
+2
+How and Why to Use the DP83826 for EtherCAT® Applications
+SNLA344C – MARCH 2022 – REVISED OCTOBER 2023
+Submit Document Feedback
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 3 ---
+Table 2-1. PHY Selection Guide (continued)
+PHY Selection Guide Requirement
+DP83826 Compliance to Requirement
+Data Sheet Reference 
+Sections(1)
+The PHY addresses should be equivalent to the logical 
+port number (0–3). Some ESCs also support a fixed 
+offset (for example, offset 16, PHY addresses are logical 
+port number plus 16: 16-19), an arbitrary offset, or 
+even individually configurable PHY addresses. If none 
+of these possibilities can be used, the PHY address 
+should be configured to logical port number plus 1 (1–
+4), although some features (for example, Enhanced Link 
+Detection) cannot be used in this case, because apart 
+from the optional configurable PHY address offset, the 
+PHY addresses are hard-coded inside the ESCs.
+DP83826 has eight PHY addresses which can be set 
+using strap resistors
+9.4.1.1.1, 9.4.1.2.1
+PHY configuration must not rely on configuration via the 
+MII management interface, that is, required features have 
+to be enabled after power-on, for example, by default 
+or by strapping options. PHY startup should not rely 
+on MII management interaction, that is MDC clocking, 
+since many ESCs do not communicate with the PHY 
+via management interface unless the EtherCAT® master 
+requests this (only the EtherCAT® IP Core with MI 
+Link detection and configuration will communicate without 
+master interaction).
+DP83826 has bootstrap configurations for setting the 
+PHY in a specific mode which allows EtherCAT® 
+communication.
+5, 9.4.1.1
+All PHYs connected to one ESC and the ESC itself must 
+share the same clock source, so a TX FIFO can be 
+omitted. This can be achieved by sourcing the PHYs from 
+an ESC clock output or by sourcing the PHYs and the 
+ESC from the same quartz oscillator. The ESC10/20 uses 
+TX_CLK as a clock source, both PHYs have to share the 
+same quartz oscillator.
+This can be resolved using an external clock source 
+for DP83826 as long as specification for this clock 
+source is followed. DP83826 also has a clock out 
+option which can be used to source second PHY's 
+clock
+8.6 (25MHz or 50MHz 
+Input Clock Tolerance), 
+9.3.8
+The phase offset between TX_CLK and the clock input of 
+the PHYs is compensated inside the ESC, either manually 
+by configuration or automatically. The clock period cannot 
+change between the devices since the PHYs and the ESC 
+have to share the same clock source.
+This requirement is for the MAC interface and is PHY 
+independent
+N/A
+Manual TX Shift compensation: ET1100, ET1200, and IP 
+Core provide a TX Shift configuration option (configurable 
+TX_EN/TXD signal delay by 0/10/20/30 ns) which is 
+used for all MII ports. Thus, all PHYs connected to one 
+ESC must have the same fixed phase relation between 
+TX_CLK and the clock input of the PHY, with a tolerance 
+of ±5 ns. The phase relation has to be the same each 
+time the PHYs are powered on, or establish a link. 
+As the ESC10/20 use TX_CLK as device clock source, 
+configuration is not necessary, but the requirements for 
+manual TX Shift compensation have to be fulfilled anyway.
+DP83826 has a nominal ±2 ns tolerance of this 
+specification, with maximum of ±4 ns.
+8.6 (Latency Timing)
+Automatic TX Shift compensation: The IP Core supports 
+automatic TX Shift compensation individually for each 
+port. With automatic TX Shift compensation, the PHYs are 
+not required to have the same fixed phase relation each 
+time they are powered on, or establish a link.
+This requirement is for the MAC interface and is PHY 
+independent
+N/A
+(1)
+Respective to DP83826 Deterministic, Low-Latency, Low-Power, 10/100 Mbps, Industrial Ethernet PHY, data sheet
+(2)
+Notice that typical latency of RMII interface (in general) is higher than the EtherCAT® specified latency requirement
+(3)
+DP83826 has different LED pins available depending on the mode DP83826 is in: Enhanced or Basic.
+(4)
+LED3 functionality is available in RMII mode only.
+www.ti.com
+EtherCAT® Specification Requirements and Recommendations
+SNLA344C – MARCH 2022 – REVISED OCTOBER 2023
+Submit Document Feedback
+How and Why to Use the DP83826 for EtherCAT® Applications
+3
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 4 ---
+Table 2-2 shows a copy of Application Note – PHY Selection Guide document version 2.6 (2017-10-04) 
+compared with DP83826's compliance to the recommendation. Additional data sheet reference for DP83826 
+is provided.
+Table 2-2. PHY Selection Guide
+PHY Selection Guide Recommendation
+DP83826 Compliance to 
+Recommendation
+Data Sheet Reference Sections
+Receive and transmit delays should be deterministic, and as 
+low as possible.
+DP83826 RX and TX signal latency 
+based on the MII interface is ±2 ns
+8.6(Latency Timing)
+Maximum cable length should be ≥ 120 m to maintain a safety 
+margin if the standard maximum cable length of 100 m is 
+used.
+DP83826 has been tested to be 
+above 150 m
+1
+ESD tolerance should be as high as possible (4 kV, or better)
+DP83826 has been tested without 
+external protection to withstand ESD 
+Ratings based on HBM for MDI 
+pins (±5 kV) and all pins other pins 
+(±2 kV) and on CDM for all pins 
+±0.75 kV. With external protection 
+IEC 61000-4-2 ESD: ±8 kV contact, 
+±15 kV air and for IEC 61000-4-4 
+EFT: ±4 kV @ 5 kHz and 100 kHz.
+8.2, 1
+Baseline wander should be compensated (the PHYs should 
+cope with the ANSI X3.263 DDJ test pattern for baseline 
+wander measurements at maximum cable length)
+DP83826 has been tested and 
+shows excellent performance 
+compensating the baseline wander. 
+It is recommended that register 
+0xB[0] is set to 0, otherwise the 
+baseline wander test will fail because 
+the PHY drops the link as to 
+the energy detection mechanism is 
+seeing the test pattern as a link drop.
+9.5.1CR3 (0xB),
+9.3.16.2
+The PHYs should detect link loss within the link loss reactiont 
+ime of 15 μs also if only one of the RX+ and RX- lines gets 
+disconnected.
+Fast Link-Drop functionality shortens 
+the observation window to 10 
+μs before enabling the link loss 
+indication
+8.6(Fast Link Pulse Timing), 9.3.16.2
+The PHYs should maintain the link state regardless of the 
+received symbols, as long as the symbols are valid.
+The PHY will be able to maintain the 
+link state so longas the fast link drop 
+functionality determines no reason to 
+drop link
+9.3.16.2
+Ethernet PHYs for 100Base-FX should implement Far- End-
+Fault(FEF) completely (generation and detection).
+DP83826 is a 100Base-TX PHY and 
+does not support 100Base-FX
+1
+MDC should not incorporate pullup, pulldown resistors, as this 
+signal is used as a configuration input signal by some ESCs.
+MDC having internal pulldown 
+resistor (nominal 10 kΩ),this has to 
+be taken into account when defining 
+pullup
+8.5, 6, 7
+Restriction of Auto-negotiation advertisement to 100 Mbit/s/ 
+Full Duplex is desirable (configured by hardware strapping 
+options).
+Advertisement can be set by strap 
+configuration
+9.4.1
+Power consumption should be as low as possible.
+Worst-case power consumption for 
+MII interfaced 100BaseTX is a total 
+of 67 mA at 3.3V VDDA and VDDIO 
+levels
+8.5 (Power consumption [Active 
+mode worst case, …..])
+I/O voltage: 3.3 V should be supported for current ASIC 
+and FPGA ESCs, an additional 2.5 V, 1.8 V I/O support is 
+recommended for recent FPGA ESCs.
+DP83826 supports 3.3 V and 1.8 V 
+I/O voltage
+8.3, 9.1
+Single power supply according to I/O voltage.
+Support single power supply at 3.3 V 8.3, 9.1
+The PHY should use a 25-MHz clock source (quartz oscillator 
+or ESC output).
+The DP83826 supports Crystal and 
+oscillator inputs
+10.2.4.1(25MHz Input
+Clock Tolerance)
+Industrial temperature range should be supported.
+DP83826 supports a temperature 
+range from –40 to 105°C
+8.3
+EtherCAT® Specification Requirements and Recommendations
+www.ti.com
+4
+How and Why to Use the DP83826 for EtherCAT® Applications
+SNLA344C – MARCH 2022 – REVISED OCTOBER 2023
+Submit Document Feedback
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 5 ---
+3 Different Methods of Setting up the PHY
+To setup the PHY in the correct mode for it to work in the EtherCAT® environment there are some settings which 
+either have to be setup using the Serial Management Interface or by using strap configuration. This setup is like 
+programming the PHY to be setup in a specific mode. The following two sections describe how to setup the PHY.
+3.1 Using Strap Configuration to Set Up DP83826 PHY for EtherCAT® Configuration
+GND
+GND
+PHY1_TXD0
+PHY1_TXD1
+PHY1_TXD2
+PHY1_TXD3
+PHY1_RXD0
+PHY1_RXD1
+PHY1_RXD2
+PHY1_RXD3
+PHY_MDIO
+PHY_MDC
+PHY1_TXEN
+PHY1_TXCLK
+PHY1_RXCLK
+PHY1_RXER
+PHY1_RXDV
+PHY1_COL
+PHY1_CRS
+GND
+0.1µF
+C42
+GND
+PHY1_LED0
+PHY1_LED1
+10nF
+C44
+PHY1: Enhanced Mode
+Placed the series termina
+on  
+resistors of the MII signals close  
+to corrosponding output
+PHY1_TD_P, PHY1_TD_N, PHY1_RD_P  
+and PHY1_RD_P should be impedance  
+matched to 100 Ohm
+0
+R41
+3V3
+0
+R46
+3V3
+PHY1_VDDIO
+GPIO_PHY1_RESETn
+2.4k
+R56
+GND
+1µF
+C43
+PHY1_TD_P
+PHY1_TD_N
+PHY1_RD_P
+PHY1_RD_N
+D1+
+1
+D1-
+2
+NC
+6
+NC
+7
+NC
+9
+NC
+10
+D2+
+4
+D2-
+5
+GND
+3
+GND
+8
+U4
+TPD4E05U06DQAR
+4.7pF
+C28
+4.7pF
+C29
+4.7pF
+C30
+4.7pF
+C31
+GND
+1M
+R49
+2
+3
+4
+1
+5
+6
+7
+8
+9
+10
+11
+12
+J6
+1-406541-1
+ETH1_EARTH
+75
+R221
+75
+R220
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+T1
+HX1188FNLT
+75
+R223
+75
+R222
+1000pF
+C184
+PHY1_RJ_TD_P
+PHY1_RJ_TD_N
+PHY1_RJ_RD_P
+PHY1_RJ_RD_N
+0.1µF
+C41
+1µF
+C40
+GND
+GND
+6.49k
+R47
+35V
+2.2uF
+C34
+33.2
+R259
+33.2
+R258
+33.2
+R257
+33.2
+R256
+33.2
+R255
+33.2
+R254
+33.2
+R253
+33.2
+R252
+33.2
+R251
+33.2
+R250
+6.3V
+47uF
+C32
+4.7k
+R48
+16V
+0.1uF
+C35
+16V
+0.1uF
+C33
+16V
+0.1uF
+C37
+10V
+22uF
+C36
+ModeSelect
+1
+CEXT
+2
+VDDA3.3
+3
+RD_M
+4
+RD_P
+5
+TD_M
+6
+TD_P
+7
+XO
+8
+XI/50Mhz In
+9
+RBias
+10
+MDIO
+11
+MDC
+12
+Strap7/RX_D3
+13
+Strap8/RX_D2
+14
+Strap9/RX_D1
+15
+Strap0/RX_D0
+16
+VDDIO
+17
+RX_DV/CRS_DV/Strap10
+18
+RX_CLK/50MHZ_RMII
+19
+RX_ER/Strap6
+20
+PowerDown/Interrupt
+21
+TX_CLK/Strap5
+22
+TX_EN
+23
+TX_D0
+24
+TX_D1
+25
+TX_D2
+26
+TX_D3
+27
+COL/LED_2/GPIOStrap4
+28
+CRS/Strap3
+29
+LED0/Strap2
+30
+CLKOUT/LED_1/Strap1
+31
+RST_N
+32
+PAD
+33
+DP83826ERHB
+U3
+PHY1_XI
+Decoupling caps for VDDA and VDDIO  
+are bare minimum for opera�ng PHY. By  
+following datasheet recommended network,  
+be
+er EMC margin may be obtained.
+MDI decoupling capacitors not required,  
+but can be used to improve margin for EMI
+Network used for  
+further margin on  
+EMI performance
+ESD Diodes not required, but can  
+be used to improve margin for EMI
+Center tap network opmized from  
+datasheet recommenda
+on for improved  
+margin on EMI performance. All center  
+tap capacitors should be placed close to  
+magne
+cs
+Beckho
+ gives example of di
+erent GND  
+recommenda
+on in Sec	on I app note,  
+chapter 5.10.2. GND network shown is  
+op
+
+mized for EMI performance, but may be  
+tuned accordingly.
+PHY1_TD_P
+PHY1_TD_N
+PHY1_RD_P
+PHY1_RD_N
+PHY1_TD_N
+PHY1_TD_P
+PHY1_RD_N
+PHY1_RD_P
+PHY1_RD_N
+PHY1_RD_P
+GND
+GND
+GND
+GND
+GND
+PHY1_RJ_TD_P
+PHY1_RJ_TD_N
+PHY1_RJ_RD_P
+PHY1_RJ_RD_N
+ETH1_EARTH
+ETH1_EARTH
+GND
+RJ45_TERM_1
+RJ45_TERM_2
+PHY1_CEXT
+PHY1_CEXT
+RJ45_TERM_2
+RJ45_TERM_1
+PHY1_VDDIO
+PHY1_VDDIO
+PHY1_VDDA
+PHY1_VDDA
+Decoupling
+MDI
+PHY1_LED1
+PHY1_RXER
+GND
+PHY1_VDDIO
+PHY1_RXD3
+PHY1_RXD2
+2.49k
+R1001
+2.49k
+R1002
+2.49k
+R1003
+1.5k
+R1004
+Strapping
+R46, 41 are placeholders for  
+ferrite beads if necessary
+Figure 3-1. DP83826 Enhanced Mode Example
+3.1.1 Strapping Options
+The section describing Hardware Bootstraps Configuration in the DP83826 Deterministic, Low-Latency, Low-
+Power, 10/100 Mbps, Industrial Ethernet PHY data sheet describes how the device can be configured without 
+using the Serial Management Interface (SMI). This section of the data sheet presents configuration options in 
+each mode: ENHANCED and BASIC. If SMI is not used to program the PHY, the DP83826 must be hardware 
+set up in Enhanced mode to enable EtherCAT functionality.
+When setting up the PHY to work in an EtherCAT® system, it is important that the PHY has an LED which is set 
+up to show 100 Mbit full duplex and the signal polarity is active low or configurable for some ESCs.
+To define the LED polarity, the following circuit can be used to make either active-high or -low polarity 
+configuration. The PHY has an internal circuit which measures the polarity that is needed and automatically 
+configures depending on the input signal. The figure below shows the recommended networks for an active high 
+pulldown strap circuit and an active low pull-up circuit. RP is used to define the strap network, while RCL is a 
+current limiting resistor to protect the LED component.
+www.ti.com
+Different Methods of Setting up the PHY
+SNLA344C – MARCH 2022 – REVISED OCTOBER 2023
+Submit Document Feedback
+How and Why to Use the DP83826 for EtherCAT® Applications
+5
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 6 ---
+Strap Pin
+RP
+Pull-Up
+Strap Pin
+RP
+Pull-Down
+VDDIO
+D1
+RCL
+D1
+RCL
+Figure 3-2. Example Strap Connections
+In some cases, pending the strap settings this automatic LED feature has been disabled, see section 9.4.1, 
+Hardware Bootstrap Configuration, in data sheet for more details.
+Table 3-1 can be used to determine resistor values for bootstrapping the PHY.
+Table 3-1. 2-Level Strap Resistor Ratios
+Mode
+Suggested Resistors
+RHI (kΩ)
+RLO (kΩ)
+Internal 10-kΩ Pulldown (PD) Pins
+0-DEFAULT
+OPEN
+OPEN
+1
+2.49
+OPEN
+Internal 10-kΩ Pullup (PU) Pins
+0
+OPEN
+1.5
+1-DEFAULT
+OPEN
+OPEN
+Different Methods of Setting up the PHY
+www.ti.com
+6
+How and Why to Use the DP83826 for EtherCAT® Applications
+SNLA344C – MARCH 2022 – REVISED OCTOBER 2023
+Submit Document Feedback
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 7 ---
+CLKOUT/LED1 (31)
+Odd Nibble Enabled
+Strap 8 selects MAC IF
+Odd Nibble Disable
+PHY automatically in MII
+‘0’
+RX_D3 (13)
+‘0’
+FLD disabled
+RX_D2 (14)
+‘0’
+PHY is in 
+RMII mode
+PHY is in 
+MII mode
+‘1’
+‘1’
+‘0’
+FLD Enabled
+(Everything 
+except MLT-3)
+FLD 
+Disabled
+TX_CLK (22)
+‘1’
+‘0’
+RMII Slave
+RMII Master
+‘1’
+FLD enabled 
+(RX_Error)
+RX_D2 (14)
+‘1’
+‘0’
+Signal Energy 
+Detect 
+Disabled
+Signal Energy 
+Detect 
+Enabled
+‘1’
+RX_D3 (13)
+‘1’
+‘0’
+Pin 18 is
+CRS_DV
+Pin 18 is 
+RX_DV
+(RMII Repeater)
+RX_D3 (13)
+Pin Name (Pin #)
+Legend
+Figure 3-3. Enhanced Bootstrap Flowchart
+www.ti.com
+Different Methods of Setting up the PHY
+SNLA344C – MARCH 2022 – REVISED OCTOBER 2023
+Submit Document Feedback
+How and Why to Use the DP83826 for EtherCAT® Applications
+7
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 8 ---
+The information in this table shows that fast link down must be enabled in a special way. Only enable Fast link 
+Down using RX Error Count as a detection feature. When setting up the DP83826 device to work in an EtherCAT 
+system using Enhanced mode, use the configuration shown in Table 3-2.
+Table 3-2. DP83826 Strap Pin Configuration for EtherCAT® 
+Strap Number | Pin (Pin Name)
+Enhanced Mode Functionality
+Default
+Strap Setting
+Strap 0 | pin 16 (RX_D0)
+Auto negotiation configuration
+Force 100Mbps communication if auto-negotiation is 
+disabled
+0
+0 (Enable auto-negotiation)
+Strap 1 | pin 31 (CLKOUT/LED1)
+Odd Nibble Detection configuration
+When enabled, if PHY sees an uncompleted nibble of 
+data on line, will corrupt the data and yield an RX Error. 
+MII will also be selected as the MAC interface.
+1
+0 (Disable Odd-Nibble Detection)
+Strap 2 | pin 30 (LED0)
+PHY_ADD0
+0
+Define address with pull up
+Strap 3 | pin 29 (CRS/LED3)
+PHY_ADD1
+0
+Define address with pull up
+Strap 4 | pin 28 (COL/LED2)
+PHY_ADD2
+0
+Define address with pull up
+Strap 5 | pin 22 (TX_CLK)
+RMII mode configuration (master/slave)
+0
+0 (master mode)
+This strap is a don't care due to 
+Strap 1 forcing PHY to MII mode
+Strap 6 | pin 20 (RX_ER)
+Functionality on Pin 31 (CLKOUT or LED1)
+This pin is latched at POR only and will not relatch at HW 
+reset.
+0
+1 (LED1)
+Strap 7 | pin 13 (RX_D3)
+Odd Nibble Disable mode: Enable Fast Link Drop 
+functionality for RX error mechanism
+Odd Nibble Enable mode: Enable Fast Link Drop 
+functionality for all mechanisms except MLT-3
+RMII Mode: Repeater configurable
+0
+1 (FLD enabled for RX error)
+Strap 8 | pin 14 (RX_D2)
+Odd Nibble Disable Mode: If signal detect is enabled (pin 
+13), configure for signal energy detect mechanism
+Odd Nibble Enable Mode: Choose MAC interface
+0
+1 (Signal Energy Detect 
+disabled)
+Strap 9 | pin 15 (RX_D1)
+Auto MDIX Configurability
+0
+0 (Auto-MDIX enabled)
+Strap 10 | pin 18 (RX_DV)
+Auto-MDIX Disable mode: Set MDI or MDIX
+0
+0 (MDIX)
+Not needed due to auto MDIX 
+enabled
+Pin 1 (ModeSelect)
+Mode Select: Enhanced or Basic
+1
+1 (Enhanced mode)
+Different Methods of Setting up the PHY
+www.ti.com
+8
+How and Why to Use the DP83826 for EtherCAT® Applications
+SNLA344C – MARCH 2022 – REVISED OCTOBER 2023
+Submit Document Feedback
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 9 ---
+3.2 Using Serial Management Interface to Setup DP83826 PHY
+For this design, the serial management interface method was used to program the PHY. Note that the PHY is in 
+Basic mode for this example to force reliance on register programming.
+GND
+GND
+GND
+PHY1_TXD0
+PHY1_TXD1
+PHY1_TXD2
+PHY1_TXD3
+PHY1_RXD0
+PHY1_RXD1
+PHY1_RXD2
+PHY1_RXD3
+PHY_MDIO
+PHY_MDC
+PHY1_TXEN
+PHY1_TXCLK
+PHY1_RXCLK
+PHY1_RXER
+PHY1_RXDV
+PHY1_COL
+PHY1_CRS
+GND
+0.1µF
+C42
+GND
+PHY1_LED0
+PHY1_LED1
+10nF
+C44
+PHY2: Basic Mode
+Placed the series termina
+on  
+resistors of the MII signals close  
+to corrosponding output
+PHY1_TD_P, PHY1_TD_N, PHY1_RD_P  
+and PHY1_RD_P should be impedance  
+matched to 100 Ohm
+0
+R41
+3V3
+0
+R46
+3V3
+PHY1_VDDIO
+GPIO_PHY1_RESETn
+2.4k
+R56
+GND
+1µF
+C43
+PHY1_TD_P
+PHY1_TD_N
+PHY1_RD_P
+PHY1_RD_N
+D1+
+1
+D1-
+2
+NC
+6
+NC
+7
+NC
+9
+NC
+10
+D2+
+4
+D2-
+5
+GND
+3
+GND
+8
+U4
+TPD4E05U06DQAR
+4.7pF
+C28
+4.7pF
+C29
+4.7pF
+C30
+4.7pF
+C31
+GND
+1M
+R49
+2
+3
+4
+1
+5
+6
+7
+8
+9
+10
+11
+12
+J6
+1-406541-1
+ETH1_EARTH
+75
+R221
+75
+R220
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+T1
+HX1188FNLT
+75
+R223
+75
+R222
+1000pF
+C184
+PHY1_RJ_TD_P
+PHY1_RJ_TD_N
+PHY1_RJ_RD_P
+PHY1_RJ_RD_N
+0.1µF
+C41
+1µF
+C40
+GND
+GND
+6.49k
+R47
+35V
+2.2uF
+C34
+33.2
+R259
+33.2
+R258
+33.2
+R257
+33.2
+R256
+33.2
+R255
+33.2
+R254
+33.2
+R253
+33.2
+R252
+33.2
+R251
+33.2
+R250
+6.3V
+47uF
+C32
+4.7k
+R48
+16V
+0.1uF
+C35
+16V
+0.1uF
+C33
+16V
+0.1uF
+C37
+10V
+22uF
+C36
+ModeSelect
+1
+CEXT
+2
+VDDA3.3
+3
+RD_M
+4
+RD_P
+5
+TD_M
+6
+TD_P
+7
+XO
+8
+XI/50Mhz In
+9
+RBias
+10
+MDIO
+11
+MDC
+12
+Strap7/RX_D3
+13
+Strap8/RX_D2
+14
+Strap9/RX_D1
+15
+Strap0/RX_D0
+16
+VDDIO
+17
+RX_DV/CRS_DV/Strap10
+18
+RX_CLK/50MHZ_RMII
+19
+RX_ER/Strap6
+20
+PowerDown/Interrupt
+21
+TX_CLK/Strap5
+22
+TX_EN
+23
+TX_D0
+24
+TX_D1
+25
+TX_D2
+26
+TX_D3
+27
+COL/LED_2/GPIOStrap4
+28
+CRS/Strap3
+29
+LED0/Strap2
+30
+CLKOUT/LED_1/Strap1
+31
+RST_N
+32
+PAD
+33
+DP83826ERHB
+U3
+PHY1_XI
+0
+R1000
+Decoupling caps for VDDA and VDDIO  
+are bare minimum for opera�ng PHY. By  
+following datasheet recommended network,  
+be
+er EMC margin may be obtained.
+MDI decoupling capacitors not required,  
+but can be used to improve margin for EMI
+Network used for  
+further margin on  
+EMI performance
+ESD Diodes not required, but can  
+be used to improve margin for EMI
+Center tap network opmized from  
+datasheet recommenda
+on for improved  
+margin on EMI performance. All center  
+tap capacitors should be placed close to  
+magne
+cs
+Beckho
+ gives example of di
+erent GND  
+recommenda
+on in Sec	on I app note,  
+chapter 5.10.2. GND network shown is  
+op
+
+mized for EMI performance, but may be  
+tuned accordingly.
+PHY1_TD_P
+PHY1_TD_N
+PHY1_RD_P
+PHY1_RD_N
+PHY1_TD_N
+PHY1_TD_P
+PHY1_RD_N
+PHY1_RD_P
+PHY1_RD_N
+PHY1_RD_P
+GND
+GND
+GND
+GND
+GND
+PHY1_RJ_TD_P
+PHY1_RJ_TD_N
+PHY1_RJ_RD_P
+PHY1_RJ_RD_N
+ETH1_EARTH
+ETH1_EARTH
+GND
+RJ45_TERM_1
+RJ45_TERM_2
+PHY1_CEXT
+PHY1_CEXT
+RJ45_TERM_2
+RJ45_TERM_1
+PHY1_VDDIO
+PHY1_VDDIO
+PHY1_VDDA
+PHY1_VDDA
+Decoupling
+MDI
+R46, 41 are placeholders for  
+ferrite beads if necessary
+Figure 3-4. DP83826 Basic Mode Example
+3.2.1 Programming Options
+DP83826 register setup
+When setting up DP83826 to work for EtherCAT®, the following registers are written as follows:
+LED 0
+Write to PHY register 0x19 value 0x8020 (Auto-MDIX enable and enable LED0 config) 
+Write to PHY register 0x18 value 0x0080 (Active High polarity)
+LED 1 
+Write to PHY register 0x460 value 0x0005 (100Mbit speed)
+Write to PHY register 0x469 value 0x0004 (Active High polarity)
+Write to PHY register 0x304 value 0x0008 (Set pin 31 function to LED1) Auto negotiate enable 
+configuration 
+Write to PHY register 0x04 value 0x01E1 (Advertise which modes PHY support)
+Write to PHY register 0x09 value 0x0020 (Enable Robust Auto MDIX)
+Write to PHY register 0x00 value 0x3300 (Enable Auto negotiate and restart process) Odd-nibble 
+Detection Disable Configuration
+Write to PHY register 0x0A value 0x0001 (Disable Odd-nibble detection)
+Fast Link-Drop Enable
+Write to PHY register 0x0B value 0x0008 (Enable FLD with correct FLD features RX Error count)
+www.ti.com
+Different Methods of Setting up the PHY
+SNLA344C – MARCH 2022 – REVISED OCTOBER 2023
+Submit Document Feedback
+How and Why to Use the DP83826 for EtherCAT® Applications
+9
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 10 ---
+With the previous write functions, the following register settings can now be read out of both PHYs.
+Table 3-3. DP83826 Register Dump in Working 
+EtherCAT® Configuration
+Register Address
+MDIO PHY Address 0x01
+0x0
+0x3100
+0x1
+0x786D
+0x3
+0xA111
+0x4
+0x1E1
+0x5
+0xCDE1
+0x6
+0xD
+0x7
+0x2001
+0x8
+0x0
+0x9
+0x24
+0xA
+0x100
+0xB
+0x0
+0xF
+0x0
+0x10
+0x4615
+0x11
+0x10B
+0x14
+0x0
+0x15
+0x0
+0x17
+0x49
+0x18
+0x480
+0x19
+0x8C21
+Extended Registers (1)
+0x25
+0x41
+0x304
+0x8
+0x460
+0x5
+0x469
+0x4
+(1)
+Extended Register access requires a 4-step process
+Different Methods of Setting up the PHY
+www.ti.com
+10
+How and Why to Use the DP83826 for EtherCAT® Applications
+SNLA344C – MARCH 2022 – REVISED OCTOBER 2023
+Submit Document Feedback
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 11 ---
+4 References
+1.
+Texas Instruments, DP83826 Low-Power 10/100 Ethernet PHY, data sheet.
+2.
+Texas Instruments, KSZ8081 to DP83826E System Rollover, application note.
+3.
+Beckhoff, PHY Selection Guide, application note.
+4.
+Beckhoff, EtherCAT® Protocol, Physical Layer, EtherCAT® Processing Unit, FMMU, SyncManager, SII 
+EEPROM, Distributed Clocks Data Sheet, data sheet
+www.ti.com
+References
+SNLA344C – MARCH 2022 – REVISED OCTOBER 2023
+Submit Document Feedback
+How and Why to Use the DP83826 for EtherCAT® Applications
+11
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 12 ---
+5 Revision History
+Changes from Revision B (March 2022) to Revision C (October 2023)
+Page
+•
+Updated Abstract................................................................................................................................................1
+•
+Added data sheet references............................................................................................................................. 2
+•
+Updated to prioritize Enhanced Mode configuration over Basic Mode...............................................................5
+•
+Updated strapping table..................................................................................................................................... 5
+•
+Added flowchart and example configuration of PHY.......................................................................................... 5
+•
+Updated DP83826 Basic Mode Example image................................................................................................ 9
+•
+Updated Register dump table.............................................................................................................................9
+Changes from Revision A (March 2021) to Revision B (March 2022)
+Page
+•
+Added Using Strap Configuration to Set Up DP83826 PHY for EtherCAT® Configuration topic....................... 5
+Changes from Revision * (June 2020) to Revision A (March 2021)
+Page
+•
+Updated the numbering format for tables, figures, and cross-references throughout the document. ............... 1
+•
+Updated instances of legacy terminology where EtherCAT is mentioned throughout publication......................1
+•
+Updated bullet baseline wander test in recommendations to Ethernet PHYs section........................................9
+Revision History
+www.ti.com
+12
+How and Why to Use the DP83826 for EtherCAT® Applications
+SNLA344C – MARCH 2022 – REVISED OCTOBER 2023
+Submit Document Feedback
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 13 ---
+IMPORTANT NOTICE AND DISCLAIMER
+TI PROVIDES TECHNICAL AND RELIABILITY DATA (INCLUDING DATA SHEETS), DESIGN RESOURCES (INCLUDING REFERENCE 
+DESIGNS), APPLICATION OR OTHER DESIGN ADVICE, WEB TOOLS, SAFETY INFORMATION, AND OTHER RESOURCES “AS IS” 
+AND WITH ALL FAULTS, AND DISCLAIMS ALL WARRANTIES, EXPRESS AND IMPLIED, INCLUDING WITHOUT LIMITATION ANY 
+IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT OF THIRD 
+PARTY INTELLECTUAL PROPERTY RIGHTS.
+These resources are intended for skilled developers designing with TI products. You are solely responsible for (1) selecting the appropriate 
+TI products for your application, (2) designing, validating and testing your application, and (3) ensuring your application meets applicable 
+standards, and any other safety, security, regulatory or other requirements.
+These resources are subject to change without notice. TI grants you permission to use these resources only for development of an 
+application that uses the TI products described in the resource. Other reproduction and display of these resources is prohibited. No license 
+is granted to any other TI intellectual property right or to any third party intellectual property right. TI disclaims responsibility for, and you 
+will fully indemnify TI and its representatives against, any claims, damages, costs, losses, and liabilities arising out of your use of these 
+resources.
+TI’s products are provided subject to TI’s Terms of Sale or other applicable terms available either on ti.com or provided in conjunction with 
+such TI products. TI’s provision of these resources does not expand or otherwise alter TI’s applicable warranties or warranty disclaimers for 
+TI products.
+TI objects to and rejects any additional or different terms you may have proposed. IMPORTANT NOTICE
+Mailing Address: Texas Instruments, Post Office Box 655303, Dallas, Texas 75265
+Copyright © 2023, Texas Instruments Incorporated

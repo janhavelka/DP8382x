@@ -1,0 +1,342 @@
+--- PDF page 1 ---
+1
+SNLA330A–November 2019–Revised January 2020
+Submit Documentation Feedback
+Copyright © 2019–2020, Texas Instruments Incorporated
+Solving Cable Faults Challenges with TI Ethernet PHYs
+Application Report
+SNLA330A–November 2019–Revised January 2020
+Solving Cable Faults Challenges with TI Ethernet PHYs
+Anmol Ramraika, Geet Modi
+ABSTRACT
+This application report outlines how Time Domain Reflectometry helps solve various kinds of cable fault
+challenges of Ethernet-based communication systems. The application report describes how to use the
+TDR feature of the DP8325I to implement the cable diagnostics feature in the system.
+Contents
+1
+Time Domain Reflectometry................................................................................................
+1
+2
+DP83825I TDR Configuration .............................................................................................. 3
+3
+Fault Location and Type ....................................................................................................
+4
+4
+Summary......................................................................................................................
+4
+5
+References ...................................................................................................................
+4
+List of Figures
+1
+Open Circuit Cable ..........................................................................................................
+2
+2
+Short Circuit Cable ..........................................................................................................
+2
+3
+Cross-Wired Cable ..........................................................................................................
+3
+List of Tables
+Trademarks
+1
+Time Domain Reflectometry
+1.1
+TDR
+TDR only works for twisted pair connections. TDR involves sending a pulse on TX and RX pair and
+observing results on either pair. By measuring voltage amplitude, polarity, and the time interval, the PHY
+can determine the nature and position of the fault. The DP83825I TDR generator sends pulse on the TX
+and RX channel, then monitors both channels to observe reflections. It sends a pulse one channel at a
+time, and if reflections are observed on the other channel, then the PHY TDR realizes that the wires have
+been crossed. The DP83825I can detect one peak for each transmit and receive channel. TDR can be
+used for the following:
+•
+Cable open
+•
+Cable short
+•
+TX/RX pair cross-wired
+•
+Impedance discontinuity
+TDR can only be used when the link is down.
+1.2
+Example Connections
+The following sections are example connections where TDR can be used.
+
+
+--- PDF page 2 ---
+PHY
+Short/
+Capacitive 
+Discontinuity
+TX
+TX
+RX
+RX
+Transmitter Pulse
+TX or RX
+Reflected Pulse
+PHY
+Open/
+Inductive 
+Discontinuity
+TX
+TX
+RX
+RX
+Transmitter Pulse
+TX or RX
+Reflected Pulse
+Time Domain Reflectometry
+www.ti.com
+2
+SNLA330A–November 2019–Revised January 2020
+Submit Documentation Feedback
+Copyright © 2019–2020, Texas Instruments Incorporated
+Solving Cable Faults Challenges with TI Ethernet PHYs
+1.2.1
+Open Circuit Cable
+Open cable is easy to diagnose since it generates a strong reflection. No reflection is observed on the
+other channel. The reflection due to the open circuit is in-phase with the transmitted pulse (positive
+polarity). Any kind of inductive impedance discontinuity generates in-phase reflection and the amplitude
+depends on the amount of impedance discontinuity.
+Figure 1. Open Circuit Cable
+1.2.2
+Short Circuit Cable
+Short-circuited cables also generate a strong reflection, but this reflection is out-of-phase with the original
+pulse (negative polarity). Any kind of capacitive impedance discontinuity generates out-of-phase reflection.
+The amplitude depends on the amount of impedance discontinuity.
+Figure 2. Short Circuit Cable
+1.2.3
+Cross-Wired Cable
+Due to incorrect cable or connector assembly, a single wire from TX or RX differential pair is routed to the
+opposite channel. This results in an unexpected return pulse on the channel not being tested. For
+example, if the transmit channel is being tested in a cross-wired cable, then an unexpected return pulse is
+observed on the receive channel. To check for this, the PHY observes both the channels even if it sends a
+pulse on one channel at a time. In addition, to return pulse on the other channel, there can be a return
+pulse on the channel under test.
+
+
+--- PDF page 3 ---
+PHY
+Link Partner
+TX
+TX
+RX
+RX
+Transmitter Pulse
+TX
+Reflected Pulse
+Reflected Pulse
+RX
+www.ti.com
+DP83825I TDR Configuration
+3
+SNLA330A–November 2019–Revised January 2020
+Submit Documentation Feedback
+Copyright © 2019–2020, Texas Instruments Incorporated
+Solving Cable Faults Challenges with TI Ethernet PHYs
+Figure 3. Cross-Wired Cable
+2
+DP83825I TDR Configuration
+The DP83825I can support 150 meter and above cable reach. Long cable reach causes the transmitted
+signal to face higher attenuation with cable length, so the gain and other settings need to be tweaked with
+cable length to achieve reliable fault detection using TDR. The cable is assumed to be divided into the
+following five segments:
+•
+Segment 1: 0 m to 10 m
+•
+Segment 2: 10 m to 20 m
+•
+Segment 3: 20 m to 40 m
+•
+Segment 4: 40 m to 80 m
+•
+Segment 5: 80 m to 190 m
+Based on the length of cable in the use case, TDR can be run for relevant cable segments.
+Each cable segment can have four combinations of transmit and receive since it can have two channels,
+meaning four iterations of TDR for each segment. For each such iteration of TDR, location, amplitude, and
+sign of peak (if reported) must be stored until all cable segments are covered.
+For each segment, software configures the PHY with register settings given in the following table. The
+TDR process for that segment must be started by writing Register 0x001E bit 15.
+REGISTER
+SEGMENT 1
+SEGMENT 2
+SEGMENT 3
+SEGMENT 4
+SEGMENT 5
+0x456[10:9]
+0x3
+0x3
+0x3
+0x3
+0x3
+0x411[4:0]
+0x13
+0x13
+0x15
+0x16
+0x16
+0x416[7:4]
+0xA
+0xA
+0xA
+0xA
+0x9
+0x190[12:0]
+0x1C12
+0x1C22
+0x1E32
+0x1E42
+0x1E52
+0x173
+0x0D07
+0x0D14
+0x0D14
+0x343B
+0x8F6F
+0x175
+0x1004
+0x1004
+0x1004
+0x1008
+0x100B
+0x178[2:0]
+0x2
+0x2
+0x2
+0x2
+0x6
+For every segment, four combinations of transmit and receive can be configured by the following:
+•
+Transmit on A, Receive on A: 0x170[14:13] = 2’b10
+•
+Transmit on A, Receive on B: 0x170[14:13] = 2’b00
+•
+Transmit on B, Receive on A: 0x170[14:13] = 2’b01
+•
+Transmit on B, Receive on B: 0x170[14:13] = 2’b11
+
+
+--- PDF page 4 ---
+Fault Location and Type
+www.ti.com
+4
+SNLA330A–November 2019–Revised January 2020
+Submit Documentation Feedback
+Copyright © 2019–2020, Texas Instruments Incorporated
+Solving Cable Faults Challenges with TI Ethernet PHYs
+3
+Fault Location and Type
+For each iteration, software needs to wait until Register 0x001E Bit 1 is set, indicating TDR is completed.
+If TDR Register 0x001E Bit 0 is set, it means this iteration of TDR has failed if there is noise on the line,
+the link already being established, and so forth.
+If this bit is not set, TDR is successfully completed. If Register 0x0185 Bit [6:0] shows a non-zero value, it
+means a peak was reported for this TDR iteration. Once a peak is reported, software can store peak
+location (0x0180[7:0]) and peak sign (0x018A[11]).
+Similarly, this process has to be repeated for four transmit/receive channel combinations and for all cable
+segments.
+If TDR is run for all cable segments, software may have to store information of maximum 20 peaks.
+If no peaks are reported across all iterations, no fault has been reported by the TDR mechanism. If at
+least one peak is reported, the cable has fault and software discards all peaks reported in higher cable
+segments. Use the following table to identify the fault type using peak information from the peak observed
+in lowest cable segment.
+FAULT
+TYPE
+Tx = A, Rx = A
+TX = A, Rx = B
+TX = B, Rx = A
+Tx = B, Rx = B
+PEAK
+SIGN
+PEAK
+SIGN
+PEAK
+SIGN
+PEAK
+SIGN
+Both open
+Yes
+1'b0
+No
+-
+No
+-
+Yes
+1'b0
+Both short
+to
+VDD/GND/B
+etween P–N
+Yes
+1'b1
+No
+-
+No
+-
+Yes
+1'b1
+Cross Short
+Yes
+1'b0
+Yes
+1'b1
+Yes
+1'b1
+Yes
+1'b1
+The location of this fault can be calculated by using the peak location value from Register 0x180[7:0] for
+the first encountered peak using following:
+1. Convert 0x180[7:0] to decimal value (DV).
+2. Round off (DV-7) / 1.3 to the nearest integer and call it PL.
+PL is location of peak in meters.
+4
+Summary
+This application report explains the basics of TDR and how to use the TDR functionality of the DP83825I
+Industrial Ethernet PHY.
+5
+References
+•
+Texas Instruments, DP83825I Low Power 10/100 Mbps Ethernet Physical Layer Transceiver Data
+Sheet
+
+
+--- PDF page 5 ---
+www.ti.com
+Revision History
+5
+SNLA330A–November 2019–Revised January 2020
+Submit Documentation Feedback
+Copyright © 2019–2020, Texas Instruments Incorporated
+Revision History
+Revision History
+NOTE: Page numbers for previous revisions may differ from page numbers in the current version.
+Changes from Original (November 2019) to A Revision ................................................................................................ Page
+•
+Edited application report for clarity......................................................................................................
+1
+•
+Fixed the formatting of table 1 and table 2 ............................................................................................ 1
+
+
+--- PDF page 6 ---
+IMPORTANT NOTICE AND DISCLAIMER
+TI PROVIDES TECHNICAL AND RELIABILITY DATA (INCLUDING DATA SHEETS), DESIGN RESOURCES (INCLUDING REFERENCE 
+DESIGNS), APPLICATION OR OTHER DESIGN ADVICE, WEB TOOLS, SAFETY INFORMATION, AND OTHER RESOURCES “AS IS” 
+AND WITH ALL FAULTS, AND DISCLAIMS ALL WARRANTIES, EXPRESS AND IMPLIED, INCLUDING WITHOUT LIMITATION ANY 
+IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT OF THIRD 
+PARTY INTELLECTUAL PROPERTY RIGHTS.
+These resources are intended for skilled developers designing with TI products. You are solely responsible for (1) selecting the appropriate 
+TI products for your application, (2) designing, validating and testing your application, and (3) ensuring your application meets applicable 
+standards, and any other safety, security, regulatory or other requirements.
+These resources are subject to change without notice. TI grants you permission to use these resources only for development of an 
+application that uses the TI products described in the resource. Other reproduction and display of these resources is prohibited. No license 
+is granted to any other TI intellectual property right or to any third party intellectual property right. TI disclaims responsibility for, and you 
+will fully indemnify TI and its representatives against, any claims, damages, costs, losses, and liabilities arising out of your use of these 
+resources.
+TI’s products are provided subject to TI’s Terms of Sale or other applicable terms available either on ti.com or provided in conjunction with 
+such TI products. TI’s provision of these resources does not expand or otherwise alter TI’s applicable warranties or warranty disclaimers for 
+TI products.
+TI objects to and rejects any additional or different terms you may have proposed. IMPORTANT NOTICE
+Mailing Address: Texas Instruments, Post Office Box 655303, Dallas, Texas 75265
+Copyright © 2022, Texas Instruments Incorporated

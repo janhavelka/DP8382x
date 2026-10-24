@@ -1,0 +1,421 @@
+--- PDF page 1 ---
+Application Note
+DP83848 to DP83826 Hardware Rollover Document
+Gerome Cacho
+ABSTRACT
+Texas Instruments offers a variety of Ethernet PHY transceivers which provide designs to multiple end 
+equipment use cases. This application note references the differences between two of the PHYs within the 
+10/100 Mbps portfolio, DP83848 and DP83826, and how an existing design using DP83848 can be converted to 
+use DP83826.
+Table of Contents
+1 Introduction.............................................................................................................................................................................2
+2 Additional Benefits of DP83826.............................................................................................................................................2
+3 Hardware Differences.............................................................................................................................................................3
+3.1 Power Supply and Special Connection Requirements.......................................................................................................3
+3.2 Media Dependent Interface Requirements........................................................................................................................ 4
+3.3 Hardware Strapping........................................................................................................................................................... 5
+4 Summary................................................................................................................................................................................. 6
+5 References.............................................................................................................................................................................. 6
+Trademarks
+All trademarks are the property of their respective owners.
+www.ti.com
+Table of Contents
+SNLA456 – APRIL 2024
+Submit Document Feedback
+DP83848 to DP83826 Hardware Rollover Document
+1
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 2 ---
+1 Introduction
+Texas Instruments Standard Ethernet PHY portfolio consists of various products. A key differentiator within 
+the portfolio is the datarate each PHY is capable of. There are two classes of groups within the portfolio; 
+10/100/1000 Mbps PHYs and 10/100 Mbps PHYs. DP83848 and DP83826 are two PHYs within the 10/100Mbps 
+category and share common features aside from data rate such as select MAC interfaces, EtherCAT support, 
+and LED control.
+This document is inclusive of all versions of DP83848 and DP83826. DP83848 is available in various 
+temperature rated versions in addition to a second footprint. DP83826 is available in two temperature rated 
+versions and has a ModeSelect pin which, depending on the applied voltage at power-on, can change the PHYs 
+operation and pinout. However for this document, only Enhanced mode is discussed.
+2 Additional Benefits of DP83826
+Table 2-1 compares DP83848 against DP83826, DP83826 to provide additional benefits to the system:
+Table 2-1. Comparing DP83848 against DP83826, DP83826
+DP83826 Benefits
+DP83848
+DP83826
+Lower power consumption
+264-267mW
+221.1mW under similar conditions, but even more 
+savings by using 1.8V VDDIO
+Lower latency
+Transmit Latency: 60ns
+Receive Latency: 240ns
+Transmit Latency: 40ns
+Receive Latency: 170ns
+Additional RMII Configuration
+MII, RMII Slave, SNI
+MII, RMII Master, RMII Slave
+Smaller BOM requirements
+17-19, with tantalum capacitor on PFB network
+9, with all ceramic capacitors
+Smaller footprint
+48-pin LQFP (7x7 mm)
+40-pin WQFN (6x6 mm).
+32-pin QFN (5x5 mm)
+More LED functionality
+2-3
+Up to 4
+Feature-richer
+BIST
+DP83848 features plus:
+Fast Link Drop for sensitive link, beneficial in real-time 
+applications
+Wake-on-LAN, Energy Efficient Ethernet for various 
+system low power modes
+Note
+Power consumption and latency data based upon specific configuration, operating temperature, and 
+data traffic
+Introduction
+www.ti.com
+2
+DP83848 to DP83826 Hardware Rollover Document
+SNLA456 – APRIL 2024
+Submit Document Feedback
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 3 ---
+3 Hardware Differences
+3.1 Power Supply and Special Connection Requirements
+DP83848 utilizes a 3.3V supply for both analog and digital supplies. DP83826 provides an option to have the 
+digital supply at 1.8V for wider compatibility and power savings.
+For power supply decoupling, DP83848 requires a 100nF per supply pin and a 10μF capacitor as shown in 
+Figure 3-1 while DP83826 requires a network of 10nF, 100nF, 1μF, and 10μF per supply pin as shown in Figure 
+3-2.
+For special connections required for operation, both PHYs have an RBias pin. DP83848 requires a 4.87kΩ while 
+DP83826 requires a 6.49kΩ. DP83848 requires an additional three 100nF and a 10μF decoupling capacitor 
+between PFBIN/PFBOUT (shorted together) pins and GND as shown in Figure 3-3. The LQFP DP83848 also 
+requires a 2.2kΩ from pins 20 and 21 (Reserved) to AVDD33.
+DP83848
+VDDIO
+VDDIO
+VDDA
+0.1 μF
+0.1 μF
+0.1 μF
+GND
+GND
+GND
+3.3V
+10 μF
+GND
+Figure 3-1. DP83848 Decoupling Network
+3.3-V or 1.8-V 
+Supply
+VDDIO
+100 nF
+10 nF
+10 
+F
+1 
+�F
+100 nF
+10 nF
+3.3-V Supply
+10 F
+1 F
+VDDIO
+100 nF
+10 nF
+10 
+F
+1 
+F
+100 nF
+10 nF
+AVDD3V3
+10 F
+1 F
+Ferrite Bead for 
+improved EMC 
+(Op
+onal)
+Ferrite Bead for 
+improved EMC 
+(Op	onal)
+Figure 3-2. DP83826 Decoupling Network
+DP83848
+0.1 μF
+0.1 μF
+GND
+0.1 μF
+PFBOUT
+PFBIN1
+PFBIN2
+10 μF (Tantalum)
+Place a 0.1 μF next to each PFB pin
+Figure 3-3. DP83848 PFB Network
+www.ti.com
+Hardware Differences
+SNLA456 – APRIL 2024
+Submit Document Feedback
+DP83848 to DP83826 Hardware Rollover Document
+3
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 4 ---
+3.2 Media Dependent Interface Requirements
+DP83848 is a current-mode driver and thus requires a 50OHM resistor connection between each MDI pin 
+and AVDD33. There is also a requirement of a 100nF decoupling capacitor from AVDD33 and GND near the 
+pullup resistors as shown in Figure 3-4. DP83826 is a voltage-mode driver and does not require these extra 
+components as shown in Figure 3-5.
+Both PHYs can use the same discrete transformers as both PHYs share the same recommendations regarding 
+electrical specifications. However, DP83826 has a recommended configuration of center tap decoupling caps of 
+2nF per channel, while DP83848 has a recommended configuration of center tap shorting between channels and 
+pulling up to AVDD33 with a 100nF decoupling cap per channel.
+1:1
+1:1
+RJ45
+NOTE:  CENTER TAP IS PULLED TO VDD
+*
+PLACE CAPACITORS CLOSE TO THE
+TRANSFORMER CENTER TAPS
+RD-
+RD+
+TD-
+TD+
+0. 1  F*
+0. 1F*
+COMMON MODE CHOKES
+MAY BE REQUIRED
+0. 1  F
+0. 1  F
+Vdd
+Vdd
+Vdd
+All values are typical and are  
++/- 1%
+49. 9  
+49. 9  
+49. 9  
+49. 9  
+PLACE RESISTORS AND
+CAPACITORS CLOSE TO
+THE DEVICE
+TPRDM
+TDRDP
+TPTDM
+TPTDP
+T1
+Figure 3-4. DP83848 MDI Network
+1:1
+TD+
+TD-
+RD+
+RD-
+2 nF
+2 nF
+TD+
+TD-
+RD+
+RD-
+RJ 45
+PHY
+75   
+75 �  
+0.01μF
+Figure 3-5. DP83826 MDI Network
+Hardware Differences
+www.ti.com
+4
+DP83848 to DP83826 Hardware Rollover Document
+SNLA456 – APRIL 2024
+Submit Document Feedback
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 5 ---
+3.3 Hardware Strapping
+DP83848 and DP83826 share some common strappable configurations as shown in Table 3-1. Pin numbers are 
+shown in ( ):
+Table 3-1. DP83848 and DP83826 Common Strappable Configurations
+PHY
+DP83848 LQFP
+DP83848 QFN
+DP83826
+PHY Address [0]
+COL (42)
+COL (35)
+LED0 (30)
+PHY Address [1]
+RX_D0 (43)
+RX_D0 (36)
+CRS/LED3 (29)
+PHY Address [2]
+RX_D1 (44)
+RX_D1 (37)
+COL/LED2 (28)
+Auto-Negotiation 
+Enable
+LED_ACT/COL (26)
+N/A
+RX_D0 (16)
+Auto-MDIX Enable
+RX_ER (41)
+RX_ER (34)
+RX_D1 (15)
+MAC Interface
+RX_DV (39)
+TX_D3 (6)
+RX_DV (32)
+RX_D2 (14) (If strapped Odd Nibble enabled)
+DP83848 has some exclusive functions that can be strapped as described in Table 3-2. Pin numbers are shown 
+in ( ):
+Table 3-2. DP83848 Exclusive Functions
+PHY
+DP83848 LQFP
+DP83848 QFN
+PHY Address [3]
+RX_D2 (45)
+RX_D2 (38)
+PHY Address [4]
+RX_D3 (46)
+RX_D3 (39)
+Speed/Duplex Configuration
+LED_SPEED (27)
+LED_LINK (28)
+LED_SPEED (21)
+LED_LINK (22)
+LED Configuration
+CRS (40)
+CRS (33)
+DP83826 has some exclusive functions that can be strapped as described in Table 3-3. Pin numbers are shown 
+in ( ):
+Table 3-3. DP83826 Exclusive Functions
+Strap
+DP83826 Pin Name (Number)
+Manual MDI/MDIX Configuration (Applicable if Auto-MDIX is disabled)
+RX_DV (18)
+CLKOUT Functionality
+RX_ER (20)
+Odd Nibble Enable
+CLKOUT/LED1 (31)
+Type of RMII
+TX_CLK (22)
+RMII Repeater
+RX_D3 (13) (if strapped to RMII)
+Fast Link Drop Configuration
+RX_D3 (13) (if strapped to MII)
+Signal Detect Configuration of Fast Link Drop
+RX_D2 (14) (if strapped to Odd Nibble Disable with FLD enabled)
+As there are many dependencies in DP83826 for bootstrapping, Figure 3-6 can help decipher the different 
+configurations available.
+www.ti.com
+Hardware Differences
+SNLA456 – APRIL 2024
+Submit Document Feedback
+DP83848 to DP83826 Hardware Rollover Document
+5
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 6 ---
+CLKOUT/LED1 (31)
+Odd Nibble Enabled
+Strap 8 selects MAC IF
+Odd Nibble Disable
+PHY automatically in MII
+‘0’
+RX_D3 (13)
+‘0’
+FLD disabled
+RX_D2 (14)
+‘0’
+PHY is in 
+RMII mode
+PHY is in 
+MII mode
+‘1’
+‘1’
+‘0’
+FLD Enabled
+(Everything 
+except MLT-3)
+FLD 
+Disabled
+TX_CLK (22)
+‘1’
+‘0’
+RMII Slave
+RMII Master
+‘1’
+FLD enabled 
+(RX_Error)
+RX_D2 (14)
+‘1’
+‘0’
+Signal Energy 
+Detect 
+Disabled
+Signal Energy 
+Detect 
+Enabled
+‘1’
+RX_D3 (13)
+‘1’
+‘0’
+Pin 18 is
+CRS_DV
+Pin 18 is 
+RX_DV
+(RMII Repeater)
+RX_D3 (13)
+Pin Name (Pin #)
+Legend
+Figure 3-6. DP83826 Enhanced Mode Strapping Flowchart
+4 Summary
+DP83826 and DP83848 are similar 10/100 Mbps PHYs which can be used in similar applications. This document 
+notes the similarities and differences between them from an implementation perspective. Strapping, MDI 
+network, power-supply decoupling network, and special connection networks can be the immediate focus when 
+identifying the hardware changes between devices.
+5 References
+•
+Texas Instruments, DP83848C/I/VYB/YB PHYTER™ QFP Single Port 10/100 Mb/s Ethernet Physical Layer 
+Transceiver, data sheet.
+•
+Texas Instruments, DP83848x PHYTER Mini / LS Single Port 10/100 MB/s Ethernet Transceiver, data sheet.
+•
+Texas Instruments, DP83826 Deterministic, Low-Latency, Low-Power, 10/100 Mbps, Industrial Ethernet PHY, 
+data sheet.
+Summary
+www.ti.com
+6
+DP83848 to DP83826 Hardware Rollover Document
+SNLA456 – APRIL 2024
+Submit Document Feedback
+Copyright © 2024 Texas Instruments Incorporated
+
+
+--- PDF page 7 ---
+IMPORTANT NOTICE AND DISCLAIMER
+TI PROVIDES TECHNICAL AND RELIABILITY DATA (INCLUDING DATA SHEETS), DESIGN RESOURCES (INCLUDING REFERENCE 
+DESIGNS), APPLICATION OR OTHER DESIGN ADVICE, WEB TOOLS, SAFETY INFORMATION, AND OTHER RESOURCES “AS IS” 
+AND WITH ALL FAULTS, AND DISCLAIMS ALL WARRANTIES, EXPRESS AND IMPLIED, INCLUDING WITHOUT LIMITATION ANY 
+IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT OF THIRD 
+PARTY INTELLECTUAL PROPERTY RIGHTS.
+These resources are intended for skilled developers designing with TI products. You are solely responsible for (1) selecting the appropriate 
+TI products for your application, (2) designing, validating and testing your application, and (3) ensuring your application meets applicable 
+standards, and any other safety, security, regulatory or other requirements.
+These resources are subject to change without notice. TI grants you permission to use these resources only for development of an 
+application that uses the TI products described in the resource. Other reproduction and display of these resources is prohibited. No license 
+is granted to any other TI intellectual property right or to any third party intellectual property right. TI disclaims responsibility for, and you 
+will fully indemnify TI and its representatives against, any claims, damages, costs, losses, and liabilities arising out of your use of these 
+resources.
+TI’s products are provided subject to TI’s Terms of Sale or other applicable terms available either on ti.com or provided in conjunction with 
+such TI products. TI’s provision of these resources does not expand or otherwise alter TI’s applicable warranties or warranty disclaimers for 
+TI products.
+TI objects to and rejects any additional or different terms you may have proposed. IMPORTANT NOTICE
+Mailing Address: Texas Instruments, Post Office Box 655303, Dallas, Texas 75265
+Copyright © 2024, Texas Instruments Incorporated

@@ -1,0 +1,1814 @@
+--- PDF page 1 ---
+Application Note
+DP83822 Troubleshooting Guide
+Avtar Dhaliwal, Jae Yoon
+ABSTRACT
+This application note provides a suggested flow for evaluating a new application and confirming the expected 
+functionality. The step-by-step recommendations can help ease board bring up and initial evaluation of DP83822 
+designs.
+Table of Contents
+1 DP83822 Application Overview............................................................................................................................................. 2
+2 Troubleshooting the PHY Application.................................................................................................................................. 3
+2.1 Schematic and Layout Checklist........................................................................................................................................3
+2.2 Device Health Checks........................................................................................................................................................3
+2.2.1 Power Supply Ramp Sequence Check....................................................................................................................... 3
+2.2.2 Voltage Checks............................................................................................................................................................5
+2.2.3 Probe the RESET_N Signal........................................................................................................................................ 5
+2.2.4 Probe the RBIAS pin................................................................................................................................................... 6
+2.2.5 Probe the XI Clock.......................................................................................................................................................6
+2.2.6 Probe the Strap Pins During Initialization....................................................................................................................7
+2.2.7 Probe the Serial Management Interface (MDC, MDIO) Signals..................................................................................8
+2.3 MDI Health Checks...........................................................................................................................................................11
+2.3.1 Magnetics...................................................................................................................................................................11
+2.3.2 Probe the MDI Signals...............................................................................................................................................13
+2.3.3 Link Quality Check.....................................................................................................................................................14
+2.3.4 Debug the Fiber Connection......................................................................................................................................15
+2.3.5 Debug the Start of Frame Detect...............................................................................................................................17
+2.3.6 Compliance................................................................................................................................................................17
+2.4 MII Health Checks............................................................................................................................................................17
+2.4.1 MII Check.................................................................................................................................................................. 17
+2.4.2 RMII Check................................................................................................................................................................19
+2.4.3 RGMII Check.............................................................................................................................................................22
+2.5 Loopback and PRBS........................................................................................................................................................25
+2.5.1 Loopback Modes....................................................................................................................................................... 25
+2.5.2 Transmitting and Receiving Packets With the MAC.................................................................................................. 26
+2.5.3 Transmitting and Receiving Packets With BIST........................................................................................................ 27
+3 Tools and References...........................................................................................................................................................28
+3.1 DP83822 Register Access............................................................................................................................................... 28
+3.2 Software and Driver Debug on Linux............................................................................................................................... 29
+3.2.1 Common Terminal Outputs and Solutions.................................................................................................................29
+4 Summary............................................................................................................................................................................... 31
+5 References............................................................................................................................................................................ 31
+6 Revision History................................................................................................................................................................... 32
+Trademarks
+All trademarks are the property of their respective owners.
+www.ti.com
+Table of Contents
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+DP83822 Troubleshooting Guide
+1
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 2 ---
+1 DP83822 Application Overview
+Designed for harsh industrial environments, the DP83822 is an ultra-robust, low-power single-port 10/100 Mbps 
+Ethernet PHY. The DP83822 provides all physical layer functions needed to transmit and receive data over 
+standard twisted-pair cables, or connect to an external fiber optic transceiver. Additionally, the DP83822 provides 
+flexibility to connect to a MAC through a standard MII, RMII, or RGMII interface.
+Figure 1-1 is a high-level system block diagram of a typical DP83822 application.
+MAC
+DP83822
+10/100 Mbps
+Ethernet PHY
+25-MHz / 50-MHz
+Clock Source
+Status
+LEDs
+Magnetics
+RJ-45
+Fiber Optic
+Transceiver
+MII
+RMII
+RGMII
+10BASE-Te
+100BASE-TX
+100BASE-FX
+Capacitors
+Copyright © 2016, Texas Instruments Incorporated
+Figure 1-1. DP83822 Block Diagram
+The DP83822 connects to an Ethernet MAC and to the MDI. The connection to the MDI is through a transformer 
+and a connector (for copper applications), or capacitors and a transceiver (for fiber applications).
+DP83822 Application Overview
+www.ti.com
+2
+DP83822 Troubleshooting Guide
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 3 ---
+2 Troubleshooting the PHY Application
+The following sections approach the debug from a high level, attempting to start with application characteristics 
+that have a broad impact and then zero in on a more focused aspects of the design.
+This document is intended to address common Ethernet issues such as:
+•
+Cannot access registers
+•
+Cannot get link OR intermittent linkup
+•
+Linkup but seeing packet errors
+•
+Inability to ping
+TI recommends going through the following sections in order unless otherwise specified.
+2.1 Schematic and Layout Checklist
+DP83822 Schematic Checklist and DP838XX Layout Checklist are TI files compiling the best practices for 
+designing with DP83822 schematics and layout into a single, simple-to-use document. TI recommends going 
+through this document for more detailed description what connections and components are needed for the PHY 
+to function.
+The following sections can present expected behaviors if the PHY is powered and initialized correctly. Any 
+deviations from expected behaviors can point to errors due to incorrect peripheral circuity
+2.2 Device Health Checks
+This section dives into device health checks which makes sure the device is powered and initialized correctly. 
+This section can be skipped if DP83822 is:
+•
+Linking up (LED indication or register status) when connected to link partner OR showing FLP signals when 
+Ethernet cable is unconnected, and
+•
+Responding to register access (if applicable)
+2.2.1 Power Supply Ramp Sequence Check
+Ensure the device is being powered according to the recommended power supply ramp sequence. Power up the 
+device and probe the voltage rails of the PHY to ensure that the voltages are within limits defined in Table 2-1. 
+Verify that the power up voltage parameter timings are within the limits defined in Table 2-2 and Figure 2-1.
+Table 2-1. PHY Supply Voltage Specifications
+Descriptions
+Min
+Typ
+Max
+Unit
+VDDIO
+Supply Voltage 1/O = 1.8V
+1.71
+1.8
+1.89
+V
+Supply Voltage I/O = 2.5V
+2.375
+2.5
+2.625
+Supply Voltage I/O = 3.3V
+3.15
+3.3
+3.45
+AVD
+Supply Voltage Analog = 3.3V
+3.15
+3.3
+3.45
+V
+Supply Voltage Analog = 1.8V
+1.71
+1.8
+1.89
+Center Tap (CT)
+Supply Voltage Center Tap = 3.3V
+3.15
+3.3
+3.45
+V
+Supply Voltage Center Tap = 1.8V
+1.71
+1.8
+1.89
+Table 2-2. Timing Requirements: Power-Up Timing
+Parameter
+Test Conditions
+MIN
+TYP
+MAX
+Unit
+T1
+AVD (analog supply) ramp delay post VDDIO 
+(digital supply) ramp.
+AVD and VDDIO potential must not exceed 0.3V 
+prior to supply ramp.
+Time from start of supply ramp
+–100
+100
+ms
+VDDIO ramp time
+100
+ms
+AVD ramp time
+100
+ms
+T2
+Post power-up stabilization time prior to MDC 
+preamble for register accesses.
+MDC preamble coming in any time after this max 
+wait time will be valid.
+MDIO is pulled high for 32-bit 
+serial management initialization
+200
+ms
+www.ti.com
+Troubleshooting the PHY Application
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+DP83822 Troubleshooting Guide
+3
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 4 ---
+Table 2-2. Timing Requirements: Power-Up Timing (continued)
+Parameter
+Test Conditions
+MIN
+TYP
+MAX
+Unit
+T3
+Hardware configuration latch-in time for power 
+up
+200
+ms
+T4
+Hardware configuration pins transition to output 
+drivers
+64
+ns
+T5
+Fast Link Pulse transmission delay post power 
+up
+1.5
+s
+VAVD/CT
+VVDDIO
+tT1t
+XI
+Hardware
+RESET_N
+MDC
+Latch-in
+tT2t
+tT3t
+tT4
+Active
+I/O Pins
+32 Clocks
+FLP Burst
+tT5t
+-0.3 Vt
+t0.3 Vt
+t0.3 Vt
+-0.3 Vt
+Figure 2-1. Power-Up Timing
+Note
+If a link up issue is present for DP83822 and the AVD is operated in 3.3V, check register 0x0421 
+to see AVD level and VDDIO level match the desire output. Register 0x0421 bit[2]=1 for 3.3V AVD. 
+Register 0x0x421 bit[1:0]=11 for 3.3V VDDIO If register 0x0421 does not match with the desire result, 
+write 0x041F register to the desire voltage level. Write register 0x041F bit[12] = 1 for 3.3V AVD and 
+bit[11:10]=11 for 3.3V VDDIO. Registers 0x0421 and 0x041F are extended registers, make sure to 
+follow Extended Register Access.
+Troubleshooting the PHY Application
+www.ti.com
+4
+DP83822 Troubleshooting Guide
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 5 ---
+2.2.1.1 Power Supply Ramp with Unstable XI Clock
+Ensure that the stable XI clock is available at power-up of the PHY. The PHY will not initialize properly if there is 
+no stable XI clock available. If this is not possible, hold the PHY in reset until XI is stabilized after power-up of 
+the PHY. Refer to Table 2-3 and Figure 2-2 for detailed timing requirements and timing diagram if the XI clock is 
+probed to be unstable at power-up of DP83822.
+Table 2-3. Timing Requirements: Power-Up With Unstable XI Clock
+PARAMETER
+MIN
+NOM
+MAX
+UNIT
+T1
+Reset application after XI stabilization
+1
+us
+T2
+Reset pulse width
+10
+us
+T1
+T2
+VVDD
+XI
+RESETN
+Figure 2-2. Power-Up With Unstable XI Input
+2.2.2 Voltage Checks
+DP83822 needs sufficient power as well as the following decoupling scheme that has been characterized for the 
+device:
+•
+Per rail:
+–
+1x 10nF, 1x 100nF, 1x 1uF, 1x 10uF
+3.3-V, 2.5-V or 
+1.8-V Supply
+VDDIO
+(pin 21)
+100 nF
+10 nF
+10 F
+1 F
+100 nF
+10 nF
+3.3-V or 1.8-V 
+Supply
+AVD
+(pin 14)
+10 F
+1 F
+Ferrite bead for improved EMC
+(optional)
+Ferrite bead for improved EMC 
+(optional)
+Figure 2-3. Power Supply Decoupling Recommendation
+2.2.3 Probe the RESET_N Signal
+The reset input is active low. It is important to confirm that the controller is not driving the RESET_N signal low. 
+Otherwise, the device will be held in reset and will not respond.
+www.ti.com
+Troubleshooting the PHY Application
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+DP83822 Troubleshooting Guide
+5
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 6 ---
+2.2.4 Probe the RBIAS pin
+The RBIAS resistor is used to develop the internal bias currents and voltages in the PHY. It is specified for 1% 
+tolerance so that the PHY can meet the tightest IEEE 802.3 specifications. The preference is to have a single 
+component over multiple in series as the tolerance range can increase.
+Measure the DC value of the voltage across the RBIAS resistor and confirm that the voltage is 1V.
+Power down the board and verify that the RBIAS resistor value is 4.87kΩ ±1%.
+Green is AVD and blue is RBIAS. When the device is properly ramped, RBIAS is expected to go high and stay 
+high at 1V.
+Figure 2-4. DP83822 RBIAS Signal during AVD Power Up
+2.2.5 Probe the XI Clock
+The following guidelines are the main specifications to reference for compatible crystals.
+Table 2-4. 25-MHz Crystal Specification
+PARAMETER
+TEST CONDITIONS
+MIN
+TYP
+MAX
+UNIT
+Frequency
+25
+MHz
+Frequency Tolerance
+Including operational 
+temperature, aging and other 
+factors
+-100
+100
+ppm
+Load Capacitance
+10
+40
+pF
+Troubleshooting the PHY Application
+www.ti.com
+6
+DP83822 Troubleshooting Guide
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 7 ---
+Table 2-5. 25-MHz Oscillator Specification
+PARAMETER
+TEST CONDITIONS
+MIN
+TYP
+MAX
+UNIT
+Frequency
+25
+MHz
+Frequency Tolerance
+Including operational 
+temperature, aging and other 
+factors
+-100
+100
+ppm
+Rise / Fall Time
+10% - 90%
+8
+nsec
+Jitter (Short Term)
+Cycle-to-cycle
+50
+100
+psec
+Jitter (Long Term)
+Accumulative over 10 ms
+1
+nsec
+Symmetry
+Duty Cycle
+40
+60
+%
+Load Capacitance
+15
+30
+pF
+Table 2-6. 50-MHz Oscillator Specification
+PARAMETER
+TEST CONDITIONS
+MIN
+TYP
+MAX
+UNIT
+Frequency
+50
+MHz
+Frequency Tolerance
+Including operational 
+temperature, aging and other 
+factors
+-100
+100
+ppm
+Rise / Fall Time
+10% - 90%
+8
+nsec
+Jitter (Short Term)
+Cycle-to-cycle
+50
+psec
+Jitter (Long Term)
+Accumulative over 10 ms
+1
+nsec
+Symmetry
+Duty Cycle
+40
+60
+%
+Load Capacitance
+15
+30
+pF
+Verify the frequency and signal integrity. For link integrity the reference clock is recommended to be:
+•
+MII/RGMII and RMII Leader Modes
+–
+25MHz ±100ppm
+•
+RMII Follower Mode
+–
+50MHz ±100ppm
+2.2.6 Probe the Strap Pins During Initialization
+Strap configurations can be verified with the strap tool referred in Section 2.1.
+Strap configurations are sampled at power up or hardware reset, through either the RESET pin or bit 15 of 
+register 0x001F.
+Ensure that no other component on the line need to affect the DC bias set by this network. A pullup resistor and 
+a pulldown resistor of suggested values should be used to set the voltage ratio of the bootstrap pin input and the 
+supply to select one of the possible modes.
+However, in some cases, other devices on the board (for example, the MAC) will pull or drive these pins 
+unexpectedly. The strap values can be read from registers 0x467 (SOR1) and 0x468 (SOR2), these registers are 
+extended registers and can only be accessed using Extended Register Access.
+www.ti.com
+Troubleshooting the PHY Application
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+DP83822 Troubleshooting Guide
+7
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 8 ---
+It is recommended to use following resistors for strapping. If the register value does not match the intended 
+strapping configuration, measurements can be made during power up and after power up when the RESET_N 
+signal is asserted.
+RL
+RH
+VDDIO
+VDDIO
+RL
+RH
+VDDIO
+50 NŸ
+±25%
+9 NŸ
+±25%
+Figure 2-5. Bootstrap Circuits
+Table 2-7. Recommended 4-Level Strap Resistor Ratios 
+Mode (1)
+Ideal RH (kΩ)
+Ideal RL (kΩ)
+PULLDOWN PINS (9 kΩ)
+1 (Default)
+OPEN
+OPEN
+2
+10
+2.49
+3
+5.76
+2.49
+4
+2.49
+OPEN
+PULLUP PINS (50 kΩ)
+1
+OPEN
+1.96
+2
+13
+1.96
+3
+6.2
+1.96
+4 (Default)
+OPEN
+OPEN
+(1)
+Strap resistors with 1% tolerance are recommended.
+2.2.7 Probe the Serial Management Interface (MDC, MDIO) Signals
+If applicable, Serial Management Interface can be useful in providing valuable status fields during a debug. 
+However, verify that this communication is accurate to avoid compounding issues. MDIO should pull up to the 
+VDDIO with a 2.2kΩ pullup resistor. Probe MDIO to confirm the default voltage.
+Attempt to write and read the registers. Verify the MDIO data sequence with the data sheet to make sure the 
+MDIO read access timing is correct.
+Table 2-8. SMI Protocol Structure
+SMI Protocol
+<idle><start><op code><device addr><reg addr><turnaround><data><idle>
+Read Register
+<idle><01><10><AAAAA><RRRRR><Z0><XXXX XXXX XXXX XXXX><idle>
+Write Register
+<idle><01><01><AAAAA><RRRRR><10><XXXX XXXX XXXX XXXX><idle>
+Troubleshooting the PHY Application
+www.ti.com
+8
+DP83822 Troubleshooting Guide
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 9 ---
+Figure 2-6. MDC/MDIO Write Example
+Figure 2-7. MDC/MDIO Read Example
+www.ti.com
+Troubleshooting the PHY Application
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+DP83822 Troubleshooting Guide
+9
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 10 ---
+2.2.7.1 Read and Check Register Values
+If the SMI bus is working properly, read the registers and verify the default values shown in the device-specific 
+data sheet.
+Register Address
+Register Value With Auto-Neg
+10 Mbps
+100 Mbps
+0x0000
+3100
+3100
+0x0001
+786D
+786D
+0x0002
+2000
+2000
+0x0003
+A240
+A240
+0x0004
+0061
+C1E1
+0x0005
+C1E1
+C1E1
+0x0010
+4117
+4715
+0x0014
+0000
+0000
+0x0015
+0000
+0000
+0x0017
+0041
+0041
+0x0019
+8021
+8C21
+With the PHY linked in a given speed, use these values as a reference to identify any variance from the 
+expected operation. Note that not all registers need to be the same, for example .
+•
+The value of Register 0x0005 depends on the link partner's capabilities.
+•
+The '4' or '0' difference in the MSB of Register 0x0010 is due to bit 14 MDI/MDIX Mode, does not affect 
+anything. The significant difference is the '7' or '5' as the LSB, this tells you the Speed Status.
+Example: After powering and linking the PHY in 10 Mbps, register 0x0010 is read at value 0x0017 meaning Bits 
+[4, 2, 1, 0] are high. These bits confirm: Auto-Negotiation is complete, Full-Duplex, 10 Mbps Mode, and valid link 
+established.
+Repeating this process for any values distinct from the expected values shown in the table will help diagnose the 
+exact state of the PHY for any encountered issues.
+Troubleshooting the PHY Application
+www.ti.com
+10
+DP83822 Troubleshooting Guide
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 11 ---
+2.2.7.1.1 Extended Register Access
+To read and write registers in extended register space, see the following procedures:
+Write procedure for MMD "1F" registers:
+write reg<000D> = 0x001F
+write reg<000E> = <address>
+write reg<000D> = 0x401F
+write reg<000E> = <value>
+Read procedure for MMD "1F" registers:
+write reg<000D> = 0x001F
+write reg<000E> = <address>
+write reg<000D> = 0x401F
+read reg<000E>
+To write a register in the extended register set and automatically increment the address register to the next 
+higher value following the write operation:
+Write (Post Increment) procedure for MMD "1F" registers:
+write reg<000D> = 0x001F
+write reg<000E> = <address>
+write reg<000D> = 0x401F
+write reg<000E> = 0x0C50
+write reg<000E> = <value>
+To read a register in the extended register set and automatically increment the address register to the next 
+higher value following the read operation:
+Read (Post Increment) procedure for MMD "1F" registers:
+write reg<000D> = 0x001F
+write reg<000E> = <address>
+write reg<000D> = 0x801F
+read reg<000E>
+read reg<000E>
+Note
+Above write and read procedure is normally used for registers with address greater than 0x001F, but 
+the procedure can also be used for any address in general.
+2.3 MDI Health Checks
+This section dives into device health checks which makes sure that the MDI section of the device is operating 
+properly. This section can be skipped if DP83822 is:
+•
+Linked up and reporting no packet errors through Reg 0x15 when sending traffic through the device
+2.3.1 Magnetics
+Because DP83822 is current mode driver, ensure that the MDI lines are pulled to AVD with 49.9Ω resistors. See 
+Figure 2-8
+www.ti.com
+Troubleshooting the PHY Application
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+DP83822 Troubleshooting Guide
+11
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 12 ---
+1:1
+Pin 9
+(RD-)
+Pin 10
+(RD+)
+Pin 11
+(TD-)
+Pin 12
+(TD+)
+AVD
+1
+F
+0.1
+�F
+AVD
+0.1
+F
+49.9
+  
+49.9
+  
+49.9 
+  
+49.9 
+  
+RD -
+RD +
+TD -
+TD +
+RJ 45
+1 
+F
+0.1 
+F
+1 
+	F
+0.1
+
+F
+1:1
+Ferrite bead for 
+improved EMC 
+(optional)
+1
+F
+AVD
+Figure 2-8. DP83822 TPI Network Circuit
+The following guidelines are the main specifications to reference for compatible magnetics:
+Table 2-9. Magnetic Isolation Requirements
+Parameter
+Test Conditions
+TYP
+UNIT
+Turns Ratio
+±2% Tolerance
+1:1
+-
+Insertion Loss
+1-100MHz
+-1
+dB
+Return Loss
+1-30MHz
+-16
+dB
+30-60MHz
+-12
+dB
+60-80MHz
+-10
+dB
+Differential to Common Mode Rejection Ratio
+1-50MHz
+-30
+dB
+50-150MHz
+-20
+dB
+Crosstalk
+30MHz
+-35
+dB
+60MHz
+-30
+dB
+Isolation
+HPOT
+1500
+Vrms
+If these exact requirements cannot be met, the following allowances can be made.
+•
+Turns ratio
+–
+Ideally 2%, but 3% is tolerable.
+•
+Inductance
+–
+High inductance is preferred. Usual numbers seen are around 350μH.
+•
+Insertion loss
+–
+As close to 0dB as possible compared to specified value for each range stated in data sheet. If 
+specification gives -1 dB as typical. finding a component with -1dB, -0.9dB, … is recommended.
+•
+Return loss
+–
+At or lower than the magnitude specified in data sheet. If specification gives -16dB as typical, finding a 
+component with -16dB, -17dB, … is recommended.
+Troubleshooting the PHY Application
+www.ti.com
+12
+DP83822 Troubleshooting Guide
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 13 ---
+2.3.2 Probe the MDI Signals
+In the default configuration, Auto-negotiation and Auto-MDIX can be enabled. A link pulse needs to be visible on 
+the channel transmit (TD_P, TD_M) and will occasionally toggle to the receive pair (RD_P, RD_M). If set to MDI, 
+this pulse is only available on the transmit pair while if set in MDI-X, this will only be available on the receive pair.
+A short Ethernet cable with 100Ω terminations can be used for measuring the MDI signals. A terminated cable 
+is shown in Figure 2-9. A connection diagram for making measurements with the terminated cable is shown in 
+Figure 2-10.
+Figure 2-9. 100 Ω Terminated Cable for MDI Signal Measurement
+Differential Probe
+To 
+Oscilloscope
++
+-
+100Q
+RJ-45
+100Q
+100Q
+100Q
+Figure 2-10. Connection Diagram for 100 M Terminated Cable
+Link pulses are nominally 100 ns wide and occur every 16 ms. Figure 2-11 shows a correct link pulse.
+www.ti.com
+Troubleshooting the PHY Application
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+DP83822 Troubleshooting Guide
+13
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 14 ---
+Figure 2-11. DP83822 Link Pulse
+2.3.3 Link Quality Check
+After establishing a valid link and confirming the key status register values and visually verifying that the link LED 
+is lit, the link may still be seeing any packet errors.
+There are several possible sources of link problems:
+•
+Link partner transmit problem
+•
+Cable length and quality
+•
+Clock quality of the 25 MHz reference clock
+•
+MDI signal quality
+With the PHY powered and connected to a link partner, the following register can be read from to determine the 
+health of the link:
+Table 2-10. Link Quality MSE Registers
+Channel
+Register Address
+A
+0x218
+For a given channel, read the register value to determine the MSE (Mean Square Error), and see Table 2-11 to 
+determine link quality.
+Table 2-11. MSE Link Quality Ranges
+Link Quality
+Register Content
+Excellent
+< 0x20A
+Good
+0x20A - 0x33B
+Poor
+> 0x33B
+A Time-Domain Reflectometry (TDR) test can also be performed on the PHY to detect problems within the 
+wire's connections and where the fault occurred. For more details regarding different TDR configurations and 
+test modes as well as how to run a TDR test on the PHY, see How to use the TDR Feature of DP83822.
+Troubleshooting the PHY Application
+www.ti.com
+14
+DP83822 Troubleshooting Guide
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 15 ---
+2.3.4 Debug the Fiber Connection
+Fiber Network Circuit shows the recommended circuit for a 100-Mbps fiber network. Verify that the circuit meets 
+the requirements of the intended application.
+All resistors and capacitors should be placed as close to the fiber transceiver as possible.
+Pin 12
+(FX_TDP)
+Pin 11
+(FX_TDM)
+Pin 10
+(FX_RDP)
+Pin 9
+(FX_RDM)
+49.9
+  
+Pin 24
+(SD_IN)
+49.9
+�  
+49.9
+  
+49.9
+  
+0.1
+F
+0.1
+F
+AVD
+DP83822
+PHY
+Fiber Transceiver
+All values are typical and are ±1%
+Place resistors and capacitors 
+close to the fiber transceiver
+0.1
+F
+0.1
+F
+Figure 2-12. Fiber Network Circuit
+Note
+For PECL and LVPECL applications and for the recommended additional capacitors and resistors 
+needed, see DP83822 EVM User's Guide.
+Note
+SFP Fiber Transceiver usually have integrated AC coupling capacitors. Adding external capacitors 
+may not be needed.
+The DP83822 provides IEEE 802.3 compliant 100BASE-FX operation. Hardware bootstrap or register 
+configuration can be used to enable 100BASE-FX operation.
+The DP83822IF and DP83822HF are the fiber capable variants of the DP83822. Register 0x0001[2] indicates 
+link status for both Copper and Fiber modes of operation. In Fiber, this bit does NOT toggle when the link status 
+changes. Soft-Reset must be performed (Set Register 0x001F = 0x4000) before reading Register 0x0001 to 
+ensure proper link status change update.
+The DP83822 has signal detection pin. This pin connects to an industry standard fiber transceiver. When 
+enabling 100BASE-FX operation using the FX_EN bootstrap, AMDIX_EN bootstrap turns into SD_EN bootstrap. 
+Please refer to Table 2-12 for fiber bootstrap configuration.
+Note
+100BASE-FX signal detect pin (LED_1) polarity is controlled by bit[0] in the Fiber General 
+Configuration Register (FIBER GENCFG, Register 0x0465). Please refer to Table 2-13. By default, 
+signal detect is an active HIGH polarity.
+www.ti.com
+Troubleshooting the PHY Application
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+DP83822 Troubleshooting Guide
+15
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 16 ---
+Note
+TI recommends connecting Signal Detect pin from the Optical Transceiver to the LED_1 pin and 
+enable it using SD_EN bootstrap pin in 100BASE-FX mode. The LED_1 pin is not used in design 
+and that, if the electrical link between the fiber module and the DP83822 is broken, disconnected or 
+otherwise disrupted, the link will recover only by initiating a soft reset through MDIO/MDC interface.
+Table 2-12. Fiber Bootstrap Configuration
+Pin Name
+Pin#
+PU/PD
+Mode
+Description
+COL
+29
+PU
+2 or 3
+FX_EN: Enables 100BASE-FX
+RX_ER
+28
+PU
+3 or 4
+SD_EN: Enables active HIGH 100BASE-FX Signal Detection on LED_1 when set to '1' 
+if FX_EN is enabled. Polarity can be changed using the Fiber General Configuration 
+Register (FIBER GENCFG, Register 0x0465).
+Table 2-13. 0x0465 Fiber General Configuration Register (FIBER GENCFG)
+Bit
+Name
+Type
+Default
+Function
+0
+100Base-FX Signal 
+Detect Polarity
+R/W
+0
+100Base-FX Signal Detect Polarity: 1 = Signal 
+Detect is Active LOW 0 = Signal Detect is Active 
+HIGH When set to Active HIGH, Link drop will occur 
+if SD pin senses a LOW state (SD = '0'). When set 
+to Active LOW, Link drop will occur if SD pin senses 
+a HIGH state (SD = '1'). Note: To enable 100BaseFX 
+Signal Detection on LED_1 (pin #24), strap SD_EN = 
+'1'
+Troubleshooting the PHY Application
+www.ti.com
+16
+DP83822 Troubleshooting Guide
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 17 ---
+2.3.5 Debug the Start of Frame Detect
+The IEEE 1588 indication pulse at the SFD can be delivered to any of the following pins: LED_0, LED_1 
+(GPIO1), COL (GPIO2), RX_D3 (GPIO3), INT/PWDN_N and CRS. The exact timing of the pulse can be 
+adjusted via Register 0x003F.
+0
+1
+1
+0
+0
+1
+0
+Preamble Octet
+Ethernet
+Start-of-Frame
+Delimiter
+Message Timestamp Point
+First Octet following
+Start-of-Frame
+bit
+time
+1
+0
+1
+0
+1
+1
+1
+0
+0
+0
+0
+0
+0
+0
+Figure 2-13. IEEE 1588 Message Timestamp Point
+Three registers that control the routing of the IEEE 1588 transmit and receive indications are listed below:
+1.
+0x003E: Routes both transmit and receive indications to LED_0 (GPIO1), COL (GPIO2), CRS and INT/
+PWDN_N
+2.
+0x0462/0x0463: IO MUX GPIO Control Register 1/2 that enables additional pin selections and a centralized 
+location for GPIO controls
+After enabling/setting the RX_SFD and TX_SFD pins in registers IOCTRLx, write the following two registers:
+•
+Program (Register 0x0456 = value 0x000A)
+•
+Program (Register 0x04A0 = value 0x1080)
+–
+Note that register 0x04A0 is enabling "bit 7: WOL". This helps improve the accuracy of SFD detection and 
+is not a must change. This does not cause PHY to detect WoL packets, as WoL function needs additional 
+register configurations.
+Note
+A software reset has to be performed to load these register values (Register 0x001F = value 0x4000).
+2.3.6 Compliance
+IEEE compliance measurements can be made to verify the signaling characteristics. For details on these 
+measurements and how to properly configure, please refer to the application note How to Configure DP8382x for 
+Ethernet Compliance Testing.
+2.4 MII Health Checks
+This section dives into device health checks which makes sure that the MII section of the device is operating 
+properly.
+2.4.1 MII Check
+The Media Independent Interface is a synchronous 4-bit wide nibble data interface that connects the PHY to the 
+MAC. The MII is fully compliant with IEEE 802.3-2002 clause 22.
+The MII signals are summarized in .Table 2-14
+Table 2-14. MII Signals
+Function
+Pins
+Data Signals
+TX_D[3:0]
+RX_D[3:0]
+Transmit and Receive Signals
+TX_EN
+RX_DV
+www.ti.com
+Troubleshooting the PHY Application
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+DP83822 Troubleshooting Guide
+17
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 18 ---
+Table 2-14. MII Signals (continued)
+Function
+Pins
+Line-Status Signals
+CRS
+COL
+Clock
+TX_CLK
+RX_CLK
+PHY
+MAC
+TX_CLK
+TX_EN
+TX_D[3:0]
+RX_CLK
+RX_DV
+RX_ER
+RX_D[3:0]
+CRS
+COL
+Figure 2-14. MII Signaling
+Reference the waveforms below to verify the expected MAC data and clock signals for 100BASE-Tx MII Mode. 
+Table 2-15 displays specs taken from the data sheet shown in the waveforms. MII signaling needs to be 2.5MHz 
+if PHY is not linked up or linked up at 10Mbps, and needs to be at 25MHz if linked at 100Mbps. Note that both 
+TX_CLK and RX_CLK are outputs of the PHY.
+If a MAC bus (TX or RX) is suspected to be problematic, probe the lines at the receiver side of the trace, making 
+sure that the receiver's setup and hold times are met, along with VIH/VIL. Typical symptoms of violating these 
+specifications is packet errors at the MAC while the PHY is indicating clean traffic (Reg 0x15).
+Table 2-15. 100M MII Receive Timing
+Test Condition
+MIN
+TYP
+MAX
+Unit
+RX_CLK High / Low Time
+16
+20
+24
+ns
+RX_D[3:0], RX_ER, RX_DV Delay from RX_CLK 
+rising
+10
+30
+ns
+Table 2-16. 100M MII Transmit Timing
+TEST CONDITION
+MIN
+TYP
+MAX
+UNIT
+TX_CLK High / Low Time
+16
+20
+24
+ns
+TX_D[3:0], TX_ER, TX_EN Setup to TX_CLK
+10
+ns
+TX_D[3:0], TX_ER, TX_EN Hold from TX_CLK
+0
+ns
+Table 2-17. 10M MII Receive Timing
+TEST CONDITION
+MIN
+TYP
+MAX
+UNIT
+RX_CLK High / Low Time
+160
+200
+240
+ns
+Troubleshooting the PHY Application
+www.ti.com
+18
+DP83822 Troubleshooting Guide
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 19 ---
+Table 2-17. 10M MII Receive Timing (continued)
+TEST CONDITION
+MIN
+TYP
+MAX
+UNIT
+RX_D[3:0], RX_ER, RX_DV Delay from RX_CLK 
+rising
+100
+300
+ns
+Table 2-18. 10M MII Transmit Timing
+TEST CONDITION
+MIN
+TYP
+MAX
+UNIT
+TX_CLK High / Low Time
+190
+200
+240
+ns
+TX_D[3:0], TX_ER, TX_EN Setup to TX_CLK
+25
+ns
+TX_D[3:0], TX_ER, TX_EN Hold from TX_CLK
+0
+ns
+Figure 2-15. RX_CLK and RX_D0 Timing for MII (Blue Wave (Channel 2) = RX_CLK, Purple Wave (Channel 
+3) = RX_D0)
+2.4.2 RMII Check
+The DP83822 incorporates the Reduced Media Independent Interface (RMII) as specified in the RMII 
+specification from the RMII consortium. Architecturally, the RMII specification provides an additional 
+reconciliation layer on either side of the MII, but can be implemented in the absence of an MII. The DP83822 
+offers two types of RMII operations: RMII Leader and RMII Follower.
+In RMII Leader operation, the DP83822 operates off of either a 25MHz CMOS-level oscillator connected to XI 
+pin or a 25MHz crystal connected across XI and XO pins.
+In RMII Follower operation, the DP83822 operates off of a 50MHz CMOS-level oscillator connected to the XI pin 
+and shares the same clock as the MAC.
+A 50MHz output clock referenced from any of the three GPIOs is connected to the MAC.
+www.ti.com
+Troubleshooting the PHY Application
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+DP83822 Troubleshooting Guide
+19
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 20 ---
+Note
+If RMII Leader mode is configured through bootstraps, a 50MHz output clock will automatically be 
+enabled on RX_D3 (GPIO3).
+The RMII specification has the following characteristics:
+•
+Supports 100BASE-FX, 100BASE-TX and 10BASE-Te.
+•
+Single clock reference sourced from the MAC to PHY (or from an external source)
+•
+Provides independent 2-bit wide transmit and receive data paths
+•
+Uses CMOS signal levels, the same levels as the MII interface
+In this mode, data transfers are two bits for every clock cycle using the internal 50MHz reference clock for both 
+transmit and receive paths.
+The RMII signals are summarized in Table 2-19.
+Table 2-19. RMII Signals
+Function
+Pins
+Data Signals
+TX_D[1:0]
+RX_D[1:0]
+Transmit and Receive Signals
+TX_EN
+CRS_DV
+PHY
+MAC
+TX_EN
+TX_D[1:0]
+RX_CLK (optional)
+RX_DV (optional)
+RX_ER (optional)
+RX_D[1:0]
+CRS_DV
+50-MHz Reference 
+Clock
+XI
+(pin 23)
+Figure 2-16. RMII Follower Signaling
+Troubleshooting the PHY Application
+www.ti.com
+20
+DP83822 Troubleshooting Guide
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 21 ---
+PHY
+MAC
+TX_EN
+TX_D[1:0]
+RX_CLK (optional)
+RX_DV (optional)
+RX_ER (optional)
+RX_D[1:0]
+CRS_DV
+25-MHz Reference 
+Clock
+RX_D3
+(pin 1)
+50-MHz Reference Clock
+Figure 2-17. RMII Leader Signaling
+Note
+For using the DP83822 in RMII repeater mode, see the DP83822 RMII Repeater Mode.
+Table 2-20. RMII Transmit Timing
+TEST CONDITION
+MIN
+TYP
+MAX
+UNIT
+XI Clock Period
+20
+ns
+TX_D[1:0] and TX_EN Data Setup to XI rising
+1.4
+ns
+TX_D[1:0] and TX_EN Data Hold from XI rising
+2
+ns
+RMII Master Clock (RX_D3 Clock) Period
+20
+Duty Cycle
+35
+65
+%
+TX_D[1:0] and TX_EN Data Setup to RMII Leader 
+Clock rising
+4
+ns
+TX_D[1:0] and TX_EN Data Hold from RMII Leader 
+Clock rising
+2
+ns
+Table 2-21. RMII Receive Timing
+TEST CONDITION
+MIN
+TYP
+MAX
+UNIT
+XI Clock Period
+20
+ns
+TX_D[1:0] and TX_EN Data Setup to XI rising
+1.4
+ns
+TX_D[1:0] and TX_EN Data Hold from XI rising
+2
+ns
+RMII Master Clock (RX_D3 Clock) Period
+20
+Duty Cycle
+35
+65
+%
+TX_D[1:0] and TX_EN Data Setup to RMII Leader 
+Clock rising
+4
+ns
+www.ti.com
+Troubleshooting the PHY Application
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+DP83822 Troubleshooting Guide
+21
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 22 ---
+Table 2-21. RMII Receive Timing (continued)
+TEST CONDITION
+MIN
+TYP
+MAX
+UNIT
+TX_D[1:0] and TX_EN Data Hold from RMII Leader 
+Clock rising
+2
+ns
+Data on TX_D[1:0] are latched at the PHY with reference to the 50MHz-clock in RMII Leader mode and Follower 
+mode. Data on RX_D[1:0] is provided in reference to 50MHz clock. In addition, CRS_DV can be configured as 
+RX_DV signal. This allows a simpler method of recovering receive data without the need to separate RX_DV 
+from the CRS_DV indication.
+Figure 2-18. RX_CLK and RX_D0 Timing for RMII (Yellow Waveform (Channel 1) = RX_CLK, Blue 
+Waveform (Channel 2) = RX_D0)
+For more information on reduced media independent interface, see the Reduced Media Independent Interface 
+(RMII) section of the DP83822 Robust, Low Power 10/100 Mbps Ethernet Physical Layer Transceiver Data 
+Sheet.
+2.4.3 RGMII Check
+The RGMII signals are summarized in Table 2-22.
+Table 2-22. RGMII Signals
+Function
+Pins
+Data Signals
+TX_D[3:0]
+RX_D[3:0]
+Transmit and Receive Signals
+TX_CTRL
+RX_CTRL
+Clock
+TX_CLK
+RX_CLK
+Troubleshooting the PHY Application
+www.ti.com
+22
+DP83822 Troubleshooting Guide
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 23 ---
+PHY
+MAC
+TX_CLK
+TX_CTRL
+TX_D[3:0]
+RX_CLK
+RX_CTRL
+RX_D[3:0]
+25-MHz Crystal or 
+CMOS-level 
+Oscillator
+Figure 2-19. RGMII Signaling
+In order for the MAC to be able to transmit and receive the correct data from the PHY, the correct RGMII modes 
+must be selected such that both the PHY and the MAC are not simultaneously in align mode or shift mode for 
+the TX and RX side. Table 2-23 lists the correct RGMII delay configurations.
+Reference the waveforms below to verify the expected MAC data and clock signals for RGMII Mode. Table 2-23 
+displays specs taken from the device-specific data sheet that are shown in the waveforms.
+Table 2-23. RGMII Shift Configurations
+MAC Configuration
+Required PHY Configuration
+RGMII Align on RX
+RGMII Shift on RX
+RGMII Shift on RX
+RGMII Align on RX
+RGMII Align on TX
+RGMII Shift on TX
+RGMII Shift on TX
+RGMII Align on TX
+www.ti.com
+Troubleshooting the PHY Application
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+DP83822 Troubleshooting Guide
+23
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 24 ---
+Figure 2-20. RX_CLK and RX_D0 Timing in RGMII Align Mode (Yellow Waveform (Channel 1) = RX_CLK, 
+Blue Waveform (Channel 2) = RX_D0)
+Figure 2-21. RX_CLK and RX_D0 Timing in RGMII RX Shift Mode (Yellow Waveform (Channel 1) = 
+RX_CLK, Blue Waveform (Channel 2) = RX_D0)
+Troubleshooting the PHY Application
+www.ti.com
+24
+DP83822 Troubleshooting Guide
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 25 ---
+For RGMII RX shift mode, verify that RX_CLK is shifted by 3.5 ns and for RGMII TX Clock Shift that TX_CLK is 
+shifted by 3.5ns.
+Table 2-24. RGMII Input Timing Specifications
+Parameter
+Test Condition
+Min
+Typ
+Max
+Unit
+Tcyc
+TX_CLK / Clock Cycle Duration
+36
+40
+44
+ns
+Tsetup(align)
+TX_D[3:0], TX_CTRL setup to TX_CLK (align mode)
+1
+2
+ns
+Thold(align)
+TX_D[3:0], TX_CTRL hold to TX_CLK (align mode)
+1
+2
+ns
+Table 2-25. RGMII Output Timing Specifications
+Parameter
+Test Condition
+Min
+Typ
+Max
+Unit
+Tskew(align)
+RX_D[3:0], RX_CTRL delay from RX_CLK (align 
+mode)
+-500
+0
+ps
+Tsetup(shift)
+RX_D[3:0], RX_CTRL delay from RX_CLK (shift 
+mode enabled, default)
+1.2
+2
+ns
+Tcyc
+RX_CLK / Clock Cycle Duration
+36
+40
+44
+ns
+Duty_G
+RX_CLK / Duty Cycle
+40
+50
+60
+%
+Tr/Tf
+RX_CLK / Rise, Fall Time (20% to 80% )
+750
+ps
+2.5 Loopback and PRBS
+2.5.1 Loopback Modes
+There are several options for loopback tests that test and verify various functional blocks within the PHY. 
+Enabling loopback mode allows you to inspect the connections between the MAC and the PHY using xMII/PCS/
+Digital/AFE loopbacks as well as between the PHY and the MDI using reverse loopback.
+MAC
+MII
+PCS
+DIGITAL
+AFE
+MDI
+Data 
+Generator
+Data 
+Checker
+Figure 2-22. MAC-Side Analog Loopback Mode Example
+MAC
+MII
+PCS
+DIGITAL
+AFE
+MDI
+Data 
+Generator
+Data 
+Checker
+Figure 2-23. Block Diagram, Reverse (Cable-Side) Loopback Mode
+The analog loopback is recommended for checking the full data path between the MAC and PHY, while reverse 
+loopback is used with a link partner to verify the data path between the PHY and the MDI(Link Partner).
+The device also incorporates an internal PRBS Built-in Self Test (BIST) circuit to accommodate in-circuit testing 
+or diagnostics. BIST can be performed using various loopback modes to isolate any issues to specific parts of 
+the data path by generating packetized data with variable content. Scripts are provided to enable data generator 
+and checker as well as the various loopback modes.
+www.ti.com
+Troubleshooting the PHY Application
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+DP83822 Troubleshooting Guide
+25
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 26 ---
+MAC
+MII
+PCS
+DIGITAL
+AFE
+MDI
+Data 
+Generator
+Data 
+Checker
+Figure 2-24. Data Generator and Checker With Loopback
+2.5.2 Transmitting and Receiving Packets With the MAC
+If generating and checking packets with the MAC is possible, and the PHY has a working link partner with 
+reverse loopback capability, verify the full data path as follows:
+1.
+Power and connect the PHY to the MAC and a working link partner.
+2.
+Enable reverse loopback on the link partner.
+3.
+Transmit test packets from the MAC to the PHY.
+4.
+Verify the MAC receives the same test packets.
+If the MAC receives the same test packets transmitted without issue, the full data path through MAC → PHY → 
+Link Partner (MDI) is valid. If this test does not pass, perform analog loopback to isolate the issue along the data 
+path (disconnect cable side connections before running analog loopback):
+1.
+Power and connect the PHY to the MAC.
+2.
+Enable analog loopback on the PHY (write Register 0x0016 = 0x0108).
+3.
+Transmit test packets from the MAC to the PHY.
+4.
+Verify the MAC receives the same test packets.
+If the MAC receives the same test packets, the data path through MAC → PHY is valid, and the issue has been 
+isolated to the MDI data path. If this test does not pass, the issue can be on the MAC interface. To check the 
+MAC interface, see MII Check.
+Below are example sequence of register reads and writes to perform Analog Loopback:
+// Analog Loopback
+begin
+001F 8000 //Hard Reset
+0000 2100 //Disables Auto-Neg, Selects 100 Mbps
+0016 0108 //Select Analog Loopback
+030B 3380 //This helps PRBS LOCK
+0016 3108 //Enables PRBS Checker Config & Packet Generation Enable
+ //After you write '3108' the register should Read 3b04. (Bit 11 & 9 go high)
+001B 807D //Lock Error Counter's Value
+001B
+//after running this test check register 0010 bit 0 should be 1 
+end
+Troubleshooting the PHY Application
+www.ti.com
+26
+DP83822 Troubleshooting Guide
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 27 ---
+2.5.3 Transmitting and Receiving Packets With BIST
+If generating and checking packets with the MAC is not possible, use an external packet generator or internal 
+PRBS packet generation and check functionalities to verify the data path. Perform reverse loopback with PRBS 
+and a working link partner as follows:
+1.
+Power and connect the PHY to a link partner.
+2.
+Enable PRBS packet generation on the PHY (write 0x16 to 5000).
+3.
+Enable reverse loopback on the link partner
+4.
+Wait at least one second, then check PRBS lock status on the PHY (read register 0x17[11:10]).
+If register 0x17[11] is high, the data path through PHY → MDI is valid. If this test does not pass, the issue 
+could be on the PHY's internal data path or the MDI. To verify the internal data path, perform PRBS with 
+analog loopback using the following script. If the internal data path is valid, then the issue is isolated to the MDI 
+(assuming the link partner is working).
+The following code are example sequences of register reads and writes to perform BIST when using two 
+DP83822 PHY's:
+// Reverse Loopback on PHY
+begin
+001F 8000 //Hard Reset
+0000 2100 //Disables Auto-Neg, Selects 100 Mbps
+0016 7100 //Enables PRBS packet generation
+0016 // check PRBS lock status on bit 10 high
+end
+// Reverse Loopback on Link Partner
+begin
+001F 8000 //Hard Reset
+0000 2100 //Disables Auto-Neg, Selects 100 Mbps
+0016 0110 //Select Reverse Loopback
+end
+www.ti.com
+Troubleshooting the PHY Application
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+DP83822 Troubleshooting Guide
+27
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 28 ---
+3 Tools and References
+3.1 DP83822 Register Access
+If register access is not readily available in the application, USB-2-MDIO GUI is available from TI and can 
+be used with an MSP430 Launchpad, purchasable through the TI eStore. The GUI supports reading and 
+writing registers as well as running script files. It can be used with the DP83822 and the other devices in TI's 
+Ethernet portfolio. The USB-2-MDIO User's Guide and GUI are available for download at: http://www.ti.com/tool/
+usb-2-mdio.
+Figure 3-1. USB-2-MDIO GUI
+Figure 3-2. MSP430 LaunchPad
+Below is an example script that can also be found in the USB-2-MDIO GUI in the Help menu:
+// This is how you make a comment. All scripts must start with 'begin' 
+begin
+// To read a register, all you need to do is put down the 4 digit
+// HEX value of the registers (from 0000 to FFFF) 
+// Example to read registers 0001, 000A, and 0017 
+0001
+000A
+0017
+// To write a register, all you need to do is put down the 4 digit 
+// HEX value of the register (from 0000 to FFFF) followed by the 
+// HEX you desire to configure the register to (from 0000 to FFFF) 
+// Example to write 2100 to register 0000 and
+// Example to write 0110 to register 0016 
+0000 2100
+0016 0110
+// You must end the script by adding 'end' once you are finished
+end
+The Serial Management Interface defined by IEEE 802.3 is a single master bus. The MDC clock is generated 
+by the bus master, typically an Ethernet MAC. To use the USB-2-MDIO GUI, connections must be made directly 
+between the MSP430 Launchpad and the DP83822 MDIO and MDC pins.
+•
+MSP430 Pin 4.2 → PHY's MDIO Pin
+•
+MSP420 Pin 4.1 → PHY's MDC Pin
+Tools and References
+www.ti.com
+28
+DP83822 Troubleshooting Guide
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 29 ---
+3.2 Software and Driver Debug on Linux
+The two essential components required for the PHY to function on a Linux system are the device tree and driver 
+file, for which the DP83822 drivers can be found here. Below is a sample format of what a device tree looks like.
+mdio0 {
+#address-cells = <1>;
+#size-cells = <0>;
+ethphy0: ethernet-phy@0 {
+reg = <0>;
+rx-internal-delay-ps = <1>;
+tx-internal-delay-ps = <1>;
+};
+};
+Note
+The example bindings file can be found in this path: root/Documentation/devicetree/bindings/net/
+ti,dp83822.yaml.
+3.2.1 Common Terminal Outputs and Solutions
+Using the terminal command "dmesg | grep mdio", there might be several clues on what's causing the PHY to 
+not function appropriately from a software standpoint.
+$ dmesg | grep "mdio"
+One of the possible outputs is as follows:
+$ mdio_bus xxx.ethernet-x: MDIO device at address 8 is missing
+This message indicates that the PHY is not found on the MDIO bus, which could be caused by several issues, 
+the most common one being a missing or incorrect device tree, but could also be due to a non-functional PHY or 
+a bad SMI connection.
+Once the PHY can be detected on the MDIO bus, another common error message is as follows:
+$ Generic PHY xxx.ethernet-x: attached PHY driver [Generic PHY]
+This message indicates that the driver file for the corresponding PHY is not loaded correctly or not present at all, 
+and Linux loaded in a generic driver that most likely won't work with the PHY. In that case, verify that the driver 
+successfully compiled and added to Linux, making sure the driver matches with the model of PHY used.
+Finally, a message like this could display:
+$ am65-cpsw-nuss c000000.ethernet eth3: PHY [c000f00.mdio:05] driver [TI DP83822] (irq=POLL)
+This message shows that the PHY has the correct driver loaded and is detected successfully. Run ifconfig to 
+verify the network interface is present.
+www.ti.com
+Tools and References
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+DP83822 Troubleshooting Guide
+29
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 30 ---
+Example ifconfig output when the PHYs are successfully recognized as network adapter(s):
+root@j7-evm:~# ifconfig
+eth0: flags=4099<UP,BROADCAST,MULTICAST>  mtu 1500  metric 1
+        ether 24:76:25:a2:62:8b  txqueuelen 1000  (Ethernet)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 0  bytes 0 (0.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536  metric 1
+        inet 127.0.0.1  netmask 255.0.0.0
+        inet6 ::1  prefixlen 128  scopeid 0x10<host>
+        loop  txqueuelen 1000  (Local Loopback)
+        RX packets 82  bytes 6220 (6.0 KiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 82  bytes 6220 (6.0 KiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+The next step is to verify the successful data transfer.
+Tools and References
+www.ti.com
+30
+DP83822 Troubleshooting Guide
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 31 ---
+4 Summary
+This application note provides a suggested flow for evaluating a new application and confirming the expected 
+functionality. The step-by-step recommendations helps ease board bring-up and initial evaluation of DP83822 
+designs.
+5 References
+For information on hardware and software configurations for EMC.EMI compliance tests, see the following 
+documents.
+Texas Instruments, How to Pass IEEE Ethernet Compliance Tests, application report.
+Texas Instruments, How to Configure DP838xx for Ethernet Compliance Testing, application report.
+www.ti.com
+Summary
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+DP83822 Troubleshooting Guide
+31
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 32 ---
+6 Revision History
+Changes from Revision * (December 2023) to Revision A (July 2025)
+Page
+•
+Updated the numbering format for tables, figures, and cross-references throughout the document. Updated 
+overall structure of the document to improve readability.................................................................................... 1
+•
+Added Power Supply Ramp Sequence Check Section......................................................................................3
+•
+Added Section 2.2.1.1 ....................................................................................................................................... 5
+•
+Added Probe the RBIAS pin Section. Updated RBIAS to 1V from 2.7V.............................................................6
+•
+Added Section 2.3.1 ........................................................................................................................................ 11
+•
+Updated MSE Link Quality Ranges table from decimal to hex.........................................................................14
+•
+Added Compliance Section.............................................................................................................................. 17
+•
+Added RMII Check Section.............................................................................................................................. 19
+•
+Added Transmitting and Receiving Packets With the MAC section................................................................. 26
+•
+Added Summary section.................................................................................................................................. 31
+Revision History
+www.ti.com
+32
+DP83822 Troubleshooting Guide
+SNLA437A – DECEMBER 2023 – REVISED OCTOBER 2025
+Submit Document Feedback
+Copyright © 2025 Texas Instruments Incorporated
+
+
+--- PDF page 33 ---
+IMPORTANT NOTICE AND DISCLAIMER
+TI PROVIDES TECHNICAL AND RELIABILITY DATA (INCLUDING DATASHEETS), DESIGN RESOURCES (INCLUDING REFERENCE 
+DESIGNS), APPLICATION OR OTHER DESIGN ADVICE, WEB TOOLS, SAFETY INFORMATION, AND OTHER RESOURCES “AS IS” 
+AND WITH ALL FAULTS, AND DISCLAIMS ALL WARRANTIES, EXPRESS AND IMPLIED, INCLUDING WITHOUT LIMITATION ANY 
+IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT OF THIRD 
+PARTY INTELLECTUAL PROPERTY RIGHTS.
+These resources are intended for skilled developers designing with TI products. You are solely responsible for (1) selecting the appropriate 
+TI products for your application, (2) designing, validating and testing your application, and (3) ensuring your application meets applicable 
+standards, and any other safety, security, regulatory or other requirements.
+These resources are subject to change without notice. TI grants you permission to use these resources only for development of an 
+application that uses the TI products described in the resource. Other reproduction and display of these resources is prohibited. No license 
+is granted to any other TI intellectual property right or to any third party intellectual property right. TI disclaims responsibility for, and you fully 
+indemnify TI and its representatives against any claims, damages, costs, losses, and liabilities arising out of your use of these resources.
+TI’s products are provided subject to TI’s Terms of Sale, TI’s General Quality Guidelines, or other applicable terms available either on 
+ti.com or provided in conjunction with such TI products. TI’s provision of these resources does not expand or otherwise alter TI’s applicable 
+warranties or warranty disclaimers for TI products. Unless TI explicitly designates a product as custom or customer-specified, TI products 
+are standard, catalog, general purpose devices.
+TI objects to and rejects any additional or different terms you may propose.
+IMPORTANT NOTICE
+Copyright © 2025, Texas Instruments Incorporated
+Last updated 10/2025

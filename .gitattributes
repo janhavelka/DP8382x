@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.pdf binary
+*.zip binary
+*.cmd text eol=crlf
+# Preserve exact archived payloads and derived-text hashes.
+docs/reference/source/** -text -whitespace
+docs/reference/text/** -text -whitespace

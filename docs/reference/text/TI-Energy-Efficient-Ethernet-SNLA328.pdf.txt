@@ -1,0 +1,561 @@
+--- PDF page 1 ---
+1
+SNLA328–October 2019
+Submit Documentation Feedback
+Copyright © 2019, Texas Instruments Incorporated
+How to Use Energy Efficient Ethernet (IEEE 802.3az) With Texas
+Instruments Ethernet PHYs
+Application Report
+SNLA328–October 2019
+How to Use Energy Efficient Ethernet (IEEE 802.3az) With
+Texas Instruments Ethernet PHYs
+Anmol Dhanuka, Sarvanakkumar Radhakrishnan, and Geet Modi
+ABSTRACT
+Texas Instruments Ethernet PHYs offers a wide range of power saving modes that can be applied
+individually or in combination with each other depending on the desired operation. It supports:
+•
+Energy Efficient Ethernet (EEE) – IEEE 802.3az
+–
+EEE support for legacy MACs thru register configuration
+•
+Wake-on-LAN – Magic Packet Detection
+•
+Active Sleep
+•
+IEEE Power Down
+•
+Deep Power Down
+This application note discusses EEE and how it is implemented in DP83825I.
+
+
+--- PDF page 2 ---
+www.ti.com
+2
+SNLA328–October 2019
+Submit Documentation Feedback
+Copyright © 2019, Texas Instruments Incorporated
+How to Use Energy Efficient Ethernet (IEEE 802.3az) With Texas
+Instruments Ethernet PHYs
+Contents
+1
+EEE – Principles of Operation ............................................................................................. 3
+2
+EEE Implementation .......................................................................................................
+10
+3
+EEE DP83825 Waveform ................................................................................................. 12
+4
+Summary ...................................................................................................................
+14
+5
+References..................................................................................................................
+14
+List of Figures
+1
+IEEE802.3az Relationship OSI Reference Model and the IEEE802.3 CSMA/CD LAN Model.................... 3
+2
+EEE LPI State Flow .........................................................................................................
+4
+3
+4B5B Code-Groups..........................................................................................................
+6
+4
+Transmit Path LPI State Diagram .........................................................................................
+7
+5
+Receive Path LPI State Diagram .......................................................................................... 8
+6
+Both Active ...................................................................................................................
+8
+7
+LP Active and DUT in LPI ..................................................................................................
+9
+8
+LP in LPI and DUT Active ..................................................................................................
+9
+9
+Both in LPI....................................................................................................................
+9
+10
+DP83825 Eye Diagram....................................................................................................
+12
+11
+Refresh Burst ...............................................................................................................
+13
+12
+Two Refresh Bursts With Quiet Period.................................................................................. 13
+13
+Four Refresh Bursts and Three Quiet Periods ......................................................................... 14
+List of Tables
+1
+EEE LPI State Timing.......................................................................................................
+4
+2
+Transmit OpCodes ..........................................................................................................
+5
+3
+Receive Opcodes............................................................................................................
+5
+4
+LPI Indication ...............................................................................................................
+11
+5
+EEE Capability .............................................................................................................
+11
+6
+EEE Wake Error Count....................................................................................................
+12
+Trademarks
+All trademarks are the property of their respective owners.
+
+
+--- PDF page 3 ---
+www.ti.com
+EEE – Principles of Operation
+3
+SNLA328–October 2019
+Submit Documentation Feedback
+Copyright © 2019, Texas Instruments Incorporated
+How to Use Energy Efficient Ethernet (IEEE 802.3az) With Texas
+Instruments Ethernet PHYs
+1
+EEE – Principles of Operation
+Energy Efficient Ethernet (EEE) is a mechanism defined by IEEE 802.3az to reduce power dissipation
+during periods of low packet traffic. For EEE to work, both the MAC and PHY must both support EEE
+functionality because signaling to enter and exit EEE LPI state is an IEEE standard (IEEE802.3az) that
+governs both Layer 1 and Layer 2 operations. However to support legacy MAC, which do not support
+EEE, DP83825 provides the option to use a MDC/MDIO interface to enter and exit PHY in EEE LPI state.
+NOTE:
+10-Mbps EEE is achieved using only signal amplitude reduction and does not require any
+negotiation with a Link Partner (LP) or require MAC-PHY handshaking. 10BASE-T and
+10BASE-Te only send link pulses during IPG, unlike 100-Mbps and 1000-Mbps operation
+where there is a constant stream of IDLES between frames.
+Figure 1. IEEE802.3az Relationship OSI Reference Model and the IEEE802.3 CSMA/CD LAN Model
+100BASE-TX sends IDLES during the Inter-Packet Gap (IPG). These IDLES allow the PHY to maintain
+signal equalization and link status. The DUT and the LP also use IDLEs to recover the other device’s
+transmit clock for their own internal recovered clock. The PHYs constantly send IDLEs even when no
+traffic is present. As the line drivers are always active during IDLEs, the current consumption is high. EEE
+helps minimize current consumption by allowing quiet periods during Low-Power Idle (LPI) operation. LPI
+consists of a five main states: Active, Sleep, Quiet, Refresh, and Wake.
+
+
+--- PDF page 4 ---
+EEE – Principles of Operation
+www.ti.com
+4
+SNLA328–October 2019
+Submit Documentation Feedback
+Copyright © 2019, Texas Instruments Incorporated
+How to Use Energy Efficient Ethernet (IEEE 802.3az) With Texas
+Instruments Ethernet PHYs
+Figure 2. EEE LPI State Flow
+Table 1. EEE LPI State Timing
+LINE STATE
+SYMBOL
+TIMING PARAMETER
+(TRANSMIT)
+TIMING PARAMETER
+(RECEIVE)
+LINE SIGNALS
+SLEEP
+Ts
+200 μs – 220 μs
+240 μs - 260 μs
+4B5B code-group /P/
+QUIET
+Tq
+20 ms – 22 ms
+24 ms – 26 ms
+Differential DC zero volt
+REFRESH
+Tr
+200 μs – 220 μs
+240 μs - 260 μs
+4B5B code-group /P/
+WAKE
+Tw
+30 μs – 36 μs
+30 μs - 36 μs
+4B5B code-group /I/
+A PHY transitions into the Low-Power state when the MAC asserts EEE LPI opcode on the TX PHY MAC
+pins. Periodic series of Sleep code-groups (Refresh State) is required to ensure a link, maintain PLL lock
+(clock recovery), and provide signal equalization. When the MAC requests that the PHY exit LPI, IDLE
+code-groups will persist to inform the link partner that the device is transitioning into an active state.
+1.1
+EEE Negotiation
+EEE is advertised during Auto-Negotiation. Auto-Negotiation is performed at power up, on management
+command, after link failure, or due to user intervention. To advertise EEE capabilities, the PHY needs to
+exchange an additional formatted next page and unformatted next page in Auto Negotiation sequence.
+EEE is enabled on the link if and only if both DUT and link partners advertise EEE capabilities.
+If EEE is not supported by PHY or MAC, all EEE functions are disabled and the MAC should not assert
+LPI.
+EEE Negotiation can be activated using Register Access. IEEE 802.3az defines MMD3 and MMD7 as the
+locations for EEE control and status registers.
+1.2
+EEE MAC Encoding
+Once both DUT and LP have negotiated the EEE capabilities and link is formed, the MAC can assert LPI
+encoding during periods of no traffic, thereby starting the LPI operation on the transmit channel of the
+PHY.
+NOTE:
+DP83825 supports RMII MAC interface (Reduced MII). RMII uses di-bit data on TX and RX
+with sampling clock of 50 MHz, thereby maintaining the 100-Mbps speed. Table 2 and
+Table 3 summarize the Transmit and Receive Opcodes for RMII interface.
+
+
+--- PDF page 5 ---
+www.ti.com
+EEE – Principles of Operation
+5
+SNLA328–October 2019
+Submit Documentation Feedback
+Copyright © 2019, Texas Instruments Incorporated
+How to Use Energy Efficient Ethernet (IEEE 802.3az) With Texas
+Instruments Ethernet PHYs
+Table 2. Transmit OpCodes
+TX_EN
+TXD[1:0]
+FUNCTION
+0
+00
+Normal Inter-Frame
+0
+01
+EEE LPI
+1
+10 through 11
+Reserved
+1
+00 through 11
+Data Transmission
+Table 3. Receive Opcodes
+CRS_DV/RX_DV
+RXD[1:0]
+FUNCTION
+0
+00
+Normal Inter-Frame
+0
+01
+EEE LPI
+0
+10 through 11
+Reserved
+1
+00 through 11
+Data Transmission
+When the MAC presents the EEE LPI opcode on the TX pins to initiate the LPI request, the PHY provides
+the correct 4B5B code-group (Figure 3) that informs the LP that the device transitioned into Quiet state.
+When the LP receives the Sleep request, the LP informs its MAC through the receive pins that the DUT
+can initiate LPI.
+NOTE:
+In case of RMII “Data Transmission” function, the di-bit data over two clock cycles (50 MHz)
+are concatenated to form a nibble data. This nibble data is then converted using the 4B5B
+code-groups as mentioned in Figure 3. Similarly in data reception, the nibble data is
+converted to di-bit data at 50-MHz clock (RMII interface sampling clock).
+For “EEE LPI” function, the concatenation is not done. Here the TXD[1:0] = ‘b01 over two clock cycles (50
+MHz) maps to TXD[3:0] = ‘b0001, which is then encoded as per 4B5B code-group. Similarly, for data
+reception RXD[3:0] = ‘b0001 maps to RXD[1:0] = ‘b01 on the RMII interface.
+
+
+--- PDF page 6 ---
+EEE – Principles of Operation
+www.ti.com
+6
+SNLA328–October 2019
+Submit Documentation Feedback
+Copyright © 2019, Texas Instruments Incorporated
+How to Use Energy Efficient Ethernet (IEEE 802.3az) With Texas
+Instruments Ethernet PHYs
+Figure 3. 4B5B Code-Groups
+
+
+--- PDF page 7 ---
+www.ti.com
+EEE – Principles of Operation
+7
+SNLA328–October 2019
+Submit Documentation Feedback
+Copyright © 2019, Texas Instruments Incorporated
+How to Use Energy Efficient Ethernet (IEEE 802.3az) With Texas
+Instruments Ethernet PHYs
+Figure 4 and Figure 5 show the progression of states for both transmit and receive paths when EEE LPI is
+enabled. Notice that at any point in the LPI state machine, a PHY can quickly exit out of the Low-Power
+mode and enter Active mode.
+Figure 4. Transmit Path LPI State Diagram
+
+
+--- PDF page 8 ---
+EEE – Principles of Operation
+www.ti.com
+8
+SNLA328–October 2019
+Submit Documentation Feedback
+Copyright © 2019, Texas Instruments Incorporated
+How to Use Energy Efficient Ethernet (IEEE 802.3az) With Texas
+Instruments Ethernet PHYs
+Figure 5. Receive Path LPI State Diagram
+Based on MAC encoding on DUT and LP side, links can operate in any one of four combinations
+described in Figure 6, Figure 7, Figure 8, and Figure 9 for 100BASE-TX operation. DUT and LP can
+independently enter the LPI operation for the 100BASE-TX link.
+Figure 6. Both Active
+
+
+--- PDF page 9 ---
+RD1
+TD1
+www.ti.com
+EEE – Principles of Operation
+9
+SNLA328–October 2019
+Submit Documentation Feedback
+Copyright © 2019, Texas Instruments Incorporated
+How to Use Energy Efficient Ethernet (IEEE 802.3az) With Texas
+Instruments Ethernet PHYs
+Figure 7. LP Active and DUT in LPI
+Figure 8. LP in LPI and DUT Active
+Figure 9. Both in LPI
+
+
+--- PDF page 10 ---
+EEE Implementation
+www.ti.com
+10
+SNLA328–October 2019
+Submit Documentation Feedback
+Copyright © 2019, Texas Instruments Incorporated
+How to Use Energy Efficient Ethernet (IEEE 802.3az) With Texas
+Instruments Ethernet PHYs
+2
+EEE Implementation
+2.1
+EEE Advertisement
+The user can use the register configuration (SMI operation) through the MMD3 and MMD7 extended
+register sets to enable EEE advertisement. By default, EEE capabilities are bypassed. EEE capabilities
+bypass must be disabled (0x04D1.0 = 0, 0x04D1.3 = 0) to advertise EEE based on the MMD3 and MMD7
+register settings.
+To configure the DP83825 for 100BASE-TX EEE operation, the register shown in the Configurations for
+EEE table of the DP83825I data sheet must be configured. After configuring these registers, a soft reset
+shall be triggered.
+NOTE:
+Registers with addresses above 0x001F require indirect access. For indirect access, a
+sequence of register writes must be followed. The MMD value defines the Device Address
+(DEVAD) of the register set. The DEVAD must be configured in the register 0x000D
+(REGCR) bits [4:0] for indirect access.
+The DP83825 uses the following MMDs:
+1. MMD1F (Vendor specific registers): DEVAD [4:0] = ‘11111’
+2. MMD3 (IEEE 802.3az defined registers): DEVAD [4:0] = ‘00011’
+3. MMD7 (IEEE 802.3az defined registers): DEVAD [4:0] = ‘00111’
+Following is the sequence of register writes required for indirect access of extended registers sets:
+1. Configure register 0x000D[4:0] with the DEVAD as per MMD
+2. Configure register 0x000E with the register address
+3. Configure register 0x000D[14] = 1
+4. Configure register 0x000E with the register data
+Example: For configuration 0x0416 = 0x1F30, the following writes must be done:
+1. 0x000D = 0x001F
+2. 0X000E = 0x0416
+3. 0x000D = 0x401F
+4. 0x000E = 0x1F30
+2.2
+LPI Operation
+When the register configurations are done, the DUT and LP will restart auto-negotiation advertising EEE
+capabilities. When the EEE link is formed, the user can start LPI operations during periods of no traffic.
+The DP83825 provides two ways to start or stop LPI assertion:
+1. Through MAC encoding
+2. Through register configuration (EEE for Legacy MACs not supporting 802.3az)
+2.2.1
+Through MAC Encoding
+LPI assertion through MAC encoding can be defined in Table 2 for “EEE LPI” function. This will start the
+LPI operation on the TD channel of the PHY. When the MAC needs to send the data again, it can exit the
+LPI operation. To exit LPI, the MAC must encode the “Normal Inter-Frame” function for at least 36 µs. This
+allows the LP to wake up from LPI mode correctly. After this, the DUT MAC can start the “Data
+Transmission” function.
+
+
+--- PDF page 11 ---
+www.ti.com
+EEE Implementation
+11
+SNLA328–October 2019
+Submit Documentation Feedback
+Copyright © 2019, Texas Instruments Incorporated
+How to Use Energy Efficient Ethernet (IEEE 802.3az) With Texas
+Instruments Ethernet PHYs
+2.2.2
+Through Register Configuration
+For Legacy MACs (not supporting IEEE 802.3az), the DP83825 provides an option to start LPI signaling
+through register configuration. In this case, the Host Control Application must ensure that there is no data
+to be transmitted when this option is enabled. To start “Data Transmission again”, the application must
+ensure that the MAC asserts the “Normal Inter-Frame” function for at least 36 µs after the LPI signaling is
+disabled through the register.
+For this option, EEE advertisement is also required. Use the following register configurations for this mode
+along with configuration given in the Configurations for EEE table of the DP83825I data sheet:
+1. Enable LPI signaling : MMD1F 0x04D1[12] = 1
+2. Disable LPI signaling : MMD1F 0x04D1[12] = 0
+2.3
+EEE Status Registers
+The following registers can be read for LPI indication and other status. These registers are present in the
+MMD3 register space.
+2.3.1
+LPI Indication
+During LPI operation, the status of transmit and receive LPI indication can be read through the following
+register bits.
+(1)
+Bit 11 and 10 are latched high status.
+Table 4. LPI Indication
+MMD
+REGISTER ADDRESS
+BIT NUMBER
+BIT FIELD
+DESCRIPTION
+03
+1001
+11(1)
+TX LPI Received
+1 = Tx PCS has received LPI,
+0 = LPI Not Received
+03
+1001
+10(1)
+Rx LPI Received
+1 = Rx PCS has received LPI,
+0 = LPI Not Received
+03
+1001
+9
+TX LPI Indication
+1 = Tx PCS is currently
+receiving LPI, 0 = Tx PCS is
+currently not receiving LPI
+03
+1001
+8
+RX LPI Indication
+1 = Rx PCS is currently
+receiving LPI, 0 = Rx PCS is
+currently not receiving LPI
+2.3.2
+EEE Capability
+The EEE capability supported by the device is indicated by the following register.
+Table 5. EEE Capability
+MMD
+REGISTER ADDRESS
+BIT NUMBER
+BIT FIELD
+DESCRIPTION
+03
+1014
+2
+EEE_1Gbps_Enable
+0 = EEE Is not supported for
+1000Base-T, 1 = EEE is
+supported for 1000Base-T
+03
+1014
+1
+EEE_100Mbps_Enable
+0 = EEE Is not supported for
+100Base-TX, 1 = EEE is
+supported for 100Base-TX
+2.3.3
+Wake Error Count
+This register counts the wake time faults where the PHY fails to complete its normal wake sequence within
+the time required. This counter is cleared after a read and holds at all ones in the case of overflow. A PCS
+Reset also clears this register.
+
+
+--- PDF page 12 ---
+EEE DP83825 Waveform
+www.ti.com
+12
+SNLA328–October 2019
+Submit Documentation Feedback
+Copyright © 2019, Texas Instruments Incorporated
+How to Use Energy Efficient Ethernet (IEEE 802.3az) With Texas
+Instruments Ethernet PHYs
+Table 6. EEE Wake Error Count
+MMD
+REGISTER ADDRESS
+BIT NUMBER
+DESCRIPTION
+03
+1016
+15-0
+EEE Wake Error Count
+3
+EEE DP83825 Waveform
+For reference, the DP83825 Eye diagram is shown in Figure 10. This was achieved by forcing the
+DP83825 into 100 Mbps with Auto-MDIX disabled.
+NOTE:
+All images are using Tektronix FastAcq with positive edge trigger.
+Figure 10. DP83825 Eye Diagram
+A constant stream of IDLEs can be seen, which is expected for 100-Mbps operation as described in
+Section 2.1. There are three distinct levels to 100BASE-TX MLT-3 signaling: +1, 0, and 1. MLT-3, when
+viewed with variable persistence or infinite persistence, will result in this stacked eye waveform. An image
+of the DP83825 Refresh can be seen in Figure 11. The positive edge trigger provides the starting
+reference point for the Refresh burst and a vertical cursor is placed on this location (t1). A second vertical
+cursor is placed at the end of the Refresh burst (t2). Total Refresh burst time is 211.6 μs. This is well
+within the 200 μs – 220 μs Refresh burst time limits.
+
+
+--- PDF page 13 ---
+www.ti.com
+EEE DP83825 Waveform
+13
+SNLA328–October 2019
+Submit Documentation Feedback
+Copyright © 2019, Texas Instruments Incorporated
+How to Use Energy Efficient Ethernet (IEEE 802.3az) With Texas
+Instruments Ethernet PHYs
+Figure 11. Refresh Burst
+Zoomed out views of DP83825 Refresh bursts can be seen in Figure 12 and Figure 13. Figure 12 shows
+two Refresh bursts with cursors to show the IEEE limits described above. A vertical cursor is placed on
+the end of first refresh burst (t1). The second vertical cursor is placed on the first rising edge of the second
+Refresh burst (t2). The Quiet period is 21.76 ms.
+Figure 12. Two Refresh Bursts With Quiet Period
+
+
+--- PDF page 14 ---
+Summary
+www.ti.com
+14
+SNLA328–October 2019
+Submit Documentation Feedback
+Copyright © 2019, Texas Instruments Incorporated
+How to Use Energy Efficient Ethernet (IEEE 802.3az) With Texas
+Instruments Ethernet PHYs
+Figure 13 shows four Refresh bursts with vertical cursors. A consistent Refresh burst is critical for
+maintaining quality link. DP83825 consistent timers can be seen in Figure 12. Again, a vertical cursor is
+placed on the end of first Refresh burst (t1). The second vertical cursor is placed on the first rising edge of
+the second Refresh burst (t2). The Quiet period is 21.7 ms. All subsequent Quiet periods are similar as
+well.
+Figure 13. Four Refresh Bursts and Three Quiet Periods
+4
+Summary
+This application note provided details on the principles behind EEE 802.3az and the mechanisms to
+enable EEE in the DP83825 device.
+5
+References
+For related documentation see the following:
+Texas Instruments, DP83825I Low Power 10/100 Mbps Ethernet Physical Layer Transceiver data
+sheet
+
+
+--- PDF page 15 ---
+IMPORTANT NOTICE AND DISCLAIMER
+TI PROVIDES TECHNICAL AND RELIABILITY DATA (INCLUDING DATASHEETS), DESIGN RESOURCES (INCLUDING REFERENCE
+DESIGNS), APPLICATION OR OTHER DESIGN ADVICE, WEB TOOLS, SAFETY INFORMATION, AND OTHER RESOURCES “AS IS”
+AND WITH ALL FAULTS, AND DISCLAIMS ALL WARRANTIES, EXPRESS AND IMPLIED, INCLUDING WITHOUT LIMITATION ANY
+IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT OF THIRD
+PARTY INTELLECTUAL PROPERTY RIGHTS.
+These resources are intended for skilled developers designing with TI products. You are solely responsible for (1) selecting the appropriate
+TI products for your application, (2) designing, validating and testing your application, and (3) ensuring your application meets applicable
+standards, and any other safety, security, or other requirements. These resources are subject to change without notice. TI grants you
+permission to use these resources only for development of an application that uses the TI products described in the resource. Other
+reproduction and display of these resources is prohibited. No license is granted to any other TI intellectual property right or to any third
+party intellectual property right. TI disclaims responsibility for, and you will fully indemnify TI and its representatives against, any claims,
+damages, costs, losses, and liabilities arising out of your use of these resources.
+TI’s products are provided subject to TI’s Terms of Sale (www.ti.com/legal/termsofsale.html) or other applicable terms available either on
+ti.com or provided in conjunction with such TI products. TI’s provision of these resources does not expand or otherwise alter TI’s applicable
+warranties or warranty disclaimers for TI products.
+Mailing Address: Texas Instruments, Post Office Box 655303, Dallas, Texas 75265
+Copyright © 2019, Texas Instruments Incorporated

@@ -1,0 +1,2300 @@
+--- PDF page 1 ---
+User's Guide
+DP83825 Evaluation Module
+ABSTRACT
+This user’s guide details how to properly operate and configure the DP83825EVM.
+Table of Contents
+1 Definitions............................................................................................................................................................................... 2
+2 Introduction.............................................................................................................................................................................2
+2.1 Key Features......................................................................................................................................................................2
+2.2 Operation – Quick Setup....................................................................................................................................................4
+3 Configurations Options..........................................................................................................................................................6
+3.1 Strap Options..................................................................................................................................................................... 6
+4 Software...................................................................................................................................................................................7
+4.1 MSP430 Driver...................................................................................................................................................................7
+4.2 USB2MDIO Software......................................................................................................................................................... 7
+5 Board Setup Details................................................................................................................................................................8
+5.1 Block Diagram....................................................................................................................................................................8
+5.2 Schematics.........................................................................................................................................................................9
+6 Bill of Materials..................................................................................................................................................................... 12
+7 Revision History................................................................................................................................................................... 17
+Trademarks
+Windows® is a registered trademark of Microsoft Corporation.
+All trademarks are the property of their respective owners.
+www.ti.com
+Table of Contents
+SNLU239A – DECEMBER 2018 – REVISED DECEMBER 2023
+Submit Document Feedback
+DP83825 Evaluation Module
+1
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 2 ---
+1 Definitions
+Table 1-1. Terminology
+ACRONYM
+DEFINITION
+PHY
+Physical Layer Transceiver
+MAC
+Media Access Controller
+SMI
+Serial Management Interface
+MDIO
+Management Data I/O
+MDC
+Management Data Clock
+RGMII
+Reduced Gigabit Media Independent Interface
+SFD
+Start-of-Frame Detection
+VDDA
+Analog Core Supply Rail
+VDDIO
+Digital Supply Rail
+PD
+Pulldown
+PU
+Pullup
+MC
+Microcontroller
+2 Introduction
+The DP83825 is an ultra small form factor, very low power Ethernet Physical Layer transceiver with integrated 
+PMD sublayers to support 10BASE-Te, 100BASE-TX Ethernet protocols. The DP83825 interfaces directly to 
+twisted pair media via an external transformer. The DP83825 interfaces to the MAC layer through Reduced MII 
+(RMII) both in Master and Slave mode. The 50 MHz clock in RMII Master mode is synchronized to MDI derived 
+clock to improve the jitter in the system. The DP83825EVM demonstrates all features of DP83825 and supports 
+10BASE-Te and 100BASE-TX Ethernet protocols.
+2.1 Key Features
+•
+100Base-TX, 10Base-Te
+•
+RMII Onboard Clock
+•
+Output Clock
+•
+Onboard MSP430F5529 for easy MDIO Register Access
+•
+LDO and External Power Supply Options
+•
+Status LEDs
+•
+Variable I/O Voltage Range: 1.8-V and 3.3-V
+•
+Bootstraps for Hardware Configuration
+•
+100BASE-TX Data Transfer Over 150 Meters CAT5 Cable
+Definitions
+www.ti.com
+2
+DP83825 Evaluation Module
+SNLU239A – DECEMBER 2018 – REVISED DECEMBER 2023
+Submit Document Feedback
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 3 ---
+Figure 2-1. DP83825EVM - Top Side
+Figure 2-2. DP83825EVM - Bottom Side
+www.ti.com
+Introduction
+SNLU239A – DECEMBER 2018 – REVISED DECEMBER 2023
+Submit Document Feedback
+DP83825 Evaluation Module
+3
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 4 ---
+2.2 Operation – Quick Setup
+2.2.1 Power Supply
+The EVM can be supplied power via multiple options. Single supply operation uses on-board LDOs to generate 
+the voltages required for operating various sections of the EVM (PHY, MSP430 etc). Power can also be supplied 
+externally to individual voltage rails.
+2.2.2 LDO Supply
+The EVM can be used in LDO operation by providing power by using power supply turrets or USB connector. 
+The following jumper connections need to be connected to configure the board for LDO operation.
+Figure 2-3. LDO Operation
+•
+For Turret, connect jumper to position 2-3 on J2 connector (pictured) as shown in Figure 2-3 and supply 
+power through ‘5V-12V’ and ‘GND’ turrets.
+•
+For USB power, connect jumper to position 1-2 on J2 connector as shown in Figure 2-3 and supply power 
+through J1 USB connector.
+•
+On the VDD3V3, VDDIO, and MSP-IO connections, make sure that the jumpers are populated on position 
+1-2 for all three connectors shown in Figure 2-4.
+Figure 2-4. Supply Selection Jumpers - LDO
+Introduction
+www.ti.com
+4
+DP83825 Evaluation Module
+SNLU239A – DECEMBER 2018 – REVISED DECEMBER 2023
+Submit Document Feedback
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 5 ---
+2.2.3 External Supply
+DP83825EVM provides the option to power individual voltage rails from external power source giving customers 
+more flexibility with EVM testing. ‘VDD3V3’, ‘VDDIO’, and ‘MSP-IO’ connectors shown above are used to switch 
+individual rails from LDO source to External source. Connect jumper between pin 2-3 to switch from LDO supply 
+to External power source. Then supply power through corresponding pin on J8.
+Note
+Jumpers in Figure 2-5 are in position 1-2. For external use, switch to position 2-3.
+Figure 2-5. Supply Selection - LDO
+For example: If VDD3V3 needs to be supplied externally, then switch the jumper on VDD3V3 connector from 
+position 1-2 to 2-3. Then supply 3.3V external power through pin 5 on J8.
+2.2.4 EVM High Level Summary
+Table 2-1. EVM Applications
+NO.
+DP83825 MODE
+APPLICATIONS
+HOW TO USE
+1
+RMII to Copper
+Run traffic between RMII and Copper.
+Connect to DP83822 EVM or MAC System 
+using Header pins.
+Perform IEEE and UNH compliance testing
+Using onboard MSP430 and software.
+Run EMI/EMC Test on EVM
+Use internal PRBS and loopback. MSP430 
+launchpad can be used for register access.
+Measure Power Dissipation
+Connect external power supplies.
+External MAC loopback
+Connect external MAC to headers and use 
+MAC loopback register settings
+50 MHz output clock
+Optional Clock out SMA
+2
+RMII Loopback
+Data received by the PHY can be looped back 
+through the RMII interface without needing a MAC.
+Use jumpers to connect TXD0->RXD0, 
+TXD1->RXD1, and TXEN->RXDV.
+3
+Repeater Mode
+RMII back to back as range extender.
+Two EVMs can be connected back to back 
+using custom header cable.
+4
+Low Power modes
+Demonstrate EEE
+Straps to enable EEE.
+Demonstrate Sleep and Power down mode
+Use MSP430 launchpad to activate low 
+power mode
+www.ti.com
+Introduction
+SNLU239A – DECEMBER 2018 – REVISED DECEMBER 2023
+Submit Document Feedback
+DP83825 Evaluation Module
+5
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 6 ---
+3 Configurations Options
+3.1 Strap Options
+All straps are only two level straps in DP83825. DP83825 contains internal pull down resistors on the strap pins. 
+The EVM takes advantage of this feature and has only pull up resistors on the board. When DP83825 strap 
+pins are using internal pull down the corresponding pin is strapped to ‘0’ and when the strap pin has an external 
+pull up resistor connected, the corresponding pin is strapped to ‘1’. Resistors R43, R45, R48, R50, needs to be 
+installed to be used as pull up strap connectors (can be found on the back side of the board). When any strap 
+pin needs to be strapped to ‘0’ on the EVM, disconnect the corresponding resistor. When a strap pin needs to be 
+strapped to ‘1’, populate the corresponding resistor.
+Table 3-1. Strap Value
+STRAP VALUE
+'1'
+'0'
+Resistor Pull Up
+2.49 kΩ
+Open
+Resistor Pull Down
+Open
+2.49 kΩ (optional)
+The LED_0 pin also has a strap. Because LED pins have automatic polarity, separate LEDs are used on the 
+EVM depending on LED_0 pin being strapped high or low. In position 1-2 LED_0 is pulled low (0) and in position 
+2-3 LED_0 is pulled high (1).
+Figure 3-1. LED_0 Strap
+Table 3-2. Strap Options Table
+PIN NAME
+STRAP NAME
+PIN NO
+DEFAULT
+VALUE
+DESCRIPTION
+LED_0
+ANEG_DIS
+4
+0
+0
+Enable Auto negotiation
+1
+Disable Auto negotiation
+RX_D1
+RMII_MAS
+17
+0
+0
+RMII Master Mode
+1
+RMII Slave Mode
+RX_D0
+PHY_AD[0]
+18
+0
+0
+PHY_AD[0] = 0
+1
+PHY_AD[0] = 1
+CRS_DV
+PHY_AD[1]
+20
+0
+0
+PHY_AD[1] = 0
+1
+PHY_AD[1] = 1
+RX_ER
+AMDIX_DIS
+22
+0
+0
+AMDIX Enabled
+1
+AMDIX Disabled
+Configurations Options
+www.ti.com
+6
+DP83825 Evaluation Module
+SNLU239A – DECEMBER 2018 – REVISED DECEMBER 2023
+Submit Document Feedback
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 7 ---
+4 Software
+The on-board MSP430 comes pre-programmed and ready to use. When using this EVM for the first time on a 
+Windows® 7 (or above) PC, MSP430 drivers and USB2MDIO software utility has to be installed. USB2MDIO 
+software can be used for accessing registers.
+4.1 MSP430 Driver
+Install the latest MSP430 drive from this website: http://software-dl.ti.com/msp430/msp430_public_sw/mcu/
+msp430/MSP430_FET_Drivers/latest/index_FDS.html.
+4.2 USB2MDIO Software
+Download the software from http://www.ti.com/tool/usb-2-mdio.
+The web-page also contains the user’s guide for installing and using the software. Since MSP430 is on board 
+the EVM, purchasing a separate MSP430 Launchpad kit to connect to the PHY using wires is not required. The 
+entire EVM can be powered and controlled via USB connector. MSP430 and USB2MDIO utility can be used 
+even when power is not supplied via USB.
+In case the onboard MSP430 cannot be used due to some reason, MDIO and MDC pins are also broken out on 
+J10 connector. Customers can connect a MSP430 launchpad or their own MDIO-MDC utility on J10 to access 
+the PHY registers.
+www.ti.com
+Software
+SNLU239A – DECEMBER 2018 – REVISED DECEMBER 2023
+Submit Document Feedback
+DP83825 Evaluation Module
+7
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 8 ---
+5 Board Setup Details
+5.1 Block Diagram
+DP83825
+DUT
+3.3V
+LDO
+SMI
+Connector
+Magnetics
+RJ-45
+RMII Header
+External Supply 
+Header
+25MHz Clock in
+MDC
+MDIO
+ESD
+Diodes
+RESET
+Turrets
+Jumper
+I/O
+3.3V
+Strap 
+Resistors
+USB
+Clock-Out 
+SMA
+LEDs
+Figure 5-1. DP83825EVM Block Diagram
+Board Setup Details
+www.ti.com
+8
+DP83825 Evaluation Module
+SNLU239A – DECEMBER 2018 – REVISED DECEMBER 2023
+Submit Document Feedback
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 9 ---
+5.2 Schematics
+6.49k
+R24
+GND
+RD_N
+2
+3
+4
+1
+5
+6
+7
+8
+S1
+S2
+J11
+SS-7188S-A-NF
+1µF
+C17
+1µF
+C18
+1µF
+C19
+1µF
+C20
+0.1µF
+C13
+GND
+GND
+RD_P
+RX_ER
+RX_D0
+RX_D1
+CRS_DV
+MDIO
+MDC
+RESET
+PWDN
+CLK_OUT
+LED_0
+TD_N
+TD_P
+TX_EN
+TX_D0
+TX_D1
+XO
+XI
+GND
+TD_P
+TD_N
+RD_N
+RD_P
+RBIAS
+TD_P
+TD_N
+RD_P
+RD_N
+EARTH_GND
+TD_CH1_P
+TD_CH1_N
+TD_CH2_P
+TD_CH2_N
+D1+
+1
+D1-
+2
+NC
+6
+NC
+7
+NC
+9
+NC
+10
+D2+
+4
+D2-
+5
+GND
+3
+GND
+8
+TPD4E05U06DQAR
+U2
+GND
+TD_P
+TD_N
+RD_P
+RD_N
+75.0
+R26
+75.0
+R27
+75.0
+R28
+75.0
+R29
+EARTH_GND
+EARTH_GND
+GND
+0.1uF
+C21
+0.1uF
+C22
+0.1uF
+C11
+0.1uF
+C12
+GND
+GND
+XO
+XI
+EXT_REF_CLK
+1.00M
+R40
+22pF
+C26
+22pF
+C29
+GND
+1
+3
+4
+2
+G
+G
+XTAL1
+GND
+LED_0
+Green
+1
+2
+LD4
+Green
+1
+2
+LD2
+LED_0
+1
+2
+3
+J13
+2.49k
+R32
+2.49k
+R34
+RX_ER
+RX_D1
+1
+2
+3
+4
+5
+J12
+GND
+Green
+1
+2
+LD3
+470
+R33
+470
+R31
+470
+R35
+0
+R30
+CLK_OUT
+GND
+GND
+2.2k
+R25 S1
+RESET
+TX_D0
+RX_D0
+TX_D1
+TX_EN
+RX_D1
+CRS_DV
+RX_ER
+GND
+GND
+2.2k
+R23
+VDDIO
+GND
+MDC_EXT
+MDIO_EXT
+1
+2
+3
+4
+5
+6
+J10
+0
+R21
+0
+R22
+MDC
+MDIO
+GND
+PWDN
+VFX
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+17
+19
+16
+18
+20
+J9
+10uF
+C14
+10uF
+C16
+RX_D0
+CRS_DV
+4700pF
+C27
+4700pF
+C28
+EARTH_GND
+GND
+EARTH_GND
+GND
+1.00M
+R37
+1.00M
+R38
+1
+2
+3
+4
+5
+J14
+GND
+0
+R11
+0
+R12
+0
+R13
+0
+R14
+0
+R15
+0
+R16
+0
+R18
+0
+R19
+0
+R20
+RX_D1_S
+TX_D1_S
+RX_D0_S
+TX_D0_S
+CRS_DV_S
+TX_EN_S
+RX_ER_S
+PWDN_S
+RESET_S
+2.49k
+R39
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+T2
+HX1198FNLT
+TX_EN
+1
+CLKOUT_50MHZ/LED_2
+2
+INT/POWERDOWN
+3
+LED_0(3V3 AWAYS)/S(A-NEG)
+4
+RST
+5
+VDDA3.3
+6
+RD_M
+7
+RD_P
+8
+GND
+9
+TD_M
+10
+TD_P
+11
+XO
+12
+XI/50MHZ IN
+13
+RBIAS
+14
+MDIO
+15
+MDC
+16
+RX_D1/S(MASTER/SLAVE)
+17
+RX_D0/S(PHYADD[1])
+18
+VDDIO
+19
+CRS_DV/S(PHYADD[0])
+20
+GND
+21
+RX_ER/S(A-MDIX)
+22
+TX_D0
+23
+TX_D1
+24
+DAP
+25
+DP83825IRMQR
+U3
+VDDA3P3
+VDDIO
+VDDIO
+VDDA3P3
+VDDIO
+VDDA3P3
+RX_D0
+TX_D0
+CRS_DV
+TX_EN
+RX_D1
+TX_D1
+33
+R9
+33
+R10
+33
+R17
+2.49k
+R42
+2.49k
+R44
+2.49k
+R47
+2.49k
+R49
+4700pF
+C30
+EARTH_GND
+GND
+0.1µF
+C15
+0.01uF
+C23
+1000pF
+C24
+1000pF
+C25
+0
+R36
+0
+R41
+0
+R43
+0
+R45
+0
+R46
+0
+R48
+0
+R50
+Figure 5-2. Schematic Page 1
+www.ti.com
+Board Setup Details
+SNLU239A – DECEMBER 2018 – REVISED DECEMBER 2023
+Submit Document Feedback
+DP83825 Evaluation Module
+9
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 10 ---
+OUT
+3
+5
+6
+EN
+1
+ADJ/BYP
+4
+8
+7
+IN
+2
+GND
+TL5209DR
+U1
+35V
+10uF
+C4
+1uF
+C3
+GND
+GND
+GND
+470pF
+C8
+D1
+10uF
+C10
+22uF
+C9
+J7
+J6
+3A
+F1
+1
+2
+3
+4
+T1
+5V-12V
+VFX
+VBUS
+1
+D-
+2
+D+
+3
+ID
+4
+GND
+5
+6
+7
+8
+11
+10
+9
+J1
+USB_N
+USB_P
+GND
+33
+R7
+GND
+0.1 µF
+C2
+GND
+4.7uF
+C1
+GND
+165k
+R6
+100k
+R3
+GND
+GND
+2.2uF
+C5
+GND
+USB_VBUS
+0
+R8
+2.2uF
+C6
+35V
+10uF
+C7
+GND
+GND
+3V3_VDD_LDO
+VDDA3P3
+VDDIO
+MCU_VCC
+1
+2
+3
+4
+5
+6
+J8
+1
+2
+3
+J3
+1
+2
+3
+J5
+1
+2
+3
+J4
+1
+2
+3
+J2
+GND
+VDDA3P3_EXT
+VDDIO_EXT
+MCU_VCC_EXT
+L1
+0
+R1
+3V3_IO_LDO
+0
+R2
+0
+R5
+Green
+1
+2
+LD1
+470
+R4
+GND
+5V-12V
+3V3_VDD_LDO
+VDDA3P3_EXT
+3V3_IO_LDO
+VDDIO_EXT
+3V3_IO_LDO
+MCU_VCC_EXT
+5V-12V
+USB_VBUS
+Figure 5-3. Schematic Page 2
+Board Setup Details
+www.ti.com
+10
+DP83825 Evaluation Module
+SNLU239A – DECEMBER 2018 – REVISED DECEMBER 2023
+Submit Document Feedback
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 11 ---
+GND
+GND
+P1.0
+P1.1
+Rg
+1
+3
+2
+4
+G
+R
+D2
+27
+R57
+27
+R56
+10pF
+C31
+10pF
+C32
+TARGET_D_N
+USB_N
+USB_P
+GND
+TARGET_D_P
+47k
+R60
+1000pF
+C41
+GND
+RST/SBWTDIO
+P6.4/CB4/A4
+1
+P6.5/CB5/A5
+2
+P6.6/CB6/A6
+3
+P6.7/CB7/A7
+4
+P7.0/CB8/A12
+5
+P7.1/CB9/A13
+6
+P7.2/CB10/A14
+7
+P7.3/CB11/A15
+8
+P5.0/A8/VREF+/VEREF+
+9
+P5.1/A9/VREF-/VEREF-
+10
+AVCC1
+11
+P5.4/XIN
+12
+P5.5/XOUT
+13
+AVSS1
+14
+P8.0
+15
+P8.1
+16
+P8.2
+17
+DVCC1
+18
+DVSS1
+19
+VCORE
+20
+P1.0/TA0CLK/ACLK
+21
+P1.1/TA0.0
+22
+P1.2/TA0.1
+23
+P1.3/TA0.2
+24
+P1.4/TA0.3
+25
+P1.5/TA0.4
+26
+P1.6/TA1CLK/CBOUT
+27
+P1.7/TA1.0
+28
+P2.0/TA1.1
+29
+P2.1/TA1.2
+30
+P2.2/TA2CLK/SMCLK
+31
+P2.3/TA2.0
+32
+P2.4/TA2.1
+33
+P2.5/TA2.2
+34
+P2.6/RTCCLK/DMAE0
+35
+P2.7/UCB0STE/UCA0CLK
+36
+P3.0/UCB0SIMO/UCB0SDA
+37
+P3.1/UCB0SOMI/UCB0SCL
+38
+P3.2/UCB0CLK/UCA0STE
+39
+P3.3/UCA0TXD/UCA0SIMO
+40
+P3.4/UCA0RXD/UCA0SOMI
+41
+P3.5/TB0.5
+42
+P3.6/TB0.6
+43
+P3.7/TB0OUTH/SVMOUT
+44
+P4.0/PM_UCB1STE/PM_UCA1CLK
+45
+P4.1/PM_UCB1SIMO/PM_UCB1SDA
+46
+P4.2/PM_UCB1SOMI/PM_UCB1SCL
+47
+P4.3/PM_UCB1CLK/PM_UCA1STE
+48
+DVSS2
+49
+DVCC2
+50
+P4.4/PM_UCA1TXD/PM_UCA1SIMO
+51
+P4.5/PM_UCA1RXD/PM_UCA1SOMI
+52
+P4.6/PM_NONE
+53
+P4.7/PM_NONE
+54
+P5.6/TB0.0
+55
+P5.7/TB0.1
+56
+P7.4/TB0.2
+57
+P7.5/TB0.3
+58
+P7.6/TB0.4
+59
+P7.7/TB0CLK/MCLK
+60
+VSSU
+61
+PU.0/DP
+62
+PUR
+63
+PU.1/DM
+64
+VBUS
+65
+VUSB
+66
+V18
+67
+AVSS2
+68
+P5.2/XT2IN
+69
+P5.3/XT2OUT
+70
+TEST/SBWTCK
+71
+PJ.0/TDO
+72
+PJ.1/TDI/TCLK
+73
+PJ.2/TMS
+74
+PJ.3/TCK
+75
+RST/NMI/SBWTDIO
+76
+P6.0/CB0/A0
+77
+P6.1/CB1/A1
+78
+P6.2/CB2/A2
+79
+P6.3/CB3/A3
+80
+U4
+MSP430F5529IPN
+1
+2
+3
+4
+J15
+GND
+RST/SBWTDIO
+TEST/SBWTCK
+MSP_XOUT2
+GND
+GND
+4.7uF
+C35
+0
+R61
+GND
+10uF
+C37
+P1.0
+MSP_XIN2
+0
+R55
+P1.1
+GND
+GND
+MDC_OB
+MDIO_OB
+TARGET_D_N
+1.00M
+R59
+GND
+TARGET_PUR
+1.40k
+R58
+TARGET_D_P
+TEST/SBWTCK
+RST/SBWTDIO
+MDC
+MDIO
+470
+R51
+470
+R52
+USB_VBUS
+MCU_VCC
+MCU_VCC
+1
+2
+3
+Y1
+CSTCR4M00G55B-R0
+0.1µF
+C38
+0.1µF
+C40
+0.1µF
+C39
+0.22uF
+C33
+0.22uF
+C36
+470nF
+C34
+0
+R53
+0
+R54
+Figure 5-4. Schematic Page 3
+www.ti.com
+Board Setup Details
+SNLU239A – DECEMBER 2018 – REVISED DECEMBER 2023
+Submit Document Feedback
+DP83825 Evaluation Module
+11
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 12 ---
+6 Bill of Materials
+Table 6-1. Bill of Materials
+Designator
+Quantity
+Value
+Description
+Package 
+Reference
+Part Number
+Manufacturer
+Alternate Part 
+Number
+Alternate 
+Manufacturer
+!PCB1
+1
+Printed Circuit Board
+HSDC045
+Any
+C1
+1
+4.7 uF
+CAP, TA, 4.7 uF, 35 V, +/- 10%, 1.3 
+ohm, SMD
+7343-31
+293D475X9035D2TE3
+Vishay-Sprague
+C2, C13, C15, 
+C38, C39, C40
+6
+0.1 uF
+CAP, CERM, 0.1 µF, 10 V,+/- 10%, 
+X7R, 0402
+402
+C0402C104K8RACTU
+Kemet
+C3
+1
+1 uF
+CAP, CERM, 1 uF, 35 V, +/- 20%, 
+X5R, 0402
+402
+GRM155R6YA105ME11D
+MuRata
+C4, C7
+2
+10 uF
+CAP, CERM, 10 uF, 35 V, +/- 20%, 
+X5R, 0603
+603
+GRM188R6YA106MA73D
+Murata
+C5, C6
+2
+2.2 uF
+CAP, CERM, 2.2 uF, 16 V, +/- 
+10%, X6S, 0402
+402
+GRM155C81C225KE11D
+MuRata
+C8
+1
+470 pF
+CAP, CERM, 470 pF, 50 V, +/- 
+10%, X7R, AEC-Q200 Grade 1, 
+0402
+402
+GCM155R71H471KA37D
+MuRata
+C9
+1
+22 uF
+CAP, CERM, 22 uF, 16 V, +/- 20%, 
+X7R, AEC-Q200 Grade 1, 1210
+1210
+CGA6P1X7R1C226M250AC
+TDK
+C10
+1
+10 uF
+CAP, CERM, 10 uF, 25 V, +/- 20%, 
+X7R, AEC-Q200 Grade 1, 1210
+1210
+CGA6P1X7R1E106M250AC
+TDK
+C11, C12, C21, 
+C22
+4
+0.1 uF
+CAP, CERM, 0.1 uF, 10 V, +/- 
+10%, X7R, 0603
+603
+C0603C104K8RACTU
+Kemet
+C17, C19
+2
+1 uF
+CAP, CERM, 1 µF, 10 V,+/- 20%, 
+X5R, 0402
+402
+CC0402MRX5R6BB105
+Yageo America
+C23
+1
+0.01 uF
+CAP, CERM, 0.01 uF, 16 V, +/- 
+10%, X7R, 0402
+402
+8.85012E+11
+Wurth Elektronik
+C24, C25
+2
+1000 pF
+CAP, CERM, 1000 pF, 2000 V, +/- 
+10%, X7R, AEC-Q200 Grade 1, 
+1206
+1206
+C1206C102KGRACAUTO
+Kemet
+C26, C29
+2
+22 pF
+CAP, CERM, 22 pF, 50 V, +/- 
+5%, C0G/NP0, AEC-Q200 Grade 
+1, 0603
+603
+CGA3E2C0G1H220J080AA
+TDK
+C28
+1
+4700 pF
+CAP, CERM, 4700 pF, 2000 V, +/- 
+10%, X7R, 1812
+1812
+1812GC472KAT1A
+AVX
+C31, C32
+2
+10 pF
+CAP, CERM, 10 pF, 50 V, +/- 5%, 
+C0G/NP0, 0603
+603
+CGA3E2NP01H100D080AA
+TDK
+C33, C36
+2
+0.22 uF
+CAP, CERM, 0.22 uF, 16 V, 
++80/-20%, Y5V, 0603
+603
+C0603C224Z4VACTU
+Kemet
+Bill of Materials
+www.ti.com
+12
+DP83825 Evaluation Module
+SNLU239A – DECEMBER 2018 – REVISED DECEMBER 2023
+Submit Document Feedback
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 13 ---
+Table 6-1. Bill of Materials (continued)
+Designator
+Quantity
+Value
+Description
+Package 
+Reference
+Part Number
+Manufacturer
+Alternate Part 
+Number
+Alternate 
+Manufacturer
+C34
+1
+0.47 uF
+CAP, CERM, 0.47 uF, 16 V, +/- 
+10%, X7R, AEC-Q200 Grade 1, 
+0603
+603
+GCM188R71C474KA55D
+MuRata
+C35
+1
+4.7 uF
+CAP, CERM, 4.7 uF, 35 V, +/- 
+10%, X5R, 0603
+603
+C1608X5R1V475K080AC
+TDK
+C37
+1
+10 uF
+CAP, TA, 10 uF, 35 V, +/- 10%, 
+0.125 ohm, SMD
+7343-31
+TPSD106K035R0125
+AVX
+C41
+1
+1000 pF
+CAP, CERM, 1000 pF, 50 V, +/- 
+5%, C0G/NP0, 0402
+402
+C1005NP01H102J050BA
+TDK
+D1
+1
+60 V
+Diode, Schottky, 60 V, 1 A, AEC-
+Q101, SMA
+SMA
+NRVBA160T3G
+ON Semiconductor
+D2
+1
+Rg
+LED, Rg, SMD
+1.6x0.8mm
+HSMF-C165
+Avago
+F1
+1
+Fuse, 3 A, 32 VDC, SMD
+603
+F0603E3R00FSTR
+AVX
+J1
+1
+Connector, Receptacle, Micro-
+USB Type AB, R/A, Bottom Mount 
+SMT
+5.6x2.5x8.2mm
+475890001
+Molex
+J2, J3, J4, J5
+4
+Header, 100mil, 3x1, Tin, TH
+Header, 3 PIN, 
+100mil, Tin
+PEC03SAAN
+Sullins Connector 
+Solutions
+J6, J7
+2
+Terminal, Turret, TH, Double
+Keystone1502-2
+1502-2
+Keystone
+J8
+1
+Header, 100mil, 3x2, Tin, TH
+Header, 100mil, 
+3x2, TH
+5-146254-3
+TE Connectivity
+J9
+1
+Header, 2.54mm, 10x2, Gold, TH
+Header, 2.54mm, 
+10x2, TH
+PRPC010DAAN-RC
+Sullins Connector 
+Solutions
+J10
+1
+Header, 2.54mm, 3x2, Gold, R/A, 
+TH
+Header, 2.54mm, 
+3x2, R/A, TH
+90122-0763
+Molex
+J11
+1
+RJ45, 1.27mm, R/A, Gold, TH
+RJ-45, 1.27mm, 
+R/A, TH
+SS-7188S-A-NF
+Stewart Connector
+J13
+1
+Header, 100mil, 3x1, Gold, TH
+Header, 100mil, 
+3x1, TH
+HTSW-103-07-G-S
+Samtec
+J15
+1
+Header, 100mil, 2x2, Gold, TH
+2x2 Header
+TSW-102-07-G-D
+Samtec
+L1
+1
+1000 Ω
+Ferrite Bead, 1000 ohm @ 100 
+MHz, 0.4 A, 0603
+603
+BLM18AG102SN1D
+MuRata
+LD1, LD2, LD3, 
+LD4
+4
+Green
+LED, Green, SMD
+2x1.25mm
+QTLP630C4TR
+Everlight
+R1, R2
+2
+0 Ω
+RES, 0, 5%, 0.1 W, AEC-Q200 
+Grade 0, 0603
+603
+ERJ-3GEY0R00V
+Panasonic
+R3
+1
+100 kΩ
+RES, 100 k, 0.5%, 0.063 W, AEC-
+Q200 Grade 0, 0402
+402
+CRCW0402100KDHEDP
+Vishay-Dale
+www.ti.com
+Bill of Materials
+SNLU239A – DECEMBER 2018 – REVISED DECEMBER 2023
+Submit Document Feedback
+DP83825 Evaluation Module
+13
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 14 ---
+Table 6-1. Bill of Materials (continued)
+Designator
+Quantity
+Value
+Description
+Package 
+Reference
+Part Number
+Manufacturer
+Alternate Part 
+Number
+Alternate 
+Manufacturer
+R4, R31, R35
+3
+470 Ω
+RES, 470, 5%, 0.063 W, AEC-
+Q200 Grade 0, 0402
+402
+CRCW0402470RJNED
+Vishay-Dale
+R6
+1
+165 kΩ
+RES, 165 k, 1%, 0.063 W, AEC-
+Q200 Grade 0, 0402
+402
+CRCW0402165KFKED
+Vishay-Dale
+R7, R9, R10, 
+R17
+4
+33 Ω
+RES, 33, 5%, 0.063 W, AEC-Q200 
+Grade 0, 0402
+402
+CRCW040233R0JNED
+Vishay-Dale
+R8
+1
+0 Ω
+RES, 0, 5%, 0.063 W, 0402
+402
+MCR01MZPJ000
+Rohm
+R19, R20, R21, 
+R22, R30, R55, 
+R61
+7
+0 Ω
+RES, 0, 5%, 0.063 W, AEC-Q200 
+Grade 0, 0402
+402
+CRCW04020000Z0ED
+Vishay-Dale
+R23
+1
+2.2 kΩ
+RES, 2.2 k, 5%, 0.063 W, AEC-
+Q200 Grade 0, 0402
+402
+CRCW04022K20JNED
+Vishay-Dale
+R24
+1
+6.49 kΩ
+RES, 6.49 k, 1%, 0.063 W, AEC-
+Q200 Grade 0, 0402
+402
+CRCW04026K49FKED
+Vishay-Dale
+R25
+1
+2.2 kΩ
+RES, 2.2 k, 5%, 0.05 W, 0201
+201
+CRCW02012K20JNED
+Vishay-Dale
+R26, R27, R28, 
+R29
+4
+75 Ω
+RES, 75.0, 1%, 0.125 W, AEC-
+Q200 Grade 0, 0805
+805
+CRCW080575R0FKEA
+Vishay-Dale
+R32, R34
+2
+2.49 kΩ
+RES, 2.49 k, 1%, 0.063 W, AEC-
+Q200 Grade 0, 0402
+402
+CRCW04022K49FKED
+Vishay-Dale
+R36, R41, R53, 
+R54
+4
+0 Ω
+RES, 0, 5%, 0.05 W, 0201
+201
+CRCW02010000Z0ED
+Vishay-Dale
+R37
+1
+1.00 MΩ
+RES, 1.00 M, 1%, 1 W, 2010
+2010
+HVCB2010FKC1M00
+Stackpole 
+Electronics Inc
+R42, R44, R47, 
+R49
+4
+2.49 kΩ
+RES, 2.49 k, 1%, 0.05 W, 0201
+201
+RC0201FR-072K49L
+Yageo America
+R51, R52
+2
+470 Ω
+RES, 470, 5%, 0.05 W, 0201
+201
+RC0201JR-07470RL
+Yageo America
+R56, R57
+2
+27 Ω
+RES, 27, 5%, 0.063 W, AEC-Q200 
+Grade 0, 0402
+402
+CRCW040227R0JNED
+Vishay-Dale
+R58
+1
+1.40 kΩ
+RES, 1.40 k, 1%, 0.063 W, AEC-
+Q200 Grade 0, 0402
+402
+CRCW04021K40FKED
+Vishay-Dale
+R59
+1
+1.00 MΩ
+RES, 1.00 M, 1%, 0.063 W, AEC-
+Q200 Grade 0, 0402
+402
+CRCW04021M00FKED
+Vishay-Dale
+R60
+1
+47 kΩ
+RES, 47 k, 5%, 0.063 W, AEC-
+Q200 Grade 0, 0402
+402
+CRCW040247K0JNED
+Vishay-Dale
+S1
+1
+Switch, Normally open, 2.3N force, 
+200k operations, SMD
+KSR
+KSR221GLFS
+C&K Components
+Bill of Materials
+www.ti.com
+14
+DP83825 Evaluation Module
+SNLU239A – DECEMBER 2018 – REVISED DECEMBER 2023
+Submit Document Feedback
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 15 ---
+Table 6-1. Bill of Materials (continued)
+Designator
+Quantity
+Value
+Description
+Package 
+Reference
+Part Number
+Manufacturer
+Alternate Part 
+Number
+Alternate 
+Manufacturer
+SH-J1, SH-J2, 
+SH-J3, SH-J4, 
+SH-J5
+5
+Single Operation 2.54mm Pitch 
+Open Top Jumper Socket
+Single Operation 
+2.54mm Pitch 
+Open Top Jumper 
+Socket
+M7582-05
+Harwin
+T1
+1
+Coupled inductor, 5 A, 0.01 ohm, 
+SMD
+9x7mm
+ACM9070-701-2PL-TL01
+TDK
+T2
+1
+350uH
+Transformer, 350 uH, SMT
+12.7x9.09mm
+HX1198FNLT
+Pulse Engineering
+U1
+1
+Single Output Low Noise LDO, 
+500 mA, Adjustable 1.3 to 6.5 V 
+Output, 2.5 to 16 V Input, 8-pin 
+SOIC (D), -40 to 125 degC, Green 
+(RoHS & no Sb/Br)
+D0008A
+TL5209DR
+Texas Instruments
+U2
+1
+4-Channel Ultra-Low-Capacitance 
+IEC ESD Protection Diode, 
+DQA0010A (USON-10)
+DQA0010A
+TPD4E05U06DQAR
+Texas Instruments
+Texas Instruments
+U3
+1
+DP83825IRMQR, RMQ0024A 
+(WQFN-24)
+RMQ0024A
+DP83825IRMQR
+Texas Instruments
+DP83825IRMQT
+Texas Instruments
+U4
+1
+25 MHz Mixed Signal 
+Microcontroller with 128 KB Flash, 
+8192 B SRAM and 63 GPIOs, 
+-40 to 85 degC, 80-pin QFP (PN), 
+Green (RoHS & no Sb/Br)
+PN0080A
+MSP430F5529IPN
+Texas Instruments
+XTAL1
+1
+Crystal, 25 MHz, 20 ppm, AEC-
+Q200 Grade 1, SMD
+2.5x3.2mm
+ECS-250-12-33Q-JES-TR
+ECS Inc.
+Y1
+1
+Resonator, 4 MHz, 39 pF, AEC-
+Q200 Grade 1, SMD
+4.5x1.2x2 mm
+CSTCR4M00G55B-R0
+MuRata
+C14, C16
+0
+10 uF
+CAP, CERM, 10 uF, 6.3 V, +/- 
+20%, X5R, 0402
+402
+GRM155R60J106ME11
+MuRata
+C18, C20
+0
+1 uF
+CAP, CERM, 1 µF, 10 V,+/- 20%, 
+X5R, 0402
+402
+CC0402MRX5R6BB105
+Yageo America
+C27, C30
+0
+4700 pF
+CAP, CERM, 4700 pF, 2000 V, +/- 
+10%, X7R, 1812
+1812
+1812GC472KAT1A
+AVX
+FID1, FID2, 
+FID3, FID4, 
+FID5, FID6
+0
+Fiducial mark. There is nothing to 
+buy or mount.
+N/A
+N/A
+N/A
+H1, H2, H3, H4
+0
+Machine Screw, Round, #4-40 x 
+1/4, Nylon, Philips panhead
+Screw
+NY PMS 440 0025 PH
+B&F Fastener 
+Supply
+H5, H6, H7, H8
+0
+Standoff, Hex, 0.5"L #4-40 Nylon
+Standoff
+1902C
+Keystone
+J12
+0
+JACK, SMA, 50 Ohm, Gold, R/A, 
+TH
+SMA Jack, 50 
+Ohm, R/A, TH
+5-1814400-1
+TE Connectivity
+www.ti.com
+Bill of Materials
+SNLU239A – DECEMBER 2018 – REVISED DECEMBER 2023
+Submit Document Feedback
+DP83825 Evaluation Module
+15
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 16 ---
+Table 6-1. Bill of Materials (continued)
+Designator
+Quantity
+Value
+Description
+Package 
+Reference
+Part Number
+Manufacturer
+Alternate Part 
+Number
+Alternate 
+Manufacturer
+J14
+0
+SMA Straight PCB Socket Die 
+Cast, 50 Ohm, TH
+SMA Straight PCB 
+Socket Die Cast, 
+TH
+5-1814832-1
+TE Connectivity
+R5
+0
+0
+RES, 0, 5%, 0.1 W, AEC-Q200 
+Grade 0, 0603
+603
+ERJ-3GEY0R00V
+Panasonic
+R11, R12, R13, 
+R14, R15, R16, 
+R18
+0
+0
+RES, 0, 5%, 0.063 W, AEC-Q200 
+Grade 0, 0402
+402
+CRCW04020000Z0ED
+Vishay-Dale
+R33
+0
+470 Ω
+RES, 470, 5%, 0.063 W, AEC-
+Q200 Grade 0, 0402
+402
+CRCW0402470RJNED
+Vishay-Dale
+R38
+0
+1.00 MΩ
+RES, 1.00 M, 1%, 1 W, 2010
+2010
+HVCB2010FKC1M00
+Stackpole 
+Electronics Inc
+R39
+0
+2.49 kΩ
+RES, 2.49 k, 1%, 0.063 W, AEC-
+Q200 Grade 0, 0402
+402
+CRCW04022K49FKED
+Vishay-Dale
+R40
+0
+1.00 MΩ
+RES, 1.00 M, 1%, 0.063 W, 0402
+402
+RC0402FR-071ML
+Yageo America
+R43, R45, R46, 
+R48, R50
+0 Ω
+0
+RES, 0, 5%, 0.05 W, 0201
+201
+CRCW02010000Z0ED
+Vishay-Dale
+Bill of Materials
+www.ti.com
+16
+DP83825 Evaluation Module
+SNLU239A – DECEMBER 2018 – REVISED DECEMBER 2023
+Submit Document Feedback
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 17 ---
+7 Revision History
+NOTE: Page numbers for previous revisions may differ from page numbers in the current version.
+Changes from Revision * (December 2018) to Revision A (December 2023)
+Page
+•
+Updated EVM board image................................................................................................................................ 1
+•
+Deleted REACH compliance section..................................................................................................................2
+•
+Updated board images....................................................................................................................................... 2
+•
+Updated LDO Operation figure and clarified jumper configuration.....................................................................4
+•
+Updated Supply Selection - LDO figure and clarified jumper configuration........................................................5
+•
+Added resistor names responsible for strapping the PHY..................................................................................6
+•
+Added schematics.............................................................................................................................................. 9
+•
+Added Bill of Materials table.............................................................................................................................12
+www.ti.com
+Revision History
+SNLU239A – DECEMBER 2018 – REVISED DECEMBER 2023
+Submit Document Feedback
+DP83825 Evaluation Module
+17
+Copyright © 2023 Texas Instruments Incorporated
+
+
+--- PDF page 18 ---
+STANDARD TERMS FOR EVALUATION MODULES
+1.
+Delivery: TI delivers TI evaluation boards, kits, or modules, including any accompanying demonstration software, components, and/or
+documentation which may be provided together or separately (collectively, an “EVM” or “EVMs”) to the User (“User”) in accordance
+with the terms set forth herein. User's acceptance of the EVM is expressly subject to the following terms.
+1.1
+EVMs are intended solely for product or software developers for use in a research and development setting to facilitate feasibility
+evaluation, experimentation, or scientific analysis of TI semiconductors products. EVMs have no direct function and are not
+finished products. EVMs shall not be directly or indirectly assembled as a part or subassembly in any finished product. For
+clarification, any software or software tools provided with the EVM (“Software”) shall not be subject to the terms and conditions
+set forth herein but rather shall be subject to the applicable terms that accompany such Software
+1.2
+EVMs are not intended for consumer or household use. EVMs may not be sold, sublicensed, leased, rented, loaned, assigned,
+or otherwise distributed for commercial purposes by Users, in whole or in part, or used in any finished product or production
+system.
+2
+Limited Warranty and Related Remedies/Disclaimers:
+2.1
+These terms do not apply to Software. The warranty, if any, for Software is covered in the applicable Software License
+Agreement.
+2.2
+TI warrants that the TI EVM will conform to TI's published specifications for ninety (90) days after the date TI delivers such EVM
+to User. Notwithstanding the foregoing, TI shall not be liable for a nonconforming EVM if (a) the nonconformity was caused by
+neglect, misuse or mistreatment by an entity other than TI, including improper installation or testing, or for any EVMs that have
+been altered or modified in any way by an entity other than TI, (b) the nonconformity resulted from User's design, specifications
+or instructions for such EVMs or improper system design, or (c) User has not paid on time. Testing and other quality control
+techniques
+are
+used
+to
+the
+extent
+TI
+deems
+necessary.
+TI
+does
+not
+test
+all
+parameters
+of
+each
+EVM.
+User's claims against TI under this Section 2 are void if User fails to notify TI of any apparent defects in the EVMs within ten (10)
+business days after delivery, or of any hidden defects with ten (10) business days after the defect has been detected.
+2.3
+TI's sole liability shall be at its option to repair or replace EVMs that fail to conform to the warranty set forth above, or credit
+User's account for such EVM. TI's liability under this warranty shall be limited to EVMs that are returned during the warranty
+period to the address designated by TI and that are determined by TI not to conform to such warranty. If TI elects to repair or
+replace such EVM, TI shall have a reasonable time to repair such EVM or provide replacements. Repaired EVMs shall be
+warranted for the remainder of the original warranty period. Replaced EVMs shall be warranted for a new full ninety (90) day
+warranty period.
+WARNING
+Evaluation Kits are intended solely for use by technically qualified,
+professional electronics experts who are familiar with the dangers
+and application risks associated with handling electrical mechanical
+components, systems, and subsystems.
+User shall operate the Evaluation Kit within TI’s recommended
+guidelines and any applicable legal or environmental requirements
+as well as reasonable and customary safeguards. Failure to set up
+and/or operate the Evaluation Kit within TI’s recommended
+guidelines may result in personal injury or death or property
+damage. Proper set up entails following TI’s instructions for
+electrical ratings of interface circuits such as input, output and
+electrical loads.
+NOTE:
+EXPOSURE TO ELECTROSTATIC DISCHARGE (ESD) MAY CAUSE DEGREDATION OR FAILURE OF THE EVALUATION
+KIT; TI RECOMMENDS STORAGE OF THE EVALUATION KIT IN A PROTECTIVE ESD BAG.
+
+
+--- PDF page 19 ---
+www.ti.com
+2
+3
+Regulatory Notices:
+3.1
+United States
+3.1.1
+Notice applicable to EVMs not FCC-Approved:
+FCC NOTICE: This kit is designed to allow product developers to evaluate electronic components, circuitry, or software
+associated with the kit to determine whether to incorporate such items in a finished product and software developers to write
+software applications for use with the end product. This kit is not a finished product and when assembled may not be resold or
+otherwise marketed unless all required FCC equipment authorizations are first obtained. Operation is subject to the condition
+that this product not cause harmful interference to licensed radio stations and that this product accept harmful interference.
+Unless the assembled kit is designed to operate under part 15, part 18 or part 95 of this chapter, the operator of the kit must
+operate under the authority of an FCC license holder or must secure an experimental authorization under part 5 of this chapter.
+3.1.2
+For EVMs annotated as FCC – FEDERAL COMMUNICATIONS COMMISSION Part 15 Compliant:
+CAUTION
+This device complies with part 15 of the FCC Rules. Operation is subject to the following two conditions: (1) This device may not
+cause harmful interference, and (2) this device must accept any interference received, including interference that may cause
+undesired operation.
+Changes or modifications not expressly approved by the party responsible for compliance could void the user's authority to
+operate the equipment.
+FCC Interference Statement for Class A EVM devices
+NOTE: This equipment has been tested and found to comply with the limits for a Class A digital device, pursuant to part 15 of
+the FCC Rules. These limits are designed to provide reasonable protection against harmful interference when the equipment is
+operated in a commercial environment. This equipment generates, uses, and can radiate radio frequency energy and, if not
+installed and used in accordance with the instruction manual, may cause harmful interference to radio communications.
+Operation of this equipment in a residential area is likely to cause harmful interference in which case the user will be required to
+correct the interference at his own expense.
+FCC Interference Statement for Class B EVM devices
+NOTE: This equipment has been tested and found to comply with the limits for a Class B digital device, pursuant to part 15 of
+the FCC Rules. These limits are designed to provide reasonable protection against harmful interference in a residential
+installation. This equipment generates, uses and can radiate radio frequency energy and, if not installed and used in accordance
+with the instructions, may cause harmful interference to radio communications. However, there is no guarantee that interference
+will not occur in a particular installation. If this equipment does cause harmful interference to radio or television reception, which
+can be determined by turning the equipment off and on, the user is encouraged to try to correct the interference by one or more
+of the following measures:
+• Reorient or relocate the receiving antenna.
+• Increase the separation between the equipment and receiver.
+• Connect the equipment into an outlet on a circuit different from that to which the receiver is connected.
+• Consult the dealer or an experienced radio/TV technician for help.
+3.2 Canada
+3.2.1
+For EVMs issued with an Industry Canada Certificate of Conformance to RSS-210 or RSS-247
+Concerning EVMs Including Radio Transmitters:
+This device complies with Industry Canada license-exempt RSSs. Operation is subject to the following two conditions:
+(1) this device may not cause interference, and (2) this device must accept any interference, including interference that may
+cause undesired operation of the device.
+Concernant les EVMs avec appareils radio:
+Le présent appareil est conforme aux CNR d'Industrie Canada applicables aux appareils radio exempts de licence. L'exploitation
+est autorisée aux deux conditions suivantes: (1) l'appareil ne doit pas produire de brouillage, et (2) l'utilisateur de l'appareil doit
+accepter tout brouillage radioélectrique subi, même si le brouillage est susceptible d'en compromettre le fonctionnement.
+Concerning EVMs Including Detachable Antennas:
+Under Industry Canada regulations, this radio transmitter may only operate using an antenna of a type and maximum (or lesser)
+gain approved for the transmitter by Industry Canada. To reduce potential radio interference to other users, the antenna type
+and its gain should be so chosen that the equivalent isotropically radiated power (e.i.r.p.) is not more than that necessary for
+successful communication. This radio transmitter has been approved by Industry Canada to operate with the antenna types
+listed in the user guide with the maximum permissible gain and required antenna impedance for each antenna type indicated.
+Antenna types not included in this list, having a gain greater than the maximum gain indicated for that type, are strictly prohibited
+for use with this device.
+
+
+--- PDF page 20 ---
+www.ti.com
+3
+Concernant les EVMs avec antennes détachables
+Conformément à la réglementation d'Industrie Canada, le présent émetteur radio peut fonctionner avec une antenne d'un type et
+d'un gain maximal (ou inférieur) approuvé pour l'émetteur par Industrie Canada. Dans le but de réduire les risques de brouillage
+radioélectrique à l'intention des autres utilisateurs, il faut choisir le type d'antenne et son gain de sorte que la puissance isotrope
+rayonnée équivalente (p.i.r.e.) ne dépasse pas l'intensité nécessaire à l'établissement d'une communication satisfaisante. Le
+présent émetteur radio a été approuvé par Industrie Canada pour fonctionner avec les types d'antenne énumérés dans le
+manuel d’usage et ayant un gain admissible maximal et l'impédance requise pour chaque type d'antenne. Les types d'antenne
+non inclus dans cette liste, ou dont le gain est supérieur au gain maximal indiqué, sont strictement interdits pour l'exploitation de
+l'émetteur
+3.3 Japan
+3.3.1
+Notice for EVMs delivered in Japan: Please see http://www.tij.co.jp/lsds/ti_ja/general/eStore/notice_01.page 日本国内に
+輸入される評価用キット、ボードについては、次のところをご覧ください。 
+https://www.ti.com/ja-jp/legal/notice-for-evaluation-kits-delivered-in-japan.html
+3.3.2
+Notice for Users of EVMs Considered “Radio Frequency Products” in Japan: EVMs entering Japan may not be certified
+by TI as conforming to Technical Regulations of Radio Law of Japan.
+If User uses EVMs in Japan, not certified to Technical Regulations of Radio Law of Japan, User is required to follow the
+instructions set forth by Radio Law of Japan, which includes, but is not limited to, the instructions below with respect to EVMs
+(which for the avoidance of doubt are stated strictly for convenience and should be verified by User):
+1.
+Use EVMs in a shielded room or any other test facility as defined in the notification #173 issued by Ministry of Internal
+Affairs and Communications on March 28, 2006, based on Sub-section 1.1 of Article 6 of the Ministry’s Rule for
+Enforcement of Radio Law of Japan,
+2.
+Use EVMs only after User obtains the license of Test Radio Station as provided in Radio Law of Japan with respect to
+EVMs, or
+3.
+Use of EVMs only after User obtains the Technical Regulations Conformity Certification as provided in Radio Law of Japan
+with respect to EVMs. Also, do not transfer EVMs, unless User gives the same notice above to the transferee. Please note
+that if User does not follow the instructions above, User will be subject to penalties of Radio Law of Japan.
+【無線電波を送信する製品の開発キットをお使いになる際の注意事項】開発キットの中には技術基準適合証明を受けて
+いないものがあります。技術適合証明を受けていないもののご使用に際しては、電波法遵守のため、以下のいずれかの
+措置を取っていただく必要がありますのでご注意ください。
+1.
+電波法施行規則第6条第1項第1号に基づく平成18年3月28日総務省告示第173号で定められた電波暗室等の試験設備でご使用
+いただく。
+2.
+実験局の免許を取得後ご使用いただく。
+3.
+技術基準適合証明を取得後ご使用いただく。
+なお、本製品は、上記の「ご使用にあたっての注意」を譲渡先、移転先に通知しない限り、譲渡、移転できないものとします。
+上記を遵守頂けない場合は、電波法の罰則が適用される可能性があることをご留意ください。日本テキサス・イ
+ンスツルメンツ株式会社
+東京都新宿区西新宿６丁目２４番１号
+西新宿三井ビル
+3.3.3
+Notice for EVMs for Power Line Communication: Please see http://www.tij.co.jp/lsds/ti_ja/general/eStore/notice_02.page
+電力線搬送波通信についての開発キットをお使いになる際の注意事項については、次のところをご覧くださ
+い。https://www.ti.com/ja-jp/legal/notice-for-evaluation-kits-for-power-line-communication.html
+3.4 European Union
+3.4.1
+For EVMs subject to EU Directive 2014/30/EU (Electromagnetic Compatibility Directive):
+This is a class A product intended for use in environments other than domestic environments that are connected to a
+low-voltage power-supply network that supplies buildings used for domestic purposes. In a domestic environment this
+product may cause radio interference in which case the user may be required to take adequate measures.
+
+
+--- PDF page 21 ---
+www.ti.com
+4
+4
+EVM Use Restrictions and Warnings:
+4.1 EVMS ARE NOT FOR USE IN FUNCTIONAL SAFETY AND/OR SAFETY CRITICAL EVALUATIONS, INCLUDING BUT NOT
+LIMITED TO EVALUATIONS OF LIFE SUPPORT APPLICATIONS.
+4.2 User must read and apply the user guide and other available documentation provided by TI regarding the EVM prior to handling
+or using the EVM, including without limitation any warning or restriction notices. The notices contain important safety information
+related to, for example, temperatures and voltages.
+4.3 Safety-Related Warnings and Restrictions:
+4.3.1
+User shall operate the EVM within TI’s recommended specifications and environmental considerations stated in the user
+guide, other available documentation provided by TI, and any other applicable requirements and employ reasonable and
+customary safeguards. Exceeding the specified performance ratings and specifications (including but not limited to input
+and output voltage, current, power, and environmental ranges) for the EVM may cause personal injury or death, or
+property damage. If there are questions concerning performance ratings and specifications, User should contact a TI
+field representative prior to connecting interface electronics including input power and intended loads. Any loads applied
+outside of the specified output range may also result in unintended and/or inaccurate operation and/or possible
+permanent damage to the EVM and/or interface electronics. Please consult the EVM user guide prior to connecting any
+load to the EVM output. If there is uncertainty as to the load specification, please contact a TI field representative.
+During normal operation, even with the inputs and outputs kept within the specified allowable ranges, some circuit
+components may have elevated case temperatures. These components include but are not limited to linear regulators,
+switching transistors, pass transistors, current sense resistors, and heat sinks, which can be identified using the
+information in the associated documentation. When working with the EVM, please be aware that the EVM may become
+very warm.
+4.3.2
+EVMs are intended solely for use by technically qualified, professional electronics experts who are familiar with the
+dangers and application risks associated with handling electrical mechanical components, systems, and subsystems.
+User assumes all responsibility and liability for proper and safe handling and use of the EVM by User or its employees,
+affiliates, contractors or designees. User assumes all responsibility and liability to ensure that any interfaces (electronic
+and/or mechanical) between the EVM and any human body are designed with suitable isolation and means to safely
+limit accessible leakage currents to minimize the risk of electrical shock hazard. User assumes all responsibility and
+liability for any improper or unsafe handling or use of the EVM by User or its employees, affiliates, contractors or
+designees.
+4.4 User assumes all responsibility and liability to determine whether the EVM is subject to any applicable international, federal,
+state, or local laws and regulations related to User’s handling and use of the EVM and, if applicable, User assumes all
+responsibility and liability for compliance in all respects with such laws and regulations. User assumes all responsibility and
+liability for proper disposal and recycling of the EVM consistent with all applicable international, federal, state, and local
+requirements.
+5.
+Accuracy of Information: To the extent TI provides information on the availability and function of EVMs, TI attempts to be as accurate
+as possible. However, TI does not warrant the accuracy of EVM descriptions, EVM availability or other information on its websites as
+accurate, complete, reliable, current, or error-free.
+6.
+Disclaimers:
+6.1 EXCEPT AS SET FORTH ABOVE, EVMS AND ANY MATERIALS PROVIDED WITH THE EVM (INCLUDING, BUT NOT
+LIMITED TO, REFERENCE DESIGNS AND THE DESIGN OF THE EVM ITSELF) ARE PROVIDED "AS IS" AND "WITH ALL
+FAULTS." TI DISCLAIMS ALL OTHER WARRANTIES, EXPRESS OR IMPLIED, REGARDING SUCH ITEMS, INCLUDING BUT
+NOT LIMITED TO ANY EPIDEMIC FAILURE WARRANTY OR IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS
+FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT OF ANY THIRD PARTY PATENTS, COPYRIGHTS, TRADE
+SECRETS OR OTHER INTELLECTUAL PROPERTY RIGHTS.
+6.2 EXCEPT FOR THE LIMITED RIGHT TO USE THE EVM SET FORTH HEREIN, NOTHING IN THESE TERMS SHALL BE
+CONSTRUED AS GRANTING OR CONFERRING ANY RIGHTS BY LICENSE, PATENT, OR ANY OTHER INDUSTRIAL OR
+INTELLECTUAL PROPERTY RIGHT OF TI, ITS SUPPLIERS/LICENSORS OR ANY OTHER THIRD PARTY, TO USE THE
+EVM IN ANY FINISHED END-USER OR READY-TO-USE FINAL PRODUCT, OR FOR ANY INVENTION, DISCOVERY OR
+IMPROVEMENT, REGARDLESS OF WHEN MADE, CONCEIVED OR ACQUIRED.
+7.
+USER'S INDEMNITY OBLIGATIONS AND REPRESENTATIONS. USER WILL DEFEND, INDEMNIFY AND HOLD TI, ITS
+LICENSORS AND THEIR REPRESENTATIVES HARMLESS FROM AND AGAINST ANY AND ALL CLAIMS, DAMAGES, LOSSES,
+EXPENSES, COSTS AND LIABILITIES (COLLECTIVELY, "CLAIMS") ARISING OUT OF OR IN CONNECTION WITH ANY
+HANDLING OR USE OF THE EVM THAT IS NOT IN ACCORDANCE WITH THESE TERMS. THIS OBLIGATION SHALL APPLY
+WHETHER CLAIMS ARISE UNDER STATUTE, REGULATION, OR THE LAW OF TORT, CONTRACT OR ANY OTHER LEGAL
+THEORY, AND EVEN IF THE EVM FAILS TO PERFORM AS DESCRIBED OR EXPECTED.
+
+
+--- PDF page 22 ---
+www.ti.com
+5
+8.
+Limitations on Damages and Liability:
+8.1 General Limitations. IN NO EVENT SHALL TI BE LIABLE FOR ANY SPECIAL, COLLATERAL, INDIRECT, PUNITIVE,
+INCIDENTAL, CONSEQUENTIAL, OR EXEMPLARY DAMAGES IN CONNECTION WITH OR ARISING OUT OF THESE
+TERMS OR THE USE OF THE EVMS , REGARDLESS OF WHETHER TI HAS BEEN ADVISED OF THE POSSIBILITY OF
+SUCH
+DAMAGES.
+EXCLUDED
+DAMAGES
+INCLUDE,
+BUT
+ARE
+NOT
+LIMITED
+TO,
+COST
+OF
+REMOVAL
+OR
+REINSTALLATION, ANCILLARY COSTS TO THE PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, RETESTING,
+OUTSIDE COMPUTER TIME, LABOR COSTS, LOSS OF GOODWILL, LOSS OF PROFITS, LOSS OF SAVINGS, LOSS OF
+USE, LOSS OF DATA, OR BUSINESS INTERRUPTION. NO CLAIM, SUIT OR ACTION SHALL BE BROUGHT AGAINST TI
+MORE THAN TWELVE (12) MONTHS AFTER THE EVENT THAT GAVE RISE TO THE CAUSE OF ACTION HAS
+OCCURRED.
+8.2 Specific Limitations. IN NO EVENT SHALL TI'S AGGREGATE LIABILITY FROM ANY USE OF AN EVM PROVIDED
+HEREUNDER, INCLUDING FROM ANY WARRANTY, INDEMITY OR OTHER OBLIGATION ARISING OUT OF OR IN
+CONNECTION WITH THESE TERMS, , EXCEED THE TOTAL AMOUNT PAID TO TI BY USER FOR THE PARTICULAR
+EVM(S) AT ISSUE DURING THE PRIOR TWELVE (12) MONTHS WITH RESPECT TO WHICH LOSSES OR DAMAGES ARE
+CLAIMED. THE EXISTENCE OF MORE THAN ONE CLAIM SHALL NOT ENLARGE OR EXTEND THIS LIMIT.
+9.
+Return Policy. Except as otherwise provided, TI does not offer any refunds, returns, or exchanges. Furthermore, no return of EVM(s)
+will be accepted if the package has been opened and no return of the EVM(s) will be accepted if they are damaged or otherwise not in
+a resalable condition. If User feels it has been incorrectly charged for the EVM(s) it ordered or that delivery violates the applicable
+order, User should contact TI. All refunds will be made in full within thirty (30) working days from the return of the components(s),
+excluding any postage or packaging costs.
+10.
+Governing Law: These terms and conditions shall be governed by and interpreted in accordance with the laws of the State of Texas,
+without reference to conflict-of-laws principles. User agrees that non-exclusive jurisdiction for any dispute arising out of or relating to
+these terms and conditions lies within courts located in the State of Texas and consents to venue in Dallas County, Texas.
+Notwithstanding the foregoing, any judgment may be enforced in any United States or foreign court, and TI may seek injunctive relief
+in any United States or foreign court.
+Mailing Address: Texas Instruments, Post Office Box 655303, Dallas, Texas 75265 
+Copyright © 2023, Texas Instruments Incorporated
+
+
+--- PDF page 23 ---
+IMPORTANT NOTICE AND DISCLAIMER
+TI PROVIDES TECHNICAL AND RELIABILITY DATA (INCLUDING DATA SHEETS), DESIGN RESOURCES (INCLUDING REFERENCE 
+DESIGNS), APPLICATION OR OTHER DESIGN ADVICE, WEB TOOLS, SAFETY INFORMATION, AND OTHER RESOURCES “AS IS” 
+AND WITH ALL FAULTS, AND DISCLAIMS ALL WARRANTIES, EXPRESS AND IMPLIED, INCLUDING WITHOUT LIMITATION ANY 
+IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT OF THIRD 
+PARTY INTELLECTUAL PROPERTY RIGHTS.
+These resources are intended for skilled developers designing with TI products. You are solely responsible for (1) selecting the appropriate 
+TI products for your application, (2) designing, validating and testing your application, and (3) ensuring your application meets applicable 
+standards, and any other safety, security, regulatory or other requirements.
+These resources are subject to change without notice. TI grants you permission to use these resources only for development of an 
+application that uses the TI products described in the resource. Other reproduction and display of these resources is prohibited. No license 
+is granted to any other TI intellectual property right or to any third party intellectual property right. TI disclaims responsibility for, and you 
+will fully indemnify TI and its representatives against, any claims, damages, costs, losses, and liabilities arising out of your use of these 
+resources.
+TI’s products are provided subject to TI’s Terms of Sale or other applicable terms available either on ti.com or provided in conjunction with 
+such TI products. TI’s provision of these resources does not expand or otherwise alter TI’s applicable warranties or warranty disclaimers for 
+TI products.
+TI objects to and rejects any additional or different terms you may have proposed. IMPORTANT NOTICE
+Mailing Address: Texas Instruments, Post Office Box 655303, Dallas, Texas 75265
+Copyright © 2023, Texas Instruments Incorporated

@@ -1,0 +1,2720 @@
+--- PDF page 1 ---
+DP83822 EVM
+User's Guide
+Literature Number: SNLU179
+August 2016
+
+
+--- PDF page 2 ---
+2
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+Table of Contents
+Contents
+1
+Introduction......................................................................................................................... 4
+1.1
+Operation – Quick Setup................................................................................................
+7
+2
+Board Setup Details............................................................................................................ 10
+2.1
+Block Diagram...........................................................................................................
+10
+2.2
+Power Supply Options ................................................................................................. 11
+2.3
+Serial Management and MAC Interfaces............................................................................ 14
+2.4
+LED Options.............................................................................................................
+15
+2.5
+Bootstrap Options/Jumpers ........................................................................................... 16
+2.6
+Clock Options ...........................................................................................................
+17
+2.7
+100BASE-FX Configuration (Fiber)................................................................................... 18
+3
+Schematic ......................................................................................................................... 19
+3.1
+Hardware Schematic ...................................................................................................
+19
+3.2
+Main Block Schematic..................................................................................................
+20
+3.3
+Power Block Schematic................................................................................................
+21
+3.4
+Analog Front-End Schematic.......................................................................................... 22
+3.5
+Connector and Bootstrap Schematic................................................................................. 23
+4
+Layout............................................................................................................................... 24
+4.1
+Top Overlay .............................................................................................................
+24
+4.2
+Top Layer................................................................................................................
+24
+4.3
+Signal Layer 1...........................................................................................................
+25
+4.4
+Signal Layer 2...........................................................................................................
+25
+4.5
+Signal Layer 3...........................................................................................................
+26
+4.6
+Signal Layer 4...........................................................................................................
+26
+4.7
+Bottom Layer ............................................................................................................
+27
+4.8
+Bottom Overlay..........................................................................................................
+27
+4.9
+Board Assembly ........................................................................................................
+28
+5
+Bill of Materials .................................................................................................................. 29
+
+
+--- PDF page 3 ---
+3
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+User's Guide
+SNLU179–August 2016
+DP83822 EVM
+This User’s Guide details the characteristics, operation, and use of the DP83822 10/100 Mbps Industrial
+Ethernet PHY. The EVM enables Texas Instruments’ customers to quickly design and market systems
+using the DP83822. This document also includes schematic diagrams, a printed-circuit board layout,
+board assembly, board marking drawings, and a bill of materials.
+Table 1. Terminology
+Acronym
+Definition
+PHY
+Physical Layer Transceiver
+MAC
+Media Access Controller
+EEE
+Energy Efficient Ethernet
+WoL
+Wake-on-LAN
+SMI
+Serial Management Interface
+MDIO
+Management Data I/O
+MDC
+Management Data Clock
+SFP
+Small Form-Factor Pluggable (Fiber Transceiver)
+MII
+Media Independent Interface
+RMII
+Reduced Media Independent Interface
+RGMII
+Reduced Gigabit Media Independent Interface
+SFD
+Start-of-Frame Detection
+CAT5
+Category 5 (cable electrical characteristics)
+AVD
+Analog Supply Rail
+VDDIO
+Digital Supply Rail
+CT
+Center Tap Supply Rail
+PD
+Pull-Down
+PU
+Pull-Up
+
+
+--- PDF page 4 ---
+Introduction
+www.ti.com
+4
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+1
+Introduction
+The DP83822 EVM supports 10/100 Mbps and is compliant to the IEEE 802.3u standard. This reference
+design supports MII, RMII and RGMII MAC interfaces.
+The DP83822 EVM includes two onboard status LEDs, optional Fiber SFP connector and cage, and
+onboard supply through a 5-V micro USB connector. The DP83822 EVM is capable of providing a 125-
+MHz, 50-MHz or 25-MHz reference clock from an onboard 25-MHz crystal. The EVM includes the
+CDCE925 programmable 2-PLL VCXO clock synthesizer with 1.8-V to 3.3-V LVCMOS outputs. Serial
+management interface, MDIO/MDC, is supported and can be used to access PHY registers for additional
+features. There are 4-level straps, which allow for system configurations without the need to directly
+access PHY registers. External power supplies can be connected to each specified voltage rail for
+additional system evaluation. The DP83822 supports Wake-on-LAN, Energy Efficient Ethernet
+(IEEE802.3az), Start-of-Frame Detect IEEE 1588 Time Stamp, and configurable I/O voltages.
+Key Features:
+•
+IEEE 802.3u Compliant: 100BASE-FX, 100BASE-TX and 10BASE-Te
+•
+CDCE925 Programmable 2-PLL VCXO Clock Synthesizer with 1.8 V to 3.3 V
+•
+MII, RMII and RGMII MAC interfaces
+•
+SFD IEEE 1588 Time Stamp
+•
+Two status LEDs
+–
+LED LINK/ACTIVITY
+–
+LED SPEED
+•
+Low Power Modes
+–
+Energy Efficient Ethernet (IEEE802.3az)
+–
+Wake-on-LAN
+–
+Active Sleep
+–
+Passive Sleep
+–
+IEEE Power Down
+–
+Deep Power Down
+•
+Variable I/O voltage range: 1.8 V, 2.5 V and 3.3 V
+•
+100BASE-TX error free data transfer over 150 meters on CAT5 cable
+The DP83822 EVM has an RJ45 connector (J12) with discrete magnetics and stuffing resistor array for
+configurable bootstraps. Customers are encouraged to use a design similar to the EVM circuit to expedite
+their product development.
+
+
+--- PDF page 5 ---
+www.ti.com
+Introduction
+5
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+Figure 1. DP83822 EVM – Top Side
+
+
+--- PDF page 6 ---
+Introduction
+www.ti.com
+6
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+Figure 2. DP83822 EVM - Bottom Side
+
+
+--- PDF page 7 ---
+www.ti.com
+Introduction
+7
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+1.1
+Operation – Quick Setup
+1. Select internal supply by populating the following with jumpers (J6):
+(a) Place jumper #1 at ‘AVD INT’ position
+(b) Place jumper #2 at ‘CT INT’ position
+(c) Place jumper #3 at ‘VDDIO INT’ position
+Figure 3. On-Board Power Supply Configuration
+2. Select VDDIO voltage level (R26):
+•
+4.22 kΩ- 3.3 V operation (Default)
+•
+2.56 kΩ- 2.5 V operation
+•
+1.20 kΩ- 1.8 V operation
+3. Select AVD voltage level (R19):
+•
+4.22 kΩ- 3.3 V operation (Default)
+•
+1.20 kΩ- 1.8 V operation
+
+
+--- PDF page 8 ---
+Introduction
+www.ti.com
+8
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+4.
+Select reference clock frequency (J2):
+•
+25 MHz – jumper across pins 1 and 2
+•
+50 MHz – jumper across pins 2 and 3
+Figure 4. Reference Clock Selection
+5. Place a jumper in the ‘PU’ position for LED LINK/ACT (J10)
+Figure 5. LED LINK/ACT Selection
+6. Turn ON the PHY by connecting a 5-V micro USB power supply to J5
+7. Plug a CAT5, CAT5E or CAT6 cable into the RJ45 connector (J12)
+8. Connect the far-end of the Ethernet cable to a link partner
+9. Connect a MAC interface to J13 and J14
+•
+LED Indication
+–
+The AVD LED (D1) and VDDIO LED (D2) will be illuminated if the 5-V supply is connected
+–
+Look for the LINK LED (D4) to light up on the DP83822 EVM after the PHY links with a connected
+partner
+
+
+--- PDF page 9 ---
+www.ti.com
+Introduction
+9
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+Figure 6. MAC IF Connection and LED Indication
+
+
+--- PDF page 10 ---
+DP83822
+DUT
+5-V Turret / 
+USB
+VDDIO LDO
+1.8-V, 2.5-V, 3.3-V
+MDIO / MDC
+GPIOs
+AVD & CT LDO
+1.8-V or 3.3-V
+AVD
+VDDIO
+5-V
+3.3-V / 2.5-V / 1.8-V 
+External Supplies
+CDCE925
+Bootstrap
+Resistors / 
+Jumpers
+MAC
+MII / RMII / RGMII
+Magnetics
+RJ45
+Capacitive
+Isolation
+Fiber
+Termination
+SFP
+CAT5
+Cable
+LED LINK / 
+ACT
+LED SPEED
+EVM
+14 Pin 
+Header
+26 Pin 
+Header
+MII / RMII / RGMII
+External 
+Clock
+Board Setup Details
+www.ti.com
+10
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+2
+Board Setup Details
+2.1
+Block Diagram
+Figure 7. DP83822 EVM Block Diagram
+
+
+--- PDF page 11 ---
+www.ti.com
+Board Setup Details
+11
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+2.2
+Power Supply Options
+The DP83822 EVM power is supplied by a single 5-V connection. This option uses onboard LDOs to
+provide 3.3-V, 2.5-V or 1.8-V rails. Connect 5-V supply to either the USB micro A/B connector (J5) or V+1
+turret and populate jumpers on J6 as specified in Section 1.1 for onboard supplies. When using the V+1
+turret, GND1 turret should be used as the ground connection.
+Figure 8. Onboard Supply Connection
+
+
+--- PDF page 12 ---
+Board Setup Details
+www.ti.com
+12
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+The DP83822 EVM also supports external supply connections. External supply option bypasses the
+onboard LDOs and allows for direct connections to each supply rail.
+To configure the DP83822 EVM for external supply operation, use the following jumper configuration (J6):
+•
+Place jumper #1 at ‘AVD EXT’ position
+•
+Place jumper #2 at ‘CT EXT’ position
+•
+Place jumper #3 at ‘VDDIO EXT’ position
+Figure 9. External Supply Configuration
+
+
+--- PDF page 13 ---
+www.ti.com
+Board Setup Details
+13
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+There are three supply rail turrets for external supply connection. The three turrets are shown in the image
+below. ‘GND1’ should be used as the ground connection for each of the three supply rails.
+•
+‘External AVD’ – External AVD supply rail
+•
+‘External CT’ – External Center Tap supply rail
+•
+‘External VDDIO’ – External VDDIO supply rail
+Figure 10. External Turret Connection
+
+
+--- PDF page 14 ---
+Board Setup Details
+www.ti.com
+14
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+2.3
+Serial Management and MAC Interfaces
+The DP83822 EVM supports SMI (MDIO/MDC) and MII, RMII and RGMII MAC interfaces. SMI is
+accessible though J14. MDIO is located at pin 23 and MDC is located at pin 21. Ground connection
+between the DP83822 EVM and SMI controller is required for proper operation. DP83822 supports both
+clause 22 and clause 45 in the IEEE 802.3 specification. For further SMI support please refer to the
+Ethernet USB2MDIO Application Note for interfacing the MSP430 Launchpad with TI Ethernet
+PHYs.
+Note: The default PHY_ID is ‘1’. PHY_ID can be changed via bootstrap options found in the datasheet.
+MAC interface pins are located on J13 and J14. MII, RMII and RGMII configurations are located in the
+datasheet and can be configured by bootstrapping or direct register access through the SMI. Please refer
+to the DP83822 datasheet for specific pin requirements for each MAC interface.
+Figure 11. DP83822 EVM MAC IF Connections
+
+
+--- PDF page 15 ---
+www.ti.com
+Board Setup Details
+15
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+2.4
+LED Options
+The DP83822 supports up to three configurable LEDs: Link, Speed and MLED. The DP83822 EVM has
+two onboard LEDs that can be controlled by direct register access using the SMI. LED pins can operate
+as either current sources (when connected to pull-down) or current sinks (when connected to pull-up).
+Figure 12. LED Speed and Link
+
+
+--- PDF page 16 ---
+Board Setup Details
+www.ti.com
+16
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+2.5
+Bootstrap Options/Jumpers
+Some DP83822 configurations can be done through bootstrap options. Options can be selected with
+jumpers or resistor population. Please refer to the datasheet for bootstrap options and schematic/layout
+sections of this User’s Guide for resistor locations.
+Table 2. Bootstrap Resistor Designation and Suggested Bootstrap Resistor Values
+Pin Name
+Pin Number
+Strap
+Mode
+PU Resistor (kΩ)
+PU Resistor
+Designation
+PD Resistor (kΩ)
+PD Resistor
+Designation
+COL
+29
+1
+OPEN
+R84
+1.96
+R88
+2
+13
+1.96
+3
+6.2
+1.96
+4
+OPEN
+OPEN
+RX_D0
+30
+1
+OPEN
+R71
+OPEN
+R72
+2
+10
+2.49
+3
+5.76
+2.49
+4
+2.49
+OPEN
+RX_D1
+31
+1
+OPEN
+R75
+OPEN
+R76
+2
+10
+2.49
+3
+5.76
+2.49
+4
+2.49
+OPEN
+RX_D2
+32
+1
+OPEN
+R77
+OPEN
+R78
+2
+10
+2.49
+3
+5.76
+2.49
+4
+2.49
+OPEN
+RX_D3
+1
+1
+OPEN
+R80
+OPEN
+R82
+2
+10
+2.49
+3
+5.76
+2.49
+4
+2.49
+OPEN
+CRS
+27
+1
+OPEN
+R53
+1.96
+R55
+2
+13
+1.96
+3
+6.2
+1.96
+4
+OPEN
+OPEN
+RX_ER
+28
+1
+OPEN
+R60
+1.96
+R66
+2
+13
+1.96
+3
+6.2
+1.96
+4
+OPEN
+OPEN
+RX_DV
+26
+1
+OPEN
+R45
+OPEN
+R48
+2
+10
+2.49
+3
+5.76
+2.49
+4
+2.49
+OPEN
+
+
+--- PDF page 17 ---
+www.ti.com
+Board Setup Details
+17
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+2.6
+Clock Options
+The DP83822 EVM uses the CDCE925 programmable 2-PLL VCXO clock synthesizer. A 25-MHz crystal
+resonator is connected to the CDCE925, which can then be configured to either a 50-MHz or 25-MHz
+LVCMOS output in the range of 1.8 V to 3.3 V. The output of the CDCE925 is directly fed into the XI pin of
+the DP83822.
+In order to operate with a 25-MHz reference clock, the following modifications are required:
+•
+Populate R3 with a 0-Ω resistor
+•
+Populate R95 and R96 with 1-kΩ resistors
+•
+Remove R4
+•
+Place a jumper across pin 1 and pin 2 on J2
+In order to operate with a 50-MHz reference clock, the following modifications are required:
+•
+Populate R3 with a 0-Ω resistor
+•
+Populate R95 and R96 with 1-kΩ resistors
+•
+Remove R4
+•
+Place a jumper across pin 2 and pin 3 on J2
+Table 3. CDCE925 Programmed Clock Setting Selection
+S2
+S1
+S0
+Reference Clock Setting
+0
+0
+0
+25 MHz
+0
+0
+1
+50 MHz
+2.6.1
+External Configuration
+Additionally, the DP83822 EVM has an external reference clock option through an SMA (J1).
+The external clock must meet the DP83822 data sheet requirements and to be within 50 MHz or 25 MHz
+with ±50ppm tolerance.
+The following changes are required to route an external clock to the DP83822:
+•
+Populate R4 with a 0-Ω resistor
+•
+Populate an SMA at J1
+•
+Remove R3
+
+
+--- PDF page 18 ---
+Board Setup Details
+www.ti.com
+18
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+2.7
+100BASE-FX Configuration (Fiber)
+The DP83822 EVM supports 100BASE-FX by use of an SFP transceiver. The DP83822 can be configured
+for 100BASE-FX operation through either bootstrap or SMI register configuration.
+To configure the DP83822 EVM for 100BASE-FX operation, the following changes are required:
+•
+Remove T2
+•
+Remove R34, R35, R28, R29, R30 and R31
+•
+Populate C47, C48, C49, C50, C53, C54, C57, C58, C59 and C66
+•
+Populate L3 and L4
+•
+Populate J15
+•
+Populate H1
+•
+Populate R36, R41, R42 and R44
+Note: It is important to read the termination requirements for the SFP transceiver used. The DP83822
+EVM allows for custom termination on both receive and transmit paths to ensure support for most SFP
+transceivers. Please refer to the schematic/layout for more information regarding the termination network.
+Figure 13. SFP Cage and Termination Network
+Figure 14. SFP Power Network
+
+
+--- PDF page 19 ---
+FID2
+FID1
+FID3
+SV601202
+E1
+PCB Number:
+PCB Rev:
+Label Assembly Note
+ZZ1
+This Assembly Note is for PCB labels only
+PCB Label
+LBL1
+Size: 0.65" x 0.20 "
+Assembly Note
+ZZ2
+These assemblies are ESD sensitive, ESD precautions shall be observed.
+Assembly Note
+ZZ3
+These assemblies must be clean and free fro m ﬂux and all contaminants. Use of no clean ﬂux is not acceptable.
+Assembly Note
+ZZ4
+These assemblies must comply with workmanship standards IPC-A-610 Class 2, unless otherwise speciﬁed.
+Label Table
+Variant
+Label Text
+001
+DP83822
+002
+DP83822F
+LOGO
+PCB
+Pb-Free Symbol
+LOGO
+PCB
+FCC disclaimer
+3V3
+RXD_P
+RXD_N
+TXD_P
+TXD_N
+FX_RD_P
+FX_RD_N
+FX_TD_P
+FX_TD_N
+AFE
+SV601202-001_AFE.SchDoc
+AVD
+VDDIO
+INT_PWDN_N
+RESET_N
+MDC
+MDIO
+TX_CLK
+TX_EN
+TX_D0
+TX_D1
+TX_D2
+TX_D3
+RX_CLK
+RX_DV
+RX_ER
+CRS
+COL
+RX_D0
+RX_D1
+RX_D2
+RX_D3
+LED_GPIO
+LED_0
+RXD_N
+RXD_P
+TXD_N
+TXD_P
+MAIN
+SV601202-001_MAIN_BLOCK.SchDoc
+AVD
+VDDIO
+3V3
+LED_0
+LED_GPIO
+Power
+SV601202-001_POWER_BLOCK.SchDoc
+3V3
+FX_TD_P
+FX_TD_N
+FX_RD_N
+INT_PWDN_N
+RESET_N
+MDC
+MDIO
+LED_GPIO
+TX_D3
+TX_D2
+TX_D1
+TX_D0
+TX_EN
+TX_CLK
+RX_D3
+RX_D2
+RX_D1
+RX_D0
+CRS
+COL
+RX_DV
+RX_ER
+RX_CLK
+FX_RD_P
+VDDIO
+Connectors
+SV601202-001_CONNECTOR.SchDoc
+MDC
+MDIO
+LED_0
+LED_GPIO
+INT_PWDN_N
+RESET_N
+INT_PWDN_N
+RESET_N
+MDC
+MDIO
+LED_GPIO
+TX_CLK
+TX_EN
+TX_D0
+TX_D1
+TX_D2
+TX_D3
+RX_CLK
+RX_DV
+CRS
+RX_ER
+COL
+RX_D0
+RX_D1
+RX_D2
+RX_D3
+TX_D3
+TX_D2
+TX_D1
+TX_D0
+TX_EN
+TX_CLK
+RX_D3
+RX_D2
+RX_D1
+RX_D0
+CRS
+COL
+RX_DV
+RX_CLK
+RX_ER
+TXD_P
+TXD_N
+RXD_P
+RXD_N
+FX_TD_P
+FX_TD_N
+FX_RD_P
+FX_RD_N
+LOGO
+PCB
+Texas Instruments
+M1
+M3
+M4
+M2
+EARTH
+GND
+GND
+4700pF
+C69
+4700pF
+C68
+SFP_EARTH
+Shield
+1
+Shield
+2
+Shield
+3
+Shield
+4
+Shield
+5
+Shield
+6
+Shield
+7
+Shield
+8
+Shield
+9
+Shield
+10
+Shield
+11
+Shield
+12
+MH1
+MH1
+MH2
+MH2
+MH3
+MH3
+MH4
+MH4
+MH5
+MH5
+MH6
+MH6
+MH7
+MH7
+MH8
+MH8
+H1
+U77-A1118-200T
+DNP
+SFP_EARTH
+SFP_EARTH
+AVD
+AVD
+VDDIO
+VDDIO
+3V3
+3V3
+3V3
+VDDIO
+LED_0
+LED_GPIO
+Copyright © 2016, Texas Instruments Incorporated
+www.ti.com
+Schematic
+19
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+3
+Schematic
+3.1
+Hardware Schematic
+Figure 15. Hardware Schematic
+
+
+--- PDF page 20 ---
+GND
+TXD_P
+TXD_N
+RXD_P
+RXD_N
+RESET_N
+INT_PWDN_N
+GND
+GND
+INT_PWDN_N
+RESET_N
+RESET_N
+GND
+INT_PWDN_N
+MDC
+MDIO
+TX_CLK
+TX_D0
+TX_D1
+TX_D2
+TX_D3
+RX_CLK
+RX_DV
+CRS
+RX_ER
+COL
+RX_D0
+RX_D1
+RX_D2
+RX_D3
+MDC
+MDIO
+TX_CLK
+TX_EN
+RX_D0
+TX_D0
+TX_D1
+TX_D2
+TX_D3
+RX_CLK
+RX_DV
+CRS
+RX_ER
+COL
+RX_D1
+RX_D2
+RX_D3
+TXD_P
+TXD_N
+RXD_P
+RXD_N
+1
+2
+3
+4
+5
+J1
+DNP
+S1
+XI
+2.21k
+R5
+2.21k
+R6
+2.21k
+R9
+DNP
+2.21k
+R10
+GND
+GND
+LED_0
+LED_GPIO
+10µF
+C27
+DNP
+EXT_CLK
+1000pF
+C17
+1000pF
+C24
+100pF
+C18
+100pF
+C25
+0.01µF
+C16
+0.01µF
+C23
+10µF
+C13
+10µF
+C20
+TX_EN
+GND
+RX_D3
+1
+2
+3
+4
+5
+J4
+22µF
+C12
+DNP
+LED_GPIO
+LED_0
+10µF
+C26
+DNP
+1µF
+C14
+DNP
+1µF
+C21
+DNP
+0.1µF
+C15
+DNP
+0.1µF
+C22
+DNP
+22µF
+C19
+DNP
+2.21k
+R8
+DNP
+RBIAS
+4.87k
+Rs1
+RX_D3/PHYAD4/CLKOUT
+1
+TX_CLK
+2
+TX_EN
+3
+TX_D0
+4
+TX_D1
+5
+TX_D2
+6
+TX_D3
+7
+INT/PWDN
+8
+RD_M
+9
+RD_P
+10
+TD_M
+11
+TD_P
+12
+NC
+13
+AVD33
+14
+NC
+15
+RBIAS
+16
+LED_0/AN_0/MLED
+17
+RESET
+18
+MDIO
+19
+MDC
+20
+VDDIO
+21
+XO
+22
+XI
+23
+CLK_O
+24
+RX_CLK
+25
+RX_DV/MII_MODE
+26
+CRS/CRS_DV/LED_CFG
+27
+RX_ER/AMDIX_EN
+28
+COL/PHYAD0/MLED
+29
+RX_D0/PHYAD1
+30
+RX_D1/PHYAD2
+31
+RX_D2/PHYAD3
+32
+PAD
+33
+U2
+DP83822RHBR
+VDDIO
+VDDIO
+AVD
+AVD
+VDDIO
+VDDIO
+VDDIO
+TP1
+TP2
+0
+R7
+DNP
+XIN/CLK
+1
+S0
+2
+VDD
+3
+VCTR
+4
+GND
+5
+VDDOUT
+6
+Y4
+7
+Y5
+8
+VDDOUT
+9
+Y3
+10
+Y2
+11
+GND
+12
+Y1
+13
+S2/SCL
+14
+S1/SDA
+15
+XOUT
+16
+U1
+CDCE925PWR
+25 MHz
+1
+3
+4
+2
+G
+G
+Y1
+GND
+12pF
+C4
+DNP
+12pF
+C5
+DNP
+GND
+GND
+18
+R3
+0
+R4
+DNP
+XI
+EXT_CLK
+GND
+0.01µF
+C10
+GND
+3V3A
+1.00k
+R1
+1.00k
+R2
++1V8
+GND
++1V8
+0.01µF
+C9
+GND
+GND
+3V3A
+0.01µF
+C11
+GND
+GND
+GND
+GND
+0.1µF
+C8
+2.2µF
+C6
+2.2µF
+C7
+120 ohm
+L2
+VDDIO
+3V3A
+GND
+1
+2
+3
+J2
+TSW-103-07-T-S
+0
+R92
+1.00k
+R95
+1.00k
+R94
+DNP
+1.00k
+R96
+1.00k
+R93
+DNP
++1V8
++1V8
+Copyright © 2016, Texas Instruments Incorporated
+Schematic
+www.ti.com
+20
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+3.2
+Main Block Schematic
+Figure 16. Main Block Schematic
+
+
+--- PDF page 21 ---
+GND
+SHDN
+1
+IN
+2
+3
+OUT
+4
+ADJ
+5
+6
+GND
+TAB
+U4
+TL1963AQKTTRQ1
+GND
+5V_20V
+1
+2
+Green
+D1
+QTLP630C4TR
+1
+2
+Green
+D2
+QTLP630C4TR
+VDDIO_EXT
+VDDIO_INT
+VDDIO_EXT
+AVD_EXT
+3V3_EXT
+J7
+J8
+J9
+V+2
+DNP
+GND2
+DNP
+1000pF
+C32
+100pF
+C33
+0.01µF
+C31
+10µF
+C36
+22µF
+C37
+DNP
+GND
+GND
+AVD_INT
+2.40k
+R21
+4.22k
+R19
+GND
+SHDN
+1
+IN
+2
+3
+OUT
+4
+ADJ
+5
+6
+GND
+TAB
+U5
+TL1963AQKTTRQ1
+GND
+5V_20V
+10µF
+C38
+22µF
+C39
+DNP
+GND
+GND
+VDDIO_INT
+2.40k
+R27
+GND
+4.22k
+R26
+470
+R12
+470
+R13
+GND
+GND
+1
+2
+4
+3
+T1
+A
+2
+K
+1
+D3
+10µF
+C30
+4700pF
+C28
+GND
+PWR_CHASSIS
+PWR_CHASSIS
+GND
+PWR_CHASSIS
+PWR_CHASSIS
+1.00M
+R11
+DNP
+22µF
+C29
+DNP
+5V_20V
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+J6
+V+1
+GND1
+AVD
+VDDIO
+VDDIO
+3V3
+AVD
+1
+2
+Green
+D4
+QTLP630C4TR
+1
+2
+Green
+D5
+QTLP630C4TR
+470
+R20
+470
+R17
+GND
+LED_0
+LED_0
+1
+2
+Green
+D6
+QTLP630C4TR
+1
+2
+Green
+D7
+QTLP630C4TR
+470
+R23
+2
+2
+1
+1
+470
+R25
+GND
+LED_GPIO
+LED_GPIO
+1
+2
+3
+J10
+TSW-103-07-G-S
+1
+2
+3
+J11
+TSW-103-07-G-S
+2.49k
+R16
+2.49k
+R18
+2.49k
+R22
+2.49k
+R24
+VDDIO
+VDDIO
+AVD_INT
+3V3_EXT
+AVD_EXT
+AVD_INT
+VBUS
+1
+D-
+2
+D+
+3
+ID
+4
+GND
+5
+6
+7
+8
+11
+10
+9
+J5
+0475890001
+SHDN
+1
+IN
+2
+3
+OUT
+4
+ADJ
+5
+6
+GND
+TAB
+U3
+TL1963AQKTTRQ1
+GND
+5V_20V
+10µF
+C34
+22µF
+C35
+DNP
+GND
+GND
+2.40k
+R15
+GND
+1.20k
+R14
++1V8
+AVD:
+Adjustable Supply
+VDDIO:
+Adjustable Supply
+Adjustable
+Supplies:
+4.22K for 3.3V
+2.56K for 2.5V
+1.2K for 1.8V
+Copyright © 2016, Texas Instruments Incorporated
+www.ti.com
+Schematic
+21
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+3.3
+Power Block Schematic
+Figure 17. Power Block Schematic
+
+
+--- PDF page 22 ---
+Cap Isolation
+EARTH
+EARTH
+49.9
+R39
+49.9
+R40
+49.9
+R37
+49.9
+R38
+TXD_P
+TXD_N
+RXD_P
+RXD_N
+0.1µF
+1
+1
+2
+2
+C47
+DNP
+Magnetic
+1
+1
+2
+2
+4700pF
+C51
+1
+1
+2
+2
+4700pF
+C52
+DNP
+GND
+EARTH
+EARTH
+EARTH
+GND
+GND
+RXD_P
+RXD_N
+TXD_P
+TXD_N
+RXD_P
+RXD_N
+TXD_N
+75
+R34
+EARTH
+0.1µF
+C43
+1µF
+C42
+0.1µF
+C45
+1µF
+C44
+GND
+GND
+RXD_CABLE_N
+RXD_CABLE_P
+TXD_CABLE_N
+TXD_CABLE_P
+ESD
+EARTH
+RXD_CABLE_P
+RXD_CABLE_N
+TXD_CABLE_N
+Termination
+RXD_MAG_N
+RXD_MAG_P
+TXD_MAG_N
+TXD_MAG_P
+RXD_N
+RXD_P
+TXD_N
+TXD_P
+TXD_MAG_P
+TXD_MAG_N
+GND
+1.00M
+R43
+DNP
+75
+R35
+0.1µF
+1
+1
+2
+2
+C48
+DNP
+0.1µF
+1
+1
+2
+2
+C49
+DNP
+0.1µF
+1
+1
+2
+2
+C50
+DNP
+RXD_MAG_N
+RXD_MAG_P
+GND
+TXD_N
+TXD_P
+RXD_N
+RXD_P
+75
+R32
+75
+R33
+Fiber
+RXD_MAG_N
+RXD_MAG_P
+TXD_MAG_N
+TXD_MAG_P
+FX_RD_P
+FX_TD_N
+FX_TD_P
+FX_RD_N
+FX_RD_P
+FX_TD_N
+FX_TD_P
+GND Coupling
+Copper
+22
+µF
+C40
+DNP
+FX_RD_N
+0.01µF
+C46
+0.01µF
+C41
+0
+R28
+0
+R29
+0
+R30
+0
+R31
+0
+R36
+DNP
+0
+R41
+DNP
+0
+R42
+DNP
+0
+R44
+DNP
+D1+
+1
+D1-
+2
+NC
+6
+NC
+7
+NC
+9
+NC
+10
+D2+
+4
+D2-
+5
+GND
+3
+GND
+8
+U6
+TPD4E05U06QDQARQ1
+DNP
+D1+
+1
+D1-
+2
+NC
+6
+NC
+7
+NC
+9
+NC
+10
+D2+
+4
+D2-
+5
+GND
+3
+GND
+8
+U7
+TPD4E05U06QDQARQ1
+DNP
+TXD_CABLE_P
+TXD_CABLE_N
+RXD_CABLE_P
+RXD_CABLE_N
+RXD_N
+RXD_P
+TXD_N
+TXD_P
+3V3
+3V3
+3V3
+TXD_CABLE_P
+2
+3
+4
+1
+5
+6
+7
+8
+9
+10
+11
+12
+J12
+1-406541-1
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+350µH
+T2
+TXD_P
+Copyright © 2016, Texas Instruments Incorporated
+Schematic
+www.ti.com
+22
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+3.4
+Analog Front-End Schematic
+Figure 18. Analog Front-End Schematic
+
+
+--- PDF page 23 ---
+MAC IF
+INT_PWDN_N
+CRS
+COL
+TX_D3
+TX_D2
+TX_D1
+TX_D0
+TX_EN
+TX_CLK
+LED_GPIO
+RX_ER
+RX_CLK
+RX_DV
+RX_D0
+RX_D1
+RX_D2
+RX_D3
+MDC
+MDIO
+RESET_N
+MDC
+MDIO
+RESET_N
+INT_PWDN_N
+1
+3
+5
+6
+4
+2
+7
+9
+10
+8
+12
+11
+14
+13
+16
+15
+18
+17
+20
+19
+J15
+1367073-1
+DNP
+Fiber IF
+1µH
+L3
+DNP
+1µH
+L4
+DNP
+0.01µF
+C53
+DNP
+0.01µF
+C57
+DNP
+10µF
+C59
+DNP
+0.1µF
+C54
+DNP
+0.1µF
+C58
+DNP
+GND
+GND
+3V3
+VCC_R
+VCC_T
+3V3
+GND
+GND
+10k
+R73
+DNP
+LOS
+0
+R74
+DNP
+LED_GPIO
+FX_RD_N
+FX_RD_P
+FX_TD_N
+FX_TD_P
+VCC_R
+LVPECL Termination
+82
+R85
+DNP
+82
+R86
+DNP
+82
+R87
+DNP
+82
+R79
+DNP
+130
+R89
+DNP
+2
+2
+1
+1
+130
+R90
+DNP
+130
+R91
+DNP
+130
+R81
+DNP
+GND
+GND
+GND
+GND
+GND
+GND
+GND
+GND
+FX_RD_P
+FX_TD_P
+FX_TD_N
+FX_RD_N
+1µF
+C60
+DNP
+1µF
+C62
+DNP
+0.1µF
+C61
+DNP
+0.1µF
+C63
+DNP
+1µF
+C64
+DNP
+0.1µF
+C65
+DNP
+1µF
+C55
+DNP
+0.1µF
+C56
+DNP
+4700pF
+C66
+4700pF
+C67
+DNP
+GND
+SFP_EARTH
+SFP_EARTH
+SFP_EARTH
+GND
+GND
+1.00M
+R83
+DNP
+GND Coupling
+TX_D3
+TX_D2
+TX_D1
+TX_D0
+TX_EN
+TX_CLK
+RX_D3
+RX_D2
+RX_CLK
+RX_D1
+RX_D0
+RX_DV
+COL
+RX_ER
+CRS
+LED_GPIO
+FX_TD_N
+FX_TD_P
+FX_RD_P
+FX_RD_N
+0
+R67
+0
+R65
+0
+R49
+0
+R57
+0
+R51
+0
+R50
+0
+R61
+0
+R63
+0
+R47
+0
+R59
+0
+R58
+0
+R56
+0
+R54
+0
+R46
+0
+R69
+0
+R62
+0
+R64
+0
+R70
+0
+R68
+0
+R52
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+J13
+TSW-107-07-G-D
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+17
+19
+21
+23
+25
+16
+18
+20
+22
+24
+26
+J14
+TSW-113-07-G-D
+GND
+GND
+1.96k
+R55
+DNP
+GND
+GND
+GND
+GND
+GND
+GND
+GND
+10.0k
+R45
+DNP
+13.0k
+R53
+DNP
+13.0k
+R60
+DNP
+1.96k
+R66
+DNP
+10.0k
+R71
+DNP
+10.0k
+R75
+DNP
+10.0k
+R77
+DNP
+10.0k
+R80
+DNP
+6.2k
+R84
+DNP
+1.96k
+R88
+DNP
+GND
+2.49k
+R48
+DNP
+2.49k
+R72
+DNP
+2.49k
+R76
+DNP
+2.49k
+R82
+DNP
+2.49k
+R78
+DNP
+VDDIO
+3V3
+3V3
+3V3
+3V3
+Pull-Up Pins:
+COL
+LED_0
+CRS
+RX_ER
+Pull-Down Pins:
+RX_D0
+RX_D1
+RX_D2
+RX_D3
+RX_DV
+Copyright © 2016, Texas Instruments Incorporated
+www.ti.com
+Schematic
+23
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+3.5
+Connector and Bootstrap Schematic
+Figure 19. Connector and Bootstrap Schematic
+
+
+--- PDF page 24 ---
+Layout
+www.ti.com
+24
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+4
+Layout
+4.1
+Top Overlay
+Figure 20. Top Overlay
+4.2
+Top Layer
+Figure 21. Top Layer
+
+
+--- PDF page 25 ---
+www.ti.com
+Layout
+25
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+4.3
+Signal Layer 1
+Figure 22. Signal Layer 1
+4.4
+Signal Layer 2
+Figure 23. Signal Layer 2
+
+
+--- PDF page 26 ---
+Layout
+www.ti.com
+26
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+4.5
+Signal Layer 3
+Figure 24. Signal Layer 3
+4.6
+Signal Layer 4
+Figure 25. Signal Layer 4
+
+
+--- PDF page 27 ---
+www.ti.com
+Layout
+27
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+4.7
+Bottom Layer
+Figure 26. Bottom Layer
+4.8
+Bottom Overlay
+Figure 27. Bottom Overlay
+
+
+--- PDF page 28 ---
+Layout
+www.ti.com
+28
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+4.9
+Board Assembly
+Figure 28. Top Board Assembly
+Figure 29. Bottom Board Assembly
+
+
+--- PDF page 29 ---
+www.ti.com
+Bill of Materials
+29
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+5
+Bill of Materials
+Table 4. Bill of Materials
+Part Number
+Component
+Designation
+Description
+Qty
+C0402C120J3GACAUTO
+C4, C5
+CAP, CERM, 12 pF, 25 V, ±5%, C0G/NP0, AEC-Q200
+Grade 1, 0402
+2
+GRM155R61C225KE11D
+C6, C7
+CAP, CERM, 2.2 µF, 16 V, ±10%, X5R, 0402
+2
+GRM155R71C104KA88D
+C8, C15, C22,
+C43, C45, C54,
+C56, C58, C61,
+C63, C65
+CAP, CERM, 0.1 µF, 16 V, ±10%, X7R, 0402
+11
+CGA2B3X7R1H103K050BB
+C9, C10, C11,
+C16, C23, C31,
+C53, C57
+CAP, CERM, 0.01 µF, 50 V, ±10%, X7R, AEC-Q200 Grade
+1, 0402
+8
+CGA6P1X7R1C226M250AC
+C12, C19, C29,
+C35, C37, C39,
+C40
+CAP, CERM, 22 µF, 16 V, ±20%, X7R, AEC-Q200 Grade
+1, 1210
+7
+CGA6P1X7R1E106M250AC
+C13, C20, C26,
+C27, C30, C34,
+C36, C38, C59
+CAP, CERM, 10 µF, 25 V, ±20%, X7R, AEC-Q200 Grade
+1, 1210
+9
+C1005X7S1A105K050BC
+C14, C21, C42,
+C44, C55, C60,
+C62, C64
+CAP, CERM, 1 µF, 10 V, ±10%, X7S, 0402
+8
+CGA2B2C0G1H102J050BA
+C17, C24, C32
+CAP, CERM, 1000 pF, 50 V, ±5%, C0G/NP0, AEC-Q200
+Grade 1, 0402
+3
+CGA2B2C0G1H101J050BA
+C18, C25, C33
+CAP, CERM, 100 pF, 50 V, ±5%, C0G/NP0, AEC-Q200
+Grade 1, 0402
+3
+1812GC472KAT1A
+C28, C51, C52,
+C66, C67
+CAP, CERM, 4700 pF, 2000 V, ±10%, X7R, 1812
+5
+CGA4J3C0G2E103J125AA
+C41
+CAP, CERM, 0.01 µF, 250 V, ±5%, C0G/NP0, AEC-Q200
+Grade 1, 0805
+1
+CGA4J3C0G2E103J125AA
+C46
+CAP, CERM, 0.01 µF, 250 V, ±5%, C0G/NP0, AEC-Q200
+Grade 1, 0805
+1
+CGA3E2X8R1E104K080AA
+C47, C48, C49,
+C50
+CAP, CERM, 0.1 µF, 25 V, ±10%, X8R, AEC-Q200 Grade
+0, 0603
+4
+08051C472KAT2A
+C68, C69
+CAP, CERM, 4700 pF, 100 V, ±10%, X7R, 0805
+2
+QTLP630C4TR
+D1, D2, D4, D5,
+D6, D7
+LED, Green, SMD
+6
+NRVBA160T3G
+D3
+Diode, Schottky, 60 V, 1 A, AEC-Q101, SMA
+1
+Fiducial
+FID1, FID2, FID3
+Fiducial mark. There is nothing to buy or mount.
+3
+1502-2
+GND1, GND2,
+V+1, V+2
+Terminal, Turret, TH, Double
+4
+U77-A1118-200T
+H1
+SFP Single Cage
+1
+142-0701-851
+J1
+Connector, End launch SMA, 50 Ω, SMT
+1
+TSW-103-07-T-S
+J2
+Header, 2.54 mm, 3x1, Tin, TH
+1
+142-0701-851
+J4
+Connector, End launch SMA, 50 Ω, SMT
+1
+0475890001
+J5
+Connector, Receptacle, Micro-USB Type AB, R/A, Bottom
+Mount SMT
+1
+TSW-106-07-G-D
+J6
+Header, 100mil, 6x2, Gold, TH
+1
+1502-2
+J7
+Terminal, Turret, TH, Double
+1
+1502-2
+J8
+Terminal, Turret, TH, Double
+1
+1502-2
+J9
+Terminal, Turret, TH, Double
+1
+TSW-103-07-G-S
+J10, J11
+Header, 100mil, 3x1, Gold, TH
+2
+1-406541-1
+J12
+RJ-45, No LED, tab up, R/A, TH
+1
+TSW-107-07-G-D
+J13
+Header, 100mil, 7x2, Gold, TH
+1
+
+
+--- PDF page 30 ---
+Bill of Materials
+www.ti.com
+30
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+Table 4. Bill of Materials (continued)
+Part Number
+Component
+Designation
+Description
+Qty
+TSW-113-07-G-D
+J14
+Header, 100mil, 13x2, Gold, TH
+1
+1367073-1
+J15
+Receptacle, 0.8mm, 10x2, Gold, R/A, SMT
+1
+BLM21BD121SN1D
+L2
+Ferrite Bead, 120 Ω at 100 MHz, 0.2 A, 0805
+1
+IFSC0806AZER1R0M01
+L3, L4
+Inductor, Shielded, Ferrite, 1 µH, 1.6 A, 0.115 Ω, SMD
+2
+THT-14-423-10
+LBL1
+Thermal Transfer Printable Labels, 0.650" W x 0.200" H -
+10,000 per roll
+1
+CRCW04021K00FKED
+R1, R2
+RES, 1.00 k, 1%, 0.063 W, 0402
+2
+CRCW040218R0JNED
+R3
+RES, 18, 5%, 0.063 W, 0402
+1
+CRCW04020000Z0ED
+R4
+RES, 0, 5%, 0.063 W, 0402
+1
+TNPW06032K21BEEA
+R5, R6, R8, R9,
+R10
+RES, 2.21 k, 0.1%, 0.1 W, AEC-Q200 Grade 0, 0603
+5
+ERJ-1GE0R00C
+R7
+RES, 0, 5%, 0.05 W, 0201
+1
+CRCW12061M00FKEA
+R11, R43, R83
+RES, 1.00 M, 1%, 0.25 W, 1206
+3
+CRCW0402470RJNED
+R12, R13, R17,
+R20, R23, R25
+RES, 470, 5%, 0.063 W, 0402
+6
+RT0603BRD071K2L
+R14
+RES, 1.20 k, 0.1%, 0.1 W, 0603
+1
+ERA-3AEB242V
+R15, R21, R27
+RES, 2.40 k, 0.1%, 0.1 W, AEC-Q200 Grade 0, 0603
+3
+CRCW04022K49FKED
+R16, R18, R22,
+R24, R48, R72,
+R76, R78, R82
+RES, 2.49 k, 1%, 0.063 W, 0402
+9
+CRCW06034K22FKEA
+R19, R26
+RES, 4.22 k, 1%, 0.1 W, 0603
+2
+ERJ-1GE0R00C
+R28, R29, R30,
+R31, R36, R41,
+R42, R44, R46,
+R47, R49, R50,
+R51, R52, R54,
+R56, R57, R58,
+R59, R61, R62,
+R63, R64, R65,
+R67, R68, R69,
+R70
+RES, 0, 5%, 0.05 W, 0201
+28
+CRCW080575R0JNEA
+R32, R33, R34,
+R35
+RES, 75, 5%, 0.125 W, 0805
+4
+CRCW040249R9FKED
+R37, R38, R39,
+R40
+RES, 49.9, 1%, 0.063 W, 0402
+4
+CRCW040210K0FKED
+R45, R71, R75,
+R77, R80
+RES, 10.0 k, 1%, 0.063 W, 0402
+5
+CRCW040213K0FKED
+R53, R60
+RES, 13.0 k, 1%, 0.063 W, 0402
+2
+CRCW04021K96FKED
+R55, R66, R88
+RES, 1.96 k, 1%, 0.063 W, 0402
+3
+RC0603JR-0710KL
+R73
+RES, 10 k, 5%, 0.1 W, 0603
+1
+RC0402JR-070RL
+R74
+RES, 0, 5%, 0.063 W, 0402
+1
+CRCW040282R0JNED
+R79, R85, R86,
+R87
+RES, 82, 5%, 0.063 W, 0402
+4
+CRCW0402130RJNED
+R81, R89, R90,
+R91
+RES, 130, 5%, 0.063 W, 0402
+4
+CRCW04026K20JNED
+R84
+RES, 6.2 k, 5%, 0.063 W, 0402
+1
+ERJ-1GE0R00C
+R92
+RES, 0, 5%, 0.05 W, 0201
+1
+CRCW02011K00FKED
+R93, R94, R95,
+R96
+RES, 1.00 k, 1%, 0.05 W, 0201
+4
+CRCW04024K87FKED
+Rs1
+RES, 4.87 k, 1%, 0.063 W, 0402
+1
+KSR221GLFS
+S1
+Switch, Normally open, 2.3N force, 200k operations, SMD
+1
+ACM9070-701-2PL
+T1
+Common Mode Filter for Power Line
+1
+HX1188FNLT
+T2
+Transformer, 350 uH, SMT
+1
+
+
+--- PDF page 31 ---
+www.ti.com
+Bill of Materials
+31
+SNLU179–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+DP83822 EVM
+Table 4. Bill of Materials (continued)
+Part Number
+Component
+Designation
+Description
+Qty
+CDCE925PWR
+U1
+PROGRAMMABLE 2-PLL VCXO CLOCK SYNTHESIZER
+WITH 1.8-V, 2.5-V and 3.3-V LVCMOS OUTPUTS,
+PW0016A
+1
+DP83822RHBR
+U2
+10/100 Ethernet PHY, RHB0032B
+1
+TL1963AQKTTRQ1
+U3, U4, U5
+Single Output Fast Transient Response LDO, 1.5 A,
+Adjustable 1.21 to 20 V Output, 2.1 to 20 V Input, 5-pin
+DDPAK (KTT), -40 to 125 degC, Green (RoHS & no Sb/Br)
+3
+TPD4E05U06QDQARQ1
+U6, U7
+1, 4, 6 CHANNEL PROTECTION SOLUTION FOR
+SUPER-SPEED (UP TO 6 GBPS) INTERFACE,
+DQA0010A
+2
+ABM8AIG-25.000MHZ-12-2Z-T3
+Y1
+Crystal, 25MHz, 12pF, SMD
+1
+
+
+--- PDF page 32 ---
+IMPORTANT NOTICE
+Texas Instruments Incorporated and its subsidiaries (TI) reserve the right to make corrections, enhancements, improvements and other
+changes to its semiconductor products and services per JESD46, latest issue, and to discontinue any product or service per JESD48, latest
+issue. Buyers should obtain the latest relevant information before placing orders and should verify that such information is current and
+complete. All semiconductor products (also referred to herein as “components”) are sold subject to TI’s terms and conditions of sale
+supplied at the time of order acknowledgment.
+TI warrants performance of its components to the specifications applicable at the time of sale, in accordance with the warranty in TI’s terms
+and conditions of sale of semiconductor products. Testing and other quality control techniques are used to the extent TI deems necessary
+to support this warranty. Except where mandated by applicable law, testing of all parameters of each component is not necessarily
+performed.
+TI assumes no liability for applications assistance or the design of Buyers’ products. Buyers are responsible for their products and
+applications using TI components. To minimize the risks associated with Buyers’ products and applications, Buyers should provide
+adequate design and operating safeguards.
+TI does not warrant or represent that any license, either express or implied, is granted under any patent right, copyright, mask work right, or
+other intellectual property right relating to any combination, machine, or process in which TI components or services are used. Information
+published by TI regarding third-party products or services does not constitute a license to use such products or services or a warranty or
+endorsement thereof. Use of such information may require a license from a third party under the patents or other intellectual property of the
+third party, or a license from TI under the patents or other intellectual property of TI.
+Reproduction of significant portions of TI information in TI data books or data sheets is permissible only if reproduction is without alteration
+and is accompanied by all associated warranties, conditions, limitations, and notices. TI is not responsible or liable for such altered
+documentation. Information of third parties may be subject to additional restrictions.
+Resale of TI components or services with statements different from or beyond the parameters stated by TI for that component or service
+voids all express and any implied warranties for the associated TI component or service and is an unfair and deceptive business practice.
+TI is not responsible or liable for any such statements.
+Buyer acknowledges and agrees that it is solely responsible for compliance with all legal, regulatory and safety-related requirements
+concerning its products, and any use of TI components in its applications, notwithstanding any applications-related information or support
+that may be provided by TI. Buyer represents and agrees that it has all the necessary expertise to create and implement safeguards which
+anticipate dangerous consequences of failures, monitor failures and their consequences, lessen the likelihood of failures that might cause
+harm and take appropriate remedial actions. Buyer will fully indemnify TI and its representatives against any damages arising out of the use
+of any TI components in safety-critical applications.
+In some cases, TI components may be promoted specifically to facilitate safety-related applications. With such components, TI’s goal is to
+help enable customers to design and create their own end-product solutions that meet applicable functional safety standards and
+requirements. Nonetheless, such components are subject to these terms.
+No TI components are authorized for use in FDA Class III (or similar life-critical medical equipment) unless authorized officers of the parties
+have executed a special agreement specifically governing such use.
+Only those TI components which TI has specifically designated as military grade or “enhanced plastic” are designed and intended for use in
+military/aerospace applications or environments. Buyer acknowledges and agrees that any military or aerospace use of TI components
+which have not been so designated is solely at the Buyer's risk, and that Buyer is solely responsible for compliance with all legal and
+regulatory requirements in connection with such use.
+TI has specifically designated certain components as meeting ISO/TS16949 requirements, mainly for automotive use. In any case of use of
+non-designated products, TI will not be responsible for any failure to meet ISO/TS16949.
+Products
+Applications
+Audio
+www.ti.com/audio
+Automotive and Transportation
+www.ti.com/automotive
+Amplifiers
+amplifier.ti.com
+Communications and Telecom
+www.ti.com/communications
+Data Converters
+dataconverter.ti.com
+Computers and Peripherals
+www.ti.com/computers
+DLP® Products
+www.dlp.com
+Consumer Electronics
+www.ti.com/consumer-apps
+DSP
+dsp.ti.com
+Energy and Lighting
+www.ti.com/energy
+Clocks and Timers
+www.ti.com/clocks
+Industrial
+www.ti.com/industrial
+Interface
+interface.ti.com
+Medical
+www.ti.com/medical
+Logic
+logic.ti.com
+Security
+www.ti.com/security
+Power Mgmt
+power.ti.com
+Space, Avionics and Defense
+www.ti.com/space-avionics-defense
+Microcontrollers
+microcontroller.ti.com
+Video and Imaging
+www.ti.com/video
+RFID
+www.ti-rfid.com
+OMAP Applications Processors
+www.ti.com/omap
+TI E2E Community
+e2e.ti.com
+Wireless Connectivity
+www.ti.com/wirelessconnectivity
+Mailing Address: Texas Instruments, Post Office Box 655303, Dallas, Texas 75265
+Copyright © 2016, Texas Instruments Incorporated

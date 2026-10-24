@@ -1,0 +1,332 @@
+--- PDF page 1 ---
+1
+SNLA253–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+How to use the TDR Feature of DP83822
+Application Report
+SNLA253–August 2016
+How to use the TDR Feature of DP83822
+AniruddhaKhadye
+ABSTRACT
+This document describes the TDR functionality of Ethernet PHYs with focus on DP83822. The application
+report explains TDR in brief and then describes how to use this feature for cable diagnostics.
+Contents
+1
+Introduction ...................................................................................................................
+2
+2
+Time Domain Reflectometry................................................................................................
+2
+3
+Conclusion....................................................................................................................
+5
+List of Figures
+1
+Open Circuit Cable ..........................................................................................................
+2
+2
+Short Circuit Cable ..........................................................................................................
+3
+3
+Inactive Link Partner ........................................................................................................
+3
+4
+Cross-Wired Cable ..........................................................................................................
+4
+
+
+--- PDF page 2 ---
+PHY
+Open/
+Inductive 
+Discontinuity
+TX
+TX
+RX
+RX
+Transmitter Pulse
+TX or RX
+Reflected Pulse
+Introduction
+www.ti.com
+2
+SNLA253–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+How to use the TDR Feature of DP83822
+1
+Introduction
+As Ethernet networks grow more and more complex, detecting link and cable faults becomes more
+difficult. The need for cable diagnostics tools is more important than ever. The cables used can be very
+long in length and the topologies can be complicated so the cable diagnostics tools need to be non-
+intrusive. TI's ethernet PHYs provide solution to this problem with diagnostic tools integrated in the PHY.
+2
+Time Domain Reflectometry
+2.1
+TDR
+TDR can be used for cable diagnostics when the Link is down. TDR involves sending a pulse on TX and
+RX pair and observe results on either pair. By measuring voltage amplitude, polarity, and time interval the
+PHY can determine the nature and position of the fault. This feature works under certain conditions like;
+•
+Cable Open
+•
+Cable Short
+•
+Link Partner Down
+•
+TX/RX pair cross-wired
+•
+Impedance discontinuity
+TDR works for only for twisted pair connections. TDR generator will send pulse on the TX and RX channel
+and then monitor both channels to observe reflections. It will send a pulse on one channel at a time and if
+reflections are observed on the other channel then the PHY realizes that the wires have been crossed.
+DP83822 can detect 5 peaks on TX and RX channels each.
+2.2
+Example Connections
+Following are the example connections where TDR can be used.
+2.2.1
+Open Circuit Cable
+Open cable is easy to diagnose as it will generate a strong reflection. No reflection will be observed on the
+other channel. The reflection due to open circuit will be in-phase with the transmitted pulse (positive
+polarity). Any kind of inductive impedance discontinuity will generate in-phase reflection and the amplitude
+will depend on the amount of impedance discontinuity.
+Figure 1. Open Circuit Cable
+
+
+--- PDF page 3 ---
+PHY
+Link Partner Down
+TX
+TX
+RX
+RX
+Transmitter Pulse
+TX or RX
+Reflected Pulse
+PHY
+Short/
+Capacitive 
+Discontinuity
+TX
+TX
+RX
+RX
+Transmitter Pulse
+TX or RX
+Reflected Pulse
+www.ti.com
+Time Domain Reflectometry
+3
+SNLA253–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+How to use the TDR Feature of DP83822
+2.2.2
+Short Circuit Cable
+Short Circuited cable will also generate a strong reflection but this reflection will be out of phase with the
+original pulse (negative polarity).Any kind of capacitive impedance discontinuity will generate out of phase
+reflection and the amplitude will depend on the amount of impedance discontinuity.
+Figure 2. Short Circuit Cable
+2.2.3
+Link Partner Down
+When the Link partner is in power down mode or inactive the line will be terminated. In an ideal scenario,
+the termination will be perfectly matched with no reflection but this is very difficult to achieve. In reality
+there will be small reflections due to some impedance mismatch. For longer cables, this reflection is not
+strong enough to make cable length measurements.
+Figure 3. Inactive Link Partner
+
+
+--- PDF page 4 ---
+PHY
+Link Partner
+TX
+TX
+RX
+RX
+Transmitter Pulse
+TX
+Reflected Pulse
+Reflected Pulse
+RX
+Time Domain Reflectometry
+www.ti.com
+4
+SNLA253–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+How to use the TDR Feature of DP83822
+2.2.4
+Cross-Wired Cable
+Due to incorrect cable or connector assembly, a single wire from TX or RX differential pair is routed to the
+opposite channel. This results in an unexpected return pulse on the channel not being tested. For e.g. If
+transmit channel is being tested in a cross-wired cable then a unexpected return pulse will be observed on
+the receive channel. To check for this, the PHY observes both the channels even if sends a pulse on one
+channel at a time. In addition to return pulse on the other channel there can be a return pulse on the
+channel under test.
+Figure 4. Cross-Wired Cable
+
+
+--- PDF page 5 ---
+www.ti.com
+Time Domain Reflectometry
+5
+SNLA253–August 2016
+Submit Documentation Feedback
+Copyright © 2016, Texas Instruments Incorporated
+How to use the TDR Feature of DP83822
+2.3
+TDR Implementation
+For the purpose of this document, TDR implementation in DP83822 will be discussed.
+2.3.1
+TDR Configuration
+TDR can be configured to run automatically after Link Drop through Register 0x0009 bit 8 or run manually
+from Register 0x001E bit 15.
+For using TDR, following register writes are required.
+•
+Write 0b1100 to bits [3:0] of register 0x0171
+•
+Write 0b11111111 to bits [15:8] in register 0x0173
+•
+Write 0b000011000 to bits [12:8] in register 0x0177
+•
+TDR Auto-run from bit [8] in register 0x0009 or manually start TDR using bit [15] of register 0x001E
+TDR status is stored in bits [1:0] of register 0x001E. TDR results are stored in registers 0x0180 to 0x018A.
+Basic software processing is required for converting register values to physical quantities. Ignore values in
+Cable Diagnostics Registers that read 0b1100.
+2.3.2
+Cable Length and Fault Location
+DP83822 can detect 5 peaks on TX and RX channels each. Running TDR on a open ended cable will let
+users estimate the cable length. Any impedance discontinuity in the cable will generate reflections which
+can be used for detecting the location fo the fault. Peak locations are stored in registers 0x0180 to
+0x0184. Every register contains 2 peaks with 8 bits allocated for every peak. Following process can be
+used for finding the peak location in meters.
+•
+Read bit [1:0} from Register 0x001E to ensure that TDR was successfully completed.
+•
+Read registers 0x0180 to 0x0184 to get TX and RX peak locations.
+•
+Convert Hex Value of a peak to Decimal Value(DV).
+•
+Find the Intermediate Location (IL) = (DV x 0.8621) - 8
+•
+Find Final Location(FL) in meters = IL + ((70 - IL) x 0.01)
+For e.g lets assume that after running TDR, only one peak was observed on the Transmit path. Register
+0x180 reads 0x0033.
+•
+Convert peak 1 location from hexadecimal to decimal. 0x33(hex) -> 51(dec)
+•
+IL = (51 x 0.8621) - 8 = 35.97
+•
+FL = 35.97 + ((70 - 35.97) x 0.01) = 36.31m
+This is now the location of the fault. If it is known that this is a open ended cable with no breaks then the
+length obtained is the length of the cable.
+2.3.3
+Peak Amplitude and Polarity
+Peak amplitude is stored in registers 0x0185 to 0x0189. Every register contains amplitudes for 2 peaks
+with 8 bits allocated for every peak. Convert the register value from Hexadecimal to Decimal and divide it
+by 256.
+Polarity of all peaks is stored in Register 0x018A bit [15:6]. Bit value of '0' indicates a positive peak and bit
+value of '1' indicates a negative value. Register 0x18A also has bits to indicate if the TX and RX channels
+have been cross wired. Bits [3:2] will indicate if more than 5 peaks were detected on TX and RX channel
+respectively.
+3
+Conclusion
+This app note explains the basics of TDR and how to use the TDR functionality of the DP83822 Industrial
+Ethernet PHY.
+
+
+--- PDF page 6 ---
+IMPORTANT NOTICE
+Texas Instruments Incorporated and its subsidiaries (TI) reserve the right to make corrections, enhancements, improvements and other
+changes to its semiconductor products and services per JESD46, latest issue, and to discontinue any product or service per JESD48, latest
+issue. Buyers should obtain the latest relevant information before placing orders and should verify that such information is current and
+complete. All semiconductor products (also referred to herein as “components”) are sold subject to TI’s terms and conditions of sale
+supplied at the time of order acknowledgment.
+TI warrants performance of its components to the specifications applicable at the time of sale, in accordance with the warranty in TI’s terms
+and conditions of sale of semiconductor products. Testing and other quality control techniques are used to the extent TI deems necessary
+to support this warranty. Except where mandated by applicable law, testing of all parameters of each component is not necessarily
+performed.
+TI assumes no liability for applications assistance or the design of Buyers’ products. Buyers are responsible for their products and
+applications using TI components. To minimize the risks associated with Buyers’ products and applications, Buyers should provide
+adequate design and operating safeguards.
+TI does not warrant or represent that any license, either express or implied, is granted under any patent right, copyright, mask work right, or
+other intellectual property right relating to any combination, machine, or process in which TI components or services are used. Information
+published by TI regarding third-party products or services does not constitute a license to use such products or services or a warranty or
+endorsement thereof. Use of such information may require a license from a third party under the patents or other intellectual property of the
+third party, or a license from TI under the patents or other intellectual property of TI.
+Reproduction of significant portions of TI information in TI data books or data sheets is permissible only if reproduction is without alteration
+and is accompanied by all associated warranties, conditions, limitations, and notices. TI is not responsible or liable for such altered
+documentation. Information of third parties may be subject to additional restrictions.
+Resale of TI components or services with statements different from or beyond the parameters stated by TI for that component or service
+voids all express and any implied warranties for the associated TI component or service and is an unfair and deceptive business practice.
+TI is not responsible or liable for any such statements.
+Buyer acknowledges and agrees that it is solely responsible for compliance with all legal, regulatory and safety-related requirements
+concerning its products, and any use of TI components in its applications, notwithstanding any applications-related information or support
+that may be provided by TI. Buyer represents and agrees that it has all the necessary expertise to create and implement safeguards which
+anticipate dangerous consequences of failures, monitor failures and their consequences, lessen the likelihood of failures that might cause
+harm and take appropriate remedial actions. Buyer will fully indemnify TI and its representatives against any damages arising out of the use
+of any TI components in safety-critical applications.
+In some cases, TI components may be promoted specifically to facilitate safety-related applications. With such components, TI’s goal is to
+help enable customers to design and create their own end-product solutions that meet applicable functional safety standards and
+requirements. Nonetheless, such components are subject to these terms.
+No TI components are authorized for use in FDA Class III (or similar life-critical medical equipment) unless authorized officers of the parties
+have executed a special agreement specifically governing such use.
+Only those TI components which TI has specifically designated as military grade or “enhanced plastic” are designed and intended for use in
+military/aerospace applications or environments. Buyer acknowledges and agrees that any military or aerospace use of TI components
+which have not been so designated is solely at the Buyer's risk, and that Buyer is solely responsible for compliance with all legal and
+regulatory requirements in connection with such use.
+TI has specifically designated certain components as meeting ISO/TS16949 requirements, mainly for automotive use. In any case of use of
+non-designated products, TI will not be responsible for any failure to meet ISO/TS16949.
+Products
+Applications
+Audio
+www.ti.com/audio
+Automotive and Transportation
+www.ti.com/automotive
+Amplifiers
+amplifier.ti.com
+Communications and Telecom
+www.ti.com/communications
+Data Converters
+dataconverter.ti.com
+Computers and Peripherals
+www.ti.com/computers
+DLP® Products
+www.dlp.com
+Consumer Electronics
+www.ti.com/consumer-apps
+DSP
+dsp.ti.com
+Energy and Lighting
+www.ti.com/energy
+Clocks and Timers
+www.ti.com/clocks
+Industrial
+www.ti.com/industrial
+Interface
+interface.ti.com
+Medical
+www.ti.com/medical
+Logic
+logic.ti.com
+Security
+www.ti.com/security
+Power Mgmt
+power.ti.com
+Space, Avionics and Defense
+www.ti.com/space-avionics-defense
+Microcontrollers
+microcontroller.ti.com
+Video and Imaging
+www.ti.com/video
+RFID
+www.ti-rfid.com
+OMAP Applications Processors
+www.ti.com/omap
+TI E2E Community
+e2e.ti.com
+Wireless Connectivity
+www.ti.com/wirelessconnectivity
+Mailing Address: Texas Instruments, Post Office Box 655303, Dallas, Texas 75265
+Copyright © 2016, Texas Instruments Incorporated
