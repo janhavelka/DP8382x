@@ -1,5 +1,11 @@
 # Consumer, CLI and runner convention follow-up
 
+Historical numbering: DP8382x stage numbers in this report refer to the former
+34-stage plan. Use the [current 80-prompt index](../prompts/README.md) and
+[old-to-new mapping](prompt-workload-audit.md) for execution; its sole first-set
+remote-CI checkpoint is now 71. The original findings below retain their dated
+scope and are not current execution instructions.
+
 Planning audit on 2026-10-26. This report supports expanded implementation
 prompts 15-22 and 27. It does not execute those stages or establish a driver,
 SDK build, test result, firmware image, hardware result or new public API.

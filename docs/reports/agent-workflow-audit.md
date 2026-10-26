@@ -1,5 +1,11 @@
 # Agent guidance and checkpoint workflow audit
 
+Historical numbering: DP8382x stage numbers in this report refer to the former
+34-stage plan. Use the [current 80-prompt index](../prompts/README.md) and
+[old-to-new mapping](prompt-workload-audit.md) for execution; its sole first-set
+remote-CI checkpoint is now 71. The original findings below retain their dated
+scope and are not current execution instructions.
+
 Date: 2026-10-26. This follow-up adapts sibling agent guidance to the user's
 explicit request for this repository. It changes planning and execution rules;
 it does not start the implementation promptset or qualify any chip functionality.

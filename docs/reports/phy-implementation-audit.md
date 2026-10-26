@@ -1,5 +1,11 @@
 # PHY implementation audit
 
+Historical numbering: DP8382x stage numbers in this report refer to the former
+34-stage plan. Use the [current 80-prompt index](../prompts/README.md) and
+[old-to-new mapping](prompt-workload-audit.md) for execution; its sole first-set
+remote-CI checkpoint is now 71. The original findings below retain their dated
+scope and are not current execution instructions.
+
 Reviewed on 2026-10-26 against repository base
 `35ced9bb9d0b05c1c0b41ecff7cee5e757bcb163`. This is a source and architecture
 review for the implementation promptset. No driver was implemented, compiled or

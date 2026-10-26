@@ -75,23 +75,23 @@ again for permission to perform those routine checkpoints.
   `git diff --check`. The repository has no driver build, firmware, test suite or
   CI workflow yet. Add commands and evidence as implementation actually exists.
 - For the first implementation promptset, remote CI execution and run-status
-  checking belong to **prompt 29 only**. Prompts 01-28 and 30-34 do not dispatch,
+  checking belong to **prompt 71 only**. Prompts 1-70 and 72-80 do not dispatch,
   poll, wait for or require remote CI results, including after substantive fixes,
   commits or pushes. This explicit user-requested exception overrides the
   parent's recurring exact-final-commit CI requirement for that first execution.
 - Inspect checked-in workflow definitions/check registration during the initial
-  audit, when affected by changes and at prompt 29. Reuse their commands, pinned
+  audit, when affected by changes and at prompt 71. Reuse their commands, pinned
   dependencies and source selection. Auditing sibling CI means reviewing source,
   not checking their remote runs. Do not repeatedly inspect unchanged workflows.
 - Keep focused local verification throughout: host behavior, CLI/Python, source
   documentation, metadata/packages and actual SDK builds as relevant. Small prose
   changes need appropriate local text/link checks. Repeat checks for new changes,
   confirmed failures or unresolved concerns, not the full matrix after each edit.
-- At prompt 29, commit/sync the completed CI work and verify the supported remote
+- At prompt 71, commit/sync the completed CI work and verify the supported remote
   matrix for that actual commit. Repeat affected jobs there for confirmed failures
   or changed inputs. Later prompts keep that CI SHA as historical evidence and
   validate locally; they do not need a new remote run to finish this first set.
-- Push-triggered automatic runs may still occur. Outside prompt 29 they are not
+- Push-triggered automatic runs may still occur. Outside prompt 71 they are not
   an execution/completion gate for the first set. Preserve workflow triggers,
   hooks and required merge/release checks; do not use skip markers, disable checks
   or bypass protection to implement this exception. A later explicit user request
@@ -134,7 +134,7 @@ contract is implemented. Do not populate the future tree with successful stubs.
 - Maintain Doxygen in public headers and meaningful procedure comments in source
   with every behavior change. Document parameters, output validity, returned
   statuses, callback lifetimes, I/O side effects and deadlines where relevant.
-  Start source documentation with the first implemented files; prompt 32 is an
+  Start source documentation with the first implemented files; prompt 76 is an
   audit, not permission to defer it. Run the relevant documentation checks.
 - Ship tests and source/user documentation with behavior, not as debt for later
   prompts. Do not turn planned contracts or compile-only fixtures into support

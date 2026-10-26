@@ -4,6 +4,12 @@
 
 ### 2026-10-26
 
+- Audited prompt workload and replaced the 34 broad stages with 80 complete
+  prompts numbered 1 through 80. Split source research, feature procedures,
+  SDK/CLI/runner work and family qualification into scoped outcomes with their
+  own tests, documentation and checkpoints. Updated execution/dependency and
+  coverage maps; all implementation remains NOT STARTED. The sole first-set
+  remote-CI checkpoint is now prompt 71 (formerly 29).
 - Corrected prompt/source guidance for WoL W0C and mixed-register writes,
   consumed-event retention, remote-fault restrictions, active sleep, loopback,
   family interfaces and ESP-IDF ownership/state/pause limitations. Simplified
@@ -17,13 +23,13 @@
   task complexity. Implementation remains unstarted.
 - Expanded AGENTS guidance from sibling conventions, with one branch per
   implementation execution, authorized commit/sync checkpoints per prompt and
-  coherent intermediate unit, and first-set remote CI only at prompt 29.
+  coherent intermediate unit, and a single first-set remote-CI checkpoint.
 - Extended the promptset to require complete documented chip functionality,
   broad manufacturer-first public-source research and exhaustive register,
   field and programming-procedure coverage beyond the first board's use case.
 - Audited sibling chip-library structure, ownership, APIs, health, examples,
   CLI, Python runners, tests, packaging and CI, plus FieldCore-node promptsets.
-- Added a 34-stage implementation promptset with shared engineering, CLI,
+- Initially added a 34-stage implementation promptset with shared engineering, CLI,
   verification and fresh sibling-audit requirements, coverage and progress records.
 - Made the requested portable C++17 core explicit alongside ESP-IDF framework
   reuse, generic 10/100 operation and separate application/board ownership.

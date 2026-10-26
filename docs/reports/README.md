@@ -22,6 +22,8 @@ changing revisions are observations of concurrent work, not changes by this task
   owner, runner, example and test symbols used to deepen implementation stages.
 - [Maintenance conventions follow-up](maintenance-conventions-follow-up.md):
   family, package, version, Doxygen and review evidence behind later stages.
+- [Prompt workload audit](prompt-workload-audit.md): per-stage workload findings,
+  complete-task boundaries, 1-80 execution order and old-to-new migration map.
 - [Prompt correctness audit](prompt-correctness-audit.md): chip and SDK defects,
   source conflicts, simpler implementation choices and the new-branch rule.
 
@@ -30,6 +32,8 @@ the initial planning scope. The later explicit user instruction is implemented
 in root AGENTS and the workflow follow-up; use those for current execution rules.
 The correctness audit strengthens this to a new branch for every new execution;
 root AGENTS owns current rules and older reports retain their historical scope.
+Older reports use the former 34-stage numbers. The workload audit maps every
+former stage to the current 80 prompts; the sole first-set CI stage is now 71.
 
 Use [the promptset](../prompts/README.md) to execute future work and
 [implementation progress](../implementation-progress.md) for status. Stage

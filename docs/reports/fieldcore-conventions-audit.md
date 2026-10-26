@@ -1,5 +1,11 @@
 # FieldCore-node conventions audit
 
+Historical numbering: DP8382x stage numbers in this report refer to the former
+34-stage plan. Use the [current 80-prompt index](../prompts/README.md) and
+[old-to-new mapping](prompt-workload-audit.md) for execution; its sole first-set
+remote-CI checkpoint is now 71. The original findings below retain their dated
+scope and are not current execution instructions.
+
 Audited on 2026-10-26 for the DP8382x implementation promptset. This is source
 inspection, not a FieldCore build, test run or hardware qualification. Paths in
 this report are relative to the sibling `../FieldCore-node/` unless stated

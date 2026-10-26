@@ -1,12 +1,12 @@
 # Library engineering contract
 
 These are requirements and design constraints for future implementation. Stage
-03 resolves framework ownership and stage 04 fixes exact signatures in maintained
+6 resolves framework ownership and prompts 7-8 fix exact signatures in maintained
 API documentation. Changes to those decisions need evidence and coordinated
 updates, not compatibility aliases added to hide disagreement.
 The [concrete conventions](CONVENTIONS.md) select the current planned Status,
 DriverState, snapshot and function names, source responsibilities and Doxygen
-requirements from actual sibling code. Stage 04 freezes their exact signatures;
+requirements from actual sibling code. Prompts 7-8 freeze their exact signatures;
 do not independently choose competing names in later prompts.
 
 [FULL_COVERAGE](FULL_COVERAGE.md) defines mandatory public-source research and
@@ -32,7 +32,7 @@ retain documentation/observability without invented software controls.
   do not rename I2C sensor methods mechanically or inherit I2C error names.
 - Use `Status { Err code; int32_t detail; const char* msg; }` with static message
   lifetime, `ok()`, `is()`, `inProgress()`, explicit bool, `Ok()` and `Error()`
-  factories, plus stable printable error names. Stage 04 specifies the actual
+  factories, plus stable printable error names. Prompt 7 specifies the actual
   MDIO, deadline, identity, unsupported, busy and configuration errors. Peer enum
   ordinals are not a cross-library ABI. Progress/admission is not success.
 - Keep passive `HealthSnapshot`, `LinkSnapshot`, capability and configuration
@@ -104,7 +104,7 @@ performs MDIO later. Cached getters, rendering and status projection do no I/O.
   Specify monotonic domain, wrap/overflow rules, timestamp validity, quantization
   and minimum waits. No unbounded busy loops. Long reset/negotiation/diagnostic
   waits must allow owner scheduling; freeze the smallest suitable poll/result
-  API at stage 04. Retain terminal results and cancellation effects explicitly.
+  API at prompt 8. Retain terminal results and cancellation effects explicitly.
 - Binding, cached snapshots, invalidation and local teardown are bus-silent.
   Hardware reset, software reset, restart, power-down and recovery are separate
   fallible actions. Cancellation cannot undo an accepted register write. Do not

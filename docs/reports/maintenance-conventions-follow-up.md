@@ -1,5 +1,11 @@
 # Family, packaging and maintenance convention follow-up
 
+Historical numbering: DP8382x stage numbers in this report refer to the former
+34-stage plan. Use the [current 80-prompt index](../prompts/README.md) and
+[old-to-new mapping](prompt-workload-audit.md) for execution; its sole first-set
+remote-CI checkpoint is now 71. The original findings below retain their dated
+scope and are not current execution instructions.
+
 This is a planning-maintenance audit performed on 2026-10-26. It deepens stages
 23-26 and 28-34; it neither executes those stages nor implements a PHY driver,
 build, test suite, package, CI workflow or hardware qualification. Siblings were

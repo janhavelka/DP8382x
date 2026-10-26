@@ -103,7 +103,7 @@ source lists and release packages. Do not create an unreviewed vendor-code dump.
 
 ## Exhaustive register and procedure inventory
 
-Stage 02 creates a machine-readable register/field/feature ledger and readable
+Prompts 3-5 create a machine-readable register/field/feature ledger and readable
 guides from authoritative documents, extending the planning inventory. Use stable
 semantic IDs, not prompt numbers. Choose a small JSON/CSV format plus a checker
 where it makes coverage reliable; avoid a general code generator framework.
@@ -157,7 +157,7 @@ WoL/frame filtering, all PHY low-power states, and documented repeater/complianc
 analog controls. The inventory determines exact membership and limits; a name
 on this list does not assert every family member supports that feature.
 
-At stages 14, 19, 22, 23-26 and 31-34 reconcile the full ledger, not just the
+At prompts 36, 47, 55-67 and 74-80 reconcile the full ledger, not just the
 current driver's exported functions. Tests and raw access cannot mask omitted
 features. Each family expansion repeats the complete source/register/feature
 audit rather than only checking its PHY ID and common networking path.

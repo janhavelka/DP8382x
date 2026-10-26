@@ -1,8 +1,8 @@
 # Concrete library conventions
 
 This is the selected baseline for future DP8382x implementation, based on live
-sibling source inspected on 2026-10-26. It is not an implemented API. Stage 04
-settles signatures and behavior in `docs/api-contracts.md`; later stages use that
+sibling source inspected on 2026-10-26. It is not an implemented API. Prompts 7-8
+settle signatures and behavior in `docs/api-contracts.md`; later stages use that
 contract. Change a baseline only with a concrete reason, a current source check
 and updates to affected consumers and documentation. Do not add aliases to avoid
 making a choice. Read this file with [ENGINEERING](ENGINEERING.md), not instead of
@@ -50,7 +50,7 @@ runner, consumer, family and packaging evidence.
   inconsistent configuration, `NOT_BOUND`/`NOT_INITIALIZED` for distinct lifecycle
   failures, `UNSUPPORTED` for a source-proved absent capability, and
   `DEVICE_NOT_FOUND` for missing/plausibility-failed identity evidence under the
-  stage-04 rule. Use `DEVICE_MISMATCH` for a successfully read identity that
+  prompt-7 rule. Use `DEVICE_MISMATCH` for a successfully read identity that
   conflicts with the declared part or accepted revision policy, with the reason
   retained in detail. A transport failure remains `MDIO_ERROR`/`MDIO_TIMEOUT`.
   No accepted identity is not proof of a physically absent chip. An unavailable
@@ -79,7 +79,7 @@ verified configuration or safe motion.
 Use these peer field names in `HealthSnapshot` when their semantics apply:
 `state`, `initialized`, `consecutiveFailures`, `totalFailures`, `totalSuccess`,
 `lastOkMs`, `lastErrorMs`, `lastOkTimeValid`, `lastErrorTimeValid`, `lastError`.
-Freeze widths, saturation, initialization and transitions at stage 04. Timestamp
+Freeze widths, saturation, initialization and transitions in prompts 7-8. Timestamp
 zero is valid when its validity flag says so. Last error survives a later success.
 `resetStatistics()` clears documented cumulative counters only; it must not
 repair configuration, erase pending results or declare recovery.
@@ -105,7 +105,7 @@ evidence one collector. Cached views must not consume it again.
 ## Function and lifecycle vocabulary
 
 Use one method for one meaning. These are selected planning names; exact
-arguments, result types and supported stages are frozen at stage 04.
+arguments, result types and supported stages are frozen in prompts 7-8.
 
 | Purpose | Planned names and constraints |
 | --- | --- |

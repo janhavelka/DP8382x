@@ -1,5 +1,11 @@
 # Promptset validation
 
+Historical numbering: DP8382x stage numbers in this report refer to the former
+34-stage plan. Use the [current 80-prompt index](../prompts/README.md) and
+[old-to-new mapping](prompt-workload-audit.md) for execution; its sole first-set
+remote-CI checkpoint is now 71. The original findings below retain their dated
+scope and are not current execution instructions.
+
 Planning review on 2026-10-26 for the [34-stage promptset](../prompts/README.md).
 Starting DP8382x revision: `35ced9bb9d0b05c1c0b41ecff7cee5e757bcb163`.
 This report concerns documentation and implementation instructions only.

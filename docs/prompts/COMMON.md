@@ -55,8 +55,40 @@ CLI, package, documentation or review work. It remains an explicit open gate;
 dependent code must reject the unavailable capability. A source-proved absent or
 inapplicable feature can have a completed disposition. Missing essential evidence
 is not that disposition and cannot become implemented/supported by declaration.
-Leave affected required work incomplete until resolved. Stage 34 can review a
+Leave affected required work incomplete until resolved. Stage 80 can review a
 partial result but cannot mark the whole set COMPLETE with required gates open.
+
+## Keep each prompt complete at its declared scope
+
+Execute the numbered files in the index's numeric order, `1` through `80`.
+Each is a complete task with a durable outcome, concrete prerequisites and
+acceptance evidence. The shared contracts are part of every prompt; their
+length is not a request to repeat unrelated audits or the full test matrix.
+Reopen the current sibling files relevant to the work and reuse unchanged
+workflow findings with their recorded revision.
+
+Close a feature's validation, working path, failure/timeout/cancel behavior,
+cleanup, tests and documentation together. Never split start from restoration,
+publish a success stub for a later prompt, or defer first tests/Doxygen to the
+regression/documentation audits. A limited early consumer must state its actual
+working scope and must not advertise later methods as usable. Later prompts
+extend existing procedures and collectors instead of adding competing engines.
+
+Research tasks can complete an exhaustive evidence record with named source
+conflicts. That does not complete the affected implementation requirement.
+Hardware tasks cannot complete required measurements through a preparation
+report. A closure/review prompt audits its finite assigned matrix and fixes
+focused defects; it is not permission to hide a whole missing feature in a
+final catch-all. Return substantial omissions to their owning prompt and keep
+its status and the final gate incomplete. Continue only independent eligible
+work when the invocation authorizes more than one prompt.
+
+If execution uncovers a larger task supported by source evidence, record the
+specific new workload and revise the plan before calling it complete. Preserve
+all requirements, reports, dependencies and the one execution branch; do not
+silently defer work, renumber completed evidence or create another promptset
+branch to escape an incomplete stage. Finishing a bounded task is not a promise
+that unavailable silicon clarification, tools or fixtures can be invented.
 
 ## Work and ownership
 
@@ -102,7 +134,7 @@ tests. Keep implementation, host tests, linked firmware, package consumers,
 remote CI and physical qualification as separate evidence.
 
 Update [implementation progress](../implementation-progress.md) and the stage
-report `docs/reports/implementation/NN-topic.md` when executing a stage. Record:
+report `docs/reports/implementation/N-topic.md` when executing a stage. Record:
 
 - objective, prerequisite evidence, revision/dirty state and files owned;
 - fresh sibling/source audit, adopted conventions and justified differences;
@@ -121,11 +153,11 @@ leave a required gate BLOCKED; continue independent work whose prerequisites
 are satisfied and return to that gate. Never silently convert an unverified
 feature into supported behavior or call the entire set complete with open gates.
 
-For this first implementation promptset, **remote CI belongs to prompt 29 only**.
-Prompts 01-28 and 30-34 do not dispatch, poll, wait for or require remote results,
+For this first implementation promptset, **remote CI belongs to prompt 71 only**.
+Prompts 1-70 and 72-80 do not dispatch, poll, wait for or require remote results,
 including after substantive changes or commit/sync. Inspect checked-in workflows
 when relevant and keep all focused local checks, SDK builds and package tests.
-Prompt 29 checks its actual completed commit; later work retains that SHA and
+Prompt 71 checks its actual completed commit; later work retains that SHA and
 uses local evidence without claiming the old run validates a newer commit.
 Preserve automatic triggers, hooks and required merge/release checks. After the
 first execution, parent CI policy applies unless the user changes it.

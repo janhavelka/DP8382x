@@ -12,11 +12,11 @@ prompt `> ` and optional sibling ANSI colors: cyan headings/commands, green read
 yellow degraded/pending, red errors/offline, gray metadata, reset after styling.
 Support color off and plain redirected output. Test behavior, not just help text.
 
-Freeze exact grammar, aliases and output records in stage 18 before parser
+Freeze exact grammar, aliases and output records in prompt 43 before parser
 implementation. Follow `help/?`, `version/ver`, `init/begin`, `drv/health`,
 `cfg/settings` and register vocabulary where semantics agree. Avoid many aliases.
 These are example CLI aliases, not extra C++ methods. Route initialization to
-the single stage-04 operation API; [CONVENTIONS](CONVENTIONS.md) rejects duplicate
+the single prompt-8 operation API; [CONVENTIONS](CONVENTIONS.md) rejects duplicate
 core `init`/`begin` facades. Use its Status/health field names consistently in
 human output and machine records, while keeping link and trust separate.
 Every command has arity, units, legal values, side effects, owner route, maximum
