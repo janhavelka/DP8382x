@@ -1,18 +1,33 @@
 # DP8382x
 
-Firmware library workspace for Texas Instruments DP8382x Ethernet PHYs, starting
-with **DP83826IRHBR (DP83826I)** and integration with the ESP32-P4 Ethernet MAC.
+General microcontroller library workspace for Texas Instruments DP8382x Ethernet
+PHYs, starting with **DP83826IRHBR (DP83826I)**. The planned C++17 core is
+framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet MAC.
 
-**Status: documentation and repository foundation.** The official references,
-scope and directory structure are ready. Driver implementation, build/package
-metadata, examples and hardware qualification are future work.
+**Status: audited implementation plan and repository foundation.** Official
+references, sibling-library audits and a 34-stage AI-agent promptset are ready.
+Driver implementation, build/package metadata, examples, CLI, runners and hardware
+qualification are future work.
 
 The general library is intended to expose both **10 and 100 Mbit/s** operation.
 The initial board firmware will use autonegotiation advertising **100 Mbit/s,
 full duplex only**. That board policy belongs in the application configuration.
 
+The implementation target is the **complete publicly documented feature set**
+of each supported chip, including features unused by that first board. Runtime
+opt-in diagnostics, EEE/WoL, PHY low-power, interrupts, clocks and pin controls
+remain library scope. See [full-coverage requirements](docs/prompts/FULL_COVERAGE.md),
+[public-source research](docs/reference/public-research.md) and the
+[DP83826I register/feature inventory](docs/reference/dp83826i-feature-inventory.md).
+
 ## Start here
 
+- [Implementation promptset](docs/prompts/README.md): complete ordered prompts,
+  shared contracts and copyable execution instructions for an AI agent.
+- [Planning audits](docs/reports/README.md): actual sibling driver, FieldCore-node,
+  tooling and PHY findings behind the plan.
+- [Implementation progress](docs/implementation-progress.md): all implementation
+  stages are currently NOT STARTED; planning checks are recorded separately.
 - [Reference archive](docs/reference/README.md): downloaded TI datasheets,
   application notes, EVM guides and hardware collateral, with provenance.
 - [Official source references](docs/reference/source-code.md): pinned TI and
@@ -30,10 +45,12 @@ full duplex only**. That board policy belongs in the application configuration.
 DP8382x/
   include/DP8382x/       future public interfaces
   src/                  future implementation
-  examples/esp_idf/      future ESP32-P4 integration and diagnostic example
+  examples/esp_idf/      future P4 networking and EtherCAT-owner examples
   test/                 verification guidance; future driver tests
   tools/                reference archive integrity checker
   docs/
+    prompts/            34 implementation stages and shared contracts
+    reports/            planning audits; later implementation evidence
     reference/
       source/           unmodified TI PDFs/ZIPs and provenance.json
       text/             searchable text derived from archived PDFs

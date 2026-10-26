@@ -4,6 +4,12 @@ Verified on 2026-10-24. These links point to immutable Git commits. Source code
 is linked for engineering review; none has been imported into the implementation.
 The [exact-device datasheets](README.md) remain authoritative for hardware behavior.
 
+The [2026-10-26 public research follow-up](public-research.md) adds TI ICSS-EMAC
+and Zephyr implementations, additional Linux identity evidence, upstream Zephyr
+DP83825, register tooling and source conflicts. It also records the changed
+version returned by the mutable MCU+ SDK page. These sources extend the comparison;
+none is a complete substitute for the exact chip's register and feature inventory.
+
 ## Texas Instruments RTOS drivers
 
 Repository: [TexasInstruments/ethernet-rtos-drivers](https://github.com/TexasInstruments/ethernet-rtos-drivers).

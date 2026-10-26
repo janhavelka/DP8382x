@@ -17,6 +17,11 @@ Unmapped NUL glyphs are replaced with the Unicode replacement character so
 ordinary text-search tools can read the extracts; the PDFs remain unchanged.
 See [third-party notices](THIRD_PARTY_NOTICES.md) for licensing boundaries.
 
+The 2026-10-26 follow-up adds a [full DP83826I feature/register inventory](dp83826i-feature-inventory.md)
+and [expanded public-source research](public-research.md), including additional
+TI GitHub/SDK and primary upstream comparisons. These derived planning guides
+do not change the archived payloads or establish implemented chip support.
+
 ## Reading order
 
 1. DP83826I/E datasheet and DP83826 troubleshooting guide: identity, modes,

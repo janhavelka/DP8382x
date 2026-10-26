@@ -15,6 +15,11 @@ file links. It is offline and does not claim that TI has not published an update
 PDF parsing was also checked while collecting the initial archive.
 
 No driver, firmware build, CI workflow or hardware test exists at this stage.
+The [34-stage promptset](../docs/prompts/README.md) now defines those future
+deliverables. Its [verification contract](../docs/prompts/VERIFICATION.md)
+separates host, portable consumer, SDK link, package, remote CI and physical
+evidence. See [planning validation](../docs/reports/promptset-validation.md) for
+the checks actually performed on this documentation-only change.
 
 ## Planned implementation evidence
 

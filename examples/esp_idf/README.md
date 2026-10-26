@@ -1,4 +1,4 @@
-# Planned ESP-IDF example
+# Planned ESP-IDF examples
 
 The first example should bring up the ESP32-P4 MAC with DP83826I, report PHY
 identity and negotiated link state, and provide bounded register diagnostics.
@@ -7,3 +7,9 @@ It should accept board-specific pins, address, clock and advertisement policy.
 There is no buildable example yet. Use the [board context](../../docs/esp32p4-board.md)
 and [official SDK references](../../docs/reference/source-code.md) when implementing
 it. Keep EtherCAT master integration in the application that owns that stack.
+
+The [promptset](../../docs/prompts/README.md) separately plans an ordinary
+Ethernet/IP example and an owner example demonstrating the 100/full EtherCAT
+integration boundary, followed by a shared diagnostic CLI. Neither supplies an
+EtherCAT master or servo-control implementation. Application power delivery is
+outside the library and examples.

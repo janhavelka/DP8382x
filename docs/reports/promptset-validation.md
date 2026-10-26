@@ -1,0 +1,102 @@
+# Promptset validation
+
+Planning review on 2026-10-26 for the [34-stage promptset](../prompts/README.md).
+Starting DP8382x revision: `35ced9bb9d0b05c1c0b41ecff7cee5e757bcb163`.
+This report concerns documentation and implementation instructions only.
+
+## Scope and evidence
+
+The lead and three delegated reviewers inspected sibling driver conventions,
+FieldCore-node promptsets/owners and exact PHY/SDK boundaries. Reports record
+concrete paths, revisions, dirty-state caveats and depth of review. Siblings
+remained read-only; no build, test, Git mutation or hardware run was performed
+there. The primary library itself remains unimplemented.
+
+The resulting promptset covers portable C++17 and native IDF ownership, exact
+DP83826I behavior, family expansion, health/status, examples, CLI, Python HIL,
+packaging/versioning, CI, source/user documentation and separate qualification.
+All stages require a fresh relevant sibling audit and scoped verification.
+The [coverage map](../prompts/COVERAGE.md) links the request to stages and evidence.
+
+## Independent review and corrections
+
+Three read-only reviews examined the completed promptset after drafting:
+
+| Review | Finding | Resolution |
+| --- | --- | --- |
+| FieldCore/executability | Optional silicon or unavailable remote-CI gates could block unrelated later work through blanket prerequisite ranges | COMMON, index and every stage footer now require concrete input outputs while retaining unrelated gates; final COMPLETE still requires required gates closed |
+| Sibling/health | Cable disconnect wording incorrectly prohibited success/activity counters changing during real MDIO reads | Stage 11 now prohibits transport-failure increments caused merely by cable-down, while real reads count and rejected input remains bus-silent |
+| Sibling/tooling | Artifact integrity/preservation could be more concrete | CLI contract and stage 20 require exclusive output bundles, retained prior runs, sizes/SHA-256 and collision/write/flush/close failure tests |
+| PHY/family | DP83822 planning omitted RGMII | Stage 26 and engineering contract include RGMII and exact timing/delay configuration, distinct from any particular MAC's support |
+| PHY/forced modes | Robust Auto-MDIX/manual MDI/MDIX needed explicit coverage | Stage 09 requires source-backed Force Mode setup, reset restoration and failure tests |
+| PHY/MAC boundary | Pause advertisement, RX/TX resolution and notification ownership were implicit | Stages 03/09/10/15 now specify symmetric/asymmetric pause, full-duplex validity and separate MAC/application policy |
+| PHY/cancellation | Bus-silent cancellation needed a precise relationship to diagnostic cleanup | Stages 04/08 and engineering contract require subsequent owner work with finite cleanup budget and preserved unresolved effects |
+
+The lead checked the added PHY claims in archived SNLS647I and SNLS505H.
+All three reviewers rechecked their corrected sections and reported no remaining
+findings within that review scope. Review does not establish silicon behavior
+beyond the cited source, and does not close future implementation/hardware gates.
+
+## Local checks for the initial promptset
+
+Checks ran locally with Python 3.12.10:
+
+| Check | Result |
+| --- | --- |
+| `python tools/verify_references.py` | PASS: 27 vendor artifacts (43,240,385 bytes), 25 text extracts, 209 local links in 61 Markdown files |
+| `git diff --check` | PASS: no tracked-diff whitespace errors |
+| One-off changed/new-file inspection | PASS: all 54 changed/new files UTF-8, LF, final newline and no trailing whitespace; includes untracked new documents |
+| One-off prompt manifest check | PASS: exactly 01-34, mandatory entry/audit/work/acceptance sections, each indexed once and all 34 progress rows NOT STARTED |
+| One-off concrete sibling-path check | PASS: 26 paths in SOURCE_MAP and the additional family/tooling audit exist |
+
+The one-off checks inspected the documentation; they are not new driver tests
+or a claimed installed validation tool. Reference archive bytes and provenance
+were preserved. Focused documentation verification is appropriate under the
+parent policy; no remote CI dispatch was required for this planning-only change.
+
+## Complete-feature and public-source follow-up
+
+The user clarified that the first application's limited use must not limit
+library scope. Added [FULL_COVERAGE](../prompts/FULL_COVERAGE.md),
+[public manufacturer-source research](../reference/public-research.md) and the
+[DP83826I inventory](../reference/dp83826i-feature-inventory.md). The contract now
+requires every documented programmable feature, including runtime opt-in
+functions, with complete register/field/procedure, API, CLI and test coverage.
+Raw access alone cannot close multistep features. Hardware-only/absent silicon,
+unavailable fixtures and unfinished software have distinct dispositions.
+
+The source sweep inspected additional TI ICSS-EMAC and Zephyr drivers, TI Linux
+variant evidence, upstream Zephyr DP83825 and official register-tool guides.
+The source catalog records immutable revisions, per-file licenses, incomplete
+driver behavior and concrete contradictions. No source payloads or installers
+were imported, and no reference archive bytes were replaced.
+
+A reviewer checked FULL_COVERAGE against the request. A separate focused review
+found one remaining stage-12 phrase conflating unresolved evidence and unsupported
+silicon; it was corrected to an open implementation/completion gate. The full
+inventory exposes further datasheet/app-note conflicts for future source closure;
+it does not claim those issues are solved by collecting register addresses.
+
+Follow-up validation with Python 3.12.10 passed:
+
+- All **79** catalogue section/address pairs match the archived datasheet's
+  detailed register headings: 30 direct Clause 22 and 49 extended entries.
+- Reference integrity and local Markdown links pass with all 27 original vendor
+  artifacts and 25 derived text extracts preserved.
+- All 34 prompt files remain indexed once and all progress rows NOT STARTED.
+- All 59 changed/new Markdown files pass UTF-8/LF/final-newline/trailing-whitespace
+  inspection, including untracked files; `git diff --check` also passes.
+
+These are documentation/source-inventory checks, not driver, SDK or HIL results.
+
+## Limits
+
+- No driver, library API, firmware, CLI, runner, build metadata or CI was created.
+- No host driver tests, native SDK build, remote CI or physical HIL ran for this
+  documentation-only task. Planned commands are instructions, not test evidence.
+- PHYSTS forced-mode and RECR interpretation conflicts remain named silicon
+  review items for implementation; unsupported derived behavior must stay gated.
+- No EtherCAT master/servo functionality, electrical compliance or power delivery
+  is claimed. No sibling changes, package publication or remote push was made.
+- The current configured remote was observed, correcting stale setup wording;
+  this does not claim remote synchronization or authorize publication.
