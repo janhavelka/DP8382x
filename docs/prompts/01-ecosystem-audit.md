@@ -24,7 +24,8 @@ runners, tests, metadata, generated versions, CI and agent guidance. Separate ex
 code from aspirational docs. Identify incompatible peer conventions rather than
 inventing one universal API.
 
-Inspect this repo's reference checker and parent CI rules before proposing new checks.
+Inspect this repo's reference checker, parent CI rules and root AGENTS' explicit
+first-set remote-CI exception before proposing new checks.
 Record the actual toolchain availability, configured remote and repository ownership; do
 not guess owner handles or inherit sibling push/merge/fixture permissions. Review actual
 workflow commands and test registration, not only badges. Siblings stay read-only; don't
@@ -52,3 +53,8 @@ Include source documentation, relevant guides, feature/evidence matrix and progr
 updates. Apply COMMON's completion rules; report actual commands, results and remaining
 gates. Continue only when the concrete required inputs exist; COMMON explains how
 unrelated gates stay open.
+
+Before reporting completion or starting another prompt, commit and sync this
+prompt's checked work on the recorded execution branch. Also checkpoint coherent
+verified units during the prompt. Follow root AGENTS' first-set CI exception;
+do not create empty commits or include unrelated work.

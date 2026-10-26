@@ -33,7 +33,7 @@ synchronization or a frozen whole-session source snapshot. Future stages re-audi
 | `24Cxx/tools/` current inventory | Runner, identity/guard/artifact helpers and tests exist | An older TMP comparison saying 24Cxx had no standalone runner is stale; live source outranks historical reports |
 | `TUSB32x/docs/prompts/README.md`, `COMMON.md`, `9-transport-identity.md` | 38 staged instructions with shared contracts, current-source audit, detailed failure cases and completion evidence | Use phased tasks/shared contracts and explicit source evidence; choose PHY-specific stages |
 | `TUSB32x/AGENTS.md`, `docs/implementation-progress.md`, `test/` | Only passive values/validators and host foundation at observation; driver still planned | Do not treat its future device/owner API as implemented precedent |
-| TUSB32x Git/CI sections | Local branch/commit/push permissions and one-CI-stage exception | Exclude from DP8382x; follow its own task scope and parent policy |
+| TUSB32x Git/CI sections | Local branch/commit/push permissions and one-CI-stage exception | Initially excluded as sibling-specific permissions; the later explicit user instruction is adapted in the [workflow follow-up](agent-workflow-audit.md) |
 
 ## Resulting design requirements
 

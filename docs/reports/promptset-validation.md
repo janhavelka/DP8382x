@@ -89,6 +89,29 @@ Follow-up validation with Python 3.12.10 passed:
 
 These are documentation/source-inventory checks, not driver, SDK or HIL results.
 
+## Agent workflow follow-up
+
+The [guidance audit](agent-workflow-audit.md) records the sibling rules selected
+for this repository and the user's explicit checkpoint/CI instructions. An
+independent read-only reviewer found no actionable contradictions across root
+AGENTS, shared contracts, progress and the CI/maintenance/final-review prompts.
+
+Focused local validation passed:
+
+- `python tools/verify_references.py`: all 27 vendor artifacts and 25 extracts
+  remain intact; local links in all 65 Markdown documents resolve.
+- `git diff --check`: no tracked-diff whitespace errors.
+- One-off inspection: all 46 changed/new files are UTF-8/LF, have a final newline
+  and contain no trailing whitespace, including the new audit report.
+- One-off manifest/policy review: exactly 34 numbered prompts, each indexed once
+  with explicit per-prompt and intermediate commit/sync instructions; all 34
+  implementation stages remain NOT STARTED. Shared rules retain local checks and
+  place first-set remote CI only at prompt 29.
+
+These checks cover documentation only. No implementation stage or remote CI run
+was started. Git checkpoint and synchronization outcomes are reported separately
+in the handoff; writing a workflow rule is not proof of a successful push.
+
 ## Limits
 
 - No driver, library API, firmware, CLI, runner, build metadata or CI was created.
@@ -97,6 +120,8 @@ These are documentation/source-inventory checks, not driver, SDK or HIL results.
 - PHYSTS forced-mode and RECR interpretation conflicts remain named silicon
   review items for implementation; unsupported derived behavior must stay gated.
 - No EtherCAT master/servo functionality, electrical compliance or power delivery
-  is claimed. No sibling changes, package publication or remote push was made.
-- The current configured remote was observed, correcting stale setup wording;
-  this does not claim remote synchronization or authorize publication.
+  is claimed. No sibling changes or package publication were made.
+- The initial planning passes did not perform a remote push. Subsequent
+  user-authorized checkpoint rules are documented in the
+  [workflow follow-up](agent-workflow-audit.md); actual commit/sync outcomes belong
+  in their handoffs and subsequent progress updates. Publication is separate.

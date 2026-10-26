@@ -4,6 +4,9 @@
 
 ### 2026-10-26
 
+- Expanded AGENTS guidance from sibling conventions, with one branch per
+  implementation execution, authorized commit/sync checkpoints per prompt and
+  coherent intermediate unit, and first-set remote CI only at prompt 29.
 - Extended the promptset to require complete documented chip functionality,
   broad manufacturer-first public-source research and exhaustive register,
   field and programming-procedure coverage beyond the first board's use case.

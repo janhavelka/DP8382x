@@ -6,7 +6,9 @@ Date: 2026-10-26. Starting revision:
 `35ced9bb9d0b05c1c0b41ecff7cee5e757bcb163`, branch `main`.
 The initial DP8382x working tree was clean. A configured origin was observed;
 the original setup instruction saying no remote was selected was historical.
-No publication or Git synchronization is claimed by this planning work.
+This records the initial planning snapshot. Completed planning/maintenance work
+now follows the user's commit/sync instruction; actual checkpoint/sync results
+belong in the final handoff and the next progress update. No publication is implied.
 
 The [audit reports](reports/README.md) and [34-stage promptset](prompts/README.md)
 are prepared. **No driver/API implementation, firmware example, library test
@@ -21,9 +23,16 @@ These are planning artifacts; all implementation stages remain NOT STARTED.
 
 ## Execution record
 
-Execution branch/base: not started. Record the actual values when implementation
-begins. Keep changes and reports scoped to the authorized task; another
-repository's branch or commit/push rules are not inherited.
+Execution branch/base: not started. Before prompt 01 implementation, use the
+user's selected branch or create one execution branch and record the original
+base commit. Keep it for every stage and resumed session. Promptset maintenance
+does not start execution or require a new branch.
+
+The user now authorizes routine commits/sync at every completed stage and for
+coherent verified intermediate units. Root AGENTS owns that workflow. For this
+first execution, remote CI is checked only at prompt 29; 01-28 and 30-34 use
+focused local verification. Record the stage-29 SHA separately from later local
+results, and restore parent CI policy after the first execution.
 
 | Stage | Implementation status | Evidence |
 | --- | --- | --- |
@@ -55,7 +64,7 @@ repository's branch or commit/push rules are not inherited.
 | [26 Implement exact documented DP83822 variants](prompts/26-dp83822-family.md) | NOT STARTED | None |
 | [27 Prove independent application and framework consumption](prompts/27-portable-consumers.md) | NOT STARTED | None |
 | [28 Validate packages, metadata and ownership](prompts/28-packages-metadata.md) | NOT STARTED | None |
-| [29 Establish the actual CI and local verification matrix](prompts/29-ci-matrix.md) | NOT STARTED | None |
+| [29 Complete the dedicated CI checkpoint](prompts/29-ci-matrix.md) | NOT STARTED | None |
 | [30 Execute the available physical qualification matrix](prompts/30-hardware-qualification.md) | NOT STARTED | None |
 | [31 Reconcile user-facing guides and feature coverage](prompts/31-user-documentation.md) | NOT STARTED | None |
 | [32 Audit source documentation and maintenance ownership](prompts/32-maintainer-documentation.md) | NOT STARTED | None |
@@ -78,6 +87,11 @@ Create `docs/reports/implementation/NN-topic.md` during execution, with:
 - commands and results for host, CLI/Python, SDK, package and remote CI separately;
 - physical fixture/image identity and evidence, or explicit NOT RUN/BLOCKED;
 - unresolved gates, next eligible stage and any actual authorized Git result.
+
+Also record the execution branch/base, verified local/upstream equality and zero
+ahead/behind, or exact sync failure. Commit/sync checked prompt output before
+moving on, and checkpoint complete units during work. Do not create empty or
+self-referencing progress commits.
 
 Record tested commit identity without a self-referential commit-hash update loop.
 Historical evidence does not verify a later changed tree.

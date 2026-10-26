@@ -4,6 +4,9 @@ This is an implementation plan, not implemented software. Read this file, the
 selected numbered prompt, root `AGENTS.md`, `../AGENTS.md`, and the shared
 contracts linked from [the index](README.md) before each stage. A request to
 write or audit this promptset does not start its execution.
+Root `AGENTS.md` owns the user-authorized commit/sync workflow and the first
+promptset's remote-CI exception; those override earlier unqualified parent-policy
+references in historical planning reports.
 
 [FULL_COVERAGE](FULL_COVERAGE.md) is mandatory: every documented programmable
 feature belongs to the final library, including runtime opt-in features unused
@@ -16,6 +19,9 @@ supported-but-unimplemented behavior as unsupported silicon or outside scope.
 1. Inspect this checkout's branch, revision, dirty/staged state, applicable agent
    rules, existing workflows, registered checks and predecessor outputs. Preserve
    concurrent work. Continue an existing execution; do not restart completed work.
+   Fetch/compare upstream before editing. At a new implementation execution, use
+   the user's branch or create one execution branch, then record branch/base.
+   Keep it for the entire set and every resumed session; no per-prompt branches.
 2. **Always re-audit the relevant sibling I2C libraries before implementing a
    stage.** Use [SOURCE_MAP](SOURCE_MAP.md) and that stage's focused sources.
    Read current public declarations and actual implementation, examples/CLI,
@@ -64,11 +70,12 @@ partial result but cannot mark the whole set COMPLETE with required gates open.
   progress and Git have one writer. Reviewers are read-only. Select available
   agents for the actual work without hard-coded model/version requirements.
   Integrate and review every agent change; delegation does not waive validation.
-- Inspect the current Git setup rather than importing another project's workflow.
-  Preserve the current working branch unless the task calls for another. Never
-  stash/discard unrelated changes, rewrite shared history, or stage others' work.
-  The lead alone performs authorized Git mutations. This promptset does not
-  import siblings' blanket commit/push, merge, publication or CI exceptions.
+- Follow root AGENTS' single execution branch and authorized checkpoint workflow.
+  Commit and sync every completed prompt and coherent verified units during a
+  prompt. The lead alone owns Git mutations. Never stash/discard unrelated work,
+  stage others' changes, rewrite shared history or force-push. Sync includes
+  fetch/integration/push and verified upstream equality, not just a local commit.
+  Missing access is an explicit unsynced state; continue independent useful work.
 
 ## Completion and handoff
 
@@ -86,6 +93,8 @@ report `docs/reports/implementation/NN-topic.md` when executing a stage. Record:
 - commands, results, test counts and actual build/framework/board identities;
 - PASS, FAIL, NOT RUN or BLOCKED for each required evidence layer;
 - unresolved issues with exact dependency, next step and qualification limit.
+- execution branch/base, completed commit IDs and actual sync result; record
+  completed IDs in the next update rather than a self-referencing commit loop.
 
 Mark a stage COMPLETE only when its stated outputs and required checks exist.
 Code-complete does not mean hardware-qualified. A missing fixture or tool may
@@ -93,11 +102,20 @@ leave a required gate BLOCKED; continue independent work whose prerequisites
 are satisfied and return to that gate. Never silently convert an unverified
 feature into supported behavior or call the entire set complete with open gates.
 
-Apply the parent CI policy when implementation/integration begins: inspect and
-reuse workflows, run focused local checks, and verify the exact final commit for
-major changes through applicable remote CI once available. Report unavailable
-remote access or tooling honestly. Do not borrow TUSB32x's local one-CI-stage
-exception. Small documentation-only changes need relevant local checks.
+For this first implementation promptset, **remote CI belongs to prompt 29 only**.
+Prompts 01-28 and 30-34 do not dispatch, poll, wait for or require remote results,
+including after substantive changes or commit/sync. Inspect checked-in workflows
+when relevant and keep all focused local checks, SDK builds and package tests.
+Prompt 29 checks its actual completed commit; later work retains that SHA and
+uses local evidence without claiming the old run validates a newer commit.
+Preserve automatic triggers, hooks and required merge/release checks. After the
+first execution, parent CI policy applies unless the user changes it.
+
+Before reporting a prompt complete or starting the next one, commit and sync the
+checked work, including docs/tests/progress, on the same execution branch. Also
+checkpoint coherent verified units during a prompt. Do not create empty commits
+for no-change reviews or include broken/unrelated work. Routine commits and
+pushes are authorized; report exact sync failures rather than claiming success.
 
 Finish each invocation with changed behavior, actual verification, remaining
 limits and the next eligible stage. Do not start another stage when the user

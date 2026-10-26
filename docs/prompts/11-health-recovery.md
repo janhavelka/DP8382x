@@ -50,3 +50,8 @@ source documentation, relevant guides, feature/evidence matrix and progress upda
 Apply COMMON's completion rules; report actual commands, results and remaining gates.
 Continue only when the concrete required inputs exist; COMMON explains how unrelated
 gates stay open.
+
+Before reporting completion or starting another prompt, commit and sync this
+prompt's checked work on the recorded execution branch. Also checkpoint coherent
+verified units during the prompt. Follow root AGENTS' first-set CI exception;
+do not create empty commits or include unrelated work.

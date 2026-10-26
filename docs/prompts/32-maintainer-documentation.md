@@ -27,9 +27,11 @@ documentation, CI and HIL evidence handling. Keep runtime prompt numbers and tem
 milestone names out of source/public APIs.
 
 Update root AGENTS for implemented reality while retaining sibling read-only, preserved
-concurrent work, one Git owner, parent CI policy and fresh peer audit requirements. Add
-CODEOWNERS only from verified maintainer information. Do not import another project's
-blanket permission, branch, model or fixture rules.
+concurrent work, one Git owner and fresh peer audit requirements. Preserve the
+user-authorized per-prompt/intermediate commit/sync checkpoints, single execution
+branch and first-set remote-CI-only-at-29 exception; parent policy resumes afterward.
+Add CODEOWNERS only from verified maintainer information. Do not import unrelated
+model, release or fixture permissions.
 
 Check organization and simplicity: one authoritative mask/procedure, one configuration
 owner, one shared CLI grammar and one verification source. Remove obsolete scaffolding
@@ -51,3 +53,8 @@ Include source documentation, relevant guides, feature/evidence matrix and progr
 updates. Apply COMMON's completion rules; report actual commands, results and remaining
 gates. Continue only when the concrete required inputs exist; COMMON explains how
 unrelated gates stay open.
+
+Before reporting completion or starting another prompt, commit and sync this
+prompt's checked work on the recorded execution branch. Also checkpoint coherent
+verified units during the prompt. Follow root AGENTS' first-set CI exception;
+do not create empty commits or include unrelated work.

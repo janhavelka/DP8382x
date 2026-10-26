@@ -14,6 +14,12 @@ changing revisions are observations of concurrent work, not changes by this task
   SDK reuse, MDIO ownership, EtherCAT scope and unresolved source interpretations.
 - [Promptset validation](promptset-validation.md): local checks and independent
   review of the resulting planning documents.
+- [Agent workflow follow-up](agent-workflow-audit.md): sibling guidance adapted
+  to the user's commit/sync, single-branch and first-promptset CI instructions.
+
+Earlier audit comments about not inheriting sibling Git/CI permissions describe
+the initial planning scope. The later explicit user instruction is implemented
+in root AGENTS and the workflow follow-up; use those for current execution rules.
 
 Use [the promptset](../prompts/README.md) to execute future work and
 [implementation progress](../implementation-progress.md) for status. Stage

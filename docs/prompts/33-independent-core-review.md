@@ -43,13 +43,15 @@ by grep. Assess simplicity and remove speculative abstractions when their remova
 improves clarity without losing behavior.
 
 Fix confirmed defects with focused regression tests and update contracts/docs/matrix
-together. Apply parent CI policy to substantive fixes. Do not broaden hardware claims
+together. Use focused local checks for fixes under the first-set CI exception;
+do not dispatch/check/wait for remote CI here. Retain prompt 29's actual tested
+SHA without claiming it covers later changes. Do not broaden hardware claims
 because a review passed.
 
 ## Acceptance and handoff
 
 Close every finding with source/test evidence or an explicit unresolved gate. Run
-affected host, SDK and CI checks for the actual fixed revision. Revalidate packages if
+affected host/SDK/local verification checks for the actual fixed revision. Revalidate packages if
 public/source membership changed. Produce a review report listing scope, findings,
 resolutions and residual risks.
 
@@ -58,3 +60,8 @@ gaps. Include source documentation, relevant guides, feature/evidence matrix and
 progress updates. Apply COMMON's completion rules; report actual commands, results and
 remaining gates. Continue only when the concrete required inputs exist; COMMON explains
 how unrelated gates stay open.
+
+Before reporting completion or starting another prompt, commit and sync this
+prompt's checked work on the recorded execution branch. Also checkpoint coherent
+verified units during the prompt. Follow root AGENTS' first-set CI exception;
+do not create empty commits or include unrelated work.

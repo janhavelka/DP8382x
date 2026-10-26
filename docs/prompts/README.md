@@ -27,7 +27,9 @@ Verify prerequisites, re-audit the current relevant sibling I2C libraries, then
 complete the stage's scoped work, tests and documentation. Use disjoint subagents
 when useful; the lead owns shared contracts and Git. Preserve sibling/concurrent
 work. Update docs/implementation-progress.md and the stage report with actual
-evidence. Do not start the next numbered stage in this invocation.
+evidence. Commit and sync checked work, including coherent completed units during
+the prompt, on the same execution branch. Follow root AGENTS: first-set remote
+CI belongs only to prompt 29. Do not start the next stage in this invocation.
 ```
 
 Change the filename for subsequent stages. For the whole set:
@@ -36,6 +38,12 @@ Change the filename for subsequent stages. For the whole set:
 Execute the 34 stages in docs/prompts/README.md in their listed dependency order.
 Read AGENTS.md, ../AGENTS.md and all shared prompt contracts first. Resume the
 recorded execution and incomplete stage; don't recreate completed work.
+
+For a new implementation execution use the branch the user selected, or create
+one execution branch from the synchronized intended base. Record branch/base in
+implementation-progress. Keep it for this whole set, agents and resumed sessions;
+never create a branch per prompt or return to main between prompts. Promptset
+editing/review alone is maintenance, not the start of implementation.
 
 Before EVERY stage re-audit relevant current sibling I2C headers, implementation,
 examples, CLI, tests, Python runners, workflows and AGENTS. Record revisions,
@@ -49,14 +57,21 @@ whole indirect MDIO transactions across every participant. No hardware stubs,
 hidden retries, copied I2C assumptions or duplicated independent IDF/core drivers.
 
 Use subagents for disjoint work and independent reviews when useful; the lead
-integrates and owns shared contracts and Git. Follow this repository's actual
-Git setup and parent CI policy, not sibling-specific permissions or exceptions.
-Do not modify sibling projects or publish releases as part of this execution.
+integrates and owns shared contracts and Git. Commit and sync every completed
+prompt and each coherent verified unit ready during a prompt. Include its tests,
+docs and relevant progress. Routine commits/pushes are authorized. Sync means
+fetch, safe integration, push and verified equality with the branch's upstream.
+Preserve unrelated changes, do not force-push, and report actual sync failures.
+Do not modify siblings or publish releases as part of this execution.
 
-Run applicable local and real SDK/package checks; apply parent CI policy to
-major changes. Record actual source/image/SDK identities. Host, SDK link, CI and
-physical evidence stay separate. Hardware work needs an identified fixture and
-authorized scope. Missing hardware leaves qualification BLOCKED/NOT RUN.
+Run applicable local and real SDK/package checks. For this first promptset only,
+remote CI dispatch, run-status checking and waiting belong to prompt 29. Prompts
+01-28 and 30-34 do not require them, even after major fixes or commit/sync. Keep
+existing automatic triggers, hooks and required merge/release checks. Record the
+actual CI-tested SHA at prompt 29; later local checks do not extend that result
+to a newer commit. Parent CI policy resumes after this first execution.
+Host, SDK link, CI and physical evidence stay separate. Hardware work needs an
+identified fixture and authorized scope. Missing hardware stays BLOCKED/NOT RUN.
 
 Resolve routine design choices from evidence. If an external fact/tool/fixture
 blocks a gate, retain it visibly and continue independent eligible work. Later
@@ -65,8 +80,9 @@ the entire set COMPLETE with required gates unresolved. Unsupported features
 must fail explicitly and are never silently promoted to supported.
 
 After each stage update implementation-progress, feature/evidence coverage and
-its report. At final handoff report actual implemented parts/APIs, examples,
-CLI/runners/packages, tests/builds, physical limits and remaining gates.
+its report, then commit and sync before continuing. At final handoff report
+actual parts/APIs, examples/tools/packages, tests/builds, physical limits,
+remaining gates, branch/commit and verified sync state.
 ```
 
 ## Shared instructions
@@ -126,7 +142,7 @@ those gaps and required final gates explicitly.
 | 26 | [Implement exact documented DP83822 variants](26-dp83822-family.md) | Documented DP83822 subtype support and explicit medium/interface limits. |
 | 27 | [Prove independent application and framework consumption](27-portable-consumers.md) | Independent portable consumer and useful application integration guidance. |
 | 28 | [Validate packages, metadata and ownership](28-packages-metadata.md) | Reproducible consumable packages and accurate project metadata. |
-| 29 | [Establish the actual CI and local verification matrix](29-ci-matrix.md) | Executing, documented CI aligned with local verification. |
+| 29 | [Complete the dedicated CI checkpoint](29-ci-matrix.md) | Executing CI for the recorded commit; the first set's sole remote checkpoint. |
 | 30 | [Execute the available physical qualification matrix](30-hardware-qualification.md) | Actual available hardware evidence or a precise unclosed fixture gate. |
 | 31 | [Reconcile user-facing guides and feature coverage](31-user-documentation.md) | Accurate usable guides and complete claim-to-evidence mapping. |
 | 32 | [Audit source documentation and maintenance ownership](32-maintainer-documentation.md) | Maintainable source contracts and accurate agent/contributor guidance. |

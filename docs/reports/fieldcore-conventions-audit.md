@@ -165,8 +165,10 @@ that mutate the same build directory. These are useful promptset rules.
 FieldCore's `rodtester`/`develop` branch names, commit/push/merge permissions,
 completed prompt dispatches, fixture approvals and branch-retirement workflow
 belong to that repository and session. They do not grant those actions in
-DP8382x. Follow DP8382x's own instructions, actual Git state and parent CI
-policy. Siblings remain read-only unless the user explicitly requests edits.
+DP8382x. Follow DP8382x's own instructions, actual Git state and applicable parent
+CI policy, including the later user-requested exception documented in the
+[workflow follow-up](agent-workflow-audit.md). Siblings remain read-only unless
+the user explicitly requests edits.
 
 ## Recommended promptset acceptance checklist
 

@@ -28,6 +28,8 @@ and evidence from the maintained feature matrix. A listed stage is planned work.
 | FieldCore-style promptsets and consumer integration | 01, 03-04, 17, 27, 31-34 | Shared contracts/source map, prerequisites, ownership, reports and no FieldCore dependency |
 | Re-audit sibling I2C libraries every time | COMMON and each numbered file | Fresh stage evidence; old report never substitutes for source inspection |
 | Subagent collaboration | COMMON and each numbered file | Disjoint ownership, lead-controlled shared contracts/Git, integrated reviewed results |
+| Commit/sync each prompt and complete intermediate units | AGENTS, COMMON, every prompt | Checked coherent commits, same execution branch, actual push and verified upstream equality |
+| First-set CI without repeated remote checks | AGENTS, 29, VERIFICATION | Remote execution/status only at 29; local checks throughout, original tested SHA retained, triggers/hooks preserved |
 | Preserve references and avoid GPL contamination | 02, 28, 32-34 | Original hashes/notices, source provenance and package exclusions |
 
 ## Important intentional limits
@@ -43,8 +45,9 @@ and evidence from the maintained feature matrix. A listed stage is planned work.
   medium or physical board. Physical gaps remain separate visible records.
 - EtherCAT slave-controller notes cannot establish a P4 master's timing.
   Master stack, motion and system timing are application-level work.
-- Sibling branch/push/merge permissions, model choices and special CI exceptions
-  are not requirements of this library.
+- Current user instructions authorize DP8382x commit/sync checkpoints, one branch
+  per execution and first-set remote CI only at prompt 29. Other sibling-specific
+  model/fixture/release permissions do not transfer here.
 - Scope does not include publishing a package, modifying siblings, controlling a
   loading machine or adding power delivery merely to finish metadata/examples.
 

@@ -105,9 +105,17 @@ keep incomplete hardware gates visible at final handoff.
 ## CI, packaging and local planning checks
 
 Reuse actual workflow commands and pinned dependencies; retain required hooks.
-Apply parent CI policy for significant changes, including final fixes affecting
-tested behavior. Never claim an older green SHA covers the final implementation.
-Keep fixture jobs opt-in to declared hardware; don't fake hardware in hosted CI.
+Under root AGENTS' user-requested first-set exception, remote CI execution and
+run-status checking belong only to prompt 29. Prompts 01-28 and 30-34 use relevant
+local checks, including SDK/package builds, without dispatching/polling/waiting
+for remote runs even after major fixes or commit/sync. At prompt 29 record actual
+jobs/results and tested SHA; later work keeps that evidence tied to its original
+commit. Never claim an older green SHA covers the final implementation.
+
+Automatic runs can still occur on push. Preserve triggers, hooks and required
+merge/release checks; do not disable or bypass them. After the first execution,
+the parent CI policy resumes unless the user instructs otherwise. Keep fixture
+jobs opt-in to declared hardware; don't fake hardware in hosted CI.
 
 Test packages by extracting into a clean temporary directory without source-tree
 or sibling fallbacks. Validate archive paths, required notices and excluded

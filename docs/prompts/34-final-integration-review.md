@@ -30,9 +30,10 @@ maintained implementation/evidence or explicit unsupported/unqualified status.
 
 Run the relevant final integration checks against the final tree/commit. Verify actual
 clean package consumers, SDK links, CLI/runner protocol, generated metadata and vendor
-exclusion. Apply parent CI policy to substantive review fixes and report the exact
-tested revision. Don't claim old CI or a package built before fixes covers the new
-result.
+exclusion. Apply focused local checks to substantive review fixes; this first
+set does not dispatch/check/wait for remote CI here. Report the final locally
+tested revision separately from prompt 29's CI-tested SHA. Do not claim old CI
+or a package built before fixes covers the new result.
 
 Check family claims per exact part/revision/interface and the difference between code
 support and physical qualification. Required unresolved silicon, SDK, remote or hardware
@@ -41,8 +42,9 @@ external input is necessary, leave a concrete pending list and reproducible next
 command/fixture. No fake green, hidden skipped tests or successful hardware stubs.
 
 Reconcile implementation-progress, validation, feature matrix, README/changelog and
-final report. Record actual branch/revision/dirty state and any authorized Git
-synchronization result; no implied publication, release tags or edits to sibling
+final report. Commit and sync the final checked work on the same execution
+branch and record actual branch/revision/dirty/sync state. There is no implied
+publication, release tags or edits to sibling
 consumers. The user receives a concrete reviewable local library, not an invented
 registry release.
 
@@ -62,3 +64,8 @@ source documentation, relevant guides, feature/evidence matrix and progress upda
 Apply COMMON's completion rules; report actual commands, results and remaining gates.
 Continue only when the concrete required inputs exist; COMMON explains how unrelated
 gates stay open.
+
+Before reporting completion or starting another prompt, commit and sync this
+prompt's checked work on the recorded execution branch. Also checkpoint coherent
+verified units during the prompt. Follow root AGENTS' first-set CI exception;
+do not create empty commits or include unrelated work.
