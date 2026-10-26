@@ -28,7 +28,7 @@ and evidence from the maintained feature matrix. A listed stage is planned work.
 | FieldCore-style promptsets and consumer integration | 01, 03-04, 17, 27, 31-34 | Shared contracts/source map, prerequisites, ownership, reports and no FieldCore dependency |
 | Re-audit sibling I2C libraries every time | COMMON and each numbered file | Fresh stage evidence; old report never substitutes for source inspection |
 | Subagent collaboration | COMMON and each numbered file | Disjoint ownership, lead-controlled shared contracts/Git, integrated reviewed results |
-| Commit/sync each prompt and complete intermediate units | AGENTS, COMMON, every prompt | Checked coherent commits, same execution branch, actual push and verified upstream equality |
+| New branch per promptset; commit/sync each prompt and complete intermediate units | AGENTS, COMMON, every prompt | New branch before a new set's first stage, retained through all stages/resumes; checked coherent commits, actual push and verified upstream equality |
 | First-set CI without repeated remote checks | AGENTS, 29, VERIFICATION | Remote execution/status only at 29; local checks throughout, original tested SHA retained, triggers/hooks preserved |
 | Concrete peer conventions fitted to MDIO | CONVENTIONS, 01-05, each feature stage | Actual source symbols and decisions for Status, health, methods, layout and ownership; conflicting peer behavior resolved explicitly |
 | Maintainability and source/general documentation each prompt | AGENTS, COMMON, CONVENTIONS, every stage | Readable simple code, public Doxygen and procedure comments, affected guides/changelog updated, focused documentation checks |

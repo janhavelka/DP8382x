@@ -4,6 +4,8 @@
 
 ### 2026-10-26
 
+- Require a new branch before every new promptset execution, retained through
+  all stages and resumed sessions; do not reuse main or an earlier set's branch.
 - Deepened all implementation prompts with source-backed sibling conventions,
   selected PHY Status/health/function names, concrete file responsibilities,
   failure cases, per-stage Doxygen/general documentation and model selection by

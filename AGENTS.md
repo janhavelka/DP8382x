@@ -24,15 +24,17 @@ again for permission to perform those routine checkpoints.
 - Before editing, inspect status, staged changes, current branch and upstream.
   Fetch the configured remote and compare histories. Fast-forward only when safe;
   preserve all local and concurrent work. A dirty worktree alone is not a blocker.
-- At the start of a new implementation promptset, use the branch already chosen
-  by the user, or create one descriptive execution branch from the synchronized
-  intended base, such as `promptset/dp8382x-implementation-YYYYMMDD`. Record the
-  branch and original base commit in `docs/implementation-progress.md` before
-  prompt 01 implementation. Establish its same-name upstream on first push.
+- At the start of every new promptset execution, create a new descriptive branch
+  from the synchronized intended base before running its first stage, such as
+  `promptset/dp8382x-implementation-YYYYMMDD`. Use the user's requested name/base
+  when supplied. Do not execute a new set on main or reuse a previous set's
+  branch. If the name already belongs to another execution, choose a new unique
+  name; never reset or overwrite it. Record the branch and original base commit
+  in `docs/implementation-progress.md`. Establish its same-name upstream on first push.
 - Keep that same branch throughout every prompt, subagent and resumed session
   of this execution. Resume the recorded branch and incomplete work. Do not make
   a branch/worktree per prompt or agent, or return to main when a prompt ends.
-  A separate later promptset can have its own execution branch. Editing or
+  Every separate later promptset starts on its own new execution branch. Editing or
   reviewing prompts alone is maintenance and does not start implementation or
   require a new execution branch.
 - Commit and sync after every completed prompt, before reporting completion or

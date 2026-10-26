@@ -22,6 +22,10 @@ adopted/adapted/rejected conventions in this stage's report.
 
 ## Work
 
+For a new execution, create and record its new branch/base before this audit
+stage. Resume an already recorded execution on that same branch. Follow root
+AGENTS; do not start a new set on main or reuse a previous set's branch.
+
 Produce `docs/library-comparison.md` and the initial execution record. Record exact
 revisions/dirty states and concrete source paths for public naming, layout, Status,
 configuration/health, lifecycle, callbacks, serialization, examples, CLI, Python

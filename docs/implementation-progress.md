@@ -31,10 +31,11 @@ checkpoint was `572f8b1f6946fe645f35d7ad5c16c5ef617cfdfb`, synchronized on `main
 
 ## Execution record
 
-Execution branch/base: not started. Before prompt 01 implementation, use the
-user's selected branch or create one execution branch and record the original
-base commit. Keep it for every stage and resumed session. Promptset maintenance
-does not start execution or require a new branch.
+Execution branch/base: not started. Before the first stage of a new promptset
+execution, create a new branch from the synchronized intended base and record
+its name and original base commit. Do not use main or a previous set's branch.
+Keep it for every stage and resumed session; resuming does not create a new branch.
+Promptset maintenance does not start execution or require a new branch.
 
 The user now authorizes routine commits/sync at every completed stage and for
 coherent verified intermediate units. Root AGENTS owns that workflow. For this

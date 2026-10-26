@@ -21,9 +21,11 @@ supported-but-unimplemented behavior as unsupported silicon or outside scope.
 1. Inspect this checkout's branch, revision, dirty/staged state, applicable agent
    rules, existing workflows, registered checks and predecessor outputs. Preserve
    concurrent work. Continue an existing execution; do not restart completed work.
-   Fetch/compare upstream before editing. At a new implementation execution, use
-   the user's branch or create one execution branch, then record branch/base.
-   Keep it for the entire set and every resumed session; no per-prompt branches.
+   Fetch/compare upstream before editing. For every new promptset execution,
+   create a new execution branch from the synchronized intended base and record
+   branch/base before its first stage. Do not use main or a prior set's branch.
+   Keep it for the entire set and every resumed session; resuming the same set
+   never creates another branch. No per-prompt or per-agent branches.
 2. **Always re-audit the relevant sibling I2C libraries before implementing a
    stage.** Use [SOURCE_MAP](SOURCE_MAP.md) and that stage's focused sources.
    Read current public declarations and actual implementation, examples/CLI,

@@ -43,11 +43,13 @@ Execute the 34 stages in docs/prompts/README.md in their listed dependency order
 Read AGENTS.md, ../AGENTS.md and all shared prompt contracts first. Resume the
 recorded execution and incomplete stage; don't recreate completed work.
 
-For a new implementation execution use the branch the user selected, or create
-one execution branch from the synchronized intended base. Record branch/base in
+For every new promptset execution create a new branch from the synchronized
+intended base before its first stage. Use the requested branch name/base when
+provided; do not reuse main or a previous set's branch. Record branch/base in
 implementation-progress. Keep it for this whole set, agents and resumed sessions;
 never create a branch per prompt or return to main between prompts. Promptset
 editing/review alone is maintenance, not the start of implementation.
+Resuming this execution uses its recorded branch; it does not create another one.
 
 Before EVERY stage re-audit relevant current sibling I2C headers, implementation,
 examples, CLI, tests, Python runners, workflows and AGENTS. Record revisions,
