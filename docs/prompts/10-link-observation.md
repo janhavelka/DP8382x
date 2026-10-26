@@ -87,6 +87,14 @@ negotiation incomplete, resolved link, unknown/stale data and management failure
 Preserve old values with invalidity/age rather than publish partially read fields as
 current.
 
+Complete publication must not discard already consumed events. MISR1/MISR2
+upper status bits and FCSCR/RECR clear on read (SNLS647I tables 8-36 through 8-39).
+Store each valid consumed sample immediately in the collector with per-source
+validity/time. If a later read fails, leave the aggregate snapshot unchanged/stale
+while retaining those events. If a read may have cleared hardware without
+returning valid data, expose possible event-history loss. Test MISR1 success
+followed by MISR2 failure and a timeout after a destructive read took effect.
+
 Determine speed/duplex and partner/advertisement evidence according to mode and
 documented source. Include resolved RX/TX pause evidence from the applicable
 ANAR/ANLPAR/PHYCR semantics, valid only under documented full-duplex negotiation

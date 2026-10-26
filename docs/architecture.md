@@ -39,6 +39,18 @@ ioctl, polling and CLI. Choose the transaction mechanism before implementation;
 a lock on each MDIO frame is not sufficient. Give read-clear diagnostics a single
 collector and expose passive cached observations to other consumers.
 
+Distinguish operation admission across polls from the short controller lock for
+one indivisible transaction. Never keep that lock through hardware wait intervals
+or console output. Preserve each consumed event sample on partial acquisition
+failure, while marking incomplete aggregate observations stale/invalid.
+
+SDK state also needs one owner: direct core/raw changes to AN enable can stale
+IDF's cached setting, and raw ioctls bypass PHY methods. Use supported control
+paths for SDK-mirrored state and the documented owner/register hooks for access.
+Full portable pause resolution remains richer than the pinned SDK's Boolean MAC
+notification. Base helpers are reused only where their semantics fit; shared
+portable procedures can implement overridden methods without a second driver.
+
 ## Intended functionality
 
 - Detect the supported device and revision, accounting for documented operating

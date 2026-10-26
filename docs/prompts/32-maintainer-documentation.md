@@ -87,9 +87,10 @@ Audit existing `Doxyfile`/`tools/check_doxygen.py` rather than creating a second
 checker. Require useful warnings for missing public fields/enums/parameters,
 actual public-page/member visibility and local links/assets; exclude archived
 vendor inputs. Test a missing public page, missing anchor/asset, unintended
-private/vendor exposure, failed generation and tool timeout. Generate in a
-controlled temporary directory; preserve the last validated output on failure
-and constrain cleanup to that owned directory. No warning suppression or blanket
+private/vendor exposure, failed generation and tool timeout. Generate/check in an
+owned temporary directory, propagate failure and constrain cleanup to that
+directory. Local validation needs no last-good-output/cache or publication
+subsystem. No warning suppression or blanket
 extraction to disguise missing documentation. These checks supplement source
 review and do not prove hardware behavior.
 

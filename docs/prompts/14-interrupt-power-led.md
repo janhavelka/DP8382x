@@ -47,18 +47,30 @@ not bypass trust or ownership. Group readable helpers by actual chip procedure.
    events arriving during service without an unlimited drain loop. ISR only
    signals the owner; no MDIO/logging/allocated queue there. IRQ and polling use
    the same collector and passive cached results.
-3. Treat active sleep, IEEE power-down and deep power-down as separate documented
-   transitions with retained configuration, clock/PLL effects and bounded wake
-   proof. Unknown write effects cannot become known sleep/awake state. End is
-   local; pin/clock/power sequencing remains application-owned.
+3. Distinguish active-sleep policy from explicit IEEE/deep-power-down operations.
+   SNLS647I 8.3.6.1 enables active sleep through PHYSCR[14:12]=110; hardware
+   enters/wakes automatically according to partner detection. BISCR[8] reports
+   current sleep/normal state. Policy configuration can succeed while linked and
+   awake; do not wait for sleep entry or promise partner-dependent wake/link time.
+   Keep explicit power-down/disable procedures bounded, with retained config and
+   clock/PLL effects. Unknown write effects cannot become known sleep/awake state.
+   End is local; pin/clock/power sequencing remains application-owned.
 4. Complete EEE capability/advertisement/partner/status and exact DP83826I recipe,
    including procedure-only writes. Resolve bypass polarity against the datasheet.
+   Keep printed EEE addresses separate from verified wire offsets; resolve the
+   exact-part access trace noted in the inventory before freezing MMD constants.
+   Do not strip address digits or borrow another part's mapping by assumption.
    Legacy-MAC TX LPI requires explicit coordination with no implied PHY buffering;
    result/cleanup shows whether TX remains inhibited. No default EEE/LPI enable.
 5. WoL covers documented MAC match/Secure-ON, CRC gate, pulse/level indication,
    acknowledgement/status and routing. Verify octet order with literal vectors
    and readback. No imported DP83822 custom pattern support. PHY indication and
    actual application/MAC wake are separate facts and responsibilities.
+   RXFCFG1[11] is W0C: an explicit zero acknowledges level indication; unrelated
+   writes preserve it through command-neutral composition. SNLA261A's DP83822
+   acknowledgement example and MAC-word order are not DP83826 programming values.
+   Use literal vectors from exact-part tables 8-90 and 8-92 through 8-94. Preserve
+   partial event acquisition on later failure through the existing collector.
 6. Complete LED/GPIO source/mux/polarity/drive/blink/stretch and clock/interface
    options. Validate conflicting pin users and reset-loaded versus runtime
    settings. Unsupported live clock/interface transitions reject before writes

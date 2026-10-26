@@ -37,6 +37,13 @@ finite diagnostic session need distinct semantics, not synonymous setters.
 
 ## Decisions and independent test oracles
 
+Resolve the precise speed-specific MII-loopback instruction: SNLS647I section
+8.3.14.2 gives a general BMCR.14/BISCR.2 recipe, while table 8-19 specifies
+`BISCR[4:0]=00100` at 100BASE-TX and `00001` at 10BASE-Te. Use the detailed
+speed-specific definition absent stronger exact-part evidence, record the
+discrepancy, and test independent literal vectors for both speeds. Do not copy
+the prose recipe unchanged into the 10-Mbit path or block all loopback modes.
+
 1. Expand the ledger to a mode matrix: MII, PCS input/output, digital, analog,
    reverse/far-end and documented generator/checker options; exact supported
    speed/interface, companion writes, termination/peer, counters and restore.

@@ -1,7 +1,7 @@
 # 15 - Implement the native ESP-IDF PHY adapter
 
 Read [COMMON](COMMON.md) and the linked engineering, CLI and verification contracts
-before working. Prerequisites: 01-14 and the approved stage 03 ownership matrix.
+before working. Prerequisites: 01-14 and the recorded stage 03 ownership matrix.
 
 Before the audit, apply COMMON's short rule reminder: current sibling sources,
 selected conventions, owned paths, source/general documentation, focused local
@@ -23,9 +23,11 @@ Implement the supported esp_eth_phy_t factory/adapter in platform-only paths. Re
 selected IEEE 802.3 base methods for standard behavior and the common chip-specific
 implementation for DP83826I handling. Follow the ownership matrix exactly: no second
 independent reset, autonegotiation, link polling or MAC notification path. Audit the
-SDK's pause negotiation/peer ability and flow-control notification contract; map
-resolved RX/TX evidence correctly without enabling application/MAC flow-control policy
-implicitly.
+SDK's pause negotiation/peer ability and flow-control notification contract.
+The pinned SDK exposes a Boolean peer-pause MAC notification, not separate RX/TX
+resolution; retain full portable evidence and document that projection limit.
+Override base methods whose pause/configuration semantics differ from the complete
+PHY contract. Do not enable application/MAC flow-control policy implicitly.
 
 Wire borrowed mediator/MDIO transport and complete-transaction serialization across base
 MMD, raw ioctls, application operations and CLI. Audit address discovery and reset
@@ -33,6 +35,23 @@ semantics rather than inheriting them blindly. Establish lock order and callback
 reentrancy, init/deinit/delete lifetime, start/stop handoff and callback error
 translation. Document any framework allocation and cleanup outside the allocation-free
 core.
+
+Implement the stage-03 SDK-state rule: settings mirrored by the SDK, especially
+AN enable, use supported stopped-driver controls such as `ETH_CMD_S_AUTONEGO` so
+`auto_nego_en` stays consistent. Full advertisement and other PHY-owned fields
+use shared driver procedures under the same owner, not invented SDK ioctls.
+Raw BMCR mutations invalidate that relationship and require public-API
+reconciliation before restart. Test AN-to-forced configuration, stop/start,
+`ETH_CMD_G_AUTONEGO` and forced-mode admission as one scenario.
+
+Standard raw-register ioctls bypass PHY methods through the mediator. Enforce
+owner arbitration/invalidation through supported `esp_eth_config_t` custom
+register callbacks, or prohibit bypass calls and expose the owner-routed path.
+Test that actual entry, not only a core fake or mutex around PHY callbacks.
+`read_phy_reg`/`write_phy_reg` are per-frame hooks declared in `esp_eth_driver.h`;
+complete transaction ownership stays outside them. Forward to MAC read/write
+methods without recursive mediator/ioctl calls or nested lock acquisition.
+Never hold a controller lock across reset/diagnostic waits or future polls.
 
 Prove underlying timeout behavior for the pinned SDK/MAC. If callbacks lack configurable
 aggregate limits, constrain supported operations and document actual finite bounds;
@@ -76,7 +95,8 @@ existing core modules; do not paste them into each virtual method.
    be paired with release; no callback may access a released context.
 4. Test link notification sequencing: unchanged state gives no duplicate event;
    down/incomplete negotiation never supplies invented resolved speed/duplex;
-   pause evidence has the correct direction. Preserve `Status::detail` at the
+   portable pause evidence has the correct direction, while the narrower MAC
+   notification follows its actual SDK meaning. Preserve `Status::detail` at the
    SDK boundary and explain any information that an SDK return type cannot carry.
 5. Trace actual controller wait loops and lock acquisition in the pinned SDK.
    Compute the worst complete indirect transaction and aggregate operation bound,

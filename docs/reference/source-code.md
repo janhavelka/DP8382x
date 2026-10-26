@@ -78,12 +78,24 @@ Baseline: **ESP-IDF v6.1**, tag commit
 | [IEEE 802.3 base interface](https://github.com/espressif/esp-idf/blob/fff9895c82d744c7237be8847347bdd1b07c6643/components/esp_eth/include/esp_eth_phy_802_3.h) | Base object and common methods |
 | [IEEE 802.3 implementation](https://github.com/espressif/esp-idf/blob/fff9895c82d744c7237be8847347bdd1b07c6643/components/esp_eth/src/phy/esp_eth_phy_802_3.c) | Standard control, status and indirect MMD access |
 | [Generic PHY implementation](https://github.com/espressif/esp-idf/blob/fff9895c82d744c7237be8847347bdd1b07c6643/components/esp_eth/src/phy/esp_eth_phy_generic.c) | Minimal use of the base |
+| [Ethernet driver lifecycle/ioctls](https://github.com/espressif/esp-idf/blob/fff9895c82d744c7237be8847347bdd1b07c6643/components/esp_eth/src/esp_eth.c) | Cached AN state, raw-ioctl bypass path and notification projection |
+| [Public driver configuration](https://github.com/espressif/esp-idf/blob/fff9895c82d744c7237be8847347bdd1b07c6643/components/esp_eth/include/esp_eth_driver.h) | `esp_eth_config_t` custom per-frame `read_phy_reg`/`write_phy_reg` hooks |
+| [ESP MAC implementation](https://github.com/espressif/esp-idf/blob/fff9895c82d744c7237be8847347bdd1b07c6643/components/esp_eth/src/mac/esp_eth_mac_esp.c) | Boolean peer-pause ability and underlying MAC register methods |
 | [ESP32-P4 Ethernet documentation](https://docs.espressif.com/projects/esp-idf/en/v6.1/esp32p4/api-reference/network/esp_eth.html) | MAC setup and custom PHY integration |
 
 Use `phy_802_3_t` and `esp_eth_phy_802_3_obj_config_init()` as the starting
 integration pattern. The base supplies `read_mmd_register` and
 `write_mmd_register`; assess and reuse them with suitable serialization before
 adding another indirect-access implementation.
+
+The prompt audit found three integration constraints in this pinned source:
+`auto_nego_en` is cached by the driver and must stay synchronized through public
+stopped-driver controls; raw-register ioctls go directly through the mediator;
+and peer-pause notification cannot carry independent RX/TX resolution. The base
+pause setter also maps nonzero input to both advertisement bits. Reuse only
+semantically compatible base methods. Keep full portable feature evidence and
+shared procedures, with explicit SDK projection limits. Custom register hooks
+intercept frames, so whole indirect-transaction ownership remains outside them.
 
 Espressif's additional-driver repository was inspected at
 `fe780da4c4efa4ef28dc6f0023e3a80a1c15bc5d` (master, 2026-10-21):

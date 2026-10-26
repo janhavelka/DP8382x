@@ -65,7 +65,8 @@ and actual profile validators/tests for revision differences. Record current
 revisions/dirty state and relevant CLI/runner/build/AGENTS evidence. No inherited
 family-wide support or sibling hardware claim is transferable evidence.
 
-Create individual I/H/IF/HF ledger rows covering every register/field/procedure.
+Cover every register/field/procedure with explicit I/H/IF/HF applicability and
+per-part evidence. Share source-proved identical records and add actual differences.
 Record observed ID/mode/revision, declaration, copper/fiber, MII/RMII/RGMII,
 clocks/delays, reset/straps, legal link modes and optional features, plus
 hardware-only package/temperature facts. A source-backed disposition is needed
@@ -76,11 +77,18 @@ Implement documented RGMII timing/delay/clock controls with units, legal
 encodings, reset values and safe programming order. Portable support includes
 documented interfaces even when the current P4 MAC cannot use them. Adapter
 admission rejects its unavailable interface combinations explicitly and leaves
-the generic PHY capability intact. Do not require an impossible P4 RGMII/fiber
-build as the only way to prove portable behavior.
+the generic PHY capability intact. Do not require a P4 RGMII build. Fiber is the
+PHY media side, independent of the MAC interface: qualify 100BASE-FX on IF/HF
+through a supported MAC interface and suitable optical hardware. Missing optical
+fixtures limit physical evidence, not generic software scope.
+
+SNLS505H table 8-23 describes fixed 3.5 ns RGMII shifts: RX RCSR bit 12 enables
+with 1, while TX bit 11 enables with 0. Use explicit fixed shift choices and
+test both polarities/reset values; do not invent arbitrary delay taps or ranges.
 
 Implement medium-specific selection, link resolution and forced/negotiated
-semantics. Do not apply copper advertisement, MDIX, TDR or 10BASE-Te recipes to
+semantics. SNLS505H 7.4.6 excludes 100BASE-FX from autonegotiation. Do not apply
+copper advertisement, MDIX, TDR or 10BASE-Te recipes to
 fiber by analogy. Reconcile all extended register differences, read-clear/latch
 evidence, counters, interrupts, power/wake/EEE/LED and test modes. Use existing
 bounded procedures plus small explicit differences, one collector and one

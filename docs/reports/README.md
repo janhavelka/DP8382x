@@ -22,10 +22,14 @@ changing revisions are observations of concurrent work, not changes by this task
   owner, runner, example and test symbols used to deepen implementation stages.
 - [Maintenance conventions follow-up](maintenance-conventions-follow-up.md):
   family, package, version, Doxygen and review evidence behind later stages.
+- [Prompt correctness audit](prompt-correctness-audit.md): chip and SDK defects,
+  source conflicts, simpler implementation choices and the new-branch rule.
 
 Earlier audit comments about not inheriting sibling Git/CI permissions describe
 the initial planning scope. The later explicit user instruction is implemented
 in root AGENTS and the workflow follow-up; use those for current execution rules.
+The correctness audit strengthens this to a new branch for every new execution;
+root AGENTS owns current rules and older reports retain their historical scope.
 
 Use [the promptset](../prompts/README.md) to execute future work and
 [implementation progress](../implementation-progress.md) for status. Stage

@@ -30,6 +30,26 @@ exact datasheet and observed device ID. See [the pinned source](reference/source
 
 ## Before extending support
 
+The prompt correctness audit established these source anchors, not implemented
+support:
+
+- Original DP83826 and A-generation use model values 0x11 BASIC / 0x13 ENHANCED.
+  Their documented revision defaults differ (1 / 4); these are not a future-proof
+  revision acceptance policy or an I/E suffix detector. See SNLS647I table 8-22
+  and SNLS783A table 8-23.
+- SNLS783A 8.3.13 repeats the 10BASE-Te `0x030E=0x4A40` setting. Share proved
+  common behavior and qualify reset/order differences rather than duplicating it.
+- DP83826, A-generation and DP83825I prohibit local ANAR remote-fault bit 13
+  despite its R/W label (SNLS647I table 8-23, SNLS783A table 8-24, SNLS638C table
+  7-7). Partner/status observation is separate; other parts require exact evidence.
+- DP83822 IF/HF fiber media support is independent of MII/RMII/RGMII MAC-side
+  selection; 100BASE-FX has no autonegotiation (SNLS505H 7.4.4/7.4.6). RGMII
+  delay controls are fixed 3.5 ns shifts with opposite RX/TX enable polarities
+  (table 8-23), not a programmable tap range.
+- SDAA067A sections 2 and 3.2 disagree on whether an A-generation register
+  setting can substitute for Strap11 in EMC guidance. Keep that specific source
+  conflict open and separate software FLD control from measured EMC qualification.
+
 For each additional device, document its identity/mode behavior, register map,
 reset defaults, available interfaces, feature differences and initialization
 requirements. Add tests for the actual differences and record hardware evidence

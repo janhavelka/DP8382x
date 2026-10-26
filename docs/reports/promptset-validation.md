@@ -157,6 +157,22 @@ Commit/sync applies to this completed maintenance work too. The actual new
 checkpoint and verified upstream result belong in its final handoff and next
 progress update; the preceding checkpoint is recorded in implementation progress.
 
+## Correctness and simplicity review
+
+The [correctness audit](prompt-correctness-audit.md) records a later read-only
+silicon/family/SDK review against original TI documents and the pinned IDF source.
+Confirmed prompt defects were corrected, reviewers rechecked them, and remaining
+EEE wire-address and A-generation strap/EMC conflicts are explicitly open.
+Short calls, operation/lock ownership, shared family records and local tool scope
+were simplified without reducing required functionality or documentation.
+
+The new-branch rule was committed/synced separately as `21a22c4`. Final local
+checks cover reference integrity, local links, changed/new-file formatting,
+prompt manifest/checkpoint rules and preserved NOT STARTED statuses. All 27
+vendor artifacts and 25 extracts remain unchanged. These are documentation/source
+review results, not driver/SDK/Doxygen/CI/hardware results. Exact final commit and
+verified sync state are reported in the handoff.
+
 ## Limits
 
 - No driver, library API, firmware, CLI, runner, build metadata or CI was created.

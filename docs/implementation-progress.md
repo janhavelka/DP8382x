@@ -31,6 +31,12 @@ checkpoint was `572f8b1f6946fe645f35d7ad5c16c5ef617cfdfb`, synchronized on `main
 
 ## Execution record
 
+The [correctness audit](reports/prompt-correctness-audit.md) corrected silicon/SDK
+instructions and reduced unnecessary mechanisms while retaining full scope.
+The fresh-branch rule checkpoint `21a22c4` was synchronized on main during this
+maintenance pass. EEE wire-address and A-generation strap/EMC conflicts remain
+explicit evidence gates. This review does not execute implementation stages.
+
 Execution branch/base: not started. Before the first stage of a new promptset
 execution, create a new branch from the synchronized intended base and record
 its name and original base commit. Do not use main or a previous set's branch.

@@ -74,6 +74,11 @@ that restoration succeeded.
 
 Specific execution cases must include:
 
+- In IDF-attached mode, configuration routes through the SDK-aware owner. Use
+  public controls for SDK-mirrored settings such as AN enable; full advertisement
+  and PHY-specific fields use shared procedures. AN-to-forced changes keep framework
+  getters/start behavior consistent. Raw BMCR writes require reconciliation
+  before restart; correct MDIO locking alone cannot fix a stale SDK cache.
 - Discovery visits only requested legal PHY addresses with a finite total budget,
   identifies evidence explicitly and never binds/applies a profile automatically.
 - Safe dump skips side-effect registers; explicit event collection publishes

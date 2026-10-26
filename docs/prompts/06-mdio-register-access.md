@@ -61,8 +61,12 @@ transaction, preventing recursive mediator locks. Use the shared `Status`,
 4. Distinguish selector changes from target mutation without discarding selector
    uncertainty. Re-establish full addressing on subsequent attempts. Later read
    success cannot retrospectively validate an ambiguous configuration write.
-5. RMW applies only to stable readable writable fields. Commands, reset, W1C and
-   read-clear bits need explicit procedures. Define external-writer invalidation
+5. Generic RMW applies only to stable readable writable fields. Commands, reset,
+   W0C/W1C/W1S and read-clear bits need source-specific procedures. Mixed registers
+   remain usable: collect consumed status, update owned stable controls and compose
+   each command field with its documented neutral value. For RXFCFG1 bit 11,
+   preserve pending WoL on unrelated updates and write zero only to acknowledge it.
+   Define external-writer invalidation
    and primary versus release/cleanup error precedence under the owner contract.
 
 Use independently derived literal PDF traces for both read and write. Fail each
@@ -97,7 +101,10 @@ an otherwise documented EEE/power/loopback recipe. Resolve source conflicts firs
 Implement the selected borrowed MDIO transport contract and exact DP83826I register
 access. Validate address, Clause 22 register, supported MMD mapping, masks and input
 buffers before I/O. Use fixed storage and publish read results only after terminal
-success. Preserve backend error detail and distinguish local rejection from a transfer.
+success. The collector separately retains each valid destructive-read sample
+before a later failure can discard it; ambiguous destructive-read failure records
+possible event-history loss. Preserve backend error detail and distinguish local
+rejection from a transfer.
 
 Implement one complete indirect transaction path, sharing or delegating IDF helpers
 later according to stage 03. Include all selector/address/data phases under a single
@@ -112,11 +119,15 @@ retries or guessed rollback. Preserve selector uncertainty after partial indirec
 operations and explicitly re-establish addressing on subsequent transactions.
 
 Use stage 02 access attributes for safe composition: reserved bits, command bits,
-read-clear and W1C require appropriate paths. Reject unsupported registers/operations
+read-clear and W0C/W1C/W1S require appropriate paths. Reject unsupported registers/operations
 rather than filling generic all-register arrays. Add source citations and transport
 contract documentation.
 
 ## Acceptance and handoff
+
+Test pending WoL during an unrelated RXFCFG1 update, explicit W0C acknowledgement,
+and mixed control/read-clear updates without losing consumed events. No generic
+all-command-bits-zero write policy is safe across these access types.
 
 Script independent exact sequences; inject failures at every phase, including writes
 accepted before error. Test all address bounds, illegal callback statuses, unchanged

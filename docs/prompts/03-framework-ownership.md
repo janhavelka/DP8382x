@@ -34,10 +34,37 @@ portable mode and IDF mode, what is shared, and how duplicate
 polling/reset/configuration is prevented. The MAC/application owns flow-control enable
 policy and frame handling.
 
+Qualify base reuse by semantics. In the pinned IDF v6.1 base, nonzero pause
+advertisement enables both pause bits, and the MAC notification is a Boolean peer
+pause capability, not separate resolved RX/TX pause. Keep the complete portable
+configuration/evidence and document the narrower SDK projection. Override
+incompatible base methods using shared procedures; do not maintain a second full
+standard-PHY implementation solely to reuse the base.
+
+Trace IDF state as well as register ownership: `esp_eth.c` caches `auto_nego_en`.
+Route SDK-owned standard settings through supported stopped-driver control paths
+when attached. Direct core/CLI/raw BMCR changes must not silently stale that cache.
+After raw mutation, require documented reconciliation through public APIs before
+restart; never patch private SDK state. Test AN-to-forced mode, stop/start and
+framework getters/admission together.
+
+`ETH_CMD_READ_PHY_REG`/`ETH_CMD_WRITE_PHY_REG` call the mediator directly, bypassing
+PHY callbacks. Use the supported custom register callbacks in `esp_eth_config_t`
+to enforce the selected owner path, or explicitly prohibit direct raw-ioctl use
+and supply an owner-routed entry. Test the actual path for both serialization and
+invalidation. A mutex around `esp_eth_phy_t` methods alone does not cover it.
+The public hooks are `read_phy_reg`/`write_phy_reg` in `esp_eth_driver.h`. They
+intercept individual frames, not complete MMD transactions; outer transaction
+ownership remains required. Forward to underlying MAC methods without recursively
+calling the mediator/ioctl path. Full advertisement and other PHY-owned fields
+remain shared procedures; do not invent SDK ioctls for settings it does not mirror.
+
 Specify application-controlled arbitration for every MDIO participant, complete indirect
 and RMW transactions, nested callback lock order, exception/error exits and lifetime.
-Reuse IDF MMD helpers only with whole-operation serialization. Inspect implicit base
-address scan and reset behavior; override unsafe/wrong semantics deliberately. Identify
+Reuse IDF MMD helpers only with complete indirect-transaction serialization.
+Release the bus lock before waits/later polls; logical operation admission may
+remain active. Inspect implicit base address scan and reset behavior; override
+unsafe/wrong semantics deliberately. Identify
 SDK-internal waits and whether the proposed aggregate bound is implementable.
 
 Choose transaction callback vs explicit transaction scope, logical-operation/frame

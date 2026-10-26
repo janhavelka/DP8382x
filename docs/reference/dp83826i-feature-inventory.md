@@ -62,13 +62,13 @@ feature coverage, not permission to exclude features unused by the first board.
 | --- | --- | --- | --- |
 | Identity and capabilities | Raw IDs, OUI/model/revision, BASIC/ENHANCED distinction, declared exact part vs observable identity, address and capability evidence | 8.5.1.2-4, .25; 8.4.1 | 07, 10 |
 | Standard control | Software PCS reset, forced speed/duplex, negotiation enable/restart, MII isolation and its RMII-clock effect, collision test | 8.5.1.1 | 08, 09, 12, 14 |
-| Advertisement and negotiation | All documented 10/100 half/full abilities; selector, pause/asymmetric pause, remote-fault advertisement; partner abilities, completion and parallel-detection faults | 8.3.1; 8.5.1.1-7, .25 | 09, 10, 15 |
+| Advertisement and negotiation | All documented 10/100 half/full abilities; selector, pause/asymmetric pause; reject prohibited local ANAR remote-fault bit 13 while preserving partner/status observation; partner abilities, completion and parallel-detection faults | 8.3.1; 8.5.1.1-7, .25 | 09, 10, 15 |
 | Next-page exchange | Local next-page/message/code/acknowledge2 settings; partner page, toggle/acknowledgement and page-received evidence; interaction with EEE negotiation | 8.5.1.7-9; 8.3.3.2 | 09, 10, 14 |
 | MDI/MDIX | Automatic crossover, robust automatic crossover in forced operation, manual MDI/MDIX, observed pair routing and port-mirror/polarity-swap controls | 8.3.2; 8.5.1.10, .12, .16, .25 | 09, 10, 14 |
 | EEE capability/negotiation | Actual DP83826 enable procedure, local/partner ability, bypass configuration, negotiated validity, LPI evidence and wake-error counters using the documented MMD spaces | 8.3.3.1-2; 8.3.11.1; additional EEE register descriptions need source closure | 14, 15 |
 | EEE with legacy MAC | Explicit enter/exit TX LPI control, MAC/application synchronization, no transmit while PHY is in LPI, absent PHY frame buffering, cancellation/restore | 8.3.4 | 14, 15, 27 |
 | WoL | Magic Packet MAC-address match, Secure-ON password enable/data, CRC gate, enable/disable, pulse length vs level indication, level acknowledgement, wake/status/interrupt routing and error evidence | 8.3.5.1-3; 8.5.1.19, .56-.59, .72-.79; SNLA261A | 14 |
-| PHY power states | Normal operation, active sleep and status, IEEE power-down, deep power-down/PLL state, enter/exit timing, retained configuration and clock effects | 8.3.6.1-3; 8.5.1.1, .17, .22 | 08, 14, 15 |
+| PHY power states | Normal operation; active-sleep enable policy and automatic partner-dependent state; explicit IEEE/deep power-down and PLL state, applicable timing, retained configuration and clock effects | 8.3.6.1-3; 8.5.1.1, .17, .22 | 08, 14, 15 |
 | RMII repeater | Leader/follower and follower/follower arrangements; CRS_DV vs RX_DV selection, configuration validation and observable state; physical two-PHY wiring remains application-owned | 8.3.7; 8.3.10; 8.4.1; 8.5.1.23, .55 | 14, 27 |
 | Clock output | MAC-interface, XI pass-through, PLL/free-running and recovered-clock options where supported by each pin/mode; clock disable/multiplexing and status; reset/power interactions | 8.3.8, 8.3.18; 8.5.1.55-.60 | 14 |
 | MII interface | Full 10/100 and half/full operation, CRS/COL/RX_ER behavior, odd-nibble handling, fast RX_DV and full-duplex collision signaling controls | 8.3.9; 8.5.1.10-.11, .17 | 09, 14, 15 |
@@ -226,15 +226,15 @@ documented chip function.
 | Feature/source | Addresses beyond the main catalogue | Required treatment |
 | --- | --- | --- |
 | EEE initialization, 8.3.3.1, page 26 | Vendor offsets `0x04D1`, `0x04D3`, `0x04DF`, `0x033E`, `0x033F`, `0x0123`, `0x031B`, `0x0466`, `0x04CF`, `0x0416`, `0x04F5`, `0x04E0`, `0x031F`, `0x04F4`; the recipe also names EEE address `0x203C` and already catalogued `0x001F`, `0x0308`, `0x0000` | Audit the entire ordered recipe, hard-reset/negotiation effects, register namespaces, restoration and every failure boundary. Do not expose undocumented internal fields as freely tunable settings. |
-| EEE control/status, 8.3.3.2 and 8.3.11.1 | DEVAD 3: `0x1001`, `0x1014`, `0x1016`; DEVAD 7: `0x203C`, `0x203D`; vendor DEVAD 31 `0x04D1` (EEECFG3) | Preserve namespace as part of the address. The cited DP83826 sections identify these EEE addresses but do not provide a complete detailed field catalogue; close this from exact applicable official evidence. Never convert them to vendor offsets or native Clause 45 merely by name. |
-| Legacy-MAC LPI, 8.3.4 | Vendor `0x04D1` control fields, DEVAD 7 `0x203C` | Typed enter/exit and enable/advertise procedures need explicit application/MAC coordination. No PHY TX buffering is available in LPI. |
+| EEE control/status, 8.3.3.2 and 8.3.11.1 | Printed MMD 3 addresses `0x1001`, `0x1014`, `0x1016`; printed MMD 7 addresses `0x203C`, `0x203D`; vendor DEVAD 31 `0x04D1` (EEECFG3). Exact on-wire EEE offsets/possible aliases remain unresolved | Preserve the printed namespace/address separately from verified wire offsets. The cited DP83826 sections identify these EEE addresses but do not prove an alias translation or provide a complete detailed field catalogue; close this from exact applicable official evidence. Never convert them to vendor offsets or native Clause 45 merely by name. |
+| Legacy-MAC LPI, 8.3.4 | Vendor `0x04D1` control fields; printed MMD7 address `0x203C`, subject to the same unresolved wire-offset gate | Typed enter/exit and enable/advertise procedures need explicit application/MAC coordination. No PHY TX buffering is available in LPI. |
 | Deep power-down, 8.3.6.3 | Vendor `0x0428`, bit 2, followed by IEEE power-down | Resolve relationship to PHYSCR PLL-disable and define exit/clock restoration before implementing. |
 | Digital loopback, 8.3.14.4; SNLA423A 2.5 | Vendor `0x0122`, `0x0123`, `0x0130` in addition to the base loopback/reset registers | Allow only the sourced loopback preparation values/ordering, validate speed/mode, and reconcile overlap with the EEE recipe at `0x0123`. |
 | Compliance stimulus, 8.5.1.32 | Vendor `0x0428`, bits 4/5; COMPT `0x0027` bit 4 is used by prose despite being grouped as reserved in its table | Resolve and implement exact enable/reconfigure/stop procedure; normal low-level RMW must not automatically authorize these reserved-field exceptions. |
 | Signal quality, SNLA423A 2.3.3 | `0x0225` in the app note vs `0x0218` in SNLS647I | Conflict requiring clarification, not two automatically equivalent APIs. Record raw evidence and withhold derived SNR until address/scaling are resolved. |
 
 The bare address `0x203C` in the EEE recipe is insufficient to select DEVAD;
-section 8.3.3.2 supplies the MMD7 association. A future implementation must check
+section 8.3.3.2 supplies the printed MMD7 association, not a proved wire-offset translation. A future implementation must check
 the exact host/MMD access convention, including any vendor tooling translation,
 instead of interpreting the printed hexadecimal number as a Clause 22 address.
 
@@ -275,6 +275,33 @@ instead of interpreting the printed hexadecimal number as a Clause 22 address.
     `R/W` marking does not authorize changing fields labeled reserved. The WoL
     bit-mask flag does not establish custom pattern matching on DP83826; SNLA261A
     explicitly excludes that feature.
+
+## Corrections from the prompt audit
+
+The correctness review adds these specific constraints to the source ledger:
+
+- **W0C and mixed registers:** SNLS647I table 8-18 defines W0C/W1S. RXFCFG1
+  bit 11 is W0C (table 8-90): zero acknowledges level indication. Unrelated
+  updates must use command-neutral composition. SNLA261A table 2-4 is a DP83822
+  example with different acknowledgement and MAC-word ordering; use DP83826
+  tables 8-90 and 8-92 through 8-94 for literal acknowledgement/byte-order vectors.
+- **Consumed event evidence:** MISR1/MISR2 and FCSCR/RECR have clear-on-read
+  behavior (tables 8-36 through 8-39). Retain each valid consumed sample even if
+  the aggregate acquisition fails; ambiguous failed reads can lose event history.
+- **Active sleep:** 8.3.6.1 enables a hardware policy through PHYSCR[14:12]=110;
+  actual sleep/wake depends on partner detection. BISCR[8] observes current state.
+  Successful policy configuration does not require the PHY to enter sleep.
+- **MII loopback:** the general recipe in 8.3.14.2 conflicts with the explicit
+  speed-dependent BMCR table 8-19: BISCR[4:0]=00100 at 100BASE-TX and 00001 at
+  10BASE-Te. Use the detailed definition absent stronger exact-part evidence and
+  retain the discrepancy plus independent vectors for both speeds.
+- **EEE printed addresses versus wire offsets remains open:** SNLS647I prints
+  MMD3 1001/1014/1016 and MMD7 203C/203D; SNLS783A and SNLA328 also explicitly
+  pair these full numbers with MMD selectors. Conversely, SNLS638C table 7-92
+  refers to offsets 0014 in MMD3 and 003C/003D in MMD7 despite similar full-number
+  headings. Do not silently strip address digits or assert a translation. Obtain
+  an exact applicable access trace/clarification before freezing the EEE wire
+  tuples; ordinary proved vendor-register addressing remains separate.
 
 ## Hardware-only scope and closure rule
 

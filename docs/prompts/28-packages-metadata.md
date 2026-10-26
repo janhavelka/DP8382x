@@ -77,6 +77,11 @@ does not invoke the generator. Release/version changes are intentional decisions
 not a bump per prompt. Keep example firmware SHA/dirty/SDK identity separate;
 an extracted archive must not inherit the parent checkout's Git commit.
 
+Select one archive format actually emitted by the package command and one exact
+expected path/content allowlist. Validate that package; do not build a generic
+multi-format archive framework. Reuse standard-library parsing with explicit
+containment and the checks below.
+
 In `tools/check_package.py`, validate before extraction. Set compressed bytes,
 member count, expanded bytes and subprocess time bounds appropriate to measured
 payload size. Reject absolute/drive/UNC paths, backslashes/colons, `.`/`..`/empty

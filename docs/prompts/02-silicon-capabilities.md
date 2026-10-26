@@ -76,10 +76,15 @@ Choose one machine-readable evidence file, such as
 format over a generic register-description framework. Include these columns or
 equivalent fields, separating register, field and procedure records:
 
+Keep one authoritative ledger for facts and exact-part applicability; human
+guides summarize or reference it rather than maintaining duplicate numeric maps.
+Independent test vectors still come from a separate original-source review.
+Shared part records plus explicit differences are sufficient when sourced.
+
 | Record | Required data |
 | --- | --- |
 | Register | Exact variant/mode, address space/device address/register address, source name, width, reset value/mask, access type and reserved-bit rules |
-| Field | Register key, bit range/mask, legal encodings, validity conditions, side effects and source section/table |
+| Field | Register key, bit range/mask, legal and prohibited encodings, W0C/W1C/W1S/RC and other access semantics, neutral command values, validity/side effects and source section/table |
 | Procedure | Ordered prerequisites/actions/waits, owned masks, variants/interfaces, timeout, partial effects, cleanup and source citations |
 | Coverage | Planned typed API, CLI path, independent vector/test, software disposition, host/SDK/HIL evidence kept separate |
 | Source/conflict | Official URL/document revision or source commit/file, license, competing interpretations, selected evidence or unresolved gate |

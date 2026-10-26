@@ -27,6 +27,12 @@ escape hatch alone does not implement EEE, WoL, reset, BIST, TDR or a full-featu
 driver. Simple independent controls can share typed configuration/field helpers;
 there is no requirement for a separate getter/setter class for every bit.
 
+A named non-reserved field marked R/W can still have application-prohibited
+values. Obey its full description, not just its access label. For example,
+DP83826I/E, DP83826AI/AE and DP83825I prohibit setting ANAR remote-fault bit 13.
+Cover that restriction with validation/tests and retain supported remote-fault
+observation; do not implement a forbidden advertisement to claim completeness.
+
 Keep these distinctions in the coverage ledger:
 
 - **Implemented:** public operation, documented legal settings/effects, error
@@ -106,7 +112,8 @@ For every documented register/field, record:
 
 - exact part/revision/mode and address space: Clause 22 or MMD DEVAD/address;
 - canonical name, address, width, mask, reset value and reset/mode dependencies;
-- R/RW/W1C/read-clear/latch/self-clearing/reserved/write-only semantics;
+- R/RW/W0C/W1C/W1S/read-clear/latch/self-clearing/reserved/write-only semantics,
+  including command-neutral write values and mixed control/status fields;
 - legal values, units/encoding, prerequisites, side effects and ownership;
 - documented sequence requirements, waits, ordering, stop/recovery behavior;
 - primary source section/table and any alternate-source conflict;
@@ -127,6 +134,12 @@ boundary vectors from original PDF tables and verify all field partitions,
 access attributes, aliases and procedure-only exceptions.
 
 ## API, CLI, tests and closure
+
+Use one shared source-proved record with an explicit exact-part applicability
+set when register/field/procedure behavior is identical. Add small difference
+records where it changes, and retain separate implementation/test/physical
+evidence per part. Complete per-part coverage does not require copying an entire
+identical ledger or driver for every temperature/package suffix.
 
 Map each programmable feature to an actual typed API/configuration path, readable
 diagnostic state, source documentation, CLI commands and meaningful tests. Cover

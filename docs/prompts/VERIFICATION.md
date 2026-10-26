@@ -32,7 +32,7 @@ failures and exclusions instead of relabeling them as a pass.
   acquisition, release on all exits, lock order and no IDF-base bypass. Count
   logical operations and actual MDIO frames separately; zero cooperative budget
   causes no I/O. Test partial batches and no illegal interleaving.
-- Register access attributes, reserved masks, W1C/read-clear/latch-low/counter
+- Register access attributes, reserved masks, W0C/W1C/W1S/read-clear/latch-low/counter
   behavior and independent test oracles. Pin unresolved datasheet ambiguities;
   do not choose a convenient fake behavior and call it silicon truth.
 - Reset kinds/straps/restore, advertisement and forced-mode validation, 10BASE-Te

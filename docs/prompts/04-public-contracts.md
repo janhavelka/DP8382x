@@ -24,8 +24,9 @@ Trace every programmable feature in the complete source ledger to a public
 typed operation or coherent configuration/field helper and observable result.
 Account for all legal settings; a generic raw write is not a substitute for a
 stateful command. Keep inactive optional features in the API plan even if the
-initial board lacks the pin/interface needed to test them. Complete the design
-without declaring unimplemented methods as usable production APIs.
+initial board lacks the pin/interface needed to test them. Complete the feature
+mapping and foundational contracts; keep unresolved feature signatures explicit
+until their source-backed stage. Do not declare future methods as usable APIs.
 
 Create `docs/api-contracts.md` with exact proposed declarations and examples before
 exposing them in shipped headers. Keep namespace/class/header names from ENGINEERING.
@@ -62,6 +63,14 @@ stage 02 gated. No production declarations for methods that will only become fun
 later.
 
 ## Freeze the concrete vocabulary
+
+Keep short register reads, validated writes and pure helpers as direct bounded
+calls. Use cooperative start/poll/result/cancel only for procedures that need
+scheduled waits or retained cleanup. One active operation slot with a monotonic
+nonzero token and explicit exhaustion is enough; no job registry, generic
+scheduler or token framework. Both paths share the same register procedures.
+Freeze the foundational signatures now; add feature-specific types/methods with
+their source-backed implementation and update this contract together.
 
 Use CONVENTIONS' selected `Status` fields/helpers and `errorName`, four-state
 passive `DriverState`, `driverStateName`, `HealthSnapshot` and validity fields.
@@ -104,6 +113,9 @@ values and an explicit operation-kind switch. Do not build a job registry or
 generic asynchronous framework. Specify primary status, cleanup status and
 hardware-effect/restoration evidence without collapsing secondary failure into
 success. Every field needs a consumer and validity rule.
+Operation admission is not ownership of the controller lock across polls. Public
+aggregate output can remain unchanged on error while the single event collector
+retains already consumed read-clear samples and flags possible lost history.
 
 Set health accounting units explicitly for the chosen transport. Define the
 `UNINIT`/initializing boundary, failure threshold, saturating counts, last-error

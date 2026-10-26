@@ -38,6 +38,12 @@ conflate negotiation with forced mode. Stage 04 owns exact signatures.
 
 ## Decisions and independent test oracles
 
+SNLS647I table 8-23 marks ANAR bit 13 R/W but explicitly prohibits the application
+setting it: DP83826 does not support local remote-fault advertisement. Reject that
+request before writes; retain partner/status remote-fault observation. The A and
+DP83825I datasheets repeat the prohibition; qualify other variants separately.
+Test this restriction independently of generic advertised-ability masks.
+
 1. Make a dependency table for advertisement, pause/asymmetric pause, forced
    speed/duplex, Auto-MDIX/robust/manual crossover and interface. Include selector/
    remote-fault fields and next-page controls owned here; assign remaining

@@ -78,6 +78,11 @@ performs MDIO later. Cached getters, rendering and status projection do no I/O.
   polling, CLI and other PHYs. Application-controlled serialization must have
   a documented entry point, lifetime and lock order. Per-frame locking alone
   is insufficient. Avoid nested locks and deadlocks through base callbacks.
+- Separate operation admission from the bus transaction lock. Admission can span
+  polls; the lock covers only the indivisible frame sequence/RMW and is released
+  on every exit before reset/diagnostic wait intervals, later polls or console
+  backpressure. One conservative controller lock per transaction is sufficient;
+  do not add a per-PHY lock registry or hold the bus for a whole long operation.
 - Choose either a terminal transaction/batch callback or an explicit owner-held
   transaction mechanism that permits IDF reuse. Specify the accounting unit.
   A logical MMD operation can contain multiple MDIO frames. A cooperative budget
@@ -87,7 +92,12 @@ performs MDIO later. Cached getters, rendering and status projection do no I/O.
   borrowed buffers. Preserve full backend detail; normalize illegal callback
   statuses. A timeout argument or measuring lateness after return is not proof
   of a bound. Audit actual pinned SDK wait paths and document limitations.
-- Reads publish outputs only on valid complete success. A write followed by a
+- Ordinary reads publish outputs only on valid complete success. For destructive
+  acquisition, preserve each successfully consumed event/counter sample in the
+  single collector immediately, with its own validity/time, even if a later read
+  fails. Keep the aggregate output unchanged/stale and retain partial internal
+  evidence. A failed read that might have cleared silicon without returning data
+  records possible history loss; it does not mean zero events. A write followed by a
   timeout/error can have affected silicon: preserve uncertainty; do not retry
   automatically or restore trusted state just because a later read succeeds.
 - Use aggregate operation deadlines, not a fresh full timeout at every step.
@@ -126,13 +136,19 @@ to resolve, not alternative silicon authority.
 - Distinguish BMCR reset, PHYRCR hard reset, PHYRCR restart and external reset/POR.
   Document which configuration survives and which straps are actually resampled.
   Restore only owned configuration in the documented order; preserve reserved
-  bits and do not use generic RMW on command, W1C or read-clear fields.
+  bits and do not use generic RMW on command, W0C/W1C/W1S or read-clear fields.
+  Mixed control/status registers need small source-specific update procedures:
+  preserve consumed events, change only owned stable bits, and write the documented
+  neutral value to every command field unless intentionally issuing that command.
 - Model link down, negotiation pending, invalid/stale observation, transport
   failure and application policy mismatch separately. Do not report resolved
   speed/duplex from invalid/incomplete evidence or equate link with IP reachability.
 - Specify latch-low, read-clear, write-clear, self-clearing and counter-overflow
   semantics per register. Give destructive status one collector and expose cached
   evidence to other consumers. A dump must not accidentally consume event history.
+- DP83826 RXFCFG1 bit 11 is W0C (SNLS647I table 8-90): zero acknowledges the WoL
+  level indication. Do not copy a W1C-like acknowledgement from the DP83822
+  example in SNLA261A. Check exact-part MAC-byte ordering separately as well.
 - Cached desired configuration, observed hardware values and verified ownership
   are different. Raw writes, resets, external writers and ambiguous write failures
   invalidate the relevant evidence; readback compares stable owned bits only.

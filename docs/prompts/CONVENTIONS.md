@@ -118,6 +118,11 @@ arguments, result types and supported stages are frozen at stage 04.
 | Pure helpers | `isValidVariant`, `isValidPhyAddress`, typed validators/decoders; no callbacks or hidden global state |
 
 Use explicit reset/diagnostic options instead of an ambiguous Boolean overload.
+Short reads/writes use direct bounded calls; do not wrap every field action in
+token/result state. Cooperative operations serve actual scheduled waits or cleanup.
+Use one active slot and monotonic nonzero tokens with explicit exhaustion rather
+than a registry. Operation admission can span polls; the bus lock cannot span
+wait intervals or console output. Share the underlying register procedures.
 Add typed feature methods only as their behavior is implemented. A blocking
 convenience must reuse the same procedure, have a proved aggregate bound and
 serve an actual consumer. Do not build a second state machine for it. Do not

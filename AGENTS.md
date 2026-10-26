@@ -166,6 +166,8 @@ contract is implemented. Do not populate the future tree with successful stubs.
   Keep SDK headers, RTOS, allocation, logging and platform timing out of the core.
 - Use bounded waits, explicit errors and application-controlled serialization.
   Serialize complete indirect register transactions, not just individual reads.
+  Release the controller lock before waits/later polls; operation admission is
+  separate. Short reads/writes need no cooperative token/job wrapper.
 - Borrow synchronous terminal callbacks/context with documented lifetime, complete
   transaction ownership and aggregate deadlines including controller/lock waits.
   No hidden retries, background tasks, platform delays, re-entry or retained
@@ -173,6 +175,8 @@ contract is implemented. Do not populate the future tree with successful stubs.
 - Keep transport health, link/negotiation, configuration trust and application
   readiness separate. Cached snapshots/health/CLI rendering do no I/O. Cable
   disconnect is not an MDIO failure. One collector owns read-clear/latch evidence.
+  Retain consumed event samples even when later reads fail. Mixed control/status
+  writes require exact W0C/W1C/W1S/RC semantics and command-neutral composition.
 - Preserve uncertain write effects, partial configuration and primary/cleanup
   errors. Cancellation/end cannot undo accepted writes. Deferred cleanup must
   have an explicit finite budget and leave unresolved hardware effects visible.

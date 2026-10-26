@@ -66,6 +66,10 @@ separate evidence. A matching generated register list is not a silicon oracle.
 Cover at least these cross-module regressions using the real core and adapters
 where their corresponding evidence layer permits it:
 
+- The actual IDF raw-ioctl route cannot bypass owner arbitration/invalidation.
+  AN-to-forced configuration followed by stop/start keeps `ETH_CMD_G_AUTONEGO`
+  and forced-mode admission consistent. Full portable RX/TX pause evidence is
+  tested separately from the SDK's narrower MAC notification.
 - Every frame of indirect access fails in turn, including an accepted address/
   data write followed by timeout. Reads keep caller output unchanged until valid
   completion; uncertain writes preserve untrusted configuration and no retry.

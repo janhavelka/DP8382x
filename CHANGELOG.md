@@ -4,6 +4,11 @@
 
 ### 2026-10-26
 
+- Corrected prompt/source guidance for WoL W0C and mixed-register writes,
+  consumed-event retention, remote-fault restrictions, active sleep, loopback,
+  family interfaces and ESP-IDF ownership/state/pause limitations. Simplified
+  short operations, shared variant records and local tool scope; retained named
+  EEE-address and A-generation strap/EMC evidence conflicts.
 - Require a new branch before every new promptset execution, retained through
   all stages and resumed sessions; do not reuse main or an earlier set's branch.
 - Deepened all implementation prompts with source-backed sibling conventions,
