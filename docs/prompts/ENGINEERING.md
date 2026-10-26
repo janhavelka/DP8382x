@@ -4,6 +4,10 @@ These are requirements and design constraints for future implementation. Stage
 03 resolves framework ownership and stage 04 fixes exact signatures in maintained
 API documentation. Changes to those decisions need evidence and coordinated
 updates, not compatibility aliases added to hide disagreement.
+The [concrete conventions](CONVENTIONS.md) select the current planned Status,
+DriverState, snapshot and function names, source responsibilities and Doxygen
+requirements from actual sibling code. Stage 04 freezes their exact signatures;
+do not independently choose competing names in later prompts.
 
 [FULL_COVERAGE](FULL_COVERAGE.md) defines mandatory public-source research and
 complete register/field/procedure coverage. Implement all documented programmable
@@ -157,6 +161,10 @@ sequences. Doxygen describes units, ownership, allowed states, side effects,
 blocking bounds, validity and errors. Python docstrings describe protocol and
 artifact limits. Tests use independent literal datasheet vectors, not production
 constants as their own oracle.
+Write Doxygen from the first implemented public file and update it in every
+behavior-changing checkpoint. Review affected README, CHANGELOG, API, example,
+testing and tool guides at every stage. Use simple engineering language, named
+units and explicit conditions; comments explain consequences and ownership.
 
 Use explicit source lists and a dependency-free portable consumer. Tests default
 OFF for consumers. SDK-only headers/sources must be excluded from host compilation.

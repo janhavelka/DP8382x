@@ -1,8 +1,13 @@
 # 31 - Reconcile user-facing guides and feature coverage
 
-Read [COMMON](COMMON.md) and the linked engineering, CLI and verification contracts
+Read [COMMON](COMMON.md), [CONVENTIONS](CONVENTIONS.md) and the linked engineering, CLI and verification contracts
 before working. Prerequisites: 01-29 implementation outputs; consume stage 30's actual
 evidence or explicitly recorded block.
+
+At entry apply CONVENTIONS' names, Status/health, layout and simplicity rules;
+reopen current relevant sibling sources. Keep source Doxygen and affected
+README/CHANGELOG/guides current, verify locally and checkpoint/sync on this
+execution's recorded branch.
 
 ## Fresh audit and owned work
 
@@ -44,6 +49,67 @@ whole-family support language.
 Keep prompt execution history in progress/reports and permanent behavior in maintained
 guides. Do not erase failure evidence or vendor source provenance while cleaning stale
 planning text.
+
+## Concrete guide set and claim checks
+
+Fresh anchors are `../MB85RC/CONTRIBUTING.md` and maintained
+`docs/DEVICE_REFERENCE.md`, `docs/IDF_PORT.md`, `docs/RELEASE_CHECKLIST.md`;
+`../TMP1x2/tools/check_doxygen.py::check_html/check_api` and generated-doc input
+rules; and `../TCA9548A/tools/test_hil_artifacts.py` for retained evidence/NOT RUN
+semantics. Inspect current source/examples/CLI/help/runner commands and AGENTS
+behind the prose, record revisions/dirty state and compare actual behavior.
+Historical reports and planned sibling APIs do not prove current user features.
+
+The lead owns README, maintained API/architecture/feature claims and integration.
+Delegate read-only ordinary-user/IDF-owner guide review, or disjoint link/snippet
+verification, with exact paths and available models suited to complexity.
+Reviewers must run/read the documented path and report defects, not rewrite
+shared contracts. Apply CONVENTIONS' exact names, simple English and clear
+units/errors. This stage reconciles existing docs; it does not defer source
+Doxygen or guides from earlier behavior stages until now.
+
+Keep one authoritative destination per user need, using existing equivalent
+files rather than duplicating guides:
+
+| Maintained destination | User decision and verifiable content |
+| --- | --- |
+| `README.md` | actual support/status, minimum install and links to buildable examples; no whole-family promise |
+| `docs/api-contracts.md` and source Doxygen | stable names, valid states, lifetime/time bounds, outputs/errors and capability behavior |
+| `docs/architecture.md` / integration guide | portable and IDF operation ownership, transaction serialization, board/stack responsibilities |
+| `docs/variants.md` / feature matrix | exact part/revision/interface/medium; software versus SDK/physical qualification |
+| CLI/runner guides | actual grammar/help, finite commands, fixtures, firmware identity, artifacts/verdicts and restoration |
+| `docs/testing.md`, `docs/packaging.md`, `docs/hardware-validation.md` | reproducible commands, supported toolchains, package contents, equipment and remaining gates |
+| `CHANGELOG.md` | intentional user-visible changes and qualification limits, never invented release publication |
+
+Trace every advertised capability from exact-part source/ledger to implemented
+public declaration, source procedure, executing independent test, shared CLI
+route and runner evidence where applicable. Explain source-proved hardware-only
+or inapplicable rows; missing required software is an open gate. Keep desired,
+observed and verified settings distinct, cached versus live calls explicit,
+and transport health independent of cable/negotiation/policy/IP readiness.
+Document invalidation and accepted-write uncertainty with a practical recovery
+example using the actual bounded owner API. No invented `begin`/`pollJob` aliases.
+
+Compile/link/run documented portable quick starts from clean consumer inputs;
+build/link SDK snippets through the real supported example, not standalone
+shim headers. Check help against actual shared CLI and runner `--help`/dry plan;
+use explicit placeholders for application pin/address/clock/fixture choices.
+Avoid unattended infinite waits or implicit destructive diagnostics in quick
+starts. Keep EtherCAT stack/timing and power delivery application-owned.
+
+Run existing documentation/local-link checks and inspect representative generated
+API pages. Fix stale names, missing anchors, nonexistent commands and package
+assumptions. Document external link verification limits without treating a local
+link checker as an online source freshness audit. Preserve vendor provenance
+and historical failure evidence; route execution history to reports/progress.
+
+Update source Doxygen only where the audit finds a real omission or mismatch;
+fix code/contract together if documentation exposes a behavioral defect. Review
+README, CHANGELOG and all affected guides, recording no-change reasons rather
+than padding Unreleased. Record commands, claim coverage and unresolved gates in
+`docs/reports/implementation/31-user-documentation.md`, validation and progress.
+Run focused local checks for fixes; retain stage 29's actual CI SHA and do not
+dispatch/check/wait for remote CI. Documentation completion cannot close stage 30.
 
 ## Acceptance and handoff
 

@@ -3,6 +3,11 @@
 Read [COMMON](COMMON.md) and the linked engineering, CLI and verification contracts
 before working. Prerequisites: 01.
 
+Read [CONVENTIONS](CONVENTIONS.md) and briefly record the applicable rules,
+evidence sources, owned paths, documentation/checks and same-branch checkpoint.
+Use subagents for independent source/table review with complexity-appropriate
+models; the lead resolves conflicting interpretations and owns Git.
+
 ## Fresh audit and owned work
 
 Revisit TMP1x2 and MB85RC variant selection and TUSB32x capability/source-evidence
@@ -55,6 +60,56 @@ Review TI reset-address and revision-check pitfalls and per-file licenses. Make 
 written procedure for each accepted sequence with prerequisites, side effects, timeout,
 failure uncertainty and restoration. EtherCAT ESC notes are contextual; first-board RMII
 cannot inherit MII-only Fast Link Drop.
+
+## Concrete ledger and variant contracts
+
+Reopen `TMP1x2/include/TMP1x2/Config.h` (`Model`, `isValidModel`, address
+validators), `MB85RC/include/MB85RC/CommandTable.h` (`DeviceVariant`,
+`VariantInfo`, optional capability fields), and the corresponding implementation
+and rejection tests. The useful principle is exact declared model plus explicit
+capabilities. Neither I2C address windows nor absence of a readable sensor ID
+transfers to the PHY. Use the planned names `Variant`, `DeviceIdentity` and
+`Capabilities`; stage 04 settles their public representation.
+
+Choose one machine-readable evidence file, such as
+`docs/registers/dp83826i.json`, with a documented schema. Prefer a small explicit
+format over a generic register-description framework. Include these columns or
+equivalent fields, separating register, field and procedure records:
+
+| Record | Required data |
+| --- | --- |
+| Register | Exact variant/mode, address space/device address/register address, source name, width, reset value/mask, access type and reserved-bit rules |
+| Field | Register key, bit range/mask, legal encodings, validity conditions, side effects and source section/table |
+| Procedure | Ordered prerequisites/actions/waits, owned masks, variants/interfaces, timeout, partial effects, cleanup and source citations |
+| Coverage | Planned typed API, CLI path, independent vector/test, software disposition, host/SDK/HIL evidence kept separate |
+| Source/conflict | Official URL/document revision or source commit/file, license, competing interpretations, selected evidence or unresolved gate |
+
+Use the existing 79-entry detailed-register inventory as a reconciliation input,
+not a claim that it includes every field or every procedure-only address. Check
+summary tables, detailed headings and feature text against each other. Preserve
+unknown reset bits explicitly; never turn a blank or dash into zero. Source a
+separate legal-value table where not every bit encoding is valid.
+
+For each supported part distinguish the declared ordering variant, read PHY IDs,
+revision, strap/interface evidence and software qualification. Do not infer a
+board's variant from a shared ID. A capability must have exact evidence and a
+defined unsupported path. Runtime-disabled features remain implementation scope.
+Unresolved source facts stay named gates; unavailable physical fixtures stay a
+different evidence state.
+
+Have a second reviewer inspect representative arithmetic and difficult entries:
+MMD addressing, write-one/read-clear behavior, reset defaults, mode-dependent
+fields and the known PHYSTS/RECR contradictions. The reviewer uses original PDF
+tables and independent literal values, not constants generated from the ledger.
+
+## Documentation in this stage
+
+Maintain the reference index/provenance only for actual new evidence, and update
+device behavior, register map/vectors, variants and the feature matrix together.
+Review README/CHANGELOG for accurate scope. Specify the Doxygen citation and
+access-attribute information future `CommandTable.h` and procedures must carry;
+do not create placeholder source just to attach comments. Keep vendor payloads
+unchanged and separate public facts from code with reuse/license restrictions.
 
 ## Acceptance and handoff
 

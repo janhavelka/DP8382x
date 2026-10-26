@@ -3,6 +3,10 @@
 Read [COMMON](COMMON.md) and the linked engineering, CLI and verification contracts
 before working. Prerequisites: 01-16.
 
+Before the audit, apply COMMON's short rule reminder: current sibling sources,
+selected conventions, owned paths, source/general documentation, focused local
+checks and same-branch commit/sync. Choose subagent models by task complexity.
+
 ## Fresh audit and owned work
 
 Revisit FieldCore owner scheduling/status/CLI ingress and comparable peer owner-service
@@ -38,6 +42,54 @@ work and the separate timing/servo qualification boundary. Do not transplant C20
 resets or MII Fast Link Drop promises into the RMII P4 design. Adding a real third-party
 master stack is a separately scoped application project, not completion padding for this
 library.
+
+## Concrete owner behavior
+
+Apply [CONVENTIONS](CONVENTIONS.md). Inspect
+`FieldCore-node/src/devices/i2c/Ina228Module.h/.cpp`: `bind`, `start`, `poll`,
+`takeResult`, `refreshStatus`, `snapshot`, `copyStatus` and `mapLibraryStatus`.
+Read the related device-result/status contracts and owner transport. Borrow
+single-owner ingress, retained completion and cached projection; do not import
+TunnelMonitor types, task topology, I2C error mappings or its health enum values.
+This source is an ownership example, not evidence of FieldCore Ethernet support.
+
+Keep one compact application under `examples/esp_idf/owner/` with native build
+files, board settings and README. A small `main/PhyOwner.h/.cpp` is justified if
+it makes the state transitions independently testable; otherwise keep the owner
+with the application. Use descriptive permanent names, never stage-numbered
+classes or a generic service/task registry. Freeze example-local entry names in
+its guide; the public core operation names remain those from stage 04.
+
+| Owner condition | Required behavior |
+| --- | --- |
+| Startup or invalid configuration | Permit bounded initialization through its single owner; do not admit an application session |
+| Valid management and verified profile, link unresolved/down | Publish evidence and wait within application policy; no silent forced-speed fallback |
+| Resolved 100/full with required evidence | Allow explicit application admission; admission alone does not start an EtherCAT master |
+| Active application session | Reject reset, raw mutation, disruptive diagnostic and power/clock changes before any MDIO transfer |
+| Link loss or stale/invalid observation | Withdraw readiness and notify the application; do not resume automatically on a later link-up |
+| Explicitly released session and maintenance admission | Permit one bounded operation and retain primary/restoration results before accepting replacement |
+
+Test the sequence startup -> ready evidence -> explicit admission -> link loss ->
+session release -> maintenance -> verified recovery -> explicit readmission.
+Test active-session rejection with unchanged transfer counters, stale-link
+rejection despite a previous link-up, contention with framework polling, result
+retention under output backpressure and cancellation that leaves hardware effects
+visible. A boolean named ready must never collapse health, link, trust and policy.
+
+For any frame hook, document exact SDK receive/transmit signatures, buffer owner,
+release point, maximum queued frames and stop/drain behavior. Test a full queue,
+callback after stop and failed transmit ownership. Keep frame traffic disabled
+by default and explicit; a compile-only frame consumer cannot prove traffic or
+timing. If the supported raw boundary is unresolved, retain that precise gate
+without inventing a successful EtherCAT start function.
+
+Add Doxygen for owner admission, service budget, result lifetime, cached getter
+semantics and frame ownership. Maintain `docs/ethercat-integration.md`, this
+example README, root README and CHANGELOG with the exact implemented boundary,
+application work still required and hardware/timing limits. Verify source docs
+and guide names alongside behavior. Delegate read-only ownership/timing review
+when useful; use an agent with sufficient reasoning for concurrency analysis,
+not a fixed model/version. The lead integrates shared headers and architecture.
 
 ## Acceptance and handoff
 

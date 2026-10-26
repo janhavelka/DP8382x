@@ -104,6 +104,14 @@ keep incomplete hardware gates visible at final handoff.
 
 ## CI, packaging and local planning checks
 
+Source documentation is checked from stage 05 onward, not deferred to CI or stage
+32. Run the established Doxygen check when public declarations, source comments
+or documentation inputs change. Verify warnings and required public coverage,
+inspect representative generated pages, and test that missing documentation and
+invalid parameter references fail the configured checker. Generated page presence
+alone is not documentation coverage. Review README/CHANGELOG and relevant guides
+with the behavior; a no-change reason is sufficient for an unaffected file.
+
 Reuse actual workflow commands and pinned dependencies; retain required hooks.
 Under root AGENTS' user-requested first-set exception, remote CI execution and
 run-status checking belong only to prompt 29. Prompts 01-28 and 30-34 use relevant

@@ -1,7 +1,12 @@
 # 29 - Complete the dedicated CI checkpoint
 
-Read [COMMON](COMMON.md) and the linked engineering, CLI and verification contracts
+Read [COMMON](COMMON.md), [CONVENTIONS](CONVENTIONS.md) and the linked engineering, CLI and verification contracts
 before working. Prerequisites: 01-28; focused local tests have been required throughout.
+
+At entry apply CONVENTIONS' names, Status/health, layout and simplicity rules;
+reopen current relevant sibling sources. Keep source Doxygen and affected
+README/CHANGELOG/guides current, verify locally and checkpoint/sync on this
+execution's recorded branch.
 
 ## Fresh audit and owned work
 
@@ -51,6 +56,68 @@ Update docs/testing.md and contributor instructions with exact supported command
 focused-check mapping and hardware exclusions. Keep Windows usage compatible with
 existing tools; use the managed PlatformIO wrapper if PlatformIO is actually needed
 rather than installing another Core.
+
+## Concrete executing job contract
+
+Reopen `../TMP1x2/CMakeLists.txt` for explicit test registration/tests-OFF,
+finite test timeouts and Python-only tests-ON; `tools/check_doxygen.py` and
+`tools/test_check_doxygen.py` for generated public API/local-link checks; and
+`../TCA9548A/.github/workflows/ci.yml` for source-pinned actions, permission,
+time bounds and actual package/firmware commands. Compare
+`../SCD41/.github/workflows/ci.yml` package-consumer registration and pinned
+Doxygen installation/hash, not merely its job names. Record current revisions,
+dirty state, exact checks and rejected unrelated S2/S3 I2C targets. Inspect
+sibling CI source only; no sibling dispatch or remote-run checking.
+
+The lead owns workflow/build registration and integration. Delegate a read-only
+workflow-command parity audit or disjoint checker failure fixtures after freezing
+entry points. Assign explicit paths, available models by complexity and no Git
+or workflow mutations to reviewers. Use the simple existing local commands;
+add a small `tools/verify_local.py` dispatcher only if it removes duplicated
+selection rather than inventing a build-profile framework.
+
+Populate `.github/workflows/ci.yml` with jobs whose outputs can prove a claim:
+
+| Job responsibility | Required executable evidence |
+| --- | --- |
+| References/metadata | reference hashes, generator `check`, metadata/source membership, no generated drift |
+| Portable behavior | real registered core/variant/operation suites, strict warnings, active Release checks, applicable Debug/sanitizer/second-compiler runs |
+| CLI/Python | native grammar/owner/output suites, runner correlation/negative verdict/artifact tests, nonzero discovered case counts |
+| Documentation | strict Doxygen plus local links/public visibility, actual maintained input selection |
+| Package | bounded archive negatives, extracted tests-OFF consumer executes, exported implementation/source membership |
+| Native SDK | actual pinned supported SDK/ESP32-P4 component and examples link, required image artifacts present |
+
+Set explicit job/test/subprocess deadlines and bounded artifact retention.
+Record compiler/SDK/tool versions; pin action commits and downloaded tool
+hashes according to the established repo policy. Check caches include all
+relevant dependency/toolchain inputs and do not inject a source-tree build into
+package qualification. A cache hit, configured workflow, green skipped job or
+zero discovered tests is not executable evidence. Keep required assertions,
+documentation warnings and suite registration active. Optional hardware jobs
+need an explicitly named fixture; no fixture means NOT RUN, not host CI PASS.
+
+First run affected local inputs and inspect the staged complete CI change, then
+commit/sync it on the recorded execution branch. Resolve the actual immutable
+remote commit before dispatch/inspection. For each expected job record tested
+SHA, workflow revision, run/job URL, matrix dimensions, command/artifact and
+terminal conclusion in `docs/reports/implementation/29-ci-matrix.md` and
+validation. Canceled, timed-out, missing and skipped required jobs cannot close
+the gate. Fix confirmed failures, run focused local regressions, checkpoint/sync
+and verify the affected remote inputs here. Do not poll unchanged green jobs.
+
+Keep `ciTestedCommit` and the later evidence-document commit distinct in the
+report, whether represented as fields or plain prose. A final local change to
+record results does not require a self-referencing CI/commit loop or inherit
+the previous run. Prompts 30-34 retain this actual SHA and use local checks even
+for substantive fixes; never dispatch/poll CI merely to make the newest docs
+commit match it during this first set. Do not change triggers/hooks/protection
+or use skip markers to implement the exception.
+
+Update Doxygen/source/Python documentation for any checker behavior fixed here;
+README verification/support claims, CHANGELOG Unreleased, `docs/testing.md`,
+CONTRIBUTING and progress must contain only implemented, executed commands and
+separate host/package/SDK/CI/physical evidence. Missing access preserves checked
+local work and an exact blocked remote gate; continue independent eligible work.
 
 ## Acceptance and handoff
 

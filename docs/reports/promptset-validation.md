@@ -112,6 +112,51 @@ These checks cover documentation only. No implementation stage or remote CI run
 was started. Git checkpoint and synchronization outcomes are reported separately
 in the handoff; writing a workflow rule is not proof of a successful push.
 
+## Concrete-conventions and comprehensive-prompt follow-up
+
+The user requested more concrete instructions grounded in actual sibling code,
+task-based model selection, simple engineering language, maintainability and
+Doxygen/general documentation at every stage. All 34 numbered prompts were
+expanded, adding 2,206 lines of stage-specific source comparisons, implementation
+responsibilities, behavior/failure cases and acceptance/documentation work.
+[CONVENTIONS](../prompts/CONVENTIONS.md) records the selected planned Status,
+health and function names, file responsibilities and source-documentation rules.
+Exact signatures remain stage-04 decisions; these are not shipped APIs.
+
+The three focused audit reports preserve paths, symbols, revisions, observed
+behavior and the chosen PHY adaptations. The core source/procedure task used
+`gpt-6-astra` with high reasoning; consumer/tooling and family/maintenance tasks
+used `gpt-6.1-sol` with high reasoning. Their scopes included state, ownership,
+failure evidence and cross-stage contracts. The lead owned shared contracts and
+Git; agents wrote disjoint prompt groups and performed read-only cross-reviews.
+Simple manifest/format checks ran locally without another agent. These model
+names record this execution, not requirements for future agents.
+
+Independent review identified and resolved these ambiguities:
+
+| Finding | Resolution |
+| --- | --- |
+| Generated API pages could be mistaken for source-documentation coverage | Stage 05/CONVENTIONS require negative missing-documentation and invalid-parameter fixtures; TMP1x2's `EXTRACT_ALL` limitation is explicit |
+| Identity failure could conflate missing evidence, wrong part and MDIO error | CONVENTIONS/04/07 select distinct mismatch/not-found/transport semantics and retain observed identity/reasons |
+| Shared Git wording could prohibit authorized disjoint agents | Stage 01 explicitly allows shared-branch work while reserving Git mutations to the lead |
+| Family identity rejection was described as zero-I/O | Stages 24/26 allow bounded identity reads, prohibit subsequent writes/feature I/O, and reserve zero callbacks for pure preflight |
+| Reset recovery could require already trusted hardware configuration | Stage 08 restores validated owned desired settings, then verifies hardware to re-establish trust |
+| Optional initialization wording could forbid explicitly requested settings | Stage 14 prohibits hidden/default activation while allowing requested settings and documented replay |
+
+Focused local checks passed: reference integrity and all local Markdown links;
+`git diff --check`; UTF-8/LF/final-newline/trailing-whitespace checks including
+new files; and a one-off manifest inspection confirming all 34 stages are indexed
+once, carry entry rules, CONVENTIONS, Doxygen/general-doc requirements and their
+commit/sync footer. All 34 implementation rows remain NOT STARTED. First-set
+remote CI still belongs only to prompt 29, with local checks throughout.
+The integrated repository has 69 Markdown documents and preserves all 27 vendor
+artifacts and 25 extracts. No implementation, SDK, Doxygen generation, remote CI
+or hardware run was performed for this documentation-only change.
+
+Commit/sync applies to this completed maintenance work too. The actual new
+checkpoint and verified upstream result belong in its final handoff and next
+progress update; the preceding checkpoint is recorded in implementation progress.
+
 ## Limits
 
 - No driver, library API, firmware, CLI, runner, build metadata or CI was created.

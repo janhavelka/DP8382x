@@ -4,6 +4,10 @@
 
 ### 2026-10-26
 
+- Deepened all implementation prompts with source-backed sibling conventions,
+  selected PHY Status/health/function names, concrete file responsibilities,
+  failure cases, per-stage Doxygen/general documentation and model selection by
+  task complexity. Implementation remains unstarted.
 - Expanded AGENTS guidance from sibling conventions, with one branch per
   implementation execution, authorized commit/sync checkpoints per prompt and
   coherent intermediate unit, and first-set remote CI only at prompt 29.

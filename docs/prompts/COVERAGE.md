@@ -30,6 +30,9 @@ and evidence from the maintained feature matrix. A listed stage is planned work.
 | Subagent collaboration | COMMON and each numbered file | Disjoint ownership, lead-controlled shared contracts/Git, integrated reviewed results |
 | Commit/sync each prompt and complete intermediate units | AGENTS, COMMON, every prompt | Checked coherent commits, same execution branch, actual push and verified upstream equality |
 | First-set CI without repeated remote checks | AGENTS, 29, VERIFICATION | Remote execution/status only at 29; local checks throughout, original tested SHA retained, triggers/hooks preserved |
+| Concrete peer conventions fitted to MDIO | CONVENTIONS, 01-05, each feature stage | Actual source symbols and decisions for Status, health, methods, layout and ownership; conflicting peer behavior resolved explicitly |
+| Maintainability and source/general documentation each prompt | AGENTS, COMMON, CONVENTIONS, every stage | Readable simple code, public Doxygen and procedure comments, affected guides/changelog updated, focused documentation checks |
+| Model choice by task complexity and rule reminders | AGENTS, COMMON, 01 | Available models/effort selected with rationale; scoped delegation, entry reminder and final diff review |
 | Preserve references and avoid GPL contamination | 02, 28, 32-34 | Original hashes/notices, source provenance and package exclusions |
 
 ## Important intentional limits

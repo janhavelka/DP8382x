@@ -16,6 +16,12 @@ changing revisions are observations of concurrent work, not changes by this task
   review of the resulting planning documents.
 - [Agent workflow follow-up](agent-workflow-audit.md): sibling guidance adapted
   to the user's commit/sync, single-branch and first-promptset CI instructions.
+- [Core conventions follow-up](core-conventions-follow-up.md): concrete Status,
+  health, lifecycle and register-procedure precedents fitted to PHY behavior.
+- [Consumer conventions follow-up](consumer-conventions-follow-up.md): live CLI,
+  owner, runner, example and test symbols used to deepen implementation stages.
+- [Maintenance conventions follow-up](maintenance-conventions-follow-up.md):
+  family, package, version, Doxygen and review evidence behind later stages.
 
 Earlier audit comments about not inheriting sibling Git/CI permissions describe
 the initial planning scope. The later explicit user instruction is implemented

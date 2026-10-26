@@ -3,6 +3,12 @@
 Read [COMMON](COMMON.md) and the linked engineering, CLI and verification contracts
 before working. Prerequisites: 01-02.
 
+Read [CONVENTIONS](CONVENTIONS.md). Record a short reminder of the portable
+boundary, complete-transaction ownership, current sibling audit, documentation,
+local checks and single-branch commit/sync. Use a stronger reasoning model for
+the ownership decision or independent review when available; delegate inventories
+separately and keep shared architecture decisions with the lead.
+
 ## Fresh audit and owned work
 
 Re-audit borrowed transport and cleanup in PCA9555, TCA9548A, TMP1x2 and native IDF
@@ -44,6 +50,56 @@ Specify adapters' source/include selection, resource lifecycle and any permitted
 framework allocation outside core. Define simple non-IDF owner usage and P4 integration
 sketches. Do not import network stacks, product buses, recovery tasks or clocks into
 core.
+
+## Concrete ownership review
+
+Trace `TMP1x2::bind`, `startConfigure`, `poll`, `takeResult` and the private
+transport wrappers; contrast PCA9555's `pollOperation` and `ObservedState`.
+Reopen FieldCore `Ina228Module::{bind,start,poll,takeResult,refreshStatus,
+snapshot,copyStatus,mapLibraryStatus}`. Its useful pattern is one active owner
+and cached publication. Copy neither its contracts into the library nor its
+I2C transaction granularity into an MMD sequence.
+
+For each operation in the responsibility table name the concrete public entry,
+portable procedure, IDF callback/base helper, lock holder, time source, side
+effects and result collector. Write the call chain for both a plain MCU and the
+native IDF path. Include normal link polling while a CLI command or diagnostic
+is pending; do not solve races only for the application calls you control.
+
+Select one implementable transport mechanism and explain the rejected alternative:
+
+- A terminal batch callback may keep all frames in an indirect transaction under
+  one owner, but must report bounded completion, frame failures and uncertain
+  writes without partial outputs pretending to be complete.
+- An explicit owner-held transaction scope must cover base/mediator access too,
+  release on every exit, have a defined lock order and avoid nested acquisition
+  when a helper calls back through the mediator.
+
+Do not ship both mechanisms just for flexibility. Derive the choice from the
+pinned SDK's real entry points and a standalone consumer. Explain how another
+PHY on the same bus participates. Protect controller-wide state only as needed,
+while never releasing an indirect address/data sequence midway.
+
+Review these interleavings on paper before coding: live status vs MMD diagnostic;
+reset vs retained link evidence; stop/delete vs an in-flight callback; callback
+failure after an accepted write; CLI raw mutation vs base polling; and interrupt
+notification vs destructive status read. Identify the admission result and who
+invalidates cached state. Testability must follow from real boundaries, not a
+second architecture present only in fakes.
+
+State what cannot be bounded by the chosen SDK and how that limitation affects
+the adapter claim. A millisecond timeout passed to a callback does not prove
+the controller or lock wait honors it. Keep GPIO reset timing and board clocks
+in the application adapter; no bus initialization or background recovery in core.
+
+## Documentation in this stage
+
+Update architecture, `docs/design-decisions.md`, the ownership table and API-plan
+notes together. Review README/CHANGELOG and the example plan for the chosen
+boundary. Define the Doxygen text that future callbacks and adapter lifecycle
+methods need: borrowed lifetime, non-reentrancy, complete transaction, output
+publication, deadline and delete preconditions. Write clear call chains and
+state consequences; do not turn design sketches into implemented support claims.
 
 ## Acceptance and handoff
 

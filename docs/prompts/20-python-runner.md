@@ -3,6 +3,10 @@
 Read [COMMON](COMMON.md) and the linked engineering, CLI and verification contracts
 before working. Prerequisites: 01-19.
 
+Before the audit, apply COMMON's short rule reminder: current sibling sources,
+selected conventions, owned paths, source/general documentation, focused local
+checks and same-branch commit/sync. Choose subagent models by task complexity.
+
 ## Fresh audit and owned work
 
 Inspect current INA228 framing/parser tests, TCA9548A session/artifact behavior, TMP1x2
@@ -38,6 +42,76 @@ include artifact sizes/SHA-256 in a manifest. Report failed writes, flush/close 
 incomplete manifests. Keep sensitive credentials outside transcripts and do not query
 arbitrary host environment values. Use device monotonic time only for claims it actually
 supports.
+
+## Concrete parser, verdict and artifact responsibilities
+
+Apply [CONVENTIONS](CONVENTIONS.md). Reopen these current source pairs, not just
+their help pages:
+
+- `INA228/tools/run_i2c_hil.py`: `hilrun_end_re`, `read_until_hilrun_end`,
+  `strip_hilrun_frame`, `run_step`; tests for a full terminated trailer, short
+  serial writes, stale input and exact frame identity in
+  `tools/test_run_i2c_hil_parser.py`.
+- `TMP1x2/tools/hil_tmp1x2_runner.py`: `one_record`, `operation_admission`,
+  `response_complete`, `classify`, `EvidenceFiles`, `SerialSession`; its runner
+  tests include a compiled CLI fixture rather than only invented transcripts.
+- `24Cxx/tools/hil_identity.py`: `parse_identity`, `check_identity`; and
+  `tools/hil_artifacts.py`: `collect_provenance`, `render_markdown`, with their
+  malformed/unknown identity and exact-source-hash tests.
+
+Use `tools/dp8382x_hil_runner.py` as the one entry point. Start with direct
+functions plus small session/case/result values; split protocol or artifact
+helpers only when their responsibilities are reused and independently tested.
+Do not create a generic device/serial plugin framework or require optional
+pyserial to import/test parsing. Freeze actual helper names in source/docstrings;
+peer names above are evidence, not another public DP8382x API.
+
+Process a run in this order:
+
+1. Strictly validate positive finite timeouts/durations/counts, limits, target
+   expectations, explicit port and fixture permissions before opening anything.
+   Reject NaN/infinity, negative values, unknown suites and conflicting options.
+   `--help` and dry-run require neither serial nor SDK tools.
+2. Reserve a unique evidence bundle exclusively and write a provisional incomplete
+   result before hardware access. Inspect DTR/RTS behavior before opening serial;
+   configure a non-resetting mode where supported and report limitations rather
+   than causing an implicit reset. No port guessing/reconnect/replay policy.
+3. Collect complete reported firmware identity and session records; compare only
+   explicit expectations. Host checkout revision/hashes are separate provenance.
+   Unknown identity cannot satisfy a required known revision/target. Preserve
+   observed abbreviations without manufacturing a full SHA.
+4. Send one correlated command with a write deadline; a partial write fails that
+   attempt and is not replayed. Read with a total deadline, maximum record size,
+   total capture limit and bounded decoder state. Fragmentation cannot turn an
+   unterminated numeric field into a complete result.
+5. Require the exact expected session/request/operation and terminal fields.
+   An admission record, prompt, substring OK, stale completion or skipped case
+   is insufficient. A new boot invalidates pending correlation. Preserve
+   unexpected/duplicate/conflicting evidence as a protocol failure.
+6. Evaluate case assertions separately from command `Status`. Expected rejection
+   passes only with its exact allowed error, no extra transport/cleanup failure
+   and proved unchanged state/counters. Preserve the first failed case when later
+   cleanup succeeds; stopped/incomplete/zero-executed campaigns cannot pass.
+7. Perform only explicitly admitted cleanup with a separate finite budget. Close
+   serial and artifact streams while preserving errors; finalize summary and
+   byte-count/SHA-256 manifest only from actual stored bytes. An incomplete write,
+   flush/close failure or incomplete manifest makes evidence unsuccessful.
+
+Test every trailer split, echo/ANSI/prompt noise, blank/duplicate/missing fields,
+wrong enum/value type, oversized records, stale operation, token rollover, new
+boot, serial disappearance, cancellation and cleanup timeout. Inject existing
+bundle collisions and permission/disk/short-write/flush/close failures. Assert no
+port open on validation/dry-run failures and no hidden command retry. Drive the
+compiled stage 18/19 fixture with bounded subprocess lifetime/output and assert
+nonzero exit for false-PASS scenarios. Document precise exit-code meanings.
+
+Python module/function docstrings must state accepted records, limits, time
+domains, side effects, artifact finalization and error behavior. Update
+`docs/hil-runner.md`, `docs/cli.md`, root README and CHANGELOG with working
+invocations and a clearly labeled offline example. Doxygen remains current for
+any changed C++ protocol producer. Parser and artifact fault tests are useful
+disjoint agent assignments once the schema is frozen; use stronger review for
+failure classification and durability. The lead owns schema and final verdicts.
 
 ## Acceptance and handoff
 

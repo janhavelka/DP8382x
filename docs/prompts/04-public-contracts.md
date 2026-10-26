@@ -3,6 +3,11 @@
 Read [COMMON](COMMON.md) and the linked engineering, CLI and verification contracts
 before working. Prerequisites: 01-03.
 
+Read [CONVENTIONS](CONVENTIONS.md) and make a short stage-rule reminder. This
+stage owns the exact API decision; later agents do not invent competing names.
+Use independent review with an available model suited to state/ownership work.
+Keep one execution branch, per-stage source documentation and commit/sync.
+
 ## Fresh audit and owned work
 
 Revisit real Status.h, Config.h, health/state and owner-operation declarations in
@@ -55,6 +60,69 @@ Document every planned public operation's inputs, valid states, transaction boun
 effects, output-on-error and unsupported behavior. Keep chip features unresolved at
 stage 02 gated. No production declarations for methods that will only become functional
 later.
+
+## Freeze the concrete vocabulary
+
+Use CONVENTIONS' selected `Status` fields/helpers and `errorName`, four-state
+passive `DriverState`, `driverStateName`, `HealthSnapshot` and validity fields.
+Contrast TMP1x2 four-state telemetry, PCA9555's three states and INA228's selectable
+health admission. Record the deliberate choice: this PHY's health is passive,
+`OFFLINE` does not suppress I/O, and link/configuration evidence are independent.
+Do not silently import a sibling's recovery latch or raw-probe success rule.
+
+Freeze `bind`, `end`, `isBound`, `isInitialized`, `driverState`, `healthSnapshot`,
+`linkSnapshot`, `getSettingsSnapshot`, `getOperationSnapshot`, `readLinkStatus`,
+`readClause22`/`writeClause22`, `readMmd`/`writeMmd`, `invalidateDeviceState`,
+`startInitialize`/`startReset`/`startConfigure`/`startRecover`, `pollOperation`,
+`takeResult` and `cancel` as their responsibilities become applicable. Describe
+why `pollOperation` is selected from PCA-style explicit naming while retained
+results follow TMP's `takeResult`. Do not expose `pollJob`, `state`, `init` or
+`begin` aliases without a real compatibility requirement.
+
+Specify the narrow set of `Err` values and code-specific `detail` meaning from
+CONVENTIONS. Map every fallible entry point to a state/error table. At minimum:
+
+| Scenario | Required distinction |
+| --- | --- |
+| Cable absent but MDIO works | Valid link-down evidence; not MDIO failure or automatic recovery |
+| Invalid PHY/register/enum/config combination | Validation error before any callback; outputs and health unchanged |
+| Callback returns `IN_PROGRESS` | Contract violation normalized to terminal MDIO failure, preserving diagnostic evidence |
+| Valid read identifies the wrong part or an unaccepted revision | `DEVICE_MISMATCH` with explicit reason and observed identity; not absent hardware or transport failure |
+| No accepted identity after successful reads | `DEVICE_NOT_FOUND` under documented plausibility rules; do not claim this proves physical absence |
+| Controller timeout vs operation deadline | `MDIO_TIMEOUT` vs `OPERATION_TIMEOUT`; no ambiguous timeout alias |
+| Active work or unconsumed result | `BUSY` with a defined reason; retained result is not overwritten |
+| Wrong result token | `TOKEN_MISMATCH`; result/output unchanged |
+| No result | `RESULT_NOT_AVAILABLE`; no fabricated success/default sample |
+| Stable owned bits disagree after apply | `CONFIG_MISMATCH` and untrusted configuration, even when transport succeeded |
+| Write failed or completed too late | Possible hardware effect remains visible; no automatic retry or success publication |
+| Part lacks a documented feature | `UNSUPPORTED` before transfer, with exact capability evidence |
+
+Define `OperationToken` allocation, invalid sentinel, wrap/exhaustion and result
+retention across cancellation/end/rebind. Do not reuse a token while a stale
+result can be mistaken for the new operation. Prefer fixed-size operation/result
+values and an explicit operation-kind switch. Do not build a job registry or
+generic asynchronous framework. Specify primary status, cleanup status and
+hardware-effect/restoration evidence without collapsing secondary failure into
+success. Every field needs a consumer and validity rule.
+
+Set health accounting units explicitly for the chosen transport. Define the
+`UNINIT`/initializing boundary, failure threshold, saturating counts, last-error
+retention, success recovery and what `resetStatistics` does not clear. Separate
+managed transactions, physical frame diagnostics and silicon RX/error counters.
+Document zero timestamps, clock wrap, freshness and observation invalidation.
+
+Include a plain C++ owner example and IDF callback mapping that use the exact
+proposed signatures, including an error path and a retained result. Keep them
+as design examples until their operations are implemented and compiled.
+
+## Documentation in this stage
+
+Write planned Doxygen blocks beside proposed declarations in `docs/api-contracts.md`:
+parameters and units, borrowed lifetime, valid states, output-on-error, side
+effects, timeout/cleanup bounds and exact return meanings. The implementation
+must carry those comments into real headers as behavior arrives. Review README,
+CHANGELOG, architecture, feature coverage and example plans for matching names.
+Stage 32 must not be the first time these contracts receive source documentation.
 
 ## Acceptance and handoff
 

@@ -7,6 +7,8 @@ write or audit this promptset does not start its execution.
 Root `AGENTS.md` owns the user-authorized commit/sync workflow and the first
 promptset's remote-CI exception; those override earlier unqualified parent-policy
 references in historical planning reports.
+Read [CONVENTIONS](CONVENTIONS.md) for concrete names, source paths and the chosen
+PHY adaptations. Keep simple engineering language in code, docs and handoffs.
 
 [FULL_COVERAGE](FULL_COVERAGE.md) is mandatory: every documented programmable
 feature belongs to the final library, including runtime opt-in features unused
@@ -38,6 +40,10 @@ supported-but-unimplemented behavior as unsupported silicon or outside scope.
    consumers affected by a change. Resolve routine choices from evidence.
    Correct conflicting plans explicitly before coding; update all affected
    prompts/contracts rather than adding a second interpretation or alias.
+5. Write a short entry reminder in the work plan/report: applicable root rules,
+   selected convention names and current source evidence, owned paths, one MDIO
+   owner, documentation/checks, execution branch and commit/sync checkpoint.
+   Recheck it against the final diff. Keep this brief and specific to the stage.
 
 Prerequisite ranges refer to the **software outputs actually needed** by the
 selected work, not a requirement to close every unrelated evidence gate first.
@@ -62,13 +68,22 @@ partial result but cannot mark the whole set COMPLETE with required gates open.
 - Deliver each behavior with source documentation, failure-path tests and relevant
   user guidance in the same stage. Later audit stages do not defer this work.
   Do not expose successful stubs, unimplemented factories or placeholder APIs.
+- Follow CONVENTIONS' source documentation contract: public Doxygen with actual
+  parameters, units, ownership, errors, output validity and side effects; source
+  comments explain non-obvious procedures. Review README/CHANGELOG and affected
+  architecture/API/example/test/tool guides every stage, updating what changed
+  and recording a reason for no change elsewhere. Run affected Doxygen/link checks.
 - Use straightforward C++17, fixed-size values, explicit errors and bounded work.
   Avoid generic service frameworks, registries, hidden threads/retries, dependency
   injection frameworks, speculative backends and unnecessary parallel API surfaces.
 - The lead may delegate disjoint research, tests or implementation after shared
   contracts are settled. Assign explicit paths; shared headers, architecture,
   progress and Git have one writer. Reviewers are read-only. Select available
-  agents for the actual work without hard-coded model/version requirements.
+  models and reasoning effort for task complexity: lightweight for bounded
+  inventory/mechanical work, capable coding for scoped implementation/docs/tests,
+  stronger reasoning for state/ownership/silicon review. Record chosen model and
+  rationale with the task's scope. Use the inherited model when selection is not
+  available; never require a particular provider/version or relax acceptance.
   Integrate and review every agent change; delegation does not waive validation.
 - Follow root AGENTS' single execution branch and authorized checkpoint workflow.
   Commit and sync every completed prompt and coherent verified units during a
@@ -93,6 +108,8 @@ report `docs/reports/implementation/NN-topic.md` when executing a stage. Record:
 - commands, results, test counts and actual build/framework/board identities;
 - PASS, FAIL, NOT RUN or BLOCKED for each required evidence layer;
 - unresolved issues with exact dependency, next step and qualification limit.
+- the entry-rule reminder, model/delegation choices, Doxygen/general-doc changes
+  or relevant no-change reasons, and maintainability findings resolved;
 - execution branch/base, completed commit IDs and actual sync result; record
   completed IDs in the next update rather than a self-referencing commit loop.
 

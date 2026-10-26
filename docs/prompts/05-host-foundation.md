@@ -3,6 +3,11 @@
 Read [COMMON](COMMON.md) and the linked engineering, CLI and verification contracts
 before working. Prerequisites: 01-04.
 
+Read [CONVENTIONS](CONVENTIONS.md) and record the relevant rules, selected names,
+owned paths, current sources, documentation/checks and same-branch checkpoint.
+Use coding models for the scoped build/validator work and a lightweight model
+for mechanical manifest checks when useful; the lead reviews all results.
+
 ## Fresh audit and owned work
 
 Inspect current TCA9548A/TMP1x2/24Cxx CMake/test consumers, public-header tests,
@@ -36,6 +41,74 @@ identity is separate example metadata, with unknown identity for source archives
 reliable incremental refresh once examples exist. Add concise contribution/agent and
 source documentation for the new commands. Keep future feature and SDK support claims
 explicit.
+
+## Concrete foundation and file ownership
+
+Reopen TMP1x2 `Status.h`, `Config.h`, `CommandTable.h`, `CMakeLists.txt`,
+`scripts/generate_version.py`, `Doxyfile` and `tools/check_doxygen.py`. Compare
+24Cxx's registered tests and separate consumer. Inspect actual commands rather
+than copying target names or the sensor library's unfiltered IDF source list.
+
+Start with implemented `Status.h`, required pure config/variant validators and
+source-proved constants in `CommandTable.h`. Use `DP8382x::cmd::REG_*`/`MASK_*`
+with one authoritative value and documented access rules. `Version.h` is
+generated. Put driver/snapshot declarations in `DP8382x.h` only when they have
+real behavior; do not add `start*` methods returning placeholder success.
+Create private implementation files only when logic requires them; an honest
+header-only passive foundation is preferable to an empty `.cpp` used as a prop.
+Later chip logic still needs a real portable consumer.
+
+Use option `DP8382X_BUILD_TESTS` default OFF and explicit CMake source lists.
+Organize initial cases under `test/` by actual responsibility, such as status,
+validation, register vectors and portable consumer. Test helper behavior and
+error cases; do not add hundreds of tests that only mirror constant assignments.
+Each portable header must compile alone, and the test executable must exercise
+values at runtime with assertions/checks active in Release. Demonstrate a failing
+case actually causes test failure; zero discovered tests cannot pass the stage.
+
+Implement the version tool's `sync` and `check` modes with deterministic output,
+strict metadata parsing and a meaningful nonzero check result for stale files.
+Reject invalid versions without partially replacing generated files. Preserve
+actual owner/license/remote fields; only generate manifests for supported build
+paths. A normal consumer must not run generation or discover Git at configure time.
+
+Add `Doxyfile` and a focused `tools/check_doxygen.py` when the first public source
+appears. Reuse the peer principle of checking actual generated pages and links,
+with a small project-appropriate check rather than copying its full private-type
+checker blindly. Keep supported warnings actionable, required public inputs
+explicit and vendor/generated build trees excluded. Test the checker if it makes
+substantial pass/fail decisions; do not replace Doxygen with a keyword grep.
+TMP1x2 enables `EXTRACT_ALL`; page presence alone therefore does not prove source
+comments exist. Verify the selected warning/extraction policy with temporary
+negative fixtures for an undocumented public declaration and an invalid
+parameter reference. Both must fail the appropriate check. Keep semantic review
+of units/ownership/effects alongside automated checks; tags alone cannot prove it.
+
+Document commands with separate build directories, adapting the active compiler
+and multi-config flags where necessary. The intended starting pattern is:
+
+```sh
+cmake -S . -B build/host -DDP8382X_BUILD_TESTS=ON
+cmake --build build/host
+ctest --test-dir build/host --output-on-failure
+python scripts/generate_version.py check
+python tools/check_doxygen.py
+```
+
+These are future commands to implement and verify in this stage, not commands
+known to work in the current planning workspace. Add a separate tests-OFF
+consumer outside the library build tree and prove it cannot accidentally link a
+sibling or source-tree-only dependency. Do not require SDK, Python or Doxygen for
+that consumer.
+
+## Documentation in this stage
+
+Document every new public type/helper/field in its header with useful Doxygen;
+private source comments explain validation order and non-obvious bit rules.
+Update root README/CHANGELOG, `test/README.md`, build/testing/API guidance and
+tool usage with commands actually run and the support that now exists. Record
+absent driver/SDK/hardware layers separately. Run source-documentation and link
+checks locally; first-set remote CI still waits until prompt 29.
 
 ## Acceptance and handoff
 

@@ -30,6 +30,10 @@ work. Update docs/implementation-progress.md and the stage report with actual
 evidence. Commit and sync checked work, including coherent completed units during
 the prompt, on the same execution branch. Follow root AGENTS: first-set remote
 CI belongs only to prompt 29. Do not start the next stage in this invocation.
+Read CONVENTIONS.md for concrete selected names and file responsibilities.
+Start with a brief rule reminder, keep code and language simple, and update
+Doxygen plus affected general docs with the work. Select available subagent
+models/effort by complexity; the lead reviews and integrates their results.
 ```
 
 Change the filename for subsequent stages. For the whole set:
@@ -64,6 +68,12 @@ fetch, safe integration, push and verified equality with the branch's upstream.
 Preserve unrelated changes, do not force-push, and report actual sync failures.
 Do not modify siblings or publish releases as part of this execution.
 
+Use CONVENTIONS for concrete Status/health/method names and source layout.
+Choose available subagent models/effort by task complexity, with scoped paths
+and a short rationale. At each stage restate its applicable rules briefly,
+write simple readable code and Doxygen, update affected README/CHANGELOG/guides,
+and review the final diff against those rules before the checkpoint.
+
 Run applicable local and real SDK/package checks. For this first promptset only,
 remote CI dispatch, run-status checking and waiting belong to prompt 29. Prompts
 01-28 and 30-34 do not require them, even after major fixes or commit/sync. Keep
@@ -89,6 +99,8 @@ remaining gates, branch/commit and verified sync state.
 
 - [COMMON](COMMON.md): mandatory current-source audit, ownership, execution and handoff.
 - [ENGINEERING](ENGINEERING.md): names, portable/IDF boundary, MDIO, state and chip rules.
+- [CONVENTIONS](CONVENTIONS.md): selected Status/health/method names, exact sibling
+  precedents, file responsibilities, readable code and per-stage Doxygen/docs.
 - [FULL_COVERAGE](FULL_COVERAGE.md): complete chip features, exhaustive register/
   field/procedure evidence and broad manufacturer-first public research.
 - [CLI_CONTRACT](CLI_CONTRACT.md): shared example CLI, framing and Python artifacts.

@@ -24,6 +24,8 @@ remain library scope. See [full-coverage requirements](docs/prompts/FULL_COVERAG
 
 - [Implementation promptset](docs/prompts/README.md): complete ordered prompts,
   shared contracts and copyable execution instructions for an AI agent.
+- [Concrete conventions](docs/prompts/CONVENTIONS.md): selected Status/health and
+  method names, source layout, readability and Doxygen rules fitted from peers.
 - [Planning audits](docs/reports/README.md): actual sibling driver, FieldCore-node,
   tooling and PHY findings behind the plan.
 - [Implementation progress](docs/implementation-progress.md): all implementation

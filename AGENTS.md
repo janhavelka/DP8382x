@@ -8,7 +8,8 @@ Read README.md, docs/architecture.md, docs/variants.md and the reference index
 before implementation. Follow applicable parent Projects/AGENTS.md rules, with
 the user-requested first-promptset CI exception below.
 Read docs/prompts/README.md and docs/prompts/COMMON.md when executing a numbered
-stage. Editing or auditing the promptset does not itself start implementation.
+stage, plus docs/prompts/CONVENTIONS.md for selected concrete names and layout.
+Editing or auditing the promptset does not itself start implementation.
 Before every implementation stage, re-audit the relevant current sibling I2C
 headers, source, examples/CLI, tests, Python runners, workflows and agent rules.
 Record source revisions, paths and adopted/adapted/rejected conventions; historic
@@ -128,9 +129,18 @@ contract is implemented. Do not populate the future tree with successful stubs.
 - Use simple engineering English in comments, diagnostics, commit messages and
   reports. Document units, valid states, ownership, side effects, error/output
   behavior and time bounds. Cite non-obvious silicon sequences at their source.
+- Maintain Doxygen in public headers and meaningful procedure comments in source
+  with every behavior change. Document parameters, output validity, returned
+  statuses, callback lifetimes, I/O side effects and deadlines where relevant.
+  Start source documentation with the first implemented files; prompt 32 is an
+  audit, not permission to defer it. Run the relevant documentation checks.
 - Ship tests and source/user documentation with behavior, not as debt for later
   prompts. Do not turn planned contracts or compile-only fixtures into support
   claims. Keep public naming stable and resolve conflicts in all consumers.
+- Review README, CHANGELOG and affected architecture/API/example/test/tool guides
+  at every prompt. Update affected files with the code; record why an inspected
+  guide needs no change instead of adding empty edits. Review the diff for simple
+  control flow, useful names, duplicated rules and stale comments before commit.
 
 ## Engineering boundaries
 
@@ -207,9 +217,21 @@ contract is implemented. Do not populate the future tree with successful stubs.
   writable paths, frozen shared contracts, forbidden scope and acceptance cases.
   Shared headers, architecture, integration, progress and Git have one lead owner.
   Reviewers are read-only; agents do not race a shared build directory.
+- Choose from the models actually available for each task. Use a lightweight
+  model for bounded inventories and mechanical checks, a capable coding model
+  for scoped implementation/tests/docs, and stronger reasoning for ownership,
+  register semantics, deadlines and independent correctness review. Set model
+  and reasoning effort when supported; record the choice and short rationale.
+  Use the current model if selection is unavailable. Do not delay useful work
+  for a preferred model, or delegate shared semantic decisions to an unchecked
+  mechanical pass. Task scope and evidence requirements do not change by model.
 - The lead reviews/integrates every contribution and fixes confirmed findings.
   Prefer available agents suited to the task; do not hard-code model versions
   copied from another repository. Preserve all unrelated/concurrent work.
+- At each prompt entry, briefly restate the applicable rules in the work plan:
+  scope/owned paths, fresh sibling audit, chosen names, single MDIO owner,
+  documentation/local checks, branch and commit/sync checkpoint. Check them again
+  against the final diff. This is a short working reminder, not copied boilerplate.
 - Follow COMMON and the selected prompt's acceptance. Update progress, source/
   feature coverage and reports with actual commands, results, constraints and
   next steps. Never report implementation or hardware gates closed by prose.

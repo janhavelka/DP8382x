@@ -24,6 +24,9 @@ Use their actual current directory names discovered by `rg --files`. Do not
 copy obsolete reports or claimed API names without finding the implementation.
 A targeted stage revisits the applicable subset; it need not reread every line
 of every library. Record why the selected evidence is relevant.
+Use [CONVENTIONS](CONVENTIONS.md) for the concrete selected baseline. Inspect the
+named symbol and its implementation/tests before adopting its behavior; peers
+differ on health admission, lifecycle aliases and result retention.
 
 The [sibling audit](../reports/sibling-driver-audit.md),
 [FieldCore audit](../reports/fieldcore-conventions-audit.md),

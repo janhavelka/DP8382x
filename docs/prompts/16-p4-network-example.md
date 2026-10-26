@@ -3,6 +3,10 @@
 Read [COMMON](COMMON.md) and the linked engineering, CLI and verification contracts
 before working. Prerequisites: 01-15.
 
+Before the audit, apply COMMON's short rule reminder: current sibling sources,
+selected conventions, owned paths, source/general documentation, focused local
+checks and same-branch commit/sync. Choose subagent models by task complexity.
+
 ## Fresh audit and owned work
 
 Inspect sibling native-IDF example configuration, startup/cleanup, build identity and
@@ -34,6 +38,59 @@ SDK, target and board settings. No secrets in status.
 Document wiring assumptions, native build/flash/monitor commands, local peer fixture and
 scope of claims. Power delivery and internet provisioning policy are outside core.
 Retain a minimal example useful without FieldCore or the loading machine.
+
+## Concrete example structure and lifecycle
+
+Apply [CONVENTIONS](CONVENTIONS.md). Reopen the real application glue in
+`TMP1x2/examples/esp_idf/basic/main/main.cpp` and its `main/CMakeLists.txt`, plus
+`INA228/examples/esp_idf/basic/main/main.cpp` (`initExample`, `app_main`). Adopt
+explicit setup, backend error detail and shared-CLI separation; review rather
+than copy large dispatch loops, global device ownership or I2C hardware choices.
+
+Keep this application understandable from its own directory:
+`examples/esp_idf/basic/CMakeLists.txt`, component dependency metadata,
+`sdkconfig.defaults`, `main/CMakeLists.txt`, `main/main.cpp` and README. Put board
+values in a small application-owned `main/BoardConfig.h` or the established
+shared board helper when both P4 examples really use it. Do not create a board
+registry, another driver wrapper or duplicate link-policy setters. Show which
+settings are checked facts, user inputs or unverified assumptions.
+
+1. Validate interface, PHY address, reset wiring and clock source/direction
+   before creating the backend. Report missing board values explicitly; never
+   choose a default pin merely because a sibling example used it.
+2. Create resources in a stated order: application event/network context,
+   MAC/PHY adapter, Ethernet driver installation, application event handlers and
+   network attachment, then explicit start. Confirm the exact order against the
+   pinned SDK and record who releases each handle. Use a short direct cleanup
+   routine for partial initialization, with flags/handles for acquired resources.
+3. Event callbacks publish bounded evidence or signal the owner. Owner service
+   performs admitted work and console draining. Never start a new reset,
+   negotiation or side-effect status reader from a callback while the framework
+   already owns that operation.
+4. Print separate fields for management health, verified configuration, current
+   link observation, application profile, IP state and any explicitly requested
+   probe. A DHCP timeout with healthy MDIO and link up remains a network result.
+   A link at 10/half can be valid generic PHY behavior while failing a selected
+   100/full application profile.
+5. Exercise explicit stop/start and teardown with active callbacks drained before
+   freeing their contexts. Preserve the first failure and report cleanup failure
+   independently. Avoid infinite restart loops or implicit recovery policy.
+
+Add fault cases for every resource acquisition, failed handler registration,
+failed start/stop, link events during shutdown and a withheld console backend.
+Prove event/console bursts do not introduce a second PHY poller. Local lifecycle
+tests and a linked firmware image are distinct from DHCP/link hardware evidence.
+Do not add an Internet dependency to demonstrate ordinary Ethernet operation.
+
+Doxygen on application callbacks/helpers must explain buffer/context ownership,
+thread/task context, valid lifecycle states and work limits. Update this example's
+README with reproducible native SDK build instructions, a local peer fixture,
+selected board profile, observable outputs and stop/cleanup behavior; update
+`docs/esp-idf.md`, the root README example table and CHANGELOG. Run documentation
+checks for changed source comments and verify documented command paths. A
+disjoint reviewer can audit cleanup and guide accuracy while the lead owns the
+application lifecycle and shared contract edits. Choose agents by complexity;
+do not duplicate the application in separate framework-specific implementations.
 
 ## Acceptance and handoff
 

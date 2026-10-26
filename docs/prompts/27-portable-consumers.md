@@ -4,6 +4,10 @@ Read [COMMON](COMMON.md) and the linked engineering, CLI and verification contra
 before working. Prerequisites: 01-26 software outputs; unsupported variants remain
 unavailable, not silently simulated.
 
+Before the audit, apply COMMON's short rule reminder: current sibling sources,
+selected conventions, owned paths, source/general documentation, focused local
+checks and same-branch commit/sync. Choose subagent models by task complexity.
+
 ## Fresh audit and owned work
 
 Inspect TCA9548A standalone consumer, TMP1x2/24Cxx ordinary C++ examples and FieldCore
@@ -37,6 +41,65 @@ MAC/MDIO backend. If feasible and in scope, implement/test a thin adapter using 
 core/CLI; otherwise document precise unimplemented platform scope. Framework neutrality
 is required; advertising fictional S2/S3 EMAC examples is not. Avoid a generic backend
 catalogue created solely for appearance.
+
+## Concrete standalone owner and application mapping
+
+Apply [CONVENTIONS](CONVENTIONS.md). Inspect
+`TMP1x2/test/core_no_arduino/compile_main.cpp`, `TMP1x2/CMakeLists.txt` and
+`24Cxx/CMakeLists.txt` for exported header/source selection and tests-OFF behavior.
+Reopen `FieldCore-node/src/devices/i2c/Ina228Module.h/.cpp`, its borrowed
+`I2cOwnerTransport` and current `DeviceModuleStatus`/result contracts. Use
+`mapLibraryStatus`, `mapJobEffect`, `snapshot` and `copyStatus` to explain explicit
+translation and cached projection; do not copy their I2C or sensor policy into
+DP8382x or edit FieldCore-node.
+
+Create one useful ordinary application under `examples/portable/basic/` with a
+small `CMakeLists.txt`, `main.cpp` and README, adapting an existing consumer if
+already present. Link target `DP8382x` through its public usage requirements;
+do not include `src/` files, private headers, sibling directories or test fixture
+headers. Keep host script/fake transport clearly named and local to the simulated
+example. A real MCU backend requires separate actual hardware evidence.
+
+The running example must demonstrate the stage 04 API in a direct sequence:
+
+1. Construct two independent driver instances with distinct borrowed contexts and
+   caller-owned monotonic time. Explain callback lifetime and complete transaction
+   ownership, including a shared-controller lock when both instances share MDIO.
+2. Explicitly initialize/configure one instance, advance the admitted operation
+   with finite owner budgets, retain its terminal result and obtain passive
+   `HealthSnapshot`/`LinkSnapshot` and configuration evidence. Do not hide a
+   blocking convenience loop behind a method named poll.
+3. Show legal generic 10/100 policy versus a separate 100/full application check.
+   Demonstrate cancellation/recovery admission and primary/cleanup uncertainty
+   without silently replaying writes or resetting either instance.
+4. Inject a backend failure on one instance; verify its counters, status detail
+   and trust change while the other instance remains independent. Demonstrate
+   cached rendering with zero frame delta and failed reads preserving outputs.
+5. Release results and resources in the documented order. Reject rebinding or
+   context destruction while owned work/cleanup still references the context.
+
+Add `docs/firmware-integration.md` with an example translation table covering
+`Status::{code,detail,msg}`, progress, transport health, configuration trust,
+link validity/resolution and application readiness. Preserve backend detail;
+static message lifetime does not make it a stable machine error code. Explain
+how a FieldCore-like module can own `start`/`poll`/retained results and copy cached
+snapshots without firmware contracts in public DP8382x headers. Do not prescribe
+new tasks/registries, sensor timestamps or existing Ethernet support for FieldCore.
+
+Configure/link/run with tests OFF in a clean consumer build using only public
+artifacts. Verify no configure-time Python/Git/Doxygen/SDK dependency. Run a
+second available compiler with the same source and report availability honestly.
+Stage 28 owns release-package extraction policy; this stage proves independent
+application consumption and must not claim that unbuilt package is already
+validated. Build both actual P4 applications separately and inspect source lists
+for accidental portable/SDK mixing.
+
+Document example helper ownership and bounds in Doxygen, maintain the portable
+README and integration guide, and update root README consumer claims and
+CHANGELOG. Run source documentation checks and verify documented includes,
+commands and example output. A disjoint agent can implement/review the ordinary
+consumer after public contracts are frozen; use independent reasoning review for
+mapping/state validity. The lead owns any shared API correction and integration.
 
 ## Acceptance and handoff
 

@@ -21,6 +21,14 @@ an exhaustive [DP83826I inventory](reference/dp83826i-feature-inventory.md) and
 [additional public manufacturer sources](reference/public-research.md).
 These are planning artifacts; all implementation stages remain NOT STARTED.
 
+The concrete-conventions follow-up expands all stages from current sibling
+source. See [CONVENTIONS](prompts/CONVENTIONS.md) for selected Status/health/method
+names, file responsibilities and Doxygen requirements. Every prompt includes
+rule reminders, focused current-source checks and stage-specific documentation.
+Model selection follows task complexity and available tools. This maintenance
+does not mark any implementation stage complete. The preceding guidance
+checkpoint was `572f8b1f6946fe645f35d7ad5c16c5ef617cfdfb`, synchronized on `main`.
+
 ## Execution record
 
 Execution branch/base: not started. Before prompt 01 implementation, use the
@@ -83,7 +91,9 @@ Create `docs/reports/implementation/NN-topic.md` during execution, with:
 
 - baseline branch/revision and dirty state; prerequisites and owned files;
 - current sibling audit with exact paths and decisions adopted/adapted/rejected;
+- short rule reminder, delegated scope/model choices and selection rationale;
 - exact TI/SDK references, decisions, implementation/API changes and consumers;
+- Doxygen/source comments and README/CHANGELOG/guide changes or no-change reasons;
 - commands and results for host, CLI/Python, SDK, package and remote CI separately;
 - physical fixture/image identity and evidence, or explicit NOT RUN/BLOCKED;
 - unresolved gates, next eligible stage and any actual authorized Git result.

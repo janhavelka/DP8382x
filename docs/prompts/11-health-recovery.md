@@ -3,6 +3,11 @@
 Read [COMMON](COMMON.md) and the linked engineering, CLI and verification contracts
 before working. Prerequisites: 01-10.
 
+Read [CONVENTIONS](CONVENTIONS.md) and restate the applicable stage rules before
+coding. Re-audit live sibling source; use simple engineering language, source
+Doxygen, affected guides and local checks. Keep the same execution branch and
+coherent-unit/per-prompt commit+sync; first-set remote CI belongs only to 29.
+
 ## Fresh audit and owned work
 
 Compare INA228, SHT3x, PCA9555 and TCA9548A actual health accounting; read TMP1x2
@@ -11,6 +16,72 @@ config-trust implementation and FieldCore lifecycle/presence/health separation.
 The lead owns shared API/architecture/progress changes. Delegate disjoint tests or
 read-only review if useful; siblings remain read-only. Record concrete source paths and
 adopted/adapted/rejected conventions in this stage's report.
+
+## Concrete source pass and implementation boundaries
+
+Read [CONVENTIONS](CONVENTIONS.md). Reopen
+`TMP1x2/src/TMP1x2.cpp::track`, `healthSnapshot`, `invalidateDeviceState` and
+`TMP1x2/include/TMP1x2/TMP1x2.h::HealthSnapshot`; compare
+`PCA9555/src/PCA9555.cpp::_updateHealth`, `_i2cWriteCleanupTracked` and
+`test_input_read_failures_survive_successful_cleanup_in_health_and_validity`
+in its tests. Inspect INA228's actual health-policy branches rather than assume
+its OFFLINE admission policy matches TMP1x2. 24Cxx expected busy-poll accounting
+illustrates progress versus transport failure; it supplies no MDIO NACK rule.
+
+Use `DriverState::{UNINIT, READY, DEGRADED, OFFLINE}`, `healthSnapshot` and
+`driverState` from the planned baseline. Prefer TMP1x2 field names `initialized`,
+`consecutiveFailures`, `totalFailures`, `totalSuccess`, `lastOkMs`, `lastErrorMs`,
+`lastOkTimeValid`, `lastErrorTimeValid`, `lastError`; 04 fixes widths/thresholds.
+Do not add equivalent getHealth/state/healthState/online APIs. READY expresses
+documented driver health, never link/IP readiness. PCA9555's actual three-state
+model is a deliberate difference, not evidence all siblings share four states.
+
+Accounting stays at 06's transport boundary; projection extends existing status
+and lifecycle sources. `startRecover` shares reset/configuration verification.
+No recovery manager, hidden retry timer or autonomous application policy.
+
+## Decisions and independent test oracles
+
+1. Make a transition/accounting table for bind, initialize, local rejection,
+   tracked success/failure, raw/probe diagnostics, cleanup, cancel, reset,
+   invalidation and end. Define initialized separately from health. OFFLINE is
+   passive evidence; it must not silently suppress owner-requested MDIO.
+2. Define counting units. Several successful frames followed by one failure in
+   an indirect operation must not produce contradictory logical outcomes. Keep
+   all attempted frames and transactions observable separately from managed
+   health; local BUSY/IN_PROGRESS and no link are not transport faults.
+3. Adapt the PCA9555 cleanup lesson: successful cleanup must not hide the primary
+   failure by clearing consecutiveFailures, while cleanup failure remains visible.
+   All-source activity still records actual cleanup frames. Document managed
+   attribution explicitly rather than copying I2C wrapper names/counting units.
+4. Preserve last error and saturate counts. If 04 selected resetStatistics,
+   counter reset must not erase active failures, uncertain configuration, pending
+   result or timestamp evidence. Zero is a valid time; absence has a validity flag.
+5. Reconcile stable owned bits with explicit proof. Unrelated read/raw success
+   cannot restore trust. Raw write, external writer/reset and ambiguous managed
+   writes invalidate appropriate knowledge, without automatically being bus faults.
+6. Recovery is an admitted bounded request through existing verify/reapply/reset
+   procedures. Choose required steps from source/current evidence, preserving
+   partial effects and cleanup errors. Cable reconnect does not schedule recovery
+   or select forced speed. Application scheduling/retries remain outside core.
+
+Table-driven sequences cover every transition/threshold, literal multi-frame
+counts, saturation at each actual width, timestamp zero/missing/wrap and retained
+last error after success. Test primary failure plus successful/failed cleanup,
+two instances, zero-I/O views and local-invalid input. Link down, negotiating
+and policy mismatch change no transport-failure counters. Recover after raw
+write and external reset; fail every verification/apply phase and prove that
+successful MDIO alone does not validate the desired configuration.
+
+## Documentation shipped in this stage
+
+Doxygen each health field/state/counter/getter and recovery method with counting
+unit, saturation, validity, passive behavior and error retention. Maintain the
+transition table and a compiling bounded recovery example in the health/config
+guide. Explain mapping to application readiness without hidden I/O. Update
+README, CHANGELOG, API contracts, ledger and validation; run Doxygen/link checks.
+Use the same branch and coherent-unit/per-prompt commit+sync. Remote CI dispatch,
+polling and waiting stay at 29 for the first set.
 
 ## Work
 

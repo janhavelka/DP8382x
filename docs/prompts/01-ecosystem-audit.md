@@ -4,6 +4,11 @@ Read [COMMON](COMMON.md) and the linked engineering, CLI and verification contra
 before working. Prerequisites: None. Planning reports are starting evidence, not
 completed implementation-stage output.
 
+Read [CONVENTIONS](CONVENTIONS.md). Start with a short rule reminder: this stage's
+scope, owned files, current sibling evidence, one execution branch, simple
+language, documentation/local checks and commit/sync. Choose available subagent
+models by task complexity under COMMON; the lead owns decisions and Git.
+
 ## Fresh audit and owned work
 
 Inspect TMP1x2, INA228, PCA9555, TCA9548A, MB85RC, BME280 and SHT3x-main deeply;
@@ -40,6 +45,49 @@ Inventory likely consumers: ordinary C++ MCU owners, native P4 Ethernet applicat
 an application-owned EtherCAT master. Document what FieldCore currently supplies and
 what a future integration must own. Do not add FieldCore dependency types or an
 imaginary Ethernet module.
+
+## Concrete comparison and decisions
+
+Begin with these actual precedents, then verify they still exist and behave as
+observed. Include conflicting conventions; do not label a preference universal.
+
+| Topic | Source to inspect | Decision to record for this PHY |
+| --- | --- | --- |
+| Status | TMP1x2/PCA9555 `Status.h`: `Err`, `Status`, `errorName`, `Status::Error` | Preserve static message lifetime, full backend detail and helper spelling; use MDIO-specific errors |
+| Health | TMP1x2 `HealthSnapshot`/`track`; PCA9555 three-state `DriverState`; INA228 `HealthPolicy` | Selected four-state passive telemetry, exact counting unit, no offline admission or cable-as-bus-fault rule |
+| Lifecycle | TMP1x2 `bind`, `begin`, `end`, `startInitialize`, `takeResult`; PCA9555 `pollOperation` | Select one documented vocabulary; do not copy competing aliases or assume `begin` is bus-silent |
+| Configuration evidence | PCA9555 `ObservedState`/`RegisterImage`; INA228 `HardwareState` | Separate desired, observed and trusted configuration; failed writes preserve uncertainty |
+| Source structure | TMP1x2 `src/TMP1x2Configuration.cpp`, `TMP1x2Operations.cpp`, `CMakeLists.txt` | Split by real responsibility, explicit portable/SDK source lists, no file per register |
+| CLI/runner | TMP1x2 `Cli::feed`/`processCommand`/`tick`, 24Cxx identity parser, INA228 framed HIL parser | One shared grammar, retained terminal results, exact correlation and actual flashed-image evidence |
+| Source documentation | TMP1x2 `Doxyfile`, `tools/check_doxygen.py`, PCA9555 public headers | Doxygen with behavior and ownership from the first source-bearing stage; checked generated API pages |
+
+For each row record source path/symbol, revision/dirty state, what the implementation
+actually does, the adopted/adapted/rejected rule, and where the DP8382x contract
+will live. Inspect a representative test and its registration. A claimed test that
+is not registered is a gap, not proof. Identify stale sibling docs without editing
+them. MDIO register semantics still come from the exact TI evidence.
+
+Create a concise future file-responsibility map from CONVENTIONS. Name the core,
+SDK adapter, shared CLI, host tests, runner, version tool and Doxygen owner. Map
+consumer requirements to those layers rather than adding a FieldCore-specific
+service. Record which proposed files are not needed yet.
+
+Choose useful delegation: bounded path inventories can use a lightweight model;
+API/state/ownership comparisons need stronger reasoning and lead review. Give
+each task owned paths, read-only sources, exact questions and acceptance evidence.
+Record available model selection and rationale without requiring a fixed model
+name in future sessions. Agents may share the execution branch with disjoint
+owned paths; the lead alone switches branches, stages, commits and syncs.
+
+## Documentation in this stage
+
+Update `docs/library-comparison.md`, the current execution report, relevant
+architecture/design notes and the progress record. Review root README and
+CHANGELOG for the audited scope and decisions, keeping all driver support claims
+planned. Record the source-documentation standard and future Doxygen command in
+the execution plan; no C++ header or fake API is needed for a planning-only audit.
+Use plain statements such as "PCA9555 uses three health states; this PHY plan
+selects four passive states and keeps link state separate."
 
 ## Acceptance and handoff
 
