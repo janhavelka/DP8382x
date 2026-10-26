@@ -1,20 +1,23 @@
 # 34 - Implement quality and hardware link-loss controls
 
-Read [COMMON](COMMON.md), [ENGINEERING](ENGINEERING.md),
-[CONVENTIONS](CONVENTIONS.md), [FULL_COVERAGE](FULL_COVERAGE.md) and
-[VERIFICATION](VERIFICATION.md). Use [SOURCE_MAP](SOURCE_MAP.md) for current
-source locations; historical reports do not replace a fresh audit.
+Follow [COMMON](COMMON.md) and its shared contracts, including
+[CONVENTIONS](CONVENTIONS.md), [EVIDENCE](EVIDENCE.md) and
+[FULL_COVERAGE](FULL_COVERAGE.md). Begin with the stage-specific rule reminder:
+owned paths, fresh relevant sibling audit, selected names, one MDIO owner,
+documentation/local checks and the recorded execution branch. Use available
+subagents for disjoint work or independent review as COMMON specifies.
 
-At entry record owned paths, applicable rules, current source revisions/dirty
-state, selected names, one MDIO owner, local checks and the recorded execution
-branch. Resume that branch. Use disjoint implementation/test work or independent
-read-only review when useful; choose available models/effort by task complexity
-and record the rationale. The lead owns shared contracts, integration and Git.
-Siblings remain read-only.
-
-Prerequisites: [20](20-event-counter-acquisition.md), [18](18-forced-crossover-settings.md), [5](5-silicon-power-interface-ledger.md), [33](33-clock-interface-repeater.md); only the concrete inputs used below are required.
+Prerequisites: [20](20-event-counter-acquisition.md),
+[18](18-forced-crossover-settings.md), [5](5-silicon-power-interface-ledger.md),
+[33](33-clock-interface-repeater.md). Verify the concrete inputs below; retain unrelated
+open gates under COMMON.
 
 ## Scope, current evidence and work
+
+Deliver remaining documented raw quality/MSE, polarity/jabber, remaining next-page evidence through task 17's exchange and task 20's collector,
+ MII-only Fast Link Drop and hardware link-loss-recovery settings.
+Reconcile this group against tasks 17–20 so every field has one implementation
+and collector rather than overlapping helpers.
 
 Re-open the [FLD/quality source facts](../reference/library-ti-features.md#led-interface-and-link-quality-controls)
 and SNLS647I tables 8-29/30/52/53/72. CR3 cause mask `0x040F`
@@ -24,13 +27,8 @@ and threshold `[9:4]` accepts 1..63 errors; both zero codes are reserved.
 Qualify how these controls relate to generic 10 us prose. Datasheet maxima are
 10 us for modes 1-4 and 11 us for descrambler, excluding host observation latency.
 Keep MSE `0218` versus app-note `0225` unresolved until evidence closes it.
-Include the MCU odd-nibble polarity bug (setting CR2 bit 1 disables detection)
-and RX_ER-during-IDLE versus IPG naming as independent regression cases.
-
-Deliver remaining documented raw quality/MSE, polarity/jabber, next-page
-evidence, MII-only Fast Link Drop and hardware link-loss-recovery settings.
-Reconcile this group against tasks 17–20 so every field has one implementation
-and collector rather than overlapping helpers.
+Test CR2 bit 1 clear=odd-nibble detection enabled/set=disabled, including mode
+constraints, and CR2 bit 2 RX_ER-during-IDLE independently of GENCFG IPG.
 
 Reopen INA228 raw diagnostic validity/destructive reads, TMP1x2 cached
 snapshots/configuration verification and current LDC1614 deferred-event source/
@@ -73,23 +71,14 @@ MII fixtures remain an open physical gate, not omitted software functionality.
 
 ## Documentation, verification and checkpoint
 
-Ship accurate public Doxygen and procedure citations with this behavior: units,
-legal states, ownership, output validity, I/O effects, deadlines and cleanup.
-Update API contracts, affected guides, restoration/feature evidence and the stage
-report/progress. Review README, CHANGELOG and relevant example/test/tool guides;
-update affected claims and record why others need no change. Future APIs and
-physical qualification remain explicitly unimplemented/unverified.
+Update public Doxygen, procedure citations, affected API/user/test/tool guides,
+coverage, stage report and progress with this behavior. Review README/CHANGELOG
+and record relevant no-change reasons. Run the focused registered host tests
+above with active Release checks, affected portable-consumer and Doxygen checks,
+`python tools/verify_references.py` and `git diff --check`.
 
-Run registered focused host tests with active Release checks, relevant portable
-consumer/source-documentation/link checks, the reference checker and
-`git diff --check`. Record actual commands and separate PASS/FAIL/NOT RUN/BLOCKED
-for host, SDK, packages and hardware where relevant. Missing source evidence
-blocks the affected requirement; it cannot become unsupported silicon or close
-a required gate. Continue independent eligible work.
-
-Review the final diff for simple control flow, stale comments, duplicated
-procedures and undocumented errors. Commit and sync checked tests/docs/code on
-the same execution branch after this task and each coherent verified unit.
-The lead fetches, safely integrates, pushes and verifies upstream equality;
-report exact sync failures. First-execution remote CI dispatch, polling and
-waiting belong only to checkpoint **71**, never this task.
+Apply COMMON's final maintainability review and evidence reporting. Keep source
+gaps, SDK/package results and physical qualification separate. The lead commits
+and syncs this complete task and coherent verified units on the same execution
+branch, verifies upstream equality, and reports any sync failure. First-set
+remote CI runs and status checks belong only to prompt 71.

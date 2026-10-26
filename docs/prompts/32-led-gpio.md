@@ -1,36 +1,31 @@
 # 32 - Implement all LED and GPIO controls
 
-Read [COMMON](COMMON.md), [ENGINEERING](ENGINEERING.md),
-[CONVENTIONS](CONVENTIONS.md), [FULL_COVERAGE](FULL_COVERAGE.md) and
-[VERIFICATION](VERIFICATION.md). Use [SOURCE_MAP](SOURCE_MAP.md) for current
-source locations; historical reports do not replace a fresh audit.
+Follow [COMMON](COMMON.md) and its shared contracts, including
+[CONVENTIONS](CONVENTIONS.md), [EVIDENCE](EVIDENCE.md) and
+[FULL_COVERAGE](FULL_COVERAGE.md). Begin with the stage-specific rule reminder:
+owned paths, fresh relevant sibling audit, selected names, one MDIO owner,
+documentation/local checks and the recorded execution branch. Use available
+subagents for disjoint work or independent review as COMMON specifies.
 
-At entry record owned paths, applicable rules, current source revisions/dirty
-state, selected names, one MDIO owner, local checks and the recorded execution
-branch. Resume that branch. Use disjoint implementation/test work or independent
-read-only review when useful; choose available models/effort by task complexity
-and record the rationale. The lead owns shared contracts, integration and Git.
-Siblings remain read-only.
-
-Prerequisites: [27](27-interrupt-service.md), [31](31-wake-on-lan.md), [5](5-silicon-power-interface-ledger.md); only the concrete inputs used below are required.
+Prerequisites: [27](27-interrupt-service.md), [31](31-wake-on-lan.md),
+[5](5-silicon-power-interface-ledger.md). Verify the concrete inputs below; retain
+unrelated open gates under COMMON.
 
 ## Scope, current evidence and work
-
-Recheck the [LED source comparison](../reference/library-ti-features.md#led-interface-and-link-quality-controls)
-against visually inspectable SNLS647I tables 8-49/85/89. LED0 uses
-`0025[6:3]`, mask `0x0078`; LED1/2/3 use `0460[7:4]/[11:8]/[15:12]`.
-The TI MCU and RTOS LED1/3 shifts conflict with this table; the RTOS LED0
-three-bit mask also loses modes 8..E. Test every LED independently with literal
-vectors, reject source 0xF, and retain MLEDCR bit 0=1 (zero is reserved).
-LEDCFG2 bits 8/9/10 are reserved, not usable LED3 drive controls.
-Blink codes 0-3 at `0018[10:9]` mean 50/100/200/500 ms. Resolve per-pin mux
-R-versus-R/W and reserved clock selections; a vendor's write to all four muxes
-does not prove those writes valid.
 
 Deliver documented LED/GPIO sources, mux, polarity, drive, blink and stretch
 controls with exact applicability, conflict validation and verified restoration.
 Extend coherent typed configuration and shared pin ownership rules; no class
 per pin or field, generic pin registry or alternate raw-setter aliases.
+
+Recheck the [LED source comparison](../reference/library-ti-features.md#led-interface-and-link-quality-controls)
+against visually inspectable SNLS647I tables 8-49/85/89. LED0 uses
+`0025[6:3]`, mask `0x0078`; LED1/2/3 use `0460[7:4]/[11:8]/[15:12]`.
+Test every LED independently with literal vectors, including LED0 modes 8..E
+to exercise the full four-bit selector, reject source 0xF, and retain MLEDCR bit 0=1 (zero is reserved).
+LEDCFG2 bits 8/9/10 are reserved, not usable LED3 drive controls.
+Blink codes 0-3 at `0018[10:9]` mean 50/100/200/500 ms. Resolve per-pin mux
+R-versus-R/W and reserved clock selections for each pin before enabling its programmable path.
 
 Reopen PCA9555 desired/observed and raw shadow-invalidation code/tests,
 LDC1614 deferred interrupt/pin source and relevant SCD41/RV3032-C7 public IRQ
@@ -42,7 +37,10 @@ Make a complete legal-settings table for every documented pin/source/mux/drive/
 polarity/blink/stretch field. Distinguish reset-loaded/strap behavior, runtime
 programmability and observable hardware-only properties. Unknown or reserved
 encodings are rejected, not treated as tuning choices. Unconnected initial-board
-pins still belong to the generic software API.
+pins still belong to the generic software API. Include the effect of collector
+reads on latched LED indications: BMSR consumption clears link-loss indication,
+and BIST error-counter clearing affects PRBS indication. Document and test these
+shared effects without adding another LED-owned status reader.
 
 Validate the entire pin profile before I/O, including conflicts with interrupt,
 WoL and source-defined clock/interface uses. Preserve each existing user's owned
@@ -76,23 +74,14 @@ visible LEDs, IRQ delivery or external clocks from host register tests.
 
 ## Documentation, verification and checkpoint
 
-Ship accurate public Doxygen and procedure citations with this behavior: units,
-legal states, ownership, output validity, I/O effects, deadlines and cleanup.
-Update API contracts, affected guides, restoration/feature evidence and the stage
-report/progress. Review README, CHANGELOG and relevant example/test/tool guides;
-update affected claims and record why others need no change. Future APIs and
-physical qualification remain explicitly unimplemented/unverified.
+Update public Doxygen, procedure citations, affected API/user/test/tool guides,
+coverage, stage report and progress with this behavior. Review README/CHANGELOG
+and record relevant no-change reasons. Run the focused registered host tests
+above with active Release checks, affected portable-consumer and Doxygen checks,
+`python tools/verify_references.py` and `git diff --check`.
 
-Run registered focused host tests with active Release checks, relevant portable
-consumer/source-documentation/link checks, the reference checker and
-`git diff --check`. Record actual commands and separate PASS/FAIL/NOT RUN/BLOCKED
-for host, SDK, packages and hardware where relevant. Missing source evidence
-blocks the affected requirement; it cannot become unsupported silicon or close
-a required gate. Continue independent eligible work.
-
-Review the final diff for simple control flow, stale comments, duplicated
-procedures and undocumented errors. Commit and sync checked tests/docs/code on
-the same execution branch after this task and each coherent verified unit.
-The lead fetches, safely integrates, pushes and verifies upstream equality;
-report exact sync failures. First-execution remote CI dispatch, polling and
-waiting belong only to checkpoint **71**, never this task.
+Apply COMMON's final maintainability review and evidence reporting. Keep source
+gaps, SDK/package results and physical qualification separate. The lead commits
+and syncs this complete task and coherent verified units on the same execution
+branch, verifies upstream equality, and reports any sync failure. First-set
+remote CI runs and status checks belong only to prompt 71.

@@ -76,6 +76,7 @@ Update device behavior, register/vectors guides, feature evidence and conflict
 list together. Review README/CHANGELOG and the planned procedure/Doxygen
 citations. Verify complete topic coverage against detailed tables and feature
 text; unresolved source gates have exact evidence needed and affected scope.
-Run local reference/link/diff checks and update report/progress. Commit and
+Run the ledger validator, its affected tests and local reference/link/diff
+checks; update report/progress. Commit and
 sync this complete research task and coherent checked units on the same branch.
 Remote CI is reserved for prompt 71.

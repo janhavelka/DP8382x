@@ -37,7 +37,8 @@ oracle. Compare authorized real traces/readbacks when making physical claims.
 - Complete indirect-transaction serialization, cross-owner contention, failed
   acquisition, release on all exits, lock order and no IDF-base bypass. Count
   logical operations and actual MDIO frames separately; zero cooperative budget
-  causes no I/O. Test partial batches and no illegal interleaving.
+  causes no I/O. Test selector/alias protection, partial batches, release guarantees
+  and subsequent admission after any supported release failure.
 - Register access attributes, reserved masks, W0C/W1C/W1S/read-clear/latch-low/counter
   behavior and independent test oracles. Pin unresolved datasheet ambiguities;
   do not choose a convenient fake behavior and call it silicon truth.
@@ -49,13 +50,16 @@ oracle. Compare authorized real traces/readbacks when making physical claims.
   combinations per device; board-specific restrictions do not limit core tests.
 - Deadline exhaustion, clock wrap/quantization/frozen clock handling, bounded
   callback budget, cancellation at side-effect boundaries, retained results,
+  completion-based minimum waits, persistent versus temporary restore state,
   independent instances, lifecycle reuse, no allocation in core hot paths.
 - Health versus link/config evidence, no-I/O snapshots, saturating counters,
   timestamp validity and diagnostic traffic attribution. A cable-down observation
   and invalid argument must not turn into an MDIO transport fault.
 - Native CLI parser/output/owner execution, all malformed input cases, bounded
   console under saturation, truthful errors/restoration, firmware provenance and
-  Python fragmented/duplicate/reboot/truncation cases.
+  Python fragmented/duplicate/reboot/truncation cases. Include partial serial
+  write/framing loss, finite finalization, required manifest membership and
+  agreement between artifact and case verdicts.
 
 Use CMake/CTest with tests OFF by default for consumers. Register real suites,
 strict compiler warnings, applicable sanitizers and a second host compiler where
@@ -71,6 +75,12 @@ that it is the final tested range. A header shim or syntax-only build is not
 native IDF evidence. Build/link the actual component and P4 examples, test callback
 lifetime/start/stop/delete paths, dependency declarations and the IEEE 802.3
 base boundary. State all SDK API/timing restrictions discovered.
+
+Exercise callback-context resolution during installation, two independent
+instances, partial install/start/stop/delete effects and callback quiescence.
+Use actual raw ioctls for transfer-admission tests; test control-ioctl partial
+effects separately. Verify same-link mode changes and both cached-AN direct-start
+paths. Serialize cached driver access as well as I/O under the application owner.
 
 Do not copy I2C peers' S2/S3 matrices into an EMAC example. Additional frameworks
 or targets require a working MAC/MDIO integration and their own build evidence.
@@ -131,11 +141,14 @@ merge/release checks; do not disable or bypass them. After the first execution,
 the parent CI policy resumes unless the user instructs otherwise. Keep fixture
 jobs opt-in to declared hardware; don't fake hardware in hosted CI.
 
-Test packages by extracting into a clean temporary directory without source-tree
-or sibling fallbacks. Validate archive paths, required notices and excluded
+Test build-tree public consumers at 68, install/export configuration at 69 and
+clean extracted plus relocated installed `find_package` consumers at 70-71.
+Validate archive paths, required notices and excluded
 vendor/reference/build/HIL material. Build a minimal consumer and linked SDK
-example from the exported contents. Generate metadata deterministically and
-check versions match. Publication is a separate action from local package tests.
+example from the exported contents, with no source-tree/sibling fallback.
+Check relocatable public usage requirements. Generate metadata deterministically,
+verify nonmutating check/import paths and matching versions. Publication is a
+separate action from local package tests.
 
 For this documentation-only promptset, current executable checks are:
 

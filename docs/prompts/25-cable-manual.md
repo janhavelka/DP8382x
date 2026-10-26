@@ -1,20 +1,22 @@
 # 25 - Implement complete manual cable capture
 
-Read [COMMON](COMMON.md), [ENGINEERING](ENGINEERING.md),
-[CONVENTIONS](CONVENTIONS.md), [FULL_COVERAGE](FULL_COVERAGE.md) and
-[VERIFICATION](VERIFICATION.md). Use [SOURCE_MAP](SOURCE_MAP.md) for current
-source locations; historical reports do not replace a fresh audit.
+Follow [COMMON](COMMON.md) and its shared contracts, including
+[CONVENTIONS](CONVENTIONS.md), [EVIDENCE](EVIDENCE.md) and
+[FULL_COVERAGE](FULL_COVERAGE.md). Begin with the stage-specific rule reminder:
+owned paths, fresh relevant sibling audit, selected names, one MDIO owner,
+documentation/local checks and the recorded execution branch. Use available
+subagents for disjoint work or independent review as COMMON specifies.
 
-At entry record owned paths, applicable rules, current source revisions/dirty
-state, selected names, one MDIO owner, local checks and the recorded execution
-branch. Resume that branch. Use disjoint implementation/test work or independent
-read-only review when useful; choose available models/effort by task complexity
-and record the rationale. The lead owns shared contracts, integration and Git.
-Siblings remain read-only.
-
-Prerequisites: [22](22-reconcile-recover.md), [20](20-event-counter-acquisition.md), [4](4-silicon-diagnostic-ledger.md); only the concrete inputs used below are required.
+Prerequisites: [22](22-reconcile-recover.md), [20](20-event-counter-acquisition.md),
+[4](4-silicon-diagnostic-ledger.md). Verify the concrete inputs below; retain unrelated
+open gates under COMMON.
 
 ## Scope, current evidence and work
+
+Deliver the exact DP83826I manual cable diagnostic procedure, complete controls,
+raw results, cancellation and restoration. Keep start/acquire/stop/restore in
+this task; no half-feature diagnostic scaffold. Extend existing diagnostics and
+the one operation slot. No TDR service or additional polling owner.
 
 Start the independent vectors from the
 [cable field/segment table](../reference/library-ti-features.md#cable-controls-and-remaining-interpretation-gates),
@@ -28,11 +30,6 @@ reserved result banks do not establish five usable peaks. Maximum completion
 time, fault conversion and distance calibration remain separate evidence gates;
 do not invent them from another part's TDR routine.
 
-Deliver the exact DP83826I manual cable diagnostic procedure, complete controls,
-raw results, cancellation and restoration. Keep start/acquire/stop/restore in
-this task; no half-feature diagnostic scaffold. Extend existing diagnostics and
-the one operation slot. No TDR service or additional polling owner.
-
 Reopen TMP1x2 `src/TMP1x2Operations.cpp::poll`, `finishJob`,
 `takeResult`, PCA9555 timeout/cancel/cleanup assertions, TMP1x2
 `tools/hil_tmp1x2_runner.py` fixture verdicts and 24Cxx
@@ -40,6 +37,11 @@ Reopen TMP1x2 `src/TMP1x2Operations.cpp::poll`, `finishJob`,
 substitute for observed device evidence. Reconcile the original SNLS647I cable
 tables and feature text; SNLA253 DP83822 and SNLA330A DP83825I sequences do not
 become DP83826I programming recipes by family name.
+
+Prove which observations establish completion of this request: an already-set
+CDCR done bit is insufficient. Account for a start that completes between write
+and first poll without requiring an unobservable busy transition; retain an
+explicit freshness gate if the exact silicon provides no adequate distinction.
 
 Implement documented manual start, A/B transmit/capture, same/cross-pair capture,
 segments, averaging, DC removal and threshold/pulse/shadow controls with all legal
@@ -78,23 +80,14 @@ known-cable measurements; a planned fixture neither exists nor operates by prose
 
 ## Documentation, verification and checkpoint
 
-Ship accurate public Doxygen and procedure citations with this behavior: units,
-legal states, ownership, output validity, I/O effects, deadlines and cleanup.
-Update API contracts, affected guides, restoration/feature evidence and the stage
-report/progress. Review README, CHANGELOG and relevant example/test/tool guides;
-update affected claims and record why others need no change. Future APIs and
-physical qualification remain explicitly unimplemented/unverified.
+Update public Doxygen, procedure citations, affected API/user/test/tool guides,
+coverage, stage report and progress with this behavior. Review README/CHANGELOG
+and record relevant no-change reasons. Run the focused registered host tests
+above with active Release checks, affected portable-consumer and Doxygen checks,
+`python tools/verify_references.py` and `git diff --check`.
 
-Run registered focused host tests with active Release checks, relevant portable
-consumer/source-documentation/link checks, the reference checker and
-`git diff --check`. Record actual commands and separate PASS/FAIL/NOT RUN/BLOCKED
-for host, SDK, packages and hardware where relevant. Missing source evidence
-blocks the affected requirement; it cannot become unsupported silicon or close
-a required gate. Continue independent eligible work.
-
-Review the final diff for simple control flow, stale comments, duplicated
-procedures and undocumented errors. Commit and sync checked tests/docs/code on
-the same execution branch after this task and each coherent verified unit.
-The lead fetches, safely integrates, pushes and verifies upstream equality;
-report exact sync failures. First-execution remote CI dispatch, polling and
-waiting belong only to checkpoint **71**, never this task.
+Apply COMMON's final maintainability review and evidence reporting. Keep source
+gaps, SDK/package results and physical qualification separate. The lead commits
+and syncs this complete task and coherent verified units on the same execution
+branch, verifies upstream equality, and reports any sync failure. First-set
+remote CI runs and status checks belong only to prompt 71.

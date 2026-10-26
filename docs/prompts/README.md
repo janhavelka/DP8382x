@@ -1,125 +1,70 @@
 # DP8382x implementation promptset
 
-Prepared on **2026-10-26** after auditing the local chip libraries and FieldCore-node.
-This set contains **80 ordered prompts** to create a general microcontroller PHY
-library. **The driver, examples, CLI, tests and runners are not implemented yet.**
-The audit and promptset are the deliverables of this preparation.
+Execute these **80 ordered prompts** to build a framework-independent C++17
+Ethernet PHY library and native ESP-IDF adapter. Start with DP83826I/DP83826IRHBR
+and ESP32-P4, then qualify DP83826E, DP83826AI/AE, DP83825I and DP83822I/H/IF/HF.
+All stages are currently **NOT STARTED**.
 
-The result must be a portable C++17 core with an ESP-IDF adapter, initially for
-DP83826I/DP83826IRHBR and ESP32-P4, followed by explicit family qualification.
-Ordinary Ethernet/IP and an application-owned EtherCAT master are separate
-consumers. Generic 10/100 operation remains available; the initial loading-machine
-profile advertises 100/full only. Power delivery is outside the library.
+Implement each exact part's complete publicly documented software-accessible
+feature set. Keep generic 10/100 operation and supported duplex modes available.
+The loading-machine example advertises 100/full; ordinary Ethernet/IP is another
+consumer. Applications own EtherCAT, networking, board policy and power delivery.
 
-The endpoint is complete publicly documented chip functionality, not a limited
-bring-up driver. Manufacturer GitHub/SDK code, exact register maps, feature
-procedures and other useful primary sources must be researched and reconciled.
-Runtime opt-in features are mandatory library scope when supported by silicon.
-The [extracted public-library evidence](../reference/library-evidence.md) adds
-concrete addresses, masks, encodings, sequences, timing values and source defects
-to the relevant prompts. The required [EVIDENCE contract](EVIDENCE.md) makes
-agents audit and correct those findings against exact datasheets and real data.
+## Execute one prompt
 
-## How to execute
-
-For one stage, give an agent repository access and this prompt:
+Give the agent repository access and the selected file:
 
 ```text
 Execute docs/prompts/1-ecosystem-core-audit.md completely.
-Read AGENTS.md, ../AGENTS.md, docs/prompts/COMMON.md and its shared contracts first.
-Verify prerequisites, re-audit the current relevant sibling I2C libraries, then
-complete the stage's scoped work, tests and documentation. Use disjoint subagents
-when useful; the lead owns shared contracts and Git. Preserve sibling/concurrent
-work. Update docs/implementation-progress.md and the stage report with actual
-evidence. Commit and sync checked work, including coherent completed units during
-the prompt, on the same execution branch. Follow root AGENTS: first-set remote
-CI belongs only to prompt 71. Do not start the next stage in this invocation.
-Read CONVENTIONS.md for concrete selected names and file responsibilities.
-Start with a brief rule reminder, keep code and language simple, and update
-Doxygen plus affected general docs with the work. Select available subagent
-models/effort by complexity; the lead reviews and integrates their results.
+Follow root AGENTS.md, parent ../AGENTS.md, docs/prompts/COMMON.md and the shared
+contracts relevant to the task. Verify prerequisite outputs and current sibling
+conventions. Complete the scoped work, tests, Doxygen and affected guides.
+Use disjoint subagents/models appropriate to the task, with lead review.
+Record evidence and progress, then commit and sync on the execution branch.
+Finish with this stage's handoff.
 ```
 
-Change the filename for subsequent stages. For the whole set:
+Change the filename for each subsequent stage. For the whole set:
 
 ```text
-Execute the 80 prompts in docs/prompts/README.md in their listed dependency order.
-Read AGENTS.md, ../AGENTS.md and all shared prompt contracts first. Resume the
-recorded execution and incomplete stage; don't recreate completed work.
-
-For every new promptset execution create a new branch from the synchronized
-intended base before its first stage. Use the requested branch name/base when
-provided; do not reuse main or a previous set's branch. Record branch/base in
-implementation-progress. Keep it for this whole set, agents and resumed sessions;
-never create a branch per prompt or return to main between prompts. Promptset
-editing/review alone is maintenance, not the start of implementation.
-Resuming this execution uses its recorded branch; it does not create another one.
-
-Before EVERY stage re-audit relevant current sibling I2C headers, implementation,
-examples, CLI, tests, Python runners, workflows and AGENTS. Record revisions,
-dirty state, exact paths and adopted/adapted/rejected conventions. Re-open exact
-silicon evidence for each feature and actual SDK source for adapter decisions.
-FieldCore-node is a read-only consumer/design reference, not a dependency.
-
-Deliver working scoped behavior with meaningful tests, source documentation and
-guides at each stage. Keep one executing owner per PHY operation and serialize
-whole indirect MDIO transactions across every participant. No hardware stubs,
-hidden retries, copied I2C assumptions or duplicated independent IDF/core drivers.
-
-Use subagents for disjoint work and independent reviews when useful; the lead
-integrates and owns shared contracts and Git. Commit and sync every completed
-prompt and each coherent verified unit ready during a prompt. Include its tests,
-docs and relevant progress. Routine commits/pushes are authorized. Sync means
-fetch, safe integration, push and verified equality with the branch's upstream.
-Preserve unrelated changes, do not force-push, and report actual sync failures.
-Do not modify siblings or publish releases as part of this execution.
-
-Use CONVENTIONS for concrete Status/health/method names and source layout.
-Choose available subagent models/effort by task complexity, with scoped paths
-and a short rationale. At each stage restate its applicable rules briefly,
-write simple readable code and Doxygen, update affected README/CHANGELOG/guides,
-and review the final diff against those rules before the checkpoint.
-
-Run applicable local and real SDK/package checks. For this first promptset only,
-remote CI dispatch, run-status checking and waiting belong to prompt 71. Prompts
-1-70 and 72-80 do not require them, even after major fixes or commit/sync. Keep
-existing automatic triggers, hooks and required merge/release checks. Record the
-actual CI-tested SHA at prompt 71; later local checks do not extend that result
-to a newer commit. Parent CI policy resumes after this first execution.
-Host, SDK link, CI and physical evidence stay separate. Hardware work needs an
-identified fixture and authorized scope. Missing hardware stays BLOCKED/NOT RUN.
-
-Resolve routine design choices from evidence. If an external fact/tool/fixture
-blocks a gate, retain it visibly and continue independent eligible work. Later
-documentation and review may proceed around the hardware gate, but do not claim
-the entire set COMPLETE with required gates unresolved. Unsupported features
-must fail explicitly and are never silently promoted to supported.
-
-After each stage update implementation-progress, feature/evidence coverage and
-its report, then commit and sync before continuing. At final handoff report
-actual parts/APIs, examples/tools/packages, tests/builds, physical limits,
-remaining gates, branch/commit and verified sync state.
+Execute prompts 1 through 80 in docs/prompts/README.md, following COMMON and root
+AGENTS. For a new execution, create a new branch from the synchronized intended
+base and record its name/base. For a resumed execution, use its recorded branch
+and progress. Keep that branch through the entire set.
+Before each stage verify its actual dependencies, re-audit relevant current
+sibling libraries and primary chip/SDK sources, and state the applicable rules
+briefly. Implement the complete scoped behavior with tests and documentation.
+Use suitable available subagents with disjoint ownership and lead integration.
+Run focused local checks, update progress/evidence, commit and sync each completed
+stage and coherent intermediate unit. Remote CI belongs to prompt 71 only in
+this first execution; preserve triggers, hooks and required merge/release checks.
+Record blocked requirements and continue independent eligible work. Perform
+physical tests only on identified authorized fixtures. Finish with actual
+software/build/hardware coverage, remaining gates and verified Git sync state.
 ```
+
+Planning maintenance does not start implementation. COMMON defines completion,
+blocked dependencies, collaboration and handoff. Root AGENTS owns Git/CI policy.
 
 ## Shared instructions
 
-- [COMMON](COMMON.md): mandatory current-source audit, ownership, execution and handoff.
-- [ENGINEERING](ENGINEERING.md): names, portable/IDF boundary, MDIO, state and chip rules.
-- [CONVENTIONS](CONVENTIONS.md): selected Status/health/method names, exact sibling
-  precedents, file responsibilities, readable code and per-stage Doxygen/docs.
-- [FULL_COVERAGE](FULL_COVERAGE.md): complete chip features, exhaustive register/
-  field/procedure evidence and broad manufacturer-first public research.
-- [EVIDENCE](EVIDENCE.md): actual code/datasheet/measurement comparisons, numeric
-  provenance, no invented facts and corrections to earlier findings.
-- [CLI_CONTRACT](CLI_CONTRACT.md): shared example CLI, framing and Python artifacts.
-- [VERIFICATION](VERIFICATION.md): host/SDK/package/CI/hardware gates and honest claims.
-- [SOURCE_MAP](SOURCE_MAP.md): concrete sibling and silicon sources to revisit.
-- [Requirement coverage](COVERAGE.md): request-to-stage and acceptance mapping.
+| Contract | Use |
+| --- | --- |
+| [COMMON](COMMON.md) | Every stage: entry, focused audits, delegation, checks, checkpoint and handoff |
+| [ENGINEERING](ENGINEERING.md) | Portable/SDK boundary, ownership, MDIO, lifecycle, state and chip behavior |
+| [CONVENTIONS](CONVENTIONS.md) | Selected Status/health/method names, source layout and Doxygen |
+| [EVIDENCE](EVIDENCE.md) | Exact source/specification comparison, numeric provenance and physical evidence |
+| [FULL_COVERAGE](FULL_COVERAGE.md) | Exhaustive per-part register/field/procedure ledger and feature closure |
+| [CLI_CONTRACT](CLI_CONTRACT.md) | Example grammar, bounded console, runner protocol and artifacts |
+| [VERIFICATION](VERIFICATION.md) | Host, SDK, package, CI and physical checks |
+| [SOURCE_MAP](SOURCE_MAP.md) | Relevant sibling and primary technical source locations |
+| [COVERAGE](COVERAGE.md) | Requirement-to-stage ownership and acceptance |
 
-Maintained architecture and API documents become the durable behavior authority;
-prompts describe how to establish and verify them. Reports preserve evidence.
-When implementation changes a decision, reconcile all affected contracts instead
-of leaving two specifications.
+Use the [public-library catalogues](../reference/library-evidence.md) for concrete
+register, timing and procedure inputs, verifying adopted facts under EVIDENCE.
+Maintained architecture/API guides own implemented behavior; the ledger owns
+source applicability and coverage; stage reports retain actual execution evidence.
+Update affected documents together when implementing a changed contract.
 
 ## Ordered prompts
 
@@ -128,9 +73,6 @@ numbers without leading zeros; use this index rather than a lexicographic file
 sort. Each prompt names its concrete input evidence, complete outcome and
 acceptance checks. The shared instructions apply to every prompt.
 
-The [workload audit and migration map](../reports/prompt-workload-audit.md)
-explains the split from the former 34 stages. It preserves every original scope
-while keeping working behavior, failure/cleanup tests and documentation together.
 Each prompt is one invocation by default. Authorizing one does not authorize
 starting the next; the whole-set instruction above authorizes continuation.
 
@@ -234,16 +176,3 @@ review completeness and integration; they do not supply the first tests or
 Doxygen for earlier code. The [progress record](../implementation-progress.md)
 starts all 80 prompts as NOT STARTED. Preparing this set does not implement or
 qualify the driver.
-
-## Audit basis
-
-See [audit index](../reports/README.md) for actual observed sibling conventions,
-FieldCore owner/promptset evidence, family/tooling comparisons and PHY risks.
-The audits deliberately distinguish deeper source review from broad inventory.
-Relevant sibling files must still be reopened before every stage.
-
-The initial priority is DP83826I with real portability and native P4 integration.
-Family stages cover DP83826E, DP83826AI/AE, DP83825I and DP83822I/H/IF/HF separately.
-No ordering suffix, interface or optional diagnostic inherits support merely
-because a related part passed. Extra frameworks require working backends and
-build evidence; the I2C peers' S2/S3 Arduino matrix is not an Ethernet promise.

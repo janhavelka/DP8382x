@@ -17,11 +17,10 @@ conflicts; affected implementation/support gates remain open until resolved.
 ## Concrete public-source inputs
 
 Audit [TI feature tables](../reference/library-ti-features.md) and
-[EVIDENCE](EVIDENCE.md). Concrete traps include MLEDCR `0x25` selector mask
-`0x0078` versus TI's `0x0038`, swapped LED1/LED3 fields at `0x460`, reserved
-LED3 drive bits at `0x469`, and odd-nibble bit `CR2[1]` whose set value disables
-detection despite the SDK function name. EEE's printed sequence is recorded in
-full but does not resolve wire offsets. Classify timing columns explicitly:
+[EVIDENCE](EVIDENCE.md). Verify MLEDCR `0x25` selector mask `0x0078`, LED1/LED3
+field placement at `0x460`, reserved bits at `0x469`, and odd-nibble `CR2[1]`
+polarity: setting it disables detection. Derive independent field and polarity
+regressions. EEE's printed sequence does not resolve wire offsets. Classify timing columns explicitly:
 EEE sleep `210 us`, wake `36 us`, quiet `20 ms` and refresh `200 us` are nominal,
 not guaranteed deadlines. Correct source observations using original tables.
 
@@ -61,6 +60,9 @@ Reconcile the existing 79-entry inventory with summary tables, full field
 definitions and addresses used only by recipes. Every remaining row needs
 exact applicability, legal values, effects, source, implementation owner and
 test/fixture plan; neither runtime opt-in nor absent board wiring removes it.
+Assign next-page exchange to prompt 17, extended full-duplex/crossover to 18,
+isolation to 33 and collision test to 35. Run prompt 3's ledger validator and
+verify these controls against detailed tables rather than only feature headings.
 Keep one factual ledger, source-proved shared records plus explicit differences,
 and independent original-source vectors. Avoid duplicated numeric guide tables.
 

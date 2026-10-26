@@ -111,6 +111,21 @@ bypassing PHY-specific register methods. Raw BMCR mutation must invalidate
 managed knowledge and reconcile public SDK state before restart. Do not patch
 private fields or invent nonexistent advertisement ioctls.
 
+## Installation context and partial framework effects
+
+| Source | Observed behavior | Integration requirement |
+| --- | --- | --- |
+| DRIVER 226-256; DRIVER-H 125/146, 403/414; DRIVER 557-572 | MAC/PHY pointers are assigned before initialization; custom register hooks receive the internal Ethernet handle before `*out_hdl` is published. Public `esp_eth_get_phy_instance` and `esp_eth_get_mac_instance` return those instances | Resolve the owned adapter context and MAC through these public APIs, with verified instance/lifetime rules; no private-layout cast or global singleton is needed |
+| DRIVER 244-269 | Installation ignores `set_mediator` and `reset_hw` returns and initializes MAC before PHY. Failure attempts timer deletion without checking its return, then frees the driver without MAC/PHY deinit | A retained PHY failure cannot prevent earlier MAC effects. Require verified error propagation or a proved safe owner preflight, using a verified SDK correction where necessary. Unwind resources/stale mediators and retain failed cleanup evidence |
+| DRIVER 300-320 | Start sets FSM START before negotiation, START event, link observation and timer start | A returned failure may retain START state and a published event. Test cached AN enabled and disabled, admission rejection and supported cleanup |
+| DRIVER 323-344 | Stop sets FSM STOP before timer-stop, link-down and STOP event operations | Preserve partial stop effects and remaining callback/resource ownership on error |
+| DRIVER 274-297 | Uninstall changes reference count from 1 to 0 and deletes the timer before PHY/MAC deinit | A later failure leaves partially dismantled state; retry/free needs the selected SDK's proved lifecycle path |
+| DRIVER 450-451, 491-509 | Address/loopback setters can mutate PHY; flow control invokes MAC first, then PHY advertisement | Route controls through the owner; raw MDIO-hook rejection cannot undo a preceding MAC mutation |
+| DRIVER-H 381 versus DRIVER 493-494 | Flow-control ioctl documents `bool*`, reads a Boolean for MAC, then dereferences the same pointer as `uint32_t*` | This is an argument-width/alignment defect for an ordinary Boolean object. Use a verified SDK correction or supported owner-routed calls with correctly typed MAC/PHY arguments and explicit partial-effect handling |
+
+These observations add executing regression requirements to prompts 6 and
+37-39. They remain static source evidence, not build or hardware results.
+
 Required regression cases include stale-ID read failures during discovery,
 exact zero-reserved MMD words, contention through the actual raw-ioctl path,
 reset budgets below one SDK polling quantum, AN expiry without a link,

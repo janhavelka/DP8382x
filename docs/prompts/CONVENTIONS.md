@@ -1,14 +1,12 @@
 # Concrete library conventions
 
-This is the selected baseline for future DP8382x implementation, based on live
-sibling source inspected on 2026-10-26. It is not an implemented API. Prompts 7-8
-settle signatures and behavior in `docs/api-contracts.md`; later stages use that
-contract. Change a baseline only with a concrete reason, a current source check
-and updates to affected consumers and documentation. Do not add aliases to avoid
-making a choice. Read this file with [ENGINEERING](ENGINEERING.md), not instead of
-the exact silicon specification.
+Use these names and responsibilities for DP8382x. Prompts 7-8 establish exact
+signatures and behavior in `docs/api-contracts.md`; later stages use that contract.
+Recheck relevant sibling implementation/tests under COMMON and adapt the baseline
+with one coordinated update when source evidence requires a change. Read this
+with [ENGINEERING](ENGINEERING.md) and the exact silicon specification.
 
-## Evidence and deliberate choices
+## Source precedents
 
 Paths below are relative to Projects and are read-only references. Reopen the
 relevant declarations, implementation and tests at each stage; names alone are
@@ -25,12 +23,6 @@ not evidence that two operations mean the same thing.
 | `TMP1x2/include/TMP1x2/CommandTable.h` | `cmd::REG_*`, `MASK_*`, documented command-versus-state bits | Named datasheet register/mask constants with access attributes; no generic RMW on destructive fields |
 | `TMP1x2/src/`, `examples/common/`, `CMakeLists.txt` | Responsibility-based translation units, one CLI, explicit sources and registered tests | Split when the code has a real responsibility; keep SDK, CLI and tests out of portable production sources |
 | `TMP1x2/Doxyfile`, `tools/check_doxygen.py`, public headers | Source Doxygen, generated API checks, documented units and effects | Source documentation from the first implemented header, warning checks and actual generated-page inspection |
-
-Observed revisions: TMP1x2 `bafc34067530eb340e55c42dae3fad4eb795b6e9`,
-PCA9555 `498178e4d9e4acb6fab7d8b816ad5021efe8806a`, INA228
-`b28c5ea69bcb4d26b351c52c24d3c6fae9fd282b`. A source revision is an audit
-snapshot, not a dependency. The focused follow-up reports add current CLI,
-runner, consumer, family and packaging evidence.
 
 ## Names and Status
 
@@ -104,8 +96,7 @@ evidence one collector. Cached views must not consume it again.
 
 ## Function and lifecycle vocabulary
 
-Use one method for one meaning. These are selected planning names; exact
-arguments, result types and supported stages are frozen in prompts 7-8.
+Use one method for one meaning. Freeze exact arguments, result types and supported stages in prompts 7-8.
 
 | Purpose | Planned names and constraints |
 | --- | --- |
@@ -158,6 +149,10 @@ Do not expose an internal helper just to test it. Test through the smallest real
 consumer. Use explicit source lists and keep tests, examples, SDK and archived
 reference material out of portable compilation.
 
+Use the public build-tree target for the early portable consumer. Prompts 69-70
+add and verify relocatable install/export metadata and a separate installed
+`find_package` consumer; use one documented public/import target contract.
+
 ## Readable code and source documentation
 
 Use simple engineering English. Name the action, condition and consequence:
@@ -196,27 +191,21 @@ For example, a planned cached accessor can be documented as:
 HealthSnapshot healthSnapshot() const;
 ```
 
-Implement Doxygen checking with the first source-bearing foundation, not only
-the final documentation audit. Run it for changed declarations/comments and
-documentation inputs; inspect representative generated pages and links. Do not
-silence warnings or blanket-enable extraction to disguise missing documentation.
-Use a temporary negative fixture to prove missing required public documentation
-and invalid parameter references fail the selected check. TMP1x2's actual
-`EXTRACT_ALL=YES` means its generated-page coverage alone is not proof of comment
-coverage; review the extraction/warning settings and enforce the required source
-documentation separately where needed.
-Keep vendor archives out of Doxygen input. A missing Doxygen executable is NOT
-RUN with a reproducible command, never a fabricated pass. Ordinary consumers
-must not need Doxygen to build the library.
+Implement Doxygen checking with the first source-bearing foundation. Run it
+for changed declarations/comments and documentation inputs. Inspect generated
+pages and configure source-coverage checks explicitly: `EXTRACT_ALL=YES` alone
+does not establish comment coverage. Use a small temporary negative fixture to
+prove that missing required documentation and invalid parameter references fail.
+Keep vendor archives outside Doxygen input. Record a missing tool as NOT RUN
+with the reproducible command; ordinary library builds remain independent of it.
 
 ## Documentation and review in every prompt
 
 Each stage reviews `README.md`, `CHANGELOG.md`, relevant example/test/tool READMEs
 and the maintained architecture/API/testing/variant/feature guides. Update the
-ones affected by that work, in the same checkpoint. If a file is unaffected,
-record a short reason; do not add meaningless changelog/version edits merely to
-touch every file. Planning-only stages document decisions and future contracts;
-they must not create source headers just to add Doxygen.
+ones affected by that work in the same checkpoint and summarize the review once.
+Planning-only stages document decisions and contracts. Add source documentation
+when the corresponding public declarations and behavior are implemented.
 
 Before handoff, review for duplicated rules, ambiguous names, hidden I/O,
 unnecessary abstractions, stale comments, undocumented outputs and unregistered

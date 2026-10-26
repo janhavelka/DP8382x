@@ -41,8 +41,9 @@ Keep these distinctions in the coverage ledger:
   than programmable behavior. Document prerequisites, observable state and the
   application's responsibility; do not invent an API that can change a POR strap.
 - **Not supported by this exact silicon/mode:** cite evidence and reject the
-  unavailable operation before I/O. Do not classify supported-but-unimplemented
-  features this way.
+  unavailable operation from declared/valid cached capability before I/O. A live
+  applicability check is a separate bounded read phase. Required implementation
+  gaps remain recorded as such.
 - **Blocked or not implemented:** required work remains. Record the source
   conflict, missing implementation/evidence and next step. Missing board wiring,
   a limited upstream driver or initial-use-case priority does not close this row.
@@ -111,6 +112,9 @@ Prompts 3-5 create a machine-readable register/field/feature ledger and readable
 guides from authoritative documents, extending the planning inventory. Use stable
 semantic IDs, not prompt numbers. Choose a small JSON/CSV format plus a checker
 where it makes coverage reliable; avoid a general code generator framework.
+Prompt 3 delivers the ledger validator and negative fixtures; prompts 4-5 and
+family stages extend its records/checks. Keep its schema/coverage assertions
+separate from independently derived register-behavior vectors.
 
 For every documented register/field, record:
 

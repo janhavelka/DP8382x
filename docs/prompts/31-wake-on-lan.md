@@ -1,20 +1,22 @@
 # 31 - Implement complete Wake-on-LAN controls
 
-Read [COMMON](COMMON.md), [ENGINEERING](ENGINEERING.md),
-[CONVENTIONS](CONVENTIONS.md), [FULL_COVERAGE](FULL_COVERAGE.md) and
-[VERIFICATION](VERIFICATION.md). Use [SOURCE_MAP](SOURCE_MAP.md) for current
-source locations; historical reports do not replace a fresh audit.
+Follow [COMMON](COMMON.md) and its shared contracts, including
+[CONVENTIONS](CONVENTIONS.md), [EVIDENCE](EVIDENCE.md) and
+[FULL_COVERAGE](FULL_COVERAGE.md). Begin with the stage-specific rule reminder:
+owned paths, fresh relevant sibling audit, selected names, one MDIO owner,
+documentation/local checks and the recorded execution branch. Use available
+subagents for disjoint work or independent review as COMMON specifies.
 
-At entry record owned paths, applicable rules, current source revisions/dirty
-state, selected names, one MDIO owner, local checks and the recorded execution
-branch. Resume that branch. Use disjoint implementation/test work or independent
-read-only review when useful; choose available models/effort by task complexity
-and record the rationale. The lead owns shared contracts, integration and Git.
-Siblings remain read-only.
-
-Prerequisites: [27](27-interrupt-service.md), [28](28-power-states.md), [5](5-silicon-power-interface-ledger.md), [13](13-side-effect-register-access.md); only the concrete inputs used below are required.
+Prerequisites: [27](27-interrupt-service.md), [28](28-power-states.md),
+[5](5-silicon-power-interface-ledger.md), [13](13-side-effect-register-access.md).
+Verify the concrete inputs below; retain unrelated open gates under COMMON.
 
 ## Scope, current evidence and work
+
+Deliver exact DP83826I WoL MAC matching, Secure-ON, CRC gate, pulse/level
+indication, status/acknowledgement and routing, with readback and restoration.
+Do not import DP83822 custom pattern matching or claim an application/MAC has
+actually awakened because the PHY indication is set.
 
 Revalidate [WoL field/byte-order facts](../reference/library-ti-features.md#interrupts-power-eee-and-wol)
 against SNLS647I tables 8-90..97. RXFCFG1 `04A0[11]` is W0C;
@@ -26,11 +28,6 @@ from the exact DP83826 tables, preserving read-clear samples and neutral W0C
 during unrelated updates. SNLA261A's DP83822 word order and custom-pattern
 examples are not DP83826 implementation authority.
 
-Deliver exact DP83826I WoL MAC matching, Secure-ON, CRC gate, pulse/level
-indication, status/acknowledgement and routing, with readback and restoration.
-Do not import DP83822 custom pattern matching or claim an application/MAC has
-actually awakened because the PHY indication is set.
-
 Reopen INA228 destructive alert acquisition, PCA9555 mixed evidence/cleanup
 tests and MB85RC explicit sleep/wake uncertainty contracts. Inspect relevant
 sibling public fields and CLI formatting. Reopen SNLS647I RXFCFG and MAC/Secure-ON
@@ -39,8 +36,10 @@ part-specific differences.
 
 Define complete typed settings with exact octet ordering, legal Secure-ON/CRC/
 pulse-level combinations and pin-routing conflicts. Validate the whole request
-before I/O. Produce independent literal MAC and password-word vectors and
-readback expectations directly from exact-part tables. Do not assume the
+before I/O. State that API byte 0 is the first transmitted octet; map datasheet
+byte labels explicitly to that convention. Produce asymmetric literal MAC and
+password-word vectors and readback expectations directly from exact-part tables;
+a codec round trip cannot prove wire order. Do not assume the
 DP83822 example's word order applies.
 
 RXFCFG1 bit 11 is W0C: explicit zero acknowledges the level indication.
@@ -49,8 +48,11 @@ composition. Do not use a W1C-like acknowledgement or a generic all-command-zero
 write. Separate policy configuration, consumed event/status and explicit
 acknowledgement so an unrelated setting cannot erase wake evidence.
 
-Apply/verify stable owned fields and extend reset/power/recovery restoration in
-source-defined order. Opt-in WoL is never an undocumented initialization default;
+For reconfiguration of an already enabled detector, source and test the disable,
+MAC/password/filter update, verification and re-enable order. Avoid exposing a
+partially updated match, preserve pending events and coordinate RXFS source
+selection with task 27. Extend reset/power/recovery restoration in source-defined
+order; source conflicts about safe live reconfiguration remain explicit gates. Opt-in WoL is never an undocumented initialization default;
 owned requested settings may be replayed. Use the same collector as IRQ/polling,
 retaining each consumed source immediately if a later read fails. A destructive
 read-after-effect timeout records possible history loss.
@@ -74,23 +76,14 @@ application wake; absent board wiring never removes the software feature.
 
 ## Documentation, verification and checkpoint
 
-Ship accurate public Doxygen and procedure citations with this behavior: units,
-legal states, ownership, output validity, I/O effects, deadlines and cleanup.
-Update API contracts, affected guides, restoration/feature evidence and the stage
-report/progress. Review README, CHANGELOG and relevant example/test/tool guides;
-update affected claims and record why others need no change. Future APIs and
-physical qualification remain explicitly unimplemented/unverified.
+Update public Doxygen, procedure citations, affected API/user/test/tool guides,
+coverage, stage report and progress with this behavior. Review README/CHANGELOG
+and record relevant no-change reasons. Run the focused registered host tests
+above with active Release checks, affected portable-consumer and Doxygen checks,
+`python tools/verify_references.py` and `git diff --check`.
 
-Run registered focused host tests with active Release checks, relevant portable
-consumer/source-documentation/link checks, the reference checker and
-`git diff --check`. Record actual commands and separate PASS/FAIL/NOT RUN/BLOCKED
-for host, SDK, packages and hardware where relevant. Missing source evidence
-blocks the affected requirement; it cannot become unsupported silicon or close
-a required gate. Continue independent eligible work.
-
-Review the final diff for simple control flow, stale comments, duplicated
-procedures and undocumented errors. Commit and sync checked tests/docs/code on
-the same execution branch after this task and each coherent verified unit.
-The lead fetches, safely integrates, pushes and verifies upstream equality;
-report exact sync failures. First-execution remote CI dispatch, polling and
-waiting belong only to checkpoint **71**, never this task.
+Apply COMMON's final maintainability review and evidence reporting. Keep source
+gaps, SDK/package results and physical qualification separate. The lead commits
+and syncs this complete task and coherent verified units on the same execution
+branch, verifies upstream equality, and reports any sync failure. First-set
+remote CI runs and status checks belong only to prompt 71.

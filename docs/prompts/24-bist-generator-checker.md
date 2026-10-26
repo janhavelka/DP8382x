@@ -1,20 +1,22 @@
 # 24 - Implement complete BIST generator and checker sessions
 
-Read [COMMON](COMMON.md), [ENGINEERING](ENGINEERING.md),
-[CONVENTIONS](CONVENTIONS.md), [FULL_COVERAGE](FULL_COVERAGE.md) and
-[VERIFICATION](VERIFICATION.md). Use [SOURCE_MAP](SOURCE_MAP.md) for current
-source locations; historical reports do not replace a fresh audit.
+Follow [COMMON](COMMON.md) and its shared contracts, including
+[CONVENTIONS](CONVENTIONS.md), [EVIDENCE](EVIDENCE.md) and
+[FULL_COVERAGE](FULL_COVERAGE.md). Begin with the stage-specific rule reminder:
+owned paths, fresh relevant sibling audit, selected names, one MDIO owner,
+documentation/local checks and the recorded execution branch. Use available
+subagents for disjoint work or independent review as COMMON specifies.
 
-At entry record owned paths, applicable rules, current source revisions/dirty
-state, selected names, one MDIO owner, local checks and the recorded execution
-branch. Resume that branch. Use disjoint implementation/test work or independent
-read-only review when useful; choose available models/effort by task complexity
-and record the rationale. The lead owns shared contracts, integration and Git.
-Siblings remain read-only.
-
-Prerequisites: [23](23-loopback-modes.md), [20](20-event-counter-acquisition.md), [4](4-silicon-diagnostic-ledger.md); only the concrete inputs used below are required.
+Prerequisites: [23](23-loopback-modes.md), [20](20-event-counter-acquisition.md),
+[4](4-silicon-diagnostic-ledger.md). Verify the concrete inputs below; retain unrelated
+open gates under COMMON.
 
 ## Scope, current evidence and work
+
+Deliver all documented BIST/PRBS generator/checker options as bounded diagnostic
+sessions with trustworthy measurements and full stop/restore. Extend existing
+diagnostics and operation/result types; do not implement an independent test
+framework or use a single analog-loopback smoke case as feature completion.
 
 Use the [BIST fact table](../reference/library-ti-features.md#loopback-and-bist-anchors)
 and re-open SNLS647I tables 8-40/45/46. BISCR `[13:12]=0/1/2/3`
@@ -24,14 +26,9 @@ bit 14 changes counter wrap policy, not packet-generation mode. BICSR1
 bit 15 snapshots/clears the error counter, whose sample is `[15:8]`.
 BICSR2 `0x001C[10:0]` is packet bytes (`0x05EE=1518` default).
 Test `0x807D` snapshot composition without corrupting IPG, saturated/wrapped
-counts and BISCR lock/activity evidence. Reject the troubleshooting guide's
-RCSR lock address and analog `0x3108 -> 0x3B04` expectation; one second in
-its procedure is not a guaranteed completion bound.
-
-Deliver all documented BIST/PRBS generator/checker options as bounded diagnostic
-sessions with trustworthy measurements and full stop/restore. Extend existing
-diagnostics and operation/result types; do not implement an independent test
-framework or use a single analog-loopback smoke case as feature completion.
+counts and BISCR lock/activity evidence at register `0x16`. Derive the analog
+mode and result vectors independently from table 8-40. Select a finite owner
+observation interval separately from any claimed silicon completion bound.
 
 Reopen PCA9555 primary/cleanup evidence tests, TMP1x2
 `Tmp1x2CliDiagnostics.cpp` result consumption and
@@ -53,8 +50,11 @@ execute ordered start/acquire/stop/restore through the same operation slot and
 observe aggregate primary and finite cleanup budgets. No lock spans a wait.
 
 Define activity, lock, measurement validity, counter width/overflow and expected
-setup before deciding the result. Zero errors without valid active traffic or
-valid counter acquisition is inconclusive. Preserve raw counters and partial
+setup before deciding the result. Zero errors without evidence that the selected mode generated or checked its
+required traffic, or without valid counter acquisition, is inconclusive. Select
+mode-specific evidence: a single-packet generator may have gone inactive before
+its first poll, while checker-only operation relies on admitted external stimulus.
+Do not require generator-active and checker-lock for modes that lack one of them. Preserve raw counters and partial
 evidence through the single collector; formatting cannot reread destructive
 registers. Separate test outcome from measurement validity, primary transport/
 deadline failure and cleanup status. A successful test with failed restore keeps
@@ -74,23 +74,14 @@ counters. Future CLI/runner mappings remain planned until implemented.
 
 ## Documentation, verification and checkpoint
 
-Ship accurate public Doxygen and procedure citations with this behavior: units,
-legal states, ownership, output validity, I/O effects, deadlines and cleanup.
-Update API contracts, affected guides, restoration/feature evidence and the stage
-report/progress. Review README, CHANGELOG and relevant example/test/tool guides;
-update affected claims and record why others need no change. Future APIs and
-physical qualification remain explicitly unimplemented/unverified.
+Update public Doxygen, procedure citations, affected API/user/test/tool guides,
+coverage, stage report and progress with this behavior. Review README/CHANGELOG
+and record relevant no-change reasons. Run the focused registered host tests
+above with active Release checks, affected portable-consumer and Doxygen checks,
+`python tools/verify_references.py` and `git diff --check`.
 
-Run registered focused host tests with active Release checks, relevant portable
-consumer/source-documentation/link checks, the reference checker and
-`git diff --check`. Record actual commands and separate PASS/FAIL/NOT RUN/BLOCKED
-for host, SDK, packages and hardware where relevant. Missing source evidence
-blocks the affected requirement; it cannot become unsupported silicon or close
-a required gate. Continue independent eligible work.
-
-Review the final diff for simple control flow, stale comments, duplicated
-procedures and undocumented errors. Commit and sync checked tests/docs/code on
-the same execution branch after this task and each coherent verified unit.
-The lead fetches, safely integrates, pushes and verifies upstream equality;
-report exact sync failures. First-execution remote CI dispatch, polling and
-waiting belong only to checkpoint **71**, never this task.
+Apply COMMON's final maintainability review and evidence reporting. Keep source
+gaps, SDK/package results and physical qualification separate. The lead commits
+and syncs this complete task and coherent verified units on the same execution
+branch, verifies upstream equality, and reports any sync failure. First-set
+remote CI runs and status checks belong only to prompt 71.

@@ -11,6 +11,8 @@ and evidence from the maintained feature matrix. A listed stage is planned work.
 | Framework-agnostic MCU library | 6-13, 53-55, 68-70 | Actual portable core and isolated tests-OFF consumers; no SDK/sibling dependencies |
 | Use supported ESP-IDF PHY/MAC framework | 6, 37-42, 71 | Method/ownership matrix, real adapter and linked P4 images |
 | Exact DP83826I first | 3-5, 11-36, 53-55 | Datasheet-backed IDs/sequences, independent failure tests, primary capability coverage |
+| Executable ledger validation | 3-5, 36, 55-67 | Schema/access/field/procedure checks with negative fixtures; coverage remains independent of literal behavior oracles |
+| Complete standard and compatibility controls | 17-18, 33, 35 | Next-page exchange, extended full-duplex, isolation and collision-test procedures with legal-state/cleanup tests |
 | Complete chip feature set beyond initial board use | 3-8, 11-36, 44-47, 53-67, 74-80 | Exhaustive register/field/procedure ledger; usable APIs, CLI and tests for every documented programmable feature; runtime opt-in is not deferred scope |
 | Broad useful public/manufacturer research | 3-5 and every feature/family prompt | Pinned TI GitHub/SDK, exact docs, EVM/tool guides and applicable primary comparisons with provenance, license and conflict records |
 | Concrete public-library data checked against reality | EVIDENCE through COMMON; 3-8, 11-41, 44-46, 53-67, 72-73, 78-80 | Pinned source catalogues; exact-part tables and independent literal vectors; observed/corroborated/conflicting/measured evidence kept distinct; confirmed mistakes corrected across prompts, implementation and tests |
@@ -20,12 +22,16 @@ and evidence from the maintained feature matrix. A listed stage is planned work.
 | Ordinary internet/Ethernet PCB application | 40, 68, 72 | General network example; PHY/link separated from DHCP/internet outcomes |
 | Exclude power delivery | 6, 28, 40-42, 80 | No PoE/power-delivery API; optional PHY power state explicitly distinct |
 | Bus/controller and configuration ownership | 6-8, 11-16, 37-39, 53-54, 79 | Whole indirect/RMW arbitration, context lifetime, callback bounds, IDF no-bypass tests |
+| Framework lifecycle and shared memory | 6-8, 37-42, 53-54, 68, 79 | Install-time callback context, serialized instance access, retained partial SDK effects, quiescent teardown and explicit low-level/control entry routes |
+| Persistent and temporary settings | 8, 15-36, 54 | One owner per shared field, finite restore order, completion-based wait anchors, retained diagnostic/cleanup effects |
 | Status, passive health and freshness | 7-8, 11-22, 43-49 | Structured errors; separate transport/link/config/policy evidence and no-I/O snapshots |
 | Full practical diagnostics | 23-35, 46, 51, 73 | Exact-capability loopback/BIST/cable/IRQ/LED/wake/power coverage, cleanup evidence |
 | Useful example CLI | 43-47 | Shared portable executable processor, strict input, bounded output, owner routing |
 | Python runners | 48-52 | Real session/artifact tooling, compiled-CLI and parser negatives, explicit fixtures |
+| Session and artifact integrity | 43-54 | Passive handshake, retained correlated terminal records, finite serial/finalization paths, partial-write framing loss and manifest-last payload hashes |
 | Tests and honest test claims | Every implementation prompt; 53-55, 71-73, 78-80 | Registered independent behavior tests; SDK, CI, hardware evidence separated |
 | Packaging/version/license/maintainability | 9-10, 69-71, 74-80 | Deterministic metadata, clean package consumers, correct notices, current guides |
+| Build-tree, installed and exported consumers | 68-71 | Build-tree use first; then relocatable install/export, installed find_package and clean extracted source/SDK builds |
 | FieldCore-style promptsets and consumer integration | 1-2, 6-8, 41-42, 68, 74-80 | Shared contracts/source map, prerequisites, ownership, reports and no FieldCore dependency |
 | Re-audit sibling I2C libraries every time | COMMON and each numbered file | Fresh stage evidence; old report never substitutes for source inspection |
 | Subagent collaboration | COMMON and each numbered file | Disjoint ownership, lead-controlled shared contracts/Git, integrated reviewed results |
@@ -35,7 +41,7 @@ and evidence from the maintained feature matrix. A listed stage is planned work.
 | Maintainability and source/general documentation each prompt | AGENTS, COMMON, CONVENTIONS, every prompt | Readable simple code, public Doxygen and procedure comments, affected guides/changelog updated, focused documentation checks |
 | Model choice by task complexity and rule reminders | AGENTS, COMMON, every prompt | Available models/effort selected with rationale; scoped delegation, entry reminder and final diff review |
 | Preserve references and avoid GPL contamination | 3-5, 69-70, 77-80 | Original hashes/notices, source provenance and package exclusions |
-| Manageable complete tasks in natural order | 1-80, COMMON, workload audit | One closed outcome per prompt; tests/docs/cleanup stay with behavior; all 34 former stages mapped; no missing or duplicate number |
+| Manageable complete tasks in natural order | 1-80, COMMON | One closed outcome per prompt; tests/docs/cleanup stay with behavior; complete coverage and unique natural numbering |
 
 ## Important intentional limits
 
@@ -59,7 +65,5 @@ and evidence from the maintained feature matrix. A listed stage is planned work.
 ## Promptset readiness review
 
 Check links, all 80 prompts, source-map paths, dependency order, naming consistency,
-missing-gate treatment and source conflicts before execution. See the
-[workload audit and migration map](../reports/prompt-workload-audit.md) for checks and
-review performed while preparing this set. No host/SDK/HIL implementation result
-is inferred from promptset validation.
+missing-gate treatment and source conflicts before execution. Record planning
+validation separately from subsequent host, SDK and physical execution results.

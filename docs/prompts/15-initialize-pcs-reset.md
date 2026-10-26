@@ -1,18 +1,14 @@
 # 15 - Implement initialization and complete PCS reset operations
 
-Read [COMMON](COMMON.md), [ENGINEERING](ENGINEERING.md),
-[CONVENTIONS](CONVENTIONS.md), [FULL_COVERAGE](FULL_COVERAGE.md) and
-[VERIFICATION](VERIFICATION.md). Use [SOURCE_MAP](SOURCE_MAP.md) for current
-source locations; historical reports do not replace a fresh audit.
+Follow [COMMON](COMMON.md) and its shared contracts, including
+[CONVENTIONS](CONVENTIONS.md), [EVIDENCE](EVIDENCE.md) and
+[FULL_COVERAGE](FULL_COVERAGE.md). Begin with the stage-specific rule reminder:
+owned paths, fresh relevant sibling audit, selected names, one MDIO owner,
+documentation/local checks and the recorded execution branch. Use available
+subagents for disjoint work or independent review as COMMON specifies.
 
-At entry record owned paths, applicable rules, current source revisions/dirty
-state, selected names, one MDIO owner, local checks and the recorded execution
-branch. Resume that branch. Use disjoint implementation/test work or independent
-read-only review when useful; choose available models/effort by task complexity
-and record the rationale. The lead owns shared contracts, integration and Git.
-Siblings remain read-only.
-
-Prerequisites: [14](14-identity-capabilities.md), [8](8-operation-contracts.md); only the concrete inputs used below are required.
+Prerequisites: [14](14-identity-capabilities.md), [8](8-operation-contracts.md). Verify
+the concrete inputs below; retain unrelated open gates under COMMON.
 
 ## Scope, current evidence and work
 
@@ -35,16 +31,20 @@ completion. One active slot and monotonic nonzero tokens with explicit exhaustio
 protect against stale results; unconsumed terminal evidence is never overwritten.
 
 Use SNLS647I's exact BMCR effects, completion evidence and waits. Anchor minimum
-waits after callback completion, or use a conservative documented caller-time
-anchor. Account for quantization, wrap/overflow, exact expiry and frozen-clock
+waits after callback completion, or after a documented upper bound on that
+completion. A caller timestamp captured before the reset write cannot by itself
+anchor a post-write minimum wait. Account for quantization, wrap/overflow, exact expiry and frozen-clock
 transfer bounds. Return to the owner instead of busy-spinning. The controller
 lock covers one transaction and never spans waits/polls.
 
 Accepted reset invalidates appropriate link/configuration/identity knowledge
 even if later reads fail. Restore and verify only implemented owned settings
 with one source-backed procedure that subsequent feature tasks extend. Initialization
-can succeed with cable down. Reset success alone proves neither link nor
-electrical qualification.
+can succeed with cable down. At this stage initialized means the implemented
+identity/reset/readiness contract is complete; link-profile application arrives
+in prompts 17-18 and must then become part of initialization when requested.
+Keep managed-health methods unavailable until prompt 21 implements their
+transitions. Reset success alone proves neither link nor electrical qualification.
 
 Cancel/end/cached access remain bus-silent. Cancellation preserves accepted writes;
 later owner polling performs cleanup only within the reserved/separately admitted
@@ -65,34 +65,24 @@ MMD restoration. Add a compiling owner loop and failed-cleanup example.
 
 Re-audit [TI initialization/reset behavior](../reference/library-ti-core.md#initialization-reset-and-recovery-procedure-audit)
 against SNLS647I table 8-19: PCS reset uses register `0x00`, command `0x8000`,
-and retains vendor registers. TI supplies no reset wait/deadline here; choose
-bounds from exact silicon/controller evidence and explicit application policy.
-Its empty InitCfg and Auto-MDIX/interface config are not complete initialization;
-invalid config can still cause RCSR I/O, and configuration errors are ignored.
-Add independent zero-I/O-invalid-input and accepted-write/failure cases. Establish
+and retains vendor registers. Choose reset bounds from exact silicon/controller evidence and explicit
+application policy. Propagate every configuration error and validate the complete
+request before RCSR or other mutation. Add independent zero-I/O-invalid-input
+and accepted-write/failure cases. Establish
 50 ms POR and external-reset readiness responsibility before initial probing;
 do not misapply external-pin timing as a proved PCS-reset completion interval.
 Keep actual hardware reset/restoration evidence separate from host sequencing.
 
 ## Documentation, verification and checkpoint
 
-Ship accurate public Doxygen and procedure citations with this behavior: units,
-legal states, ownership, output validity, I/O effects, deadlines and cleanup.
-Update API contracts, affected guides, restoration/feature evidence and the stage
-report/progress. Review README, CHANGELOG and relevant example/test/tool guides;
-update affected claims and record why others need no change. Future APIs and
-physical qualification remain explicitly unimplemented/unverified.
+Update public Doxygen, procedure citations, affected API/user/test/tool guides,
+coverage, stage report and progress with this behavior. Review README/CHANGELOG
+and record relevant no-change reasons. Run the focused registered host tests
+above with active Release checks, affected portable-consumer and Doxygen checks,
+`python tools/verify_references.py` and `git diff --check`.
 
-Run registered focused host tests with active Release checks, relevant portable
-consumer/source-documentation/link checks, the reference checker and
-`git diff --check`. Record actual commands and separate PASS/FAIL/NOT RUN/BLOCKED
-for host, SDK, packages and hardware where relevant. Missing source evidence
-blocks the affected requirement; it cannot become unsupported silicon or close
-a required gate. Continue independent eligible work.
-
-Review the final diff for simple control flow, stale comments, duplicated
-procedures and undocumented errors. Commit and sync checked tests/docs/code on
-the same execution branch after this task and each coherent verified unit.
-The lead fetches, safely integrates, pushes and verifies upstream equality;
-report exact sync failures. First-execution remote CI dispatch, polling and
-waiting belong only to checkpoint **71**, never this task.
+Apply COMMON's final maintainability review and evidence reporting. Keep source
+gaps, SDK/package results and physical qualification separate. The lead commits
+and syncs this complete task and coherent verified units on the same execution
+branch, verifies upstream equality, and reports any sync failure. First-set
+remote CI runs and status checks belong only to prompt 71.

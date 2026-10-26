@@ -5,7 +5,7 @@ PHYs, starting with **DP83826IRHBR (DP83826I)**. The planned C++17 core is
 framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet MAC.
 
 **Status: audited implementation plan and repository foundation.** Official
-references, sibling-library audits and a 80-prompt AI-agent promptset are ready.
+references, sibling-library audits and an 80-prompt AI-agent promptset are ready.
 Driver implementation, build/package metadata, examples, CLI, runners and hardware
 qualification are future work.
 

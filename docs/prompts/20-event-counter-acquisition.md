@@ -1,18 +1,15 @@
 # 20 - Implement complete event and counter acquisition
 
-Read [COMMON](COMMON.md), [ENGINEERING](ENGINEERING.md),
-[CONVENTIONS](CONVENTIONS.md), [FULL_COVERAGE](FULL_COVERAGE.md) and
-[VERIFICATION](VERIFICATION.md). Use [SOURCE_MAP](SOURCE_MAP.md) for current
-source locations; historical reports do not replace a fresh audit.
+Follow [COMMON](COMMON.md) and its shared contracts, including
+[CONVENTIONS](CONVENTIONS.md), [EVIDENCE](EVIDENCE.md) and
+[FULL_COVERAGE](FULL_COVERAGE.md). Begin with the stage-specific rule reminder:
+owned paths, fresh relevant sibling audit, selected names, one MDIO owner,
+documentation/local checks and the recorded execution branch. Use available
+subagents for disjoint work or independent review as COMMON specifies.
 
-At entry record owned paths, applicable rules, current source revisions/dirty
-state, selected names, one MDIO owner, local checks and the recorded execution
-branch. Resume that branch. Use disjoint implementation/test work or independent
-read-only review when useful; choose available models/effort by task complexity
-and record the rationale. The lead owns shared contracts, integration and Git.
-Siblings remain read-only.
-
-Prerequisites: [19](19-link-observation.md), [13](13-side-effect-register-access.md), [4](4-silicon-diagnostic-ledger.md); only the concrete inputs used below are required.
+Prerequisites: [19](19-link-observation.md), [13](13-side-effect-register-access.md),
+[4](4-silicon-diagnostic-ledger.md). Verify the concrete inputs below; retain unrelated
+open gates under COMMON.
 
 ## Scope, current evidence and work
 
@@ -36,7 +33,11 @@ history loss. It cannot become zero events, zero errors or a successful batch.
 
 Keep complete aggregate publication separate from per-source evidence. Define
 counter accumulation/reset, saturation and validity only where exact-part sources
-support them. Unresolved RECR arithmetic remains visibly gated while independently
+support them. A saturated sample is a lower bound; a wrapped sample cannot give an
+exact total without additional evidence. Separate collector-history consumption
+from hardware counter clearing and define whether reset starts a new observation
+epoch or preserves earlier evidence with its old validity. Bound retained storage
+and expose coalescing/overflow instead of claiming lossless event multiplicity. Unresolved RECR arithmetic remains visibly gated while independently
 documented raw acquisition stays available. Separate chip receive/error counts
 from MDIO frame activity and managed health.
 
@@ -64,34 +65,25 @@ semantics; physical error rates remain unmeasured.
 
 Use the [source/datasheet collector table](../reference/library-ti-core.md#destructive-reads-counters-and-safe-diagnostic-output).
 MISR1/MISR2 `0x12/0x13` have high-byte RC events (`0xFF00`) and low-byte
-enables (`0x00FF`) with different event meanings. FLDS `0x0F` cause mask is
-`0x01F0`; TI's generic dump mislabels it as gigabit status and consumes it.
+enables (`0x00FF`) with different event meanings. FLDS `0x0F` cause mask is `0x01F0`; include its read-clear causes in the single
+collector and exclude it from bus-active safe dumps.
 FCSCR `0x14` is an 8-bit saturating RC counter, maximum `0xFF`, interrupt on
 exceeding `0x7F`. RECR `0x15` remains a 16-bit-field versus `0xFF` saturation
 source conflict; RCSR `0x17` bits3/2 remain an RC/polarity conflict. Retain raw
 values and partial consumed samples instead of inventing count or fault semantics.
-Reopen current exact tables and verify admitted physical counter/event behavior;
-TI's absent collector and unchecked prints are neither implementation nor evidence.
+Reopen current exact tables and retain physical counter/event verification as
+a separate qualification gate.
 
 ## Documentation, verification and checkpoint
 
-Ship accurate public Doxygen and procedure citations with this behavior: units,
-legal states, ownership, output validity, I/O effects, deadlines and cleanup.
-Update API contracts, affected guides, restoration/feature evidence and the stage
-report/progress. Review README, CHANGELOG and relevant example/test/tool guides;
-update affected claims and record why others need no change. Future APIs and
-physical qualification remain explicitly unimplemented/unverified.
+Update public Doxygen, procedure citations, affected API/user/test/tool guides,
+coverage, stage report and progress with this behavior. Review README/CHANGELOG
+and record relevant no-change reasons. Run the focused registered host tests
+above with active Release checks, affected portable-consumer and Doxygen checks,
+`python tools/verify_references.py` and `git diff --check`.
 
-Run registered focused host tests with active Release checks, relevant portable
-consumer/source-documentation/link checks, the reference checker and
-`git diff --check`. Record actual commands and separate PASS/FAIL/NOT RUN/BLOCKED
-for host, SDK, packages and hardware where relevant. Missing source evidence
-blocks the affected requirement; it cannot become unsupported silicon or close
-a required gate. Continue independent eligible work.
-
-Review the final diff for simple control flow, stale comments, duplicated
-procedures and undocumented errors. Commit and sync checked tests/docs/code on
-the same execution branch after this task and each coherent verified unit.
-The lead fetches, safely integrates, pushes and verifies upstream equality;
-report exact sync failures. First-execution remote CI dispatch, polling and
-waiting belong only to checkpoint **71**, never this task.
+Apply COMMON's final maintainability review and evidence reporting. Keep source
+gaps, SDK/package results and physical qualification separate. The lead commits
+and syncs this complete task and coherent verified units on the same execution
+branch, verifies upstream equality, and reports any sync failure. First-set
+remote CI runs and status checks belong only to prompt 71.

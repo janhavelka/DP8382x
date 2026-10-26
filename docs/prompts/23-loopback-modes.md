@@ -1,20 +1,25 @@
 # 23 - Implement all supported loopback modes
 
-Read [COMMON](COMMON.md), [ENGINEERING](ENGINEERING.md),
-[CONVENTIONS](CONVENTIONS.md), [FULL_COVERAGE](FULL_COVERAGE.md) and
-[VERIFICATION](VERIFICATION.md). Use [SOURCE_MAP](SOURCE_MAP.md) for current
-source locations; historical reports do not replace a fresh audit.
+Follow [COMMON](COMMON.md) and its shared contracts, including
+[CONVENTIONS](CONVENTIONS.md), [EVIDENCE](EVIDENCE.md) and
+[FULL_COVERAGE](FULL_COVERAGE.md). Begin with the stage-specific rule reminder:
+owned paths, fresh relevant sibling audit, selected names, one MDIO owner,
+documentation/local checks and the recorded execution branch. Use available
+subagents for disjoint work or independent review as COMMON specifies.
 
-At entry record owned paths, applicable rules, current source revisions/dirty
-state, selected names, one MDIO owner, local checks and the recorded execution
-branch. Resume that branch. Use disjoint implementation/test work or independent
-read-only review when useful; choose available models/effort by task complexity
-and record the rationale. The lead owns shared contracts, integration and Git.
-Siblings remain read-only.
-
-Prerequisites: [22](22-reconcile-recover.md), [4](4-silicon-diagnostic-ledger.md), [20](20-event-counter-acquisition.md); only the concrete inputs used below are required.
+Prerequisites: [22](22-reconcile-recover.md), [4](4-silicon-diagnostic-ledger.md),
+[20](20-event-counter-acquisition.md). Verify the concrete inputs below; retain
+unrelated open gates under COMMON.
 
 ## Scope, current evidence and work
+
+Deliver complete exact-part loopback configuration and finite owner-driven
+sessions, including stop and verified restoration. Persistent configured
+loopback and a finite diagnostic session need distinct semantics. A persistent
+setting remains explicitly owned until disabled; its lifetime is not an unfinished
+operation token. A finite session must include disable and verified restoration. Extend the
+existing operation/result mechanism and cohesive diagnostic source; no new
+scheduler or autonomous maintenance worker.
 
 Revalidate the [TI loopback facts](../reference/library-ti-features.md#loopback-and-bist-anchors)
 against SNLS647I tables 8-19/8-40 and current source. BISCR `0x0016[4:0]`
@@ -23,14 +28,9 @@ PCS input is 10 Mbit/s only, digital 100 Mbit/s only, and analog requires 100-oh
 termination. Include the complete 100 Mbit/s digital sequence
 `0000=2100,0016=0104,0122=2000,0123=2000,0130=47FF,001F=4000`
 as a sourced literal example with owned-state restoration, not general whole-word
-writes. Reject SNLA423A's reverse `0x0020` and apply BISCR bit 6 line transmission
-only to 100 Mbit/s MII loopback. Track `0x0123` overlap with EEE explicitly.
-
-Deliver complete exact-part loopback configuration and finite owner-driven
-sessions, including stop and verified restoration. Persistent configured
-loopback and a finite diagnostic session need distinct semantics. Extend the
-existing operation/result mechanism and cohesive diagnostic source; no new
-scheduler or autonomous maintenance worker.
+writes. Use reverse-loopback selection `0x10` under table 8-40 and apply BISCR
+bit 6 line transmission only to 100 Mbit/s MII loopback. Test the one-hot mode
+encodings independently. Track `0x0123` overlap with EEE explicitly.
 
 Reopen PCA9555 owner cleanup/result types and
 `test_failed_cooperative_input_read_preserves_primary_and_cleanup_evidence`.
@@ -41,7 +41,9 @@ These supply ownership precedents, not PHY loopback recipes.
 Complete the source matrix for MII, PCS input/output, digital, analog,
 reverse/far-end and every other documented loopback mode, with speed/interface,
 companion writes, termination/peer prerequisites and restore effects. Procedure-only
-addresses permit exact sourced recipes, never arbitrary reserved writes.
+addresses permit exact sourced recipes. For each touched procedure-only field,
+prove readable/saveable state or use a documented reset/reapply exit; an allowlisted
+write alone does not establish that an arbitrary previous value can be restored.
 Generator/checker sessions are task 24; loopback itself must work completely now.
 
 Resolve the SNLS647I speed-specific discrepancy: section 8.3.14.2 gives the
@@ -74,23 +76,14 @@ external fixture prerequisites and failed-restoration evidence.
 
 ## Documentation, verification and checkpoint
 
-Ship accurate public Doxygen and procedure citations with this behavior: units,
-legal states, ownership, output validity, I/O effects, deadlines and cleanup.
-Update API contracts, affected guides, restoration/feature evidence and the stage
-report/progress. Review README, CHANGELOG and relevant example/test/tool guides;
-update affected claims and record why others need no change. Future APIs and
-physical qualification remain explicitly unimplemented/unverified.
+Update public Doxygen, procedure citations, affected API/user/test/tool guides,
+coverage, stage report and progress with this behavior. Review README/CHANGELOG
+and record relevant no-change reasons. Run the focused registered host tests
+above with active Release checks, affected portable-consumer and Doxygen checks,
+`python tools/verify_references.py` and `git diff --check`.
 
-Run registered focused host tests with active Release checks, relevant portable
-consumer/source-documentation/link checks, the reference checker and
-`git diff --check`. Record actual commands and separate PASS/FAIL/NOT RUN/BLOCKED
-for host, SDK, packages and hardware where relevant. Missing source evidence
-blocks the affected requirement; it cannot become unsupported silicon or close
-a required gate. Continue independent eligible work.
-
-Review the final diff for simple control flow, stale comments, duplicated
-procedures and undocumented errors. Commit and sync checked tests/docs/code on
-the same execution branch after this task and each coherent verified unit.
-The lead fetches, safely integrates, pushes and verifies upstream equality;
-report exact sync failures. First-execution remote CI dispatch, polling and
-waiting belong only to checkpoint **71**, never this task.
+Apply COMMON's final maintainability review and evidence reporting. Keep source
+gaps, SDK/package results and physical qualification separate. The lead commits
+and syncs this complete task and coherent verified units on the same execution
+branch, verifies upstream equality, and reports any sync failure. First-set
+remote CI runs and status checks belong only to prompt 71.

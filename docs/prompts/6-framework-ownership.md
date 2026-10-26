@@ -18,10 +18,10 @@ design deliverable, not an adapter support claim or a second generic PHY stack.
 ## Concrete public-source inputs
 
 Trace [the pinned SDK evidence](../reference/library-sdk.md) under
-[EVIDENCE](EVIDENCE.md). The base's MMD control union leaves reserved bits
-`[13:5]` uninitialized before whole-word writes; serialization alone does not
-make that helper safe. Select a verified correction or the existing shared
-procedure, without duplicating the PHY stack. SDK defaults include reset GPIO 5,
+[EVIDENCE](EVIDENCE.md). Require MMD control words to initialize all bits, including reserved `[13:5]`,
+and validate the 16-bit wire width. Prove the selected SDK helper meets this
+contract or route through the shared procedure; test poisoned initial storage.
+Use one chip implementation and the existing framework ownership boundary. SDK defaults include reset GPIO 5,
 auto address detection, no default post-reset delay and a 2000 ms link poll.
 Compare them with actual board wiring and DP83826's 2 ms reset-release/50 ms POR
 SMI readiness; do not inherit them as correct chip defaults or EtherCAT timing.
@@ -57,6 +57,14 @@ source, state effects and result collector in portable and SDK modes.
   frames, not whole MMD transactions. Select an owner-aware route or explicitly
   prohibit bypass and provide a supported owner entry. Forward to underlying
   MAC methods without recursively entering the mediator/ioctl/lock path.
+  Enforce admission for raw selectors, destructive reads and mutations at every
+  reachable entry. A per-frame hook cannot authorize a multi-call MMD sequence.
+  The hooks receive an Ethernet handle without a caller context and can run
+  during install before handle publication. In the pinned SDK, public
+  `esp_eth_get_phy_instance` and `esp_eth_get_mac_instance` resolve that incoming
+  handle after the driver assigns its PHY/MAC. Use the owned adapter object for
+  context and the actual MAC for transport. Verify installation/failure lifetime
+  and two-instance dispatch with the selected SDK.
 - Choose one terminal batch callback or explicit transaction-scope mechanism.
   Show complete MMD and RMW exclusion across every participant, another PHY
   on the same bus, error exits and nested lock order. Do not ship both options

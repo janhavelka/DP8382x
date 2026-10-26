@@ -20,10 +20,10 @@ Use [TI core data](../reference/library-ti-core.md) and
 [EVIDENCE](EVIDENCE.md). Seed the comparison with OUI `0x080028`, models
 `0x11/0x13`, ID fields `0xFC00/0x03F0/0x000F`, C22 REGCR/ADDAR `0x0D/0x0E`
 and vendor DEVAD `31`; derive and verify each exact-part meaning independently.
-TI's reset-completion read of address `0x8000` is a mask/address defect, not a
-new register. Record correct PHYRCR `0x1F` versus bit mask `0x8000` separately.
-Preserve known wrong code values as rejected observations in the ledger, not
-production constants. Compare actual reset domains and read effects in the PDF.
+Record PHYRCR register `0x1F` separately from its hard-reset mask `0x8000`.
+Derive an independent regression vector for correct completion polling and
+rejection of out-of-range Clause 22 addresses. Compare actual reset domains
+and read effects in the PDF; source-code defect details remain in the catalogue.
 
 ## Work and sources
 
@@ -53,6 +53,13 @@ register-description framework. Define records for:
 - typed API/CLI/test ownership and separate documented, implemented,
   host-tested, SDK-built and hardware-qualified evidence;
 - competing interpretations and selected evidence or explicit unresolved gates.
+
+Add a small offline ledger validator and registered tests for its schema and
+coverage invariants: unique semantic IDs, explicit address aliases, field bounds,
+overlapping masks, unknown reset bits, source references and procedure ownership.
+Use malformed temporary records to prove rejection. This checker validates the
+record structure; independent PDF-derived vectors establish numeric correctness.
+Document its command and run it as prompts 4-5 extend the ledger.
 
 Fully audit PHY IDs, BASIC/ENHANCED model IDs, revision and declared part
 distinctions; C22 versus indirect addressing; reset/restart/POR/strap effects;

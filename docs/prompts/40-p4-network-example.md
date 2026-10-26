@@ -2,58 +2,65 @@
 
 Read [COMMON](COMMON.md), [CONVENTIONS](CONVENTIONS.md) and
 [VERIFICATION](VERIFICATION.md). Prerequisites:
-[39](39-esp-idf-link-bounds.md) and the adapter's concrete configuration/lifecycle
-contract. Physical networking is a later evidence layer, not a build substitute.
+[39](39-esp-idf-link-bounds.md) and the adapter's concrete
+configuration/lifecycle contract. Physical networking is a later evidence
+layer, not a build substitute.
 
 ## Current evidence and ownership
 
 Reopen `TMP1x2/examples/esp_idf/basic/main/main.cpp` and its component CMake,
-plus INA228's native `initExample`/`app_main`. Inspect current startup/cleanup,
-build identity, console seams, tests, workflows and applicable rules. Recheck
-ESP32-P4NRW32X board material and authoritative netlist before selecting hardware
-values. Record revisions, paths and adopted/adapted/rejected conventions;
-old pin snapshots and I2C targets are not board authority.
+plus INA228's native `initExample`/`app_main`. Inspect current
+startup/cleanup, build identity, console seams, tests, workflows and
+applicable rules. Recheck ESP32-P4NRW32X board material and authoritative
+netlist before selecting hardware values. Record revisions, paths and
+adopted/adapted/rejected conventions; old pin snapshots and I2C targets are
+not board authority.
 
-The lead owns application lifecycle and board/adapter integration. A disjoint
-agent may implement failure cases or review cleanup/guide accuracy after resource
-contracts freeze. Choose available models by coding and ownership complexity;
-shared contracts and Git remain with the lead.
+Assign paths and select subagent models under COMMON. Keep shared contracts
+and Git with the lead; use independent review for ownership and failure
+semantics.
 
-## Concrete public-source inputs
+## Source requirements and regression vectors
 
-Check [SDK defaults and readiness](../reference/library-sdk.md) with
-[EVIDENCE](EVIDENCE.md). Do not accidentally use default reset GPIO 5 or auto
-address -1 for this board. Record actual pin/address/clock choices and PHY
-power/reset readiness; 100 us assertion alone does not supply the required
-2 ms post-reset SMI interval. The 2000 ms default link-poll period is application
-scheduling, not a PHY fault-response guarantee. Build configuration and observed
-hardware identity remain separate evidence.
+Check [SDK readiness](../reference/library-sdk.md) with
+[EVIDENCE](EVIDENCE.md). Require explicit pin/address/clock choices and
+power/reset readiness. A 100 us assertion alone does not provide the 2 ms
+post-reset SMI interval. Set the link poll period as application policy; 2000
+ms is the SDK default, not a PHY response guarantee. Keep build configuration
+separate from observed hardware identity.
 
-## Closed work unit
+## Implement
 
 Create `examples/esp_idf/basic/` with native project/component build files,
-dependency metadata, `sdkconfig.defaults`, `main/main.cpp` and README. Put board
-values in a small application-owned `main/BoardConfig.h`, or a genuinely shared
-helper if both P4 examples use it. Avoid board registries and another driver
-wrapper. Label facts, user inputs and unresolved assumptions.
+dependency metadata, `sdkconfig.defaults`, `main/main.cpp` and README. Put
+board values in a small application-owned `main/BoardConfig.h`, or a genuinely
+shared helper if both P4 examples use it. Avoid board registries and another
+driver wrapper. Label facts, user inputs and unresolved assumptions.
 
-Validate PHY address/interface, MDC/MDIO/reset mapping and clock source/direction
-before backend creation; do not infer pins from a sibling. Keep reusable general
-10/100 configuration available and provide the initial 100/full-only
-advertisement as a separate application profile.
+Validate PHY address/interface, MDC/MDIO/reset mapping and clock
+source/direction before backend creation. When authoritative wiring is
+unavailable, require explicit application configuration and leave hardware
+execution gated. A linked configuration with declared assumptions proves
+compilation only. Keep reusable general 10/100 configuration available and
+provide the initial 100/full-only advertisement as a separate application
+profile.
 
-Use supported native MAC/PHY, event loop and `esp_netif` integration. Application
-code owns DHCP/static addressing and an optional local-peer probe. State the
-SDK-verified acquisition order and who releases each resource: event/network
-context, MAC/PHY, driver, handlers/network attachment, explicit start. Implement
-direct partial cleanup, retain primary and cleanup errors, and drain callbacks
-before destroying context. Demonstrate explicit stop/start without infinite
+Use supported native MAC/PHY, event loop and `esp_netif` integration.
+Application code owns DHCP/static addressing and an optional local-peer probe.
+State the SDK-verified acquisition order and who releases each resource:
+event/network context, MAC/PHY, driver, handlers/network attachment, explicit
+start. Implement direct partial cleanup, retain primary and cleanup errors,
+and drain callbacks before destroying context. Delete only resources created
+by this application; shared event-loop/netif facilities remain with their
+owner. An event handler must signal shutdown rather than synchronously wait
+for its own callback to finish. Cover SDK failures that leave start/stop or
+uninstall partly applied. Demonstrate explicit stop/start without infinite
 recovery loops.
 
 Callbacks publish bounded evidence or signal the existing owner. Console work
 stays outside callbacks; leave the shared CLI attachment seam for task 47.
-Never create a second PHY poller. Report management health, configuration trust,
-link/profile resolution, IP state and explicitly requested reachability
+Never create a second PHY poller. Report management health, configuration
+trust, link/profile resolution, IP state and explicitly requested reachability
 separately. DHCP failure with healthy MDIO/link remains network evidence; a
 valid generic 10/half link can fail the selected application profile.
 
@@ -61,16 +68,19 @@ Include library/source revision and dirty-or-unknown firmware identity, SDK,
 target and board settings without secrets. Retain a standalone useful example
 without FieldCore, servo actions or Internet provisioning dependencies.
 
-## Acceptance and checkpoint
+## Acceptance
 
-Inject every resource-acquisition, handler-registration, start/stop and shutdown
-callback failure, including withheld console and bursts. Build/link the full
-actual pinned P4 image; no Arduino facade or header shim. Record physical
-DHCP/link/local-peer results NOT RUN until authorized fixture work.
+Inject every resource-acquisition, handler-registration, start/stop and
+shutdown callback failure, including withheld console and bursts. Build/link
+the full actual pinned P4 image; no Arduino facade or header shim. Record
+physical DHCP/link/local-peer results NOT RUN until authorized fixture work.
 
-Ship callback/helper Doxygen for context ownership, task context and work limits;
-update example README, `docs/esp-idf.md`, root README and CHANGELOG with exact
-build/flash/monitor commands, wiring assumptions and local fixture requirements.
-Review affected guides, run source-documentation and focused local checks,
-record progress/evidence, and commit/sync checked units and completion on the
-same execution branch. Remote CI stays at task 71.
+Document application callbacks/helpers, resource ownership and service limits.
+Update the example README and `docs/esp-idf.md` with build/flash/monitor
+commands, explicit wiring assumptions and separately gated fixture
+instructions.
+
+Review README/CHANGELOG and affected guides. Run focused local and
+source-documentation checks (Doxygen where applicable), then update
+evidence/progress under COMMON. Commit/sync checked units and completion on
+the execution branch; first-set remote CI belongs only to 71.

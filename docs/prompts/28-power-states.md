@@ -1,35 +1,33 @@
 # 28 - Implement active-sleep policy and explicit power states
 
-Read [COMMON](COMMON.md), [ENGINEERING](ENGINEERING.md),
-[CONVENTIONS](CONVENTIONS.md), [FULL_COVERAGE](FULL_COVERAGE.md) and
-[VERIFICATION](VERIFICATION.md). Use [SOURCE_MAP](SOURCE_MAP.md) for current
-source locations; historical reports do not replace a fresh audit.
+Follow [COMMON](COMMON.md) and its shared contracts, including
+[CONVENTIONS](CONVENTIONS.md), [EVIDENCE](EVIDENCE.md) and
+[FULL_COVERAGE](FULL_COVERAGE.md). Begin with the stage-specific rule reminder:
+owned paths, fresh relevant sibling audit, selected names, one MDIO owner,
+documentation/local checks and the recorded execution branch. Use available
+subagents for disjoint work or independent review as COMMON specifies.
 
-At entry record owned paths, applicable rules, current source revisions/dirty
-state, selected names, one MDIO owner, local checks and the recorded execution
-branch. Resume that branch. Use disjoint implementation/test work or independent
-read-only review when useful; choose available models/effort by task complexity
-and record the rationale. The lead owns shared contracts, integration and Git.
-Siblings remain read-only.
-
-Prerequisites: [22](22-reconcile-recover.md), [5](5-silicon-power-interface-ledger.md); only the concrete inputs used below are required.
+Prerequisites: [22](22-reconcile-recover.md), [5](5-silicon-power-interface-ledger.md).
+Verify the concrete inputs below; retain unrelated open gates under COMMON.
 
 ## Scope, current evidence and work
+
+Deliver active-sleep policy plus documented IEEE power-down, deep-power-down,
+disable and wake transitions. Keep policy configuration distinct from observed
+power state and partner-dependent behavior. Extend one shared configuration/
+operation/restore implementation; local `end` remains bus-silent.
 
 Verify the [power facts](../reference/library-ti-features.md#interrupts-power-eee-and-wol)
 against SNLS647I 8.3.6 / table 8-40. Active-sleep configuration is PHYSCR
 mask/value `0x7000/0x6000`, while BISCR bit 8 is 0 sleeping/1 normal;
 the documented 1.4-second NLP interval is not a guaranteed time to find a partner.
 IEEE power-down uses BMCR `0x0800`; DPD entry first sets `0x0428[2]`,
-then enables IEEE power-down. DPD stops the PLL. Confirm exit timing/order and
+then enables IEEE power-down. Preserve BMCR isolation independently; setting or
+clearing power-down must not silently change the caller's interface isolation.
+DPD stops the PLL. Confirm exit timing/order and
 clock availability independently; do not assume reversing the two writes is
 a complete wake procedure. Recheck conflicts with compliance controls at 0428
 and preserve separate policy, observed state and transition validity.
-
-Deliver active-sleep policy plus documented IEEE power-down, deep-power-down,
-disable and wake transitions. Keep policy configuration distinct from observed
-power state and partner-dependent behavior. Extend one shared configuration/
-operation/restore implementation; local `end` remains bus-silent.
 
 Reopen MB85RC `src/MB85RC.cpp::enterSleep`, `wake`,
 `_ensureAwakeForI2c` and public sleep/capability declarations. Inspect
@@ -48,7 +46,11 @@ state, controller access availability, clock/PLL effects, waits, completion
 evidence and retained/reset configuration. Validate capability, requested state,
 maintenance and timing before I/O. Apply command-neutral writes once and use
 owner-driven bounded waits only where source-defined completion exists.
-Unknown write effects cannot become known sleep/awake state.
+Unknown write effects cannot become known sleep/awake state. Include ENHANCED
+mode's external PWRDN pin: the pin can keep power-down asserted despite clearing
+the software request. Report request readback and actual state separately, and
+bound a blocked wake without repeated writes. Coordinate loss of PHY-generated
+MAC reference clocks with the application before entry and on exit.
 
 Preserve desired settings and extend reset/recovery/restoration for each power
 kind, using stable source-supported verification. Pin, oscillator, GPIO reset,
@@ -74,23 +76,14 @@ and unperformed physical clock/power measurements.
 
 ## Documentation, verification and checkpoint
 
-Ship accurate public Doxygen and procedure citations with this behavior: units,
-legal states, ownership, output validity, I/O effects, deadlines and cleanup.
-Update API contracts, affected guides, restoration/feature evidence and the stage
-report/progress. Review README, CHANGELOG and relevant example/test/tool guides;
-update affected claims and record why others need no change. Future APIs and
-physical qualification remain explicitly unimplemented/unverified.
+Update public Doxygen, procedure citations, affected API/user/test/tool guides,
+coverage, stage report and progress with this behavior. Review README/CHANGELOG
+and record relevant no-change reasons. Run the focused registered host tests
+above with active Release checks, affected portable-consumer and Doxygen checks,
+`python tools/verify_references.py` and `git diff --check`.
 
-Run registered focused host tests with active Release checks, relevant portable
-consumer/source-documentation/link checks, the reference checker and
-`git diff --check`. Record actual commands and separate PASS/FAIL/NOT RUN/BLOCKED
-for host, SDK, packages and hardware where relevant. Missing source evidence
-blocks the affected requirement; it cannot become unsupported silicon or close
-a required gate. Continue independent eligible work.
-
-Review the final diff for simple control flow, stale comments, duplicated
-procedures and undocumented errors. Commit and sync checked tests/docs/code on
-the same execution branch after this task and each coherent verified unit.
-The lead fetches, safely integrates, pushes and verifies upstream equality;
-report exact sync failures. First-execution remote CI dispatch, polling and
-waiting belong only to checkpoint **71**, never this task.
+Apply COMMON's final maintainability review and evidence reporting. Keep source
+gaps, SDK/package results and physical qualification separate. The lead commits
+and syncs this complete task and coherent verified units on the same execution
+branch, verifies upstream equality, and reports any sync failure. First-set
+remote CI runs and status checks belong only to prompt 71.

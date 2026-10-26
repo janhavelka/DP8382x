@@ -3,7 +3,7 @@
 Sibling paths are relative to `Projects/` and intentionally written as paths,
 not dependencies or links outside this repository. Start with their applicable
 `AGENTS.md`; inspect live files because these repositories evolve independently.
-The reports below are dated observations, not permanent compatibility contracts.
+Use actual declarations, implementation and tests for the selected conventions.
 
 | Topic | Primary local sources to reopen | Use and limit |
 | --- | --- | --- |
@@ -28,11 +28,6 @@ Use [CONVENTIONS](CONVENTIONS.md) for the concrete selected baseline. Inspect th
 named symbol and its implementation/tests before adopting its behavior; peers
 differ on health admission, lifecycle aliases and result retention.
 
-The [sibling audit](../reports/sibling-driver-audit.md),
-[FieldCore audit](../reports/fieldcore-conventions-audit.md),
-[additional family/tooling audit](../reports/family-tooling-audit.md) and
-[PHY audit](../reports/phy-implementation-audit.md) document this planning run.
-
 ## Silicon and SDK authority
 
 The [extracted library evidence](../reference/library-evidence.md) contains
@@ -40,7 +35,7 @@ register/mask/value/procedure/timing tables from the pinned TI and other primary
 drivers, including rejected code behavior and source conflicts. Reopen the
 specific rows and source lines relevant to each prompt. Follow
 [EVIDENCE](EVIDENCE.md): compare with exact datasheets, use independent vectors,
-preserve unknowns and correct the prior findings rather than trusting them.
+preserve unknowns and use the supported current interpretation.
 
 Read [reference index](../reference/README.md),
 [source-code review](../reference/source-code.md),

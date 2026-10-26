@@ -1,20 +1,22 @@
 # 30 - Implement bounded legacy-MAC LPI sessions
 
-Read [COMMON](COMMON.md), [ENGINEERING](ENGINEERING.md),
-[CONVENTIONS](CONVENTIONS.md), [FULL_COVERAGE](FULL_COVERAGE.md) and
-[VERIFICATION](VERIFICATION.md). Use [SOURCE_MAP](SOURCE_MAP.md) for current
-source locations; historical reports do not replace a fresh audit.
+Follow [COMMON](COMMON.md) and its shared contracts, including
+[CONVENTIONS](CONVENTIONS.md), [EVIDENCE](EVIDENCE.md) and
+[FULL_COVERAGE](FULL_COVERAGE.md). Begin with the stage-specific rule reminder:
+owned paths, fresh relevant sibling audit, selected names, one MDIO owner,
+documentation/local checks and the recorded execution branch. Use available
+subagents for disjoint work or independent review as COMMON specifies.
 
-At entry record owned paths, applicable rules, current source revisions/dirty
-state, selected names, one MDIO owner, local checks and the recorded execution
-branch. Resume that branch. Use disjoint implementation/test work or independent
-read-only review when useful; choose available models/effort by task complexity
-and record the rationale. The lead owns shared contracts, integration and Git.
-Siblings remain read-only.
-
-Prerequisites: [29](29-eee-negotiation.md), [28](28-power-states.md), [22](22-reconcile-recover.md); only the concrete inputs used below are required.
+Prerequisites: [29](29-eee-negotiation.md), [28](28-power-states.md),
+[22](22-reconcile-recover.md). Verify the concrete inputs below; retain unrelated open
+gates under COMMON.
 
 ## Scope, current evidence and work
+
+Deliver exact documented legacy-MAC EEE/TX LPI coordination as complete finite
+owner-admitted sessions, including entry, status acquisition, exit and verified
+restoration. Reuse EEE configuration and the existing operation engine; no
+independent LPI task or implicit background control.
 
 Re-open SNLS647I 8.3.4/7.6 and the
 [LPI timing facts](../reference/library-ti-features.md#interrupts-power-eee-and-wol):
@@ -24,11 +26,6 @@ not buffer MAC frames. At 100 Mbit/s, sleep 210 us, quiet 20 ms, wake 36 us and 
 are **nominal** datasheet timings, not maximum bounds or proof the partner/MAC
 is ready. Test literal entry/exit preserving bypass controls and add actual
 timing/traffic measurements to qualification without fabricating their outcome.
-
-Deliver exact documented legacy-MAC EEE/TX LPI coordination as complete finite
-owner-admitted sessions, including entry, status acquisition, exit and verified
-restoration. Reuse EEE configuration and the existing operation engine; no
-independent LPI task or implicit background control.
 
 Reopen MB85RC timed wake and uncertain transition source/tests, PCA9555
 primary-versus-cleanup evidence and TMP1x2 operation/result and diagnostic
@@ -75,23 +72,14 @@ disruptive legacy-MAC procedure.
 
 ## Documentation, verification and checkpoint
 
-Ship accurate public Doxygen and procedure citations with this behavior: units,
-legal states, ownership, output validity, I/O effects, deadlines and cleanup.
-Update API contracts, affected guides, restoration/feature evidence and the stage
-report/progress. Review README, CHANGELOG and relevant example/test/tool guides;
-update affected claims and record why others need no change. Future APIs and
-physical qualification remain explicitly unimplemented/unverified.
+Update public Doxygen, procedure citations, affected API/user/test/tool guides,
+coverage, stage report and progress with this behavior. Review README/CHANGELOG
+and record relevant no-change reasons. Run the focused registered host tests
+above with active Release checks, affected portable-consumer and Doxygen checks,
+`python tools/verify_references.py` and `git diff --check`.
 
-Run registered focused host tests with active Release checks, relevant portable
-consumer/source-documentation/link checks, the reference checker and
-`git diff --check`. Record actual commands and separate PASS/FAIL/NOT RUN/BLOCKED
-for host, SDK, packages and hardware where relevant. Missing source evidence
-blocks the affected requirement; it cannot become unsupported silicon or close
-a required gate. Continue independent eligible work.
-
-Review the final diff for simple control flow, stale comments, duplicated
-procedures and undocumented errors. Commit and sync checked tests/docs/code on
-the same execution branch after this task and each coherent verified unit.
-The lead fetches, safely integrates, pushes and verifies upstream equality;
-report exact sync failures. First-execution remote CI dispatch, polling and
-waiting belong only to checkpoint **71**, never this task.
+Apply COMMON's final maintainability review and evidence reporting. Keep source
+gaps, SDK/package results and physical qualification separate. The lead commits
+and syncs this complete task and coherent verified units on the same execution
+branch, verifies upstream equality, and reports any sync failure. First-set
+remote CI runs and status checks belong only to prompt 71.

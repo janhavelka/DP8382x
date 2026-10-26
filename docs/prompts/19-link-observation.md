@@ -1,18 +1,16 @@
 # 19 - Implement live and cached link observations
 
-Read [COMMON](COMMON.md), [ENGINEERING](ENGINEERING.md),
-[CONVENTIONS](CONVENTIONS.md), [FULL_COVERAGE](FULL_COVERAGE.md) and
-[VERIFICATION](VERIFICATION.md). Use [SOURCE_MAP](SOURCE_MAP.md) for current
-source locations; historical reports do not replace a fresh audit.
+Follow [COMMON](COMMON.md) and its shared contracts, including
+[CONVENTIONS](CONVENTIONS.md), [EVIDENCE](EVIDENCE.md) and
+[FULL_COVERAGE](FULL_COVERAGE.md). Begin with the stage-specific rule reminder:
+owned paths, fresh relevant sibling audit, selected names, one MDIO owner,
+documentation/local checks and the recorded execution branch. Use available
+subagents for disjoint work or independent review as COMMON specifies.
 
-At entry record owned paths, applicable rules, current source revisions/dirty
-state, selected names, one MDIO owner, local checks and the recorded execution
-branch. Resume that branch. Use disjoint implementation/test work or independent
-read-only review when useful; choose available models/effort by task complexity
-and record the rationale. The lead owns shared contracts, integration and Git.
-Siblings remain read-only.
-
-Prerequisites: [18](18-forced-crossover-settings.md), [17](17-negotiated-link-settings.md), [13](13-side-effect-register-access.md), [4](4-silicon-diagnostic-ledger.md); only the concrete inputs used below are required.
+Prerequisites: [18](18-forced-crossover-settings.md),
+[17](17-negotiated-link-settings.md), [13](13-side-effect-register-access.md),
+[4](4-silicon-diagnostic-ledger.md). Verify the concrete inputs below; retain unrelated
+open gates under COMMON.
 
 ## Scope, current evidence and work
 
@@ -67,33 +65,23 @@ and application policy.
 Use the [link helper audit](../reference/library-ti-core.md#negotiation-forced-modes-and-observations).
 PHYSTS `0x10` low-bit vectors `0x0001/0x0005/0x0003/0x0007` decode 100/half,
 100/full, 10/half, 10/full only where the mode's status semantics are proved;
-do not use them to close the ENHANCED forced-mode ambiguity. TI's generic BMSR
-helper rereads only when first link bit `0x0004` is set, and returns success
-without writing output when it is clear. Test first-low/second-high, persistent
-low, first-high/second-low and second-read failure with previous output true.
-Preserve consumed first-read history and reject uninitialized debug formatting.
+do not use them to close the ENHANCED forced-mode ambiguity. For BMSR link bit `0x0004`, implement the documented latch-low/current read
+plan. Test first-low/second-high, persistent low, first-high/second-low and
+second-read failure with previous output true. Every success assigns an explicit
+result; preserve consumed first-read history and render only valid fields.
 Check current source/datasheet and actual mode/partner traces before asserting
 current link, pause or speed; hardware evidence cannot be replaced by literals.
 
 ## Documentation, verification and checkpoint
 
-Ship accurate public Doxygen and procedure citations with this behavior: units,
-legal states, ownership, output validity, I/O effects, deadlines and cleanup.
-Update API contracts, affected guides, restoration/feature evidence and the stage
-report/progress. Review README, CHANGELOG and relevant example/test/tool guides;
-update affected claims and record why others need no change. Future APIs and
-physical qualification remain explicitly unimplemented/unverified.
+Update public Doxygen, procedure citations, affected API/user/test/tool guides,
+coverage, stage report and progress with this behavior. Review README/CHANGELOG
+and record relevant no-change reasons. Run the focused registered host tests
+above with active Release checks, affected portable-consumer and Doxygen checks,
+`python tools/verify_references.py` and `git diff --check`.
 
-Run registered focused host tests with active Release checks, relevant portable
-consumer/source-documentation/link checks, the reference checker and
-`git diff --check`. Record actual commands and separate PASS/FAIL/NOT RUN/BLOCKED
-for host, SDK, packages and hardware where relevant. Missing source evidence
-blocks the affected requirement; it cannot become unsupported silicon or close
-a required gate. Continue independent eligible work.
-
-Review the final diff for simple control flow, stale comments, duplicated
-procedures and undocumented errors. Commit and sync checked tests/docs/code on
-the same execution branch after this task and each coherent verified unit.
-The lead fetches, safely integrates, pushes and verifies upstream equality;
-report exact sync failures. First-execution remote CI dispatch, polling and
-waiting belong only to checkpoint **71**, never this task.
+Apply COMMON's final maintainability review and evidence reporting. Keep source
+gaps, SDK/package results and physical qualification separate. The lead commits
+and syncs this complete task and coherent verified units on the same execution
+branch, verifies upstream equality, and reports any sync failure. First-set
+remote CI runs and status checks belong only to prompt 71.

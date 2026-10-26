@@ -1,65 +1,23 @@
 # Implementation progress
 
-## Planning baseline
-
-Date: 2026-10-26. Starting revision:
-`35ced9bb9d0b05c1c0b41ecff7cee5e757bcb163`, branch `main`.
-The initial DP8382x working tree was clean. A configured origin was observed;
-the original setup instruction saying no remote was selected was historical.
-This records the initial planning snapshot. Completed planning/maintenance work
-now follows the user's commit/sync instruction; actual checkpoint/sync results
-belong in the final handoff and the next progress update. No publication is implied.
-
-The [audit reports](reports/README.md) and [80-prompt set](prompts/README.md)
-are prepared. **No driver/API implementation, firmware example, library test
-suite, CI, CLI or HIL runner has been created or executed here.**
-Current executable verification remains the reference/documentation checker.
-
-The follow-up scope requires complete documented chip functionality beyond the
-initial board, with mandatory [full-coverage research](prompts/FULL_COVERAGE.md),
-an exhaustive [DP83826I inventory](reference/dp83826i-feature-inventory.md) and
-[additional public manufacturer sources](reference/public-research.md).
-These are planning artifacts; all implementation stages remain NOT STARTED.
-
-The concrete-conventions follow-up expands all stages from current sibling
-source. See [CONVENTIONS](prompts/CONVENTIONS.md) for selected Status/health/method
-names, file responsibilities and Doxygen requirements. Every prompt includes
-rule reminders, focused current-source checks and stage-specific documentation.
-Model selection follows task complexity and available tools. This maintenance
-does not mark any implementation stage complete. The preceding guidance
-checkpoint was `572f8b1f6946fe645f35d7ad5c16c5ef617cfdfb`, synchronized on `main`.
+The [80-prompt implementation plan](prompts/README.md) is ready for execution.
+All implementation stages are **NOT STARTED**. Current executable verification
+is the reference/documentation checker; driver code, examples, CLI, runner,
+software tests and hardware qualification are future work.
 
 ## Execution record
 
-The [correctness audit](reports/prompt-correctness-audit.md) corrected silicon/SDK
-instructions and reduced unnecessary mechanisms while retaining full scope.
-The fresh-branch rule checkpoint `21a22c4` was synchronized on main during this
-maintenance pass. EEE wire-address and A-generation strap/EMC conflicts remain
-explicit evidence gates. This review does not execute implementation stages.
+Execution branch: not started. Base commit: not recorded.
 
-The [workload audit](reports/prompt-workload-audit.md) replaces the former 34
-stages with 80 naturally numbered complete prompts. The preceding correctness
-checkpoint `afe8445fa80edf65296497ffc1205c460258382f` was synchronized on main.
-All old stage scopes are mapped; planning maintenance still implements no driver.
+Before prompt 1 of a new execution, create a new branch from the synchronized
+intended base and record its name/base here. Keep that branch for every prompt
+and resumed session. Record stage outcomes, actual checks, remaining dependencies
+and completed checkpoints under [COMMON](prompts/COMMON.md). Planning maintenance
+leaves implementation status unchanged.
 
-The [public-library data audit](reports/public-library-data-audit.md) adds four
-source catalogues and concrete inputs to 60 stages. Every prompt now requires
-source-to-datasheet checks, explicit evidence limits and corrections through
-[EVIDENCE](prompts/EVIDENCE.md). The preceding workload checkpoint was
-`035a6c2e556bf3a704bfa45c99ef39581803593a`, synchronized on main. This follow-up
-changes planning only; all 80 implementation stages remain NOT STARTED.
-
-Execution branch/base: not started. Before the first stage of a new promptset
-execution, create a new branch from the synchronized intended base and record
-its name and original base commit. Do not use main or a previous set's branch.
-Keep it for every stage and resumed session; resuming does not create a new branch.
-Promptset maintenance does not start execution or require a new branch.
-
-The user now authorizes routine commits/sync at every completed stage and for
-coherent verified intermediate units. Root AGENTS owns that workflow. For this
-first execution, remote CI is checked only at prompt 71; 1-70 and 72-80 use
-focused local verification. Record the prompt-71 SHA separately from later local
-results, and restore parent CI policy after the first execution.
+Commit and sync each completed prompt and coherent verified intermediate unit.
+For the first execution, prompt 71 owns remote CI; all stages retain focused
+local checks. Record the actual CI-tested SHA separately from later results.
 
 | Prompt | Implementation status | Evidence |
 | --- | --- | --- |
@@ -147,26 +105,12 @@ results, and restore parent CI policy after the first execution.
 A stage can be complete as software while its separately tracked physical
 qualification remains NOT RUN, if its acceptance explicitly permits that.
 Prompts 72-73 cannot complete required physical measurements without actual evidence;
-final overall completion must disclose and retain any outstanding required gates.
+the final handoff must disclose outstanding required gates and retain incomplete
+overall status until those gates close.
 Do not change statuses merely because a prompt or future command exists.
 
-## Per-stage report template
-
-Create `docs/reports/implementation/N-topic.md` during execution, with:
-
-- baseline branch/revision and dirty state; prerequisites and owned files;
-- current sibling audit with exact paths and decisions adopted/adapted/rejected;
-- short rule reminder, delegated scope/model choices and selection rationale;
-- exact TI/SDK references, decisions, implementation/API changes and consumers;
-- Doxygen/source comments and README/CHANGELOG/guide changes or no-change reasons;
-- commands and results for host, CLI/Python, SDK, package and remote CI separately;
-- physical fixture/image identity and evidence, or explicit NOT RUN/BLOCKED;
-- unresolved gates, next eligible stage and any actual authorized Git result.
-
-Also record the execution branch/base, verified local/upstream equality and zero
-ahead/behind, or exact sync failure. Commit/sync checked prompt output before
-moving on, and checkpoint complete units during work. Do not create empty or
-self-referencing progress commits.
-
-Record tested commit identity without a self-referential commit-hash update loop.
-Historical evidence does not verify a later changed tree.
+Record each stage under COMMON's report template in
+`docs/reports/implementation/N-topic.md`, linking actual checks and unresolved
+requirements from its row above. Include execution branch/base, completed commit
+and verified sync result. Keep CI and physical evidence tied to their actual
+commit/image and conditions.

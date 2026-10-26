@@ -1,201 +1,174 @@
 # Library engineering contract
 
-These are requirements and design constraints for future implementation. Stage
-6 resolves framework ownership and prompts 7-8 fix exact signatures in maintained
-API documentation. Changes to those decisions need evidence and coordinated
-updates, not compatibility aliases added to hide disagreement.
-The [concrete conventions](CONVENTIONS.md) select the current planned Status,
-DriverState, snapshot and function names, source responsibilities and Doxygen
-requirements from actual sibling code. Prompts 7-8 freeze their exact signatures;
-do not independently choose competing names in later prompts.
-Apply [EVIDENCE](EVIDENCE.md) before using source-derived numeric facts. Audited
-library code can still contain wrong fields, stale identity filters, ignored
-errors and missing waits. SDK defaults are not TI timing requirements, and
-nominal timing is not a guaranteed maximum. Keep corrections traceable.
+Use [CONVENTIONS](CONVENTIONS.md) for exact names and file responsibilities.
+Prompt 6 establishes framework ownership; prompts 7-8 define the transport,
+value, lifecycle and operation contracts in `docs/api-contracts.md`. Subsequent
+stages implement and extend those contracts with coordinated consumer updates.
+Use [EVIDENCE](EVIDENCE.md) for chip facts and [FULL_COVERAGE](FULL_COVERAGE.md)
+for the complete per-part feature inventory.
 
-[FULL_COVERAGE](FULL_COVERAGE.md) defines mandatory public-source research and
-complete register/field/procedure coverage. Implement all documented programmable
-features of supported parts; runtime opt-in, unconnected board pins and absent
-first-use-case demand do not remove a feature from scope. Hardware-only features
-retain documentation/observability without invented software controls.
+## Product and portable boundary
 
-## Product and naming
+Deliver a general C++17 MCU Ethernet PHY core, starting with DP83826I/DP83826IRHBR,
+then qualifying each planned family part. Keep generic supported 10/100 and
+duplex choices in the library. Put the first board's 100/full advertisement,
+recovery policy and EtherCAT scheduling in its application.
 
-- Deliver a general microcontroller Ethernet PHY library, starting with exact
-  **DP83826I / DP83826IRHBR**, then individually qualifying the documented family.
-  Normal 10/100 Ethernet and an ESP32-P4 EtherCAT-master application are consumers.
-  The PHY library supplies neither a TCP/IP stack nor an EtherCAT master/ESC,
-  servo control, PoE negotiation, power delivery or a board support package.
-- Use namespace `DP8382x`, primary class `DP8382x`, include
-  `<DP8382x/DP8382x.h>`, portable target `DP8382x`. Follow peer header names
-  `Config.h`, `Status.h`, `CommandTable.h`, generated `Version.h` when those
-  responsibilities exist. Extra value headers need a concrete readability reason.
-- PascalCase types, camelCase methods/fields/locals, `_camelCase` private members,
-  uppercase enum values/constants, scoped enums and `constexpr` values. Keep
-  names chip-appropriate: MDIO, PHY address, advertisement, link and duplex;
-  do not rename I2C sensor methods mechanically or inherit I2C error names.
-- Use `Status { Err code; int32_t detail; const char* msg; }` with static message
-  lifetime, `ok()`, `is()`, `inProgress()`, explicit bool, `Ok()` and `Error()`
-  factories, plus stable printable error names. Prompt 7 specifies the actual
-  MDIO, deadline, identity, unsupported, busy and configuration errors. Peer enum
-  ordinals are not a cross-library ABI. Progress/admission is not success.
-- Keep passive `HealthSnapshot`, `LinkSnapshot`, capability and configuration
-  evidence distinct. Prefer common peer terminology where its meaning fits.
-  Do not fabricate sensor samples, calibration, EEPROM or I2C scan semantics.
+Core uses fixed-size values and borrowed terminal callbacks. Keep platform
+headers, allocation, exceptions, tasks, delays, logging and network stacks in
+adapters/applications. Public headers compile independently. A standalone C++
+consumer links real chip behavior through its own MDIO transport.
 
-## Portable core and framework boundary
+Use the supported ESP-IDF `esp_eth_phy_t` interface and existing MAC/frame driver.
+Put SDK code in explicitly selected `include/DP8382x/esp_idf/` and
+`src/esp_idf/` paths. Reuse the IEEE 802.3 base only for operations whose actual
+semantics fit the core contract. Share chip procedures between portable and SDK
+paths. The MAC owns DMA/frame I/O; applications own network/EtherCAT stacks,
+board power delivery, pins, clocks and reset GPIO.
 
-Core is standard C++17 with no Arduino/ESP-IDF/FreeRTOS headers, global bus,
-platform clocks/delays, tasks, logging, heap allocation, exception dependence,
-network stack or FieldCore contracts. Public portable headers must compile alone.
-An ordinary C++ application must link and use real chip logic through borrowed
-MDIO callbacks. Host test fakes must be clearly identified as simulated.
+For each identity, reset, power, advertisement, negotiation, pause, link,
+interrupt, diagnostic and register operation, assign one executing owner.
+Specify how SDK methods, ioctls, polling and application requests reach that
+owner. Preserve SDK-cached negotiation state through supported control paths
+and report the SDK's pause projection separately from full RX/TX pause resolution.
 
-The native ESP-IDF adapter belongs under separately selected platform paths,
-for example `include/DP8382x/esp_idf/` and `src/esp_idf/`. It implements the
-supported `esp_eth_phy_t` contract and reuses the pinned IEEE 802.3 base where
-appropriate. Do not rebuild the MAC, DMA, frame path or Ethernet stack. Do not
-ship an IDF-only driver and describe a hypothetical callback layer as portable.
+## Ownership and lifetime
 
-Before implementation, make an operation-by-operation ownership table for
-identity, reset, power state, negotiation, advertisement, symmetric/asymmetric
-pause and resolved RX/TX pause reporting, link polling, speed/duplex reporting,
-MMD access, interrupts and diagnostics. MAC/application flow-control enable
-policy stays outside core. In IDF mode each has
-one executing owner. A portable generic path may serve non-IDF hosts while
-IDF delegates standard behavior to its base, but they must not run independently
-against the same PHY. Share chip-specific masks, validation and procedures.
+One application owner serializes every call accessing a driver instance,
+including cached snapshots and lifecycle calls. Bus-silent access still requires
+race-free access to shared memory. Publish copied snapshots to other tasks under
+application synchronization. ISR work signals the owner; MDIO runs in task context.
 
-One application owns each physical PHY's configuration and lifetime. It owns
-MDIO controller setup, pins, clock wiring, locks, reset GPIO, monotonic time,
-task/ISR scheduling, deadlines, retries and recovery policy. Borrowed objects
-must outlive all callbacks and IDF activity. An ISR signals work; the owner
-performs MDIO later. Cached getters, rendering and status projection do no I/O.
+Borrowed callbacks, context and synchronization objects outlive every operation
+and SDK callback. Define installation-time context resolution and multiple-instance
+behavior using supported SDK APIs, including callbacks before handle publication.
+Use explicit instance ownership rather than a hidden global singleton.
 
-## MDIO and bounded operations
+Model framework lifecycle calls as fallible sequences with partial effects.
+Installation, start, stop and deletion errors can leave callbacks/resources or
+state active. Track acquired resources and completed steps; release only after
+callbacks are quiescent. Preserve recoverable ownership on failure and specify
+the supported retry/cleanup route. Keep primary and cleanup errors separately.
 
-- Distinguish Clause 22, Clause 22-mediated MMD/extended access and native Clause
-  45. Implement only the exact part's supported mapping; do not equate address
-  spaces or accept arbitrary device addresses/register holes.
-- Serialize the **whole indirect sequence**, and whole read/modify/write where
-  needed, across every bus participant: core, base driver, mediator, ioctl,
-  polling, CLI and other PHYs. Application-controlled serialization must have
-  a documented entry point, lifetime and lock order. Per-frame locking alone
-  is insufficient. Avoid nested locks and deadlocks through base callbacks.
-- Separate operation admission from the bus transaction lock. Admission can span
-  polls; the lock covers only the indivisible frame sequence/RMW and is released
-  on every exit before reset/diagnostic wait intervals, later polls or console
-  backpressure. One conservative controller lock per transaction is sufficient;
-  do not add a per-PHY lock registry or hold the bus for a whole long operation.
-- Choose either a terminal transaction/batch callback or an explicit owner-held
-  transaction mechanism that permits IDF reuse. Specify the accounting unit.
-  A logical MMD operation can contain multiple MDIO frames. A cooperative budget
-  cannot split an indirect transaction and release ownership halfway through it.
-- Transport callbacks are synchronous and terminal, bounded including lock
-  acquisition and underlying controller waits, and never re-enter or retain
-  borrowed buffers. Preserve full backend detail; normalize illegal callback
-  statuses. A timeout argument or measuring lateness after return is not proof
-  of a bound. Audit actual pinned SDK wait paths and document limitations.
-- Ordinary reads publish outputs only on valid complete success. For destructive
-  acquisition, preserve each successfully consumed event/counter sample in the
-  single collector immediately, with its own validity/time, even if a later read
-  fails. Keep the aggregate output unchanged/stale and retain partial internal
-  evidence. A failed read that might have cleared silicon without returning data
-  records possible history loss; it does not mean zero events. A write followed by a
-  timeout/error can have affected silicon: preserve uncertainty; do not retry
-  automatically or restore trusted state just because a later read succeeds.
-- Use aggregate operation deadlines, not a fresh full timeout at every step.
-  Specify monotonic domain, wrap/overflow rules, timestamp validity, quantization
-  and minimum waits. No unbounded busy loops. Long reset/negotiation/diagnostic
-  waits must allow owner scheduling; freeze the smallest suitable poll/result
-  API at prompt 8. Retain terminal results and cancellation effects explicitly.
-- Binding, cached snapshots, invalidation and local teardown are bus-silent.
-  Hardware reset, software reset, restart, power-down and recovery are separate
-  fallible actions. Cancellation cannot undo an accepted register write. Do not
-  destroy context or release resources while work still references it.
-  Bus-silent cancellation only requests/records cancellation; any restoration
-  occurs through subsequent owner-driven work with an explicit finite cleanup
-  budget. Do not silently extend the primary operation deadline. If cleanup
-  cannot run, preserve untrusted state and expose remaining hardware effects.
+## MDIO transactions and raw access
 
-## Chip behavior and state
+- Represent C22 register numbers and C22-mediated MMD DEVAD/offset separately.
+  Validate the exact part's accessible namespaces, masks and legal encodings.
+  Native C45 requires separate source-proved hardware support.
+- Serialize each complete indirect sequence and read/modify/write across every
+  participant on the controller, including other PHYs. Use one application-owned
+  transaction lock or bounded terminal transaction callback with defined lock
+  order and lifetime. Reuse that mechanism through SDK entry points.
+- Keep long-operation admission separate from the short bus lock. Release the
+  lock on every exit before settling waits, subsequent polls or console output.
+  Count logical transactions and physical MDIO frames separately. Admit the
+  whole indivisible transaction within the current budget.
+- Treat C22 REGCR/ADDAR selector/data access as part of an owned MMD transaction.
+  Route raw SDK/CLI access through the same admission and access policy. Guard
+  destructive reads through the event collector and gate configuration writes
+  against active operation/maintenance state. Enforce these routes in code.
+- Transport callbacks are synchronous, terminal and bounded, including lock and
+  controller waits. Specify callback budget, context/buffer lifetime and legal
+  statuses; normalize invalid returns with preserved diagnostic detail. Define
+  release-on-return guarantees. A fallible release retains ownership evidence
+  and prevents further affected I/O until the application resolves it; keep
+  this admission rule separate from passive health. Establish
+  actual SDK limits from implementation, not just an API timeout parameter.
+- Publish ordinary read outputs only after complete valid success. Immediately
+  retain each successfully consumed event/counter sample with validity/time in
+  the collector, even if later acquisition fails. Preserve the prior aggregate
+  snapshot with explicit stale/invalid status. Record possible history loss if
+  a failed read may have consumed an unreturned sample.
+- A failed or late write may have reached hardware. Preserve partial effects,
+  invalidate affected trust and return the primary error. Retry and recovery
+  remain application decisions. Readback verifies only documented stable bits.
 
-Exact variant/revision datasheets govern masks, resets, waits and ordering.
-The [PHY audit](../reports/phy-implementation-audit.md) identifies source conflicts
-to resolve, not alternative silicon authority.
+## Time, operations and teardown
 
-- Separate identity evidence from board-declared ordering suffix, operating mode,
-  capabilities and revision policy. Reject unsupported IDs/modes deliberately;
-  shared IDs do not prove identical devices. Do not blindly accept or reject all
-  revisions using a vendor driver's literal revision check.
-- Generic link configuration exposes supported 10/100, half/full, advertisement,
-  autonegotiation and legal forced modes. Validate unsupported masks/combinations
-  before writes. Verify Auto-MDIX/robust/manual MDI/MDIX interactions, including
-  SNLS647I's robust Auto-MDIX requirement in Force Mode. The starting board's
-  100/full-only advertisement is an example
-  profile, never an unconditional core default or silent 10 Mbit fallback policy.
-- Review SNLS647I section 8.3.13, `VOD_CFG3` at `0x030E = 0x4A40`, for 10BASE-Te
-  applicability and reset restoration. Test placement and write/error handling;
-  neither TI reference code nor generic status reads establish this behavior.
-- Distinguish BMCR reset, PHYRCR hard reset, PHYRCR restart and external reset/POR.
-  Document which configuration survives and which straps are actually resampled.
-  Restore only owned configuration in the documented order; preserve reserved
-  bits and do not use generic RMW on command, W0C/W1C/W1S or read-clear fields.
-  Mixed control/status registers need small source-specific update procedures:
-  preserve consumed events, change only owned stable bits, and write the documented
-  neutral value to every command field unless intentionally issuing that command.
-- Model link down, negotiation pending, invalid/stale observation, transport
-  failure and application policy mismatch separately. Do not report resolved
-  speed/duplex from invalid/incomplete evidence or equate link with IP reachability.
-- Specify latch-low, read-clear, write-clear, self-clearing and counter-overflow
-  semantics per register. Give destructive status one collector and expose cached
-  evidence to other consumers. A dump must not accidentally consume event history.
-- DP83826 RXFCFG1 bit 11 is W0C (SNLS647I table 8-90): zero acknowledges the WoL
-  level indication. Do not copy a W1C-like acknowledgement from the DP83822
-  example in SNLA261A. Check exact-part MAC-byte ordering separately as well.
-- Cached desired configuration, observed hardware values and verified ownership
-  are different. Raw writes, resets, external writers and ambiguous write failures
-  invalidate the relevant evidence; readback compares stable owned bits only.
-- Use passive health, normally the sibling four-state vocabulary UNINIT, READY,
-  DEGRADED, OFFLINE, with explicitly documented transitions and saturating counters.
-  Do not classify an unplugged cable as MDIO failure, a successful status read as
-  recovered configuration, or a rejected argument as a physical bus attempt.
-  Track all-source MDIO activity separately from managed driver health and from
-  chip RX/error counters. Preserve the last error and timestamp validity.
-- Loopback, BIST, TDR/cable diagnostics, LEDs, interrupts, WoL, power-down and EEE
-  are capability-gated. Disruptive procedures require owner admission, bounded
-  completion, truthful results and verified restoration or explicit uncertainty.
-  Never enable optional features as undocumented initialization side effects.
-- Preserve each later device's documented interface scope. In particular,
-  DP83822 includes RGMII as well as RMII/MII; qualify interface timing/delay
-  controls per exact variant even if the initial MAC adapter cannot use them.
-- Fast Link Drop in SNLS647I section 8.4.1.1 is MII-only. Initial RMII operation
-  is not evidence for that feature. C2000/ESC app notes are not P4 master recipes.
+Use direct bounded calls for short register work. Use one cooperative operation
+slot for procedures requiring waits or deferred restoration, with retained
+results and nonzero tokens. Freeze exact `start...`, `pollOperation`, `cancel`
+and `takeResult` signatures in prompt 8. Apply the same procedure for any
+consumer-required blocking wrapper.
 
-## Code, documentation and build ownership
+Use aggregate deadlines that include controller/owner acquisition and all frames.
+Specify monotonic units, wrap/overflow range, quantization and timestamp validity.
+Take a fresh timestamp after a side-effecting callback before starting a minimum
+wait; with caller-supplied time only, anchor to a conservative subsequent sample.
+Use finite work limits even with a frozen/malformed clock. A zero work budget
+performs no I/O; deadline/status bookkeeping can still run.
 
-Group implementation by real responsibilities; avoid a huge source file and
-avoid a class per register. Keep one chip-specific implementation and shared CLI
-processor. Use small fixed buffers and named masks, with citations for non-obvious
-sequences. Doxygen describes units, ownership, allowed states, side effects,
-blocking bounds, validity and errors. Python docstrings describe protocol and
-artifact limits. Tests use independent literal datasheet vectors, not production
-constants as their own oracle.
-Write Doxygen from the first implemented public file and update it in every
-behavior-changing checkpoint. Review affected README, CHANGELOG, API, example,
-testing and tool guides at every stage. Use simple engineering language, named
-units and explicit conditions; comments explain consequences and ownership.
+Binding, snapshots, invalidation and local teardown perform no bus operations.
+Define which local calls reject active work/unconsumed results and which return
+retained evidence. Cancellation records a request or terminal local state;
+owner-driven restoration uses a separately admitted finite cleanup allowance.
+Track its outcome independently of the primary deadline/status. Preserve pending
+hardware effects if cleanup cannot run. Release context only after callbacks
+are stopped and evidence has been delivered or explicitly acknowledged.
 
-Use explicit source lists and a dependency-free portable consumer. Tests default
-OFF for consumers. SDK-only headers/sources must be excluded from host compilation.
-Choose `library.json` as release version source when metadata is added; generate
-`Version.h` and applicable manifests reproducibly. Git/build identity is example
-metadata, distinct from release version and unknown in untracked source archives.
-Do not require Python, Git, Doxygen or a sibling checkout merely to link the core.
+## Chip behavior and configuration
 
-Preserve MIT project ownership and actual author/owner information from this repo;
-do not copy sibling company names or CODEOWNERS accounts without evidence. Any
-reused code retains its original applicable notices. GPL reference implementations
-are not source for MIT files. Vendor archives, extracted documents, tests and
-fixture logs are excluded from firmware compilation and distributable library
-packages as appropriate; notices for actually reused source remain included.
+- Keep raw identity, declared orderable part, revision acceptance, operating mode
+  and capabilities distinct. Validate identity before managed configuration and
+  feature operations; define explicit low-level access admission separately.
+  Use source-backed expected IDs and record conflicting reference-driver labels;
+  qualify physical observations separately.
+- Support legal advertised/forced 10/100 modes, next-page exchange and full
+  pause resolution. Validate supported combinations before writes. Implement
+  source-proved Auto-MDIX/robust/manual interactions and the exact 10BASE-Te
+  `VOD_CFG3` initialization/restore requirement. The inventory owns precise data.
+- Model BMCR reset, PHYRCR hard reset, PHYRCR restart and external reset/POR
+  separately, with their strap sampling, configuration loss and readiness rules.
+- Maintain desired persistent configuration, observed stable state and verified
+  ownership separately. Give every shared field one update path. Temporary
+  diagnostic/clock/power profiles use explicit masks and saved owned state.
+  Plan ordering for interacting controls and restore persistent state through a
+  finite procedure; separate reset-bearing recipes from ordinary field replay.
+- Compose mixed control/status writes using owned stable bits and exact command-
+  neutral values. Preserve consumed evidence during updates. Apply exact
+  W0C/W1C/W1S/RC/latch semantics and per-part MAC byte ordering.
+- Raw writes, external reset/writers and ambiguous mutations invalidate affected
+  configuration, link and diagnostic evidence. Snapshots expose validity and
+  observation time; old data can remain available as explicitly stale evidence.
+- Distinguish link down, pending negotiation, invalid observation, transport
+  failure and application policy mismatch. Publish resolved speed/duplex/pause
+  only when its source evidence supports resolution. IP reachability is separate.
+- Give read-clear/latch state one collector and expose cached observations to
+  other clients. A safe dump reads stable registers and presents destructive
+  status from retained evidence; an explicit live acquisition updates the collector.
+- Health uses `UNINIT`, `READY`, `DEGRADED`, `OFFLINE` with defined managed-I/O
+  accounting, saturation and timestamp validity. Keep all-source transport
+  statistics and PHY error counters separate. Cable disconnect is a link event;
+  invalid parameters perform no transport attempt. OFFLINE remains passive
+  telemetry and permits application-driven retry.
+- Gate disruptive diagnostics and optional activation through owner admission,
+  exact capabilities and fixture prerequisites. Complete stop/restore and
+  partial-failure behavior with each feature. Document low-power MDIO/clock
+  availability and the external wake/reset actions the application must supply.
+- Preserve exact interface/medium scope: DP83826I MII/RMII, DP83822's supported
+  MII/RMII/RGMII and IF/HF fiber variants. Apply MII-only Fast Link Drop within
+  its documented conditions; qualify the initial RMII board separately.
+
+## Implementation and documentation
+
+Group code by actual responsibilities. Prefer small values, named masks,
+straight-line procedures and explicit state switches. Keep one chip procedure
+and one shared example CLI. Add a helper or file when it serves a concrete
+responsibility or eliminates repeated behavior.
+
+Document public types/functions with Doxygen from their first implementation:
+units, validity, ownership, callbacks, allowed states, errors, side effects,
+blocking bounds and cleanup. Cite exact TI sections for non-obvious procedures.
+Use independent literal test vectors and failure injection at each transaction
+boundary. Update affected guides and changelog alongside behavior.
+
+Use explicit source lists and tests OFF by default for consumers. Keep SDK,
+examples, tests and reference archives outside portable production compilation.
+Generate release version metadata reproducibly from `library.json`; keep example
+firmware Git identity separate. Ship consumers sufficient source/generated
+headers to build without Git, Python, Doxygen or sibling checkouts.
+
+Use repository-established ownership and author details. Preserve applicable
+notices for reused permissive source and keep GPL reference implementation out
+of MIT source. Package only intended library/adaptor/example material and its
+required licenses. Apply COMMON's verification and checkpoint workflow.

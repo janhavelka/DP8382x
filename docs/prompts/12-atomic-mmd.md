@@ -1,18 +1,15 @@
 # 12 - Implement complete atomic MMD transactions
 
-Read [COMMON](COMMON.md), [ENGINEERING](ENGINEERING.md),
-[CONVENTIONS](CONVENTIONS.md), [FULL_COVERAGE](FULL_COVERAGE.md) and
-[VERIFICATION](VERIFICATION.md). Use [SOURCE_MAP](SOURCE_MAP.md) for current
-source locations; historical reports do not replace a fresh audit.
+Follow [COMMON](COMMON.md) and its shared contracts, including
+[CONVENTIONS](CONVENTIONS.md), [EVIDENCE](EVIDENCE.md) and
+[FULL_COVERAGE](FULL_COVERAGE.md). Begin with the stage-specific rule reminder:
+owned paths, fresh relevant sibling audit, selected names, one MDIO owner,
+documentation/local checks and the recorded execution branch. Use available
+subagents for disjoint work or independent review as COMMON specifies.
 
-At entry record owned paths, applicable rules, current source revisions/dirty
-state, selected names, one MDIO owner, local checks and the recorded execution
-branch. Resume that branch. Use disjoint implementation/test work or independent
-read-only review when useful; choose available models/effort by task complexity
-and record the rationale. The lead owns shared contracts, integration and Git.
-Siblings remain read-only.
-
-Prerequisites: [11](11-clause22-transport.md), [3](3-silicon-core-ledger.md), [6](6-framework-ownership.md); only the concrete inputs used below are required.
+Prerequisites: [11](11-clause22-transport.md), [3](3-silicon-core-ledger.md),
+[6](6-framework-ownership.md). Verify the concrete inputs below; retain unrelated open
+gates under COMMON.
 
 ## Scope, current evidence and work
 
@@ -40,7 +37,10 @@ releases an indirect sequence halfway through. Release before any later schedule
 wait. Keep frame attempts, logical outcome, selector effects and target mutation
 distinct. Partial failure leaves selector uncertainty; re-establish the complete
 address sequence on the next explicit operation. A later read cannot retrospectively
-validate a previous ambiguous target write.
+validate a previous ambiguous target write. Apply one canonical access policy to
+Clause 22 registers and their documented vendor-MMD aliases. Exclude REGCR/ADDAR
+from indirect addressing as SNLS647I 8.3.11.1 specifies; aliases cannot bypass
+reserved-field, destructive-read or mutation ownership checks.
 
 Use fixed storage and staged ordinary read output. Preserve primary/release
 statuses and accepted effects. Generic RMW is limited to stable readable writable
@@ -63,32 +63,23 @@ and [SDK comparison](../reference/library-sdk.md) against current source and
 SNLS647I 8.3.11.1-.5/tables 8-31/32. Vendor DEVAD31 read is literally writes
 `0x0D=0x001F`, `0x0E=address`, `0x0D=0x401F`, then read `0x0E`; a write replaces
 the last read with target data. Keep REGCR reserved bits 13:5 zero, including
-when SDK bitfields contain poisoned/uninitialized storage. Do not infer EEE
-DEVAD3/7 wire offsets from this vendor-only helper. TI's six-frame private RMW
-ignores five write statuses; fail every phase and prove stale addressing cannot
-produce a trusted target update. Recheck whether the repeated data-mode write
-is needed instead of treating library shape as a silicon requirement. Compare
+when SDK bitfields contain poisoned/uninitialized storage. Keep EEE DEVAD3/7 wire offsets gated until their source mapping is established.
+Check every RMW frame result and stop after the first failed phase; prove stale
+addressing cannot produce a trusted target update. Select the minimum complete
+source-backed RMW sequence and test its actual frame count, including any
+required re-selection. Compare
 real admitted MDIO traces later; mock success cannot establish wire correctness.
 
 ## Documentation, verification and checkpoint
 
-Ship accurate public Doxygen and procedure citations with this behavior: units,
-legal states, ownership, output validity, I/O effects, deadlines and cleanup.
-Update API contracts, affected guides, restoration/feature evidence and the stage
-report/progress. Review README, CHANGELOG and relevant example/test/tool guides;
-update affected claims and record why others need no change. Future APIs and
-physical qualification remain explicitly unimplemented/unverified.
+Update public Doxygen, procedure citations, affected API/user/test/tool guides,
+coverage, stage report and progress with this behavior. Review README/CHANGELOG
+and record relevant no-change reasons. Run the focused registered host tests
+above with active Release checks, affected portable-consumer and Doxygen checks,
+`python tools/verify_references.py` and `git diff --check`.
 
-Run registered focused host tests with active Release checks, relevant portable
-consumer/source-documentation/link checks, the reference checker and
-`git diff --check`. Record actual commands and separate PASS/FAIL/NOT RUN/BLOCKED
-for host, SDK, packages and hardware where relevant. Missing source evidence
-blocks the affected requirement; it cannot become unsupported silicon or close
-a required gate. Continue independent eligible work.
-
-Review the final diff for simple control flow, stale comments, duplicated
-procedures and undocumented errors. Commit and sync checked tests/docs/code on
-the same execution branch after this task and each coherent verified unit.
-The lead fetches, safely integrates, pushes and verifies upstream equality;
-report exact sync failures. First-execution remote CI dispatch, polling and
-waiting belong only to checkpoint **71**, never this task.
+Apply COMMON's final maintainability review and evidence reporting. Keep source
+gaps, SDK/package results and physical qualification separate. The lead commits
+and syncs this complete task and coherent verified units on the same execution
+branch, verifies upstream equality, and reports any sync failure. First-set
+remote CI runs and status checks belong only to prompt 71.

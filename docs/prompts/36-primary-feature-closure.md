@@ -1,27 +1,33 @@
 # 36 - Audit complete primary-chip feature coverage
 
-Read [COMMON](COMMON.md), [ENGINEERING](ENGINEERING.md),
-[CONVENTIONS](CONVENTIONS.md), [FULL_COVERAGE](FULL_COVERAGE.md) and
-[VERIFICATION](VERIFICATION.md). Use [SOURCE_MAP](SOURCE_MAP.md) for current
-source locations; historical reports do not replace a fresh audit.
+Follow [COMMON](COMMON.md) and its shared contracts, including
+[CONVENTIONS](CONVENTIONS.md), [EVIDENCE](EVIDENCE.md) and
+[FULL_COVERAGE](FULL_COVERAGE.md). Begin with the stage-specific rule reminder:
+owned paths, fresh relevant sibling audit, selected names, one MDIO owner,
+documentation/local checks and the recorded execution branch. Use available
+subagents for disjoint work or independent review as COMMON specifies.
 
-At entry record owned paths, applicable rules, current source revisions/dirty
-state, selected names, one MDIO owner, local checks and the recorded execution
-branch. Resume that branch. Use disjoint implementation/test work or independent
-read-only review when useful; choose available models/effort by task complexity
-and record the rationale. The lead owns shared contracts, integration and Git.
-Siblings remain read-only.
-
-Prerequisites: [3](3-silicon-core-ledger.md), [4](4-silicon-diagnostic-ledger.md), [5](5-silicon-power-interface-ledger.md), [13](13-side-effect-register-access.md), [14](14-identity-capabilities.md), [16](16-hard-reset-restart.md), [18](18-forced-crossover-settings.md), [19](19-link-observation.md), [20](20-event-counter-acquisition.md), [21](21-passive-health.md), [22](22-reconcile-recover.md), [23](23-loopback-modes.md), [24](24-bist-generator-checker.md), [25](25-cable-manual.md), [26](26-cable-autorun.md), [27](27-interrupt-service.md), [28](28-power-states.md), [29](29-eee-negotiation.md), [30](30-legacy-mac-lpi.md), [31](31-wake-on-lan.md), [32](32-led-gpio.md), [33](33-clock-interface-repeater.md), [34](34-quality-link-loss.md), [35](35-electrical-compliance-calibration.md); only the concrete inputs used below are required.
+Prerequisites: [3](3-silicon-core-ledger.md), [4](4-silicon-diagnostic-ledger.md),
+[5](5-silicon-power-interface-ledger.md), [13](13-side-effect-register-access.md),
+[14](14-identity-capabilities.md), [16](16-hard-reset-restart.md),
+[18](18-forced-crossover-settings.md), [19](19-link-observation.md),
+[20](20-event-counter-acquisition.md), [21](21-passive-health.md),
+[22](22-reconcile-recover.md), [23](23-loopback-modes.md),
+[24](24-bist-generator-checker.md), [25](25-cable-manual.md), [26](26-cable-autorun.md),
+[27](27-interrupt-service.md), [28](28-power-states.md), [29](29-eee-negotiation.md),
+[30](30-legacy-mac-lpi.md), [31](31-wake-on-lan.md), [32](32-led-gpio.md),
+[33](33-clock-interface-repeater.md), [34](34-quality-link-loss.md),
+[35](35-electrical-compliance-calibration.md). Verify the concrete inputs below; retain
+unrelated open gates under COMMON.
 
 ## Scope, current evidence and work
 
 Audit every row of the
 [TI feature/source catalogue](../reference/library-ti-features.md) against the
 current implementation, exact datasheet and any actual measurements. Require
-explicit adopted/adapted/rejected dispositions and independent negative tests for
-MCU odd-nibble polarity, LED1/3 swaps, RTOS LED0 truncation, Zephyr MMD selector,
-basis-point/raw-code confusion, discarded IRQ samples and missing VOD_CFG3.
+explicit source dispositions and independent regressions for odd-nibble
+polarity, per-LED placement and full selector width, zero-reserved MMD words,
+physical-unit/code conversion, retained IRQ samples and 10BASE-Te setup.
 Revisit procedure-only EEE/loopback/compliance writes and remaining TDR, MSE,
 GPIO, IOCTRL and nominal-timing limits. A table of numbers or two agreeing vendor
 drivers cannot close a conflicting silicon requirement or a physical gate.
@@ -41,7 +47,7 @@ read-only reviewers to inspect disjoint difficult domains with suitable reasonin
 effort; the lead resolves disagreements and owns shared contracts/Git.
 
 Reconcile the complete datasheet summary, detailed register headings, feature
-text and documented procedure-only addresses, including the original 79-entry
+text and documented procedure-only addresses, using the planning
 inventory as a cross-check, not a completeness oracle. Every non-reserved field,
 legal encoding and multistep feature needs an exact source, public typed behavior,
 source documentation, executing independent-vector/failure tests and clear
@@ -53,9 +59,13 @@ cleanup, result/token lifecycle, partial destructive-event retention and raw/
 external invalidation across features. Inspect all newly owned persistent fields
 in the common reset/power/recovery restoration ledger. Look for conflicting
 pin users, accidental optional activation, duplicated register procedures and
-configuration trust restored by unrelated successful reads.
+configuration trust restored by unrelated successful reads. Review raw Clause
+22 versus MMD-alias access to the same field, selector admission, isolation and
+power independence, full next-page exchange, extended full-duplex controls and
+collision-test stop/restore. Every temporary overlay must restore its persistent
+owner without recursively replaying reset-bearing recipes or test traffic.
 
-Explicitly revisit the known traps: 10BASE-Te setup and replay, robust Auto-MDIX
+Cross-check the critical procedures: 10BASE-Te setup and replay, robust Auto-MDIX
 Force Mode, prohibited ANAR remote-fault advertisement, speed-specific MII
 loopback, RXFCFG1 W0C and MAC ordering, active-sleep policy versus state,
 EEE printed-address/wire mapping, PHYSTS forced interpretation, RECR arithmetic
@@ -78,23 +88,14 @@ features that remain mandatory library scope.
 
 ## Documentation, verification and checkpoint
 
-Ship accurate public Doxygen and procedure citations with this behavior: units,
-legal states, ownership, output validity, I/O effects, deadlines and cleanup.
-Update API contracts, affected guides, restoration/feature evidence and the stage
-report/progress. Review README, CHANGELOG and relevant example/test/tool guides;
-update affected claims and record why others need no change. Future APIs and
-physical qualification remain explicitly unimplemented/unverified.
+Update public Doxygen, procedure citations, affected API/user/test/tool guides,
+coverage, stage report and progress with this behavior. Review README/CHANGELOG
+and record relevant no-change reasons. Run the focused registered host tests
+above with active Release checks, affected portable-consumer and Doxygen checks,
+`python tools/verify_references.py` and `git diff --check`.
 
-Run registered focused host tests with active Release checks, relevant portable
-consumer/source-documentation/link checks, the reference checker and
-`git diff --check`. Record actual commands and separate PASS/FAIL/NOT RUN/BLOCKED
-for host, SDK, packages and hardware where relevant. Missing source evidence
-blocks the affected requirement; it cannot become unsupported silicon or close
-a required gate. Continue independent eligible work.
-
-Review the final diff for simple control flow, stale comments, duplicated
-procedures and undocumented errors. Commit and sync checked tests/docs/code on
-the same execution branch after this task and each coherent verified unit.
-The lead fetches, safely integrates, pushes and verifies upstream equality;
-report exact sync failures. First-execution remote CI dispatch, polling and
-waiting belong only to checkpoint **71**, never this task.
+Apply COMMON's final maintainability review and evidence reporting. Keep source
+gaps, SDK/package results and physical qualification separate. The lead commits
+and syncs this complete task and coherent verified units on the same execution
+branch, verifies upstream equality, and reports any sync failure. First-set
+remote CI runs and status checks belong only to prompt 71.

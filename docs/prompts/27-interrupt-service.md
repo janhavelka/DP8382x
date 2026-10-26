@@ -1,34 +1,30 @@
 # 27 - Implement bounded interrupt configuration and service
 
-Read [COMMON](COMMON.md), [ENGINEERING](ENGINEERING.md),
-[CONVENTIONS](CONVENTIONS.md), [FULL_COVERAGE](FULL_COVERAGE.md) and
-[VERIFICATION](VERIFICATION.md). Use [SOURCE_MAP](SOURCE_MAP.md) for current
-source locations; historical reports do not replace a fresh audit.
+Follow [COMMON](COMMON.md) and its shared contracts, including
+[CONVENTIONS](CONVENTIONS.md), [EVIDENCE](EVIDENCE.md) and
+[FULL_COVERAGE](FULL_COVERAGE.md). Begin with the stage-specific rule reminder:
+owned paths, fresh relevant sibling audit, selected names, one MDIO owner,
+documentation/local checks and the recorded execution branch. Use available
+subagents for disjoint work or independent review as COMMON specifies.
 
-At entry record owned paths, applicable rules, current source revisions/dirty
-state, selected names, one MDIO owner, local checks and the recorded execution
-branch. Resume that branch. Use disjoint implementation/test work or independent
-read-only review when useful; choose available models/effort by task complexity
-and record the rationale. The lead owns shared contracts, integration and Git.
-Siblings remain read-only.
-
-Prerequisites: [20](20-event-counter-acquisition.md), [22](22-reconcile-recover.md), [5](5-silicon-power-interface-ledger.md); only the concrete inputs used below are required.
+Prerequisites: [20](20-event-counter-acquisition.md), [22](22-reconcile-recover.md),
+[5](5-silicon-power-interface-ledger.md). Verify the concrete inputs below; retain
+unrelated open gates under COMMON.
 
 ## Scope, current evidence and work
+
+Deliver all documented interrupt controls and deferred bounded service:
+global/output enable, polarity, software test, every MISR1/MISR2 source and
+interrupt pin routing/mux constraints. Reuse one collector for polling and IRQ;
+LED/GPIO tasks later extend the same pin-conflict rules rather than override them.
 
 Use the full [TI interrupt maps](../reference/library-ti-features.md#interrupts-power-eee-and-wol),
 rechecking SNLS647I tables 8-35..37/91. PHYSCR `0x0011[2:0]`
 is test/global-enable/output-enable; MISR1/2 at `0x0012/13` pair
 RC events `[15:8]` with enables `[7:0]`. Link enable `0x0020`
 maps to sampled event `0x2000`. RXFS `0x04A1[12]` selects the shared
-polarity/WoL source in MISR2. TI Zephyr's link-only IRQ enable and discarded
-read-clear word are comparison limits, not a full service design. Test every
-source, retained consumed events after later failure and explicit test-IRQ stop.
-
-Deliver all documented interrupt controls and deferred bounded service:
-global/output enable, polarity, software test, every MISR1/MISR2 source and
-interrupt pin routing/mux constraints. Reuse one collector for polling and IRQ;
-LED/GPIO tasks later extend the same pin-conflict rules rather than override them.
+polarity/WoL source in MISR2. Implement both interrupt-source maps and retain each consumed read-clear word.
+Test every source, consumed events after later failure and explicit test-IRQ stop.
 
 Reopen INA228 `DiagAlert`/`readDiagAlert`, PCA9555 deferred input
 and interrupt cleanup tests, and current LDC1614 deferred interrupt source/tests.
@@ -50,7 +46,11 @@ cannot independently consume MISR status. Repeated cached views return retained
 evidence without further reads or duplicated notifications.
 
 Keep configured mask, physical output, consumed event samples and current
-condition distinct. A software-test command proves its documented register
+condition distinct. Retain the selector that identifies a multiplexed event at
+acquisition time. Drain/preserve pending polarity/WoL evidence before a selector
+change; events crossing an uncertain change remain ambiguously attributed rather
+than relabelled using the new setting. Coordinate WoL's automatic selector change
+with task 31 and preserve a single pin/source owner. A software-test command proves its documented register
 behavior only; it does not prove an unwired IRQ reached an MCU. Read-clear
 failures retain per-source evidence/history-loss flags from task 20. A successful
 later read cannot recover a lost sample. Pin conflicts and unsupported
@@ -70,23 +70,14 @@ qualification is separate from the host tests and register-level software test.
 
 ## Documentation, verification and checkpoint
 
-Ship accurate public Doxygen and procedure citations with this behavior: units,
-legal states, ownership, output validity, I/O effects, deadlines and cleanup.
-Update API contracts, affected guides, restoration/feature evidence and the stage
-report/progress. Review README, CHANGELOG and relevant example/test/tool guides;
-update affected claims and record why others need no change. Future APIs and
-physical qualification remain explicitly unimplemented/unverified.
+Update public Doxygen, procedure citations, affected API/user/test/tool guides,
+coverage, stage report and progress with this behavior. Review README/CHANGELOG
+and record relevant no-change reasons. Run the focused registered host tests
+above with active Release checks, affected portable-consumer and Doxygen checks,
+`python tools/verify_references.py` and `git diff --check`.
 
-Run registered focused host tests with active Release checks, relevant portable
-consumer/source-documentation/link checks, the reference checker and
-`git diff --check`. Record actual commands and separate PASS/FAIL/NOT RUN/BLOCKED
-for host, SDK, packages and hardware where relevant. Missing source evidence
-blocks the affected requirement; it cannot become unsupported silicon or close
-a required gate. Continue independent eligible work.
-
-Review the final diff for simple control flow, stale comments, duplicated
-procedures and undocumented errors. Commit and sync checked tests/docs/code on
-the same execution branch after this task and each coherent verified unit.
-The lead fetches, safely integrates, pushes and verifies upstream equality;
-report exact sync failures. First-execution remote CI dispatch, polling and
-waiting belong only to checkpoint **71**, never this task.
+Apply COMMON's final maintainability review and evidence reporting. Keep source
+gaps, SDK/package results and physical qualification separate. The lead commits
+and syncs this complete task and coherent verified units on the same execution
+branch, verifies upstream equality, and reports any sync failure. First-set
+remote CI runs and status checks belong only to prompt 71.

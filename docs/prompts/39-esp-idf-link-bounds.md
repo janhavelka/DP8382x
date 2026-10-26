@@ -1,10 +1,11 @@
 # 39 - Prove native link notifications and adapter timing contracts
 
-Read [COMMON](COMMON.md), [CONVENTIONS](CONVENTIONS.md), [ENGINEERING](ENGINEERING.md)
-and [VERIFICATION](VERIFICATION.md). Prerequisites:
-[37](37-esp-idf-lifecycle.md), [38](38-esp-idf-state-arbitration.md) and implemented
-portable link/pause evidence. Earlier tasks already deliver working callbacks,
-cleanup and finite transport behavior; this is conformance closure and fixes.
+Read [COMMON](COMMON.md), [CONVENTIONS](CONVENTIONS.md),
+[ENGINEERING](ENGINEERING.md) and [VERIFICATION](VERIFICATION.md).
+Prerequisites: [37](37-esp-idf-lifecycle.md),
+[38](38-esp-idf-state-arbitration.md) and implemented portable link/pause
+evidence. Earlier tasks already deliver working callbacks, cleanup and finite
+transport behavior; this is conformance closure and fixes.
 
 ## Current evidence and ownership
 
@@ -15,65 +16,72 @@ quantization and reset/negotiation paths. Compare relevant peer tests with the
 production methods they execute. Record exact source revisions, paths,
 adopted/adapted/rejected behavior and changes since task 37's audit.
 
-The lead owns the method/ownership/bounds table and corrections. A read-only
-reviewer can independently trace waits and notification meaning; disjoint
-fault tests may be delegated after shared contracts freeze. Use available
-models with sufficient reasoning for deadlines and concurrency, record the
-choice, and keep shared headers and Git with the lead.
+Assign paths and select subagent models under COMMON. Keep shared contracts
+and Git with the lead; use independent review for ownership and failure
+semantics.
 
-## Concrete public-source inputs
+## Source requirements and regression vectors
 
-Use [actual SDK loop/default values](../reference/library-sdk.md), not assumed
-deadlines: MAC busy polling is 100 us per iteration up to a nominal 1000 us
-counter; PHY reset polls every 10 ms and AN every 100 ms; default link polling
-is 2000 ms. The separate 100 ms MAC mutex is not acquired by PHY read/write
-methods. Four MMD frames therefore do not prove a 4 ms wall-clock bound.
-Exercise 2 ms reset readiness with coarse ticks (100 Hz can round it to zero),
-and measure elapsed time from the real event. Distinguish source policy,
-silicon limits, configured budgets and authorized measurements under
-[EVIDENCE](EVIDENCE.md).
+Apply [SDK timing/notification evidence](../reference/library-sdk.md) and
+[EVIDENCE](EVIDENCE.md). Account for 100 us MAC polling increments up to
+nominal 1000 us, 10 ms reset polling, 100 ms AN polling and default 2000 ms
+link polling. The separate 100 ms MAC mutex does not serialize MDIO. Four
+nominal frame loops are not a 4 ms wall-clock guarantee. Verify the 2 ms reset
+interval from release with coarse ticks, including 100 Hz quantization.
+Distinguish finite instruction counts, scheduling assumptions, silicon limits
+and measured wall time.
 
-## Closed work unit
+## Implement
 
 Complete a method-by-method conformance table covering every selected
 `esp_eth_phy_t`/base entry, executing owner, complete transaction, callback
-lifetime, side effects, errors, notification and worst supported blocking bound.
-Close confirmed defects in owning code with focused regressions. Do not create
-a second implementation to make tests pass or defer essential running behavior
-from earlier tasks into this review.
+lifetime, side effects, errors, notification and worst supported blocking
+bound. Close confirmed defects in owning code with focused regressions. Do not
+create a second implementation to make tests pass or defer essential running
+behavior from earlier tasks into this review.
 
 Audit pause negotiation, partner ability and flow-control notification against
-the exact pinned API. Preserve full portable symmetric/asymmetric RX/TX evidence.
-The SDK's Boolean peer-pause MAC notification is a narrower projection, not
-independent RX/TX resolution. Override base behavior where semantics differ;
-document the projection and keep application/MAC enable policy explicit.
+the exact pinned API. Preserve full portable symmetric/asymmetric RX/TX
+evidence. The SDK's Boolean peer-pause MAC notification is a narrower
+projection, not independent RX/TX resolution. Override base behavior where
+semantics differ; document the projection and keep application/MAC enable
+policy explicit.
 
-Prove notification ordering: unchanged state produces no duplicate event,
-down/incomplete negotiation invents no resolved speed/duplex, and callback
-failure preserves diagnostic detail without fabricating applied state. Check
-polling, stop/start and teardown interleavings against the single owner.
-Preserve structured backend detail internally and explain information that the
-narrower SDK return type cannot carry; never leak SDK error types into the core.
+Prove notification ordering for both link transitions and speed/duplex/pause
+changes while link remains up. Track acquired observations separately from
+each successfully published SDK field. If a later notification fails, retain
+earlier side effects and retry only through the defined publication policy; do
+not mark the whole tuple applied. Unchanged complete state produces no
+duplicate event, and down/incomplete negotiation invents no resolved
+speed/duplex. Stop/start must resynchronize both adapter and SDK publication
+state. Check polling, stop/start and teardown interleavings against the single
+owner. Preserve structured backend detail internally and explain information
+that the narrower SDK return type cannot carry; never leak SDK error types
+into the core.
 
-Calculate the worst complete indirect transaction and aggregate operation bound
-from actual controller loops and lock waits, including time quantization.
-Exercise exhausted budgets and late terminal callbacks. Late-return detection
-establishes a contract violation, not preemption. If a necessary finite bound is
-unavailable, retain the exact affected SDK capability gate and constrain claims;
-do not replace the controller with a successful mock or advertise a guessed
-minimum/tested SDK range. Avoid private fragile APIs without a narrow justified
-version contract and real tests.
+Establish complete indirect-transaction and aggregate-operation bounds from
+controller execution, owner acquisition, scheduling assumptions, quantization
+and cleanup. State the supported scheduler/workload conditions; arbitrary task
+preemption does not have a guaranteed finite wall-clock bound. Exercise
+exhausted budgets and late terminal callbacks. Late-return detection
+establishes a contract violation, not preemption. If a necessary finite bound
+is unavailable, retain the exact affected SDK capability gate and constrain
+claims; do not replace the controller with a successful mock or advertise a
+guessed minimum/tested SDK range. Avoid private fragile APIs without a narrow
+justified version contract and real tests.
 
-## Acceptance and checkpoint
+## Acceptance
 
-Run notification/flow-control tests, callback error injection, start/stop/delete
-lifetimes and actual raw/base ownership regressions. Build/link the real P4
-fixture, rebuild the portable consumer and record actual SDK/tool versions.
-Separate host contract tests, SDK link and physical timing; missing SDK access
-remains BLOCKED.
+Run notification/flow-control tests, callback error injection,
+start/stop/delete lifetimes and actual raw/base ownership regressions.
+Build/link the real P4 fixture, rebuild the portable consumer and record
+actual SDK/tool versions. Separate host contract tests, SDK link and physical
+timing; missing SDK access remains BLOCKED.
 
-Maintain adapter Doxygen, `docs/esp-idf.md`, timing/ownership tables, README
-support claims and CHANGELOG with actual restrictions. Review affected guides
-and run documentation plus focused local checks. Update evidence/progress with
-commands, counts and unresolved gates, then commit/sync coherent checked units
-and the completed task on the recorded branch. Remote CI belongs only to 71.
+Update adapter Doxygen, `docs/esp-idf.md` and timing/notification tables with
+proved bounds, scheduler assumptions and exact supported SDK restrictions.
+
+Review README/CHANGELOG and affected guides. Run focused local and
+source-documentation checks (Doxygen where applicable), then update
+evidence/progress under COMMON. Commit/sync checked units and completion on
+the execution branch; first-set remote CI belongs only to 71.

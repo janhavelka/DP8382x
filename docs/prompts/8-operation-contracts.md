@@ -17,12 +17,11 @@ real consumer, not as an unused engine or successful placeholder facade.
 ## Concrete public-source inputs
 
 Use [SDK timing observations](../reference/library-sdk.md) and
-[EVIDENCE](EVIDENCE.md) as adverse cases, not operation defaults. The base can
-write reset before discovering a timeout below its 10 ms poll quantum; AN
-poll expiry can still return success. Define preflight so zero budget performs
-no I/O, and distinguish accepted command, protocol completion, current link and
-restored configuration. Include tick rounding, late callback effects and actual
-readiness intervals without pretending SDK sleep arguments are physical proof.
+[EVIDENCE](EVIDENCE.md) to define preflight and completion. Zero budget performs
+no I/O; a budget below the selected poll quantum must have an explicit outcome.
+Distinguish accepted command, protocol completion, current link and restored
+configuration. Poll expiry returns the promised timeout instead of completion.
+Include tick rounding, late callback effects and actual readiness intervals.
 
 ## Work and current precedents
 
@@ -51,6 +50,12 @@ zero budget, remaining aggregate allowance, completion-time classification and
 late callback effects. A synchronous terminal backend cannot be preempted;
 IN_PROGRESS from it is a contract failure, not deferred hardware work. Include
 controller/lock time and quantization without holding locks across owner polls.
+Specify how time is refreshed after a synchronous callback. A pre-write timestamp
+cannot start a post-write minimum wait: use a completion timestamp or an upper
+bound on callback completion, then add the full minimum interval. Distinguish a
+bounded poll call from bounded operation completion when the caller stops polling
+or supplies a frozen clock; expose incomplete effects instead of promising an
+unconditional wall-clock bound. Test callback duration across a tick boundary.
 
 Cancellation and local `end` are bus-silent. Define how subsequent authorized
 owner polling performs cleanup, with a reserved or separately admitted finite
@@ -62,7 +67,11 @@ cancel undid a write. Hardware reset/power-down are separate explicit operations
 Specify invalidation after raw/external mutation, partial configuration and
 reset. Restoration uses validated owned desired settings and verifies stable
 owned bits to re-establish trust; it cannot require hardware to be trusted
-before recovery. Consumed event samples remain retained even if aggregate
+before recovery. Define persistent desired settings separately from temporary
+session overrides. Capture every touched documented field or use a source-backed
+reset/reapply route for procedure-only fields that cannot safely be read. Build
+an acyclic restore order: a reset within EEE/compliance setup cannot recursively
+invoke that same complete recipe, and cleanup cannot replay a temporary stimulus. Consumed event samples remain retained even if aggregate
 operation output is unpublished. Application session admission and physical
 controller locking remain distinct responsibilities.
 

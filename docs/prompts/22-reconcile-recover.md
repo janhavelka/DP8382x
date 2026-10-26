@@ -1,18 +1,15 @@
 # 22 - Implement explicit reconciliation and bounded recovery
 
-Read [COMMON](COMMON.md), [ENGINEERING](ENGINEERING.md),
-[CONVENTIONS](CONVENTIONS.md), [FULL_COVERAGE](FULL_COVERAGE.md) and
-[VERIFICATION](VERIFICATION.md). Use [SOURCE_MAP](SOURCE_MAP.md) for current
-source locations; historical reports do not replace a fresh audit.
+Follow [COMMON](COMMON.md) and its shared contracts, including
+[CONVENTIONS](CONVENTIONS.md), [EVIDENCE](EVIDENCE.md) and
+[FULL_COVERAGE](FULL_COVERAGE.md). Begin with the stage-specific rule reminder:
+owned paths, fresh relevant sibling audit, selected names, one MDIO owner,
+documentation/local checks and the recorded execution branch. Use available
+subagents for disjoint work or independent review as COMMON specifies.
 
-At entry record owned paths, applicable rules, current source revisions/dirty
-state, selected names, one MDIO owner, local checks and the recorded execution
-branch. Resume that branch. Use disjoint implementation/test work or independent
-read-only review when useful; choose available models/effort by task complexity
-and record the rationale. The lead owns shared contracts, integration and Git.
-Siblings remain read-only.
-
-Prerequisites: [21](21-passive-health.md), [16](16-hard-reset-restart.md), [18](18-forced-crossover-settings.md); only the concrete inputs used below are required.
+Prerequisites: [21](21-passive-health.md), [16](16-hard-reset-restart.md),
+[18](18-forced-crossover-settings.md). Verify the concrete inputs below; retain
+unrelated open gates under COMMON.
 
 ## Scope, current evidence and work
 
@@ -44,8 +41,10 @@ Admit recovery with the existing token, one-operation slot, maintenance/lifetime
 rules and aggregate deadline. Select required verify/reapply/reset steps from
 source/current evidence; reuse the exact procedures including 10BASE-Te and
 forced/crossover dependencies. Valid desired settings can support recovery even
-when the current hardware image is untrusted. Restoration claims require
-readback proof; no retries, guessed rollback or quiet desired-profile mutation.
+when the current hardware image is untrusted. Verify documented stable readable
+owned fields independently by readback. For non-readable recipe state, require
+source-defined completion evidence; unprovable restoration remains untrusted.
+Keep retries and desired-profile changes explicit application decisions.
 
 Cancellation retains accepted effects. Deferred cleanup has its explicit finite
 allowance and independent status; successful cleanup cannot replace the primary
@@ -63,14 +62,18 @@ perform no I/O and healthy reads alone cannot revalidate a profile.
 
 Add a compiling bounded recovery owner example and a guide showing unchanged
 desired intent, partial observation, failed restoration and application-owned
-retry policy. New feature tasks must extend this single restoration ledger.
+retry policy. New feature tasks must extend this single restoration ledger. Give each stable
+field one configuration owner and a reset/power dependency. Temporary diagnostics
+override that owner only for the admitted session; restore the persistent profile
+without recursively invoking reset-bearing setup or restarting prior test traffic.
+Test an overlapping-field restore and an interrupted reset/reapply sequence.
 
 ## Concrete TI source inputs
 
 Use the [TI reset/configuration failure audit](../reference/library-ti-core.md#initialization-reset-and-recovery-procedure-audit)
 and current exact datasheet to define reconciliation inputs. A failed selector
-write followed by a successful data read in TI's unchecked RMW does not prove
-the intended target; reconstruct all MMD selectors on the next explicit access.
+write invalidates addressing certainty; reconstruct all MMD selectors on the
+next explicit access instead of using a later data read as proof of the target.
 PHYRCR hard reset `0x1F/0x8000`, restart `0x1F/0x4000` and BMCR PCS reset
 `0x00/0x8000` require distinct trust/restoration treatment. Reapply the currently
 owned `0x030E=0x4A40` setup where reset scope requires it, and do not clear an
@@ -80,23 +83,14 @@ reset/restore traces without inventing a fallback sequence or a successful fixtu
 
 ## Documentation, verification and checkpoint
 
-Ship accurate public Doxygen and procedure citations with this behavior: units,
-legal states, ownership, output validity, I/O effects, deadlines and cleanup.
-Update API contracts, affected guides, restoration/feature evidence and the stage
-report/progress. Review README, CHANGELOG and relevant example/test/tool guides;
-update affected claims and record why others need no change. Future APIs and
-physical qualification remain explicitly unimplemented/unverified.
+Update public Doxygen, procedure citations, affected API/user/test/tool guides,
+coverage, stage report and progress with this behavior. Review README/CHANGELOG
+and record relevant no-change reasons. Run the focused registered host tests
+above with active Release checks, affected portable-consumer and Doxygen checks,
+`python tools/verify_references.py` and `git diff --check`.
 
-Run registered focused host tests with active Release checks, relevant portable
-consumer/source-documentation/link checks, the reference checker and
-`git diff --check`. Record actual commands and separate PASS/FAIL/NOT RUN/BLOCKED
-for host, SDK, packages and hardware where relevant. Missing source evidence
-blocks the affected requirement; it cannot become unsupported silicon or close
-a required gate. Continue independent eligible work.
-
-Review the final diff for simple control flow, stale comments, duplicated
-procedures and undocumented errors. Commit and sync checked tests/docs/code on
-the same execution branch after this task and each coherent verified unit.
-The lead fetches, safely integrates, pushes and verifies upstream equality;
-report exact sync failures. First-execution remote CI dispatch, polling and
-waiting belong only to checkpoint **71**, never this task.
+Apply COMMON's final maintainability review and evidence reporting. Keep source
+gaps, SDK/package results and physical qualification separate. The lead commits
+and syncs this complete task and coherent verified units on the same execution
+branch, verifies upstream equality, and reports any sync failure. First-set
+remote CI runs and status checks belong only to prompt 71.

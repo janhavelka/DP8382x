@@ -1,24 +1,26 @@
 # 17 - Implement negotiated link settings and verified application
 
-Read [COMMON](COMMON.md), [ENGINEERING](ENGINEERING.md),
-[CONVENTIONS](CONVENTIONS.md), [FULL_COVERAGE](FULL_COVERAGE.md) and
-[VERIFICATION](VERIFICATION.md). Use [SOURCE_MAP](SOURCE_MAP.md) for current
-source locations; historical reports do not replace a fresh audit.
+Follow [COMMON](COMMON.md) and its shared contracts, including
+[CONVENTIONS](CONVENTIONS.md), [EVIDENCE](EVIDENCE.md) and
+[FULL_COVERAGE](FULL_COVERAGE.md). Begin with the stage-specific rule reminder:
+owned paths, fresh relevant sibling audit, selected names, one MDIO owner,
+documentation/local checks and the recorded execution branch. Use available
+subagents for disjoint work or independent review as COMMON specifies.
 
-At entry record owned paths, applicable rules, current source revisions/dirty
-state, selected names, one MDIO owner, local checks and the recorded execution
-branch. Resume that branch. Use disjoint implementation/test work or independent
-read-only review when useful; choose available models/effort by task complexity
-and record the rationale. The lead owns shared contracts, integration and Git.
-Siblings remain read-only.
-
-Prerequisites: [16](16-hard-reset-restart.md), [3](3-silicon-core-ledger.md), [7](7-value-transport-contracts.md); only the concrete inputs used below are required.
+Prerequisites: [16](16-hard-reset-restart.md), [3](3-silicon-core-ledger.md),
+[7](7-value-transport-contracts.md). Verify the concrete inputs below; retain unrelated
+open gates under COMMON.
 
 ## Scope, current evidence and work
 
 Deliver complete autonegotiated link configuration, including supported
 advertisement, pause/asymmetric pause, selector and next-page controls and
-restart. Extend existing Config/settings and one configuration procedure;
+restart. Implement the documented next-page transmit/receive handoff and bounded
+exchange procedure, including message/unformatted data, Acknowledge2, read-only
+toggle, page-received evidence and partner inability. Assign a finite page count
+and time budget; a next-page-enable bit alone is not complete exchange support.
+Use tables 8-25 through 8-27 and retain unresolved protocol facts as gates.
+Extend existing Config/settings and one configuration procedure;
 `startConfigure` uses the established operation slot. Forced-mode configuration
 remains explicitly unavailable until task 18.
 
@@ -60,6 +62,9 @@ next-page controls, prohibited bit 13 and invalid masks. Assert atomic validatio
 of optional activation. Fail every write/readback and cancel boundary, including
 mismatch followed by transport failure; earlier evidence persists. Reset each
 applicable way and verify owned negotiated profiles, including 10 Mbit/s.
+Test finite multipage exchange, partner refusal, missing/duplicate page evidence,
+read-only toggle preservation and failure after a consumed page. Prompt 20 extends
+the same collector; prompt 34 only completes quality-related observation.
 Compile generic and 100/full configuration examples and document partial apply.
 
 ## Concrete TI source inputs
@@ -68,32 +73,23 @@ Reopen [TI negotiation procedures](../reference/library-ti-core.md#negotiation-f
 and current exact datasheet. ANAR technology masks are `0x0100`, `0x0080`,
 `0x0040`, `0x0020` for 100/full, 100/half, 10/full, 10/half; selector is `0x001F`,
 IEEE selector value 1. Pause/asymmetric pause are `0x0400/0x0800`; next-page is
-`0x8000`; local remote-fault `0x2000` remains prohibited. TI's selector-bit0-only
-update and empty-advertisement success are not full valid-profile application.
+`0x8000`; local remote-fault `0x2000` remains prohibited. Replace the complete owned selector/advertisement fields and reject an empty
+technology set; test non-default prior selector bits and all legal page controls.
 BMCR AN enable/restart are `0x1000/0x0200`; restart-clear is not AN-complete.
-Use the catalogue's exact four-frame `0x030E=0x4A40` vendor transaction as an
-independent setup vector. Reconcile current source and real advertisement/link
+Derive the four-frame `0x030E=0x4A40` setup vector directly from the PDF, then
+compare it with the catalogue. Reconcile current source and real advertisement/link
 readbacks; library omissions and nominal timing never waive documented controls.
 
 ## Documentation, verification and checkpoint
 
-Ship accurate public Doxygen and procedure citations with this behavior: units,
-legal states, ownership, output validity, I/O effects, deadlines and cleanup.
-Update API contracts, affected guides, restoration/feature evidence and the stage
-report/progress. Review README, CHANGELOG and relevant example/test/tool guides;
-update affected claims and record why others need no change. Future APIs and
-physical qualification remain explicitly unimplemented/unverified.
+Update public Doxygen, procedure citations, affected API/user/test/tool guides,
+coverage, stage report and progress with this behavior. Review README/CHANGELOG
+and record relevant no-change reasons. Run the focused registered host tests
+above with active Release checks, affected portable-consumer and Doxygen checks,
+`python tools/verify_references.py` and `git diff --check`.
 
-Run registered focused host tests with active Release checks, relevant portable
-consumer/source-documentation/link checks, the reference checker and
-`git diff --check`. Record actual commands and separate PASS/FAIL/NOT RUN/BLOCKED
-for host, SDK, packages and hardware where relevant. Missing source evidence
-blocks the affected requirement; it cannot become unsupported silicon or close
-a required gate. Continue independent eligible work.
-
-Review the final diff for simple control flow, stale comments, duplicated
-procedures and undocumented errors. Commit and sync checked tests/docs/code on
-the same execution branch after this task and each coherent verified unit.
-The lead fetches, safely integrates, pushes and verifies upstream equality;
-report exact sync failures. First-execution remote CI dispatch, polling and
-waiting belong only to checkpoint **71**, never this task.
+Apply COMMON's final maintainability review and evidence reporting. Keep source
+gaps, SDK/package results and physical qualification separate. The lead commits
+and syncs this complete task and coherent verified units on the same execution
+branch, verifies upstream equality, and reports any sync failure. First-set
+remote CI runs and status checks belong only to prompt 71.

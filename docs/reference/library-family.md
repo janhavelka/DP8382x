@@ -45,7 +45,7 @@ nominal timing values must not be recast as maxima or minimum holdoffs.
 | --- | --- | --- |
 | TI RTOS DP83822 OUI / model / revision equality check | `0x080028` / `0x24` / `0` | OBSERVED c:52-54, 129-143; CORROBORATED SNLS505H tables 8-3/8-4. Strict reference revision equality is a source policy, not a universal future-revision rule. |
 | Linux DP83822 ID | `0x2000A240` | OBSERVED mirror:17; does not distinguish I/H/IF/HF, temperature or optical wiring. |
-| Linux DP83825 labels I/S/CM/CS | `0x2000A150` / `0x2000A140` / `0x2000A160` / `0x2000A170` | OBSERVED mirror:18-21. **CONFLICT:** SNLS638C 7.3/7.4, table 7-6 gives exact DP83825I ID1 `0x2000`, ID2 `0xA140`, model `0x14`, revision `0`. Original PDF page 42 visually checked. Do not accept either mapping without resolving exact silicon/revision evidence. S/CM/CS names alone establish no public orderable part. |
+| Linux DP83825 labels I/S/CM/CS | `0x2000A150` / `0x2000A140` / `0x2000A160` / `0x2000A170` | OBSERVED mirror:18-21. **CONFLICT:** SNLS638C 7.3/7.4, table 7-6 gives exact DP83825I ID1 `0x2000`, ID2 `0xA140`, model `0x14`, revision `0`. Original PDF page 42 visually checked. Use the exact datasheet for source-backed admission/tests; retain the Linux-label discrepancy and qualify actual device IDs separately. An alternate accepted identity requires exact-part/revision authority. S/CM/CS names alone establish no public orderable part. |
 | Linux original DP83826 C / NC labels | `0x2000A130` / `0x2000A110` | OBSERVED mirror:22-23; BASIC/ENHANCED model meaning must come from SNLS647I, not ordering suffix assumptions. |
 | Combined Linux revision-B enhanced/basic labels | `0x2000A131` / `0x2000A111` | OBSERVED combined:22, 24. These are software labels, not a complete acceptance policy; its MDIO table uses mask `0xFFFFFFF0`. |
 | Combined Linux A basic/enhanced labels | `0x2000A114` / `0x2000A134` | OBSERVED combined:25-26; CORROBORATED SNLS783A table 8-23: model `0x11` BASIC, `0x13` ENHANCED, default revision `4`. AI/AE suffix stays declared. Original generation default revision is `1`; no invented A-only model. |
@@ -137,13 +137,14 @@ positive/zero policy does not create a programmable delay range on this PHY.
 | DP83822 deep power-down | SNLS505H table 8-76: DPDWN `0x0428[2]` enable, bit 3 exit-speed 1=50 ms, 0=100 ms; requires prior IEEE power-down BMCR `0x0000[11]` or INT/PWDN_N. | Complete entry/wake/restore with admission and finite deadlines. Same register bits 5/4 also participate in TX idle-pattern test with `0x0027[3:0]`; exact field preservation prevents an accidental test mode. Linux generic suspend is not complete deep-power support. |
 | DP83822 SFD indication | SNLS505H 7.3 SFD discussion: after muxing RX/TX SFD, example `0x04A0=0x1080`, then `0x001F=0x4000`. | WoL enable improves SFD-detection accuracy per document, not only packet wake. Reconcile owned RXFCFG, reset and mux state; never clobber wake/filter controls by blindly replaying a whole-register example. |
 
-## Corrections and independent acceptance obligations
+## Source dispositions and independent acceptance
 
-Keep identity `A140/A150`, DP83825 RCSR reset/reserved values,
-shifted FX enable, reset labels/domains and Strap11/CR3 EMC differences
-as named source issues with exact evidence and next steps. None is resolved by
-this catalogue. Later TI corrections or observed hardware may resolve them;
-record the actual evidence and update affected prompts/contracts/tests together.
+Keep identity `A140/A150`, DP83825 RCSR reset/reserved values, FX enable,
+reset domains and Strap11/CR3 EMC differences as named source records. Use the
+documented exact-part interpretation where it is established, including the
+DP83825I datasheet identity policy and corrected FX bit composition. Keep
+essential authoritative conflicts and physical qualification separately open.
+Record later applicable evidence and update affected contracts/tests together.
 
 In the TI A Zephyr indirect helpers, source:151/180 combines data mode with
 `0x4000 & devad`, yielding zero for DEVAD 31. Required C22 indirect phases must

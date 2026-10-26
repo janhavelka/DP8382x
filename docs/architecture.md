@@ -39,6 +39,12 @@ ioctl, polling and CLI. Choose the transaction mechanism before implementation;
 a lock on each MDIO frame is not sufficient. Give read-clear diagnostics a single
 collector and expose passive cached observations to other consumers.
 
+The application serializes access to each driver instance, including cached
+snapshots, and publishes copies to other tasks. SDK installation/start/stop and
+deletion have explicit partial-failure and callback-lifetime contracts. Resolve
+hook context through supported instance APIs, and retain resource ownership
+until callbacks are quiescent and cleanup outcomes are known.
+
 Distinguish operation admission across polls from the short controller lock for
 one indivisible transaction. Never keep that lock through hardware wait intervals
 or console output. Preserve each consumed event sample on partial acquisition

@@ -33,11 +33,11 @@ exact datasheet and observed device ID. See [the pinned source](reference/source
 The [family source catalogue](reference/library-family.md) adds the 2026-10-26
 numeric comparison. DP83825I identity remains a specific conflict: SNLS638C
 table 7-6 gives `0x2000A140`, while the pinned TI Linux driver labels
-`0x2000A150` as I and `0x2000A140` as S. Resolve exact silicon/revision evidence
-before claiming automatic DP83825I identification; do not silently accept both.
+`0x2000A150` as I and `0x2000A140` as S. Implement the exact datasheet's documented
+admission policy and tests, retaining that discrepancy. Qualify actual observed
+identity separately; accepting an alternate ID needs exact-part/revision evidence.
 
-The prompt correctness audit established these source anchors, not implemented
-support:
+Use these source anchors when establishing support:
 
 - Original DP83826 and A-generation use model values 0x11 BASIC / 0x13 ENHANCED.
   Their documented revision defaults differ (1 / 4); these are not a future-proof

@@ -4,6 +4,10 @@
 
 ### 2026-10-26
 
+- Refined execution instructions and completed ownership, lifecycle, feature,
+  runner and installed-package requirements across the 80-stage promptset.
+  Retained exact-source evidence and independent acceptance checks; all stages
+  remain unstarted.
 - Extracted pinned TI RTOS, MCU+, Linux/Zephyr and ESP-IDF source into four
   detailed evidence catalogues. Added concrete register, field, procedure,
   timing and regression inputs to 60 prompts, with mandatory exact-datasheet
