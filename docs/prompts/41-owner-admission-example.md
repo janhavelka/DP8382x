@@ -20,6 +20,16 @@ Delegate disjoint transition tests or a read-only ownership review with exact
 paths and frozen semantics. Select available models with stronger reasoning
 for admission/lifetime analysis; no reviewer edits shared headers or Git.
 
+## Concrete public-source inputs
+
+Use [link and timing evidence](../reference/library-sdk.md) and
+[EVIDENCE](EVIDENCE.md). A successful SDK AN-control return can precede actual
+negotiation completion, and default link polling is 2000 ms. Readiness requires
+fresh resolved 100/full evidence and application admission, not a successful
+call, LED indication or assumed Fast Link Drop. MII-only silicon FLD cannot
+be promised for the P4 RMII owner. Measure actual application response on an
+authorized fixture before making cycle or recovery claims.
+
 ## Closed work unit
 
 Create a compact native `examples/esp_idf/owner/` application with build files,

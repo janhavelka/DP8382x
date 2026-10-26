@@ -21,6 +21,17 @@ Delegate disjoint fault cases or read-only lifetime review with exact paths;
 choose available models by complexity, using stronger reasoning for callbacks,
 locks and ownership. Reviewers do not edit shared headers or Git.
 
+## Concrete public-source inputs
+
+Apply [the SDK source facts](../reference/library-sdk.md) and
+[EVIDENCE](EVIDENCE.md). Generic defaults use GPIO 5, address -1, reset 100 ms,
+AN 4000 ms and assertion 100 us; the base maps default post-reset delay to -1
+(no wait). Supply actual board choices and enforce the chip's 2 ms reset-release
+and 50 ms POR SMI readiness. Auto-discovery can try 96 reads and ignores read
+errors; no stale ID may select a device. Test and correct these paths before
+calling lifecycle integration complete. They are observed SDK choices, not TI
+silicon defaults or measured limits.
+
 ## Closed work unit
 
 Implement a real native factory in `include/DP8382x/esp_idf/Phy.h` and

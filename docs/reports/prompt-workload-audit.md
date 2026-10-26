@@ -6,6 +6,10 @@ stages with **80 complete prompts**, numbered `1` through `80` without leading
 zeros. It does not execute the set or implement any library behavior. All
 implementation progress remains NOT STARTED and no execution branch has begun.
 
+The later [public-library data audit](public-library-data-audit.md) adds focused
+source inputs without changing these task boundaries. Word counts below describe
+the workload-split checkpoint; the follow-up report records the enriched sizes.
+
 ## Findings and split criteria
 
 The original files ranged from **837 to 1407 words**, with

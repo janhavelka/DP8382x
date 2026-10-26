@@ -16,6 +16,19 @@ Prerequisites: [23](23-loopback-modes.md), [33](33-clock-interface-repeater.md),
 
 ## Scope, current evidence and work
 
+Use [TI electrical/compliance facts](../reference/library-ti-features.md#electrical-and-compliance-anchors)
+as independently checked vectors, not vendor-code endorsement. VOD negative
+codes `28..38` mean 150% down to 50%; positive `08..18` mean 50% up to 150%,
+both 6.25% steps. TI Zephyr passes basis points directly into these fields:
+test raw defaults `30/10` and endpoints independently. Reconcile 10BASE-Te
+`030E=4A40` and its termination fields. For 100 Mbit/s stimulus, reconfigure by
+clearing then setting `0428[4]`; pattern extension is bit 5. Preserve DPD bit 2.
+COMP's 10 Mbit/s DP83825/26 BISCR `7101` differs from DP83822 `7108`; its
+whole PHYCR `0021/4021` also writes address bits and must not be copied
+blindly. CDCR bit 14 high requires clear then PHYRCR hard reset, not an
+invented routine calibration-start API. IOCTRL and RX10BT code-range ambiguities
+remain specific source gates.
+
 Deliver documented analog/MAC electrical and timing controls, compliance
 stimuli and the resistor-calibration contingency. Keep persistent legal
 configuration distinct from finite disruptive test sessions. Reuse existing

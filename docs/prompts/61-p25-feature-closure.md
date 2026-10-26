@@ -21,6 +21,18 @@ review after signatures freeze. Assign explicit writable/forbidden files,
 independent failure vectors and available models by task complexity; review all
 contributions. Agents do not mutate Git or sibling sources.
 
+## Concrete source checks
+
+Compare [Linux IRQ/wake](../reference/library-family.md#interrupt-and-wake-facts-from-ti-linux)
+with exact SNLS638C and the upstream Zephyr pin in the catalogue. Zephyr uses
+PHYSCR `0x11[1:0]` for IRQ/global output and MISR `0x12[5]` link enable, and
+reads status to clear it; this limited path cannot close all event sources.
+RCSR `0x17[3:2]` FIFO overflow/underflow are RC: one collector retains samples
+even if later diagnostics fail. Confirm bit 8 TX shift applies only to follower.
+Use exact DP83825I TDR/EEE/compliance notes; DP83822's calibration and custom
+filter map require independent applicability and cannot be inferred. Correct
+conflicts before dependent implementation; missing fixtures remain physical gates.
+
 ## Work and acceptance
 
 Implement the finite feature-family differences assigned by 60: every applicable

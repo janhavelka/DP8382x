@@ -16,6 +16,17 @@ Prerequisites: [32](32-led-gpio.md), [18](18-forced-crossover-settings.md), [5](
 
 ## Scope, current evidence and work
 
+Verify the [interface anchors](../reference/library-ti-features.md#led-interface-and-link-quality-controls)
+against SNLS647I tables 8-41/73/84 and the pinned TI Zephyr implementation.
+RCSR `0017` uses RMII enable `0x0020`, follower reference `0x0080`,
+follower-only TX shift `0x0100` and revision `0x0010`.
+Elasticity codes 0/1/2/3 map to 14/2/6/10 bits, not ascending sizes.
+IO_CFG1 `0302[8]` selects RX_DV for repeater and bit 6 selects LED1 versus
+CLKOUT25M in ENHANCED mode. GENCFG `0456[3]` selects 120 ns versus 200 ns
+IPG; do not confuse it with MCU's enhanced-IPG name for CR2 bit 2.
+Test mode/clock wiring assumptions, collector-safe RCSR reads and exact
+per-pin capability; configuration alone cannot verify a two-PHY repeater.
+
 Deliver every documented DP83826I clock/interface and RMII repeater option,
 with exact mode/reset constraints, shared pin validation and restoration. Extend
 the existing configuration surface and procedures; the portable library never

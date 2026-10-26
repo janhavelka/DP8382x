@@ -9,6 +9,11 @@ promptset's remote-CI exception; those override earlier unqualified parent-polic
 references in historical planning reports.
 Read [CONVENTIONS](CONVENTIONS.md) for concrete names, source paths and the chosen
 PHY adaptations. Keep simple engineering language in code, docs and handoffs.
+Read [EVIDENCE](EVIDENCE.md) and the relevant
+[extracted library data](../reference/library-evidence.md) for every source-based
+decision. These are mandatory accompanying instructions for all 80 prompts.
+Existing findings and prompt values must be checked and corrected against actual
+code, exact datasheets and authorized measurements; never fill gaps by invention.
 
 [FULL_COVERAGE](FULL_COVERAGE.md) is mandatory: every documented programmable
 feature belongs to the final library, including runtime opt-in features unused
@@ -38,6 +43,10 @@ supported-but-unimplemented behavior as unsupported silicon or outside scope.
    original PDF tables when extraction is ambiguous. Check current official
    SDK documentation/source when choosing a supported adapter baseline; record
    immutable versions. Do not replace archived vendor bytes silently.
+   Apply EVIDENCE's source-to-datasheet comparison to each changed numeric fact
+   and procedure. Record address space, MIN/NOM/MAX or software-policy timing,
+   exact applicability and conflicts. Correct prior findings when real evidence
+   contradicts them; source review, host tests and physical measurements differ.
 4. Confirm the stage's prerequisites and list owned files, shared contracts and
    consumers affected by a change. Resolve routine choices from evidence.
    Correct conflicting plans explicitly before coding; update all affected

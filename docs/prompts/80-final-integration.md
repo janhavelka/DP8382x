@@ -22,6 +22,15 @@ acceptance and available models suited to complexity; review findings. No agent
 mutates shared contracts/Git/siblings or operates fixtures incidentally. Do not
 add layers/API aliases for superficial checklist uniformity.
 
+## Concrete public-source inputs
+
+Reconcile [public-library evidence](../reference/library-evidence.md) using
+[EVIDENCE](EVIDENCE.md): record which source observations were adopted, corrected,
+rejected or remain unresolved, and link the resulting independent tests and
+actual measurements. A complete list of addresses is not complete implemented
+features. Do not erase source conflicts, vendor defects or missing hardware
+qualifications to obtain a final passing status.
+
 ## Work and acceptance
 
 Review the finished ordinary C++ consumer, native P4 adapter, network and EtherCAT

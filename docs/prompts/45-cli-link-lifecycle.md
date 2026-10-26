@@ -20,6 +20,15 @@ read-only result/cleanup review may be delegated after names freeze. Select
 available models for the reasoning needed by cancellation, output retention
 and side effects. Keep shared headers and Git with the lead.
 
+## Concrete public-source inputs
+
+Use [the actual link/event defects](../reference/library-ti-core.md) and
+[EVIDENCE](EVIDENCE.md) in dispatcher tests: first BMSR low must not return
+an unassigned success value; MISR1 success followed by MISR2 failure must retain
+consumed history. Cached status prints no MDIO frames. Distinguish BMCR reset,
+PHYRCR `0x8000` hard reset and `0x4000` restart in both grammar and output;
+a successful control call is not a fresh link or completed restoration.
+
 ## Closed work unit
 
 Add explicit live link/partner observations, advertised/resolved mode evidence,

@@ -61,6 +61,19 @@ each effect boundary. Test wrong/stale tokens, repeated take/end, result-pending
 rebind, exhaustion and reuse after consumption. Competing access cannot split
 MMD restoration. Add a compiling owner loop and failed-cleanup example.
 
+## Concrete TI source inputs
+
+Re-audit [TI initialization/reset behavior](../reference/library-ti-core.md#initialization-reset-and-recovery-procedure-audit)
+against SNLS647I table 8-19: PCS reset uses register `0x00`, command `0x8000`,
+and retains vendor registers. TI supplies no reset wait/deadline here; choose
+bounds from exact silicon/controller evidence and explicit application policy.
+Its empty InitCfg and Auto-MDIX/interface config are not complete initialization;
+invalid config can still cause RCSR I/O, and configuration errors are ignored.
+Add independent zero-I/O-invalid-input and accepted-write/failure cases. Establish
+50 ms POR and external-reset readiness responsibility before initial probing;
+do not misapply external-pin timing as a proved PCS-reset completion interval.
+Keep actual hardware reset/restoration evidence separate from host sequencing.
+
 ## Documentation, verification and checkpoint
 
 Ship accurate public Doxygen and procedure citations with this behavior: units,

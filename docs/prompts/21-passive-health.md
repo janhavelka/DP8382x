@@ -62,6 +62,19 @@ Document the transition table and an application mapping example that reads
 cached health without I/O. No retry timer, recovery manager, background task
 or automatic power cycle belongs in this task.
 
+## Concrete TI source inputs
+
+Recheck the [TI transport/error audit](../reference/library-ti-core.md#transport-and-mmd-procedure-audit)
+and [link audit](../reference/library-ti-core.md#negotiation-forced-modes-and-observations)
+against current source. A vendor MMD read/write has four frames; its first three
+successful selector/address writes do not establish target success. TI's private
+RMW can perform six frames while ignoring five write results. Count attempted
+frames, logical operation status and uncertain target effects independently.
+Successful PHYSTS with link bit0 clear is link-down with healthy MDIO; a stale
+caller Boolean from the flawed generic BMSR helper is not a fresh observation.
+Use literal failure traces and prove health getters perform zero I/O. Record
+actual backend/physical evidence separately; never infer wire health from mocks.
+
 ## Documentation, verification and checkpoint
 
 Ship accurate public Doxygen and procedure citations with this behavior: units,

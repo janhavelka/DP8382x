@@ -16,6 +16,17 @@ Prerequisites: [20](20-event-counter-acquisition.md), [18](18-forced-crossover-s
 
 ## Scope, current evidence and work
 
+Re-open the [FLD/quality source facts](../reference/library-ti-features.md#led-interface-and-link-quality-controls)
+and SNLS647I tables 8-29/30/52/53/72. CR3 cause mask `0x040F`
+combines energy/SNR/MLT3/RX/descrambler; reject unknown bits before I/O.
+FLD_CFG1 `0117` window `[15:10]` has 1=2 clocks, 63=64 clocks at 8 ns,
+and threshold `[9:4]` accepts 1..63 errors; both zero codes are reserved.
+Qualify how these controls relate to generic 10 us prose. Datasheet maxima are
+10 us for modes 1-4 and 11 us for descrambler, excluding host observation latency.
+Keep MSE `0218` versus app-note `0225` unresolved until evidence closes it.
+Include the MCU odd-nibble polarity bug (setting CR2 bit 1 disables detection)
+and RX_ER-during-IDLE versus IPG naming as independent regression cases.
+
 Deliver remaining documented raw quality/MSE, polarity/jabber, next-page
 evidence, MII-only Fast Link Drop and hardware link-loss-recovery settings.
 Reconcile this group against tasks 17–20 so every field has one implementation

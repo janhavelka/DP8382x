@@ -21,6 +21,19 @@ schema, exact writable/forbidden paths and acceptance. Choose available models
 by mechanical versus silicon-reasoning complexity and review primary evidence;
 agents do not mutate Git, shared contracts or siblings.
 
+## Concrete source checks
+
+Use [the pinned TI RTOS comparison](../reference/library-family.md#ti-rtos-dp83822-concrete-behavior)
+and the complete family catalogue. OUI `0x080028`, model `0x24`, revision 0 and
+Linux ID `0x2000A240` are shared identity evidence, not IF/HF or temperature
+detection. Inventory concrete gaps: RTOS only adjusts MDIX despite admitting
+MII/RMII/RGMII; Linux exposes Magic/Secure-ON but omits the documented 64-byte
+pattern engine. SNLS505H 7.4.2.1 permits direct/indirect standard-register access
+except direct-only REGCR/ADDAR; preserve that exact DP83822 namespace fact.
+Record shifted FX-enable write and reset-domain conflicts with source locations and resolution
+steps. Assign each documented field/recipe to 63..67 before closure; do not
+let a vendor API's narrower scope replace exact SNLS505H coverage.
+
 ## Work and acceptance
 
 Read SNLS505H original tables and explanatory sections, SNLA253, relevant

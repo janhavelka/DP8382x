@@ -13,6 +13,7 @@ and evidence from the maintained feature matrix. A listed stage is planned work.
 | Exact DP83826I first | 3-5, 11-36, 53-55 | Datasheet-backed IDs/sequences, independent failure tests, primary capability coverage |
 | Complete chip feature set beyond initial board use | 3-8, 11-36, 44-47, 53-67, 74-80 | Exhaustive register/field/procedure ledger; usable APIs, CLI and tests for every documented programmable feature; runtime opt-in is not deferred scope |
 | Broad useful public/manufacturer research | 3-5 and every feature/family prompt | Pinned TI GitHub/SDK, exact docs, EVM/tool guides and applicable primary comparisons with provenance, license and conflict records |
+| Concrete public-library data checked against reality | EVIDENCE through COMMON; 3-8, 11-41, 44-46, 53-67, 72-73, 78-80 | Pinned source catalogues; exact-part tables and independent literal vectors; observed/corroborated/conflicting/measured evidence kept distinct; confirmed mistakes corrected across prompts, implementation and tests |
 | General DP8382x family | 56-67, 72-73, 80 | Per-exact-part register/interface/feature differences and separate qualification rows |
 | Generic 10/100 and supported duplex modes | 17-20, 50, 53-55, 72 | Validated masks/forced modes, 10BASE-Te setup and suitable physical peer tests |
 | Loading-machine EtherCAT application | 40-42, 47, 72 | Separate 100/full owner policy, maintenance admission and raw MAC boundary; no master/servo claims |

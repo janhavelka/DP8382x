@@ -19,6 +19,11 @@ it is not permission to silently drop the feature or implement guessed behavior.
 Field names and register addresses below are factual navigation aids, not a
 replacement register specification or frozen public API.
 
+The [extracted public-library catalogues](library-evidence.md) provide additional
+numeric inputs and rejected source behavior. Reconcile them into this inventory
+and the implementation ledger using [EVIDENCE](../prompts/EVIDENCE.md), rather
+than maintaining independent production register maps from vendor headers.
+
 ## Source basis and applicability
 
 - Primary sections 8.3, 8.4 and 8.5: [SNLS647I](source/TI-DP83826I-E-SNLS647I.pdf).
@@ -303,6 +308,24 @@ The correctness review adds these specific constraints to the source ledger:
   headings. Do not silently strip address digits or assert a translation. Obtain
   an exact applicable access trace/clarification before freezing the EEE wire
   tuples; ordinary proved vendor-register addressing remains separate.
+
+## Corrections from public-library extraction
+
+The [TI core](library-ti-core.md) and [feature](library-ti-features.md) catalogues
+record exact source locations and independent datasheet comparisons:
+
+- TI RTOS reset completion uses mask `0x8000` as an address. PHYRCR is C22
+  `0x1F`; the mask and address must remain distinct inputs.
+- MLEDCR `0x0025[6:3]` needs mask `0x0078`, not TI's `0x0038`. Test a mode
+  using bit 6. Bit 0's zero encoding is reserved; do not invent a disable switch.
+- LEDCFG `0x0460` places LED1 at `[7:4]` and LED3 at `[15:12]`; TI RTOS and
+  MCU+ labels swap them. LEDCFG2 `0x0469[10:8]` is reserved on this exact part,
+  despite vendor definitions for LED3 drive/polarity.
+- MCU+ calls setting CR2 bit 1 odd-nibble detection enable; table 8-29 says
+  that value disables detection. Derive the public Boolean from the field table.
+- RECR `0x15` is described as a 16-bit RC field, but its prose gives maximum
+  `0xFF` and half-full `0x7F`. Preserve the raw sample and record this conflict;
+  do not invent counter width, overflow or saturation semantics.
 
 ## Hardware-only scope and closure rule
 

@@ -21,6 +21,19 @@ after contracts freeze; specify writable/forbidden files and independent
 acceptance. Select available models by coding/inventory/semantics complexity
 and review all contributions. Agents do not mutate Git or sibling sources.
 
+## Concrete source checks
+
+Implement the documented [wake map omitted by Linux](../reference/library-family.md#interrupt-and-wake-facts-from-ti-linux):
+64 pattern bytes `0x04A8..0x04C7`, byte masks `0x04C8..0x04CB` where 1
+ignores a byte, offset `0x04CC[5:0]` default 12; CRC gate and W1S clear in
+`0x04A0` require exact neutral writes. Test boundary bytes 0/63, masks and offset,
+not only Magic/Secure-ON. [Power facts](../reference/library-family.md#fiber-reset-diagnostic-and-power-procedures)
+require IEEE power-down before `0x0428[2]` deep power-down, with bit 3 selecting
+50/100 ms exit; preserve adjacent test-mode bits. Reconcile LED0/GPIO2 MLED,
+clock/LED pin conflicts, EEE/LPI and SFD's documented WoL-enable dependency.
+Verify exact-part semantics and actual hardware separately; API omissions and
+missing wiring cannot close required software rows.
+
 ## Work and acceptance
 
 Implement the finite source-assigned differences for EEE/LPI and supported MAC

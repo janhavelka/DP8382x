@@ -23,6 +23,17 @@ Review all contributions; agents do not mutate Git or operate fixtures without
 separately authorized scope. No automatic flashing, servo motion or incidental
 loading-machine operation follows from this prompt.
 
+## Concrete public-source inputs
+
+Use [feature timing and field facts](../reference/library-ti-features.md)
+with [EVIDENCE](EVIDENCE.md). Measure correct LED pin/field behavior, wake
+indication pulse/acknowledgement, actual reset/clock/MDIO intervals and admitted
+diagnostic restoration. Explicitly distinguish nominal EEE timing from maxima,
+and use an independent known stimulus for TDR/WoL/BIST. A matching register
+dump or LED flash cannot qualify derived cable distance, clock compliance or
+EtherCAT latency. Record instrument/raw-data limits and correct contradicted
+software assumptions without overwriting prior evidence.
+
 ## Work and acceptance
 
 Run applicable BIST/generator/checker/loopback, TDR/cable, interrupt, LED/GPIO,

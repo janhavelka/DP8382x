@@ -16,6 +16,15 @@ Prerequisites: [20](20-event-counter-acquisition.md), [22](22-reconcile-recover.
 
 ## Scope, current evidence and work
 
+Use the full [TI interrupt maps](../reference/library-ti-features.md#interrupts-power-eee-and-wol),
+rechecking SNLS647I tables 8-35..37/91. PHYSCR `0x0011[2:0]`
+is test/global-enable/output-enable; MISR1/2 at `0x0012/13` pair
+RC events `[15:8]` with enables `[7:0]`. Link enable `0x0020`
+maps to sampled event `0x2000`. RXFS `0x04A1[12]` selects the shared
+polarity/WoL source in MISR2. TI Zephyr's link-only IRQ enable and discarded
+read-clear word are comparison limits, not a full service design. Test every
+source, retained consumed events after later failure and explicit test-IRQ stop.
+
 Deliver all documented interrupt controls and deferred bounded service:
 global/output enable, polarity, software test, every MISR1/MISR2 source and
 interrupt pin routing/mux constraints. Reuse one collector for polling and IRQ;

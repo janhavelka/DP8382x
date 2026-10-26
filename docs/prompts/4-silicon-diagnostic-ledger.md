@@ -15,6 +15,16 @@ legal interpretation or explicit conflict, future implementation owner and
 host/fixture validation plan. No hardware or software support follows from
 source coverage alone.
 
+## Concrete public-source inputs
+
+Reconcile [TI diagnostic data](../reference/library-ti-features.md) under
+[EVIDENCE](EVIDENCE.md). The starting facts include BISCR `0x16`, BICSR1/2
+`0x1B/0x1C`, CDCR `0x1E`, manual trigger `0x8000`, done `0x0002`, fail `0x0001`
+and documented segment-dependent TDR words. Check each table's reserved banks,
+units and access semantics; a CDCR reset value with done already set is not a
+new measurement. Compare MISR1/2 `0x12/0x13` read-clear evidence and distinguish
+exact raw capture from an unproved physical distance/fault calculation.
+
 ## Work and source review
 
 Reopen relevant TMP1x2/PCA9555 operation-result and snapshot declarations,

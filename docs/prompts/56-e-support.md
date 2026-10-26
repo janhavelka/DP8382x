@@ -20,6 +20,17 @@ test file after signatures freeze. Specify writable/forbidden paths, independent
 acceptance vectors and an available model suited to the task; review every result.
 Agents do not mutate Git or sibling projects.
 
+## Concrete source checks
+
+Use [the family catalogue](../reference/library-family.md#identity-and-a-generation-comparison)
+and the pinned TI RTOS/Linux files beside SNLS647I. Linux C/NC labels
+`0x2000A130/0x2000A110` describe source model names, not E/I suffix detection.
+Test declared E with the exact admitted BASIC/ENHANCED model and revision rows;
+shared identity must retain the declaration. Reconfirm `0x030E=0x4A40` and
+ANAR bit 13 `0x2000` prohibition for each applicable E path. Do not import A's
+revision 4 or Strap11 EMC guidance into original E. Correct any source conflict
+in the ledger and plan; unresolved hardware evidence remains a separate gate.
+
 ## Work and acceptance
 
 Repeat the complete public-source/register/field/procedure audit for DP83826E,

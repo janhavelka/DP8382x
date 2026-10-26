@@ -14,6 +14,16 @@ to implement initialization/reset next without inventing another lifecycle.
 This task is a reviewed contract; working operation code arrives with its first
 real consumer, not as an unused engine or successful placeholder facade.
 
+## Concrete public-source inputs
+
+Use [SDK timing observations](../reference/library-sdk.md) and
+[EVIDENCE](EVIDENCE.md) as adverse cases, not operation defaults. The base can
+write reset before discovering a timeout below its 10 ms poll quantum; AN
+poll expiry can still return success. Define preflight so zero budget performs
+no I/O, and distinguish accepted command, protocol completion, current link and
+restored configuration. Include tick rounding, late callback effects and actual
+readiness intervals without pretending SDK sleep arguments are physical proof.
+
 ## Work and current precedents
 
 Trace TMP1x2 `startInitialize`, `startConfigure`, `poll`, `takeResult`, `cancel`

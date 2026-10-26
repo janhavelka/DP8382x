@@ -16,6 +16,15 @@ Prerequisites: [29](29-eee-negotiation.md), [28](28-power-states.md), [22](22-re
 
 ## Scope, current evidence and work
 
+Re-open SNLS647I 8.3.4/7.6 and the
+[LPI timing facts](../reference/library-ti-features.md#interrupts-power-eee-and-wol):
+after qualified EEE setup, BMCR bit 9 restarts AN; EEECFG3
+`0x04D1[12]` (`0x1000`) starts/stops forced TX LPI. The PHY does
+not buffer MAC frames. At 100 Mbit/s, sleep 210 us, quiet 20 ms, wake 36 us and refresh 200 us
+are **nominal** datasheet timings, not maximum bounds or proof the partner/MAC
+is ready. Test literal entry/exit preserving bypass controls and add actual
+timing/traffic measurements to qualification without fabricating their outcome.
+
 Deliver exact documented legacy-MAC EEE/TX LPI coordination as complete finite
 owner-admitted sessions, including entry, status acquisition, exit and verified
 restoration. Reuse EEE configuration and the existing operation engine; no

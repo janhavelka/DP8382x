@@ -15,6 +15,10 @@ The endpoint is complete publicly documented chip functionality, not a limited
 bring-up driver. Manufacturer GitHub/SDK code, exact register maps, feature
 procedures and other useful primary sources must be researched and reconciled.
 Runtime opt-in features are mandatory library scope when supported by silicon.
+The [extracted public-library evidence](../reference/library-evidence.md) adds
+concrete addresses, masks, encodings, sequences, timing values and source defects
+to the relevant prompts. The required [EVIDENCE contract](EVIDENCE.md) makes
+agents audit and correct those findings against exact datasheets and real data.
 
 ## How to execute
 
@@ -105,6 +109,8 @@ remaining gates, branch/commit and verified sync state.
   precedents, file responsibilities, readable code and per-stage Doxygen/docs.
 - [FULL_COVERAGE](FULL_COVERAGE.md): complete chip features, exhaustive register/
   field/procedure evidence and broad manufacturer-first public research.
+- [EVIDENCE](EVIDENCE.md): actual code/datasheet/measurement comparisons, numeric
+  provenance, no invented facts and corrections to earlier findings.
 - [CLI_CONTRACT](CLI_CONTRACT.md): shared example CLI, framing and Python artifacts.
 - [VERIFICATION](VERIFICATION.md): host/SDK/package/CI/hardware gates and honest claims.
 - [SOURCE_MAP](SOURCE_MAP.md): concrete sibling and silicon sources to revisit.

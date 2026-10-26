@@ -22,6 +22,18 @@ IF/HF literal-vector suite after signatures freeze. Assign writable/forbidden
 paths and acceptance; select available models by coding or silicon complexity
 and review all results. Agents do not mutate Git or sibling sources.
 
+## Concrete source checks
+
+Recheck [fiber controls and source conflicts](../reference/library-family.md#fiber-reset-diagnostic-and-power-procedures)
+against SNLS505H: CR2 `0x000A[14]` FX, GENCFG `0x0465[0]` detect polarity,
+SOR1 `0x0467` strap fields `[11:10]`/`[9:8]`. Linux passes set value1 with
+clear mask `0x4000` in FX configuration; inspect helper semantics and reject
+that shifted-write mistake using independent literal traces. A software enable
+does not prove signal-detect wiring or optical medium. Include exact supported
+forced duplex modes and 100-Mbit FX behavior without AN, then validate interface
+independence and copper-recipe exclusion. Any unresolved essential control
+meaning remains OPEN; real optical evidence is reported separately.
+
 ## Work and acceptance
 
 Implement documented IF/HF 100BASE-FX medium selection, startup/configuration,

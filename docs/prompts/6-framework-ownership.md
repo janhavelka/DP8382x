@@ -15,6 +15,17 @@ ownership/call-chain matrix now: splitting SDK state, bus ownership and lifetime
 into incompatible decisions would create implementation defects. This is a
 design deliverable, not an adapter support claim or a second generic PHY stack.
 
+## Concrete public-source inputs
+
+Trace [the pinned SDK evidence](../reference/library-sdk.md) under
+[EVIDENCE](EVIDENCE.md). The base's MMD control union leaves reserved bits
+`[13:5]` uninitialized before whole-word writes; serialization alone does not
+make that helper safe. Select a verified correction or the existing shared
+procedure, without duplicating the PHY stack. SDK defaults include reset GPIO 5,
+auto address detection, no default post-reset delay and a 2000 ms link poll.
+Compare them with actual board wiring and DP83826's 2 ms reset-release/50 ms POR
+SMI readiness; do not inherit them as correct chip defaults or EtherCAT timing.
+
 ## Source audit and responsibility matrix
 
 Reopen TMP1x2 borrowed transport/`bind`/`startConfigure`/`poll`/`takeResult`,

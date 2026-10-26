@@ -16,6 +16,12 @@ Keep these separate in `docs/validation.md` when created. Each claim has a
 command, result, artifact/revision, environment, date and limit. Record test
 counts; zero tests and configured-but-unrun workflows are not success. Preserve
 failures and exclusions instead of relabeling them as a pass.
+Apply [EVIDENCE](EVIDENCE.md) and the
+[public-library catalogues](../reference/library-evidence.md). For changed
+facts, show source code versus exact datasheet disposition and an independent
+literal/failure case. Validate masks and units against original tables, including
+reserved encodings and timing columns; do not use a production table as its own
+oracle. Compare authorized real traces/readbacks when making physical claims.
 
 ## Host tests required with implementation
 

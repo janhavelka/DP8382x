@@ -57,6 +57,19 @@ and full RMW exclusion. Test cached readers do no I/O. Document the access table
 safe dump limits and partial-evidence contract; typed feature completion remains
 with the later feature's full procedure.
 
+## Concrete TI source inputs
+
+Use the [complete TI header comparison](../reference/library-ti-core.md#complete-dp83826-private-header-field-inventory)
+and [destructive-read table](../reference/library-ti-core.md#destructive-reads-counters-and-safe-diagnostic-output).
+Correct source-derived metadata against exact tables: TI's MLEDCR mask `0x0038`
+must not truncate bits 6:3 (`0x0078`); LEDCFG LED1/LED3 fields are swapped in its
+header, and its LEDCFG2 LED3 controls name datasheet-reserved bits. Generic
+`GIGESR=0x0F` is this chip's destructive FLDS, not gigabit status. RXFCFG1
+`0x04A0` bit `0x0800` is W0C; mirrored PHYSTS flags have clearing dependencies
+on other register reads. Use literal vectors from the catalogue and maintain
+per-field source/access provenance. Re-audit current tables and physical evidence;
+unresolved GPIO/RC semantics remain named gates, never guessed permissions.
+
 ## Documentation, verification and checkpoint
 
 Ship accurate public Doxygen and procedure citations with this behavior: units,

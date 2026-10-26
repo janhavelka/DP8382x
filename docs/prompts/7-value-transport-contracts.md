@@ -14,6 +14,16 @@ plain-owner/SDK design examples. Prompt 8 owns cooperative lifetimes. Do not
 ship declarations for future methods or force unknown feature signatures into
 headers merely to finish this design task.
 
+## Concrete public-source inputs
+
+Use [the core source audit](../reference/library-ti-core.md) and
+[EVIDENCE](EVIDENCE.md) to specify output validity from actual failure cases.
+TI's generic link helper can return success without assigning its output after
+a low first BMSR sample; that is a rejected contract. A library's revision-1
+filter is also not proof that all other revisions are unsupported. Keep declared
+variant, observed identity, source acceptance and physical evidence distinct;
+never fill an unknown status or reset field with a plausible default.
+
 ## Work and live convention audit
 
 Reopen TMP1x2/PCA9555 `Status.h`, Config and actual validation/state code;

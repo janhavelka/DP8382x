@@ -20,6 +20,17 @@ freeze, assigning exact writable/forbidden files and acceptance. Choose availabl
 models suited to coding or silicon/ownership complexity and review results.
 Agents do not mutate Git, shared contracts or siblings.
 
+## Concrete source checks
+
+Check [TI RTOS register facts and defects](../reference/library-family.md#ti-rtos-dp83822-concrete-behavior):
+CR1 `0x09[5]` robust MDIX, PHYCR `0x19[15]` auto/`[14]` forced crossover,
+and PHYSTS `0x10[2:0]`. Independent linked literals are `0x0001` 100/half,
+`0x0005` 100/full, `0x0003` 10/half, `0x0007` 10/full. The helper drops MDIX
+transfer errors; implementation must preserve them. SNLS505H uses 10 us reset
+pulse and up to 200 ms POR readiness, distinct from 25/26. Recheck original
+timing columns and reset domains before encoding deadlines. Test no-link/read
+failure separately and never treat shared ID as subtype/medium proof.
+
 ## Work and acceptance
 
 Implement documented copper identity/revision admission, startup/10 Mbit,

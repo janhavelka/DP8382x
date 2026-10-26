@@ -56,6 +56,20 @@ exact counts. An admitted indivisible sequence must never be divided by a poll
 budget. Add a complete trace and portable consumer example to the transport guide;
 keep actual SDK/controller timing separate from host protocol evidence.
 
+## Concrete TI source inputs
+
+Reopen the [pinned TI MMD procedures](../reference/library-ti-core.md#transport-and-mmd-procedure-audit)
+and [SDK comparison](../reference/library-sdk.md) against current source and
+SNLS647I 8.3.11.1-.5/tables 8-31/32. Vendor DEVAD31 read is literally writes
+`0x0D=0x001F`, `0x0E=address`, `0x0D=0x401F`, then read `0x0E`; a write replaces
+the last read with target data. Keep REGCR reserved bits 13:5 zero, including
+when SDK bitfields contain poisoned/uninitialized storage. Do not infer EEE
+DEVAD3/7 wire offsets from this vendor-only helper. TI's six-frame private RMW
+ignores five write statuses; fail every phase and prove stale addressing cannot
+produce a trusted target update. Recheck whether the repeated data-mode write
+is needed instead of treating library shape as a silicon requirement. Compare
+real admitted MDIO traces later; mock success cannot establish wire correctness.
+
 ## Documentation, verification and checkpoint
 
 Ship accurate public Doxygen and procedure citations with this behavior: units,

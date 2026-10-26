@@ -6,6 +6,10 @@ findings, not imported driver code or implemented support. The
 [full-coverage contract](../prompts/FULL_COVERAGE.md) governs their use; the
 [DP83826I inventory](dp83826i-feature-inventory.md) accounts for the complete
 datasheet register catalogue and feature families.
+The subsequent [library-data extraction](library-evidence.md) follows these leads
+into actual constants, procedures, timings and defects, and supplies the relevant
+numeric anchors to the implementation prompts. Recheck those observations against
+exact source/datasheet evidence; they are not a replacement specification.
 
 Exact-part datasheets remain silicon authority. Manufacturer software provides
 useful register names, settings, procedures and comparison cases, but several
@@ -68,7 +72,7 @@ support or complete features.
 
 Reviewed problems include the indirect selector expression `(0x4000 & devad)`
 instead of setting data mode, identity naming conflicting with the Linux source,
-infinite lock/busy-wait patterns, unestablished VOD_CFG3 programming and rejected
+unbounded mutex acquisition, fixed busy waits, unestablished VOD_CFG3 programming and rejected
 forced negotiation-off operation. The PHY library must validate these paths
 against TI specifications and bounded ownership rules, not inherit them.
 

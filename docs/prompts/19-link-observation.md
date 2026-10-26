@@ -62,6 +62,19 @@ change evidence and cable-down successful transport accounting. Add a compiling
 cached-status example and a guide table separating link, freshness, transport
 and application policy.
 
+## Concrete TI source inputs
+
+Use the [link helper audit](../reference/library-ti-core.md#negotiation-forced-modes-and-observations).
+PHYSTS `0x10` low-bit vectors `0x0001/0x0005/0x0003/0x0007` decode 100/half,
+100/full, 10/half, 10/full only where the mode's status semantics are proved;
+do not use them to close the ENHANCED forced-mode ambiguity. TI's generic BMSR
+helper rereads only when first link bit `0x0004` is set, and returns success
+without writing output when it is clear. Test first-low/second-high, persistent
+low, first-high/second-low and second-read failure with previous output true.
+Preserve consumed first-read history and reject uninitialized debug formatting.
+Check current source/datasheet and actual mode/partner traces before asserting
+current link, pause or speed; hardware evidence cannot be replaced by literals.
+
 ## Documentation, verification and checkpoint
 
 Ship accurate public Doxygen and procedure citations with this behavior: units,

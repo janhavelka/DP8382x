@@ -62,6 +62,19 @@ mismatch followed by transport failure; earlier evidence persists. Reset each
 applicable way and verify owned negotiated profiles, including 10 Mbit/s.
 Compile generic and 100/full configuration examples and document partial apply.
 
+## Concrete TI source inputs
+
+Reopen [TI negotiation procedures](../reference/library-ti-core.md#negotiation-forced-modes-and-observations)
+and current exact datasheet. ANAR technology masks are `0x0100`, `0x0080`,
+`0x0040`, `0x0020` for 100/full, 100/half, 10/full, 10/half; selector is `0x001F`,
+IEEE selector value 1. Pause/asymmetric pause are `0x0400/0x0800`; next-page is
+`0x8000`; local remote-fault `0x2000` remains prohibited. TI's selector-bit0-only
+update and empty-advertisement success are not full valid-profile application.
+BMCR AN enable/restart are `0x1000/0x0200`; restart-clear is not AN-complete.
+Use the catalogue's exact four-frame `0x030E=0x4A40` vendor transaction as an
+independent setup vector. Reconcile current source and real advertisement/link
+readbacks; library omissions and nominal timing never waive documented controls.
+
 ## Documentation, verification and checkpoint
 
 Ship accurate public Doxygen and procedure citations with this behavior: units,

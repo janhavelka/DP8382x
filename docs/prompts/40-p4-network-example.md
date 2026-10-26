@@ -19,6 +19,16 @@ agent may implement failure cases or review cleanup/guide accuracy after resourc
 contracts freeze. Choose available models by coding and ownership complexity;
 shared contracts and Git remain with the lead.
 
+## Concrete public-source inputs
+
+Check [SDK defaults and readiness](../reference/library-sdk.md) with
+[EVIDENCE](EVIDENCE.md). Do not accidentally use default reset GPIO 5 or auto
+address -1 for this board. Record actual pin/address/clock choices and PHY
+power/reset readiness; 100 us assertion alone does not supply the required
+2 ms post-reset SMI interval. The 2000 ms default link-poll period is application
+scheduling, not a PHY fault-response guarantee. Build configuration and observed
+hardware identity remain separate evidence.
+
 ## Closed work unit
 
 Create `examples/esp_idf/basic/` with native project/component build files,

@@ -16,6 +16,16 @@ Prerequisites: [18](18-forced-crossover-settings.md), [20](20-event-counter-acqu
 
 ## Scope, current evidence and work
 
+Audit all eighteen printed address/value pairs in the
+[TI EEE recipe](../reference/library-ti-features.md#interrupts-power-eee-and-wol)
+against SNLS647I 8.3.3.1, beginning `001F=8000,203C=0002,04D1=008B`
+and ending `0308=0000,04F4=0800,0000=3300`. These are printed facts,
+not verified wire tuples. Bypass controls `04D1[0,3]=1` and printed
+MMD7 `203C[1]=1` need exact-part addressing evidence; the TI Zephyr
+`(0x4000 & devad)` helper is a rejected trace. Account for destructive reset,
+`0123` loopback overlap and clock/profile writes. No inspected MCU/Zephyr
+feature subset proves a complete EEE setup or disable/restore procedure.
+
 Deliver complete DP83826I EEE capability, advertisement, partner/status and
 documented configuration recipe with verified restoration. This task owns
 negotiation/configuration behavior; explicit legacy-MAC TX LPI sessions are task

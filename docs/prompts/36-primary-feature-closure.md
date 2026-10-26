@@ -16,6 +16,17 @@ Prerequisites: [3](3-silicon-core-ledger.md), [4](4-silicon-diagnostic-ledger.md
 
 ## Scope, current evidence and work
 
+Audit every row of the
+[TI feature/source catalogue](../reference/library-ti-features.md) against the
+current implementation, exact datasheet and any actual measurements. Require
+explicit adopted/adapted/rejected dispositions and independent negative tests for
+MCU odd-nibble polarity, LED1/3 swaps, RTOS LED0 truncation, Zephyr MMD selector,
+basis-point/raw-code confusion, discarded IRQ samples and missing VOD_CFG3.
+Revisit procedure-only EEE/loopback/compliance writes and remaining TDR, MSE,
+GPIO, IOCTRL and nominal-timing limits. A table of numbers or two agreeing vendor
+drivers cannot close a conflicting silicon requirement or a physical gate.
+Return substantial gaps to their feature owner without reducing required scope.
+
 Audit DP83826I software completeness against the entire authoritative register/
 field/procedure ledger and independently inspect representative implementations.
 This is a bounded integration review with focused corrections, not a replacement

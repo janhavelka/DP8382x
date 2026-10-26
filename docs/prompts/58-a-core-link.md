@@ -21,6 +21,18 @@ and failure acceptance. Use an available model appropriate to coding or difficul
 silicon/ownership review, record the choice and inspect all contributions. No
 agent Git mutations or sibling edits.
 
+## Concrete source checks
+
+Recheck [A identities and procedures](../reference/library-family.md#identity-and-a-generation-comparison)
+and [reset/timing evidence](../reference/library-family.md#fiber-reset-diagnostic-and-power-procedures).
+SNLS783A gives hardware reset pulse 25 us, reset-to-SMI2 ms, POR-to-SMI 50 ms
+and RMII leader-clock0.2 ms; do not use an external-reset timing as an unproved
+BMCR/PHYRCR completion bound. Contrast Linux bit 15 software-reset versus
+bit 14 digital-restart naming with the older combined source. Test exact domains,
+bounded readiness and owned-state restoration; a source's 50 ms busy wait is
+framework policy, not a universal timeout. Reconcile conflicting evidence before
+coding and keep real clock/reset qualification explicit.
+
 ## Work and acceptance
 
 Implement source-proved A-generation identity, mode/revision admission,

@@ -19,6 +19,16 @@ disjoint transcript cases or handler source files only after contracts freeze;
 choose available models by parser/register/ownership complexity. Shared headers,
 architecture, progress and Git remain lead-owned.
 
+## Concrete public-source inputs
+
+Use [core register facts](../reference/library-ti-core.md) under
+[EVIDENCE](EVIDENCE.md). Distinguish C22 register `0x1F` from command mask
+`0x8000`; direct register addresses outside `0..31` must not be truncated into
+valid frames. MMD requests require explicit DEVAD and exact wire offset; a
+printed EEE address is not proof of that tuple. Verify names, legal values and
+help against the exact part, and keep raw-error diagnostics from masquerading
+as corrected typed feature behavior.
+
 ## Closed work unit
 
 Extend the existing processor with identity/probe, bounded explicit discovery,

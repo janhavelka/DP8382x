@@ -35,6 +35,13 @@ The [sibling audit](../reports/sibling-driver-audit.md),
 
 ## Silicon and SDK authority
 
+The [extracted library evidence](../reference/library-evidence.md) contains
+register/mask/value/procedure/timing tables from the pinned TI and other primary
+drivers, including rejected code behavior and source conflicts. Reopen the
+specific rows and source lines relevant to each prompt. Follow
+[EVIDENCE](EVIDENCE.md): compare with exact datasheets, use independent vectors,
+preserve unknowns and correct the prior findings rather than trusting them.
+
 Read [reference index](../reference/README.md),
 [source-code review](../reference/source-code.md),
 [variant scope](../variants.md), [architecture](../architecture.md) and

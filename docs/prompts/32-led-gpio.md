@@ -16,6 +16,17 @@ Prerequisites: [27](27-interrupt-service.md), [31](31-wake-on-lan.md), [5](5-sil
 
 ## Scope, current evidence and work
 
+Recheck the [LED source comparison](../reference/library-ti-features.md#led-interface-and-link-quality-controls)
+against visually inspectable SNLS647I tables 8-49/85/89. LED0 uses
+`0025[6:3]`, mask `0x0078`; LED1/2/3 use `0460[7:4]/[11:8]/[15:12]`.
+The TI MCU and RTOS LED1/3 shifts conflict with this table; the RTOS LED0
+three-bit mask also loses modes 8..E. Test every LED independently with literal
+vectors, reject source 0xF, and retain MLEDCR bit 0=1 (zero is reserved).
+LEDCFG2 bits 8/9/10 are reserved, not usable LED3 drive controls.
+Blink codes 0-3 at `0018[10:9]` mean 50/100/200/500 ms. Resolve per-pin mux
+R-versus-R/W and reserved clock selections; a vendor's write to all four muxes
+does not prove those writes valid.
+
 Deliver documented LED/GPIO sources, mux, polarity, drive, blink and stretch
 controls with exact applicability, conflict validation and verified restoration.
 Extend coherent typed configuration and shared pin ownership rules; no class

@@ -4,6 +4,11 @@
 
 ### 2026-10-26
 
+- Extracted pinned TI RTOS, MCU+, Linux/Zephyr and ESP-IDF source into four
+  detailed evidence catalogues. Added concrete register, field, procedure,
+  timing and regression inputs to 60 prompts, with mandatory exact-datasheet
+  comparison and correction rules for all 80. Recorded confirmed source defects
+  and unresolved identity/address conflicts without inventing hardware evidence.
 - Audited prompt workload and replaced the 34 broad stages with 80 complete
   prompts numbered 1 through 80. Split source research, feature procedures,
   SDK/CLI/runner work and family qualification into scoped outcomes with their

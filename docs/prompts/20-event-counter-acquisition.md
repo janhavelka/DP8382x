@@ -60,6 +60,19 @@ unknown loss and separate counter domains. Compile a consumer that acquires once
 and renders multiple cached views without I/O. Host tests prove acquisition
 semantics; physical error rates remain unmeasured.
 
+## Concrete TI source inputs
+
+Use the [source/datasheet collector table](../reference/library-ti-core.md#destructive-reads-counters-and-safe-diagnostic-output).
+MISR1/MISR2 `0x12/0x13` have high-byte RC events (`0xFF00`) and low-byte
+enables (`0x00FF`) with different event meanings. FLDS `0x0F` cause mask is
+`0x01F0`; TI's generic dump mislabels it as gigabit status and consumes it.
+FCSCR `0x14` is an 8-bit saturating RC counter, maximum `0xFF`, interrupt on
+exceeding `0x7F`. RECR `0x15` remains a 16-bit-field versus `0xFF` saturation
+source conflict; RCSR `0x17` bits3/2 remain an RC/polarity conflict. Retain raw
+values and partial consumed samples instead of inventing count or fault semantics.
+Reopen current exact tables and verify admitted physical counter/event behavior;
+TI's absent collector and unchecked prints are neither implementation nor evidence.
+
 ## Documentation, verification and checkpoint
 
 Ship accurate public Doxygen and procedure citations with this behavior: units,

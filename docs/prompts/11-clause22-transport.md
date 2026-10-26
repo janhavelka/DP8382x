@@ -54,6 +54,21 @@ exact frame counts, two-instance isolation and no SDK dependency with a linked
 portable consumer. Document the callback contract and a compiling direct-read
 example that checks Status before using output.
 
+## Concrete TI source inputs
+
+Use the [TI core transport audit](../reference/library-ti-core.md#transport-and-mmd-procedure-audit)
+and [timing table](../reference/library-ti-core.md#timing-silicon-limits-versus-library-policy).
+TI `GenericPhy_readReg/writeReg` merely forward callbacks; they do not prove
+address validation, deadlines or safe output publication. Clause 22 register
+numbers are five bits and data is 16 bits: reject register `0x8000` rather than
+truncating it to BMCR. Keep protocol PHY-address range distinct from the part's
+three strap bits. SNLS647I 7.6/8.3.11 and table 8-20 give MDC 2.5 MHz nominal,
+24 MHz maximum, a 500 ns minimum suppressed-preamble transaction gap plus the
+specified MDC/MDIO idle edge, and preamble/readiness requirements. Carry these
+into backend evidence; host callbacks cannot prove physical bus timing.
+Recheck current source/datasheet and correct discrepancies before coding; retain
+NOT RUN hardware timing evidence until admitted measured traces exist.
+
 ## Documentation, verification and checkpoint
 
 Ship accurate public Doxygen and procedure citations with this behavior: units,

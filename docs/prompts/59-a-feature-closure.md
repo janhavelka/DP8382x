@@ -20,6 +20,22 @@ explicit writable/forbidden files and literal acceptance vectors. Choose availab
 models by inventory/coding/silicon complexity; review all results. Agents do not
 mutate Git or siblings, and shared headers have one writer.
 
+## Concrete source checks
+
+Use [the family IRQ/wake facts](../reference/library-family.md#interrupt-and-wake-facts-from-ti-linux)
+to challenge inherited paths, then establish exact AI/AE equality from SNLS783A.
+MISR1/2 addresses `0x12/0x13` have enable/status byte pairs; test a consumed first
+sample followed by failed second read. Vendor-MMD 31 wake config `0x04A0`
+includes bit 11 clear-indication command `0x0800`, distinct from retained state.
+That mask identifies a position, not a safe acknowledgement value: establish
+AI/AE W0C/W1S semantics and neutral composition from its exact table.
+Linux packs array bytes for MAC `02:12:34:56:78:9A` into
+`0x1202,0x5634,0x9A78`. This is an observed candidate, not an independent oracle.
+Define application octet order versus TI's Byte 5/MSB convention and derive the
+actual AI/AE expected words independently before accepting that vector. Linux omits
+intermediate error checks; require partial-write uncertainty and finite cleanup.
+Do not transfer DP83822's 64-byte custom filter by a family register label.
+
 ## Work and acceptance
 
 Implement the ledger-assigned A-generation differences in interrupts and destructive

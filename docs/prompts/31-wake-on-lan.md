@@ -16,6 +16,16 @@ Prerequisites: [27](27-interrupt-service.md), [28](28-power-states.md), [5](5-si
 
 ## Scope, current evidence and work
 
+Revalidate [WoL field/byte-order facts](../reference/library-ti-features.md#interrupts-power-eee-and-wol)
+against SNLS647I tables 8-90..97. RXFCFG1 `04A0[11]` is W0C;
+pulse selector `[10:9]` gives 8/16/32/64 cycles at 125 MHz
+(derived 64/128/256/512 ns), and RXFS `04A1[12]` selects WoL/polarity IRQ.
+Freeze explicit byte indexing: MAC words `04A2/3/4` hold high:low DS byte pairs
+4:5, 2:3, 0:1; Secure-ON `04A5/6/7` hold 1:0, 3:2, 5:4. Test literal packets and words
+from the exact DP83826 tables, preserving read-clear samples and neutral W0C
+during unrelated updates. SNLA261A's DP83822 word order and custom-pattern
+examples are not DP83826 implementation authority.
+
 Deliver exact DP83826I WoL MAC matching, Secure-ON, CRC gate, pulse/level
 indication, status/acknowledgement and routing, with readback and restoration.
 Do not import DP83822 custom pattern matching or claim an application/MAC has

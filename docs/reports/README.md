@@ -26,6 +26,9 @@ changing revisions are observations of concurrent work, not changes by this task
   complete-task boundaries, 1-80 execution order and old-to-new migration map.
 - [Prompt correctness audit](prompt-correctness-audit.md): chip and SDK defects,
   source conflicts, simpler implementation choices and the new-branch rule.
+- [Public-library data audit](public-library-data-audit.md): pinned TI and SDK
+  register/procedure/timing extraction, independently corrected findings and
+  mandatory datasheet comparison in every prompt.
 
 Earlier audit comments about not inheriting sibling Git/CI permissions describe
 the initial planning scope. The later explicit user instruction is implemented

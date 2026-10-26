@@ -14,6 +14,17 @@ source-blocked entries. Assign all software work to prompts 11-36 and define
 the later exact-family research boundaries. Research may finish with documented
 conflicts; affected implementation/support gates remain open until resolved.
 
+## Concrete public-source inputs
+
+Audit [TI feature tables](../reference/library-ti-features.md) and
+[EVIDENCE](EVIDENCE.md). Concrete traps include MLEDCR `0x25` selector mask
+`0x0078` versus TI's `0x0038`, swapped LED1/LED3 fields at `0x460`, reserved
+LED3 drive bits at `0x469`, and odd-nibble bit `CR2[1]` whose set value disables
+detection despite the SDK function name. EEE's printed sequence is recorded in
+full but does not resolve wire offsets. Classify timing columns explicitly:
+EEE sleep `210 us`, wake `36 us`, quiet `20 ms` and refresh `200 us` are nominal,
+not guaranteed deadlines. Correct source observations using original tables.
+
 ## Work and exact evidence
 
 Revisit current TMP1x2/MB85RC variant and capability declarations, corresponding

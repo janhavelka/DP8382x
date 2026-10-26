@@ -21,6 +21,15 @@ with frozen clocks, token and result semantics. Select available models by
 reasoning complexity; agents do not change shared headers, progress or Git or
 share a mutating build directory.
 
+## Concrete public-source inputs
+
+Add the [observed SDK timing hazards](../reference/library-sdk.md) to the
+finite matrix and follow [EVIDENCE](EVIDENCE.md): reset budget below 10 ms after
+an accepted write, AN expiry returning success, 100 us/1000 us controller loops,
+and 2 ms hardware-reset readiness with coarse ticks. Test required elapsed
+intervals and preserved effects, not only loop counts. Silicon nominal FLP/EEE
+values cannot become maximum deadlines just because the tests use them.
+
 ## Closed work unit
 
 Extend the established fixtures with zero budget, exhausted aggregate deadline,

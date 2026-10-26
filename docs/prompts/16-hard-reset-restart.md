@@ -61,6 +61,19 @@ evidence and contention without lock retention across waits. Compile the owner
 examples and extend the lifecycle/reset-effects guide with exact application
 responsibilities and currently supported restoration scope.
 
+## Concrete TI source inputs
+
+Use the [reset audit](../reference/library-ti-core.md#initialization-reset-and-recovery-procedure-audit)
+and [timing qualifiers](../reference/library-ti-core.md#timing-silicon-limits-versus-library-policy).
+PHYRCR register `0x1F` commands are hard-reset `0x8000` and restart `0x4000`;
+poll `0x1F`, not TI's erroneous register argument `PHYRCR_SWRESET=0x8000`.
+Test that a truncating backend cannot accidentally substitute BMCR. SNLS647I
+requires external RESET_N low at least 25 us, 2 ms inactivity after deassertion,
+and 50 ms after POR before SMI; delayed clock has a separate 100 us stability
+condition. The 1500 ms FLP figure is nominal, not a maximum reset deadline.
+Recheck exact current documents, software-command applicability and real reset/
+clock traces; retain unmeasured physical timing gates and correct source mistakes.
+
 ## Documentation, verification and checkpoint
 
 Ship accurate public Doxygen and procedure citations with this behavior: units,

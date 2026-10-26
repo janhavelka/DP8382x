@@ -16,6 +16,18 @@ Prerequisites: [23](23-loopback-modes.md), [20](20-event-counter-acquisition.md)
 
 ## Scope, current evidence and work
 
+Use the [BIST fact table](../reference/library-ti-features.md#loopback-and-bist-anchors)
+and re-open SNLS647I tables 8-40/45/46. BISCR `[13:12]=0/1/2/3`
+means off/single constant-data generator/checker-only/generator+checker;
+bit 14 changes counter wrap policy, not packet-generation mode. BICSR1
+`0x001B[7:0]` is IPG in four-byte units (`0x7D=500` bytes);
+bit 15 snapshots/clears the error counter, whose sample is `[15:8]`.
+BICSR2 `0x001C[10:0]` is packet bytes (`0x05EE=1518` default).
+Test `0x807D` snapshot composition without corrupting IPG, saturated/wrapped
+counts and BISCR lock/activity evidence. Reject the troubleshooting guide's
+RCSR lock address and analog `0x3108 -> 0x3B04` expectation; one second in
+its procedure is not a guaranteed completion bound.
+
 Deliver all documented BIST/PRBS generator/checker options as bounded diagnostic
 sessions with trustworthy measurements and full stop/restore. Extend existing
 diagnostics and operation/result types; do not implement an independent test

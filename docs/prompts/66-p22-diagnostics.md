@@ -22,6 +22,19 @@ acceptance. Choose available models for coding versus difficult side-effect/
 ownership reasoning and review all contributions. Agents do not mutate Git,
 shared contracts or siblings, and do not operate fixtures incidentally.
 
+## Concrete source checks
+
+Start with [SNLA253 procedure facts](../reference/library-family.md#fiber-reset-diagnostic-and-power-procedures):
+`0x0171[3:0]=0xC`, `0x0173[15:8]=0xFF`, `0x0177[12:8]=0x18`;
+manual `0x001E[15]` or auto `0x0009[8]`, status `0x001E[1:0]`, results
+`0x0180..0x018A`. Test invalid 0xC samples and raw locations/amplitudes/polarity;
+the documented location example `0x33` yields about 36.31 m, not another part's
+conversion. Recheck original fields and conditions before adopting the recipe.
+[Analog facts](../reference/library-family.md#interface-clock-analog-and-led-facts)
+include exact LDCTRL voltage codes and fractional-ohm termination; Linux rounded
+property tables are comparison facts. Keep calibration and measured electrical
+accuracy explicit; correct source conflicts instead of fitting tests to a guess.
+
 ## Work and acceptance
 
 Implement every assigned documented loopback, BIST/generator/checker/PRBS,

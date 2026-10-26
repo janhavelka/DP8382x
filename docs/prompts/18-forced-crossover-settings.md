@@ -62,6 +62,19 @@ compatibility and electrical timing are not proved by these host tests.
 Expose all implemented general modes only after their complete tests and
 restoration pass.
 
+## Concrete TI source inputs
+
+Use the [forced-mode source audit](../reference/library-ti-core.md#negotiation-forced-modes-and-observations)
+with current SNLS647I tables 8-19/28/30/43. Forced speed/duplex contributions are
+`0x0000/0x0100/0x2000/0x2100` for 10/half, 10/full, 100/half, 100/full, after
+explicitly disabling AN. TI's generic mask `0x2140` includes reserved gigabit
+bit6; do not copy it. PHYCR Auto-MDIX/forced-MDIX masks are `0x8000/0x4000`;
+CR1 robust Auto-MDIX is `0x0020`; CR3 pair/polarity swap are `0x0020/0x0040`.
+Audit robust behavior separately for automatic versus manual pair selection.
+TI's loopback-disable branch forces MDI and ignores write errors; preserve the
+requested crossover profile and test every partial write. Verify mode-dependent
+behavior against real part/partner evidence; missing fixtures stay explicit.
+
 ## Documentation, verification and checkpoint
 
 Ship accurate public Doxygen and procedure citations with this behavior: units,

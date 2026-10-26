@@ -21,6 +21,18 @@ fault tests may be delegated after shared contracts freeze. Use available
 models with sufficient reasoning for deadlines and concurrency, record the
 choice, and keep shared headers and Git with the lead.
 
+## Concrete public-source inputs
+
+Use [actual SDK loop/default values](../reference/library-sdk.md), not assumed
+deadlines: MAC busy polling is 100 us per iteration up to a nominal 1000 us
+counter; PHY reset polls every 10 ms and AN every 100 ms; default link polling
+is 2000 ms. The separate 100 ms MAC mutex is not acquired by PHY read/write
+methods. Four MMD frames therefore do not prove a 4 ms wall-clock bound.
+Exercise 2 ms reset readiness with coarse ticks (100 Hz can round it to zero),
+and measure elapsed time from the real event. Distinguish source policy,
+silicon limits, configured budgets and authorized measurements under
+[EVIDENCE](EVIDENCE.md).
+
 ## Closed work unit
 
 Complete a method-by-method conformance table covering every selected

@@ -57,6 +57,18 @@ codes/details, unchanged outputs and bus-silent invalid/capability rejection.
 Add a compiling probe example and variant decision table with distinct declared,
 observed, implemented and hardware-qualified facts.
 
+## Concrete TI source inputs
+
+Use the [identity source table](../reference/library-ti-core.md#identity-and-capability-facts).
+TI tests OUI `0x080028`, model `0x11/0x13`, revision exactly 1; SNLS647I tables
+8-21/22 identify those models as BASIC/ENHANCED, giving literal revision-1 IDs
+`0x2000A111` and `0x2000A131`. They do not identify I/E suffix. Decode model with
+`0x03F0 >> 4`, revision with `0x000F` and OUI from both ID words. Test a second
+ID read failure: TI's generic helper has already changed caller output after
+the first read, which this project must reject. Reconcile current source,
+datasheet revision policy and actual part/strap readbacks; neither the library's
+revision-1 filter nor its erroneous RGMII comment is a universal capability rule.
+
 ## Documentation, verification and checkpoint
 
 Ship accurate public Doxygen and procedure citations with this behavior: units,

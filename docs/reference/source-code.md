@@ -3,6 +3,10 @@
 Verified on 2026-10-24. These links point to immutable Git commits. Source code
 is linked for engineering review; none has been imported into the implementation.
 The [exact-device datasheets](README.md) remain authoritative for hardware behavior.
+The [extracted library evidence](library-evidence.md) now expands these sources
+into concrete register/mask/value, sequence and timing tables with line references,
+datasheet comparisons and rejected upstream behavior. Follow its linked evidence
+rules; a source pin establishes what code says, not that the code is correct.
 
 The [2026-10-26 public research follow-up](public-research.md) adds TI ICSS-EMAC
 and Zephyr implementations, additional Linux identity evidence, upstream Zephyr

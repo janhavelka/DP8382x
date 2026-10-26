@@ -16,6 +16,16 @@ Prerequisites: [22](22-reconcile-recover.md), [4](4-silicon-diagnostic-ledger.md
 
 ## Scope, current evidence and work
 
+Revalidate the [TI loopback facts](../reference/library-ti-features.md#loopback-and-bist-anchors)
+against SNLS647I tables 8-19/8-40 and current source. BISCR `0x0016[4:0]`
+uses `01/02/04/08/10` for PCS input/output, digital, analog and reverse;
+PCS input is 10 Mbit/s only, digital 100 Mbit/s only, and analog requires 100-ohm
+termination. Include the complete 100 Mbit/s digital sequence
+`0000=2100,0016=0104,0122=2000,0123=2000,0130=47FF,001F=4000`
+as a sourced literal example with owned-state restoration, not general whole-word
+writes. Reject SNLA423A's reverse `0x0020` and apply BISCR bit 6 line transmission
+only to 100 Mbit/s MII loopback. Track `0x0123` overlap with EEE explicitly.
+
 Deliver complete exact-part loopback configuration and finite owner-driven
 sessions, including stop and verified restoration. Persistent configured
 loopback and a finite diagnostic session need distinct semantics. Extend the

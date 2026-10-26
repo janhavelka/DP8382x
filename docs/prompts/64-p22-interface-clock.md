@@ -21,6 +21,21 @@ admission review after signatures freeze. Specify writable/forbidden files,
 independent acceptance and available models chosen by reasoning complexity;
 review all contributions. No agent Git mutations or sibling edits.
 
+## Concrete source checks
+
+Use [the exact clock/shift table](../reference/library-family.md#interface-clock-analog-and-led-facts).
+RCSR `0x17` RX/TX shift-mask `0x1800` independent vectors are
+`0x0800` off/off, `0x1800` on/off, `0x0000` off/on, `0x1000` on/on.
+Test both prior states, not only reset; older Linux only sets bits and can leave
+stale delays. SNLS505H table 8-23 requires after setting RMII bit 5: write
+`0x0462=0x4300`, then `0x001F=0x4000`; implement the complete bounded recipe.
+SNLS505H 7.4.2.1 permits standard 0..31 direct or indirect access through
+vendor DEVAD 31; REGCR `0x0D` and ADDAR `0x0E` are direct-only exceptions.
+Test RCSR `0x17` access with complete transaction ownership and literal selector
+frames; this DP83822 fact does not establish another part's aliases or real traces.
+GPIO clock selectors 0, 1, 2, 4, 6, 7 are documented; 3/5 reserved. Validate mux conflicts,
+preserve RC FIFO evidence and keep actual clock/timing measurement gates separate.
+
 ## Work and acceptance
 
 Implement every documented applicable MII/RMII/RGMII interface and clock control,

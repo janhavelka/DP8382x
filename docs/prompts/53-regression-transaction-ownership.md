@@ -21,6 +21,16 @@ fixture contracts freeze. Choose available models with sufficient reasoning
 for atomicity, silicon semantics and concurrency; shared API/integration and
 Git remain with the lead. Do not race shared build directories.
 
+## Concrete public-source inputs
+
+Use the [core](../reference/library-ti-core.md) and
+[SDK](../reference/library-sdk.md) source findings under [EVIDENCE](EVIDENCE.md).
+Assert literal selector words `0x001F/0x401F` with reserved bits zero, no
+mask-as-address reset read and no stale successful output after failed discovery
+or link acquisition. Cover the actual raw-ioctl path, partial callbacks and
+SDK cached AN state. These expected values must come from independent exact
+specification review, not the same defective vendor helper used by a fake.
+
 ## Closed work unit
 
 Build a regression matrix by public operation/family: independently derived

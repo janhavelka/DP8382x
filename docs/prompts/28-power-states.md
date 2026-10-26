@@ -16,6 +16,16 @@ Prerequisites: [22](22-reconcile-recover.md), [5](5-silicon-power-interface-ledg
 
 ## Scope, current evidence and work
 
+Verify the [power facts](../reference/library-ti-features.md#interrupts-power-eee-and-wol)
+against SNLS647I 8.3.6 / table 8-40. Active-sleep configuration is PHYSCR
+mask/value `0x7000/0x6000`, while BISCR bit 8 is 0 sleeping/1 normal;
+the documented 1.4-second NLP interval is not a guaranteed time to find a partner.
+IEEE power-down uses BMCR `0x0800`; DPD entry first sets `0x0428[2]`,
+then enables IEEE power-down. DPD stops the PLL. Confirm exit timing/order and
+clock availability independently; do not assume reversing the two writes is
+a complete wake procedure. Recheck conflicts with compliance controls at 0428
+and preserve separate policy, observed state and transition validity.
+
 Deliver active-sleep policy plus documented IEEE power-down, deep-power-down,
 disable and wake transitions. Keep policy configuration distinct from observed
 power state and partner-dependent behavior. Extend one shared configuration/

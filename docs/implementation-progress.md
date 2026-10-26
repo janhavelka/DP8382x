@@ -42,6 +42,13 @@ stages with 80 naturally numbered complete prompts. The preceding correctness
 checkpoint `afe8445fa80edf65296497ffc1205c460258382f` was synchronized on main.
 All old stage scopes are mapped; planning maintenance still implements no driver.
 
+The [public-library data audit](reports/public-library-data-audit.md) adds four
+source catalogues and concrete inputs to 60 stages. Every prompt now requires
+source-to-datasheet checks, explicit evidence limits and corrections through
+[EVIDENCE](prompts/EVIDENCE.md). The preceding workload checkpoint was
+`035a6c2e556bf3a704bfa45c99ef39581803593a`, synchronized on main. This follow-up
+changes planning only; all 80 implementation stages remain NOT STARTED.
+
 Execution branch/base: not started. Before the first stage of a new promptset
 execution, create a new branch from the synchronized intended base and record
 its name and original base commit. Do not use main or a previous set's branch.

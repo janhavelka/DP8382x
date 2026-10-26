@@ -8,6 +8,10 @@ The [concrete conventions](CONVENTIONS.md) select the current planned Status,
 DriverState, snapshot and function names, source responsibilities and Doxygen
 requirements from actual sibling code. Prompts 7-8 freeze their exact signatures;
 do not independently choose competing names in later prompts.
+Apply [EVIDENCE](EVIDENCE.md) before using source-derived numeric facts. Audited
+library code can still contain wrong fields, stale identity filters, ignored
+errors and missing waits. SDK defaults are not TI timing requirements, and
+nominal timing is not a guaranteed maximum. Keep corrections traceable.
 
 [FULL_COVERAGE](FULL_COVERAGE.md) defines mandatory public-source research and
 complete register/field/procedure coverage. Implement all documented programmable

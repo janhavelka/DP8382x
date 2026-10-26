@@ -21,6 +21,19 @@ writable/forbidden files and independent acceptance; choose available models by
 research/coding/semantics complexity and review contributions. Agents do not
 mutate Git, shared contracts or sibling projects.
 
+## Concrete source checks
+
+Resolve [the explicit identity conflict](../reference/library-family.md#identity-and-a-generation-comparison):
+SNLS638C table 7-6 specifies DP83825I model `0x14`, revision 0, ID `0x2000A140`;
+TI Linux calls that S and uses I=`0x2000A150`. Keep affected selection OPEN
+until exact silicon/revision evidence resolves it; neither label wins silently.
+[RCSR facts](../reference/library-family.md#interface-clock-analog-and-led-facts)
+include bit 7 25/50 MHz polarity and a reset `0x0061` versus reserved-bit 5/6
+reset-zero contradiction. Recheck original tables and source; do not invent
+defaults. SNLS638C distinguishes 25 us hardware pulse, 2 ms reset-to-SMI and 50 ms
+POR readiness; Zephyr's 1 ms/50 ms waits are observed policy. Add literal conflict,
+wrong-device, clock-polarity and no-MII/RGMII/fiber cases before claiming support.
+
 ## Work and acceptance
 
 Read SNLS638C directly, exact DP83825 troubleshooting/EVM material and relevant

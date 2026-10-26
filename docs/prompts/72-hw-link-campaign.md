@@ -22,6 +22,16 @@ Routine Git authorization and a numbered prompt do not authorize flashing,
 resetting a fixture or operating a machine; use separately authorized operations.
 No incidental servo motion or loading-machine control.
 
+## Concrete public-source inputs
+
+Use [recorded timing/identity conflicts](../reference/library-evidence.md)
+and [EVIDENCE](EVIDENCE.md) to define observations. Capture actual raw IDs,
+straps/mode, reset readback and MDIO readiness against exact part/revision
+requirements. Resolve source conflicts with identified evidence, never silently
+change an expected ID or delay until the fixture passes. Typical FLP timing
+is not a guaranteed link-up deadline; source/host/SDK and physical results
+remain distinct even when the same runner records them.
+
 ## Work and acceptance
 
 Before each case, record exact PHY part/revision/interface/address, board/netlist,

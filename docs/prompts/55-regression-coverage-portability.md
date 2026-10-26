@@ -23,6 +23,16 @@ to coding-capable models and independent silicon/ownership review to models
 with sufficient reasoning. Freeze acceptance, writable paths and forbidden
 shared files. Reviewers remain read-only; shared contracts and Git stay lead-owned.
 
+## Concrete public-source inputs
+
+Audit the [extracted source catalogues](../reference/library-evidence.md) and
+[EVIDENCE](EVIDENCE.md) against actual production and independent tests. No
+accepted row may rely only on a vendor macro, copied algorithm or several
+repositories sharing the same blob. Verify the source-versus-datasheet disposition
+for corrected masks, ID filters, MMD addressing and timing columns. Every
+newly confirmed error changes the owning code/test/guide, and unresolved
+contradictions remain open rather than being hidden by passing regressions.
+
 ## Closed work unit
 
 Reconcile every authoritative register, non-reserved field and documented

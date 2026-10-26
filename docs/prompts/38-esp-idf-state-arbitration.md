@@ -20,6 +20,17 @@ Assign disjoint failure tests or a read-only bypass audit after entry points are
 frozen. Select available models and reasoning for concurrency complexity;
 reviewers have no shared-header, workflow or Git ownership.
 
+## Concrete public-source inputs
+
+Reopen [SDK register/state traces](../reference/library-sdk.md) under
+[EVIDENCE](EVIDENCE.md). MMD helpers emit four separately mediated frames and
+leave nine reserved control bits uninitialized. Require exact address/data
+selector words, such as `0x001F/0x401F`, through the real adapter. Raw ioctls
+call mediator hooks directly; `ETH_CMD_G_AUTONEGO` reads the SDK cache while
+`ETH_CMD_S_AUTONEGO` updates it only with the driver stopped. Verify the actual
+path and error results; neither a per-frame lock nor correct register readback
+alone proves SDK state consistency.
+
 ## Closed work unit
 
 Implement full SDK-aware owner routing for configuration, indirect access and

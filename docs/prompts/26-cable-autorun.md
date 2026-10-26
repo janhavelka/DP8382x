@@ -16,6 +16,15 @@ Prerequisites: [25](25-cable-manual.md), [20](20-event-counter-acquisition.md), 
 
 ## Scope, current evidence and work
 
+Reopen SNLS647I 8.3.16 / table 8-28 and the
+[autorun/result facts](../reference/library-ti-features.md#cable-controls-and-remaining-interpretation-gates):
+CR1 `0x0009[8]` (`0x0100`) enables hardware autorun after link down.
+CDCR done is set in reset value `0x0102`; neither that bit nor unchanged
+peak values prove a new trigger. Include literal autorun enable/disable
+preserving CR1's other controls, initial-done/stale-result cases, manual-start
+contention and reads spanning a hardware update. Do not manufacture a generation
+counter, freshness guarantee or maximum silicon completion time absent evidence.
+
 Deliver explicitly configured silicon cable autorun on link down, exact
 readback/status/result behavior and interaction with manual capture. Reuse task
 25's verified controls, decoding, collector and restoration; no autonomous

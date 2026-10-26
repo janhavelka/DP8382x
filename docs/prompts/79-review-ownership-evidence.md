@@ -24,6 +24,16 @@ fixed versions/counts. The lead reviews findings and owns all shared fixes,
 integration, progress and Git; reviewers inspect implementation rather than
 trust predecessor completion claims.
 
+## Concrete public-source inputs
+
+Reopen [SDK and controller evidence](../reference/library-sdk.md) and
+[EVIDENCE](EVIDENCE.md). Check the final adapter, not just the upstream baseline:
+zero-initialized MMD reserved bits, actual whole-transaction arbitration, raw
+ioctl/cache reconciliation, real reset-ready intervals, poll quantization and
+late effects. Verify each stated time bound's source and actual backend behavior.
+Physical timing requires identified measurements; no successful compiled fixture
+or source grep can substitute for a waveform or elapsed-time observation.
+
 ## Work and acceptance
 
 Trace complete MMD/RMW transactions across core, IDF base, raw access, ioctl,

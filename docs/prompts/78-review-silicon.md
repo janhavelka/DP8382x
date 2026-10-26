@@ -22,6 +22,16 @@ choice; do not hard-code provider versions or launch agents merely for a count.
 The lead owns shared source/contracts/progress, fixes, integration and all Git.
 Reviewers must independently derive expectations and inspect actual code/tests.
 
+## Concrete public-source inputs
+
+Independently challenge [the extracted library data](../reference/library-evidence.md)
+under [EVIDENCE](EVIDENCE.md), including findings written by earlier agents.
+Review exact addresses/namespaces, masks/reserved encodings, identity differences,
+MIN/NOM/MAX timing and complete recipes against original tables and upstream
+code. Repeated vendor blobs are not independent sources. Turn confirmed
+conflicts into corrected implementation/tests/docs; leave unresolved facts
+open. Do not certify a copied ledger merely because every row has a checkmark.
+
 ## Work and acceptance
 
 Review the authoritative denominator: every exact-part register, non-reserved

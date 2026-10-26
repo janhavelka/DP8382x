@@ -14,6 +14,17 @@ and link records. Seed the full feature inventory with explicit owners for
 diagnostic research in prompt 4 and remaining controls in prompt 5. This task
 closes core research; it does not claim full-ledger or driver completion yet.
 
+## Concrete public-source inputs
+
+Use [TI core data](../reference/library-ti-core.md) and
+[EVIDENCE](EVIDENCE.md). Seed the comparison with OUI `0x080028`, models
+`0x11/0x13`, ID fields `0xFC00/0x03F0/0x000F`, C22 REGCR/ADDAR `0x0D/0x0E`
+and vendor DEVAD `31`; derive and verify each exact-part meaning independently.
+TI's reset-completion read of address `0x8000` is a mask/address defect, not a
+new register. Record correct PHYRCR `0x1F` versus bit mask `0x8000` separately.
+Preserve known wrong code values as rejected observations in the ledger, not
+production constants. Compare actual reset domains and read effects in the PDF.
+
 ## Work and sources
 
 Recheck TMP1x2 `include/TMP1x2/Config.h` model/validators and MB85RC

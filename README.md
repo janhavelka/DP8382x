@@ -34,6 +34,8 @@ remain library scope. See [full-coverage requirements](docs/prompts/FULL_COVERAG
   application notes, EVM guides and hardware collateral, with provenance.
 - [Official source references](docs/reference/source-code.md): pinned TI and
   Espressif repositories for registers, PHY handling and SDK integration.
+- [Extracted library data](docs/reference/library-evidence.md): concrete register,
+  mask, sequence and timing tables, source defects and required verification rules.
 - [Scope and architecture](docs/architecture.md): PHY component responsibilities
   and the boundary with the MAC, network stack and board firmware.
 - [Device coverage](docs/variants.md): primary target and reference-only variants.

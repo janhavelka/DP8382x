@@ -23,6 +23,17 @@ explicit writable/forbidden paths and acceptance cases. Choose available models
 by inventory versus silicon-reasoning complexity; review the primary evidence.
 Agents do not mutate Git, shared contracts or siblings.
 
+## Concrete source checks
+
+Start with [the immutable family evidence](../reference/library-family.md#identity-and-a-generation-comparison):
+combined TI Linux IDs `0x2000A114/0x2000A134` corroborate A BASIC/ENHANCED,
+whereas its matching mask `0xFFFFFFF0` ignores revisions. TI Zephyr's NC
+`0x2000A131` label conflicts with Linux NC `0x2000A110`; do not turn either
+label into an ordering-code rule. Reopen actual source, source license and
+SNLS783A table 8-23 before defining admission. The catalogue also records reset
+mask/domain and indirect-selector defects; research completion must name their
+dispositions and dependent test cases without pretending they were fixed upstream.
+
 ## Work and acceptance
 
 Read exact SNLS783A and SDAA067A sections and tables, current TI A-generation

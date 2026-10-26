@@ -186,6 +186,13 @@ contract is implemented. Do not populate the future tree with successful stubs.
   different facts. Unsupported claims require exact-part evidence.
 - Datasheets for the exact variant/revision are authoritative for register
   behavior. Manufacturer reference drivers still require review.
+- Follow docs/prompts/EVIDENCE.md and the extracted public-library catalogues.
+  Reopen actual pinned code and exact datasheet tables before using any address,
+  mask, identity, timing or sequence. Never invent missing data or treat vendor
+  function names, repeated code, a prompt or a passing fake as silicon proof.
+  Separate code observations, corroborated facts, conflicts and measurements.
+  Correct confirmed errors in prompts/contracts/code/tests/docs together; keep
+  unresolved facts gated. Physical checks need real identified authorized fixtures.
 - Preserve unmodified vendor payloads and their provenance/hashes. Do not copy
   GPL reference implementation into MIT-licensed project files.
 - Keep reference archives out of future firmware compilation and release

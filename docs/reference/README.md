@@ -21,6 +21,10 @@ The 2026-10-26 follow-up adds a [full DP83826I feature/register inventory](dp838
 and [expanded public-source research](public-research.md), including additional
 TI GitHub/SDK and primary upstream comparisons. These derived planning guides
 do not change the archived payloads or establish implemented chip support.
+The [extracted library catalogues](library-evidence.md) now add concrete public
+driver register/mask/value, sequence and timing data, with exact source identities,
+datasheet comparisons and known defects. Apply their verification/correction
+rules instead of treating vendor code or these findings as unquestionable truth.
 
 ## Reading order
 

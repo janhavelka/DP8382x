@@ -20,6 +20,16 @@ paths and explicit acceptance cases. Choose available models by coding and
 silicon/cleanup complexity; use independent read-only reasoning review for
 disruptive procedures. Agents do not mutate shared headers or Git.
 
+## Concrete public-source inputs
+
+Reconcile commands with [TI feature evidence](../reference/library-ti-features.md)
+and [EVIDENCE](EVIDENCE.md). Independent LED0 mode 8 needs field bit 6 and must
+not disappear through erroneous mask `0x0038`; named reserved LED3 drive fields
+must not appear as legal controls. Odd-nibble enable must not replay the SDK's
+inverted setter. WoL mask `0x0800` alone does not define acknowledgement value;
+use exact-part W0C/W1S rules and byte order. CLI tests must challenge these
+source defects rather than merely round-trip shared metadata.
+
 ## Closed work unit
 
 Add discoverable grouped typed routes for read-only selftest, loopback, BIST,

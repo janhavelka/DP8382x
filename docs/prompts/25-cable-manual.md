@@ -16,6 +16,18 @@ Prerequisites: [22](22-reconcile-recover.md), [20](20-event-counter-acquisition.
 
 ## Scope, current evidence and work
 
+Start the independent vectors from the
+[cable field/segment table](../reference/library-ti-features.md#cable-controls-and-remaining-interpretation-gates),
+then verify the current exact datasheet and procedure. CDCR `0x001E`
+uses start/done/fail masks `0x8000/0x0002/0x0001`; reset `0x0102`
+already contains done. CDSCR `0x0170[10:8]` codes 0-6 mean 1-64
+averages; code 7 is reserved. Segment codes 1-5 have explicit duration, skip,
+shadow and pulse settings; test segment 1 skip `0x07` versus reset `0x04`.
+Documented first-peak fields are `0180[7:0],0185[6:0],018A[11,5]`;
+reserved result banks do not establish five usable peaks. Maximum completion
+time, fault conversion and distance calibration remain separate evidence gates;
+do not invent them from another part's TDR routine.
+
 Deliver the exact DP83826I manual cable diagnostic procedure, complete controls,
 raw results, cancellation and restoration. Keep start/acquire/stop/restore in
 this task; no half-feature diagnostic scaffold. Extend existing diagnostics and

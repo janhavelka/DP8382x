@@ -61,6 +61,10 @@ Begin with [public-source research](../reference/public-research.md), the
 [pinned source review](../reference/source-code.md), the
 [reference archive](../reference/README.md) and the
 [DP83826I inventory](../reference/dp83826i-feature-inventory.md).
+Use the [extracted library catalogues](../reference/library-evidence.md) as
+concrete source inputs and apply [EVIDENCE](EVIDENCE.md) to audit every adopted
+fact. They include known manufacturer defects and unresolved contradictions;
+do not mechanically promote their observed-code values into production constants.
 
 For each feature and each later variant, consult the current available sources:
 

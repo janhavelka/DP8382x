@@ -65,6 +65,19 @@ Add a compiling bounded recovery owner example and a guide showing unchanged
 desired intent, partial observation, failed restoration and application-owned
 retry policy. New feature tasks must extend this single restoration ledger.
 
+## Concrete TI source inputs
+
+Use the [TI reset/configuration failure audit](../reference/library-ti-core.md#initialization-reset-and-recovery-procedure-audit)
+and current exact datasheet to define reconciliation inputs. A failed selector
+write followed by a successful data read in TI's unchecked RMW does not prove
+the intended target; reconstruct all MMD selectors on the next explicit access.
+PHYRCR hard reset `0x1F/0x8000`, restart `0x1F/0x4000` and BMCR PCS reset
+`0x00/0x8000` require distinct trust/restoration treatment. Reapply the currently
+owned `0x030E=0x4A40` setup where reset scope requires it, and do not clear an
+earlier partial-configuration error because one later read succeeded. Preserve
+source conflicts and hardware gates through recovery; compare admitted real
+reset/restore traces without inventing a fallback sequence or a successful fixture.
+
 ## Documentation, verification and checkpoint
 
 Ship accurate public Doxygen and procedure citations with this behavior: units,
