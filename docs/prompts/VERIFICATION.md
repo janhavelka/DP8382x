@@ -150,13 +150,18 @@ Check relocatable public usage requirements. Generate metadata deterministically
 verify nonmutating check/import paths and matching versions. Publication is a
 separate action from local package tests.
 
-For this documentation-only promptset, current executable checks are:
+Current research-tool checks, introduced through prompt 3, are:
 
 ```sh
 python tools/verify_references.py
+python tools/verify_ledger.py
+python -m unittest discover -s test -p "test_*.py" -v
 git diff --check
 ```
 
-Review all numbered prompt links, dependency ordering, shared names, requirement
-coverage and truthful progress entries. Future commands are introduced with
+Ledger tests prove research structure and independent literal arithmetic, not
+driver behavior, a linked SDK image or physical operation. Re-run them as
+prompts 4–5 extend the ledger. Review all numbered prompt links, dependency
+ordering, shared names, requirement coverage and truthful progress entries.
+Future commands are introduced with
 their implementation; don't claim nonexistent tests or firmware builds ran.

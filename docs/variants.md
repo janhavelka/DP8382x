@@ -1,8 +1,16 @@
 # Device coverage
 
-Reviewed on 2026-10-24. **No variant has an implemented or hardware-qualified
+Core evidence re-audited on 2026-10-28. **No variant has an implemented or hardware-qualified
 driver in this workspace yet.** The following describes documentation coverage
 and intended development order.
+
+The primary DP83826I [ledger](registers/dp83826i.json) and
+[behavior contract](device-behavior.md) now establish core research. The accepted
+documented revision is 1, with BASIC/ENHANCED observable model IDs kept separate
+from the declared I/E suffix. Other revisions require an explicit acceptance
+decision; shared model values do not establish A-generation support. PHYSTS
+forced-mode interpretation and software-hard-reset strap resampling retain named
+gates. Later variants must qualify these independently.
 
 | Device | Role here | Specification | Boundaries to preserve |
 | --- | --- | --- | --- |

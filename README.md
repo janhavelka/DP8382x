@@ -4,11 +4,13 @@ General microcontroller library workspace for Texas Instruments DP8382x Ethernet
 PHYs, starting with **DP83826IRHBR (DP83826I)**. The planned C++17 core is
 framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet MAC.
 
-**Status: prompts 1 and 2 evidence audits complete; driver implementation not started.**
+**Status: prompts 1–3 research and ledger checks complete; driver implementation not started.**
 Official references and the 80-prompt implementation plan are available. The
 [current source and tooling comparison](docs/library-comparison.md) records
-the first two execution results. Driver code, build/package metadata, examples, CLI,
-runners and hardware qualification are future work.
+the first two execution results. The [primary silicon ledger](docs/register-map.md)
+adds core register/procedure evidence and offline validation. Driver code,
+build/package metadata, examples, CLI, runners and hardware qualification are
+future work.
 
 The general library is intended to expose both **10 and 100 Mbit/s** operation.
 The initial board firmware will use autonegotiation advertising **100 Mbit/s,
@@ -43,6 +45,9 @@ remain library scope. See [full-coverage requirements](docs/prompts/FULL_COVERAG
 - [ESP32-P4 board context](docs/esp32p4-board.md): the starting hardware and link
   policy, kept separate from reusable driver defaults.
 - [Verification](test/README.md): archive checks now and planned driver checks.
+- [Core silicon behavior](docs/device-behavior.md), [independent vectors](docs/register-vectors.md)
+  and [feature coverage](docs/feature-coverage.md): established facts, open gates
+  and research owners for prompts 4–5.
 
 ## Layout
 
@@ -51,11 +56,12 @@ DP8382x/
   include/DP8382x/       future public interfaces
   src/                  future implementation
   examples/esp_idf/      future P4 networking and EtherCAT-owner examples
-  test/                 verification guidance; future driver tests
-  tools/                reference archive integrity checker
+  test/                 executing ledger tests; future driver tests
+  tools/                reference and silicon-ledger validators
   docs/
     prompts/            80 implementation prompts and shared contracts
     reports/            planning audits; later implementation evidence
+    registers/          machine-readable ledger and documented schema
     reference/
       source/           unmodified TI PDFs/ZIPs and provenance.json
       text/             searchable text derived from archived PDFs
@@ -71,11 +77,15 @@ Python 3.10 or newer, standard library only:
 
 ```sh
 python tools/verify_references.py
+python tools/verify_ledger.py
+python -m unittest discover -s test -p "test_*.py" -v
 git diff --check
 ```
 
 The first command checks archived payloads, SHA-256 hashes, ZIP integrity,
-derived text and local Markdown links. It does not contact TI or test a PHY.
+derived text and local Markdown links. Ledger checks validate research structure,
+coverage and independent literal values. These commands do not contact TI,
+execute a driver or test a physical PHY.
 
 ## Licensing
 

@@ -45,8 +45,11 @@ execution and complete planning/maintenance changes.
 
 ## Verification and CI
 
-Current runnable checks are `python tools/verify_references.py` and
-`git diff --check`. Introduce implementation commands with their working code.
+Current runnable checks are `python tools/verify_references.py`,
+`python tools/verify_ledger.py`,
+`python -m unittest discover -s test -p "test_*.py" -v` and `git diff --check`.
+Ledger tests validate research records, not executing PHY behavior. Introduce
+implementation commands with their working code.
 
 For the **first implementation execution**, remote CI dispatch, run-status
 checking and waiting belong to **prompt 71 only**. Prompts 1-70 and 72-80 use

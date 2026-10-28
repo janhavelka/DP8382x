@@ -8,6 +8,13 @@ silicon requirements. **Datasheet** facts refer to the exact archived revision.
 Use this with the [full feature inventory](dp83826i-feature-inventory.md), not as a
 replacement: the TI library implements only a small subset of the documented PHY.
 
+The prompt-3 [ledger](../registers/dp83826i.json) now records current core
+decisions, including separately gated software-hard-reset strap resampling,
+PHYSTS forced-mode interpretation, CR3 defaults and the mandatory VOD recipe's
+read-only-field conflict. This catalogue retains source-code defect details;
+it is not a second implementation register map. See the
+[fresh source audit](../reports/implementation/3-source-audit.md).
+
 ## Immutable sources and review bounds
 
 The live official `main` resolved to commit

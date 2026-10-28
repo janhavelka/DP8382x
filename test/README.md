@@ -6,6 +6,8 @@ Run from the repository root using Python 3.10 or newer:
 
 ```sh
 python tools/verify_references.py
+python tools/verify_ledger.py
+python -m unittest discover -s test -p "test_*.py" -v
 git diff --check
 ```
 
@@ -14,7 +16,16 @@ ZIP members and CRCs, derived-text hashes, archive inventory, and local Markdown
 file links. It is offline and does not claim that TI has not published an update.
 PDF parsing was also checked while collecting the initial archive.
 
-No driver, firmware build, CI workflow or hardware test exists at this stage.
+The ledger validator checks the [part-specific schema](../docs/registers/README.md),
+complete source inventory, masks, aliases, reset knowledge, citations and ownership.
+`test_ledger.py` is registered through standard-library unittest discovery. It
+tests valid/malformed temporary files and independently transcribed original-PDF
+vectors, including every core field partition and the pause matrix. Assertions
+are unittest methods and remain active under Python optimization. Run both
+commands as prompts 4–5 extend the ledger. These are research-tool tests, not
+executing driver, package or hardware tests.
+
+No driver, firmware build, CI workflow or physical hardware test exists at this stage.
 The [80-prompt promptset](../docs/prompts/README.md) now defines those future
 deliverables. Its [verification contract](../docs/prompts/VERIFICATION.md)
 separates host, portable consumer, SDK link, package, remote CI and physical

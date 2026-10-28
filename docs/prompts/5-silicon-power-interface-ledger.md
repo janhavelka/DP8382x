@@ -79,6 +79,7 @@ reasoning models; the lead owns schema and final coverage reconciliation.
 Record chosen scopes/model rationale. Validate literals and neutral write
 values independently. Update device behavior, vectors, feature/variant guides,
 source-conflict gates and future Doxygen citations; review README/CHANGELOG.
-Run reference/link/diff checks and record report/progress with full inventory
+Run the [ledger validator and registered tests](../registers/README.md),
+reference/link/diff checks and record report/progress with full inventory
 coverage and explicit unresolved facts. Commit and sync checked work and
 coherent units on the same branch. Remote CI remains prompt 71 only.

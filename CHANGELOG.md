@@ -4,6 +4,11 @@
 
 ### 2026-10-28
 
+- Completed prompt 3's DP83826I core silicon research: authoritative JSON ledger,
+  schema validator and independent literal tests; identity, access, reset, link,
+  crossover, next-page and pause procedures; complete feature inventory ownership
+  for prompts 4–5. Recorded original-PDF conflicts and conservative gates without
+  claiming driver implementation or physical qualification.
 - Completed prompt 2's live read-only comparison of sibling CLIs, HIL runners,
   examples, package/version/documentation checks and prompt workflows. Recorded
   exact revisions, a broader path inventory, installed tool availability and

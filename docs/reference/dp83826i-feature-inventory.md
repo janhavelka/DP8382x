@@ -24,6 +24,12 @@ numeric inputs and rejected source behavior. Reconcile them into this inventory
 and the implementation ledger using [EVIDENCE](../prompts/EVIDENCE.md), rather
 than maintaining independent production register maps from vendor headers.
 
+Prompt 3 reconciled the core rows into the authoritative
+[JSON ledger](../registers/dp83826i.json) on 2026-10-28. Its
+[coverage matrix](../feature-coverage.md) names prompt-4/5 owners for every
+remaining feature and recipe offset. This catalogue remains source navigation;
+current numeric/access decisions belong in that ledger and its independent tests.
+
 ## Source basis and applicability
 
 - Primary sections 8.3, 8.4 and 8.5: [SNLS647I](source/TI-DP83826I-E-SNLS647I.pdf).

@@ -6,6 +6,12 @@ Recheck relevant sibling implementation/tests under COMMON and adapt the baselin
 with one coordinated update when source evidence requires a change. Read this
 with [ENGINEERING](ENGINEERING.md) and the exact silicon specification.
 
+Prompt 3's [ledger](../registers/dp83826i.json),
+[behavior](../device-behavior.md) and [literal vectors](../register-vectors.md)
+are the current core research inputs. Future Doxygen must cite exact source
+tables for field access/reset and non-obvious procedures, state named unresolved
+gates, and distinguish configured settings from independently observed results.
+
 ## Source precedents
 
 Paths below are relative to Projects and are read-only references. Reopen the

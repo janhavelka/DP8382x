@@ -77,6 +77,6 @@ list together. Review README/CHANGELOG and the planned procedure/Doxygen
 citations. Verify complete topic coverage against detailed tables and feature
 text; unresolved source gates have exact evidence needed and affected scope.
 Run the ledger validator, its affected tests and local reference/link/diff
-checks; update report/progress. Commit and
+checks using the [registered commands](../registers/README.md); update report/progress. Commit and
 sync this complete research task and coherent checked units on the same branch.
 Remote CI is reserved for prompt 71.

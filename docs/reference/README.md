@@ -28,6 +28,11 @@ rules instead of treating vendor code or these findings as unquestionable truth.
 
 ## Reading order
 
+Prompt 3's [authoritative core ledger](../register-map.md),
+[behavior](../device-behavior.md) and [source re-audit](../reports/implementation/3-source-audit.md)
+record current core decisions and named remaining gates. The original payloads
+and their hashes remain unchanged; source catalogues remain comparison inputs.
+
 1. DP83826I/E datasheet and DP83826 troubleshooting guide: identity, modes,
    clocks/reset, standard and extended registers, 10/100 operation.
 2. MDIO configuration guide and the [official source references](source-code.md).

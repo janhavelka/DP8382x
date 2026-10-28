@@ -7,6 +7,9 @@ changing revisions are observations of concurrent work, not changes by this task
 The [current source comparison](../library-comparison.md), [prompt 1 report](implementation/1-core-api-state-ownership.md)
 and [prompt 2 report](implementation/2-ecosystem-tooling-audit.md) record the
 2026-10-28 live audits. They supersede older observations for those scopes.
+The [prompt 3 report](implementation/3-silicon-core-ledger.md) and
+[source re-audit](implementation/3-source-audit.md) add primary core silicon
+research, independently reviewed vectors and executing ledger checks.
 
 - [Sibling drivers](sibling-driver-audit.md): primary driver source audit and
   broader inventory, naming, ownership, Status/health, CLI, runners, tests and CI.
