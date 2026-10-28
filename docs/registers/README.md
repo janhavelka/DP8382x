@@ -3,7 +3,7 @@
 [dp83826i.json](dp83826i.json) is the authoritative research ledger for exact
 DP83826I / SNLS647I. It is deliberately a small part-specific JSON document,
 not a register-code generator. The older reference catalogues are source inputs.
-Prompt 3 completes core records; prompts 4 and 5 complete their assigned records.
+Prompts 3 and 4 complete core and diagnostic records; prompt 5 owns the remaining records.
 No record claims an implemented driver merely because its research is complete.
 
 Run `python tools/verify_ledger.py` and
@@ -24,7 +24,7 @@ Every register, field and procedure has nonempty `sources`: objects containing
 
 The root contains `schemaVersion` (1), `variant` (DP83826I), `specification`
 (SNLS647I), `sources`, `identity`, `timings`, `registers`, `procedures`, `features`
-and `gates`, plus `printedAddresses` and `pauseResolution`. Source entries have `id`, `path`, `revision`, `authority` and
+and `gates`, plus `printedAddresses`, `pauseResolution` and `writeActions`. Source entries have `id`, `path`, `revision`, `authority` and
 `license`; local paths are repository-relative and must exist. The archived
 payload hashes remain in the original provenance manifest.
 
@@ -33,7 +33,7 @@ payload hashes remain in the original provenance manifest.
 Each register has `id`, `name`, `modes` (BASIC and/or ENHANCED), `space` (C22 or
 MMD), `devad` (null for C22), `address`, `width` (16), `aliases`, `resetValue`,
 `resetKnownMask`, `resetNotes`, `reservedMask`, `access`, `readEffects`, `sources`,
-`researchStage` (3, 4 or 5), `status` (COMPLETE or PENDING), `fields` and `gates`.
+`researchStage` (3, 4 or 5), `status` (COMPLETE, RECIPE or PENDING), `fields` and `gates`.
 `aliases` contains complete `{space, devad, address}` alternative access tuples.
 C22 addresses are 0..31; MMD offsets are 0..65535 and DEVAD is 0..31.
 REGCR/ADDAR never have indirect aliases. Duplicate primary or alias tuples are
@@ -52,6 +52,12 @@ are stated in resetNotes and gates. A pending register uses null resetValue/rese
 reservedMask and an empty field array. An all-reserved completed register has
 reservedMask 0xFFFF and no fields: it has no ordinary writable bits.
 
+RECIPE means the exact procedure-only write is researched but field/reset meanings
+are not documented. Like PENDING it keeps resetValue/resetKnownMask/reservedMask
+null and fields empty. Only the three audited digital-loopback offsets currently
+use this status. Its exact source-backed action does not permit arbitrary reads,
+writes, saved-word restoration or a claimed reset value.
+
 Completed registers partition all 16 bits between reservedMask and disjoint
 fields. Each field has `id`, `name`, `mask`, `access`, `legal`, `prohibited`,
 `neutral`, `readEffects`, `validity`, `sources` and `owner`. Legal/prohibited
@@ -61,6 +67,8 @@ the contiguous field except prohibited values; reserved encodings are prohibited
 state/read-only fields. Access vocabulary is R, RH, RC, RCH, RW, RHW, W1S,
 W0C, W1C. W1S/W1C neutral is zero; W0C neutral is all field bits one. Mixed
 register writes must compose field semantics, not echo an arbitrary read value.
+The CDCR start field retains its published RW access while requiring neutral zero:
+its description explicitly defines a self-clearing trigger, not persistent state.
 Owner is a feature ID. Research for a non-core shared field may remain in its
 feature's assigned stage even when the numeric field partition is complete.
 
@@ -68,7 +76,8 @@ feature's assigned stage even when the numeric field partition is complete.
 
 A procedure has `id`, `feature`, `modes`, `sources`, `ownedMasks` (objects with
 `register` and `mask`), `prerequisites`, `steps`, `waits`, `timeout`,
-`partialEffects`, `cleanup`, `restoration`, `gates`, and `owner`. These text/list
+`partialEffects`, `cleanup`, `restoration`, `gates`, and `owner`, with optional
+`writeActions` IDs for the exact exceptional writes below. These text/list
 contracts are required and nonempty except waits/gates/ownedMasks may be empty
 when no such action exists. `steps` is an ordered nonempty list of instructions.
 Owned masks must fit documented non-reserved writable fields and the owning
@@ -85,7 +94,18 @@ COMPLETE, PARTIAL, PENDING, NOT_RUN or NOT_APPLICABLE. Host-tested means driver
 behavior, not successful ledger validation. Feature register/procedure links and
 field owners must resolve. Every register has a feature owner and every feature
 has API/CLI/test ownership (hardware-only/outside features explain applicability).
-Every completed stage-3 feature has a procedure or an explicit non-software scope.
+Every completed stage-3/4 feature has a procedure or an explicit non-software scope.
+
+`writeActions` entries have `id`, `register`, `mask`, `value`, `neutral`, `effect`,
+`prerequisites`, `sources`, `gates` and `feature`. Values are positioned register
+bits, unlike unshifted field encodings. The checker accepts only the four audited
+action tuples: the BICSR1 freeze/clear command and the three digital-loopback
+literal writes. BICSR1's read counter remains read-only; its write command
+overlaps that read view without creating overlapping field partitions. Its zero
+neutral protects ordinary IPG writes. Whole-word recipe actions have null neutral
+because there is no documented general command field. Every action must be used
+by its owning procedure, with required capture/loopback references checked.
+Unknown actions, changed values/masks/owners and invented writable aliases fail.
 
 A gate has `id`, `conflict`, `decision`, `nextEvidence`, `ownerStage` and `sources`.
 Gates name unresolved behavior; they are not claims of unsupported hardware.
@@ -115,6 +135,8 @@ The validator requires the exact core register set and the complete 79-entry
 summary inventory, the feature-only address entries and all 12 core procedures
 with their assigned features. Removing a row cannot
 make coverage pass. It checks the seeded feature families and their stage owners.
-As prompts 4–5 promote pending records, add independently sourced vectors and
+Prompt 4 additionally requires all 37 diagnostic rows (34 detailed records and
+three recipe-only records), eight documented feature families and 16 procedures.
+As prompt 5 promotes pending records, add independently sourced vectors and
 negative tests in the same change. Do not fill unknown reset bits with zeros or
 turn a printed EEE address into a wire offset while its gate remains open.

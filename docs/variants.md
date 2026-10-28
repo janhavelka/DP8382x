@@ -5,7 +5,10 @@ driver in this workspace yet.** The following describes documentation coverage
 and intended development order.
 
 The primary DP83826I [ledger](registers/dp83826i.json) and
-[behavior contract](device-behavior.md) now establish core research. The accepted
+[behavior contract](device-behavior.md) now establish core and diagnostic research.
+The diagnostic masks, procedures and source gates are exact-part evidence;
+they do not qualify other family members or promise calibrated cable/SNR results.
+The accepted
 documented revision is 1, with BASIC/ENHANCED observable model IDs kept separate
 from the declared I/E suffix. Other revisions require an explicit acceptance
 decision; shared model values do not establish A-generation support. PHYSTS

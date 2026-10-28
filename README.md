@@ -4,11 +4,11 @@ General microcontroller library workspace for Texas Instruments DP8382x Ethernet
 PHYs, starting with **DP83826IRHBR (DP83826I)**. The planned C++17 core is
 framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet MAC.
 
-**Status: prompts 1–3 research and ledger checks complete; driver implementation not started.**
+**Status: prompts 1–4 research and ledger checks complete; driver implementation not started.**
 Official references and the 80-prompt implementation plan are available. The
 [current source and tooling comparison](docs/library-comparison.md) records
 the first two execution results. The [primary silicon ledger](docs/register-map.md)
-adds core register/procedure evidence and offline validation. Driver code,
+adds core and diagnostic register/procedure evidence and offline validation. Driver code,
 build/package metadata, examples, CLI, runners and hardware qualification are
 future work.
 
@@ -47,7 +47,7 @@ remain library scope. See [full-coverage requirements](docs/prompts/FULL_COVERAG
 - [Verification](test/README.md): archive checks now and planned driver checks.
 - [Core silicon behavior](docs/device-behavior.md), [independent vectors](docs/register-vectors.md)
   and [feature coverage](docs/feature-coverage.md): established facts, open gates
-  and research owners for prompts 4–5.
+  and the remaining research owned by prompt 5.
 
 ## Layout
 

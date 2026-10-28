@@ -37,6 +37,20 @@
       "revision": "IEEE Std 802.3-2012 Section Two, Clause28 and Annex28B/28C",
       "authority": "Original IEEE document inspected through identified nonpublisher mirror; source details in report",
       "license": "IEEE copyright; factual truth table only, no implementation copied"
+    },
+    {
+      "id": "snla495",
+      "path": "docs/reference/source/TI-DP83826-EtherCAT-Link-Down-SNLA495.pdf",
+      "revision": "SNLA495, February2026",
+      "authority": "TI F28P65+DP83826 EtherCAT diagnostic comparison; ESC-specific applicability retained",
+      "license": "TI document copyright; original payload retained"
+    },
+    {
+      "id": "event_source_audit",
+      "path": "docs/reports/implementation/4-event-source-review.md",
+      "revision": "2026-10-28 original-PDF and current-source audit",
+      "authority": "Independent derived vectors and source comparison; no hardware qualification",
+      "license": "Original analysis MIT; cited vendor sources retain their licenses"
     }
   ],
   "identity": {
@@ -195,6 +209,96 @@
         {
           "source": "snls647i",
           "location": "Table 8-20 p56"
+        }
+      ]
+    },
+    {
+      "id": "fld_strap_150m",
+      "value": 10,
+      "unit": "us",
+      "qualifier": "MAX",
+      "start": "First link failure occurrence under the selected detector criterion (Figure8-9)",
+      "end": "Link-loss indication (Figure8-9)",
+      "conditions": "Fast Link Drop enabled using straps,150meter cable; MII only. Published physical response, not a software poll deadline or proof for arbitrary detector tuning.",
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "7.6 p15, footnote5 p17; 8.3.17/Figure8-9 p45; 8.4.1.1 p49"
+        }
+      ]
+    },
+    {
+      "id": "fld_energy",
+      "value": 10,
+      "unit": "us",
+      "qualifier": "MAX",
+      "start": "First link failure occurrence under the selected detector criterion (Figure8-9)",
+      "end": "Link-loss indication (Figure8-9)",
+      "conditions": "Mode1 Signal/Energy Loss indication; MII only. Published physical response, not a software poll deadline or proof for arbitrary detector tuning.",
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "7.6 p15, footnote5 p17; 8.3.17/Figure8-9 p45; 8.4.1.1 p49"
+        }
+      ]
+    },
+    {
+      "id": "fld_snr",
+      "value": 10,
+      "unit": "us",
+      "qualifier": "MAX",
+      "start": "First link failure occurrence under the selected detector criterion (Figure8-9)",
+      "end": "Link-loss indication (Figure8-9)",
+      "conditions": "Mode2 Low SNR threshold; MII only; footnote5 requires RX_Error count or Signal/Energy Loss enabled to meet maximum. Published physical response, not a software poll deadline or proof for arbitrary detector tuning.",
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "7.6 p15, footnote5 p17; 8.3.17/Figure8-9 p45; 8.4.1.1 p49"
+        }
+      ]
+    },
+    {
+      "id": "fld_mlt3",
+      "value": 10,
+      "unit": "us",
+      "qualifier": "MAX",
+      "start": "First link failure occurrence under the selected detector criterion (Figure8-9)",
+      "end": "Link-loss indication (Figure8-9)",
+      "conditions": "Mode3 MLT3 error count; MII only; footnote5 requires RX_Error count or Signal/Energy Loss enabled to meet maximum. Retain fld_threshold_recipe conflict. Published physical response, not a software poll deadline or proof for arbitrary detector tuning.",
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "7.6 p15, footnote5 p17; 8.3.17/Figure8-9 p45; 8.4.1.1 p49"
+        }
+      ]
+    },
+    {
+      "id": "fld_rx_error",
+      "value": 10,
+      "unit": "us",
+      "qualifier": "MAX",
+      "start": "First link failure occurrence under the selected detector criterion (Figure8-9)",
+      "end": "Link-loss indication (Figure8-9)",
+      "conditions": "Mode4 RX Error count; MII only. Published physical response, not a software poll deadline or proof for arbitrary detector tuning.",
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "7.6 p15, footnote5 p17; 8.3.17/Figure8-9 p45; 8.4.1.1 p49"
+        }
+      ]
+    },
+    {
+      "id": "fld_descrambler",
+      "value": 11,
+      "unit": "us",
+      "qualifier": "MAX",
+      "start": "First link failure occurrence under the selected detector criterion (Figure8-9)",
+      "end": "Link-loss indication (Figure8-9)",
+      "conditions": "Mode5 Descrambler link drop; MII only; footnote5 requires RX_Error count or Signal/Energy Loss enabled to meet maximum. Published physical response, not a software poll deadline or proof for arbitrary detector tuning.",
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "7.6 p15, footnote5 p17; 8.3.17/Figure8-9 p45; 8.4.1.1 p49"
         }
       ]
     }
@@ -2143,12 +2247,12 @@
           "address": "0x000F"
         }
       ],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Published detailed-table reset; live FLDS changes with events. CR3 strap defaults retain fld_reset_defaults.",
+      "reservedMask": "0xFE0F",
+      "access": "FIELD_DEFINED",
+      "readEffects": "Single collector; read clears latched causes.",
       "sources": [
         {
           "source": "snls647i",
@@ -2156,8 +2260,27 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "FLDS.causes",
+          "name": "causes",
+          "mask": "0x01F0",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears retained cause bits.",
+          "validity": "Latched causes, not current link: unshifted bits1/2/4/8/10(hex) indicate energy, SNR, MLT3, RX errors, descrambler respectively; combinations valid. Single collector retains consumed raw sample.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "Table 8-33 p63"
+            }
+          ],
+          "owner": "counters"
+        }
+      ],
       "gates": []
     },
     {
@@ -2486,12 +2609,12 @@
           "address": "0x0011"
         }
       ],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0108",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Published detailed-table reset; dynamic fields describe reset instant, not a persistent readback requirement. Hard reset invalidates previous observations and configuration trust; digital restart preserves register settings but begins a new observation epoch.",
+      "reservedMask": "0x04E0",
+      "access": "FIELD_DEFINED",
+      "readEffects": "No read-clear fields; preserve unrelated power/loopback/interface settings during interrupt changes.",
       "sources": [
         {
           "source": "snls647i",
@@ -2499,8 +2622,195 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "PHYSCR.disable_pll",
+          "name": "disable_pll",
+          "mask": "0x8000",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 normal; 1 disables internal clocks only in IEEE power-down.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.17, table 8-35; table 8-17 inventory"
+            }
+          ],
+          "owner": "power"
+        },
+        {
+          "id": "PHYSCR.power_save_enable",
+          "name": "power_save_enable",
+          "mask": "0x4000",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 normal; 1 enables selected power-save mode.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.17, table 8-35; table 8-17 inventory"
+            }
+          ],
+          "owner": "power"
+        },
+        {
+          "id": "PHYSCR.power_save_mode",
+          "name": "power_save_mode",
+          "mask": "0x3000",
+          "access": "RW",
+          "legal": [
+            "0x0",
+            "0x2"
+          ],
+          "prohibited": [
+            "0x1",
+            "0x3"
+          ],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "Unshifted0 normal,2 active sleep;1 reserved,3 undocumented. NLP approximately every1.4s is not a completion deadline.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.17, table 8-35; table 8-17 inventory"
+            }
+          ],
+          "owner": "power"
+        },
+        {
+          "id": "PHYSCR.scrambler_bypass",
+          "name": "scrambler_bypass",
+          "mask": "0x0800",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 normal scrambling; 1 bypass. Coordinate with traffic/diagnostic owner.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.17, table 8-35; table 8-17 inventory"
+            }
+          ],
+          "owner": "tx100"
+        },
+        {
+          "id": "PHYSCR.loopback_fifo_depth",
+          "name": "loopback_fifo_depth",
+          "mask": "0x0300",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "Unshifted0/1/2/3 select4/5/6/8 nibbles. Choose from maximum packet size and clock tolerance, not a link-quality measurement.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.17, table 8-35; table 8-17 inventory"
+            }
+          ],
+          "owner": "loopback"
+        },
+        {
+          "id": "PHYSCR.collision_full_duplex",
+          "name": "collision_full_duplex",
+          "mask": "0x0010",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 collision active in half duplex only; 1 also generate collision in full duplex.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.17, table 8-35; table 8-17 inventory"
+            }
+          ],
+          "owner": "mii"
+        },
+        {
+          "id": "PHYSCR.interrupt_polarity",
+          "name": "interrupt_polarity",
+          "mask": "0x0008",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 idle low/active high; 1 idle high/active low.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.17, table 8-35; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "PHYSCR.test_interrupt",
+          "name": "test_interrupt",
+          "mask": "0x0004",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 inactive; 1 continuously generates interrupt until cleared; finite test session only.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.17, table 8-35; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "PHYSCR.interrupt_enable",
+          "name": "interrupt_enable",
+          "mask": "0x0002",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 disable event interrupts; 1 enable selected MISR sources.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.17, table 8-35; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "PHYSCR.interrupt_output_enable",
+          "name": "interrupt_output_enable",
+          "mask": "0x0001",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "ENHANCED pin role:0 INTR/PWRDN is power-down input;1 interrupt output. Board must authorize pin direction change.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.17, table 8-35; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        }
+      ],
       "gates": []
     },
     {
@@ -2521,12 +2831,12 @@
           "address": "0x0012"
         }
       ],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Published detailed-table reset; dynamic fields describe reset instant, not a persistent readback requirement. Hard reset invalidates previous observations and configuration trust; digital restart preserves register settings but begins a new observation epoch.",
+      "reservedMask": "0x0000",
+      "access": "FIELD_DEFINED",
+      "readEffects": "Every read, including configuration RMW/readback, consumes status15:8; preserve raw word and enabled mask before any later failure. Writes change enables7:0, never use status bits as commands.",
       "sources": [
         {
           "source": "snls647i",
@@ -2534,9 +2844,300 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
-      "gates": []
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "MISR1.link_quality_changed_event",
+          "name": "link_quality_changed_event",
+          "mask": "0x8000",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears event latch; retain each successfully consumed raw word immediately.",
+          "validity": "0 no pending event;1 event occurred. Historical latch, not current state or event count. Table labels0 good but absence of a pending transition does not establish measured quality.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.18, table 8-36; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR1.energy_changed_event",
+          "name": "energy_changed_event",
+          "mask": "0x4000",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears event latch; retain each successfully consumed raw word immediately.",
+          "validity": "0 no pending event;1 event occurred. Historical latch, not current state or event count.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.18, table 8-36; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR1.link_changed_event",
+          "name": "link_changed_event",
+          "mask": "0x2000",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears event latch; retain each successfully consumed raw word immediately.",
+          "validity": "0 no pending event;1 event occurred. Historical latch, not current state or event count.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.18, table 8-36; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR1.speed_changed_event",
+          "name": "speed_changed_event",
+          "mask": "0x1000",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears event latch; retain each successfully consumed raw word immediately.",
+          "validity": "0 no pending event;1 event occurred. Historical latch, not current state or event count.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.18, table 8-36; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR1.duplex_changed_event",
+          "name": "duplex_changed_event",
+          "mask": "0x0800",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears event latch; retain each successfully consumed raw word immediately.",
+          "validity": "0 no pending event;1 event occurred. Historical latch, not current state or event count.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.18, table 8-36; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR1.an_complete_event",
+          "name": "an_complete_event",
+          "mask": "0x0400",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears event latch; retain each successfully consumed raw word immediately.",
+          "validity": "0 no pending event;1 event occurred. Historical latch, not current state or event count.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.18, table 8-36; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR1.false_carrier_half_full_event",
+          "name": "false_carrier_half_full_event",
+          "mask": "0x0200",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears event latch; retain each successfully consumed raw word immediately.",
+          "validity": "0 no pending event;1 event occurred. Historical latch, not current state or event count. FCSCR threshold exceeded7F, first crossing80; not a live counter sample.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.18, table 8-36; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR1.receive_error_half_full_event",
+          "name": "receive_error_half_full_event",
+          "mask": "0x0100",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears event latch; retain each successfully consumed raw word immediately.",
+          "validity": "0 no pending event;1 event occurred. Historical latch, not current state or event count. RECR width/threshold remains gated.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.18, table 8-36; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR1.link_quality_changed_enable",
+          "name": "link_quality_changed_enable",
+          "mask": "0x0080",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 source interrupt disabled;1 enabled. Clearing enable does not prove the source has no pending history.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.18, table 8-36; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR1.energy_changed_enable",
+          "name": "energy_changed_enable",
+          "mask": "0x0040",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 source interrupt disabled;1 enabled. Clearing enable does not prove the source has no pending history.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.18, table 8-36; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR1.link_changed_enable",
+          "name": "link_changed_enable",
+          "mask": "0x0020",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 source interrupt disabled;1 enabled. Clearing enable does not prove the source has no pending history.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.18, table 8-36; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR1.speed_changed_enable",
+          "name": "speed_changed_enable",
+          "mask": "0x0010",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 source interrupt disabled;1 enabled. Clearing enable does not prove the source has no pending history.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.18, table 8-36; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR1.duplex_changed_enable",
+          "name": "duplex_changed_enable",
+          "mask": "0x0008",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 source interrupt disabled;1 enabled. Clearing enable does not prove the source has no pending history.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.18, table 8-36; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR1.an_complete_enable",
+          "name": "an_complete_enable",
+          "mask": "0x0004",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 source interrupt disabled;1 enabled. Clearing enable does not prove the source has no pending history.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.18, table 8-36; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR1.false_carrier_half_full_enable",
+          "name": "false_carrier_half_full_enable",
+          "mask": "0x0002",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 source interrupt disabled;1 enabled. Clearing enable does not prove the source has no pending history.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.18, table 8-36; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR1.receive_error_half_full_enable",
+          "name": "receive_error_half_full_enable",
+          "mask": "0x0001",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 source interrupt disabled;1 enabled. Clearing enable does not prove the source has no pending history.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.18, table 8-36; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        }
+      ],
+      "gates": [
+        "recr_width"
+      ]
     },
     {
       "id": "MISR2",
@@ -2556,12 +3157,12 @@
           "address": "0x0013"
         }
       ],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Published detailed-table reset; dynamic fields describe reset instant, not a persistent readback requirement. Hard reset invalidates previous observations and configuration trust; digital restart preserves register settings but begins a new observation epoch.",
+      "reservedMask": "0x0000",
+      "access": "FIELD_DEFINED",
+      "readEffects": "Every read, including configuration RMW/readback, consumes status15:8; preserve raw word and enabled mask before any later failure. Writes change enables7:0, never use status bits as commands.",
       "sources": [
         {
           "source": "snls647i",
@@ -2569,8 +3170,297 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "MISR2.eee_error_event",
+          "name": "eee_error_event",
+          "mask": "0x8000",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears event latch; retain each successfully consumed raw word immediately.",
+          "validity": "0 no pending event;1 event occurred. Historical latch, not current state or event count.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.19, table 8-37; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR2.an_error_event",
+          "name": "an_error_event",
+          "mask": "0x4000",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears event latch; retain each successfully consumed raw word immediately.",
+          "validity": "0 no pending event;1 event occurred. Historical latch, not current state or event count.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.19, table 8-37; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR2.page_received_event",
+          "name": "page_received_event",
+          "mask": "0x2000",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears event latch; retain each successfully consumed raw word immediately.",
+          "validity": "0 no pending event;1 event occurred. Historical latch, not current state or event count.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.19, table 8-37; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR2.loopback_fifo_event",
+          "name": "loopback_fifo_event",
+          "mask": "0x1000",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears event latch; retain each successfully consumed raw word immediately.",
+          "validity": "0 no pending event;1 event occurred. Historical latch, not current state or event count.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.19, table 8-37; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR2.mdix_changed_event",
+          "name": "mdix_changed_event",
+          "mask": "0x0800",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears event latch; retain each successfully consumed raw word immediately.",
+          "validity": "0 no pending event;1 event occurred. Historical latch, not current state or event count.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.19, table 8-37; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR2.sleep_event",
+          "name": "sleep_event",
+          "mask": "0x0400",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears event latch; retain each successfully consumed raw word immediately.",
+          "validity": "0 no pending event;1 event occurred. Historical latch, not current state or event count.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.19, table 8-37; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR2.polarity_or_wol_event",
+          "name": "polarity_or_wol_event",
+          "mask": "0x0200",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears event latch; retain each successfully consumed raw word immediately.",
+          "validity": "0 no pending event;1 event occurred. Historical latch, not current state or event count. Decode only with captured RXFS[12] source epoch;0 polarity/1 WoL. Never emit both labels from one bit.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.19, table 8-37; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR2.jabber_event",
+          "name": "jabber_event",
+          "mask": "0x0100",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears event latch; retain each successfully consumed raw word immediately.",
+          "validity": "0 no pending event;1 event occurred. Historical latch, not current state or event count.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.19, table 8-37; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR2.eee_error_enable",
+          "name": "eee_error_enable",
+          "mask": "0x0080",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 source interrupt disabled;1 enabled. Clearing enable does not prove the source has no pending history.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.19, table 8-37; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR2.an_error_enable",
+          "name": "an_error_enable",
+          "mask": "0x0040",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 source interrupt disabled;1 enabled. Clearing enable does not prove the source has no pending history.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.19, table 8-37; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR2.page_received_enable",
+          "name": "page_received_enable",
+          "mask": "0x0020",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 source interrupt disabled;1 enabled. Clearing enable does not prove the source has no pending history.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.19, table 8-37; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR2.loopback_fifo_enable",
+          "name": "loopback_fifo_enable",
+          "mask": "0x0010",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 source interrupt disabled;1 enabled. Clearing enable does not prove the source has no pending history.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.19, table 8-37; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR2.mdix_changed_enable",
+          "name": "mdix_changed_enable",
+          "mask": "0x0008",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 source interrupt disabled;1 enabled. Clearing enable does not prove the source has no pending history.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.19, table 8-37; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR2.sleep_enable",
+          "name": "sleep_enable",
+          "mask": "0x0004",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 source interrupt disabled;1 enabled. Clearing enable does not prove the source has no pending history.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.19, table 8-37; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR2.polarity_or_wol_enable",
+          "name": "polarity_or_wol_enable",
+          "mask": "0x0002",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 source interrupt disabled;1 enabled. Clearing enable does not prove the source has no pending history.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.19, table 8-37; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "MISR2.jabber_enable",
+          "name": "jabber_enable",
+          "mask": "0x0001",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 source interrupt disabled;1 enabled. Clearing enable does not prove the source has no pending history.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.19, table 8-37; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        }
+      ],
       "gates": []
     },
     {
@@ -2591,12 +3481,12 @@
           "address": "0x0014"
         }
       ],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Published detailed-table reset; dynamic fields describe reset instant, not a persistent readback requirement. Hard reset invalidates previous observations and configuration trust; digital restart preserves register settings but begins a new observation epoch.",
+      "reservedMask": "0xFF00",
+      "access": "FIELD_DEFINED",
+      "readEffects": "Read clears counter and related PHYSTS latch. A failed read may have consumed hardware evidence; do not retry as if history were intact.",
       "sources": [
         {
           "source": "snls647i",
@@ -2604,8 +3494,27 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "FCSCR.false_carrier_count",
+          "name": "false_carrier_count",
+          "mask": "0x00FF",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears counter and PHYSTS[11] false-carrier latch; retained consumed sample survives later failure.",
+          "validity": "8-bit count, increments for every false-carrier event; saturatesFF. Interrupt when count exceeds7F. FF is a saturated lower bound, not an exact total.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.20, table 8-38; table 8-17 inventory"
+            }
+          ],
+          "owner": "counters"
+        }
+      ],
       "gates": []
     },
     {
@@ -2626,12 +3535,12 @@
           "address": "0x0015"
         }
       ],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Published detailed-table reset; dynamic fields describe reset instant, not a persistent readback requirement. Hard reset invalidates previous observations and configuration trust; digital restart preserves register settings but begins a new observation epoch.",
+      "reservedMask": "0x0000",
+      "access": "FIELD_DEFINED",
+      "readEffects": "Consume once through collector, preserve raw16-bit sample and uncertainty; width/saturation unresolved.",
       "sources": [
         {
           "source": "snls647i",
@@ -2639,8 +3548,27 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "RECR.receive_error_count",
+          "name": "receive_error_count",
+          "mask": "0xFFFF",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears counter and PHYSTS[13] receive-error latch; uncertain read completion can lose history.",
+          "validity": "Detailed field and prose say16-bit; same prose says maximumFF and half-full7F. Preserve all16 raw bits; no inferred effective width, saturation or exact aggregate. Counts invalid data symbols while RXDV/valid carrier; no counts in MII loopback.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.21, table 8-39; table 8-17 inventory"
+            }
+          ],
+          "owner": "counters"
+        }
+      ],
       "gates": [
         "recr_width"
       ]
@@ -2663,12 +3591,12 @@
           "address": "0x0016"
         }
       ],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0100",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Full reset value documented; dynamic fields may change immediately after reset.",
+      "reservedMask": "0x80A0",
+      "access": "MIXED",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -2676,10 +3604,213 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "BISCR_errorCounterMode",
+          "name": "errorCounterMode",
+          "mask": "0x4000",
+          "access": "RW",
+          "legal": [
+            "0x0000",
+            "0x0001"
+          ],
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "0 stops error counter at 255; 1 wraps to zero and generates a pulse. This does not select packet traffic duration.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.22, table 8-40; table 8-17 inventory"
+            }
+          ],
+          "owner": "bist"
+        },
+        {
+          "id": "BISCR_prbsMode",
+          "name": "prbsMode",
+          "mask": "0x3000",
+          "access": "RW",
+          "legal": [
+            "0x0000",
+            "0x0001",
+            "0x0002",
+            "0x0003"
+          ],
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "Combined bits13:12, not independent booleans: 0 generator/checker off; 1 generator single constant-data packet and checker off; 2 checker only; 3 continuous generator and checker. The packet-content selector is not separately specified.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.22, table 8-40; table 8-17 inventory"
+            }
+          ],
+          "owner": "bist"
+        },
+        {
+          "id": "BISCR_checkerLock",
+          "name": "checkerLock",
+          "mask": "0x0800",
+          "access": "R",
+          "legal": [
+            "0x0000",
+            "0x0001"
+          ],
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "1 currently locked/synchronized, 0 not locked; lock alone does not establish error-free finite traffic.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.22, table 8-40; table 8-17 inventory"
+            }
+          ],
+          "owner": "bist"
+        },
+        {
+          "id": "BISCR_checkerSyncLoss",
+          "name": "checkerSyncLoss",
+          "mask": "0x0400",
+          "access": "RH",
+          "legal": [
+            "0x0000",
+            "0x0001"
+          ],
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "1 has lost sync. RH means hardware sets/clears; no read-clear, explicit clear command or complete history retention interval established.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.22, table 8-40; table 8-17 inventory"
+            }
+          ],
+          "owner": "bist"
+        },
+        {
+          "id": "BISCR_generatorActive",
+          "name": "generatorActive",
+          "mask": "0x0200",
+          "access": "R",
+          "legal": [
+            "0x0000",
+            "0x0001"
+          ],
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "1 generator active; 0 off. Activity is not a pass result.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.22, table 8-40; table 8-17 inventory"
+            }
+          ],
+          "owner": "bist"
+        },
+        {
+          "id": "BISCR_normalPower",
+          "name": "normalPower",
+          "mask": "0x0100",
+          "access": "R",
+          "legal": [
+            "0x0000",
+            "0x0001"
+          ],
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "1 normal power; 0 active sleep. Do not write this read-only indication as configuration.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.22, table 8-40; table 8-17 inventory"
+            }
+          ],
+          "owner": "bist"
+        },
+        {
+          "id": "BISCR_miiLineTransmit",
+          "name": "miiLineTransmit",
+          "mask": "0x0040",
+          "access": "RW",
+          "legal": [
+            "0x0000",
+            "0x0001"
+          ],
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "Only 100 Mb/s MII loopback with BMCR bit14 set. 1 also transmits MAC TX data to line; 0 suppresses line transmit.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.22, table 8-40; table 8-17 inventory"
+            }
+          ],
+          "owner": "loopback"
+        },
+        {
+          "id": "BISCR_loopbackMode",
+          "name": "loopbackMode",
+          "mask": "0x001F",
+          "access": "RW",
+          "legal": [
+            "0x0000",
+            "0x0001",
+            "0x0002",
+            "0x0004",
+            "0x0008",
+            "0x0010"
+          ],
+          "prohibited": [
+            "0x0003",
+            "0x0005",
+            "0x0006",
+            "0x0007",
+            "0x0009",
+            "0x000A",
+            "0x000B",
+            "0x000C",
+            "0x000D",
+            "0x000E",
+            "0x000F",
+            "0x0011",
+            "0x0012",
+            "0x0013",
+            "0x0014",
+            "0x0015",
+            "0x0016",
+            "0x0017",
+            "0x0018",
+            "0x0019",
+            "0x001A",
+            "0x001B",
+            "0x001C",
+            "0x001D",
+            "0x001E",
+            "0x001F"
+          ],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "0 off; 1 PCS input (10BASE-Te only); 2 PCS output; 4 digital (100BASE-TX only plus exact recipe); 8 analog with 100-ohm termination; 16 reverse. BMCR MII mode additionally selects 4 for 100 or 1 for 10. No combined loopbacks.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.22, table 8-40; table 8-17 inventory"
+            }
+          ],
+          "owner": "loopback"
+        }
+      ],
       "gates": [
-        "loopback_recipe"
+        "loopback_recipe",
+        "bist_result_semantics"
       ]
     },
     {
@@ -2700,12 +3831,12 @@
           "address": "0x0017"
         }
       ],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0041",
+      "resetKnownMask": "0xFF5F",
+      "resetNotes": "Header00X1 expanded only using detailed table8-41: bit6 reserved reset1, elasticity bits1:0 reset1; clock-select7 and interface5 unknown strap-loaded. Field-known maskFF5F, partial value0041. RC reset0 does not prove a newly observed FIFO fault. Digital restart preserves configured registers; reset begins a new observation epoch.",
+      "reservedMask": "0xFE40",
+      "access": "FIELD_DEFINED",
+      "readEffects": "Reading RCSR consumes RC FIFO status3:2, including interface configuration RMW/readback. Retain raw word under collector. Printed0 fault/1 normal with reset0 remains rmii_rc gate.",
       "sources": [
         {
           "source": "snls647i",
@@ -2713,8 +3844,135 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "RCSR.tx_clock_shift",
+          "name": "tx_clock_shift",
+          "mask": "0x0100",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "RMII follower only:0 internal TX-clock shift disabled;1 enabled.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.23, table 8-41; table 8-17 inventory"
+            }
+          ],
+          "owner": "rmii"
+        },
+        {
+          "id": "RCSR.clock_select",
+          "name": "clock_select",
+          "mask": "0x0080",
+          "access": "RHW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "Strap loaded BASIC/ENHANCED.0 25MHz crystal/CMOS reference (leader);1 50MHz CMOS reference (follower). Requires actual clock wiring, not just register setting.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.23, table 8-41; table 8-17 inventory"
+            }
+          ],
+          "owner": "rmii"
+        },
+        {
+          "id": "RCSR.rmii_mode",
+          "name": "rmii_mode",
+          "mask": "0x0020",
+          "access": "RHW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "Strap-loaded0 MII/1 RMII.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.23, table 8-41; table 8-17 inventory"
+            }
+          ],
+          "owner": "rmii"
+        },
+        {
+          "id": "RCSR.revision",
+          "name": "revision",
+          "mask": "0x0010",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 revision1.2 CRS_DV toggles at packet end;1 revision1.0 CRS_DV remains asserted until final data.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.23, table 8-41; table 8-17 inventory"
+            }
+          ],
+          "owner": "rmii"
+        },
+        {
+          "id": "RCSR.overflow",
+          "name": "overflow",
+          "mask": "0x0008",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears; retain raw sample, no inferred active-high event.",
+          "validity": "RMII FIFO: printed0 overflow detected/1 normal; reset0 and read-clear rearm timing unresolved.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.23, table 8-41; table 8-17 inventory"
+            }
+          ],
+          "owner": "counters"
+        },
+        {
+          "id": "RCSR.underflow",
+          "name": "underflow",
+          "mask": "0x0004",
+          "access": "RC",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears; retain raw sample, no inferred active-high event.",
+          "validity": "RMII FIFO: printed0 underflow detected/1 normal; reset0 and read-clear rearm timing unresolved.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.23, table 8-41; table 8-17 inventory"
+            }
+          ],
+          "owner": "counters"
+        },
+        {
+          "id": "RCSR.elasticity",
+          "name": "elasticity",
+          "mask": "0x0003",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "Codes0/1/2/3:14/2/6/10bit tolerance;16800/2400/7200/12000byte packets at+/-50ppm. At+/-100ppm divide described packet lengths by2. Application selects from actual clocks/frame size; not monotonic encoding.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.23, table 8-41; table 8-17 inventory"
+            }
+          ],
+          "owner": "rmii"
+        }
+      ],
       "gates": [
         "rmii_rc"
       ]
@@ -2954,12 +4212,12 @@
           "address": "0x001A"
         }
       ],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Published detailed-table reset; dynamic fields describe reset instant, not a persistent readback requirement. Hard reset invalidates previous observations and configuration trust; digital restart preserves register settings but begins a new observation epoch.",
+      "reservedMask": "0xC16E",
+      "access": "FIELD_DEFINED",
+      "readEffects": "Explicit table prose: reads clear polarity10BTSCR[4] and PHYSTS[12], despite field access labelR. Every RMW/readback is collector-routed.",
       "sources": [
         {
           "source": "snls647i",
@@ -2967,8 +4225,117 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "10BTSCR.lower_threshold_enable",
+          "name": "lower_threshold_enable",
+          "mask": "0x2000",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 normal10BASE-T;1 lower threshold for longer cables. No distance guarantee.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.26, table 8-44; table 8-17 inventory"
+            }
+          ],
+          "owner": "tx10"
+        },
+        {
+          "id": "10BTSCR.squelch",
+          "name": "squelch",
+          "mask": "0x1E00",
+          "access": "RW",
+          "legal": [
+            "0x0",
+            "0x1",
+            "0x2",
+            "0x3",
+            "0x4",
+            "0x5",
+            "0x6",
+            "0x7",
+            "0x8"
+          ],
+          "prohibited": [
+            "0x9",
+            "0xA",
+            "0xB",
+            "0xC",
+            "0xD",
+            "0xE",
+            "0xF"
+          ],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "Unshifted0..8 correspond200,250,300,350,400,450,500,550,600mV;9..15 undocumented and rejected.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.26, table 8-44; table 8-17 inventory"
+            }
+          ],
+          "owner": "tx10"
+        },
+        {
+          "id": "10BTSCR.nlp_disable",
+          "name": "nlp_disable",
+          "mask": "0x0080",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 transmit NLP;1 disable NLP.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.26, table 8-44; table 8-17 inventory"
+            }
+          ],
+          "owner": "tx10"
+        },
+        {
+          "id": "10BTSCR.polarity",
+          "name": "polarity",
+          "mask": "0x0010",
+          "access": "R",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read clears both this bit and PHYSTS[12]; retain collector evidence even on configuration RMW.",
+          "validity": "0 correct polarity;1 inverted. Access column saysR but explicit description clears this field and PHYSTS[12] on read.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.26, table 8-44; table 8-17 inventory"
+            }
+          ],
+          "owner": "counters"
+        },
+        {
+          "id": "10BTSCR.jabber_disable",
+          "name": "jabber_disable",
+          "mask": "0x0001",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "10BASE-Te only:0 jabber function enabled;1 disabled.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.26, table 8-44; table 8-17 inventory"
+            }
+          ],
+          "owner": "tx10"
+        }
+      ],
       "gates": []
     },
     {
@@ -2989,12 +4356,12 @@
           "address": "0x001B"
         }
       ],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x007D",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Full reset value documented; dynamic fields may change immediately after reset.",
+      "reservedMask": "0x0000",
+      "access": "MIXED",
+      "readEffects": "Read itself does not clear; explicit bit15 write freezes readable count and clears live error count. Never echo high counter byte when writing IPG.",
       "sources": [
         {
           "source": "snls647i",
@@ -3002,9 +4369,48 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
-      "gates": []
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "BICSR1_errorBytes",
+          "name": "errorBytes",
+          "mask": "0xFF00",
+          "access": "R",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "8-bit errored-byte count, saturates255 in single counter mode or wraps in continuous counter mode. Write bit15 snapshots then clears live counter; this is an explicit write-action exception overlapping the read-only byte.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.27, table 8-45; table 8-17 inventory"
+            }
+          ],
+          "owner": "bist"
+        },
+        {
+          "id": "BICSR1_ipgLength",
+          "name": "ipgLength",
+          "mask": "0x00FF",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "Unshifted code multiplied by four gives IPG bytes: 0..255 => 0..1020; default125 =>500. Encoding width alone does not establish all gaps as valid Ethernet traffic.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.27, table 8-45; table 8-17 inventory"
+            }
+          ],
+          "owner": "bist"
+        }
+      ],
+      "gates": [
+        "bist_result_semantics"
+      ]
     },
     {
       "id": "BICSR2",
@@ -3024,12 +4430,12 @@
           "address": "0x001C"
         }
       ],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x05EE",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Full reset value documented; dynamic fields may change immediately after reset.",
+      "reservedMask": "0xF800",
+      "access": "RW",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3037,9 +4443,30 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
-      "gates": []
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "BICSR2_packetLength",
+          "name": "packetLength",
+          "mask": "0x07FF",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "Packet length in bytes; default1518. Raw field0..2047; minimum useful/accepted packet length and PRBS content selection are not further specified.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.28, table 8-46; table 8-17 inventory"
+            }
+          ],
+          "owner": "bist"
+        }
+      ],
+      "gates": [
+        "bist_result_semantics"
+      ]
     },
     {
       "id": "CDCR",
@@ -3059,12 +4486,12 @@
           "address": "0x001E"
         }
       ],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0102",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "0x0102 includes reserved field13:2 reset0x40 shifted by2=0x0100 and done already1. Reset cannot stand for completed requested diagnostic.",
+      "reservedMask": "0x3FFC",
+      "access": "MIXED",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3072,9 +4499,96 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
-      "gates": []
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "CDCR_start",
+          "name": "start",
+          "mask": "0x8000",
+          "access": "RW",
+          "legal": [
+            "0x0000",
+            "0x0001"
+          ],
+          "prohibited": [],
+          "neutral": "0x0000",
+          "readEffects": "No read-clear effect documented.",
+          "validity": "1 starts measurement; hardware clears once done is triggered. 0 disables diagnostic. Not an ordinary persistent setting and not a W1S access type; never replay1 in restoration.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.29, table 8-47; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        },
+        {
+          "id": "CDCR_rescalEnable",
+          "name": "rescalEnable",
+          "mask": "0x4000",
+          "access": "RW",
+          "legal": [
+            "0x0000",
+            "0x0001"
+          ],
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "Normally0. If observed1, deassert immediately followed by PHYRCR bit15 hard reset; ordinary cable commands must not initiate calibration.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.29, table 8-47; table 8-17 inventory"
+            }
+          ],
+          "owner": "calibration"
+        },
+        {
+          "id": "CDCR_done",
+          "name": "done",
+          "mask": "0x0002",
+          "access": "R",
+          "legal": [
+            "0x0000",
+            "0x0001"
+          ],
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "0 incomplete,1 complete. Reset value1 is not a new sample; require causally associated accepted trigger and demonstrated progress/freshness.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.29, table 8-47; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        },
+        {
+          "id": "CDCR_failed",
+          "name": "failed",
+          "mask": "0x0001",
+          "access": "R",
+          "legal": [
+            "0x0000",
+            "0x0001"
+          ],
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "1 measurement failed,0 not failed. Zero without fresh completion is not success.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.29, table 8-47; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        }
+      ],
+      "gates": [
+        "tdr_freshness_abort"
+      ]
     },
     {
       "id": "PHYRCR",
@@ -3251,12 +4765,12 @@
       "address": "0x0117",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x8147",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Published detailed-table reset; live FLDS changes with events. CR3 strap defaults retain fld_reset_defaults.",
+      "reservedMask": "0x000F",
+      "access": "FIELD_DEFINED",
+      "readEffects": "None documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3264,9 +4778,52 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
-      "gates": []
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "FLD_CFG1.window",
+          "name": "window",
+          "mask": "0xFC00",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [
+            "0x0"
+          ],
+          "neutral": null,
+          "readEffects": "None documented.",
+          "validity": "Codes1..63 select2..64 clocks of8ns (code+1); zero reserved. Counter counts in steady state. Exact recipe0417 selects code1, not a10us window.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "Tables 8-52/53 p76; 8.3.17 pp44-45"
+            }
+          ],
+          "owner": "fast_drop"
+        },
+        {
+          "id": "FLD_CFG1.error_count",
+          "name": "error_count",
+          "mask": "0x03F0",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [
+            "0x0"
+          ],
+          "neutral": null,
+          "readEffects": "None documented.",
+          "validity": "Codes1..63 select1..63 errors; zero reserved. Exact recipe0417 selects1 error; feature prose20errors/10us is not this literal configuration.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "Tables 8-52/53 p76; 8.3.17 pp44-45"
+            }
+          ],
+          "owner": "fast_drop"
+        }
+      ],
+      "gates": [
+        "fld_threshold_recipe"
+      ]
     },
     {
       "id": "FLD_CFG2",
@@ -3280,12 +4837,12 @@
       "address": "0x0131",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x2284",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Published detailed-table reset; live FLDS changes with events. CR3 strap defaults retain fld_reset_defaults.",
+      "reservedMask": "0xFFC0",
+      "access": "FIELD_DEFINED",
+      "readEffects": "None documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3293,8 +4850,27 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "FLD_CFG2.descrambler_window",
+          "name": "descrambler_window",
+          "mask": "0x003F",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None documented.",
+          "validity": "Raw window code0..63; no unit conversion established. Section8.3.17 requires code08 for descrambler loss. Upper bits reserved despite R/W label; preserve them.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "Tables 8-52/53 p76; 8.3.17 pp44-45"
+            }
+          ],
+          "owner": "fast_drop"
+        }
+      ],
       "gates": []
     },
     {
@@ -3309,12 +4885,12 @@
       "address": "0x0170",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0C12",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Full reset value documented; dynamic fields may change immediately after reset.",
+      "reservedMask": "0x888F",
+      "access": "RW",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3322,9 +4898,131 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
-      "gates": []
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "CDSCR_crossDisable",
+          "name": "crossDisable",
+          "mask": "0x4000",
+          "access": "RW",
+          "legal": [
+            "0x0000",
+            "0x0001"
+          ],
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "0 receive other channel;1 receive same channel as transmit. Together bits14:13: 0=A->B,1=B->A,2=A->A,3=B->B.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.36, table 8-54; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        },
+        {
+          "id": "CDSCR_txChannel",
+          "name": "txChannel",
+          "mask": "0x2000",
+          "access": "RW",
+          "legal": [
+            "0x0000",
+            "0x0001"
+          ],
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "0 channelA,1 channelB.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.36, table 8-54; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        },
+        {
+          "id": "CDSCR_dcNoInit",
+          "name": "dcNoInit",
+          "mask": "0x1000",
+          "access": "RW",
+          "legal": [
+            "0x0000",
+            "0x0001"
+          ],
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "Preserves DC-removal state before TDR when set. DC training/settling/calibration prerequisite is not specified; retain raw control and uncertainty.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.36, table 8-54; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        },
+        {
+          "id": "CDSCR_averageCycles",
+          "name": "averageCycles",
+          "mask": "0x0700",
+          "access": "RW",
+          "legal": [
+            "0x0000",
+            "0x0001",
+            "0x0002",
+            "0x0003",
+            "0x0004",
+            "0x0005",
+            "0x0006"
+          ],
+          "prohibited": [
+            "0x0007"
+          ],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "Codes0..6 select1,2,4,8,16,32,64 cycles;7 reserved.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.36, table 8-54; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        },
+        {
+          "id": "CDSCR_segment",
+          "name": "segment",
+          "mask": "0x0070",
+          "access": "RW",
+          "legal": [
+            "0x0001",
+            "0x0002",
+            "0x0003",
+            "0x0004",
+            "0x0005"
+          ],
+          "prohibited": [
+            "0x0000",
+            "0x0006",
+            "0x0007"
+          ],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "1=0..10m,2=10..20m,3=20..40m,4=40..80m,5=80m and beyond. Set corresponding segment controls before each capture.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.36, table 8-54; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        }
+      ],
+      "gates": [
+        "tdr_calibration"
+      ]
     },
     {
       "id": "CDSCR2",
@@ -3338,12 +5036,12 @@
       "address": "0x0171",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0xC850",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Entire detailed table is reserved despite R/W type and resetC850. No ordinary writable or decoded fields.",
+      "reservedMask": "0xFFFF",
+      "access": "RESERVED",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3351,7 +5049,7 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
+      "status": "COMPLETE",
       "fields": [],
       "gates": [
         "tdr_reserved"
@@ -3369,12 +5067,12 @@
       "address": "0x0173",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0D04",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Full reset value documented; dynamic fields may change immediately after reset.",
+      "reservedMask": "0x0000",
+      "access": "RW",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3382,9 +5080,48 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
-      "gates": []
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "CDSCR3_segmentDuration",
+          "name": "segmentDuration",
+          "mask": "0xFF00",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "Duration codes per segment1..5:0D,0D,1A,34,8F. Printed equation length_m*2*5.2/8 is a recipe relation; do not invent dimensional calibration for returned location. Other encodings have no qualified segment recipe.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.38, table 8-56; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        },
+        {
+          "id": "CDSCR3_initialSkip",
+          "name": "initialSkip",
+          "mask": "0x00FF",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "Samples skipped per segment1..5:07,14,21,3B,6F. Reset04 differs from required segment1 recipe07; configure explicitly.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.38, table 8-56; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        }
+      ],
+      "gates": [
+        "tdr_calibration"
+      ]
     },
     {
       "id": "TDR_175",
@@ -3398,12 +5135,12 @@
       "address": "0x0175",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x1004",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Full reset value documented; dynamic fields may change immediately after reset.",
+      "reservedMask": "0xC7F0",
+      "access": "RW",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3411,9 +5148,48 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
-      "gates": []
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "TDR_175_shadowAverageLocation",
+          "name": "shadowAverageLocation",
+          "mask": "0x3800",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "Every documented segment uses unshifted2. Other 3-bit values have no published segment recipe; raw code is not a distance.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.39, table 8-57; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        },
+        {
+          "id": "TDR_175_forwardShadow",
+          "name": "forwardShadow",
+          "mask": "0x000F",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "Suppresses repeated detection of shadow of fault peak. Segment1..5 codes4,4,5,8,B; units beyond this recipe not established.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.39, table 8-57; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        }
+      ],
+      "gates": [
+        "tdr_calibration"
+      ]
     },
     {
       "id": "TDR_176",
@@ -3427,12 +5203,12 @@
       "address": "0x0176",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0005",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Full reset value documented; dynamic fields may change immediately after reset.",
+      "reservedMask": "0xFFE0",
+      "access": "RW",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3440,9 +5216,30 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
-      "gates": []
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "TDR_176_peakLocationThreshold",
+          "name": "peakLocationThreshold",
+          "mask": "0x001F",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "Field name and reset5 only; physical units, tuning criteria and semantics are unspecified. Preserve reset unless stronger exact-part evidence authorizes change.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.40, table 8-58; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        }
+      ],
+      "gates": [
+        "tdr_calibration"
+      ]
     },
     {
       "id": "CDSCR4",
@@ -3456,12 +5253,12 @@
       "address": "0x0177",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x1E00",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Full reset value documented; dynamic fields may change immediately after reset.",
+      "reservedMask": "0xE0FF",
+      "access": "RW",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3469,9 +5266,30 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
-      "gates": []
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "CDSCR4_shortCableThreshold",
+          "name": "shortCableThreshold",
+          "mask": "0x1F00",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "Compensates strong reflections in short cables; reset30. Raw code0..31 has no established physical threshold scaling or qualification of tuning values.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.41, table 8-59; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        }
+      ],
+      "gates": [
+        "tdr_calibration"
+      ]
     },
     {
       "id": "TDR_178",
@@ -3485,12 +5303,12 @@
       "address": "0x0178",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0002",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Full reset value documented; dynamic fields may change immediately after reset.",
+      "reservedMask": "0xFFF8",
+      "access": "RW",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3498,9 +5316,30 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
-      "gates": []
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "TDR_178_pulseWidth",
+          "name": "pulseWidth",
+          "mask": "0x0007",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "Segment1..4 code2;segment5 code6. Exact physical time per code is not specified; do not attach invented ns units.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.42, table 8-60; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        }
+      ],
+      "gates": [
+        "tdr_calibration"
+      ]
     },
     {
       "id": "CDLRR1",
@@ -3514,12 +5353,12 @@
       "address": "0x0180",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Full reset value documented; dynamic fields may change immediately after reset.",
+      "reservedMask": "0xFF00",
+      "access": "R",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3527,9 +5366,31 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
-      "gates": []
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "CDLRR1_peakLocation",
+          "name": "peakLocation",
+          "mask": "0x00FF",
+          "access": "R",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "First transmit-channel peak raw location. Needs exact-part calibration and cable propagation assumptions before distance. Valid only for correlated completed capture.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.43, table 8-61; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        }
+      ],
+      "gates": [
+        "tdr_calibration",
+        "tdr_freshness_abort"
+      ]
     },
     {
       "id": "CDLRR2",
@@ -3543,12 +5404,12 @@
       "address": "0x0181",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "All16 bits reserved in exact detailed table; numbered name and multi-peak feature prose do not authorize decoding.",
+      "reservedMask": "0xFFFF",
+      "access": "RESERVED",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3556,7 +5417,7 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
+      "status": "COMPLETE",
       "fields": [],
       "gates": [
         "tdr_reserved"
@@ -3574,12 +5435,12 @@
       "address": "0x0182",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "All16 bits reserved in exact detailed table; numbered name and multi-peak feature prose do not authorize decoding.",
+      "reservedMask": "0xFFFF",
+      "access": "RESERVED",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3587,7 +5448,7 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
+      "status": "COMPLETE",
       "fields": [],
       "gates": [
         "tdr_reserved"
@@ -3605,12 +5466,12 @@
       "address": "0x0183",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "All16 bits reserved in exact detailed table; numbered name and multi-peak feature prose do not authorize decoding.",
+      "reservedMask": "0xFFFF",
+      "access": "RESERVED",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3618,7 +5479,7 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
+      "status": "COMPLETE",
       "fields": [],
       "gates": [
         "tdr_reserved"
@@ -3636,12 +5497,12 @@
       "address": "0x0184",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "All16 bits reserved in exact detailed table; numbered name and multi-peak feature prose do not authorize decoding.",
+      "reservedMask": "0xFFFF",
+      "access": "RESERVED",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3649,7 +5510,7 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
+      "status": "COMPLETE",
       "fields": [],
       "gates": [
         "tdr_reserved"
@@ -3667,12 +5528,12 @@
       "address": "0x0185",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Full reset value documented; dynamic fields may change immediately after reset.",
+      "reservedMask": "0xFF80",
+      "access": "R",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3680,9 +5541,31 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
-      "gates": []
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "CDLAR1_peakAmplitude",
+          "name": "peakAmplitude",
+          "mask": "0x007F",
+          "access": "R",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "First transmit-channel peak raw amplitude. Physical amplitude/fault classification and zero=no-peak rule require exact-part support; DP83825 note alone is insufficient.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.48, table 8-66; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        }
+      ],
+      "gates": [
+        "tdr_calibration",
+        "tdr_freshness_abort"
+      ]
     },
     {
       "id": "CDLAR2",
@@ -3696,12 +5579,12 @@
       "address": "0x0186",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "All16 bits reserved in exact detailed table; numbered name and multi-peak feature prose do not authorize decoding.",
+      "reservedMask": "0xFFFF",
+      "access": "RESERVED",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3709,7 +5592,7 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
+      "status": "COMPLETE",
       "fields": [],
       "gates": [
         "tdr_reserved"
@@ -3727,12 +5610,12 @@
       "address": "0x0187",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "All16 bits reserved in exact detailed table; numbered name and multi-peak feature prose do not authorize decoding.",
+      "reservedMask": "0xFFFF",
+      "access": "RESERVED",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3740,7 +5623,7 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
+      "status": "COMPLETE",
       "fields": [],
       "gates": [
         "tdr_reserved"
@@ -3758,12 +5641,12 @@
       "address": "0x0188",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "All16 bits reserved in exact detailed table; numbered name and multi-peak feature prose do not authorize decoding.",
+      "reservedMask": "0xFFFF",
+      "access": "RESERVED",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3771,7 +5654,7 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
+      "status": "COMPLETE",
       "fields": [],
       "gates": [
         "tdr_reserved"
@@ -3789,12 +5672,12 @@
       "address": "0x0189",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "All16 bits reserved in exact detailed table; numbered name and multi-peak feature prose do not authorize decoding.",
+      "reservedMask": "0xFFFF",
+      "access": "RESERVED",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3802,7 +5685,7 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
+      "status": "COMPLETE",
       "fields": [],
       "gates": [
         "tdr_reserved"
@@ -3820,12 +5703,12 @@
       "address": "0x018A",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Full reset value documented; dynamic fields may change immediately after reset.",
+      "reservedMask": "0xF7DF",
+      "access": "R",
+      "readEffects": "No read-clear effect documented.",
       "sources": [
         {
           "source": "snls647i",
@@ -3833,9 +5716,55 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
-      "gates": []
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "CDLAR6_peakPolarity",
+          "name": "peakPolarity",
+          "mask": "0x0800",
+          "access": "R",
+          "legal": [
+            "0x0000",
+            "0x0001"
+          ],
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "First peak raw polarity. Detailed table does not define which bit value means positive/negative; do not infer fault type.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.53, table 8-71; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        },
+        {
+          "id": "CDLAR6_crossDetect",
+          "name": "crossDetect",
+          "mask": "0x0020",
+          "access": "R",
+          "legal": [
+            "0x0000",
+            "0x0001"
+          ],
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented.",
+          "validity": "Cross reflections on TD; table describes short between TD+ and TD-. This wording alone does not establish calibrated classification of all crossing/short topologies.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.53, table 8-71; table 8-17 inventory"
+            }
+          ],
+          "owner": "cable"
+        }
+      ],
+      "gates": [
+        "tdr_calibration",
+        "tdr_freshness_abort"
+      ]
     },
     {
       "id": "MSE_Val",
@@ -3849,21 +5778,48 @@
       "address": "0x0218",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Published detailed-table reset; dynamic fields describe reset instant, not a persistent readback requirement. Hard reset invalidates previous observations and configuration trust; digital restart preserves register settings but begins a new observation epoch.",
+      "reservedMask": "0x0000",
+      "access": "FIELD_DEFINED",
+      "readEffects": "Raw bounded DEVAD31:0218 observation only; no automatic0225 fallback.",
       "sources": [
         {
           "source": "snls647i",
           "location": "8.5.1.54, table 8-72; table 8-17 inventory"
+        },
+        {
+          "source": "snla495",
+          "location": "Table3-3 p7:0218 and contextual >033B investigation criterion"
+        },
+        {
+          "source": "snla423a",
+          "location": "2.3.3 tables2-6/2-7 p12:0225 and SNR formula conflict"
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "MSE_Val.mean_square_error",
+          "name": "mean_square_error",
+          "mask": "0xFFFF",
+          "access": "R",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No documented destructive read effect.",
+          "validity": "Unscaled raw16-bit MSE. No established sampling period, freshness/averaging law or calibration for this exact part. SNR/quality classification remains gated.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.54, table 8-72; table 8-17 inventory"
+            }
+          ],
+          "owner": "quality"
+        }
+      ],
       "gates": [
         "mse_address"
       ]
@@ -4923,12 +6879,12 @@
       "address": "0x04A1",
       "width": 16,
       "aliases": [],
-      "resetValue": null,
-      "resetKnownMask": null,
-      "resetNotes": "Pending detailed field/reset audit by assigned research stage; no writable permission inferred.",
-      "reservedMask": null,
-      "access": "PENDING",
-      "readEffects": "Pending; no ordinary dump/write permission until access audit.",
+      "resetValue": "0x1000",
+      "resetKnownMask": "0xFFFF",
+      "resetNotes": "Published detailed-table reset; dynamic fields describe reset instant, not a persistent readback requirement. Hard reset invalidates previous observations and configuration trust; digital restart preserves register settings but begins a new observation epoch.",
+      "reservedMask": "0xEF1E",
+      "access": "FIELD_DEFINED",
+      "readEffects": "Read consumes defined RCH status00E1, including incidental source-selector RMW/readback; reserved RCH bits4:1 are not additional supported event decoders.",
       "sources": [
         {
           "source": "snls647i",
@@ -4936,9 +6892,102 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
-      "fields": [],
-      "gates": []
+      "status": "COMPLETE",
+      "fields": [
+        {
+          "id": "RXFS.interrupt_source",
+          "name": "interrupt_source",
+          "mask": "0x1000",
+          "access": "RW",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "None.",
+          "validity": "0 data-polarity;1 WoL for MISR2[1] enable/[9] status. Enabling WoL automatically selects1. Source changes start a new label epoch; prior pending events must not be relabeled.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.73, table 8-91; table 8-17 inventory"
+            }
+          ],
+          "owner": "interrupts"
+        },
+        {
+          "id": "RXFS.sfd_error",
+          "name": "sfd_error",
+          "mask": "0x0080",
+          "access": "RCH",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read to clear; hardware may set/clear. Retain each successfully consumed event immediately.",
+          "validity": "1 packet SFD error. Reference to RXFCFG1[13] conflicts with its reserved definition; no SFD-byte customization inferred.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.73, table 8-91; table 8-17 inventory"
+            }
+          ],
+          "owner": "counters"
+        },
+        {
+          "id": "RXFS.bad_crc",
+          "name": "bad_crc",
+          "mask": "0x0040",
+          "access": "RCH",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read to clear; hardware may set/clear. Retain each successfully consumed event immediately.",
+          "validity": "0 no bad CRC;1 bad CRC received. Interpretation also depends on CRC gating policy.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.73, table 8-91; table 8-17 inventory"
+            }
+          ],
+          "owner": "counters"
+        },
+        {
+          "id": "RXFS.secure_on_error",
+          "name": "secure_on_error",
+          "mask": "0x0020",
+          "access": "RCH",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read to clear; hardware may set/clear. Retain each successfully consumed event immediately.",
+          "validity": "0 valid password/no retained invalid event;1 invalid Secure-ON password in Magic Packet.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.73, table 8-91; table 8-17 inventory"
+            }
+          ],
+          "owner": "counters"
+        },
+        {
+          "id": "RXFS.magic_packet",
+          "name": "magic_packet",
+          "mask": "0x0001",
+          "access": "RCH",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "Read to clear; hardware may set/clear. Retain each successfully consumed event immediately.",
+          "validity": "Raw Magic Packet status. Detailed description has no further qualifying bit encoding; retain raw plus WoL policy context.",
+          "sources": [
+            {
+              "source": "snls647i",
+              "location": "8.5.1.73, table 8-91; table 8-17 inventory"
+            }
+          ],
+          "owner": "counters"
+        }
+      ],
+      "gates": [
+        "rxfs_sfd_reference"
+      ]
     },
     {
       "id": "RXFPMD1",
@@ -5273,7 +7322,7 @@
       "aliases": [],
       "resetValue": null,
       "resetKnownMask": null,
-      "resetNotes": "Recipe-only offset, no general field/reset description. Assigned stage must audit exact values/order.",
+      "resetNotes": "Exact digital-loopback recipe reviewed; no general field/reset specification. Only separately enumerated whole-word action is authorized; other writes and generic field decoding remain unavailable.",
       "reservedMask": null,
       "access": "RECIPE_ONLY",
       "readEffects": "Unknown outside exact procedure; no general raw read/write permission.",
@@ -5284,9 +7333,11 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
+      "status": "RECIPE",
       "fields": [],
-      "gates": []
+      "gates": [
+        "loopback_recipe"
+      ]
     },
     {
       "id": "EEE_031B",
@@ -5563,7 +7614,7 @@
       "aliases": [],
       "resetValue": null,
       "resetKnownMask": null,
-      "resetNotes": "Recipe-only offset, no general field/reset description. Assigned stage must audit exact values/order.",
+      "resetNotes": "Exact digital-loopback recipe reviewed; no general field/reset specification. Only separately enumerated whole-word action is authorized; other writes and generic field decoding remain unavailable.",
       "reservedMask": null,
       "access": "RECIPE_ONLY",
       "readEffects": "Unknown outside exact procedure; no general raw read/write permission.",
@@ -5574,9 +7625,11 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
+      "status": "RECIPE",
       "fields": [],
-      "gates": []
+      "gates": [
+        "loopback_recipe"
+      ]
     },
     {
       "id": "LOOP_0130",
@@ -5592,7 +7645,7 @@
       "aliases": [],
       "resetValue": null,
       "resetKnownMask": null,
-      "resetNotes": "Recipe-only offset, no general field/reset description. Assigned stage must audit exact values/order.",
+      "resetNotes": "Exact digital-loopback recipe reviewed; no general field/reset specification. Only separately enumerated whole-word action is authorized; other writes and generic field decoding remain unavailable.",
       "reservedMask": null,
       "access": "RECIPE_ONLY",
       "readEffects": "Unknown outside exact procedure; no general raw read/write permission.",
@@ -5603,9 +7656,11 @@
         }
       ],
       "researchStage": 4,
-      "status": "PENDING",
+      "status": "RECIPE",
       "fields": [],
-      "gates": []
+      "gates": [
+        "loopback_recipe"
+      ]
     }
   ],
   "printedAddresses": [
@@ -6206,6 +8261,766 @@
         "test": "Independent literals and boundary failures for readLinkStatus / LinkSnapshot; prompts 19, 53-55",
         "implementationStage": 19
       }
+    },
+    {
+      "id": "configure_fast_drop",
+      "feature": "fast_drop",
+      "modes": [
+        "BASIC",
+        "ENHANCED"
+      ],
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.17 pp44-45; 8.4.1.1 p49; tables8-30/33/52/53; 7.6 pp15,17"
+        }
+      ],
+      "ownedMasks": [
+        {
+          "register": "CR3",
+          "mask": "0x040F"
+        },
+        {
+          "register": "FLD_CFG1",
+          "mask": "0xFFF0"
+        },
+        {
+          "register": "FLD_CFG2",
+          "mask": "0x003F"
+        }
+      ],
+      "prerequisites": "Validated exact identity and MII interface (8.4.1.1 says FLD is MII-only); reject RMII activation before I/O, including initial P4 board. Application maintenance owner coordinates MAC/link policy, serialization and saved persistent owned settings. Validate CR3 subset040F, CFG1 nonzero six-bit codes and CFG2 six-bit code; a live prerequisite read is separately budgeted.",
+      "steps": [
+        "Retain existing FLDS/interrupt evidence through the single collector before changing policy; record the acquisition epoch without interpreting old causes as new failures.",
+        "Disable owned CR3 FLD modes while configuring their prerequisites; preserve unrelated port-mirror fields. Configure MLT3 recipe0117=0417 when selected (ownedFFF0 with reserved low nibble retained as documented7); configure0131[5:0]=08 for descrambler. Keep raw threshold choices distinct from guaranteed physical behavior.",
+        "Set selected CR3[10,3:0] combination after configuration succeeds. Verify stable owned masks with bounded reads; pending gates remain attached to result. Do not assume BASIC or ENHANCED default strap claims establish actual desired settings.",
+        "During admitted observation use collector FLDS cause bits and actual link evidence; register configuration success alone is not a measured link-drop timing result. Stop temporary observation by restoring prior desired settings, not clearing history silently."
+      ],
+      "waits": [
+        "No invented settling delay. Section7.6 physical MAX10us modes1-4/MAX11us mode5 is not an MDIO polling deadline; modes2/3/5 require RX-error or signal-energy enabled per footnote5. Strapped150m case separately MAX10us."
+      ],
+      "timeout": "Caller supplies finite positive aggregate primary duration and finite transaction/poll count before admission, including lock/controller callback bounds. Zero remaining work performs no I/O. Cleanup has a distinct finite duration/count, never an unbounded extension. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "partialEffects": "A failed write can have applied a partial detector policy; preserve accepted/uncertain masks and invalidate link-policy trust. A failed destructive FLDS read may lose history; retain all earlier successfully consumed samples.",
+      "cleanup": "Cancellation stops new configuration phases and enters separately budgeted restore: disable owned modes, restore saved CFG1/CFG2 then CR3, verify stable owned masks. Release complete-transaction lock before waits/output. Keep primary error and cleanup failure separate; do not automatically reset/retry.",
+      "restoration": "Restore only saved persistent owned controls after temporary testing, never replay latched causes. Full reset reloads hardware defaults/straps; PCS-domain ambiguity prevents assumed retention without verification. Restart preserves register configuration but starts a new link-observation epoch. Reset or uncertain external mutation invalidates prior trust.",
+      "gates": [
+        "fld_reset_defaults",
+        "fld_threshold_recipe"
+      ],
+      "owner": {
+        "api": "FastLinkDropSettings / startConfigureFastLinkDrop",
+        "cli": "owner-routed fast-drop configure/readback/observe; reject RMII activation",
+        "test": "Prompt34/53-55: invalid bits/codes and RMII rejection before I/O; each-frame failures and bounded restore. Prompt73: identified MII board, controlled noise/cable interruption, oscilloscope trigger from stimulus to link indication; qualify each detector and combination, not P4 RMII.",
+        "implementationStage": 34
+      }
+    },
+    {
+      "id": "loopback_near",
+      "feature": "loopback",
+      "modes": [
+        "BASIC",
+        "ENHANCED"
+      ],
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.14.1-5; tables8-19 and8-40"
+        }
+      ],
+      "ownedMasks": [
+        {
+          "register": "BMCR",
+          "mask": "0x7100"
+        },
+        {
+          "register": "BISCR",
+          "mask": "0x005F"
+        }
+      ],
+      "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. Near-end AN disabled before activation. PCS input10 only; standalone digital is separate100-only recipe. Analog needs100-ohm termination. External cable loopback has separate fixture admission.",
+      "steps": [
+        "Validate requested speed/interface/termination and persistent desired state before any write. Clear all other loopback selectors and line-transmit bit.",
+        "Disable BMCR auto-negotiation; apply forced speed/duplex through established core procedure including qualified10BASE-Te setup. MII loopback: BISCR low5=4 at100 or1 at10 and BMCR14=1. Standalone PCS-input:10 only,low5=1,BMCR14=0. PCS-output:low5=2,BMCR14=0. Analog:low5=8,BMCR14=0 with100-ohm termination.",
+        "Optional line transmit BISCR6=1 only for100Mb/s MII loopback; reject10,PCS,analog use. MAC-interface support follows configured MII/RMII interface, not the historical MII-loopback name.",
+        "Observe bounded correlated MAC sent/received frames or separately qualified BIST; configuration readback alone is not path proof. Stop by clearing BMCR14 and BISCR6/low5, then restore persistent speed/AN state."
+      ],
+      "waits": [],
+      "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
+      "cleanup": "Stop diagnostic generation before restoring settings; keep controller lock only across indivisible MDIO/RMW transaction, never across waits. Verify stop/readback with finite cleanup budget; retain cleanup-required on failure.",
+      "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
+      "gates": [
+        "loopback_recipe"
+      ],
+      "owner": {
+        "api": "startLoopback / stopLoopback",
+        "cli": "owner-routed startLoopback / stopLoopback (prompts 44-46)",
+        "test": "Independent literals and boundary failures for startLoopback / stopLoopback; prompts 23, 53-55",
+        "implementationStage": 23
+      }
+    },
+    {
+      "id": "loopback_digital",
+      "feature": "loopback",
+      "modes": [
+        "BASIC",
+        "ENHANCED"
+      ],
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.14.4 p41; table8-48"
+        }
+      ],
+      "ownedMasks": [
+        {
+          "register": "BMCR",
+          "mask": "0x7D80"
+        },
+        {
+          "register": "BISCR",
+          "mask": "0x705F"
+        },
+        {
+          "register": "PHYRCR",
+          "mask": "0x4000"
+        }
+      ],
+      "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. ",
+      "steps": [
+        "Admit100BASE-TX forced full-duplex only; coordinate MAC/SDK owner and conflicting EEE recipe use of0123.",
+        "Apply exact sequence C22 BMCR=2100, BISCR=0104; MMD31/0122=2000; MMD31/0123=2000; MMD31/0130=47FF; C22 PHYRCR=4000 digital restart. Full BISCR literal includes read-only power indication; the full literal changes all stable writable BISCR controls under705F, and BMCR stable controls under7D80; save/restore those owned masks. Compose reset and AN-restart commands neutral0. Opaque full-word writes are explicit recipe actions, never broad permission.",
+        "Wait for restart completion using bounded core reset procedure. Observe readbacks and correlated finite traffic result. Full script order and restart are mandatory for this documented recipe.",
+        "Stop generator and loopback; opaque controls cannot be treated as arbitrary writable snapshots. Use explicitly authorized hard-reset/reinitialization and persistent-state replay for deterministic restoration; otherwise report restore unverified."
+      ],
+      "waits": [
+        "PHYRCR restart bit14 self-clear; no fixed completion MAX in this diagnostic text. Any minimum post-write wait anchors to observed completion or a later conservative timestamp."
+      ],
+      "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
+      "cleanup": "Stop diagnostic generation before restoring settings; keep controller lock only across indivisible MDIO/RMW transaction, never across waits. Verify stop/readback with finite cleanup budget; retain cleanup-required on failure.",
+      "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit. Restore all saved BMCR7D80/BISCR705F persistent controls after reset-based reinitialization; never replay PHYRCR restart as persistent state.",
+      "gates": [
+        "loopback_recipe"
+      ],
+      "owner": {
+        "api": "startLoopback / stopLoopback",
+        "cli": "owner-routed startLoopback / stopLoopback (prompts 44-46)",
+        "test": "Independent literals and boundary failures for startLoopback / stopLoopback; prompts 23, 53-55",
+        "implementationStage": 23
+      },
+      "writeActions": [
+        "LOOP_0122_digital",
+        "RECIPE_0123_digital",
+        "LOOP_0130_digital"
+      ]
+    },
+    {
+      "id": "loopback_reverse",
+      "feature": "loopback",
+      "modes": [
+        "BASIC",
+        "ENHANCED"
+      ],
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.14.6; tables8-35 and8-40"
+        }
+      ],
+      "ownedMasks": [
+        {
+          "register": "BISCR",
+          "mask": "0x005F"
+        },
+        {
+          "register": "PHYSCR",
+          "mask": "0x0300"
+        },
+        {
+          "register": "BMCR",
+          "mask": "0x4000"
+        }
+      ],
+      "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. ",
+      "steps": [
+        "Require live compatible link partner and selected speed/interface; save ordinary reverse FIFO depth setting. Select PHYSCR8..9 depth using documented code if owner requests it.",
+        "Save and clear BMCR14; verify it is zero along with other near-end selectors before setting reverse mode. Clear other loopbacks and line-transmit option; set BISCR low5=10(hex). MAC transmitted data is ignored and partner received data is looped at MAC interface back onto line.",
+        "Observe finite partner-originated correlated packets and returned payloads. Stop low5=0 and restore FIFO/previous persistent state. Do not write reserved BISCR bit5 from troubleshooting0020 example."
+      ],
+      "waits": [],
+      "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
+      "cleanup": "Stop diagnostic generation before restoring settings; keep controller lock only across indivisible MDIO/RMW transaction, never across waits. Verify stop/readback with finite cleanup budget; retain cleanup-required on failure.",
+      "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
+      "gates": [
+        "loopback_recipe"
+      ],
+      "owner": {
+        "api": "startLoopback / stopLoopback",
+        "cli": "owner-routed startLoopback / stopLoopback (prompts 44-46)",
+        "test": "Independent literals and boundary failures for startLoopback / stopLoopback; prompts 23, 53-55",
+        "implementationStage": 23
+      }
+    },
+    {
+      "id": "loopback_external",
+      "feature": "loopback",
+      "modes": [
+        "BASIC",
+        "ENHANCED"
+      ],
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.14.1; 8.3.15"
+        }
+      ],
+      "ownedMasks": [
+        {
+          "register": "BMCR",
+          "mask": "0x4000"
+        },
+        {
+          "register": "BISCR",
+          "mask": "0x005F"
+        }
+      ],
+      "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. Identified authorized external loopback cable/partner fixture. Hardware setup is application responsibility.",
+      "steps": [
+        "Admit explicit external cable loopback fixture and application-owned MAC traffic or separately admitted BIST. No internal BISCR loopback selector denotes external cable loopback.",
+        "Save owned loopback controls; clear and verify BMCR14 and BISCRlow5/bit6 before traffic. An active internal loop must not be misreported as the external cable path. Restore persistent owned state after stopping traffic; preserve failed stop/restore separately.",
+        "Configure normal correct speed/interface through core owner; near-end AN-disable rule explicitly does not apply to external fixture.",
+        "Run finite correlated traffic; retain counts/payload mismatches and fixture identity. Stop traffic before fixture removal; restore settings via their owning procedures."
+      ],
+      "waits": [],
+      "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
+      "cleanup": "Stop diagnostic generation before restoring settings; keep controller lock only across indivisible MDIO/RMW transaction, never across waits. Verify stop/readback with finite cleanup budget; retain cleanup-required on failure.",
+      "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
+      "gates": [],
+      "owner": {
+        "api": "startLoopback / stopLoopback",
+        "cli": "owner-routed startLoopback / stopLoopback (prompts 44-46)",
+        "test": "Independent literals and boundary failures for startLoopback / stopLoopback; prompts 23, 53-55",
+        "implementationStage": 23
+      }
+    },
+    {
+      "id": "bist_run",
+      "feature": "bist",
+      "modes": [
+        "BASIC",
+        "ENHANCED"
+      ],
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.15; tables8-40,8-45,8-46"
+        }
+      ],
+      "ownedMasks": [
+        {
+          "register": "BISCR",
+          "mask": "0x7000"
+        },
+        {
+          "register": "BICSR1",
+          "mask": "0x00FF"
+        },
+        {
+          "register": "BICSR2",
+          "mask": "0x07FF"
+        }
+      ],
+      "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. ",
+      "steps": [
+        "Admit a previously configured internal digital/analog loopback or external partner/fixture and its legal speed. Save IPG,packet size,counter mode; clear PRBS mode before reconfiguration.",
+        "Write desired IPG code with high counter byte zero and packet-length field; IPG byte code*4 and length bytes. Select saturation for bounded no-wrap evidence or continuous mode with explicit possible-wrap reporting.",
+        "BISCR13:12=1 sends one constant-data packet with checker disabled;2 runs checker without generator;3 runs continuous generator+checker;0 stops both. Do not equate BISCR14 counter mode with packet count.",
+        "Establish fresh baseline through explicit BICSR1 capture/clear and retain it, then collect finite interval checker lock/sync-loss/generator evidence and final captured error count. Single-packet mode is traffic generation evidence, not self-verified BIST PASS.",
+        "Stop PRBS mode0, verify generator off and preserve result before restoring settings. Finite raw result states loss/unknown history, wrap/saturation and capture/read failures separately; no zero-after-wrap or activity-only pass."
+      ],
+      "waits": [
+        "Observation duration is application-selected policy; no maximum silicon lock time established. SNLA423A one-second suggestion is not a guaranteed completion bound."
+      ],
+      "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
+      "cleanup": "Stop diagnostic generation before restoring settings; keep controller lock only across indivisible MDIO/RMW transaction, never across waits. Verify stop/readback with finite cleanup budget; retain cleanup-required on failure.",
+      "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
+      "gates": [
+        "bist_result_semantics"
+      ],
+      "owner": {
+        "api": "startBist / stopBist / BistSample",
+        "cli": "owner-routed startBist / stopBist / BistSample (prompts 44-46)",
+        "test": "Independent literals and boundary failures for startBist / stopBist / BistSample; prompts 24, 53-55",
+        "implementationStage": 24
+      }
+    },
+    {
+      "id": "bist_capture",
+      "feature": "bist",
+      "modes": [
+        "BASIC",
+        "ENHANCED"
+      ],
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.15 p42; table8-45 p72"
+        }
+      ],
+      "ownedMasks": [
+        {
+          "register": "BICSR1",
+          "mask": "0x00FF"
+        }
+      ],
+      "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. ",
+      "steps": [
+        "Single owner captures counter and IPG context; reject a competing destructive capture while sample pending.",
+        "Compose 8000 OR desired_IPG_byte; bits14:8 zero. Explicit write15 freezes readable counter and clears live counter. Do not read-modify-write the high counter byte; read15 is counterMSB, not write-action state.",
+        "After confirmed command completion read BICSR1 once and retain raw high byte plus lower byte and status window. On command uncertainty or read failure retain possible lost/overwritten evidence; never blindly issue another capture to recover the first.",
+        "Publish captured count as bounded-window evidence only with known baseline/history/counter mode. Releasing frozen latch and repeat-capture lifecycle remain source-gated."
+      ],
+      "waits": [],
+      "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
+      "cleanup": "No compensating write can undo counter clearing. Preserve raw sample and history-loss uncertainty. Restore IPG only through safe low-byte composition; no retry of capture without explicit new generation.",
+      "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
+      "gates": [
+        "bist_result_semantics"
+      ],
+      "owner": {
+        "api": "startBist / stopBist / BistSample",
+        "cli": "owner-routed startBist / stopBist / BistSample (prompts 44-46)",
+        "test": "Independent literals and boundary failures for startBist / stopBist / BistSample; prompts 24, 53-55",
+        "implementationStage": 24
+      },
+      "writeActions": [
+        "BICSR1_freezeClear"
+      ]
+    },
+    {
+      "id": "cable_configure",
+      "feature": "cable",
+      "modes": [
+        "BASIC",
+        "ENHANCED"
+      ],
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.16; tables8-54..60"
+        }
+      ],
+      "ownedMasks": [
+        {
+          "register": "CDSCR",
+          "mask": "0x7770"
+        },
+        {
+          "register": "CDSCR3",
+          "mask": "0xFFFF"
+        },
+        {
+          "register": "TDR_175",
+          "mask": "0x380F"
+        },
+        {
+          "register": "TDR_176",
+          "mask": "0x001F"
+        },
+        {
+          "register": "CDSCR4",
+          "mask": "0x1F00"
+        },
+        {
+          "register": "TDR_178",
+          "mask": "0x0007"
+        }
+      ],
+      "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. ",
+      "steps": [
+        "Disable manual trigger and autorun under owning procedures; admit quiet/disconnected partner. Preserve reserved fields and unknown tuning state. Do not write CDSCR2 or absent0172/0174/ALCD addresses.",
+        "Select TX/RX combination via CDSCR14:13: A->A=2,A->B=0,B->A=1,B->B=3. Set explicit DC-removal no-init policy and averaging0..6; reject7.",
+        "Segment1..5 CDSCR low segment codes1..5; CDSCR3 full words0D07,0D14,1A21,343B,8F6F; TDR175 words1004,1004,1005,1008,100B within documented fields; TDR178 width2,2,2,2,6. Preserve TDR176 default5 and CDSCR4 default1E unless exact-part tuning evidence supplied.",
+        "Verify ordinary owned field readback. Segment descriptions are recipe selection intervals, not decoded measured distance. All capture/configuration phases remain separate and bounded."
+      ],
+      "waits": [],
+      "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
+      "cleanup": "Stop diagnostic generation before restoring settings; keep controller lock only across indivisible MDIO/RMW transaction, never across waits. Verify stop/readback with finite cleanup budget; retain cleanup-required on failure.",
+      "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
+      "gates": [
+        "tdr_calibration"
+      ],
+      "owner": {
+        "api": "startCableTest / CableSettings / CableSample",
+        "cli": "owner-routed startCableTest / CableSettings / CableSample (prompts 44-46)",
+        "test": "Independent literals and boundary failures for startCableTest / CableSettings / CableSample; prompts 25, 53-55",
+        "implementationStage": 25
+      }
+    },
+    {
+      "id": "cable_manual",
+      "feature": "cable",
+      "modes": [
+        "BASIC",
+        "ENHANCED"
+      ],
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.16.1; tables8-28,8-47"
+        }
+      ],
+      "ownedMasks": [
+        {
+          "register": "CR1",
+          "mask": "0x0100"
+        },
+        {
+          "register": "CDCR",
+          "mask": "0x8000"
+        }
+      ],
+      "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. Link down with disconnected or demonstrably quiet link partner. Manual iteration plan finite: requested segments and channel combinations explicit.",
+      "steps": [
+        "Save desired autorun state and temporarily disable CR1 bit8; reject overlapping BIST/loopback/reset. Read live CDCR before mutation; calibration bit14 high transfers to calibration recovery rather than treating it as a normal cable-test bit.",
+        "For each explicitly selected legal segment/channel configuration, record baseline/status generation, then set CDCR15=1 with calibration neutral0; retain command acceptance/uncertainty and completion timestamp.",
+        "Poll CDCR with released controller lock between polls. Accept fresh measurement only after observed post-trigger start/busy or done0 transition followed by start0 and done1, unless stronger exact-part evidence establishes another correlation mechanism. Initial/reset done1 alone never passes. Missed transient progress => freshness unknown, not fabricated failure/success.",
+        "Read fail bit and supported raw result words through cable_capture; preserve completed prior segments when a later iteration fails. Never repeat indefinitely or classify length/fault from unqualified raw words.",
+        "On completion/cancel/deadline disable manual trigger and autorun, retain all effects, then restore persistent settings using finite cleanup."
+      ],
+      "waits": [
+        "No documented completion MAX or minimum trigger-to-done transition. Use finite application budget; lack of observed busy evidence can leave otherwise completed sample uncorrelated."
+      ],
+      "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
+      "cleanup": "Write manual start0 and autorun0; verify control readback within finite cleanup budget. Engine abort acknowledgement is unspecified, so retain quiescence unknown if not otherwise proved. Reset/reinitialize requires explicit owner recovery policy; do not reset merely to hide primary failure.",
+      "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
+      "gates": [
+        "tdr_freshness_abort",
+        "tdr_calibration"
+      ],
+      "owner": {
+        "api": "startCableTest / CableSettings / CableSample",
+        "cli": "owner-routed startCableTest / CableSettings / CableSample (prompts 44-46)",
+        "test": "Independent literals and boundary failures for startCableTest / CableSettings / CableSample; prompts 25, 53-55",
+        "implementationStage": 25
+      }
+    },
+    {
+      "id": "cable_autorun",
+      "feature": "cable",
+      "modes": [
+        "BASIC",
+        "ENHANCED"
+      ],
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.16.1; table8-28"
+        }
+      ],
+      "ownedMasks": [
+        {
+          "register": "CR1",
+          "mask": "0x0100"
+        }
+      ],
+      "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. ",
+      "steps": [
+        "Admit application-owned disruptive link-down autorun policy and verified TDR configuration, with one result collector and no manual run.",
+        "Set CR1 bit8=1 and verify readback. It enables automatic TDR after link-down event; it is not an immediate trigger or proof that a measurement occurred.",
+        "Record event/reset generations and CDCR progress; use cable_capture only when fresh completion can be correlated. Link flaps may retrigger and replace result words; do not claim atomic coherent sample without evidence.",
+        "Disable CR1 bit8 before stopping/restoring the diagnostic session; read back and retain in-flight/result-latching uncertainty. Restore persistent autorun policy only after other temporary TDR settings are restored.",
+        "A link-down transition does not prove the remote transmitter is quiet: record partner/fixture activity and gate result interpretation when ongoing partner signaling can contaminate the capture. Preserve raw evidence and uncertainty."
+      ],
+      "waits": [
+        "Link-down occurrence is not guaranteed; finite owner observation session expires without inventing a sample. Completion polling remains bounded."
+      ],
+      "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
+      "cleanup": "Stop diagnostic generation before restoring settings; keep controller lock only across indivisible MDIO/RMW transaction, never across waits. Verify stop/readback with finite cleanup budget; retain cleanup-required on failure.",
+      "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
+      "gates": [
+        "tdr_freshness_abort"
+      ],
+      "owner": {
+        "api": "startCableTest / CableSettings / CableSample",
+        "cli": "owner-routed startCableTest / CableSettings / CableSample (prompts 44-46)",
+        "test": "Independent literals and boundary failures for startCableTest / CableSettings / CableSample; prompts 25, 53-55",
+        "implementationStage": 25
+      }
+    },
+    {
+      "id": "cable_capture",
+      "feature": "cable",
+      "modes": [
+        "BASIC",
+        "ENHANCED"
+      ],
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.16.1; tables8-61..71"
+        }
+      ],
+      "ownedMasks": [],
+      "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. ",
+      "steps": [
+        "Verify fresh completed request/event generation and record CDCR done/fail, segment/channel/averaging/DC controls and reset identity.",
+        "Read only documented result fields: MMD31/0180 mask00FF,0185 mask007F,018A masks0800 and0020. Retain each successful raw read immediately; a later failure returns partial result with validity mask and no composite classification.",
+        "No all-reserved bank is a peak result; no read-clear is documented for these raw banks. Recheck generation/status to detect known races, but equal status alone does not prove no autorun occurred.",
+        "Publish raw words with provenance/uncertainty. Distance, amplitude volts, polarity-to-fault mapping and active-link cable diagnosis remain unqualified."
+      ],
+      "waits": [],
+      "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
+      "cleanup": "Read-only capture has no undo operation. Keep consumed raw words and uncertainty; cancellation never discards already returned measurements.",
+      "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
+      "gates": [
+        "tdr_calibration",
+        "tdr_freshness_abort",
+        "tdr_reserved"
+      ],
+      "owner": {
+        "api": "startCableTest / CableSettings / CableSample",
+        "cli": "owner-routed startCableTest / CableSettings / CableSample (prompts 44-46)",
+        "test": "Independent literals and boundary failures for startCableTest / CableSettings / CableSample; prompts 25, 53-55",
+        "implementationStage": 25
+      }
+    },
+    {
+      "id": "collect_event_counters",
+      "feature": "counters",
+      "modes": [
+        "BASIC",
+        "ENHANCED"
+      ],
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "Tables8-18,8-20,8-25,8-33..39,8-41,8-44,8-45,8-91"
+        },
+        {
+          "source": "event_source_audit",
+          "location": "Collector ordering, deadlines and independent literals"
+        }
+      ],
+      "ownedMasks": [],
+      "prerequisites": "Bound/identified exact part; serialized driver owner and one collector across SDK/raw/CLI participants; declared finite register set, primary deadline and per-poll transfer budget. No concurrent reset, diagnostic snapshot command, source-mux change or read-clear accessor.",
+      "steps": [
+        "Create acquisition token and history/reset/source epochs; cached views perform no I/O. Retain each raw word with register, timestamp, validity and consume sequence before another read; no all-or-nothing temporary aggregate.",
+        "Read PHYSTS first when requested to preserve its mirrors before their clearing sources; Signal/Descrambler RC fields remain raw history. Do not use forced-mode speed/duplex as universal resolved link. Retain BMSR first and second samples separately for historical/current link; capture ANER page evidence through its established negotiation owner.",
+        "Read MISR1 and MISR2 once each, retaining status plus enables; collect FCSCR and full16-bit RECR, FLDS, RMII-only RCSR,10BASE-Te polarity10BTSCR, and RXFS only as requested and admitted. Capture RXFS source with event epoch; if not known stable during pending events retain ambiguous shared-source label. No fabricated atomic simultaneity across frames.",
+        "For BICSR1 use the BIST owner freeze/capture procedure, never a generic destructive-register sweep; PRBS and diagnostic results retain their own session identity. Incidental reads during all configuration RMW/readback use this same retention path.",
+        "On cancellation/deadline stop scheduling new primary reads. Preserve completed prefix and late-success consumed words; mark overall result cancelled/timed-out even if all words eventually arrived. Ambiguous failed terminal target read marks history gap; selector-stage failure before target read does not itself consume target history.",
+        "Publish cached latest observations separately from accumulated historical flags, saturating software totals and history-gap evidence. ORed event flags prove occurrence only, never count multiplicity. FCSCR FF is lower bound; RECR numeric aggregation/saturation remains gated. Mark omitted/failed samples stale without deleting retained prior evidence."
+      ],
+      "waits": [],
+      "timeout": "Finite aggregate primary deadline includes admission, locking and every callback; bounded per-poll transfer count. No silicon completion wait or interrupt-drain-until-empty loop. Any selector cleanup gets a distinct finite cleanup deadline and frame count. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "partialEffects": "Already consumed latches/counters cannot be restored. New hardware events can occur between frames. Ambiguous callback completion may consume evidence without delivering it; mark loss, never convert a retry to proof of zero errors. Reset/restart interrupts observation epoch and invalidates currentness; retained host history survives reset/restart until explicitly consumed or acknowledged.",
+      "cleanup": "Release controller lock at every completed transaction and at terminal outcome. No counter-clear, reset or extra read to tidy up. If a transport/selector contract requires cleanup, report its status separately; cleanup cannot repair lost event evidence.",
+      "restoration": "No configuration mutation and no restoration of consumed hardware state. Preserve retained partial results until owner consumes/acknowledges. Reset replay uses persistent desired enables/source policy, never transient test interrupt or old event bits.",
+      "gates": [
+        "recr_width",
+        "rmii_rc",
+        "forced_physts",
+        "rxfs_sfd_reference"
+      ],
+      "owner": {
+        "api": "collectEvents / CounterSnapshot",
+        "cli": "owner-routed collectEvents / CounterSnapshot (prompts 44-46)",
+        "test": "Independent literals and boundary failures for collectEvents / CounterSnapshot; prompts 20, 53-55",
+        "implementationStage": 20
+      }
+    },
+    {
+      "id": "interrupt_configuration",
+      "feature": "interrupts",
+      "modes": [
+        "BASIC",
+        "ENHANCED"
+      ],
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "Tables8-35..37,8-91"
+        }
+      ],
+      "ownedMasks": [
+        {
+          "register": "PHYSCR",
+          "mask": "0x000B"
+        },
+        {
+          "register": "MISR1",
+          "mask": "0x00FF"
+        },
+        {
+          "register": "MISR2",
+          "mask": "0x00FF"
+        },
+        {
+          "register": "RXFS",
+          "mask": "0x1000"
+        }
+      ],
+      "prerequisites": "Identified part, finite apply/readback/cleanup budgets; application owns pin mux, electrical role and synchronization. ENHANCED INTR/PWRDN direction changes require declared board compatibility; alternate GPIO routing belongs to pin owner. Preserve power/loopback controls and collector ownership.",
+      "steps": [
+        "Validate desired eight-bit source enables, polarity, output role and shared polarity/WoL selector before I/O. Capture stable prior owned configuration and collect any consumed event words during capture.",
+        "Disable PHYSCR event enable while changing enables/routing under serialized owner; do not assume this clears latches. Retain pending shared-source events with prior selector context; events spanning selector/WoL auto-change remain ambiguous.",
+        "Apply RXFS source, both MISR low-byte enables and PHYSCR polarity/output; all readback/RMW consumes via collector. Compose only owned writable masks, preserve unrelated bits, never echo high event bits as writable controls.",
+        "Enable global event delivery last and verify stable writable fields. Source readback proves control state, not IRQ wiring or absence of history. Failed/mismatched/late accepted writes mark configuration trust uncertain and retain observed/desired/prior values separately."
+      ],
+      "waits": [],
+      "timeout": "Finite primary deadline/frame budget for preflight, collector reads, writes and readback; distinct finite cleanup allowance; no unbounded IRQ draining. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "partialEffects": "Disabling delivery may hide external assertion without removing internal history. RXFS read clears events. A mux/polarity/pin role change may assert or release external pin; an ambiguous write can already have changed hardware.",
+      "cleanup": "On cancellation/failure attempt bounded restoration of stable prior owned masks in dependency order with global enable last, preserving collector output. Cleanup failure remains explicit and cannot overwrite the primary error.",
+      "restoration": "Verify restored stable masks and retain desired policy separately; do not restore events or transient test bit. Hard reset requires configured policy replay; digital restart does not authorize replaying old latches.",
+      "gates": [
+        "rxfs_sfd_reference"
+      ],
+      "owner": {
+        "api": "InterruptSettings / collectEvents",
+        "cli": "owner-routed InterruptSettings / collectEvents (prompts 44-46)",
+        "test": "Independent literals and boundary failures for InterruptSettings / collectEvents; prompts 20, 53-55",
+        "implementationStage": 20
+      }
+    },
+    {
+      "id": "interrupt_test",
+      "feature": "interrupts",
+      "modes": [
+        "BASIC",
+        "ENHANCED"
+      ],
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "Table8-35 pp65-66"
+        }
+      ],
+      "ownedMasks": [
+        {
+          "register": "PHYSCR",
+          "mask": "0x0004"
+        }
+      ],
+      "prerequisites": "Exclusive owner; identified part, board-authorized IRQ wiring and finite stimulus/cleanup budgets. Test bit initially known clear; application controls external pin sampling and ISR scheduling, never MDIO in ISR.",
+      "steps": [
+        "Capture IRQ configuration and establish test token. Set PHYSCR[2] with unrelated state preserved and record accepted/uncertain effect.",
+        "Observe external IRQ pin/owner notification under finite deadline; service real events through collector without attributing them to test. Register write/readback alone proves control only, not physical IRQ delivery.",
+        "Clear test bit on success, failure, timeout or cancellation using separately reserved finite cleanup; verify bit clear and report external deassertion evidence if available."
+      ],
+      "waits": [
+        "Bounded application observation only; no specified silicon IRQ assertion maximum was established. Release controller lock before waiting or output."
+      ],
+      "timeout": "Separate finite primary observation deadline and cleanup deadline/frame count. A stuck GPIO or continuously arriving event cannot extend either. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "partialEffects": "Test interrupt continues while bit remains set. Failure after attempted set may leave IRQ asserted; retain cleanup debt and primary result independently.",
+      "cleanup": "Always attempt bounded clear+readback once stimulus may have occurred; cleanup failure leaves test-state/configuration uncertain, for application recovery.",
+      "restoration": "Restore test bit to0, do not enable an initially active transient bit after reset. Preserve all other desired enables and consumed real events. Reset during test invalidates test outcome and starts new observation epoch.",
+      "gates": [],
+      "owner": {
+        "api": "InterruptSettings / collectEvents",
+        "cli": "owner-routed InterruptSettings / collectEvents (prompts 44-46)",
+        "test": "Independent literals and boundary failures for InterruptSettings / collectEvents; prompts 20, 53-55",
+        "implementationStage": 20
+      }
+    },
+    {
+      "id": "signal_quality_sample",
+      "feature": "quality",
+      "modes": [
+        "BASIC",
+        "ENHANCED"
+      ],
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "Table8-72 p81"
+        },
+        {
+          "source": "snla423a",
+          "location": "2.3.3 tables2-6/2-7 p12"
+        },
+        {
+          "source": "snla495",
+          "location": "Table3-3 p7"
+        }
+      ],
+      "ownedMasks": [],
+      "prerequisites": "Identified DP83826I, finite owner/bus deadline, stable observed link/mode context; raw observation is allowed without claiming calibrated quality. No reserved-address probing.",
+      "steps": [
+        "Perform one bounded complete indirect read DEVAD31 offset0218, serialized across selector/address/data frames; publish full raw16-bit word with timestamp, link/mode/reset epoch and transport status.",
+        "Keep raw value separate from link-good status and MISR link-quality change. Never substitute0225 or derive dB/classification from failed/stale/zero/default data.",
+        "Record SNLA495 >033B as contextual investigation guidance only; SNLA423A formula belongs to disputed0225. Derived software arithmetic and physical calibration require the named source gate."
+      ],
+      "waits": [],
+      "timeout": "Bounded aggregate owner/lock/callback deadline and finite one-transaction frame budget; no documented MSE stabilization or update-time guarantee. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "partialEffects": "No documented destructive target-read effect. Failed read leaves prior cached value stale; selector writes may still have happened. Link change/reset during sample invalidates association, not retained raw evidence.",
+      "cleanup": "Release controller transaction lock; any required selector cleanup has distinct finite allowance, preserving primary failure.",
+      "restoration": "No chip setting changed. Retain raw sample; after reset require new observation and never interpret reset0000 as infinite SNR.",
+      "gates": [
+        "mse_address"
+      ],
+      "owner": {
+        "api": "readSignalQuality",
+        "cli": "owner-routed readSignalQuality (prompts 44-46)",
+        "test": "Independent literals and boundary failures for readSignalQuality; prompts 34, 53-55",
+        "implementationStage": 34
+      }
+    },
+    {
+      "id": "calibration_recovery",
+      "feature": "calibration",
+      "modes": [
+        "BASIC",
+        "ENHANCED"
+      ],
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "Table8-47 p73; table8-48;8.4.5"
+        }
+      ],
+      "ownedMasks": [
+        {
+          "register": "CDCR",
+          "mask": "0x4000"
+        },
+        {
+          "register": "PHYRCR",
+          "mask": "0x8000"
+        }
+      ],
+      "prerequisites": "Identified exact part; application-authorized disruptive recovery and quiesced traffic/diagnostics, one owner, saved persistent desired configuration, finite reset/restoration budgets. Invoke only after observed CDCR[14]=1; this is not a calibration-start feature.",
+      "steps": [
+        "If live bounded read shows CDCR[14]=0, return no recovery needed without command. Preserve raw CDCR evidence, including diagnostic done/fail without claiming freshness.",
+        "If bit14 is high, deassert only4000 using documented mixed access semantics; do not replay cable-start8000. Immediately issue C22 PHYRCR001F command8000 as the next hardware action, with no wait/output/unrelated access between the two writes.",
+        "Reserve complete clear/reset pair before starting; cancellation between admitted writes does not erase required reset cleanup. On ambiguous clear/write failure retain possible effects and attempt the immediate hard-reset safety continuation within reserved budget, recording primary and cleanup separately.",
+        "Release controller lock before bounded reset polls; apply existing hard_reset procedure, actual completion observation and initialization order. Reset loses register settings/history epoch; replay persistent owned state and verify stable masks, never transient diagnostics, test interrupt or consumed event latches."
+      ],
+      "waits": [
+        "No numerical maximum for the word immediately was specified. Keep writes adjacent under transaction exclusion; no planned hardware wait between them. Reset wait/poll bound follows core hard_reset evidence and application policy, not a fabricated calibration time."
+      ],
+      "timeout": "Finite aggregate admission+pair+reset+restoration budget with independently reserved finite cleanup/reset continuation; reject admission if the pair cannot fit policy. No repeated calibration or automatic unbounded reset retries. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "partialEffects": "Deassertion is not completed recovery without hard reset. Write errors can leave calibration or reset state uncertain; reset destroys hardware counters/latches and may disrupt RMII clock. Retained host evidence persists with an epoch boundary and possible history loss.",
+      "cleanup": "Once clear may have occurred, owed hard reset is cleanup and remains bounded even after primary cancellation/deadline; if impossible mark recoveryRequired and unsafe configuration trust. Never hide original failure behind successful reset.",
+      "restoration": "Verify identity/reset completion and restored persistent configuration using core procedure. Source gate about software hard-reset strap relatching remains. Application alone resumes traffic after readiness evidence; calibration flag clear is not proof of analog calibration accuracy.",
+      "gates": [
+        "hard_reset_straps"
+      ],
+      "owner": {
+        "api": "startCalibrationRecovery",
+        "cli": "owner-routed startCalibrationRecovery (prompts 44-46)",
+        "test": "Independent literals and boundary failures for startCalibrationRecovery; prompts 15, 53-55",
+        "implementationStage": 15
+      }
     }
   ],
   "features": [
@@ -6273,7 +9088,9 @@
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
-      "gates": [],
+      "gates": [
+        "eee_wire"
+      ],
       "notes": "Required full-feature scope; first-board policy does not remove capabilities."
     },
     {
@@ -6864,9 +9681,15 @@
         "BISCR",
         "RECIPE_0123",
         "LOOP_0122",
-        "LOOP_0130"
+        "LOOP_0130",
+        "PHYRCR"
       ],
-      "procedures": [],
+      "procedures": [
+        "loopback_near",
+        "loopback_digital",
+        "loopback_reverse",
+        "loopback_external"
+      ],
       "owner": {
         "api": "startLoopback / stopLoopback",
         "cli": "owner-routed startLoopback / stopLoopback (prompts 44-46)",
@@ -6875,7 +9698,7 @@
       },
       "scope": "SOFTWARE",
       "evidence": {
-        "documented": "PENDING",
+        "documented": "COMPLETE",
         "implemented": "PENDING",
         "hostTested": "NOT_RUN",
         "sdkBuilt": "NOT_RUN",
@@ -6884,7 +9707,7 @@
       "gates": [
         "loopback_recipe"
       ],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities."
+      "notes": "Required full-feature scope; first-board policy does not remove capabilities. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations."
     },
     {
       "id": "bist",
@@ -6898,7 +9721,10 @@
         "BICSR1",
         "BICSR2"
       ],
-      "procedures": [],
+      "procedures": [
+        "bist_run",
+        "bist_capture"
+      ],
       "owner": {
         "api": "startBist / stopBist / BistSample",
         "cli": "owner-routed startBist / stopBist / BistSample (prompts 44-46)",
@@ -6907,14 +9733,16 @@
       },
       "scope": "SOFTWARE",
       "evidence": {
-        "documented": "PENDING",
+        "documented": "COMPLETE",
         "implemented": "PENDING",
         "hostTested": "NOT_RUN",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
-      "gates": [],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities."
+      "gates": [
+        "bist_result_semantics"
+      ],
+      "notes": "Required full-feature scope; first-board policy does not remove capabilities. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations."
     },
     {
       "id": "cable",
@@ -6946,7 +9774,12 @@
         "CDLAR5",
         "CDLAR6"
       ],
-      "procedures": [],
+      "procedures": [
+        "cable_configure",
+        "cable_manual",
+        "cable_autorun",
+        "cable_capture"
+      ],
       "owner": {
         "api": "startCableTest / CableSettings / CableSample",
         "cli": "owner-routed startCableTest / CableSettings / CableSample (prompts 44-46)",
@@ -6955,16 +9788,18 @@
       },
       "scope": "SOFTWARE",
       "evidence": {
-        "documented": "PENDING",
+        "documented": "COMPLETE",
         "implemented": "PENDING",
         "hostTested": "NOT_RUN",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
-        "tdr_reserved"
+        "tdr_reserved",
+        "tdr_calibration",
+        "tdr_freshness_abort"
       ],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities."
+      "notes": "Required full-feature scope; first-board policy does not remove capabilities. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations."
     },
     {
       "id": "fast_drop",
@@ -6979,7 +9814,9 @@
         "FLD_CFG1",
         "FLD_CFG2"
       ],
-      "procedures": [],
+      "procedures": [
+        "configure_fast_drop"
+      ],
       "owner": {
         "api": "FastLinkDropSettings",
         "cli": "owner-routed FastLinkDropSettings (prompts 44-46)",
@@ -6988,16 +9825,17 @@
       },
       "scope": "SOFTWARE",
       "evidence": {
-        "documented": "PENDING",
+        "documented": "COMPLETE",
         "implemented": "PENDING",
         "hostTested": "NOT_RUN",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
-        "fld_reset_defaults"
+        "fld_reset_defaults",
+        "fld_threshold_recipe"
       ],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities."
+      "notes": "MII-only programmable detector settings/cause evidence. Initial P4 RMII board cannot qualify activation. Physical timing, application polling deadlines and source conflict are separate. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations."
     },
     {
       "id": "link_recovery",
@@ -7112,7 +9950,10 @@
         "MISR2",
         "RXFS"
       ],
-      "procedures": [],
+      "procedures": [
+        "interrupt_configuration",
+        "interrupt_test"
+      ],
       "owner": {
         "api": "InterruptSettings / collectEvents",
         "cli": "owner-routed InterruptSettings / collectEvents (prompts 44-46)",
@@ -7121,14 +9962,16 @@
       },
       "scope": "SOFTWARE",
       "evidence": {
-        "documented": "PENDING",
+        "documented": "COMPLETE",
         "implemented": "PENDING",
         "hostTested": "NOT_RUN",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
-      "gates": [],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities."
+      "gates": [
+        "rxfs_sfd_reference"
+      ],
+      "notes": "Prompt4 source coverage complete with named unresolved behavior gates; no implementation, host driver test, SDK build or hardware qualification follows. See event_source_audit. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations."
     },
     {
       "id": "counters",
@@ -7152,7 +9995,9 @@
         "BICSR1",
         "RXFS"
       ],
-      "procedures": [],
+      "procedures": [
+        "collect_event_counters"
+      ],
       "owner": {
         "api": "collectEvents / CounterSnapshot",
         "cli": "owner-routed collectEvents / CounterSnapshot (prompts 44-46)",
@@ -7161,7 +10006,7 @@
       },
       "scope": "SOFTWARE",
       "evidence": {
-        "documented": "PENDING",
+        "documented": "COMPLETE",
         "implemented": "PENDING",
         "hostTested": "NOT_RUN",
         "sdkBuilt": "NOT_RUN",
@@ -7169,9 +10014,11 @@
       },
       "gates": [
         "recr_width",
-        "rmii_rc"
+        "rmii_rc",
+        "rxfs_sfd_reference",
+        "forced_physts"
       ],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities."
+      "notes": "Prompt4 source coverage complete with named unresolved behavior gates; no implementation, host driver test, SDK build or hardware qualification follows. See event_source_audit. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations."
     },
     {
       "id": "quality",
@@ -7183,7 +10030,9 @@
       "registers": [
         "MSE_Val"
       ],
-      "procedures": [],
+      "procedures": [
+        "signal_quality_sample"
+      ],
       "owner": {
         "api": "readSignalQuality",
         "cli": "owner-routed readSignalQuality (prompts 44-46)",
@@ -7192,7 +10041,7 @@
       },
       "scope": "SOFTWARE",
       "evidence": {
-        "documented": "PENDING",
+        "documented": "COMPLETE",
         "implemented": "PENDING",
         "hostTested": "NOT_RUN",
         "sdkBuilt": "NOT_RUN",
@@ -7201,7 +10050,7 @@
       "gates": [
         "mse_address"
       ],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities."
+      "notes": "Prompt4 source coverage complete with named unresolved behavior gates; no implementation, host driver test, SDK build or hardware qualification follows. See event_source_audit. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations."
     },
     {
       "id": "compliance",
@@ -7317,7 +10166,9 @@
         "CDCR",
         "PHYRCR"
       ],
-      "procedures": [],
+      "procedures": [
+        "calibration_recovery"
+      ],
       "owner": {
         "api": "startCalibrationRecovery",
         "cli": "owner-routed startCalibrationRecovery (prompts 44-46)",
@@ -7326,14 +10177,16 @@
       },
       "scope": "SOFTWARE",
       "evidence": {
-        "documented": "PENDING",
+        "documented": "COMPLETE",
         "implemented": "PENDING",
         "hostTested": "NOT_RUN",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
-      "gates": [],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities."
+      "gates": [
+        "hard_reset_straps"
+      ],
+      "notes": "Prompt4 source coverage complete with named unresolved behavior gates; no implementation, host driver test, SDK build or hardware qualification follows. See event_source_audit. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations."
     },
     {
       "id": "straps",
@@ -7481,66 +10334,78 @@
     },
     {
       "id": "mse_address",
-      "conflict": "Datasheet0218 versus troubleshooting0225; scaling unresolved.",
-      "decision": "Raw datasheet candidate only; no alias or derived SNR.",
-      "nextEvidence": "Exact-part TI correction/scaling and identified measurements.",
-      "ownerStage": 4,
+      "conflict": "SNLS647I table8-72 and SNLA495 table3-3 use0218, while SNLA423A table2-6 uses0225 and attaches an SNR formula. No alias, exact-part scale/update validity or calibration has been established.",
+      "decision": "Use bounded raw DEVAD31:0218; do not read0225 as alias or report dB/classifications. SNLA495 >033B is contextual diagnostic guidance.",
+      "nextEvidence": "Prompt34: TI exact DP83826I clarification of0218/0225, formula, valid mode/link conditions, averaging/update law and boundaries; then identified cable/noise measurements. A forum-listing snippet does not close this gate.",
+      "ownerStage": 34,
       "sources": [
         {
           "source": "snls647i",
-          "location": "8.5.1.54; SNLA423A2.3.3"
+          "location": "Table8-72 p81"
+        },
+        {
+          "source": "snla423a",
+          "location": "2.3.3 p12"
+        },
+        {
+          "source": "snla495",
+          "location": "Table3-3 p7"
         }
       ]
     },
     {
       "id": "recr_width",
-      "conflict": "16-bit field conflicts with maximumFF/half-full7F prose.",
-      "decision": "Retain raw samples and consumed partial evidence; no fabricated width/saturation.",
-      "nextEvidence": "TI clarification of effective width and saturation.",
-      "ownerStage": 4,
+      "conflict": "Table8-39 says bits15:0 and16-bit counter, yet maximumFF and half-full7F.",
+      "decision": "Preserve raw16-bit consumed samples, no invented effective width, modulo delta, saturation or exact accumulated total. FCSCR8-bit semantics do not resolve RECR.",
+      "nextEvidence": "Prompt21: exact-part TI correction or controlled invalid-symbol/RXDV injection demonstrating7F/80,FF/100 and7FFF/8000/FFFF boundaries and read-clear behavior, with link/mode/IRQ trace.",
+      "ownerStage": 21,
       "sources": [
         {
           "source": "snls647i",
-          "location": "Table8-39"
+          "location": "Table8-39 p68"
         }
       ]
     },
     {
       "id": "rmii_rc",
-      "conflict": "RCSR RC fault descriptions encode0 fault/1 normal.",
-      "decision": "Do not impose generic active-high interpretation.",
-      "nextEvidence": "Exact-part TI explanation or fault injection.",
-      "ownerStage": 4,
+      "conflict": "Table8-41 labels RCSR[3:2] RC, reset0, while0 means fault and1 normal; rearm/clear timing not explained.",
+      "decision": "Retain raw RC samples with table polarity0 fault/1 normal; never impose active-high fault or infer a reset-time fault event. No fake-based physical semantics.",
+      "nextEvidence": "Prompt21: exact-part TI explanation and identified stable-RMII clock-offset/fault-injection traces before/after repeated reads/reset to establish rearm/current versus latched meaning.",
+      "ownerStage": 21,
       "sources": [
         {
           "source": "snls647i",
-          "location": "Table8-41"
+          "location": "Table8-41 pp69-70"
+        },
+        {
+          "source": "snla495",
+          "location": "Table3-3 p7 does not resolve polarity"
         }
       ]
     },
     {
       "id": "tdr_reserved",
-      "conflict": "Multiple peak prose versus all-reserved result entries.",
-      "decision": "Names do not authorize decoding/reserved writes.",
-      "nextEvidence": "Prompt4 exact procedure and available result-bank audit.",
-      "ownerStage": 4,
+      "conflict": "Feature prose lists five result banks while detailed tables mark CDLRR2..5/CDLAR2..5 all reserved and CDSCR2 all reserved.",
+      "decision": "Only CDLRR1 low8,CDLAR1 low7,CDLAR6 bits11/5 are decoded. All-reserved banks have no writable/decoded public controls.",
+      "nextEvidence": "Exact-part TI correction or qualification evidence before decoding additional peak banks; current raw single-peak software independent.",
+      "ownerStage": 25,
       "sources": [
         {
           "source": "snls647i",
-          "location": "8.3.16; 8.5.1.36-53"
+          "location": "8.3.16 p43; tables8-55,8-61..71"
         }
       ]
     },
     {
       "id": "loopback_recipe",
-      "conflict": "General loopback prose and troubleshooting differ from detailed speed-dependent BMCR/BISCR definitions.",
-      "decision": "Detailed BMCR companion values selected; complete per-mode sequences in prompt4.",
-      "nextEvidence": "Review exact10/100 restrictions and reset/restore requirements.",
-      "ownerStage": 4,
+      "conflict": "MII prose says BISCR bit2 for all speeds while BMCR table requires1 for10 and4 for100; general all-speed statement conflicts with digital100/PCS-input10 restrictions. SNLA423A adds erroneous reverse0020/RCSR17 checks and analog3B04 expected readback; digital vendor offsets lack ordinary restoration semantics.",
+      "decision": "Select detailed per-speed tables. Exact digital recipe only. Reserve full restart/reset-and-reapply for opaque recipe restoration under authorized owner; do not pretend arbitrary readback restoration is specified.",
+      "nextEvidence": "Exact-part clarification or identified traces for both10/100 interfaces, MII versus standalone digital mode, opaque recipe restoration and analog-tuning prerequisite. Qualify termination and MAC/partner independently.",
+      "ownerStage": 23,
       "sources": [
         {
           "source": "snls647i",
-          "location": "8.3.14; table8-19"
+          "location": "8.3.14 pp41-42; tables8-19 and8-40"
         }
       ]
     },
@@ -7612,6 +10477,71 @@
           "location": "IEEE 802.3-2012 28.2.3.4 pp294-298, 28.2.4.1.6/Table28-8 pp303-304, Figure28-18 p320, Annex28C p734"
         }
       ]
+    },
+    {
+      "id": "fld_threshold_recipe",
+      "conflict": "Section8.3.17 states20MLT3 errors/10us yet mandates0117=0417, whose table8-52 encodings mean2 clocks(16ns) and1 error.",
+      "decision": "Retain exact manufacturer recipe and independent field meanings, but withhold a universal20error/10us classification or guaranteed response for arbitrary threshold settings.",
+      "nextEvidence": "TI exact-DP83826I clarification reconciling FLD_CFG1 counter/window semantics with0417 and measured MII fault-injection timing under documented conditions.",
+      "ownerStage": 34,
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.17 p45; table8-52 p76; 7.6 pp15,17"
+        }
+      ]
+    },
+    {
+      "id": "bist_result_semantics",
+      "conflict": "BICSR1 read15:8 overlaps explicit write15 capture/clear. No complete capture-latch release/overwrite protocol, checker sync-loss clear/retention interval, accepted minimum packet size or deterministic live-wrap history guarantee is documented.",
+      "decision": "Represent read counter independently from explicit write action. Preserve per-capture ownership/uncertainty and finite window. Activity/lock alone or zero after possible wrap cannot be PASS. Expose raw finite result until pass policy is established.",
+      "nextEvidence": "Exact-part TI latch lifecycle and sync-history clarification; identified traces for capture->read->capture, uncertain write/read, 255 saturation/wrap, minimum packet and checker-only modes.",
+      "ownerStage": 24,
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.15; tables8-40,8-45,8-46"
+        }
+      ]
+    },
+    {
+      "id": "tdr_calibration",
+      "conflict": "Raw TDR controls/results are documented but complete exact-part calibration, polarity mapping, threshold/pulse time units, DC prerequisites and distance/fault algorithm are not. CDSCR3 reset0D04 differs segment1 recipe0D07. SNLA330A applies to DP83825I and differs in segment3 and other offsets.",
+      "decision": "Use SNLS647I segment literals and raw result fields only; no imported DP83825/DP83822 gain writes, ALCD support, metres or fault types. Keep unexplained threshold defaults; raw field range is not a qualified physical tuning range.",
+      "nextEvidence": "Exact DP83826I TDR app note/official correction with supported recipes, sign/no-peak rules, timing units, propagation calibration and fixture measurements for each segment/channel combination.",
+      "ownerStage": 26,
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.16.1 p43; tables8-54..71 pp76-81"
+        }
+      ]
+    },
+    {
+      "id": "tdr_freshness_abort",
+      "conflict": "CDCR reset has done1; trigger-to-done-clear timing, maximum completion time, autorun retrigger/result coherency and abort acknowledgement are not specified.",
+      "decision": "Require observed post-trigger progress or other authoritative fresh-generation evidence; if missed, outcome is unproven rather than success. Bound primary and cleanup by application budgets. Disable trigger/autorun and read back; do not claim analog engine quiescence solely from bit0 or start0.",
+      "nextEvidence": "Exact-part TI fresh-completion/abort/result-latching guarantee and identified trigger/status traces including immediate completion, reset-done, link flap/retrigger and timeout cancellation.",
+      "ownerStage": 25,
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.16.1; tables8-28,8-47,8-54..71"
+        }
+      ]
+    },
+    {
+      "id": "rxfs_sfd_reference",
+      "conflict": "RXFS[7] table8-91 describes SFD error referring to RXFCFG1[13], but table8-90 declares13 reserved.",
+      "decision": "Retain raw SFD-error status; do not infer programmable SFD byte/pattern support or write RXFCFG1[13].",
+      "nextEvidence": "Prompt29: TI exact-part correction of cross-reference and any supported SFD detection configuration; physical WoL/error fixture checks afterward.",
+      "ownerStage": 29,
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "Tables8-90/8-91 pp91-92"
+        }
+      ]
     }
   ],
   "pauseResolution": {
@@ -7658,5 +10588,83 @@
         "location": "Table8-43 p71"
       }
     ]
-  }
+  },
+  "writeActions": [
+    {
+      "id": "BICSR1_freezeClear",
+      "register": "BICSR1",
+      "mask": "0x8000",
+      "value": "0x8000",
+      "neutral": "0x0000",
+      "effect": "Write1 captures current error byte for subsequent read and clears live counter. Preserve desired IPG byte; emit zero for bits14:8. Read bit15 is counter MSB, not command-state readback. On ambiguous write do not retry blindly: counter history may already have been cleared.",
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.15 p42; table8-45 p72"
+        }
+      ],
+      "feature": "bist",
+      "gates": [
+        "bist_result_semantics"
+      ],
+      "prerequisites": "Single admitted BIST counter collector; desired IPG byte known; no unconsumed earlier capture; compose high write byte8000 and preserve desired low IPG."
+    },
+    {
+      "id": "LOOP_0122_digital",
+      "register": "LOOP_0122",
+      "mask": "0xFFFF",
+      "value": "0x2000",
+      "effect": "Exact digital-loopback recipe-only full word; unknown other fields and reset. No arbitrary raw writes.",
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.14.4 p41"
+        }
+      ],
+      "feature": "loopback",
+      "gates": [
+        "loopback_recipe"
+      ],
+      "prerequisites": "Exact100BASE-TX digital-loopback sequence from8.3.14.4; forced full duplex; quiesced MAC/SDK owner; no concurrent EEE use of shared0123; opaque cleanup/reset policy authorized.",
+      "neutral": null
+    },
+    {
+      "id": "RECIPE_0123_digital",
+      "register": "RECIPE_0123",
+      "mask": "0xFFFF",
+      "value": "0x2000",
+      "effect": "Exact digital-loopback recipe-only full word; shared offset also used by EEE procedure. No arbitrary raw writes.",
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.14.4 p41"
+        }
+      ],
+      "feature": "loopback",
+      "gates": [
+        "loopback_recipe"
+      ],
+      "prerequisites": "Exact100BASE-TX digital-loopback sequence from8.3.14.4; forced full duplex; quiesced MAC/SDK owner; no concurrent EEE use of shared0123; opaque cleanup/reset policy authorized.",
+      "neutral": null
+    },
+    {
+      "id": "LOOP_0130_digital",
+      "register": "LOOP_0130",
+      "mask": "0xFFFF",
+      "value": "0x47FF",
+      "effect": "Exact digital-loopback recipe-only full word; no arbitrary raw writes.",
+      "sources": [
+        {
+          "source": "snls647i",
+          "location": "8.3.14.4 p41"
+        }
+      ],
+      "feature": "loopback",
+      "gates": [
+        "loopback_recipe"
+      ],
+      "prerequisites": "Exact100BASE-TX digital-loopback sequence from8.3.14.4; forced full duplex; quiesced MAC/SDK owner; no concurrent EEE use of shared0123; opaque cleanup/reset policy authorized.",
+      "neutral": null
+    }
+  ]
 }

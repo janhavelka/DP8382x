@@ -4,7 +4,10 @@ These are implementation intentions, updated on 2026-10-28 after the live
 [API, state, ownership and tooling comparison](library-comparison.md). No driver API has
 been implemented or frozen.
 The [core silicon behavior](device-behavior.md) and [machine-readable ledger](registers/dp83826i.json)
-now establish the prompt-3 research boundary. In particular, configured forced
+now establish core and diagnostic research through prompt 4. Destructive status
+and counter acquisition belongs to one collector; completed samples survive later
+failures and cleanup. Exact recipe actions do not grant ordinary register access.
+In particular, configured forced
 mode is distinct from resolved link evidence while the PHYSTS conflict remains
 open; prompts 6, 18, 19 and 39 must preserve this in portable/SDK ownership.
 The [implementation promptset](prompts/README.md) establishes exact contracts

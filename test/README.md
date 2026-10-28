@@ -27,6 +27,12 @@ are unittest methods and remain active under Python optimization. Run both
 commands as prompts 4–5 extend the ledger. These are research-tool tests, not
 executing driver, package or hardware tests.
 
+`test_diagnostic_ledger.py` extends registered discovery with original-PDF field,
+access and reset literals for every prompt-4 detailed record, recipe actions and
+legal encodings. Temporary malformed files prove rejection of dropped diagnostic
+rows/procedures, invented/retargeted actions, changed recipe addresses and lost
+required action ownership. All 57 tests are research-tool evidence only.
+
 No driver, firmware build, CI workflow or physical hardware test exists at this stage.
 The [80-prompt promptset](../docs/prompts/README.md) now defines those future
 deliverables. Its [verification contract](../docs/prompts/VERIFICATION.md)

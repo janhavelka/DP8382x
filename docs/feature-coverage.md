@@ -9,7 +9,7 @@ The validator/unit tests exercise the research records only.
 | Feature ID / responsibility | Research owner and state | Implementation stages | Open evidence gates |
 | --- | --- | --- | --- |
 | identity / Exact identity and capabilities | Prompt 3 / COMPLETE | 14 | None named |
-| access / Clause 22 and complete indirect access | Prompt 3 / COMPLETE | 11, 12, 13 | None named |
+| access / Clause 22 and complete indirect access | Prompt 3 / COMPLETE | 11, 12, 13 | eee_wire |
 | reset / PCS, hard reset, restart and reconciliation | Prompt 3 / COMPLETE | 15, 16 | hard_reset_straps, pcs_reset_extent |
 | initialization / Required 10BASE-Te initialization | Prompt 3 / COMPLETE | 15, 17, 18 | None named |
 | negotiation / Advertisement, forced-compatible negotiation and pause | Prompt 3 / COMPLETE | 17, 19, 37, 38, 39 | None named |
@@ -26,20 +26,20 @@ The validator/unit tests exercise the research records only.
 | rmii / RMII interface, elasticity and status | Prompt 5 / PENDING | 33, 37, 38, 39 | rmii_rc |
 | tx100 / 100BASE-TX exposed data-path controls | Prompt 5 / PENDING | 34, 35 | None named |
 | tx10 / 10BASE-Te receiver, NLP, jabber and preamble | Prompt 5 / PENDING | 34, 35 | None named |
-| loopback / All documented loopback modes | Prompt 4 / PENDING | 23 | loopback_recipe |
-| bist / BIST/PRBS modes and retained acquisition | Prompt 4 / PENDING | 24 | None named |
-| cable / Manual and autorun cable capture | Prompt 4 / PENDING | 25, 26 | tdr_reserved |
-| fast_drop / MII-only Fast Link Drop | Prompt 4 / PENDING | 34 | fld_reset_defaults |
+| loopback / All documented loopback modes | Prompt 4 / COMPLETE | 23 | loopback_recipe |
+| bist / BIST/PRBS modes and retained acquisition | Prompt 4 / COMPLETE | 24 | bist_result_semantics |
+| cable / Manual and autorun cable capture | Prompt 4 / COMPLETE | 25, 26 | tdr_reserved, tdr_calibration, tdr_freshness_abort |
+| fast_drop / MII-only Fast Link Drop | Prompt 4 / COMPLETE | 34 | fld_reset_defaults, fld_threshold_recipe |
 | link_recovery / Hardware link-loss recovery | Prompt 5 / PENDING | 18, 34 | None named |
 | led / LED sources, blink, stretch and drive | Prompt 5 / PENDING | 32 | pin_fields |
 | pin_mux / Per-pin GPIO, wake, IRQ and clock mux | Prompt 5 / PENDING | 32, 33 | pin_fields |
-| interrupts / Global IRQ and all event enables/service | Prompt 4 / PENDING | 20, 27 | None named |
-| counters / Single collector for status and destructive counters | Prompt 4 / PENDING | 20, 21 | recr_width, rmii_rc |
-| quality / Raw MSE and supported quality interpretation | Prompt 4 / PENDING | 34 | mse_address |
+| interrupts / Global IRQ and all event enables/service | Prompt 4 / COMPLETE | 20, 27 | rxfs_sfd_reference |
+| counters / Single collector for status and destructive counters | Prompt 4 / COMPLETE | 20, 21 | recr_width, rmii_rc, rxfs_sfd_reference, forced_physts |
+| quality / Raw MSE and supported quality interpretation | Prompt 4 / COMPLETE | 34 | mse_address |
 | compliance / Finite compliance stimulus procedures | Prompt 5 / PENDING | 35, 51, 73 | compt_reserved |
 | analog / Analog amplitude, termination and MAC output | Prompt 5 / PENDING | 35 | ioctrl_example |
 | compatibility / IPG and compatibility controls | Prompt 5 / PENDING | 33, 35 | None named |
-| calibration / Resistor calibration contingency | Prompt 4 / PENDING | 15, 16, 25, 35 | None named |
+| calibration / Resistor calibration contingency | Prompt 4 / COMPLETE | 15, 16, 25, 35 | hard_reset_straps |
 | straps / POR/pin straps and sampled configuration | Prompt 3 / COMPLETE | 14, 16, 33 | hard_reset_straps |
 | outside_phy / MAC/DMA, stack, board power and scheduling | Prompt 3 / COMPLETE | 6, 37, 40, 41, 42 | None named |
 | absent / Unsupported exact-part interfaces and features | Prompt 3 / COMPLETE | 14 | None named |
@@ -49,13 +49,18 @@ the ledger. Hardware straps, outside-PHY work and source-proved absent capabilit
 are classified explicitly; their observations/rejections still need implementation
 tests. A board wiring limitation cannot remove a software feature.
 
-Prompt 4 owns diagnostic/event/counter research, including all-reserved TDR entries,
+Prompt 4 completed diagnostic/event/counter research, including all-reserved TDR entries,
 RC acquisition, loopback, BIST, cable, MSE, FLD and calibration. Prompt 5 owns EEE
 printed namespaces and reset-bearing recipes, low power/LPI/WoL, per-pin LED/GPIO,
 clock/interface, compliance and remaining analog/compatibility controls. Shared
-register fields already partitioned in prompt 3 retain these feature procedure owners.
+register fields partitioned in prompts 3–4 retain their later feature procedure owners.
 
 On each extension run the [ledger checks](registers/README.md), add independent
 literal vectors, and update this matrix with source/implementation evidence.
 Do not equate source inspection, ledger tests, linked SDK images and physical results.
 Physical campaigns retain their separate prompts 72–73 owners.
+
+The [prompt-4 report](reports/implementation/4-silicon-diagnostic-ledger.md) records
+the diagnostic source decisions, 16 accepted procedure contracts and separate
+future host/fixture acceptance. Nineteen ledger source gates remain; research
+completion does not close them or claim driver support.

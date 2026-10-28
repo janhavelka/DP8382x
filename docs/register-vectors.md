@@ -159,3 +159,65 @@ its original-table access type. These literal tests are independent of the field
 partition tests, which cannot detect a wrong access label. Timing vectors also
 preserve the two reset-only nominal signaling/clock intervals without inventing
 power-up applicability or an unstated reset edge.
+
+## Prompt-4 independent diagnostic vectors
+
+These literals were derived from the original SNLS647I tables and reviewed
+separately from the integrated JSON. The executing research suite is
+`test/test_diagnostic_ledger.py`; no simulated register operation is claimed as
+driver or hardware evidence. See the [diagnostic review](reports/implementation/4-diagnostic-source-review.md)
+and [event review](reports/implementation/4-event-source-review.md) for original
+table locations, complete access/reset partitions and conflicts.
+
+- Table 8-19's forced full-duplex MII loopback examples are BMCR `0x6100` at
+  100 Mbit/s with BISCR selection `0x04`, and BMCR `0x4100` at 10 Mbit/s with
+  selection `0x01`. The generic bit-2 sentence cannot override the latter.
+  BISCR loopback selection accepts `0,1,2,4,8,0x10`; combinations such as `3`
+  are not independent enable flags. The 10-Mbit path still requires VOD setup.
+- Section 8.3.14.4's ordered digital sequence is `0000=2100`, `0016=0104`,
+  `0122=2000`, `0123=2000`, `0130=47FF`, `001F=4000` (hex). The last write is
+  circuitry restart, not the hard-reset command. Exact recipe offsets do not
+  acquire general field/reset definitions from these values.
+- BICSR1's desired IPG code `0x7D` gives 500 bytes, maximum `0xFF` gives 1020
+  bytes; BICSR2 default `0x05EE` is 1518 bytes and its field ceiling is 2047.
+  A freeze with IPG `0x7D` writes `0x807D`. If a read returns `0xFFA5`, preserve
+  desired IPG `0xA5` but emit `0x80A5` for the next intentional capture; never
+  echo counter bits 14:8. Error byte `0xFF` is saturated in stop-at-maximum mode
+  and cannot quantify further errors; continuous mode can wrap through zero.
+- CDCR reset `0x0102` already has done `0x0002` set. Start `0x8000`, done
+  `0x0002`, fail `0x0001` and reserved `0x3FFC` are distinct. Repeated reset
+  word `0x0102` without a fresh trigger/progress history cannot pass measurement.
+  A failed trigger write leaves possible running hardware; it is not safe to
+  repeat as a new request without reconciliation.
+- Segment 1 through 5 words are respectively: CDSCR3 `0D07/0D14/1A21/343B/8F6F`,
+  TDR_175 `1004/1004/1005/1008/100B`, TDR_178 `0002/0002/0002/0002/0006` (hex).
+  CDSCR3's published reset `0D04` is not segment 1's prescribed `0D07`.
+  Average code 7 and segment codes 0/6/7 are prohibited. CDSCR2 and result banks
+  CDLRR2–5/CDLAR2–5 are all reserved, despite multi-peak feature prose.
+- MISR status lives in the high byte and enables in the low byte. For a raw
+  sample `0x0424`, enabled pending evidence is `0x0400`; retain the whole word,
+  not just the mask intersection. If MISR1 succeeds then MISR2 fails, the MISR1
+  sample remains valid while the aggregate is incomplete. An ambiguous MISR2
+  read also flags possible lost history. Mask changes cannot erase this rule.
+- PHYSTS `0x2000/0x0800/0x1000/0x0100` correspond to events cleared by RECR,
+  FCSCR, 10BTSCR and ANER respectively. A PHYSTS observation cannot replace
+  those clearing-source acquisitions. FCSCR has low-byte count; RECR's full-word
+  field and `0xFF/0x7F` prose remain contradictory, not silently narrowed.
+- FLDS has cause mask `0x01F0`, reserved `0xFE0F`, and read-clear events.
+  FLD_CFG1 reset `0x8147` decomposes into window code `0x20`, count `0x14` and
+  reserved low nibble `7`. Its prescribed `0x0417` instead selects window code
+  1 (two 8-ns clocks) and one error. Preserve the discrepancy with the
+  20-errors/10-us prose. FLD_CFG2 mask `0x003F` selects raw code 8 for descrambler
+  loss while its reserved upper bits remain protected.
+  Original timing table p15 gives MAX 10 us for the strapped 150-metre case
+  and modes 1–4, MAX 11 us for mode 5. Footnote 5 on p17 requires RX-error or
+  signal/energy-loss detection enabled for the mode 2/3/5 maxima. These physical
+  intervals run from the qualifying failure to link-loss indication and do not
+  specify host polling latency.
+
+Future driver tests must inject failure and cancellation at each admitted
+transaction, including the capture write before its read, and preserve primary
+versus cleanup outcomes. Test finite timeout and frozen-clock work limits,
+unavailable fixtures, wrong speed/interface, stale done, counter wrap, missing
+checker lock and incomplete restoration. These are planned acceptance vectors;
+the present tests validate research structure and independently sourced literals.

@@ -162,6 +162,96 @@ its separately admitted finite allowance and does not overwrite the primary
 failure. Incomplete replay is not configuration trust; successful register access
 is not link or application readiness. Cached snapshots perform no I/O.
 
+## Diagnostic sessions and retained evidence
+
+Prompt 4 researches the full loopback, BIST, cable, event/counter and quality
+families. The ledger's ordered procedures own their detailed settings; the
+[diagnostic source review](reports/implementation/4-diagnostic-source-review.md)
+and [event review](reports/implementation/4-event-source-review.md) identify
+original tables and independent arithmetic. These are future operation contracts,
+not executable PHY support or physical qualification.
+
+Admit disruptive tests only after exact identity, mode, speed, interface and
+fixture prerequisites are satisfied and the application has coordinated MAC/
+stack ownership. Save persistent owned settings before the first mutation.
+Validate locally before I/O; budget any necessary live prerequisite reads as a
+separate phase. Every session has a finite primary duration and transaction/poll
+limit supplied at admission, and a separate finite cleanup allowance. These are
+application policy, not undocumented silicon completion times. Never hold the
+controller lock while waiting for hardware or printing results.
+
+Near-end loopback disables negotiation except for the documented external-loop
+exception. MII loopback's speed-dependent companion selection follows the detailed
+BMCR table, retaining its disagreement with the all-speed feature sentence.
+PCS input is 10-only, digital is 100-only, analog requires the documented
+termination, and reverse loopback ignores MAC-originated data. The digital
+example touches three recipe-only offsets and restarts circuitry; it cannot be
+reduced to a freely writable BISCR flag. A successful internal loop proves only
+the exercised path, not a cable, partner, MAC or application outside that path.
+
+BIST uses a PRBS15 generator/checker with packet and interpacket controls.
+Error count, checker lock, received evidence, observation interval and saturation/
+wrap uncertainty belong in the finite result. Merely enabling the generator,
+receiving traffic or reading zero errors before checker lock is not a pass.
+BICSR1's read counter overlaps its write freeze/clear action: use the explicit
+write action while preserving IPG, never echo a sampled counter into a write.
+Retain the frozen sample before another freeze/clear. Continuous counter wrap
+means an observed zero alone does not prove zero errors over an unbounded run.
+
+TDR requires a disconnected or quiet partner, or the documented link-down
+autorun condition. Its reset-time done indication is not a new measurement.
+Associate completion and every result word with an admitted trigger/epoch,
+configuration and segment; if freshness cannot be established, report uncertainty
+instead of successful measurement. Distinguish stopping autorun from stopping a
+manual operation. Do not read reserved result banks as additional peaks. The
+documented raw location, amplitude and sign evidence remains available without
+claiming calibrated metres or a universal open/short classifier. Cable type,
+propagation delay, capture timing and exact calibration are separate evidence.
+
+Cancellation, failure and timeout stop new primary phases and preserve accepted
+or uncertain hardware effects. Cleanup disables temporary stimulus, restores
+only saved persistent owned settings in dependency order and verifies stable
+bits. Recipe-only offsets without documented readback/restoration need the named
+reset/reinitialization recovery contract; arbitrary saved-word replay is not
+proved safe. A failed cleanup leaves configuration trust invalid and the pending
+effect visible. Successful cleanup cannot erase the primary error. Full reset
+invalidates diagnostic results and reapplies required 10BASE-Te initialization;
+restart and PCS reset retain their distinct core contracts and uncertainty.
+
+## Events, counters and signal quality
+
+One collector owns MISR reads, counter reads and reads that clear related latches.
+Read effects depend on the clearing register, not just the displayed access
+abbreviation. PHYSTS duplicates several events whose clear source is BMSR, ANER,
+MISR, RECR, FCSCR or 10BTSCR. Retain each successful sample immediately with its
+source, epoch, timestamp and validity; a later failed read does not erase it.
+An ambiguous failed destructive read records possible history loss. Aggregate
+snapshots retain their prior value with explicit stale/incomplete state; ordinary
+cached views and safe dumps perform no destructive acquisition.
+
+MISR masks and global interrupt controls share this collector path. Mask updates
+can themselves consume events if implemented with a read; route that sample to
+the collector. ISR work requests owner service and does not perform MDIO.
+Finite drain limits prevent an asserted interrupt or continuous traffic from
+creating an unbounded service loop. Current link state, latched events, counter
+intervals and transport health are separate observations.
+
+RECR's documented width and saturation prose disagree; keep raw words and
+ambiguity rather than silently selecting an eight- or sixteen-bit accumulator.
+RCSR fault polarity and read-clear/reset interaction also remain explicit. MSE
+uses the datasheet address for raw acquisition; the troubleshooting address and
+SNR calculation do not establish an alias or a dB API. SNLA495 corroborates the
+datasheet address, but its system-specific noise threshold is not a universal
+signal-quality classification. PHYSTS forced-mode conflicts remain coordinated
+with core link and future SDK behavior.
+
+Fast Link Drop is MII-only. Its physical response limits and enabled-detector
+conditions do not define an MDIO observation timeout or apply to the P4 RMII
+configuration. The MLT3 prescribed configuration and the prose threshold/window
+are inconsistent; retain both with a named gate. EtherCAT ESC error counters,
+PDI access and F28P65 reset workarounds are application-specific comparisons,
+not PHY or ESP32-P4 master procedures.
+
 ## Gates and future public documentation
 
 The ledger names every conflict, selected conservative behavior, owning stage

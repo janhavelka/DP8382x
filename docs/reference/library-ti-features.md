@@ -7,6 +7,12 @@ exact source and current implementation before using a row. Facts below are
 navigation and independent test-vector inputs, not permission to copy a driver,
 write reserved fields generally, or assume a sequence has been tested.
 
+Prompt 4's [diagnostic ledger report](../reports/implementation/4-silicon-diagnostic-ledger.md)
+now records the current original-PDF audit, procedure ownership and remaining
+gates. The [primary ledger](../registers/dp83826i.json) is authoritative: detailed
+table encodings, destructive capture actions and reserved result banks take
+precedence over the source-code comparison anchors below.
+
 Evidence labels: **D** = stated by the archived exact-part datasheet; **C** =
 corroborated by another inspected primary source; **O** = observed software
 behavior only; **X** = conflicting evidence; **U** = unresolved interpretation or

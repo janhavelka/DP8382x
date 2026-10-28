@@ -175,10 +175,10 @@ class LedgerTests(unittest.TestCase):
     def test_pending_record_has_no_invented_fields_or_defaults(self):
         pending = next(r for r in self.data["registers"] if r["status"] == "PENDING")
         pending["resetValue"] = "0x0000"
-        self.rejected("pending records must retain unknown")
+        self.rejected("pending/recipe records must retain unknown")
 
     def test_completed_all_reserved_record_is_valid_but_not_writable(self):
-        # Synthetic schema promotion. This does not claim prompt-4 research done.
+        # All-reserved detailed tables grant no write permission.
         reserved = self.register("CDSCR2")
         reserved.update(status="COMPLETE", fields=[], resetValue="0x0000",
                         resetKnownMask="0xFFFF", reservedMask="0xFFFF")

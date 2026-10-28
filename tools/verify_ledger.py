@@ -29,6 +29,36 @@ CORE_PROCEDURES = {
     "configure_an": "negotiation", "configure_forced": "crossover",
     "next_page_exchange": "next_page", "observe_link": "link",
 }
+DIAGNOSTIC_REGISTERS = {
+    "FLDS", "PHYSCR", "MISR1", "MISR2", "FCSCR", "RECR", "BISCR", "RCSR",
+    "10BTSCR", "BICSR1", "BICSR2", "CDCR", "FLD_CFG1", "FLD_CFG2", "CDSCR",
+    "CDSCR2", "CDSCR3", "TDR_175", "TDR_176", "CDSCR4", "TDR_178",
+    "CDLRR1", "CDLRR2", "CDLRR3", "CDLRR4", "CDLRR5", "CDLAR1", "CDLAR2",
+    "CDLAR3", "CDLAR4", "CDLAR5", "CDLAR6", "MSE_Val", "RXFS",
+}
+DIAGNOSTIC_RECIPES = {"RECIPE_0123", "LOOP_0122", "LOOP_0130"}
+DIAGNOSTIC_PROCEDURES = {
+    **dict.fromkeys(("loopback_near", "loopback_digital", "loopback_reverse",
+                     "loopback_external"), "loopback"),
+    "bist_run": "bist", "bist_capture": "bist",
+    **dict.fromkeys(("cable_configure", "cable_manual", "cable_autorun", "cable_capture"), "cable"),
+    "configure_fast_drop": "fast_drop",
+    "interrupt_configuration": "interrupts", "interrupt_test": "interrupts",
+    "collect_event_counters": "counters", "signal_quality_sample": "quality",
+    "calibration_recovery": "calibration",
+}
+# Exact exceptions from SNLS647I 8.3.14.4 and table 8-45, not general write access.
+# register, mask, value, command-neutral value (None for whole-word recipe), owner
+WRITE_ACTIONS = {
+    "BICSR1_freezeClear": ("BICSR1", 0x8000, 0x8000, 0, "bist"),
+    "LOOP_0122_digital": ("LOOP_0122", 0xFFFF, 0x2000, None, "loopback"),
+    "RECIPE_0123_digital": ("RECIPE_0123", 0xFFFF, 0x2000, None, "loopback"),
+    "LOOP_0130_digital": ("LOOP_0130", 0xFFFF, 0x47FF, None, "loopback"),
+}
+PROCEDURE_ACTIONS = {
+    "bist_capture": {"BICSR1_freezeClear"},
+    "loopback_digital": {"LOOP_0122_digital", "RECIPE_0123_digital", "LOOP_0130_digital"},
+}
 # Independent transcription of SNLS647I table 8-17 (79 primary addresses).
 C22_INVENTORY = {
     0x00: "BMCR", 0x01: "BMSR", 0x02: "PHYIDR1", 0x03: "PHYIDR2",
@@ -140,7 +170,7 @@ def address(value: dict, location: str) -> tuple[str, int | None, int]:
 def validate(data: object, root: Path = ROOT) -> None:
     """Validate a parsed ledger; raise LedgerError on the first useful failure."""
     data = record(data, "ledger", "schemaVersion variant specification sources identity "
-                  "timings registers procedures features gates printedAddresses pauseResolution")
+                  "timings registers procedures features gates printedAddresses pauseResolution writeActions")
     require(type(data["schemaVersion"]) is int and data["schemaVersion"] == 1,
             "schemaVersion", "only version 1 is supported")
     require(data["variant"] == "DP83826I", "variant", "expected DP83826I")
@@ -216,6 +246,7 @@ def validate(data: object, root: Path = ROOT) -> None:
         sequence(item["registers"], fid + ".registers")
     procedures = entries("procedures", "feature modes sources ownedMasks prerequisites steps "
                          "waits timeout partialEffects cleanup restoration gates owner")
+    actions = entries("writeActions", "register mask value neutral effect prerequisites sources gates feature")
     occupied: dict[tuple, str] = {}
     primary: dict[tuple, str] = {}
     names = set()
@@ -227,7 +258,7 @@ def validate(data: object, root: Path = ROOT) -> None:
         require(type(item["width"]) is int and item["width"] == 16, rid,
                 "register width must be 16")
         integer(item["researchStage"], rid + ".researchStage", 3, 5)
-        require(isinstance(item["status"], str) and item["status"] in {"COMPLETE", "PENDING"},
+        require(isinstance(item["status"], str) and item["status"] in {"COMPLETE", "PENDING", "RECIPE"},
                 rid, "unknown research status")
         for key in ("resetNotes", "access", "readEffects"):
             text(item[key], f"{rid}.{key}")
@@ -248,10 +279,15 @@ def validate(data: object, root: Path = ROOT) -> None:
             require(not aliases, rid,
                     "MMD aliases require an explicit evidence/coverage update")
         fields = sequence(item["fields"], rid + ".fields")
-        if item["status"] == "PENDING":
+        if item["status"] in {"PENDING", "RECIPE"}:
             require(not fields and all(item[key] is None for key in
                     ("resetValue", "resetKnownMask", "reservedMask")), rid,
-                    "pending records must retain unknown masks and no field claims")
+                    "pending/recipe records must retain unknown masks and no field claims")
+            if item["status"] == "RECIPE":
+                require(item["name"] in DIAGNOSTIC_RECIPES, rid,
+                        "recipe-only completion requires an explicit coverage update")
+                require(any(a["register"] == rid for a in actions.values()), rid,
+                        "recipe-only record requires an exact write action")
         else:
             reset = hex_value(item["resetValue"], rid + ".resetValue")
             known = hex_value(item["resetKnownMask"], rid + ".resetKnownMask")
@@ -292,6 +328,11 @@ def validate(data: object, root: Path = ROOT) -> None:
                     require(actual not in prohibited and
                             (field["legal"] == "range" or actual in legal), fid,
                             "command-neutral encoding must be legal")
+                elif rid == "CDCR" and mask == 0x8000 and field["access"] == "RW":
+                    require(hex_value(neutral, fid + ".neutral") == 0, fid,
+                            "CDCR start command-neutral encoding must be zero")
+                    require(0 not in prohibited and (field["legal"] == "range" or 0 in legal),
+                            fid, "command-neutral encoding must be legal")
                 else:
                     require(neutral is None, fid, "ordinary field neutral must be null")
                 citations(field["sources"], fid + ".sources")
@@ -303,6 +344,10 @@ def validate(data: object, root: Path = ROOT) -> None:
         if item["name"] in CORE:
             require(item["status"] == "COMPLETE" and item["researchStage"] == 3,
                     rid, "core record must have completed stage-3 research")
+        if item["name"] in DIAGNOSTIC_REGISTERS | DIAGNOSTIC_RECIPES:
+            expected_status = "RECIPE" if item["name"] in DIAGNOSTIC_RECIPES else "COMPLETE"
+            require(item["status"] == expected_status and item["researchStage"] == 4,
+                    rid, "diagnostic record must have completed stage-4 research")
 
     for offset, name in C22_INVENTORY.items():
         require(primary.get(("C22", None, offset)) == name, "coverage",
@@ -313,6 +358,9 @@ def validate(data: object, root: Path = ROOT) -> None:
     for offset in RECIPE_OFFSETS:
         require(("MMD", 31, offset) in primary, "coverage",
                 f"missing feature-only vendor offset 0x{offset:04X}")
+    for offset, name in ((0x0122, "LOOP_0122"), (0x0123, "RECIPE_0123"), (0x0130, "LOOP_0130")):
+        require(primary.get(("MMD", 31, offset)) == name, "coverage",
+                "diagnostic recipe address/name mapping changed")
     permitted = ({("C22", None, offset) for offset in C22_INVENTORY}
                  | {("MMD", 31, offset) for offset in MMD_INVENTORY}
                  | {("MMD", 31, offset) for offset in RECIPE_OFFSETS})
@@ -322,6 +370,8 @@ def validate(data: object, root: Path = ROOT) -> None:
     require(set(primary) <= permitted | printed_candidates, "coverage",
             "undocumented primary address requires an explicit evidence/coverage update")
     require(CORE <= names, "coverage", "missing core register")
+    require(DIAGNOSTIC_REGISTERS | DIAGNOSTIC_RECIPES <= names, "coverage",
+            "missing or renamed diagnostic register")
     for fid, stage in FEATURE_STAGES.items():
         require(fid in features, "coverage", f"missing feature family {fid}")
         require(features[fid]["researchStage"] == stage, fid,
@@ -330,6 +380,10 @@ def validate(data: object, root: Path = ROOT) -> None:
         require(pid in procedures, "coverage", f"missing core procedure {pid}")
         require(procedures[pid]["feature"] == fid, pid,
                 "core procedure has the wrong feature owner")
+    for pid, fid in DIAGNOSTIC_PROCEDURES.items():
+        require(pid in procedures, "coverage", f"missing diagnostic procedure {pid}")
+        require(procedures[pid]["feature"] == fid, pid,
+                "diagnostic procedure has the wrong feature owner")
 
     referenced_registers = set()
     for fid, item in features.items():
@@ -351,7 +405,9 @@ def validate(data: object, root: Path = ROOT) -> None:
         for key in ("documented", "implemented", "hostTested", "sdkBuilt", "hardwareQualified"):
             require(isinstance(evidence[key], str) and evidence[key] in EVIDENCE,
                     f"{fid}.evidence.{key}", "unknown evidence state")
-        if item["researchStage"] == 3 and evidence["documented"] == "COMPLETE":
+        if item["researchStage"] <= 4:
+            require(evidence["documented"] == "COMPLETE", fid,
+                    "completed research stage requires documented coverage")
             require(item["scope"] != "SOFTWARE" or bool(item["procedures"]),
                     fid, "completed core software feature requires a procedure")
         for pid in item["procedures"]:
@@ -360,6 +416,33 @@ def validate(data: object, root: Path = ROOT) -> None:
     require(referenced_registers == set(registers), "coverage",
             "every register needs at least one feature owner")
 
+    require(set(actions) == set(WRITE_ACTIONS), "coverage",
+            "write actions must match the exact sourced action inventory")
+    for aid, item in actions.items():
+        rid = text(item["register"], aid + ".register")
+        require(rid in registers, aid, "unknown action register")
+        fid = text(item["feature"], aid + ".feature")
+        require(fid in features and rid in features[fid]["registers"], aid,
+                "write action is outside feature coverage")
+        mask = hex_value(item["mask"], aid + ".mask")
+        value = hex_value(item["value"], aid + ".value")
+        require(mask != 0 and not value & ~mask, aid, "action value exceeds its nonzero mask")
+        if item["neutral"] is not None:
+            require(not hex_value(item["neutral"], aid + ".neutral") & ~mask,
+                    aid, "action neutral exceeds mask")
+        for key in ("effect", "prerequisites"):
+            text(item[key], aid + "." + key)
+        citations(item["sources"], aid + ".sources")
+        refs(item["gates"], gates, aid + ".gates")
+        require(registers[rid]["status"] in {"COMPLETE", "RECIPE"}, aid,
+                "write action requires researched register")
+        neutral = None if item["neutral"] is None else hex_value(item["neutral"], aid + ".neutral")
+        require((rid, mask, value, neutral, fid) == WRITE_ACTIONS[aid], aid,
+                "write action differs from exact sourced allowance")
+        required_gate = "bist_result_semantics" if rid == "BICSR1" else "loopback_recipe"
+        require(required_gate in item["gates"], aid, "write action must retain its evidence gate")
+
+    used_actions = set()
     for pid, item in procedures.items():
         text(item["feature"], pid + ".feature")
         require(item["feature"] in features, pid, "unknown procedure feature")
@@ -369,6 +452,14 @@ def validate(data: object, root: Path = ROOT) -> None:
         citations(item["sources"], pid + ".sources")
         refs(item["gates"], gates, pid + ".gates")
         owner(item["owner"], pid + ".owner")
+        action_refs = refs(item.get("writeActions", []), actions, pid + ".writeActions")
+        if pid in PROCEDURE_ACTIONS:
+            require(set(action_refs) == PROCEDURE_ACTIONS[pid], pid,
+                    "required procedure write actions are missing or changed")
+        for aid in action_refs:
+            require(actions[aid]["feature"] == item["feature"], pid,
+                    "write action ownership differs from procedure")
+            used_actions.add(aid)
         for key in ("prerequisites", "steps", "timeout", "partialEffects", "cleanup", "restoration"):
             contract(item[key], f"{pid}.{key}")
         sequence(item["steps"], pid + ".steps", nonempty=True)
@@ -393,6 +484,7 @@ def validate(data: object, root: Path = ROOT) -> None:
                 if field["access"] in {"RW", "RHW", "W1S", "W0C", "W1C"}:
                     writable |= hex_value(field["mask"], rid + ".field.mask")
             require(not mask & ~writable, pid, "owned mask includes read-only fields")
+    require(used_actions == set(actions), "coverage", "every write action needs a procedure")
 
     printed = entries("printedAddresses", "devad printedAddress sources gates feature")
     tuples = set()

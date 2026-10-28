@@ -4,6 +4,10 @@
 
 ### 2026-10-28
 
+- Completed prompt 4 diagnostic/event/counter research: 34 detailed register
+  records, three exact recipe records, 16 procedures and independent PDF-derived
+  tests. Added narrowly checked overlapping write actions, retained raw/partial
+  evidence rules, fixture plans and explicit unresolved silicon gates.
 - Fresh prompt-3 audit corrected VOD_CFG3 access and removed its false conflict
   and validator exception, narrowed two nominal timings to reset, clarified
   next-page framing, and closed alias/procedure coverage gaps with new tests.
