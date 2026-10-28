@@ -54,7 +54,8 @@ not execute the dispatcher, so its help/source checks were not treated as a
 parser suite. INA228's parser groups are invoked by its workflow, but its serial
 read and default UNKNOWN verdict need stronger bounds. TCA9548A's parser and
 artifact tests are invoked by workflow and show finite reads, full writes and
-manifest-last evidence. PCA9555's serial write/flush path needs a stricter bound.
+manifest content finalized after its other payloads. PCA9555's serial
+write/flush path needs a stricter bound.
 These tests and workflows were inspected, not executed here.
 
 TMP1x2's `library.json` generator has an intentional import-side execution hook

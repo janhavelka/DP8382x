@@ -1,4 +1,4 @@
-# Current driver API, state and ownership comparison
+# Current driver API, state, ownership and tooling comparison
 
 Prompts 1–2 source audits, 2026-10-28. Paths in the source and test tables are
 relative to `Projects/`. The sibling repositories and FieldCore-node were read
@@ -60,6 +60,13 @@ transport-successful read can still yield unresolved negotiation or invalid
 configuration evidence. Application readiness includes policy and higher layers
 outside the driver. Destructive latch/read-clear evidence has one collector;
 cached views never consume it.
+
+Passive admission does not imply the same state transition in each peer:
+`INA228` with `HealthPolicy::PASSIVE` remains `DEGRADED` after repeated failures,
+while `SHT3x-main` with `HealthPolicy::OBSERVE_ONLY` can report `OFFLINE` and
+still permits another owner-requested transfer. Their registered passive-health
+tests exercise these different outcomes. DP8382x selects passive four-state
+telemetry without using `OFFLINE` to gate access.
 
 ## Lifecycle, operations, effects and bus ownership
 
@@ -185,7 +192,7 @@ application owner and the register/event access policy in [CLI_CONTRACT](prompts
 | `24Cxx/tools/hil_runner.py::Session`, `terminal_evidence`; `tools/hil_identity.py`; root CTest `hil_runner` and compiled `cli_transcript` | Runner checks matched accepted/completed session records, reboot/stale/duplicate evidence and short-write framing loss; it avoids more commands after uncertain framing. Exclusive run directories and close failures are retained. | **Adapt** session monotonicity, startup marker, partial transcript retention and primary/cleanup separation. Add DP-specific PHY identity, feature, fixture and required manifest/case agreement. |
 | `SHT3x-main/tools/run_sht3x_hil.py::parse_command_output`, `classify`, `run_serial`; CI parser test | Validates required firmware/result fields and short writes, but completion uses expected text, prompt and idle timing rather than unique command/session records. | **Adapt** field validation only; **reject** prompt/idle as sufficient terminal correlation for DP diagnostics and reset. |
 | `PCA9555/tools/run_i2c_hil.py::run_serial_command`, `final_verdict`; CI `test_run_i2c_hil_parser.py` | It distinguishes review-required and dry-run evidence from physical success, but its serial command path ignores `write()` count and calls `flush()` without a proved deadline. Completion is mainly prompt/text based. | **Adopt** honest review/physical classification; **reject** unbounded flush and unchecked partial write. DP runner must retire the session on uncertain framing. |
-| `TCA9548A/tools/tca9548a_hil.py::SerialRunner`, `prepare_artifacts`, `write_bundle`; `tools/test_tca9548a_hil.py`, `test_hil_artifacts.py` registered in CI | Serial path checks full writes, caps each read by remaining response capacity, rejects stale/prompt/reboot ambiguity and retires a lost session. Exclusive bundles, hashes and close/write failures prevent sealing an apparent PASS. | **Adopt** bounded transport and manifest-last artifacts; **extend** required member/schema and case-verdict agreement for DP. Fixture tests need identified authorization and exact firmware/board conditions. |
+| `TCA9548A/tools/tca9548a_hil.py::SerialRunner`, `prepare_artifacts`, `write_bundle`; `tools/test_tca9548a_hil.py`, `test_hil_artifacts.py` registered in CI | Serial path checks full writes, caps each read by remaining response capacity, rejects stale/prompt/reboot ambiguity and retires a lost session. Artifact paths, including an empty manifest, are reserved before the run. The manifest content is written and closed after the other payloads with byte counts and hashes; write/close failure prevents a parseable PASS manifest. | **Adapt** bounded transport and final manifest content; DP will write its manifest last as `CLI_CONTRACT` requires, then check required members/schema and case-verdict agreement. Fixture tests need identified authorization and exact firmware/board conditions. |
 
 These protocols are incompatible: INA228 uses token/sequence frames, 24Cxx uses
 accepted/result session records, SHT3x and PCA9555 rely more on prompt/text
