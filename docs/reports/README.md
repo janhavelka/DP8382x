@@ -11,6 +11,12 @@ The [prompt 3 report](implementation/3-silicon-core-ledger.md) and
 [source re-audit](implementation/3-source-audit.md) add primary core silicon
 research, independently reviewed vectors and executing ledger checks.
 
+The [prompt 4 report](implementation/4-silicon-diagnostic-ledger.md) and
+[prompt 5 report](implementation/5-silicon-power-interface-ledger.md) close the
+remaining primary diagnostic and power/interface source inventory. Research
+completion includes explicit source gates; implementation and qualification
+remain separate.
+
 - [Sibling drivers](sibling-driver-audit.md): primary driver source audit and
   broader inventory, naming, ownership, Status/health, CLI, runners, tests and CI.
 - [FieldCore conventions](fieldcore-conventions-audit.md): actual promptset,

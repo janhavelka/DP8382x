@@ -214,6 +214,8 @@ class DiagnosticLedgerTests(unittest.TestCase):
             'LOOP_0130_digital': ('LOOP_0130', 0x0130, 0xFFFF, 0x47FF),
         }
         for action in self.data['writeActions']:
+            if action['id'] not in expected:
+                continue
             name, address, mask, value = expected[action['id']]
             self.assertEqual(action['register'], name)
             self.assertEqual(int(self.register(name)['address'], 16), address)

@@ -1,12 +1,12 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–4 research stages are complete; the remaining stages have
+execution. Prompts 1–5 research stages are complete; the remaining stages have
 not started. Current executable verification includes reference/link checks,
-the silicon-ledger validator and 57 registered research-tool tests. Driver code,
+the silicon-ledger validator and 74 registered research-tool tests. Driver code,
 examples, CLI, runner, driver behavior tests and hardware qualification remain
-future work. Prompt 4 closes diagnostic research; prompt 5 still owns remaining
-ledger research. Neither stage claims driver completion.
+future work. Prompt 5 closes primary-part source dispositions, including
+explicit unresolved gates. Research completion does not claim driver completion.
 
 ## Execution record
 
@@ -25,7 +25,9 @@ corrected silicon facts and validator gaps; its final commit/sync SHA is recorde
 in the handoff to avoid a self-referencing commit. No branch or base change occurred.
 Prompt 3 audited checkpoint / prompt 4 clean synchronized entry:
 `42a908b28d9ad471a60b5ca220127eb9e7dbf9ec`.
-Prompt 4 final commit/sync identity is recorded in its handoff, avoiding a
+Prompt 4 final commit/sync checkpoint / prompt 5 clean synchronized entry:
+`2805cfdea3aacd1f870d27998cd99d0270cccb2a`.
+Prompt 5 final commit/sync identity is recorded in its handoff, avoiding a
 self-referencing commit. The execution branch and original base remain unchanged.
 
 Before prompt 1 of a new execution, create a new branch from the synchronized
@@ -44,7 +46,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [2 Audit examples, tools, repository structure and prompt workflows](prompts/2-ecosystem-tooling-audit.md) | COMPLETE | [Live comparison](library-comparison.md), [execution report](reports/implementation/2-ecosystem-tooling-audit.md); local reference/link and diff checks PASS. Commit/sync SHA in final handoff. |
 | [3 Establish the primary register ledger and core silicon behavior](prompts/3-silicon-core-ledger.md) | COMPLETE | [Ledger/schema](registers/README.md), [behavior](device-behavior.md), [vectors](register-vectors.md), [coverage](feature-coverage.md), [execution report](reports/implementation/3-silicon-core-ledger.md); fresh independent audit integrated, 96 register records, 20 complete core rows, 41 tests and local reference/link/diff checks PASS. Source conflicts remain named implementation gates. |
 | [4 Research diagnostic, event and counter procedures](prompts/4-silicon-diagnostic-ledger.md) | COMPLETE | [Report](reports/implementation/4-silicon-diagnostic-ledger.md), [ledger](registers/dp83826i.json), [vectors](register-vectors.md); 34 detailed diagnostic records plus three exact recipe records, 16 procedures and eight researched features. Integrated 57 research tests and local ledger/reference/link/diff checks PASS. Source/physical gates remain explicit; no driver/SDK/hardware claim. |
-| [5 Complete power, wake, interface and remaining source coverage](prompts/5-silicon-power-interface-ledger.md) | NOT STARTED | None |
+| [5 Complete power, wake, interface and remaining source coverage](prompts/5-silicon-power-interface-ledger.md) | COMPLETE | [Report](reports/implementation/5-silicon-power-interface-ledger.md), [ledger](registers/dp83826i.json), [coverage](feature-coverage.md); 79 complete detailed records, 17 recipe records, five blocked EEE associations, 283 fields, 52 procedures and all 35 researched families. 74 research-tool tests and local ledger/reference/link/diff checks PASS. 24 source gates remain explicit; no driver/SDK/hardware claim. |
 | [6 Resolve portable core and native SDK ownership](prompts/6-framework-ownership.md) | NOT STARTED | None |
 | [7 Freeze value, Status and direct transport contracts](prompts/7-value-transport-contracts.md) | NOT STARTED | None |
 | [8 Freeze cooperative operation, time and cleanup contracts](prompts/8-operation-contracts.md) | NOT STARTED | None |

@@ -4,9 +4,13 @@ These are implementation intentions, updated on 2026-10-28 after the live
 [API, state, ownership and tooling comparison](library-comparison.md). No driver API has
 been implemented or frozen.
 The [core silicon behavior](device-behavior.md) and [machine-readable ledger](registers/dp83826i.json)
-now establish core and diagnostic research through prompt 4. Destructive status
+now close primary-part source research through prompt 5, with explicit unresolved
+implementation gates. Destructive status
 and counter acquisition belongs to one collector; completed samples survive later
 failures and cleanup. Exact recipe actions do not grant ordinary register access.
+Requested power policy, observed power state and trust remain separate.
+Source-gated EEE/opaque accesses reject before I/O; finite stimulus cleanup
+stops emission before persistent configuration is restored.
 In particular, configured forced
 mode is distinct from resolved link evidence while the PHYSTS conflict remains
 open; prompts 6, 18, 19 and 39 must preserve this in portable/SDK ownership.

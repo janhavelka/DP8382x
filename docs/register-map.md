@@ -6,12 +6,12 @@ second numeric register table. The [reference inventory](reference/dp83826i-feat
 remains a source-navigation checklist, not a competing writable register map.
 
 The ledger contains all 79 summary-table entries, 17 additional vendor recipe
-offsets and five separately recorded EEE printed addresses. Fifty-four register
-records (20 core and 34 diagnostic) have complete bit partitions, known reset
-masks, legal/prohibited encodings, access semantics, sources and feature ownership.
-Three additional digital-loopback records have only exact recipe actions and
-unknown fields/reset values. The remaining 39 entries belong to prompt 5;
-pending does not mean writable. There are 28 ordered procedures and 226 fields.
+offsets and five separately recorded EEE printed addresses. All 79 detailed
+records have complete bit partitions, known reset masks, legal/prohibited
+encodings, access semantics, sources and feature ownership. Seventeen opaque
+records have only exact recipe actions and unknown fields/reset values.
+There are 52 ordered procedures and 283 fields. Source research is complete;
+24 named gates retain unresolved implementation and qualification requirements.
 
 | Core responsibility | Completed register records | Interpretation |
 | --- | --- | --- |
@@ -19,7 +19,7 @@ pending does not mean writable. There are 28 ordered procedures and 226 fields.
 | Control and reset | BMCR, PHYRCR | Distinct PCS reset, full reset, AN restart and circuitry restart; commands have neutral values. |
 | Advertisement and exchange | ANAR, ALNPAR, ANER, ANNPTR, ANLNPTR | Local prohibitions, partner observations, page/ACK/toggle and destructive-event ownership. |
 | Addressing | REGCR, ADDAR | Separate selector/control/data roles; complete transaction serialization. |
-| Link and crossover | CR1, CR2, CR3, PHYSTS, PHYCR | Core fields established; diagnostic/interface/LED feature procedures retain prompt-4/5 ownership. |
+| Link and crossover | CR1, CR2, CR3, PHYSTS, PHYCR | Source records complete; extended duplex/crossover belongs to prompt 18, with forced-mode interpretation gated. |
 | Required initialization | VOD_CFG3 | Exact 10BASE-Te settings use documented read/write fields; reserved bits remain protected. |
 | Strap evidence | SOR1, SOR2 | Captured board configuration, not invariant defaults or current software settings. |
 
@@ -30,9 +30,16 @@ pending does not mean writable. There are 28 ordered procedures and 226 fields.
 | Events and counters | PHYSCR, MISR1/2, FCSCR, RECR, RCSR, 10BTSCR, RXFS | Single collector, cross-register clears, retained partial samples and explicit width/polarity gates. |
 | Quality and rapid link loss | MSE_Val, FLDS, FLD_CFG1/2 | Raw quality evidence, MII-only activation, physical timing and conversion conflicts. |
 
-Shared power, interface, transmit and wake fields are numerically partitioned
-where their registers are shared with diagnostics. Their feature procedures and
-implementation remain assigned to prompt 5 and later stages.
+| Remaining responsibility | Researched records | Interpretation |
+| --- | --- | --- |
+| Power and EEE | Shared BMCR/PHYSCR/BISCR, opaque EEE/DPD recipes, printed EEE associations | Requested policy, observed state and source-blocked wire/control semantics remain distinct. |
+| Wake | RXFCFG1, RXFS, MAC and Secure-ON words | Mixed W0C neutrality, exact-part MAC numbering, quiesced update and collector ownership. |
+| LED, GPIO, interface and clock | LED/source/drive/mux records, shared CR/RCSR/PHYCR | Pin-specific legal values, POR straps and conflicting read-only/mux tables. |
+| Electrical, compliance and compatibility | VOD, COMPT, analog, IO and GENCFG records | Coupled fields, exceptional recipe actions and stop-before-restoration; all-reserved entries confer no tuning access. |
+
+Every family now has a researched procedure/disposition and future API/CLI/test
+ownership. The [coverage matrix](feature-coverage.md) assigns implementation;
+independent vectors cover the original tables, not values generated from JSON.
 
 C22 and MMD are separate address spaces. The standard set has explicit vendor
 indirect aliases except the two selector registers, which are direct-only.
@@ -54,8 +61,7 @@ universal readback assertions.
 
 Reserved fields are not writable even when their table says R/W. Several named
 TDR result entries and ANA_LD_PROG_SL are entirely reserved in their detailed
-tables. They remain inventoried, with no ordinary writable permission. Prompt 4
-completes the TDR records; prompt 5 owns remaining entries. A fully reserved
+tables. They remain inventoried, with no ordinary writable permission. A fully reserved
 record partitions all bits as reserved and has no fields. BICSR1's overlapping
 write action is narrowly allowlisted without relabeling its read counter as RW.
 

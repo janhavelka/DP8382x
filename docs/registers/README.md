@@ -3,7 +3,7 @@
 [dp83826i.json](dp83826i.json) is the authoritative research ledger for exact
 DP83826I / SNLS647I. It is deliberately a small part-specific JSON document,
 not a register-code generator. The older reference catalogues are source inputs.
-Prompts 3 and 4 complete core and diagnostic records; prompt 5 owns the remaining records.
+Prompts 3–5 complete all primary-part source dispositions, including unresolved gates.
 No record claims an implemented driver merely because its research is complete.
 
 Run `python tools/verify_ledger.py` and
@@ -48,14 +48,15 @@ cannot bypass hole, direct-only selector or unresolved printed-address restricti
 has its mask set and value clear. Defaults absent from the specification stay out
 of the known mask. Documented dynamic reset values describe the reset instant,
 not persistent readback; strap/mode dependencies and contradictory printed defaults
-are stated in resetNotes and gates. A pending register uses null resetValue/resetKnownMask/
-reservedMask and an empty field array. An all-reserved completed register has
+are stated in resetNotes and gates. PENDING is no longer accepted in the completed
+primary inventory. An all-reserved completed register has
 reservedMask 0xFFFF and no fields: it has no ordinary writable bits.
 
 RECIPE means the exact procedure-only write is researched but field/reset meanings
-are not documented. Like PENDING it keeps resetValue/resetKnownMask/reservedMask
-null and fields empty. Only the three audited digital-loopback offsets currently
-use this status. Its exact source-backed action does not permit arbitrary reads,
+are not documented. It keeps resetValue/resetKnownMask/reservedMask
+null and fields empty. Seventeen loopback, EEE and shared power/compliance offsets
+use this status. Known prose bits are exact actions, not invented field partitions.
+Its source-backed action does not permit arbitrary reads,
 writes, saved-word restoration or a claimed reset value.
 
 Completed registers partition all 16 bits between reservedMask and disjoint
@@ -94,17 +95,22 @@ COMPLETE, PARTIAL, PENDING, NOT_RUN or NOT_APPLICABLE. Host-tested means driver
 behavior, not successful ledger validation. Feature register/procedure links and
 field owners must resolve. Every register has a feature owner and every feature
 has API/CLI/test ownership (hardware-only/outside features explain applicability).
-Every completed stage-3/4 feature has a procedure or an explicit non-software scope.
+Every software feature has a procedure and a primary implementation owner in
+prompts 11–36. Straps, outside-PHY work and absent capabilities have fixed explicit
+scopes; board wiring cannot reclassify programmable controls as hardware-only.
+Later SDK/CLI/fixture stages are integration/test owners, not replacements for
+the primary software owner.
 
 `writeActions` entries have `id`, `register`, `mask`, `value`, `neutral`, `effect`,
 `prerequisites`, `sources`, `gates` and `feature`. Values are positioned register
-bits, unlike unshifted field encodings. The checker accepts only the four audited
-action tuples: the BICSR1 freeze/clear command and the three digital-loopback
-literal writes. BICSR1's read counter remains read-only; its write command
+bits, unlike unshifted field encodings. The checker accepts only 28 audited
+action tuples: BICSR1 capture, digital loopback, EEE/LPI, DPD entry and compliance.
+BICSR1's read counter remains read-only; its write command
 overlaps that read view without creating overlapping field partitions. Its zero
 neutral protects ordinary IPG writes. Whole-word recipe actions have null neutral
 because there is no documented general command field. Every action must be used
-by its owning procedure, with required capture/loopback references checked.
+by its exact owning procedure, which must retain the action's evidence gates.
+Even another procedure of the same feature cannot borrow an exceptional action.
 Unknown actions, changed values/masks/owners and invented writable aliases fail.
 
 A gate has `id`, `conflict`, `decision`, `nextEvidence`, `ownerStage` and `sources`.
@@ -123,8 +129,11 @@ tool representation bound, not a silicon timing limit. `pauseResolution` contain
 `fields` (ordered local/partner encodings), `phycrRxTx` (row-local, column-partner
 matrix), `eligibility` and `sources`.
 
-`printedAddresses` contains `{id, devad, printedAddress, sources, gates, feature}`
-records. These are **not wire tuples** and cannot be passed to an MMD helper.
+`printedAddresses` contains `{id, devad, printedAddress, sources, gates, feature,
+status, controls}` records, with optional explanatory `disposition` text.
+`status` remains BLOCKED; `controls` is a nonempty list of source descriptions
+distinguishing exact-part facts from comparison-only status fields.
+These are **not wire tuples** and cannot be passed to an MMD helper.
 They retain unresolved EEE notation without silently stripping address digits.
 DEVAD uses hex strings, like other numeric address fields. A disputed MSE address
 is retained in its gate, not added as an established register alias.
@@ -137,6 +146,10 @@ with their assigned features. Removing a row cannot
 make coverage pass. It checks the seeded feature families and their stage owners.
 Prompt 4 additionally requires all 37 diagnostic rows (34 detailed records and
 three recipe-only records), eight documented feature families and 16 procedures.
-As prompt 5 promotes pending records, add independently sourced vectors and
-negative tests in the same change. Do not fill unknown reset bits with zeros or
+Prompt 5 requires the final 39 rows (25 detailed and 14 opaque recipe records),
+24 further procedures and complete research for every feature. The final
+inventory is 96 records, 283 fields, 52 procedures and five blocked printed
+associations. All 79 detailed entries have complete bit partitions.
+Continue adding independently sourced vectors and negative tests with changes.
+Do not fill unknown reset bits with zeros or
 turn a printed EEE address into a wire offset while its gate remains open.

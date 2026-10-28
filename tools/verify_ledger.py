@@ -37,6 +37,19 @@ DIAGNOSTIC_REGISTERS = {
     "CDLAR3", "CDLAR4", "CDLAR5", "CDLAR6", "MSE_Val", "RXFS",
 }
 DIAGNOSTIC_RECIPES = {"RECIPE_0123", "LOOP_0122", "LOOP_0130"}
+REMAINING_REGISTERS = {
+    "LEDCR", "MLEDCR", "COMPT", "10M_CFG", "IO_CFG1", "LED0_GPIO_CFG",
+    "LED1_GPIO_CFG", "LED2_GPIO_CFG", "LED3_GPIO_CFG", "CLK_OUT_LED_STATUS",
+    "VOD_CFG1", "VOD_CFG2", "ANA_LD_PROG_SL", "ANA_RX10BT_CTRL", "GENCFG",
+    "LEDCFG", "IOCTRL", "LEDCFG2", "RXFCFG1", "RXFPMD1", "RXFPMD2", "RXFPMD3",
+    "RXFSOP1", "RXFSOP2", "RXFSOP3",
+}
+REMAINING_RECIPES = {
+    0x04D1: "EEECFG3", 0x04D3: "EEE_04D3", 0x04DF: "EEE_04DF", 0x033E: "EEE_033E",
+    0x033F: "EEE_033F", 0x031B: "EEE_031B", 0x0466: "EEE_0466", 0x04CF: "EEE_04CF",
+    0x0416: "EEE_0416", 0x04F5: "EEE_04F5", 0x04E0: "EEE_04E0", 0x031F: "EEE_031F",
+    0x04F4: "EEE_04F4", 0x0428: "RECIPE_0428",
+}
 DIAGNOSTIC_PROCEDURES = {
     **dict.fromkeys(("loopback_near", "loopback_digital", "loopback_reverse",
                      "loopback_external"), "loopback"),
@@ -47,17 +60,64 @@ DIAGNOSTIC_PROCEDURES = {
     "collect_event_counters": "counters", "signal_quality_sample": "quality",
     "calibration_recovery": "calibration",
 }
-# Exact exceptions from SNLS647I 8.3.14.4 and table 8-45, not general write access.
+REMAINING_PROCEDURES = {
+    **dict.fromkeys(("power_ieee", "power_active_sleep", "power_pll_control", "power_deep"), "power"),
+    "eee_initialize": "eee", "eee_negotiation_status": "eee", "legacy_lpi": "lpi",
+    "wol_configure": "wol", "wol_acknowledge": "wol",
+    "led_configure": "led", "pin_configure": "pin_mux", "clock_configure": "clock",
+    "mii_configure": "mii", "rmii_configure": "rmii", "repeater_configure": "repeater",
+    "tx100_configure": "tx100", "tx10_configure": "tx10", "analog_configure": "analog",
+    "compliance_session": "compliance", "compatibility_configure": "compatibility",
+    "link_recovery_configure": "link_recovery", "extended_link_configure": "crossover",
+    "isolation_configure": "mii", "collision_test": "compliance",
+}
+# Exact SNLS647I loopback/BIST/EEE/power and SNLA266B compliance actions.
+# These are procedure-specific exceptions, never general write access.
 # register, mask, value, command-neutral value (None for whole-word recipe), owner
 WRITE_ACTIONS = {
     "BICSR1_freezeClear": ("BICSR1", 0x8000, 0x8000, 0, "bist"),
     "LOOP_0122_digital": ("LOOP_0122", 0xFFFF, 0x2000, None, "loopback"),
     "RECIPE_0123_digital": ("RECIPE_0123", 0xFFFF, 0x2000, None, "loopback"),
     "LOOP_0130_digital": ("LOOP_0130", 0xFFFF, 0x47FF, None, "loopback"),
+    "EEECFG3_eee": ("EEECFG3", 0xFFFF, 0x008B, None, "eee"),
+    "EEE_04D3_eee": ("EEE_04D3", 0xFFFF, 0x4F12, None, "eee"),
+    "EEE_04DF_eee": ("EEE_04DF", 0xFFFF, 0x0180, None, "eee"),
+    "EEE_033E_eee": ("EEE_033E", 0xFFFF, 0xA681, None, "eee"),
+    "EEE_033F_eee": ("EEE_033F", 0xFFFF, 0x0003, None, "eee"),
+    "RECIPE_0123_eee": ("RECIPE_0123", 0xFFFF, 0x0800, None, "eee"),
+    "EEE_031B_eee": ("EEE_031B", 0xFFFF, 0x8848, None, "eee"),
+    "EEE_0466_eee": ("EEE_0466", 0xFFFF, 0xFE00, None, "eee"),
+    "EEE_04CF_eee": ("EEE_04CF", 0xFFFF, 0x261D, None, "eee"),
+    "EEE_0416_eee": ("EEE_0416", 0xFFFF, 0x1F30, None, "eee"),
+    "EEE_04F5_eee": ("EEE_04F5", 0xFFFF, 0x2864, None, "eee"),
+    "EEE_04E0_eee": ("EEE_04E0", 0xFFFF, 0xFFF2, None, "eee"),
+    "EEE_031F_eee": ("EEE_031F", 0xFFFF, 0xFE36, None, "eee"),
+    "CLK_OUT_LED_STATUS_eee": ("CLK_OUT_LED_STATUS", 0xFFFF, 0x0000, None, "eee"),
+    "EEE_04F4_eee": ("EEE_04F4", 0xFFFF, 0x0800, None, "eee"),
+    "EEECFG3_enable_bypass_controls": ("EEECFG3", 0x0009, 0x0009, None, "eee"),
+    "EEECFG3_lpi_start": ("EEECFG3", 0x1000, 0x1000, None, "lpi"),
+    "EEECFG3_lpi_stop": ("EEECFG3", 0x1000, 0x0000, None, "lpi"),
+    "RECIPE_0428_dpd_enable": ("RECIPE_0428", 0x0004, 0x0004, None, "power"),
+    "compliance_100_disable": ("RECIPE_0428", 0x0010, 0x0000, None, "compliance"),
+    "compliance_100_enable": ("RECIPE_0428", 0x0010, 0x0010, None, "compliance"),
+    "compliance_100_count_low": ("RECIPE_0428", 0x0020, 0x0000, None, "compliance"),
+    "compliance_100_count_high": ("RECIPE_0428", 0x0020, 0x0020, None, "compliance"),
+    "compliance_10_harmonic": ("COMPT", 0xFFFF, 0x0013, None, "compliance"),
 }
 PROCEDURE_ACTIONS = {
     "bist_capture": {"BICSR1_freezeClear"},
     "loopback_digital": {"LOOP_0122_digital", "RECIPE_0123_digital", "LOOP_0130_digital"},
+    "eee_initialize": {name for name in WRITE_ACTIONS if name.endswith("_eee")},
+    "eee_negotiation_status": {"EEECFG3_enable_bypass_controls"},
+    "legacy_lpi": {"EEECFG3_lpi_start", "EEECFG3_lpi_stop"},
+    "power_deep": {"RECIPE_0428_dpd_enable"},
+    "compliance_session": {name for name in WRITE_ACTIONS if name.startswith("compliance_")},
+}
+ACTION_GATES = {
+    "bist": {"bist_result_semantics"}, "loopback": {"loopback_recipe"},
+    "eee": {"eee_wire", "eee_control_semantics"},
+    "lpi": {"eee_wire", "eee_control_semantics"},
+    "power": {"deep_power_exit"}, "compliance": {"compt_reserved"},
 }
 # Independent transcription of SNLS647I table 8-17 (79 primary addresses).
 C22_INVENTORY = {
@@ -250,6 +310,7 @@ def validate(data: object, root: Path = ROOT) -> None:
     occupied: dict[tuple, str] = {}
     primary: dict[tuple, str] = {}
     names = set()
+    field_owners = {}
     for rid, item in registers.items():
         text(item["name"], rid + ".name")
         require(item["name"] not in names, rid, "duplicate register name")
@@ -284,7 +345,7 @@ def validate(data: object, root: Path = ROOT) -> None:
                     ("resetValue", "resetKnownMask", "reservedMask")), rid,
                     "pending/recipe records must retain unknown masks and no field claims")
             if item["status"] == "RECIPE":
-                require(item["name"] in DIAGNOSTIC_RECIPES, rid,
+                require(item["name"] in DIAGNOSTIC_RECIPES | set(REMAINING_RECIPES.values()), rid,
                         "recipe-only completion requires an explicit coverage update")
                 require(any(a["register"] == rid for a in actions.values()), rid,
                         "recipe-only record requires an exact write action")
@@ -340,6 +401,7 @@ def validate(data: object, root: Path = ROOT) -> None:
                 require(field["owner"] in features, fid, "unknown feature owner")
                 require(rid in features[field["owner"]]["registers"], fid,
                         "field owner must include the register in its coverage")
+                field_owners[fid] = field["owner"]
             require(used == 0xFFFF, rid, "field/reserved partition does not cover all 16 bits")
         if item["name"] in CORE:
             require(item["status"] == "COMPLETE" and item["researchStage"] == 3,
@@ -348,6 +410,10 @@ def validate(data: object, root: Path = ROOT) -> None:
             expected_status = "RECIPE" if item["name"] in DIAGNOSTIC_RECIPES else "COMPLETE"
             require(item["status"] == expected_status and item["researchStage"] == 4,
                     rid, "diagnostic record must have completed stage-4 research")
+        if item["name"] in REMAINING_REGISTERS | set(REMAINING_RECIPES.values()):
+            expected_status = "COMPLETE" if item["name"] in REMAINING_REGISTERS else "RECIPE"
+            require(item["status"] == expected_status and item["researchStage"] == 5,
+                    rid, "remaining record must have completed stage-5 research")
 
     for offset, name in C22_INVENTORY.items():
         require(primary.get(("C22", None, offset)) == name, "coverage",
@@ -361,6 +427,9 @@ def validate(data: object, root: Path = ROOT) -> None:
     for offset, name in ((0x0122, "LOOP_0122"), (0x0123, "RECIPE_0123"), (0x0130, "LOOP_0130")):
         require(primary.get(("MMD", 31, offset)) == name, "coverage",
                 "diagnostic recipe address/name mapping changed")
+    for offset, name in REMAINING_RECIPES.items():
+        require(primary.get(("MMD", 31, offset)) == name, "coverage",
+                "remaining recipe address/name mapping changed")
     permitted = ({("C22", None, offset) for offset in C22_INVENTORY}
                  | {("MMD", 31, offset) for offset in MMD_INVENTORY}
                  | {("MMD", 31, offset) for offset in RECIPE_OFFSETS})
@@ -372,6 +441,10 @@ def validate(data: object, root: Path = ROOT) -> None:
     require(CORE <= names, "coverage", "missing core register")
     require(DIAGNOSTIC_REGISTERS | DIAGNOSTIC_RECIPES <= names, "coverage",
             "missing or renamed diagnostic register")
+    require(REMAINING_REGISTERS | set(REMAINING_RECIPES.values()) <= names, "coverage",
+            "missing or renamed remaining register")
+    require(all(r["status"] != "PENDING" for r in registers.values()), "coverage",
+            "full source closure cannot retain pending registers")
     for fid, stage in FEATURE_STAGES.items():
         require(fid in features, "coverage", f"missing feature family {fid}")
         require(features[fid]["researchStage"] == stage, fid,
@@ -384,6 +457,10 @@ def validate(data: object, root: Path = ROOT) -> None:
         require(pid in procedures, "coverage", f"missing diagnostic procedure {pid}")
         require(procedures[pid]["feature"] == fid, pid,
                 "diagnostic procedure has the wrong feature owner")
+    for pid, fid in REMAINING_PROCEDURES.items():
+        require(pid in procedures, "coverage", f"missing remaining procedure {pid}")
+        require(procedures[pid]["feature"] == fid, pid,
+                "remaining procedure has the wrong feature owner")
 
     referenced_registers = set()
     for fid, item in features.items():
@@ -396,6 +473,9 @@ def validate(data: object, root: Path = ROOT) -> None:
         require(isinstance(item["scope"], str) and
                 item["scope"] in {"SOFTWARE", "HARDWARE_ONLY", "OUTSIDE_PHY", "ABSENT"},
                 fid, "unknown feature scope")
+        require(item["scope"] == {"straps": "HARDWARE_ONLY", "outside_phy": "OUTSIDE_PHY",
+                                  "absent": "ABSENT"}.get(fid, "SOFTWARE"),
+                fid, "feature scope must retain documented responsibility")
         referenced_registers.update(refs(item["registers"], registers, fid + ".registers"))
         refs(item["procedures"], procedures, fid + ".procedures")
         refs(item["gates"], gates, fid + ".gates")
@@ -405,16 +485,24 @@ def validate(data: object, root: Path = ROOT) -> None:
         for key in ("documented", "implemented", "hostTested", "sdkBuilt", "hardwareQualified"):
             require(isinstance(evidence[key], str) and evidence[key] in EVIDENCE,
                     f"{fid}.evidence.{key}", "unknown evidence state")
-        if item["researchStage"] <= 4:
-            require(evidence["documented"] == "COMPLETE", fid,
-                    "completed research stage requires documented coverage")
-            require(item["scope"] != "SOFTWARE" or bool(item["procedures"]),
-                    fid, "completed core software feature requires a procedure")
+        require(evidence["documented"] == "COMPLETE", fid,
+                "completed research stage requires documented coverage")
+        require(item["scope"] != "SOFTWARE" or bool(item["procedures"]),
+                fid, "completed software feature requires a procedure")
+        if item["scope"] == "SOFTWARE":
+            integer(item["owner"]["implementationStage"], fid + ".primary software owner", 11, 36)
         for pid in item["procedures"]:
             require(procedures[pid]["feature"] == fid, fid,
                     "procedure ownership differs from feature backlink")
     require(referenced_registers == set(registers), "coverage",
             "every register needs at least one feature owner")
+    for fid, stage in (("next_page", 17), ("crossover", 18), ("mii", 33), ("compliance", 35)):
+        require(features[fid]["owner"]["implementationStage"] == stage, fid,
+                "control family has the wrong implementation owner")
+    for field_id, fid in (("CR2.extended_duplex", "crossover"),
+                          ("BMCR.isolate", "mii"), ("BMCR.collision_test", "compliance")):
+        require(field_owners.get(field_id) == fid, field_id,
+                "control field has the wrong implementation owner")
 
     require(set(actions) == set(WRITE_ACTIONS), "coverage",
             "write actions must match the exact sourced action inventory")
@@ -439,8 +527,11 @@ def validate(data: object, root: Path = ROOT) -> None:
         neutral = None if item["neutral"] is None else hex_value(item["neutral"], aid + ".neutral")
         require((rid, mask, value, neutral, fid) == WRITE_ACTIONS[aid], aid,
                 "write action differs from exact sourced allowance")
-        required_gate = "bist_result_semantics" if rid == "BICSR1" else "loopback_recipe"
-        require(required_gate in item["gates"], aid, "write action must retain its evidence gate")
+        require(ACTION_GATES[fid] <= set(item["gates"]), aid,
+                "write action must retain its evidence gate")
+        if aid == "CLK_OUT_LED_STATUS_eee":
+            require("pin_fields" in item["gates"], aid,
+                    "clock recipe must retain its pin conflict gate")
 
     used_actions = set()
     for pid, item in procedures.items():
@@ -452,13 +543,16 @@ def validate(data: object, root: Path = ROOT) -> None:
         citations(item["sources"], pid + ".sources")
         refs(item["gates"], gates, pid + ".gates")
         owner(item["owner"], pid + ".owner")
+        if features[item["feature"]]["scope"] == "SOFTWARE":
+            integer(item["owner"]["implementationStage"], pid + ".primary software owner", 11, 36)
         action_refs = refs(item.get("writeActions", []), actions, pid + ".writeActions")
-        if pid in PROCEDURE_ACTIONS:
-            require(set(action_refs) == PROCEDURE_ACTIONS[pid], pid,
-                    "required procedure write actions are missing or changed")
+        require(set(action_refs) == PROCEDURE_ACTIONS.get(pid, set()), pid,
+                "required procedure write actions are missing or changed")
         for aid in action_refs:
             require(actions[aid]["feature"] == item["feature"], pid,
                     "write action ownership differs from procedure")
+            require(set(actions[aid]["gates"]) <= set(item["gates"]), pid,
+                    "procedure must retain its write action evidence gates")
             used_actions.add(aid)
         for key in ("prerequisites", "steps", "timeout", "partialEffects", "cleanup", "restoration"):
             contract(item[key], f"{pid}.{key}")
@@ -485,8 +579,12 @@ def validate(data: object, root: Path = ROOT) -> None:
                     writable |= hex_value(field["mask"], rid + ".field.mask")
             require(not mask & ~writable, pid, "owned mask includes read-only fields")
     require(used_actions == set(actions), "coverage", "every write action needs a procedure")
+    for pid, stage in (("next_page_exchange", 17), ("extended_link_configure", 18),
+                       ("isolation_configure", 33), ("collision_test", 35)):
+        require(procedures[pid]["owner"]["implementationStage"] == stage, pid,
+                "control procedure has the wrong implementation owner")
 
-    printed = entries("printedAddresses", "devad printedAddress sources gates feature")
+    printed = entries("printedAddresses", "devad printedAddress sources gates feature status controls")
     tuples = set()
     for aid, item in printed.items():
         pair = (hex_value(item["devad"], aid + ".devad", 31),
@@ -495,6 +593,10 @@ def validate(data: object, root: Path = ROOT) -> None:
         tuples.add(pair)
         citations(item["sources"], aid + ".sources")
         refs(item["gates"], gates, aid + ".gates", nonempty=True)
+        require(item["status"] == "BLOCKED", aid, "printed address must retain blocked wire disposition")
+        for control in sequence(item["controls"], aid + ".controls", nonempty=True):
+            text(control, aid + ".controls")
+        require("eee_wire" in item["gates"], aid, "printed address must retain wire evidence gate")
         text(item["feature"], aid + ".feature")
         require(item["feature"] in features, aid, "unknown printed-address feature")
         require(("MMD", *pair) not in occupied, aid,

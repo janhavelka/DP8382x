@@ -31,7 +31,14 @@ executing driver, package or hardware tests.
 access and reset literals for every prompt-4 detailed record, recipe actions and
 legal encodings. Temporary malformed files prove rejection of dropped diagnostic
 rows/procedures, invented/retargeted actions, changed recipe addresses and lost
-required action ownership. All 57 tests are research-tool evidence only.
+required action ownership.
+
+`test_remaining_ledger.py` covers every remaining detailed reset/access partition,
+LED placement, odd-nibble polarity, pin legality, analog split fields, W0C neutral
+writes, MAC/password ordering, nominal EEE timing and exact recipe actions.
+Malformed temporary files reject incomplete source coverage, erased gates,
+borrowed exceptions, fabricated EEE wire offsets and reclassified software scope.
+All 74 registered tests are research-tool evidence only.
 
 No driver, firmware build, CI workflow or physical hardware test exists at this stage.
 The [80-prompt promptset](../docs/prompts/README.md) now defines those future

@@ -221,3 +221,88 @@ versus cleanup outcomes. Test finite timeout and frozen-clock work limits,
 unavailable fixtures, wrong speed/interface, stale done, counter wrap, missing
 checker lock and incomplete restoration. These are planned acceptance vectors;
 the present tests validate research structure and independently sourced literals.
+
+## Prompt 5 independent power, wake and interface vectors
+
+The [power review](reports/implementation/5-power-source-review.md) and
+[pin review](reports/implementation/5-pin-source-review.md) derive these literals
+from original SNLS647I pages 15, 26–29, 69–75 and 81–93, plus SNLA266B table 5-5.
+They were checked before ledger integration. Registered
+`test_remaining_ledger.py` independently transcribes every new detailed
+reset/access partition and the exceptional actions; it does not generate
+expected values from the JSON. These are research tests, not executing PHY code.
+
+- MLEDCR address `0x0025`, selector mask `0x0078`: source E gives
+  `0x0070`, with required route bit `0x0071`; F and route 0 are reserved.
+  LEDCFG `0x0460` has LED1 at `0x00F0` and LED3 at `0xF000`.
+  From `0x5665`, LED1=A gives `0x56A5`; LED3=E gives `0xE665`.
+  LEDCFG2 `0x0469` writable mask is `0x0077`, reserved `0xFF88`,
+  known reset mask `0xFBBB`: bit 10 is unknown **and reserved**.
+- CR2 bit 1 set disables odd-nibble detection:
+  `0x0100 → 0x0102` disables, `0x0102 → 0x0100` enables.
+  Extended full duplex uses bit 5 only, `0x0020`; bit 6 stays reserved.
+  Its primary owner is 18, next page 17, isolation 33 and collision test 35.
+- Clock selectors on LED0/1 admit 5/6, positioned `0x0028/0x0030`;
+  the reset selector 1 does not license an active clock request.
+  LED1 mux admits 0/2/4/5/6; LED2 admits 0/2/3/4/5/6/7.
+  LED0/3 mux fields remain R, and contradictory clock routes remain gated.
+- IO_CFG1 impedance codes 0/1 mean slow/fast. IOCTRL codes
+  `0x10/0x11` mean fast/slow; `0x0400` touches a reserved bit.
+  VOD minus code `0x28..0x38` spans 150% down to 50%; plus
+  `0x08..0x18` spans 50% up to 150%. With zero code unchanged at zero,
+  all-direction 150% gives VOD_CFG1/2 `0x2A00/0x8618`, and 50%
+  gives `0x3E00/0x8208`. The split MDIX-minus code must be validated
+  as a whole before either write. ANA_RX10BT_CTRL's five bits versus sixteen
+  stated voltage levels do not establish a physical conversion.
+- Active-sleep policy uses mask/value `0x7000/0x6000`; BISCR
+  `0x0100` means normal, zero under that mask means asleep.
+  PHYSCR=`0x6108`, BISCR=`0x0100` is a valid enabled-but-awake result.
+  IEEE request is BMCR `0x0800`, reset/restart neutral mask `0x8200`;
+  preserve isolation `0x0400`. DPD sets `0x0428[2]` before the
+  IEEE request, but inverse exit and opaque composition remain gated.
+- RXFCFG1 reserved `0xE01E`, known reset `0x1080/0xFFFE`,
+  stable writable `0x17E1`. W0C bit `0x0800` has neutral **one**.
+  CRC-on, level, WoL+Magic policy uses ordinary write `0x1981`,
+  explicit acknowledgement `0x1181`; Secure-ON gives
+  `0x19A1/0x11A1`. CRC-off ordinary update `0x0981` must not
+  acknowledge. Pulse codes 0/1/2/3 select 8/16/32/64 cycles at 125 MHz,
+  derived 64/128/256/512 ns, not a wake deadline.
+- **MAC numbering correction from independent cross-review:** table 8-92
+  labels TI byte 5 MSB. API octet 0 is the first conventional MAC octet,
+  so TI byte 5 maps to API 0, not API 5. MAC `11:22:33:44:55:66`
+  yields `04A2=2211, 04A3=4433, 04A4=6655`.
+  TI high:low byte labels remain 4:5, 2:3, 0:1.
+  Password `2A 2B 2C 2D 2E 2F` uses its separately numbered tables:
+  `04A5=2B2A, 04A6=2D2C, 04A7=2F2E`.
+  All-zero/all-FF credentials give zero/FFFF words, but only asymmetric
+  literals expose a swapped mapping. No DP83822 callback is the oracle.
+- EEE printed sequence, preserving its unresolved namespace:
+  `001F=8000,203C=0002,04D1=008B,04D3=4F12,04DF=0180,033E=A681,
+  033F=0003,0123=0800,031B=8848,0466=FE00,04CF=261D,0416=1F30,
+  04F5=2864,04E0=FFF2,031F=FE36,0308=0000,04F4=0800,0000=3300`.
+  Final BMCR changes stable mask `0x7D80` and issues restart
+  `0x0200`; owned mask is `0x7F80`, not just the set bits.
+  EEECFG3 bypass bits are set with mask/value `0x0009/0x0009`;
+  LPI start/stop uses `0x1000/0x1000` and `0x1000/0`.
+  These exact actions grant no generic read/snapshot permission.
+- MMD3 printed 1001/1014/1016 and MMD7 printed 203C/203D remain blocked,
+  with separately recorded roles and missing field/access evidence.
+  Guessed lower offsets 0001/0014/003C fail documented access policy.
+  EEE sleep 210 us, wake 36 us, quiet 20 ms and refresh 200 us are all
+  **NOM**, not MAX; no partner-ready deadline follows from them.
+- COMPT ordinary mask is `0x000F`; 10M codes 0..D are described and
+  E/F are not 10M patterns. In 100M, all nibbles combine with
+  `0x0428[5]` into count 0..31; zero clears the shift register.
+  Disable/enable actions touch only `0x0010`, count actions only
+  `0x0020`, preserving DPD `0x0004` once composition is proved.
+  SNLA266B's exact 10M harmonic `COMPT=0x0013` is a whole-word
+  exception, not permission to write arbitrary reserved bits. Stop/reset
+  must precede profile restore.
+
+Future host acceptance must reject unsupported pin/mode/code combinations with
+zero I/O, preserve each accepted or uncertain multiword prefix, retain consumed
+events, and test every primary/cleanup failure and cancellation boundary.
+Freeze the fake clock to prove count bounds independently of elapsed time.
+Unresolved source gates reject before unknown reads or mutation. Qualification
+requires identified peers, wiring, MDIO/clock traces and calibrated instruments;
+successful register reads or generated traffic alone are not physical evidence.

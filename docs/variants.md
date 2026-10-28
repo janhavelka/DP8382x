@@ -5,7 +5,7 @@ driver in this workspace yet.** The following describes documentation coverage
 and intended development order.
 
 The primary DP83826I [ledger](registers/dp83826i.json) and
-[behavior contract](device-behavior.md) now establish core and diagnostic research.
+[behavior contract](device-behavior.md) now close primary-part source research.
 The diagnostic masks, procedures and source gates are exact-part evidence;
 they do not qualify other family members or promise calibrated cable/SNR results.
 The accepted
@@ -66,6 +66,22 @@ Use these source anchors when establishing support:
 - SDAA067A sections 2 and 3.2 disagree on whether an A-generation register
   setting can substitute for Strap11 in EMC guidance. Keep that specific source
   conflict open and separate software FLD control from measured EMC qualification.
+
+The [prompt-5 source review](reports/implementation/5-coverage-source-review.md)
+reopened each original family identity/device-comparison table and the rollover
+guide. Keep these later research boundaries:
+
+| Stages | Exact declared parts | Required independent work |
+| --- | --- | --- |
+| 56 | DP83826E | SNLS647I shared records plus actual temperature/electrical, mode, reset, optional-control and fixture differences; no suffix detection from shared ID. |
+| 57–59 | DP83826AI, DP83826AE | SNLS783A/SDAA067A defaults, revision acceptance, strap11/FLD/EMC conflict and complete diagnostics/optional controls. |
+| 60–61 | DP83825I | SNLS638C RMII-only topology, identity discrepancy, package/straps and complete power/wake/EEE differences; SNLA328 remains exact-part input here. |
+| 62–67 | DP83822I, H, IF, HF | SNLS505H per-subtype media/temperature, fiber and negotiation, interfaces/fixed shifts, reset, diagnostics, electrical and WoL access differences. |
+
+Source-proved shared facts should reference one record with explicit differences.
+Neither shared model IDs nor revision defaults detect an ordering suffix.
+Undocumented Linux suffixes remain reference-only. These assignments do not
+constitute another family's completed implementation audit or support claim.
 
 For each additional device, document its identity/mode behavior, register map,
 reset defaults, available interfaces, feature differences and initialization

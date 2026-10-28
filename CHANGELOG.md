@@ -4,6 +4,13 @@
 
 ### 2026-10-28
 
+- Completed prompt 5 primary source closure: all 79 detailed entries and 17
+  opaque recipe records, five blocked EEE associations, 52 procedures and
+  independent power/WoL/pin/electrical vectors. Added exact action ownership,
+  source-gate propagation and scope/owner guards; corrected MAC byte numbering
+  during cross-review. Kept nominal timings, unresolved access/exit conflicts,
+  later-family boundaries and physical qualification distinct from support.
+
 - Completed prompt 4 diagnostic/event/counter research: 34 detailed register
   records, three exact recipe records, 16 procedures and independent PDF-derived
   tests. Added narrowly checked overlapping write actions, retained raw/partial

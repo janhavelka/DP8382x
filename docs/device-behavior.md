@@ -128,7 +128,7 @@ including null pages while the peer continues. Preserve a consumed event with mi
 payload if the subsequent partner read fails. Protocol message interpretation
 belongs to the relevant IEEE/application contract; receiving an unrecognized
 raw code must not silently turn it into a supported operation. EEE page/address
-research remains assigned to prompt 5. IEEE's restart state clears the next-page
+research retains explicit wire/control gates. IEEE's restart state clears the next-page
 loaded flag: prepare desired data locally before restart, but load ANNPTR after
 fresh base-page receipt. Distinguish BASE and NEXT events, retain received payload
 before advancing, and finish only when both sides are done. The
@@ -151,8 +151,8 @@ Their planned API/CLI names express ownership, not already implemented signature
 After full reset, first establish identity/address/mode and readiness; then apply
 required initialization and persistent interface/clock/power dependencies, coupled
 crossover/compatibility, advertisement/pages, AN or forced activation, and event
-enables. Later power/EEE procedures can require their own reset-bearing ordering;
-prompts 4–5 must extend this dependency order explicitly. Do not replay temporary
+enables. EEE initialization owns its reset-bearing sequence; replay other settings
+acyclically without recursively resetting EEE again. Do not replay temporary
 diagnostic settings, sampled commands or consumed events as desired state.
 
 Each frame is bounded and terminal. The aggregate budget includes admission,
@@ -252,6 +252,64 @@ are inconsistent; retain both with a named gate. EtherCAT ESC error counters,
 PDI access and F28P65 reset workarounds are application-specific comparisons,
 not PHY or ESP32-P4 master procedures.
 
+## Power, EEE and wake
+
+IEEE power-down, PLL disable, deep power-down and active-sleep policy are separate
+operations. Enabling active-sleep policy can succeed while a partner keeps the
+PHY awake; observe state independently, without a wait-until-sleep loop.
+An asserted ENHANCED power-down pin can override the software request.
+Deep-power entry has a documented order, but its complete exit/readiness and
+shared opaque-register composition remain source-gated.
+
+EEE capability, advertisement, partner support, LPI state, bypass controls and
+wake-error evidence retain separate validity. Printed MMD associations do not
+prove wire offsets, and DP83825 examples do not establish DP83826 read effects,
+counter fields or bypass polarity. Reject unresolved branches before any opaque
+read or reset-bearing recipe prefix. All four printed EEE timing values are
+nominal, with no guaranteed wake deadline. A legacy-MAC LPI session drains and
+inhibits MAC transmission, has finite primary/exit budgets, and releases TX only
+after readiness is established; the PHY supplies no packet buffer.
+
+WoL configuration quiesces detection, retains pending collector evidence, writes
+and verifies credentials, configures source/routing and enables the detector last.
+TI MAC byte numbering runs from the explicit most-significant byte 5; API MAC
+octet 0 is the first conventional octet. Password numbering is separately defined
+by its own tables. Ordinary RXFCFG1 writes use W0C neutral one; explicit level
+acknowledgement writes zero while preserving stable settings. Pulse indication
+and MCU wake are separate physical outcomes. The named mask flag supplies no
+custom-pattern engine, and the sources establish no lossless atomic live update.
+
+## Pins, interfaces and exceptional stimuli
+
+Board wiring, clock consumers and POR straps constrain programmable overrides.
+Use a per-pin legal-function matrix, including source, direction, polarity,
+drive, blink/stretch and interface conflicts. Read-only LED0/3 mux fields,
+reserved LED2/3 clock selectors and the contradictory LED1 clock route remain
+source gates. Documented source and drive controls are independently eligible.
+Interrupt and wake sources belong to their owners; configuring a pin includes
+the finite budgets of every delegated source operation without recursive calls.
+
+MII/RMII, elasticity, repeater, isolation, odd-nibble detection, IPG and transmit
+controls require their exact mode prerequisites and stable verification.
+Odd-nibble detection is disabled by setting its control bit. Next-page exchange
+belongs to prompt 17, extended duplex/crossover to 18, isolation to 33 and
+collision testing to 35. RMII repeaters coordinate both PHYs and reserve both
+operations' budgets; success on one does not imply atomic configuration.
+
+Analog amplitude settings include a cross-register code; validate the complete
+request before either write and retain partial application on failure. Raw DAC
+fields do not prove physical units, and the receiver-gain range lacks an exact
+code map. All-reserved analog entries remain unwritable. IOCTRL examples touching
+reserved bits are not accepted field settings.
+
+Compliance is a finite, fixture-admitted stimulus session. The exact sourced
+10-Mbit harmonic word is a narrow exception to the reserved-bit rule; it does
+not permit other reserved writes. The 100-Mbit recipe's opaque preservation read
+and composition remain blocked pending exact evidence. Stop emission or complete
+the authorized hard reset before restoring COMPT or a persistent profile.
+Failure to prove stop retains possible ongoing emission and recovery-required
+state. Restoration never replays the temporary stimulus.
+
 ## Gates and future public documentation
 
 The ledger names every conflict, selected conservative behavior, owning stage
@@ -262,5 +320,10 @@ No fabricated measurement or passing schema test closes a silicon conflict.
 From the first C++ declaration, Doxygen must cite the exact ledger/source table
 for non-obvious access or sequence rules and document units, legal states,
 ownership, side effects, output validity, failure uncertainty and bounds.
+Power/WoL/LED declarations must additionally cite mixed-command neutrality,
+API-versus-source octet numbering, per-pin legal encodings, nominal timing
+qualifiers and recipe-only exceptions. Name any source gate that rejects an
+operation before I/O. Future tests must exercise each transfer/cancellation
+boundary, finite frozen-clock limits and stop-before-restoration ordering.
 No placeholder C++ is needed to record this research. Vendor bytes/notices remain
 unchanged; factual GPL comparisons do not authorize importing GPL implementation.

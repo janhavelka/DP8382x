@@ -172,9 +172,9 @@ class LedgerTests(unittest.TestCase):
         self.register("BMCR")["resetValue"] = "0x2000"
         self.rejected("unknown reset bit")
 
-    def test_pending_record_has_no_invented_fields_or_defaults(self):
-        pending = next(r for r in self.data["registers"] if r["status"] == "PENDING")
-        pending["resetValue"] = "0x0000"
+    def test_recipe_record_has_no_invented_fields_or_defaults(self):
+        recipe = next(r for r in self.data["registers"] if r["status"] == "RECIPE")
+        recipe["resetValue"] = "0x0000"
         self.rejected("pending/recipe records must retain unknown")
 
     def test_completed_all_reserved_record_is_valid_but_not_writable(self):
@@ -258,7 +258,7 @@ class LedgerTests(unittest.TestCase):
         self.rejected("missing or renamed MMD inventory")
 
     def test_undocumented_c22_hole_is_not_a_register(self):
-        record = copy.deepcopy(next(r for r in self.data["registers"] if r["status"] == "PENDING"))
+        record = copy.deepcopy(self.register("CDSCR2"))
         record.update(id="bad_c22_hole", name="BAD_HOLE", space="C22", devad=None,
                       address="0x0C", aliases=[{"space": "MMD", "devad": "0x1F", "address": "0x0C"}])
         self.data["registers"].append(record)
@@ -269,8 +269,7 @@ class LedgerTests(unittest.TestCase):
         self.rejected("missing feature family")
 
     def test_unresolved_printed_address_is_not_a_wire_offset(self):
-        record = next(r for r in self.data["registers"] if r["status"] == "PENDING")
-        record = copy.deepcopy(record)
+        record = copy.deepcopy(self.register("CDSCR2"))
         record.update(id="bad_eee_wire", name="BAD_EEE_WIRE", space="MMD",
                       devad="0x03", address="0x1001", aliases=[])
         self.data["registers"].append(record)

@@ -19,10 +19,11 @@ it is not permission to silently drop the feature or implement guessed behavior.
 Field names and register addresses below are factual navigation aids, not a
 replacement register specification or frozen public API.
 
-Prompts 3–4 have now reconciled core and diagnostic rows into the
+Prompts 3–5 have now reconciled all primary-part source rows into the
 [primary ledger](../registers/dp83826i.json) and [coverage matrix](../feature-coverage.md).
-Those records include source conflicts and planned host/fixture acceptance;
-the remaining controls retain prompt-5 ownership. This original checklist is
+Those records include source conflicts and planned host/fixture acceptance:
+all 79 detailed entries, 17 opaque recipe records and five blocked EEE
+associations have researched dispositions. This original checklist is
 not a second current numeric map or an implementation-completion claim.
 
 The [extracted public-library catalogues](library-evidence.md) provide additional

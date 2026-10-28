@@ -16,6 +16,13 @@ useful register names, settings, procedures and comparison cases, but several
 reviewed implementations are partial or contain defects. Existing immutable
 baselines and license boundaries remain in [source-code.md](source-code.md).
 
+The [prompt-5 audit](../reports/implementation/5-coverage-source-review.md)
+rechecks current manufacturer default branches, per-file licenses, product
+material and exact-family boundaries. Its [power review](../reports/implementation/5-power-source-review.md)
+and [pin review](../reports/implementation/5-pin-source-review.md) reconcile the
+remaining originals into the authoritative ledger; the old source leads below
+are not another numeric map.
+
 ## Manufacturer GitHub and SDK sources
 
 ### TI dedicated Ethernet RTOS drivers

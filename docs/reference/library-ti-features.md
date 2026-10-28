@@ -13,6 +13,12 @@ gates. The [primary ledger](../registers/dp83826i.json) is authoritative: detail
 table encodings, destructive capture actions and reserved result banks take
 precedence over the source-code comparison anchors below.
 
+Prompt 5's [completion report](../reports/implementation/5-silicon-power-interface-ledger.md)
+closes power/wake/pin/electrical source dispositions. Original timing columns
+confirm EEE values below are NOM. The [independent vectors](../register-vectors.md)
+preserve LED placement, odd-nibble polarity, W0C neutrality and the DP83826
+MAC table's byte-5/MSB convention; SNLA261A does not override it.
+
 Evidence labels: **D** = stated by the archived exact-part datasheet; **C** =
 corroborated by another inspected primary source; **O** = observed software
 behavior only; **X** = conflicting evidence; **U** = unresolved interpretation or

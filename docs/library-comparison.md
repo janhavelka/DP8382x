@@ -1,5 +1,12 @@
 # Current driver API, state, ownership and tooling comparison
 
+Prompt 5's [fresh source review](reports/implementation/5-coverage-source-review.md)
+reopens TMP1x2 and MB85RC model/capability declarations, actual rejection paths,
+CLI/runner contracts and TUSB32x planning at their recorded current revisions.
+Its PHY adaptations retain declared part versus readable identity, capability
+rejection before I/O and separate evidence layers. This supplements the broader
+prompt-1/2 comparison below without claiming new sibling test runs.
+
 Prompts 1–2 source audits, 2026-10-28. Paths in the source and test tables are
 relative to `Projects/`. The sibling repositories and FieldCore-node were read
 only. Their code and registered tests were inspected, not executed. This report
