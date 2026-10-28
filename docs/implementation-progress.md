@@ -1,13 +1,16 @@
 # Implementation progress
 
-The [80-prompt implementation plan](prompts/README.md) is ready for execution.
-All implementation stages are **NOT STARTED**. Current executable verification
-is the reference/documentation checker; driver code, examples, CLI, runner,
-software tests and hardware qualification are future work.
+The [80-prompt implementation plan](prompts/README.md) is in its first
+execution. Prompt 1's evidence audit is complete; the remaining stages have
+not started. Current executable verification is the reference/documentation
+checker; driver code, examples, CLI, runner, software tests and hardware
+qualification are future work.
 
 ## Execution record
 
-Execution branch: not started. Base commit: not recorded.
+Execution branch: `promptset/dp8382x-implementation-20261028`.
+Base: `main` / `origin/main` at `5e148fffde074b85fadc15d8ff66fe2c77111036`
+(fetched, clean and equal before branch creation on 2026-10-28).
 
 Before prompt 1 of a new execution, create a new branch from the synchronized
 intended base and record its name/base here. Keep that branch for every prompt
@@ -21,7 +24,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 
 | Prompt | Implementation status | Evidence |
 | --- | --- | --- |
-| [1 Audit current driver APIs, state and ownership](prompts/1-ecosystem-core-audit.md) | NOT STARTED | None |
+| [1 Audit current driver APIs, state and ownership](prompts/1-ecosystem-core-audit.md) | COMPLETE | [Live comparison](library-comparison.md), [execution report](reports/implementation/1-core-api-state-ownership.md); local reference/link and diff checks PASS. Commit/sync SHA in final handoff. |
 | [2 Audit examples, tools, repository structure and prompt workflows](prompts/2-ecosystem-tooling-audit.md) | NOT STARTED | None |
 | [3 Establish the primary register ledger and core silicon behavior](prompts/3-silicon-core-ledger.md) | NOT STARTED | None |
 | [4 Research diagnostic, event and counter procedures](prompts/4-silicon-diagnostic-ledger.md) | NOT STARTED | None |

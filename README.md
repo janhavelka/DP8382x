@@ -4,10 +4,11 @@ General microcontroller library workspace for Texas Instruments DP8382x Ethernet
 PHYs, starting with **DP83826IRHBR (DP83826I)**. The planned C++17 core is
 framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet MAC.
 
-**Status: audited implementation plan and repository foundation.** Official
-references, sibling-library audits and an 80-prompt AI-agent promptset are ready.
-Driver implementation, build/package metadata, examples, CLI, runners and hardware
-qualification are future work.
+**Status: prompt 1 evidence audit complete; driver implementation not started.**
+Official references and the 80-prompt implementation plan are available. The
+[current API/state/ownership comparison](docs/library-comparison.md) records
+the first execution result. Driver code, build/package metadata, examples, CLI,
+runners and hardware qualification are future work.
 
 The general library is intended to expose both **10 and 100 Mbit/s** operation.
 The initial board firmware will use autonegotiation advertising **100 Mbit/s,
@@ -28,8 +29,8 @@ remain library scope. See [full-coverage requirements](docs/prompts/FULL_COVERAG
   method names, source layout, readability and Doxygen rules fitted from peers.
 - [Planning audits](docs/reports/README.md): actual sibling driver, FieldCore-node,
   tooling and PHY findings behind the plan.
-- [Implementation progress](docs/implementation-progress.md): all implementation
-  stages are currently NOT STARTED; planning checks are recorded separately.
+- [Implementation progress](docs/implementation-progress.md): execution branch,
+  completed evidence stages and remaining work.
 - [Reference archive](docs/reference/README.md): downloaded TI datasheets,
   application notes, EVM guides and hardware collateral, with provenance.
 - [Official source references](docs/reference/source-code.md): pinned TI and

@@ -1,7 +1,8 @@
 # Scope and architecture
 
-These are implementation intentions, updated on 2026-10-26 after the sibling
-library and FieldCore-node audit. No driver API has been implemented or frozen.
+These are implementation intentions, updated on 2026-10-28 after the live
+[API, state and ownership comparison](library-comparison.md). No driver API has
+been implemented or frozen.
 The [implementation promptset](prompts/README.md) establishes exact contracts
 before coding and requires a fresh relevant sibling audit before every stage.
 
@@ -45,6 +46,15 @@ deletion have explicit partial-failure and callback-lifetime contracts. Resolve
 hook context through supported instance APIs, and retain resource ownership
 until callbacks are quiescent and cleanup outcomes are known.
 
+The core's local `bind` validates borrowed MDIO callbacks and settings before
+replacing a binding, without touching the PHY. `end` is local teardown with
+explicit pending-result and cleanup rules. Hardware initialization, reset,
+configuration and recovery use separately named bounded operations. A successful
+bind or controller transfer proves neither PHY identity nor a usable link.
+Keep one retained token/result slot; terminal evidence survives until the owner
+consumes or explicitly acknowledges it. Exact signatures and teardown behavior
+belong to prompts 7-8.
+
 Distinguish operation admission across polls from the short controller lock for
 one indivisible transaction. Never keep that lock through hardware wait intervals
 or console output. Preserve each consumed event sample on partial acquisition
@@ -56,6 +66,22 @@ paths for SDK-mirrored state and the documented owner/register hooks for access.
 Full portable pause resolution remains richer than the pinned SDK's Boolean MAC
 notification. Base helpers are reused only where their semantics fit; shared
 portable procedures can implement overridden methods without a second driver.
+
+Core Status will use the peer `Err`/`Status` value shape with static message
+storage and full signed backend detail, but MDIO-specific error meanings. Four
+passive health states describe managed transport evidence only. Desired settings,
+observed stable bits, configuration trust, link resolution and application
+readiness remain separate. A failed or late write leaves its possible effect
+visible. Primary failure and finite cleanup outcomes stay separate; successful
+cleanup cannot erase the primary failure. The source comparison and
+[conventions](prompts/CONVENTIONS.md) record the selected names and limits.
+
+Public declarations will carry Doxygen when implemented: units, validity,
+legal state, borrowed lifetime, owner synchronization, I/O and destructive-read
+effects, output validity, errors, total bounds and cleanup. Private procedures
+will explain ordering and cite exact TI sections for non-obvious chip behavior.
+Prompt 9 introduces checks with the first real public headers; this planning
+decision creates no placeholder API.
 
 ## Intended functionality
 

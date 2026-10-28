@@ -4,6 +4,10 @@ These reports describe the **2026-10-26 planning review**. They do not implement
 or qualify a PHY. Sibling repositories were read-only; reported dirty states and
 changing revisions are observations of concurrent work, not changes by this task.
 
+The [current prompt 1 source comparison](../library-comparison.md) and its
+[execution report](implementation/1-core-api-state-ownership.md) record the
+2026-10-28 live audit. They supersede older observations for that narrow scope.
+
 - [Sibling drivers](sibling-driver-audit.md): primary driver source audit and
   broader inventory, naming, ownership, Status/health, CLI, runners, tests and CI.
 - [FieldCore conventions](fieldcore-conventions-audit.md): actual promptset,

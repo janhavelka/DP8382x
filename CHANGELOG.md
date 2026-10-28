@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### 2026-10-28
+
+- Completed prompt 1's live, read-only comparison of seven sibling drivers and
+  FieldCore-node API, health, lifecycle and owner behavior. Recorded exact source
+  revisions, registered tests and planned DP8382x decisions. No driver or
+  hardware support was added.
+
 ### 2026-10-26
 
 - Refined execution instructions and completed ownership, lifecycle, feature,
