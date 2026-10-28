@@ -3,7 +3,7 @@
 The [80-prompt implementation plan](prompts/README.md) is in its first
 execution. Prompts 1–5 research stages are complete; the remaining stages have
 not started. Current executable verification includes reference/link checks,
-the silicon-ledger validator and 74 registered research-tool tests. Driver code,
+the silicon-ledger validator and 77 registered research-tool tests. Driver code,
 examples, CLI, runner, driver behavior tests and hardware qualification remain
 future work. Prompt 5 closes primary-part source dispositions, including
 explicit unresolved gates. Research completion does not claim driver completion.
@@ -27,8 +27,12 @@ Prompt 3 audited checkpoint / prompt 4 clean synchronized entry:
 `42a908b28d9ad471a60b5ca220127eb9e7dbf9ec`.
 Prompt 4 final commit/sync checkpoint / prompt 5 clean synchronized entry:
 `2805cfdea3aacd1f870d27998cd99d0270cccb2a`.
-Prompt 5 final commit/sync identity is recorded in its handoff, avoiding a
-self-referencing commit. The execution branch and original base remain unchanged.
+Prompt 5 final commit/sync checkpoint / fresh prompts 4–5 audit entry:
+`604096c4355765d45a6686a16fabd479be2d2e5e`.
+The [fresh audit](reports/implementation/4-5-silicon-ledger-audit.md) corrects
+split-field transition/cleanup ordering and closes independent-oracle/schema
+gaps; 77 tests and local checks pass. Its final commit/sync identity is recorded
+in the handoff, avoiding a self-referencing commit. Branch and base are unchanged.
 
 Before prompt 1 of a new execution, create a new branch from the synchronized
 intended base and record its name/base here. Keep that branch for every prompt

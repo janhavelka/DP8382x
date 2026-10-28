@@ -4,6 +4,11 @@
 
 ### 2026-10-28
 
+- Fresh independent prompts 4–5 audit corrected split amplitude updates and
+  restoration to keep every intermediate code legal, with revised finite
+  budgets. Added exact field/access and procedure-ownership oracles and rejected
+  malformed optional disposition text. Diagnostic source facts remain unchanged.
+
 - Completed prompt 5 primary source closure: all 79 detailed entries and 17
   opaque recipe records, five blocked EEE associations, 52 procedures and
   independent power/WoL/pin/electrical vectors. Added exact action ownership,

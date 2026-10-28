@@ -100,6 +100,82 @@ class RemainingLedgerTests(unittest.TestCase):
         for name in ('LED0_GPIO_CFG', 'LED3_GPIO_CFG'):
             self.assertEqual(self.field(name, 7)['access'], 'R')
 
+    def test_independent_remaining_semantic_fields_and_access(self):
+        # Original PDF tables8-42/49-51/73-80/82-86/89-90/92-97.
+        # A fresh source-first reviewer transcribed each field, then matched its
+        # semantic name. Aggregated writable masks cannot detect swapped fields
+        # or loss of strap-dependent RHW access.
+        expected = {
+            'LEDCR': {'blink': (0x0600, 'RW'), 'polarity': (0x0080, 'RHW'),
+                      'drive_enable': (0x0010, 'RW'), 'drive_value': (0x0002, 'RW')},
+            'MLEDCR': {'polarity_swap': (0x0200, 'RW'), 'source': (0x0078, 'RW'),
+                       'route_enable': (1, 'RW')},
+            'COMPT': {'pattern': (0x000F, 'RW')},
+            '10M_CFG': {'short_preamble': (0x4000, 'RW')},
+            'IO_CFG1': {'mac_impedance': (0xC000, 'RW'), 'rx_dv': (0x0100, 'RHW'),
+                       'clock_off': (0x0040, 'RW')},
+            'LED0_GPIO_CFG': {'clock_source': (0x0038, 'RW'), 'mux': (7, 'R')},
+            'LED1_GPIO_CFG': {'clock_source': (0x0038, 'RW'), 'mux': (7, 'RW')},
+            'LED2_GPIO_CFG': {'mux': (7, 'RW')},
+            'LED3_GPIO_CFG': {'mux': (7, 'R')},
+            'CLK_OUT_LED_STATUS': {'clock_off_status': (1, 'R')},
+            'VOD_CFG1': {'minus_mdix_high': (0x3000, 'RW'), 'minus_mdi': (0x0FC0, 'RW'),
+                         'zero': (0x003F, 'RW')},
+            'VOD_CFG2': {'minus_mdix_low': (0xF000, 'RW'), 'plus_mdix': (0x0FC0, 'RW'),
+                         'plus_mdi': (0x003F, 'RW')},
+            'ANA_LD_PROG_SL': {},
+            'ANA_RX10BT_CTRL': {'receiver_current_gain': (0x001F, 'RW')},
+            'GENCFG': {'min_ipg': (8, 'RW')},
+            'LEDCFG': {'led3_source': (0xF000, 'RW'), 'led2_source': (0x0F00, 'RW'),
+                      'led1_source': (0x00F0, 'RW')},
+            'IOCTRL': {'mac_slew': (0x001F, 'RW')},
+            'LEDCFG2': {'led2_polarity': (0x0040, 'RHW'),
+                       'led2_drive_value': (0x0020, 'RW'), 'led2_drive_enable': (0x0010, 'RW'),
+                       'led1_polarity': (4, 'RHW'), 'led1_drive_value': (2, 'RW'),
+                       'led1_drive_enable': (1, 'RW')},
+            'RXFCFG1': {'crcGate': (0x1000, 'RW'), 'levelAcknowledge': (0x0800, 'W0C'),
+                       'pulseWidth': (0x0600, 'RW'), 'levelMode': (0x0100, 'RW'),
+                       'enable': (0x0080, 'RW'), 'bitMaskFlag': (0x0040, 'RW'),
+                       'secureOn': (0x0020, 'RW'), 'magicPacketEnable': (1, 'RHW')},
+            'RXFPMD1': {'byte4': (0xFF00, 'RW'), 'byte5': (0x00FF, 'RW')},
+            'RXFPMD2': {'byte2': (0xFF00, 'RW'), 'byte3': (0x00FF, 'RW')},
+            'RXFPMD3': {'byte0': (0xFF00, 'RW'), 'byte1': (0x00FF, 'RW')},
+            'RXFSOP1': {'byte1': (0xFF00, 'RW'), 'byte0': (0x00FF, 'RW')},
+            'RXFSOP2': {'byte3': (0xFF00, 'RW'), 'byte2': (0x00FF, 'RW')},
+            'RXFSOP3': {'byte5': (0xFF00, 'RW'), 'byte4': (0x00FF, 'RW')},
+        }
+        for name, fields in expected.items():
+            with self.subTest(register=name):
+                actual = self.register(name)['fields']
+                self.assertEqual(len(actual), len(fields))
+                self.assertEqual({f['name']: (int(f['mask'], 16), f['access']) for f in actual}, fields)
+
+    def test_independent_split_amplitude_transition_prefixes(self):
+        # Tables8-79/80: the ONLY supported six-bit minus codes are28..38.
+        # Neither direct order is valid for2F->30:3F or20. Low nibble8 is
+        # legal with both high fields2/3; use it in application and restoration.
+        self.assertEqual((0x2F & 0x0F) | (0x30 & 0x30), 0x3F)
+        self.assertEqual((0x2F & 0x30) | (0x30 & 0x0F), 0x20)
+        literals = {(0x2F, 0x30): [0x2F, 0x28, 0x38, 0x30],
+                    (0x30, 0x2F): [0x30, 0x38, 0x28, 0x2F]}
+        for start in range(0x28, 0x39):
+            for target in range(0x28, 0x39):
+                # Independent research arithmetic, not an executing driver:
+                # write low8, write desired high, then desired low.
+                path = [start, (start & 0x30) | 8, (target & 0x30) | 8, target]
+                self.assertTrue(all(0x28 <= code <= 0x38 for code in path))
+                self.assertTrue(all((a & 0x30) == (b & 0x30) or
+                                    (a & 0x0F) == (b & 0x0F)
+                                    for a, b in zip(path, path[1:])))
+                if (start, target) in literals:
+                    self.assertEqual(path, literals[start, target])
+                # After a failed/uncertain target write, either adjacent prefix
+                # can have been applied; both stay legal. Restoration starts
+                # only after observation, and uses the same bridge.
+                for prefix in path:
+                    restore = [prefix, (prefix & 0x30) | 8, (start & 0x30) | 8, start]
+                    self.assertTrue(all(0x28 <= code <= 0x38 for code in restore))
+
     def test_independent_odd_nibble_and_electrical_encodings(self):
         self.assertIn('disable', self.field('CR2', 2)['validity'].lower())
         self.assertEqual(0x0100 | 2, 0x0102)  # disable, not enable
@@ -250,6 +326,48 @@ class RemainingLedgerTests(unittest.TestCase):
                     feature['procedures'] = [p for p in feature['procedures'] if p != name]
                 self.rejected_file('missing remaining procedure')
 
+    def test_independent_remaining_procedure_owned_masks(self):
+        # Fresh source-first review of procedure actions and the individual
+        # source fields above. Empty ordinary ownership is legal for legacy
+        # LPI because its required exceptional actions own the opaque control.
+        expected = {
+            'power_ieee': {'BMCR': 0x0800},
+            'power_active_sleep': {'PHYSCR': 0x7000},
+            'power_pll_control': {'PHYSCR': 0x8000},
+            'power_deep': {'BMCR': 0x0800},
+            'eee_initialize': {'PHYRCR': 0x8000, 'BMCR': 0x7F80},
+            'eee_negotiation_status': {'BMCR': 0x0200},
+            'legacy_lpi': {},
+            'wol_configure': {'RXFPMD1': 0xFFFF, 'RXFPMD2': 0xFFFF, 'RXFPMD3': 0xFFFF,
+                              'RXFSOP1': 0xFFFF, 'RXFSOP2': 0xFFFF, 'RXFSOP3': 0xFFFF,
+                              'RXFCFG1': 0x17A1},
+            'wol_acknowledge': {'RXFCFG1': 0x0800},
+            'led_configure': {'LEDCR': 0x0692, 'MLEDCR': 0x0279, 'LEDCFG': 0xFFF0,
+                              'LEDCFG2': 0x0077, 'PHYCR': 0x0080},
+            'pin_configure': {'LED1_GPIO_CFG': 7, 'LED2_GPIO_CFG': 7},
+            'clock_configure': {'IO_CFG1': 0x0040, 'LED0_GPIO_CFG': 0x0038,
+                                'LED1_GPIO_CFG': 0x0038},
+            'mii_configure': {'RCSR': 0x0020, 'CR1': 2, 'CR2': 2, 'PHYSCR': 0x0010},
+            'rmii_configure': {'RCSR': 0x01B3, 'IO_CFG1': 0x0100},
+            'repeater_configure': {'RCSR': 0x01B3, 'IO_CFG1': 0x0100},
+            'tx100_configure': {'PHYSCR': 0x0B00, 'CR2': 4},
+            'tx10_configure': {'10BTSCR': 0x3E81, '10M_CFG': 0x4000, 'VOD_CFG3': 0xFFC0},
+            'analog_configure': {'VOD_CFG1': 0x3FFF, 'VOD_CFG2': 0xFFFF,
+                                 'VOD_CFG3': 0xFFC0, 'IOCTRL': 0x001F, 'IO_CFG1': 0xC000},
+            'compliance_session': {'COMPT': 0x000F, 'BMCR': 0x3100, 'PHYRCR': 0xC000},
+            'compatibility_configure': {'GENCFG': 8, 'CR1': 2, 'CR2': 2},
+            'link_recovery_configure': {'CR1': 0x0080},
+            'extended_link_configure': {'CR2': 0x0020, 'CR1': 0x0020, 'PHYCR': 0xC000},
+            'isolation_configure': {'BMCR': 0x0400},
+            'collision_test': {'BMCR': 0x0080},
+        }
+        for pid, masks in expected.items():
+            with self.subTest(procedure=pid):
+                procedure = next(p for p in self.data['procedures'] if p['id'] == pid)
+                self.assertEqual(len(procedure['ownedMasks']), len(masks))
+                self.assertEqual({m['register']: int(m['mask'], 16)
+                                  for m in procedure['ownedMasks']}, masks)
+
     def test_primary_software_owners_stay_in_implementation_stages(self):
         original = copy.deepcopy(self.data)
         for category, name in (('features', 'eee'), ('procedures', 'eee_initialize')):
@@ -283,6 +401,11 @@ class RemainingLedgerTests(unittest.TestCase):
         self.data = copy.deepcopy(original)
         self.data['printedAddresses'][0]['controls'] = ['']
         self.rejected_file('expected nonempty text')
+        for value in (False, None, {}, [], -1, '', '   '):
+            with self.subTest(disposition=value):
+                self.data = copy.deepcopy(original)
+                self.data['printedAddresses'][0]['disposition'] = value
+                self.rejected_file('disposition: expected nonempty text')
 
     def test_eee_digits_cannot_be_stripped_into_wire_offsets(self):
         original = copy.deepcopy(self.data)

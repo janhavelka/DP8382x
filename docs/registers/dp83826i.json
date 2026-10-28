@@ -6585,7 +6585,7 @@
           ],
           "neutral": null,
           "readEffects": "None documented.",
-          "validity": "High2 of cross-word minus MDIX6-bit code. Validate combinedcode28..38 (150% down to50%) before either write; high2/3 alone insufficient.",
+          "validity": "High2 of cross-word minus MDIX6-bit code. Validate combinedcode28..38 (150% down to50%) before either write; high2/3 alone insufficient. Changing high2/3 requires analog_configure low-nibble8 staging and per-write verification; validate every intermediate combined code, including restoration, not just destination.",
           "sources": [
             {
               "source": "snls647i",
@@ -6687,7 +6687,7 @@
           "prohibited": [],
           "neutral": null,
           "readEffects": "None documented.",
-          "validity": "Low4 of cross-word minus MDIX code; combined withVOD_CFG1[13:12] must be28..38.",
+          "validity": "Low4 of cross-word minus MDIX code; combined withVOD_CFG1[13:12] must be28..38. Changing high2/3 requires analog_configure low-nibble8 staging and per-write verification; validate every intermediate combined code, including restoration, not just destination.",
           "sources": [
             {
               "source": "snls647i",
@@ -10856,16 +10856,18 @@
       ],
       "prerequisites": "Identified exact DP83826I and mode; one application owner serializes instance and complete bus transactions. Board declares wiring, pin consumers, clock dependencies and MAC state. Pure validation rejects invalid values/source-gated branches without I/O; bounded live prerequisite reads precede mutation. Save persistent desired settings separately from observed values/trust; admit only finite positive primary and cleanup budgets. ",
       "steps": [
-        "Purely validate entire profile:100M minus codes28..38 (150% to50%),plus08..18 (50% to150%); split MDIX minus code into VOD_CFG1[13:12] andVOD_CFG2[15:12] only after combined validation. Preserve documented zero DAC raw value; no physical zero-level scale invented.",
+        "Validate the complete desired profile before I/O:100M minus codes0x28..0x38 (150% to50%),plus0x08..0x18 (50% to150%). The MDIX-minus code spans VOD_CFG1[13:12] and VOD_CFG2[15:12]; both endpoints and every intermediate combined code must be legal. Preserve the documented zero DAC raw value; no physical zero-level scale is established.",
         "Keep10M initialization4A40 unless an exact authorized tuning profile accounts for its override. VOD_CFG3 MDI/MDIX termination codes0..F map122,119,116,113,110,107,105,102,100,98,96,94,92,90,88,86 with separate enable bits; units and qualification follow exact source.",
         "IOCTRL low5 only10fast/11slow; never write example0400. IO_CFG1[15:14] allows0slow/1fast only; do not infer these controls are interchangeable or promise impedance values.",
-        "Apply one quiesced register sequence; retain first VOD word if second fails and restore both on failure. ANA_LD_PROG_SL is wholly reserved; ANA_RX10BT_CTRL physical code map remains gated. Verify owned stable masks then release owner for scope measurements; configuration success is not electrical compliance."
+        "Admit a temporary intermediate amplitude profile and exclude conflicting writers or reset throughout snapshot, staged writes and verification. MAC traffic quiescence does not prove the analog transmitter is disabled. Snapshot both VOD words with bounded reads and establish a current combined code0x28..0x38 before dependent writes; if unavailable or invalid, report recoveryRequired without attempting the split-field update.",
+        "If the high code changes, first set only VOD_CFG2[15:12] to0x8, preserving its other fields, then verify that word. Next apply the desired VOD_CFG1 fields and verify; finally apply the desired VOD_CFG2 fields and verify. The shared low nibble8 is legal with high2 and high3:0x2F -> 0x28 -> 0x38 -> 0x30; the reverse uses0x30 -> 0x38 -> 0x28 -> 0x2F. Never directly traverse0x3F or0x20. If high does not change, omit the bridge and update the requested words with verification. Reuse owner-retained snapshots/verified words for composition; preserve reserved and unrelated fields. This prevents undocumented intermediate codes, not analog glitches or transient amplitude changes.",
+        "On any failed, late or uncertain write/readback, stop dependent primary writes and retain the last confirmed and possibly applied prefix. Cleanup re-observes both VOD words before selecting its legal restoration path. ANA_LD_PROG_SL remains wholly reserved; ANA_RX10BT_CTRL physical mapping remains gated. Verify other owned stable fields and release for identified scope measurements; configuration success does not establish electrical compliance."
       ],
       "waits": [],
-      "timeout": "One snapshot/RMW/write-verification pass over at most 5 owned registers: at most 60 MDIO frames with fresh four-frame MMD setup per logical access; no retries. Up to 16 additional prerequisite observation frames. Cleanup one restore/readback pass at most 40 frames; any delegated reset/restart has separately reserved finite poll/transaction counts and total duration. Admission requires finite primaryDurationUs and cleanupDurationUs; all admission, lock acquisition and terminal callbacks count against those aggregate durations. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Primary permits at most5 initial register snapshots,6 writes and6 immediate readbacks:17 MMD targets,68 C22 frames with fresh four-frame setup per target, plus at most16 additional prerequisite observation frames. The sixth write and readback cover the split-code bridge. These counts assume retained snapshots and verified words supply composition without additional RMW reads, under continuous conflicting-writer/reset exclusion. Cleanup permits2 current VOD rereads,6 restoration writes and6 readbacks:14 targets,56 frames. Require finite primaryDurationUs and cleanupDurationUs including admission, lock acquisition and terminal callbacks; delegated reset recovery needs separately reserved finite counts and duration. Zero budget admits no I/O. No retries; release controller lock before waits/output. Frozen clock still terminates by frame count.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark recoveryRequired and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
-      "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
+      "cleanup": "After failed/cancelled mutation, first re-read both VOD words once within the separate cleanup budget. If their combined current code is legal and no reset or competing writer invalidated the profile, restore through the same low8 bridge with verification after each write before dependent continuation, then restore the remaining saved owned fields once. If the current code cannot be established or is undocumented, issue no dependent analog restoration writes; retain recoveryRequired/configuration uncertainty for the application recovery owner. Do not guess which prefix an ambiguous transfer applied. Preserve primary and cleanup outcomes separately, with no retries or implicit reset. Successful configuration retains its desired settings.",
+      "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence. Split MDIX-minus replay/restoration always starts from an established current code and uses the same legal bridge. A reset during the procedure invalidates the saved composition and requires bounded reconciliation before further writes.",
       "gates": [
         "ioctrl_example",
         "analog_rx_gain"
@@ -10873,7 +10875,7 @@
       "owner": {
         "api": "analog_configure",
         "cli": "Owner-routed analog_configure with typed preflight and bounded result (44-46).",
-        "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: Exact DP83826I, VDDIO/load/magnetics documented; calibrated differential MDI scope and MAC rise/fall probe, both MDI/MDIX and rates, partial-word recovery.",
+        "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: Exact DP83826I, VDDIO/load/magnetics documented; calibrated differential MDI scope and MAC rise/fall probe, both MDI/MDIX and rates, partial-word recovery. Independently cover all289 legal endpoint pairs and each accepted/uncertain prefix, both2F-to30 and reverse, invalid current code, every bridge readback failure, competing reset and bounded56-frame cleanup. No glitch-free claim.",
         "implementationStage": 35
       }
     },

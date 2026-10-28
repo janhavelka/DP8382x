@@ -297,7 +297,13 @@ collision testing to 35. RMII repeaters coordinate both PHYs and reserve both
 operations' budgets; success on one does not imply atomic configuration.
 
 Analog amplitude settings include a cross-register code; validate the complete
-request before either write and retain partial application on failure. Raw DAC
+request and establish the current code before writing. Every intermediate code
+must also be documented. When its high field changes, stage the low field through
+the shared legal encoding, verify each write before continuing, and use the same
+path for restoration. MAC quiescence does not disable analog output or establish
+glitch-free updates. Failed or uncertain transfers stop dependent writes;
+cleanup must re-observe the current code before choosing a restoration path.
+Retain partial application and recovery-required state when it cannot be established. Raw DAC
 fields do not prove physical units, and the receiver-gain range lacks an exact
 code map. All-reserved analog entries remain unwritable. IOCTRL examples touching
 reserved bits are not accepted field settings.

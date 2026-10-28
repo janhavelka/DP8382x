@@ -12,6 +12,10 @@ closes primary-part source coverage, including unresolved gates and offline vali
 build/package metadata, examples, CLI, runners and hardware qualification are
 future work.
 
+The [fresh prompts 4–5 audit](docs/reports/implementation/4-5-silicon-ledger-audit.md)
+records independent PDF review, corrected split-field transition ordering and
+stronger semantic field/ownership regressions.
+
 The general library is intended to expose both **10 and 100 Mbit/s** operation.
 The initial board firmware will use autonegotiation advertising **100 Mbit/s,
 full duplex only**. That board policy belongs in the application configuration.

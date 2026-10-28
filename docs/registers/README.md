@@ -131,6 +131,7 @@ matrix), `eligibility` and `sources`.
 
 `printedAddresses` contains `{id, devad, printedAddress, sources, gates, feature,
 status, controls}` records, with optional explanatory `disposition` text.
+`disposition`, when present, must be nonempty text; it cannot be null or a flag.
 `status` remains BLOCKED; `controls` is a nonempty list of source descriptions
 distinguishing exact-part facts from comparison-only status fields.
 These are **not wire tuples** and cannot be passed to an MMD helper.
@@ -150,6 +151,9 @@ Prompt 5 requires the final 39 rows (25 detailed and 14 opaque recipe records),
 24 further procedures and complete research for every feature. The final
 inventory is 96 records, 283 fields, 52 procedures and five blocked printed
 associations. All 79 detailed entries have complete bit partitions.
+Independent tests check each remaining field's semantic identity, mask and exact
+access type, plus all 24 remaining procedure ownership maps. Aggregate writable
+masks alone cannot detect swapped controls or lost strap-dependent access.
 Continue adding independently sourced vectors and negative tests with changes.
 Do not fill unknown reset bits with zeros or
 turn a printed EEE address into a wire offset while its gate remains open.

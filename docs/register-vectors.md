@@ -252,7 +252,14 @@ expected values from the JSON. These are research tests, not executing PHY code.
   `0x08..0x18` spans 50% up to 150%. With zero code unchanged at zero,
   all-direction 150% gives VOD_CFG1/2 `0x2A00/0x8618`, and 50%
   gives `0x3E00/0x8208`. The split MDIX-minus code must be validated
-  as a whole before either write. ANA_RX10BT_CTRL's five bits versus sixteen
+  as a whole before either write, including every intermediate state.
+  For `0x2F → 0x30`, high-first gives undocumented `0x3F` and low-first
+  gives undocumented `0x20`. Stage through low nibble 8:
+  `0x2F → 0x28 → 0x38 → 0x30`; restoration uses
+  `0x30 → 0x38 → 0x28 → 0x2F`. Verify each write before continuing.
+  Independent arithmetic covers all 289 legal endpoint pairs and restoration
+  from every modeled failure prefix. These are legal-code transitions, not a
+  claim of glitch-free hardware output. ANA_RX10BT_CTRL's five bits versus sixteen
   stated voltage levels do not establish a physical conversion.
 - Active-sleep policy uses mask/value `0x7000/0x6000`; BISCR
   `0x0100` means normal, zero under that mask means asleep.

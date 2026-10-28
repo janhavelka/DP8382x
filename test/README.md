@@ -36,9 +36,12 @@ required action ownership.
 `test_remaining_ledger.py` covers every remaining detailed reset/access partition,
 LED placement, odd-nibble polarity, pin legality, analog split fields, W0C neutral
 writes, MAC/password ordering, nominal EEE timing and exact recipe actions.
+Its independent oracles match every semantic field's mask/access type and all
+24 remaining procedure ownership maps. Split-field arithmetic covers all 289
+valid endpoint pairs, legal intermediate codes and restoration prefixes.
 Malformed temporary files reject incomplete source coverage, erased gates,
 borrowed exceptions, fabricated EEE wire offsets and reclassified software scope.
-All 74 registered tests are research-tool evidence only.
+All 77 registered tests are research-tool evidence only.
 
 No driver, firmware build, CI workflow or physical hardware test exists at this stage.
 The [80-prompt promptset](../docs/prompts/README.md) now defines those future

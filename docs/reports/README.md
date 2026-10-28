@@ -17,6 +17,11 @@ remaining primary diagnostic and power/interface source inventory. Research
 completion includes explicit source gates; implementation and qualification
 remain separate.
 
+The [fresh prompts 4–5 audit](implementation/4-5-silicon-ledger-audit.md)
+checks completed artifacts against original PDFs and executable regressions,
+recording the corrections and final local verification separately from the
+original completion checkpoints.
+
 - [Sibling drivers](sibling-driver-audit.md): primary driver source audit and
   broader inventory, naming, ownership, Status/health, CLI, runners, tests and CI.
 - [FieldCore conventions](fieldcore-conventions-audit.md): actual promptset,

@@ -62,6 +62,10 @@ family: for example IEEE/active-sleep policy and quiesced WoL setup remain
 independently specified while deep-power exit and live credential guarantees
 need more evidence. Procedure and action gates remain authoritative.
 
+The [fresh prompts 4–5 audit](reports/implementation/4-5-silicon-ledger-audit.md)
+retains this source coverage and corrects analog transition/restore ordering.
+Exact semantic-field and procedure-mask oracles strengthen the research evidence.
+
 Run the [ledger checks](registers/README.md) on every extension. Retain separate
 source, driver-host, package, SDK and physical evidence; campaigns 72–73 own
 actual qualification. Future family research is assigned in [variants](variants.md).

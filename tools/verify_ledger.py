@@ -594,6 +594,8 @@ def validate(data: object, root: Path = ROOT) -> None:
         citations(item["sources"], aid + ".sources")
         refs(item["gates"], gates, aid + ".gates", nonempty=True)
         require(item["status"] == "BLOCKED", aid, "printed address must retain blocked wire disposition")
+        if "disposition" in item:
+            text(item["disposition"], aid + ".disposition")
         for control in sequence(item["controls"], aid + ".controls", nonempty=True):
             text(control, aid + ".controls")
         require("eee_wire" in item["gates"], aid, "printed address must retain wire evidence gate")
