@@ -143,7 +143,7 @@
       "value": 0.5,
       "unit": "ms",
       "qualifier": "NOM",
-      "start": "power up or reset",
+      "start": "reset (table does not specify edge)",
       "end": "100M signaling",
       "conditions": "Strapped forced 100M mode",
       "sources": [
@@ -158,7 +158,7 @@
       "value": 0.2,
       "unit": "ms",
       "qualifier": "NOM",
-      "start": "power up or reset",
+      "start": "reset (table does not specify edge)",
       "end": "RMII leader clock",
       "conditions": "RMII leader only",
       "sources": [
@@ -2180,7 +2180,7 @@
       ],
       "resetValue": "0x0002",
       "resetKnownMask": "0xFFFF",
-      "resetNotes": "Published reset0002; live fields are not persistent reset verification targets. Forced-mode interpretations gated.",
+      "resetNotes": "Published table reset 0002, not a universal post-strap expectation: bits 2:1 conflict with the same table's ENHANCED forced-mode descriptions. Keep the published reset separate from live observations and the forced_physts gate; never verify these dynamic fields as persistent configuration.",
       "reservedMask": "0x8000",
       "access": "FIELD_DEFINED",
       "readEffects": "See individual fields; access owned by application, destructive observations by collector.",
@@ -4139,12 +4139,12 @@
           "id": "VOD_CFG3.mdi_termination",
           "name": "mdi_termination",
           "mask": "0xF000",
-          "access": "R",
+          "access": "RW",
           "legal": "range",
           "prohibited": [],
           "neutral": null,
           "readEffects": "None documented.",
-          "validity": "Detailed Type R conflicts with sanctioned full-word recipe4A40; no general tuning setter.",
+          "validity": "10M termination value register. Codes 0..F map respectively to 122,119,116,113,110,107,105,102,100,98,96,94,92,90,88,86 in table 8-81 (units not explicitly stated there). Mandatory initialization selects code 4. Other analog-control procedures remain prompt-5 research and prompt-35 implementation.",
           "sources": [
             {
               "source": "snls647i",
@@ -4180,7 +4180,7 @@
           "prohibited": [],
           "neutral": null,
           "readEffects": "None documented.",
-          "validity": "MDIX termination value; exact recipe4; no arbitrary ohm conversion.",
+          "validity": "10M termination value register. Codes 0..F map respectively to 122,119,116,113,110,107,105,102,100,98,96,94,92,90,88,86 in table 8-81 (units not explicitly stated there). Mandatory initialization selects code 4. Other analog-control procedures remain prompt-5 research and prompt-35 implementation.",
           "sources": [
             {
               "source": "snls647i",
@@ -4208,9 +4208,7 @@
           "owner": "initialization"
         }
       ],
-      "gates": [
-        "vod_access"
-      ]
+      "gates": []
     },
     {
       "id": "ANA_LD_PROG_SL",
@@ -5992,8 +5990,8 @@
       "prerequisites": "Application owner serializes all instance calls/snapshots. Controller transaction lock covers every bus participant; active-operation admission is separate. Declared exact variant, legal values and valid clock/power history checked before mutation.",
       "steps": [
         "After any full reset and before enabling forced10 or advertising any10 capability, apply exact TI 10BASE-Te initialization; application may choose apply at general initialization for later10 use.",
-        "One atomic vendor transaction: W(0D,001F), W(0E,030E), W(0D,401F), W(0E,4A40). The full literal write is a recipe exception, including reserved zero bits; no arbitrary tuning permission.",
-        "Verify stable recipe-controlled fields by owner-routed read; mismatch or failure preserves uncertain readiness. Detailed read-only top nibble is not used to remove the required write.",
+        "One atomic vendor transaction: W(0D,001F), W(0E,030E), W(0D,401F), W(0E,4A40). This exact initialization selects code 4 and enables both documented R/W termination fields, with reserved bits zero as specified by the recipe.",
+        "Verify stable configured fields by an owner-routed read; mismatch or failure preserves uncertain readiness. Table 8-81 marks all four functional fields R/W; no read-only access exception is needed.",
         "Record initialized trust only after required successful verification; no new PHY feature support or physical qualification is implied."
       ],
       "waits": [],
@@ -6001,9 +5999,7 @@
       "partialEffects": "Before final data frame only selectors changed; failed final frame may apply4A40. Do not declare10 readiness from selector success.",
       "cleanup": "Release controller lock on every exit before any hardware wait or output. Preserve primary error and finite cleanup outcome separately; no automatic retry/reset. Accepted or uncertain writes invalidate affected trust. Cancellation retains hardware effects; owner may admit bounded reconciliation.",
       "restoration": "Reapply after POR/pin/PHYRCR hard reset; PCS reset retains vendor setting, restart retains registers. Reverify after external/raw writes.",
-      "gates": [
-        "vod_access"
-      ],
+      "gates": [],
       "owner": {
         "api": "startInitialize",
         "cli": "owner-routed startInitialize (prompts 44-46)",
@@ -6130,6 +6126,10 @@
         {
           "source": "ieee28b",
           "location": "IEEE 802.3-2012 28.2.3.4 pp294-298, 28.2.4.1.6/Table28-8 pp303-304, Figure28-18 p320, Annex28C p734"
+        },
+        {
+          "source": "ieee28b",
+          "location": "Annex 28B.4 p732; 28.2.3.4.13g p298"
         }
       ],
       "ownedMasks": [
@@ -6144,7 +6144,7 @@
       ],
       "prerequisites": "Application owner serializes all instance calls/snapshots. Controller transaction lock covers every bus participant; active-operation admission is separate. Declared exact variant, legal values and valid clock/power history checked before mutation. Exact DP83826I handshake gate next_page_handshake must close before enabling custom exchange; the sequence below is the selected IEEE comparison contract, not measured silicon behavior.",
       "steps": [
-        "Validate11-bit payload, next/message/ACK2 booleans, assigned message codes (never transmit reserved message codes), application semantics, finite page count including null pages, and aggregate deadline. Preserve prior consumed events and establish a fresh negotiation epoch.",
+        "Validate11-bit payload, next/message/ACK2 booleans, assigned message codes (never transmit reserved message codes), application semantics, finite page count including null pages, and aggregate deadline. Preserve prior consumed events and establish a fresh negotiation epoch. Each series of unformatted pages must be preceded by a message page defining its use; the referenced unformatted pages must immediately follow in the defined order (IEEE Annex 28B.4 and 28.2.3.4.13g).",
         "Prepare desired payload locally, set ANAR next-page intent and restart AN. A pre-restart ANNPTR write is not a proved load trigger: IEEE transmit-disable clears mr_next_page_loaded. Do not write hardware toggle or partner ACK.",
         "Collector retains fresh ANER page evidence. Distinguish initial BASE-page receipt from later NEXT-page events; initial event does not justify reading ANLNPTR as a received next page. Check peer/local next-page capability and peer intent. Peer refusal means unavailable exchange, not transport failure; ordinary negotiation may continue.",
         "After fresh base-page receipt and bilateral next-page willingness, write first ANNPTR under ownedB7FF; IEEE register7 write sets mr_next_page_loaded. Exact TI load/event ordering remains gated.",
@@ -6165,7 +6165,7 @@
       "owner": {
         "api": "NextPage / exchangeNextPage",
         "cli": "owner-routed NextPage / exchangeNextPage (prompts 44-46)",
-        "test": "Independent literals and boundary failures for NextPage / exchangeNextPage; prompts 17, 53-55",
+        "test": "Independent literals and boundary failures for NextPage / exchangeNextPage; prompts 17, 53-55; reject unformatted series without a defining message and out-of-order referenced pages",
         "implementationStage": 17
       }
     },
@@ -6345,9 +6345,7 @@
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
-      "gates": [
-        "vod_access"
-      ],
+      "gates": [],
       "notes": "Required full-feature scope; first-board policy does not remove capabilities."
     },
     {
@@ -7270,7 +7268,6 @@
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
-        "vod_access",
         "ioctrl_example"
       ],
       "notes": "Required full-feature scope; first-board policy does not remove capabilities."
@@ -7466,19 +7463,6 @@
         {
           "source": "snls647i",
           "location": "Table 8-19"
-        }
-      ]
-    },
-    {
-      "id": "vod_access",
-      "conflict": "VOD_CFG3 top nibble marked R while required4A40 recipe changes it from8 to4.",
-      "decision": "Allow exact mandatory full-word recipe only, no arbitrary top-nibble tuning. Stable recipe readback mismatch remains failure, never silently accept.",
-      "nextEvidence": "TI exact-part clarification or qualified trace for generic tuning semantics.",
-      "ownerStage": 35,
-      "sources": [
-        {
-          "source": "snls647i",
-          "location": "8.3.13 p40; table 8-81 p86"
         }
       ]
     },

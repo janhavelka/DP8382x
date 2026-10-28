@@ -39,11 +39,16 @@ C22 addresses are 0..31; MMD offsets are 0..65535 and DEVAD is 0..31.
 REGCR/ADDAR never have indirect aliases. Duplicate primary or alias tuples are
 invalid, even when names differ. Standard registers other than these two have
 explicit DEVAD-31 aliases; there is no inferred bank-wide write permission.
+No aliases for an MMD-primary record are currently established. They must remain
+empty until an explicit source-backed allowance is added with its tests; an alias
+cannot bypass hole, direct-only selector or unresolved printed-address restrictions.
 
 `resetValue` contains only known one bits, and must be a subset of
 `resetKnownMask`. It is a partial value, not a value to write. A known zero bit
-has its mask set and value clear. Strap/dynamic/undocumented defaults stay out of
-the known mask. A pending register uses null resetValue/resetKnownMask/
+has its mask set and value clear. Defaults absent from the specification stay out
+of the known mask. Documented dynamic reset values describe the reset instant,
+not persistent readback; strap/mode dependencies and contradictory printed defaults
+are stated in resetNotes and gates. A pending register uses null resetValue/resetKnownMask/
 reservedMask and an empty field array. An all-reserved completed register has
 reservedMask 0xFFFF and no fields: it has no ordinary writable bits.
 
@@ -66,9 +71,8 @@ A procedure has `id`, `feature`, `modes`, `sources`, `ownedMasks` (objects with
 `partialEffects`, `cleanup`, `restoration`, `gates`, and `owner`. These text/list
 contracts are required and nonempty except waits/gates/ownedMasks may be empty
 when no such action exists. `steps` is an ordered nonempty list of instructions.
-Owned masks must fit documented non-reserved writable fields; the sole current
-read-only ownership exception is `initialize_10base` owning VOD_CFG3's full
-functional mask for the explicitly mandated literal recipe. Read-only observation
+Owned masks must fit documented non-reserved writable fields and the owning
+feature's register coverage. There is no read-only ownership exception. Read-only observation
 procedures use no owned masks. Exact recipe exceptions must be documented rather
 than legalized by a broad mask. Owner is an object with `api`, `cli`, `test` and
 `implementationStage`; these are planned responsibilities, not frozen signatures.
@@ -108,7 +112,8 @@ is retained in its gate, not added as an established register alias.
 ## Coverage and evolution
 
 The validator requires the exact core register set and the complete 79-entry
-summary inventory, plus the feature-only address entries. Removing a row cannot
+summary inventory, the feature-only address entries and all 12 core procedures
+with their assigned features. Removing a row cannot
 make coverage pass. It checks the seeded feature families and their stage owners.
 As prompts 4–5 promote pending records, add independently sourced vectors and
 negative tests in the same change. Do not fill unknown reset bits with zeros or

@@ -4,6 +4,9 @@
 
 ### 2026-10-28
 
+- Fresh prompt-3 audit corrected VOD_CFG3 access and removed its false conflict
+  and validator exception, narrowed two nominal timings to reset, clarified
+  next-page framing, and closed alias/procedure coverage gaps with new tests.
 - Completed prompt 3's DP83826I core silicon research: authoritative JSON ledger,
   schema validator and independent literal tests; identity, access, reset, link,
   crossover, next-page and pause procedures; complete feature inventory ownership

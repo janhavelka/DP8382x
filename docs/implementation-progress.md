@@ -3,7 +3,7 @@
 The [80-prompt implementation plan](prompts/README.md) is in its first
 execution. Prompts 1–3 research stages are complete; the remaining stages have
 not started. Current executable verification includes reference/link checks,
-the silicon-ledger validator and 36 registered research-tool tests. Driver code,
+the silicon-ledger validator and 41 registered research-tool tests. Driver code,
 examples, CLI, runner, driver behavior tests and hardware qualification remain
 future work. Prompt 3 closes core research, not full-ledger or driver completion.
 
@@ -17,8 +17,11 @@ Prompt 2 comparison checkpoint: `05d69f585e8d8984b90645a8ec931802b071ecb1`
 (verified equal to its same-name upstream before the final report commit).
 Prompt 3 entry checkpoint: `e89c024aa4a149bcf56e7ba5dd7bcf23d4966d40`
 (prompt-2 final maintenance, fetched and equal to its same-name upstream).
-Prompt 3 final commit/sync SHA is recorded in the execution handoff to avoid
-a self-referencing commit. No branch or base change occurred.
+Prompt 3 initial commit/sync checkpoint:
+`01ce198a2ea2bf1284793b3876b90ea8ca5a1d86` (also the fresh independent audit's
+clean, synchronized entry). The [follow-up audit](reports/implementation/3-core-ledger-audit.md)
+corrected silicon facts and validator gaps; its final commit/sync SHA is recorded
+in the handoff to avoid a self-referencing commit. No branch or base change occurred.
 
 Before prompt 1 of a new execution, create a new branch from the synchronized
 intended base and record its name/base here. Keep that branch for every prompt
@@ -34,7 +37,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | --- | --- | --- |
 | [1 Audit current driver APIs, state and ownership](prompts/1-ecosystem-core-audit.md) | COMPLETE | [Live comparison](library-comparison.md), [execution report](reports/implementation/1-core-api-state-ownership.md); local reference/link and diff checks PASS. Commit/sync SHA in final handoff. |
 | [2 Audit examples, tools, repository structure and prompt workflows](prompts/2-ecosystem-tooling-audit.md) | COMPLETE | [Live comparison](library-comparison.md), [execution report](reports/implementation/2-ecosystem-tooling-audit.md); local reference/link and diff checks PASS. Commit/sync SHA in final handoff. |
-| [3 Establish the primary register ledger and core silicon behavior](prompts/3-silicon-core-ledger.md) | COMPLETE | [Ledger/schema](registers/README.md), [behavior](device-behavior.md), [vectors](register-vectors.md), [coverage](feature-coverage.md), [execution report](reports/implementation/3-silicon-core-ledger.md); 96 register records, 20 complete core rows, 36 tests and local reference/link/diff checks PASS. Source conflicts remain named implementation gates. |
+| [3 Establish the primary register ledger and core silicon behavior](prompts/3-silicon-core-ledger.md) | COMPLETE | [Ledger/schema](registers/README.md), [behavior](device-behavior.md), [vectors](register-vectors.md), [coverage](feature-coverage.md), [execution report](reports/implementation/3-silicon-core-ledger.md); fresh independent audit integrated, 96 register records, 20 complete core rows, 41 tests and local reference/link/diff checks PASS. Source conflicts remain named implementation gates. |
 | [4 Research diagnostic, event and counter procedures](prompts/4-silicon-diagnostic-ledger.md) | NOT STARTED | None |
 | [5 Complete power, wake, interface and remaining source coverage](prompts/5-silicon-power-interface-ledger.md) | NOT STARTED | None |
 | [6 Resolve portable core and native SDK ownership](prompts/6-framework-ownership.md) | NOT STARTED | None |

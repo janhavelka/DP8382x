@@ -77,8 +77,8 @@ write C22 0x0E = 0x4A40
 
 Hold one transaction lock over all four frames. The value decomposes into MDI
 termination4, MDI enable1, MDIX termination4, MDIX enable1 under masks
-`F000/0800/0780/0040`. The high field's R notation does not negate the exact
-required recipe; arbitrary tuning remains gated. Inject failure before and after
+`F000/0800/0780/0040`. Table 8-81 marks all four fields **R/W**, so their combined
+writable mask is `0xFFC0`; no access exception is needed. Inject failure before and after
 each accepted frame in the future driver suite. No later phase may execute after
 a failed selector. A failed final write retains possible target effects. Repeat
 all selection phases on the next explicitly admitted transaction.
@@ -102,6 +102,9 @@ Tables8-19/23/26/28/30/43 yield independent useful extremes:
   restart does not prove page-loaded state survives. Continue null message1 with
   MP1/NP0 if local data ends before the peer; require bilateral termination.
   Exact DP83826I event/load sequencing retains `next_page_handshake`.
+  Every unformatted series must follow a message page defining its use, with
+  referenced pages immediately following in defined order (IEEE Annex 28B.4 p732
+  and 28.2.3.4.13g p298).
 - Under BMCR selection mask `0x3100`, forced 10-half/full are `0x0000/0x0100`,
   forced 100-half/full `0x2000/0x2100`. Gigabit selection is not supported.
 - CR1 robust crossover is `0x0020` and is required for forced operation. PHYCR
@@ -145,7 +148,14 @@ event and mark the missing rest, while an ambiguous failed read flags history lo
 Structural negative cases exercise duplicate IDs/address aliases, missing
 indirect aliases, overlapping/out-of-width fields, incomplete partitions,
 unknown reset bits set in the partial value, wrong command-neutral values,
-illegal encodings, missing source/owner, deleted inventory/feature rows and EEE
+illegal encodings, missing source/owner, deleted inventory/feature/core-procedure rows,
+unproved MMD aliases, procedure masks outside their feature's coverage, and EEE
 printed addresses incorrectly promoted to wire tuples. These validate research
 structure. Transaction call-count, time/cancellation and physical traces remain
 implementation/qualification obligations in the ledger owners.
+
+The fresh access oracle groups every functional bit of all 20 core registers by
+its original-table access type. These literal tests are independent of the field
+partition tests, which cannot detect a wrong access label. Timing vectors also
+preserve the two reset-only nominal signaling/clock intervals without inventing
+power-up applicability or an unstated reset edge.

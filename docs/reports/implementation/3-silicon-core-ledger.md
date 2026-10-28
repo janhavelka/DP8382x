@@ -5,6 +5,10 @@ full-ledger or physical completion. Prerequisites are the prompt-1
 [API/ownership audit](1-core-api-state-ownership.md) and prompt-2
 [tooling audit](2-ecosystem-tooling-audit.md), including their selected conventions.
 
+The [fresh independent audit](3-core-ledger-audit.md) supersedes this initial
+execution's validation results and its mistaken VOD_CFG3 read-only interpretation.
+The initial 36-test results below are historical; the corrected suite has 41 tests.
+
 ## Execution and ownership
 
 Resumed `promptset/dp8382x-implementation-20261028` from clean entry checkpoint
@@ -112,11 +116,10 @@ file claims that these research tests execute reset/driver behavior on hardware.
 
 ## Remaining evidence and stage handoff
 
-Fifteen named gates in the ledger have owners and next evidence. Core material
+Fourteen named gates remain after the fresh audit; each has an owner and next evidence. Core material
 ones are `forced_physts` (coordinated portable/SDK link interpretation),
 `hard_reset_straps` (software-hard-reset resampling), `pcs_reset_extent`
-(complete PCS-domain enumeration), `vod_access` (general tuning versus exact
-sanctioned initialization), and `next_page_handshake` (exact-part event/load
+(complete PCS-domain enumeration), and `next_page_handshake` (exact-part event/load
 sequencing). The selected conservative behavior permits independent
 implementation work while withholding the disputed claims. Exact TI clarification
 or identified measurements are needed to close the affected ambiguity.

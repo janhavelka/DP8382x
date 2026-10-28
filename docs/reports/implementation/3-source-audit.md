@@ -141,3 +141,24 @@ portable/package consumers, SDK link, remote CI and physical hardware:
 NOT RUN in this delegated audit. The lead records the stage's actual checker,
 unit-test and reference/link results and final commit/sync. Vendor archive
 integrity remains checked by the repository's existing reference verifier.
+
+## Fresh independent follow-up
+
+After checkpoint `01ce198`, a new reviewer reopened the original TI core tables
+and IEEE next-page text rather than inheriting the prior conclusions. TI table
+8-81 p86 shows VOD_CFG3 bits 15:12 as **R/W**; the earlier ledger's R label and
+claimed conflict were wrong and have been removed. Section 7.6 p15's nominal
+100M-signaling and RMII-leader-clock intervals apply to reset, not a separately
+specified power-up interval. IEEE Annex 28B.4 p732 and 28.2.3.4.13g p298 explicitly
+require a defining message before an unformatted series, with its referenced
+pages following immediately in order. These corrections change no source bytes.
+
+The fresh sibling re-audit reopened the relevant TMP1x2/MB85RC declaration,
+implementation, rejection-test, CLI, runner, workflow and rule paths listed above.
+Both remain clean at their listed revisions. TUSB32x has advanced to
+`9e4b08a62303dbb9a6bbbfdbacb6aeb42154533c` with concurrent changes to rules,
+docs, examples, metadata and tests, plus untracked
+`docs/audit/execution-27-peers.md` and `docs/integration.md`. Its current rules and
+capability-planning prompt were reopened as read-only references. The earlier
+`4445cdc` observation remains historical; neither observation proves full TUSB32x
+implementation. No sibling or vendor payload was modified by either audit.

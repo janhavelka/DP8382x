@@ -70,7 +70,10 @@ Do not generalize ENHANCED POR-only exceptions into an unsupported BASIC reset
 claim. BASIC speed/isolation straps have their own tables. The BASIC/ENHANCED
 pinout choice is a hardware configuration, not a software mode setter. Read SOR
 as captured straps/loaded configuration, not as a mirror of later software
-changes. Its printed defaults are not invariant values on every board.
+changes. Its printed defaults are not invariant values on every board. PHYSTS's
+published reset value is also not a universal post-strap observation: its forced
+speed/duplex descriptions conflict with those default bits. Retain the published
+value as source evidence, never as a persistent configuration readback assertion.
 
 Software reset completion is the relevant self-clearing command becoming zero
 at its actual register. Another active reset command still prevents readiness.
@@ -91,10 +94,10 @@ accepted reset. Retain the primary result, pending effects and cleanup result.
 Apply the exact VOD_CFG3 recipe before permitting 10BASE-Te, including through
 advertisement. Reapply after a full reset; PCS reset and circuitry restart retain
 vendor register state according to their stated domains. Readback and trust must
-still reflect external/raw mutations. The mandatory recipe is explicitly
-authorized by the feature section even though its high nibble is marked read-only
-in the detailed table. This is a narrow recipe exception; generic tuning of that
-field remains gated. No arbitrary reserved-field write follows from it.
+still reflect external/raw mutations. Table 8-81 marks both termination-value
+fields and their enables read/write, consistent with the required initialization.
+Reserved bits still cannot be tuned arbitrarily. Other analog-control procedures
+remain assigned to prompts 5 and 35; there is no read-only-field conflict here.
 
 Advertise any legal nonempty subset of 10/100 half/full capabilities, subject to
 the application policy. The initial board's 100/full-only choice is not a core
@@ -118,7 +121,9 @@ as universally resolved forced mode until `forced_physts` closes. Prompts 6,
 
 Next-page support includes local message/unformatted code, more-pages and ACK2,
 hardware-controlled toggle, partner ACK/toggle/page fields and consumed page
-evidence. Reserved message codes cannot be transmitted. Bound page count and time,
+evidence. Reserved message codes cannot be transmitted. Each unformatted-page
+series requires a preceding message page defining its use; referenced pages must
+follow immediately in the defined order. Bound page count and time,
 including null pages while the peer continues. Preserve a consumed event with missing
 payload if the subsequent partner read fails. Protocol message interpretation
 belongs to the relevant IEEE/application contract; receiving an unrecognized

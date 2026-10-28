@@ -22,6 +22,13 @@ CORE = {
     "ANNPTR", "ANLNPTR", "CR1", "CR2", "CR3", "REGCR", "ADDAR", "PHYSTS",
     "PHYCR", "PHYRCR", "VOD_CFG3", "SOR1", "SOR2",
 }
+CORE_PROCEDURES = {
+    "identify": "identity", "direct_access": "access", "mmd_access": "access",
+    "pcs_reset": "reset", "hard_reset": "reset", "restart": "reset",
+    "external_reset": "reset", "initialize_10base": "initialization",
+    "configure_an": "negotiation", "configure_forced": "crossover",
+    "next_page_exchange": "next_page", "observe_link": "link",
+}
 # Independent transcription of SNLS647I table 8-17 (79 primary addresses).
 C22_INVENTORY = {
     0x00: "BMCR", 0x01: "BMSR", 0x02: "PHYIDR1", 0x03: "PHYIDR2",
@@ -237,6 +244,9 @@ def validate(data: object, root: Path = ROOT) -> None:
             expected = [] if main[2] in {0x0D, 0x0E} else [("MMD", 31, main[2])]
             require(aliases == expected, rid,
                     "C22 alias must explicitly match DEVAD 31, except direct-only REGCR/ADDAR")
+        else:
+            require(not aliases, rid,
+                    "MMD aliases require an explicit evidence/coverage update")
         fields = sequence(item["fields"], rid + ".fields")
         if item["status"] == "PENDING":
             require(not fields and all(item[key] is None for key in
@@ -316,6 +326,10 @@ def validate(data: object, root: Path = ROOT) -> None:
         require(fid in features, "coverage", f"missing feature family {fid}")
         require(features[fid]["researchStage"] == stage, fid,
                 f"feature research belongs to prompt {stage}")
+    for pid, fid in CORE_PROCEDURES.items():
+        require(pid in procedures, "coverage", f"missing core procedure {pid}")
+        require(procedures[pid]["feature"] == fid, pid,
+                "core procedure has the wrong feature owner")
 
     referenced_registers = set()
     for fid, item in features.items():
@@ -364,6 +378,8 @@ def validate(data: object, root: Path = ROOT) -> None:
             record(entry, pid + ".ownedMasks", "register mask")
             rid = text(entry["register"], pid + ".ownedMasks.register")
             require(rid in registers, pid, "unknown owned register")
+            require(rid in features[item["feature"]]["registers"], pid,
+                    "owned register is missing from feature coverage")
             require(rid not in seen_registers, pid, "duplicate owned register mask")
             seen_registers.add(rid)
             require(registers[rid]["status"] == "COMPLETE", pid,
@@ -376,10 +392,7 @@ def validate(data: object, root: Path = ROOT) -> None:
             for field in registers[rid]["fields"]:
                 if field["access"] in {"RW", "RHW", "W1S", "W0C", "W1C"}:
                     writable |= hex_value(field["mask"], rid + ".field.mask")
-            recipe_exception = (pid == "initialize_10base" and item["feature"] == "initialization"
-                                and registers[rid]["name"] == "VOD_CFG3" and mask == 0xFFC0)
-            require(not mask & ~writable or recipe_exception, pid,
-                    "owned mask includes read-only fields without the exact VOD recipe exception")
+            require(not mask & ~writable, pid, "owned mask includes read-only fields")
 
     printed = entries("printedAddresses", "devad printedAddress sources gates feature")
     tuples = set()
@@ -392,7 +405,7 @@ def validate(data: object, root: Path = ROOT) -> None:
         refs(item["gates"], gates, aid + ".gates", nonempty=True)
         text(item["feature"], aid + ".feature")
         require(item["feature"] in features, aid, "unknown printed-address feature")
-        require(("MMD", *pair) not in primary, aid,
+        require(("MMD", *pair) not in occupied, aid,
                 "unresolved printed address is incorrectly claimed as a wire offset")
     require(PRINTED_ADDRESSES <= tuples, "coverage", "missing printed EEE address")
 

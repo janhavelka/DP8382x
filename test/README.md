@@ -20,7 +20,9 @@ The ledger validator checks the [part-specific schema](../docs/registers/README.
 complete source inventory, masks, aliases, reset knowledge, citations and ownership.
 `test_ledger.py` is registered through standard-library unittest discovery. It
 tests valid/malformed temporary files and independently transcribed original-PDF
-vectors, including every core field partition and the pause matrix. Assertions
+vectors, including every core field partition, access type and the pause matrix.
+It also rejects missing core procedures, unproved MMD aliases and masks outside
+their procedure feature's register coverage. Assertions
 are unittest methods and remain active under Python optimization. Run both
 commands as prompts 4–5 extend the ledger. These are research-tool tests, not
 executing driver, package or hardware tests.

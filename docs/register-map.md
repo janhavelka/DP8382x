@@ -18,7 +18,7 @@ explicitly pending research by prompt 4 or 5; pending does not mean writable.
 | Advertisement and exchange | ANAR, ALNPAR, ANER, ANNPTR, ANLNPTR | Local prohibitions, partner observations, page/ACK/toggle and destructive-event ownership. |
 | Addressing | REGCR, ADDAR | Separate selector/control/data roles; complete transaction serialization. |
 | Link and crossover | CR1, CR2, CR3, PHYSTS, PHYCR | Core fields established; diagnostic/interface/LED feature procedures retain prompt-4/5 ownership. |
-| Required initialization | VOD_CFG3 | Exact 10BASE-Te recipe exception; no general reserved/read-only tuning API. |
+| Required initialization | VOD_CFG3 | Exact 10BASE-Te settings use documented read/write fields; reserved bits remain protected. |
 | Strap evidence | SOR1, SOR2 | Captured board configuration, not invariant defaults or current software settings. |
 
 C22 and MMD are separate address spaces. The standard set has explicit vendor

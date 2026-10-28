@@ -11,7 +11,7 @@ The validator/unit tests exercise the research records only.
 | identity / Exact identity and capabilities | Prompt 3 / COMPLETE | 14 | None named |
 | access / Clause 22 and complete indirect access | Prompt 3 / COMPLETE | 11, 12, 13 | None named |
 | reset / PCS, hard reset, restart and reconciliation | Prompt 3 / COMPLETE | 15, 16 | hard_reset_straps, pcs_reset_extent |
-| initialization / Required 10BASE-Te initialization | Prompt 3 / COMPLETE | 15, 17, 18 | vod_access |
+| initialization / Required 10BASE-Te initialization | Prompt 3 / COMPLETE | 15, 17, 18 | None named |
 | negotiation / Advertisement, forced-compatible negotiation and pause | Prompt 3 / COMPLETE | 17, 19, 37, 38, 39 | None named |
 | next_page / Complete next-page exchange | Prompt 3 / COMPLETE | 17, 19, 20, 29, 34 | next_page_handshake |
 | crossover / Automatic, robust and manual crossover / port mirror | Prompt 3 / COMPLETE | 18, 19, 34 | forced_physts |
@@ -37,7 +37,7 @@ The validator/unit tests exercise the research records only.
 | counters / Single collector for status and destructive counters | Prompt 4 / PENDING | 20, 21 | recr_width, rmii_rc |
 | quality / Raw MSE and supported quality interpretation | Prompt 4 / PENDING | 34 | mse_address |
 | compliance / Finite compliance stimulus procedures | Prompt 5 / PENDING | 35, 51, 73 | compt_reserved |
-| analog / Analog amplitude, termination and MAC output | Prompt 5 / PENDING | 35 | vod_access, ioctrl_example |
+| analog / Analog amplitude, termination and MAC output | Prompt 5 / PENDING | 35 | ioctrl_example |
 | compatibility / IPG and compatibility controls | Prompt 5 / PENDING | 33, 35 | None named |
 | calibration / Resistor calibration contingency | Prompt 4 / PENDING | 15, 16, 25, 35 | None named |
 | straps / POR/pin straps and sampled configuration | Prompt 3 / COMPLETE | 14, 16, 33 | hard_reset_straps |

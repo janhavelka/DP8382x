@@ -120,6 +120,38 @@ class LedgerTests(unittest.TestCase):
         self.register("VOD_CFG3")["aliases"] = [{"space": "C22", "devad": None, "address": "0x00"}]
         self.rejected("address alias collision")
 
+    def test_unproved_mmd_aliases_are_rejected(self):
+        aliases = [
+            {"space": "MMD", "devad": "0x03", "address": "0x1001"},
+            {"space": "C22", "devad": None, "address": "0x0C"},
+            {"space": "MMD", "devad": "0x1F", "address": "0x0D"},
+            {"space": "MMD", "devad": "0x1F", "address": "0x9999"},
+        ]
+        for alias in aliases:
+            with self.subTest(alias=alias):
+                self.register("VOD_CFG3")["aliases"] = [alias]
+                result = self.run_cli(json.dumps(self.data))
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("MMD aliases require", result.stderr)
+
+    def test_each_core_procedure_is_required(self):
+        # Fixed prompt-3 outcomes, independent of the validator's required set.
+        required = ("identify", "direct_access", "mmd_access", "pcs_reset",
+                    "hard_reset", "restart", "external_reset", "initialize_10base",
+                    "configure_an", "configure_forced", "next_page_exchange", "observe_link")
+        for pid in required:
+            with self.subTest(procedure=pid):
+                self.data = copy.deepcopy(self.original)
+                self.data["procedures"] = [p for p in self.data["procedures"] if p["id"] != pid]
+                for feature in self.data["features"]:
+                    feature["procedures"] = [p for p in feature["procedures"] if p != pid]
+                self.rejected("missing core procedure")
+
+    def test_procedure_owned_register_requires_feature_coverage(self):
+        procedure = next(p for p in self.data["procedures"] if p["id"] == "pcs_reset")
+        procedure["ownedMasks"] = [{"register": "ANAR", "mask": "0x0400"}]
+        self.rejected("owned register is missing from feature coverage")
+
     def test_field_bounds_overlap_and_partition(self):
         for mask, message in (("0x10000", "value exceeds"), ("0x0000", "must not be zero"),
                               ("0xC000", "overlaps")):
@@ -152,6 +184,8 @@ class LedgerTests(unittest.TestCase):
                         resetKnownMask="0xFFFF", reservedMask="0xFFFF")
         ledger.validate(self.data)
         procedure = next(p for p in self.data["procedures"] if p["ownedMasks"])
+        feature = next(f for f in self.data["features"] if f["id"] == procedure["feature"])
+        feature["registers"].append(reserved["id"])
         procedure["ownedMasks"] = [{"register": reserved["id"], "mask": "0x0001"}]
         self.rejected("owned mask includes reserved")
 
@@ -168,12 +202,12 @@ class LedgerTests(unittest.TestCase):
         self.rejected("missing keys: test")
 
     def test_procedure_owned_reserved_mask_is_rejected(self):
-        procedure = next(p for p in self.data["procedures"] if p["ownedMasks"])
+        procedure = next(p for p in self.data["procedures"] if p["id"] == "pcs_reset")
         procedure["ownedMasks"] = [{"register": self.register("BMCR")["id"], "mask": "0x0040"}]
         self.rejected("owned mask includes reserved")
 
     def test_procedure_cannot_claim_read_only_identity(self):
-        procedure = next(p for p in self.data["procedures"] if p["ownedMasks"])
+        procedure = next(p for p in self.data["procedures"] if p["id"] == "identify")
         procedure["ownedMasks"] = [{"register": self.register("PHYIDR1")["id"], "mask": "0xFFFF"}]
         self.rejected("owned mask includes read-only")
 
@@ -386,9 +420,44 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual((register["space"], int(register["devad"], 16),
                           int(register["address"], 16)), ("MMD", 31, 0x030E))
         self.assertEqual(self.field("REGCR", 0xC000)["access"], "RW")
-        self.assertEqual(self.field("VOD_CFG3", 0xF000)["access"], "R")
-        self.assertTrue(register["gates"], "recipe/table access conflict must remain visible")
+        self.assertEqual(self.field("VOD_CFG3", 0xF000)["access"], "RW")
         self.assertEqual(int(register["reservedMask"], 16), 0x003F)
+
+    def test_independent_all_core_access_masks(self):
+        # Fresh original-PDF oracle: SNLS647I tables 8-19..32,34,43,48,81,87/88.
+        # Access is distinct from legal writes (ANAR RF) and read-clear ownership.
+        expected = {
+            "BMCR": {"W1S": 0x8200, "RW": 0x4880, "RHW": 0x3500},
+            "BMSR": {"R": 0xF849, "RH": 0x0022, "RC": 0x0014},
+            "PHYIDR1": {"R": 0xFFFF}, "PHYIDR2": {"R": 0xFFFF},
+            "ANAR": {"RW": 0xAC1F, "RHW": 0x01E0, "R": 0x0200},
+            "ALNPAR": {"R": 0xEFFF}, "ANER": {"RH": 0x0012, "R": 0x000D},
+            "ANNPTR": {"RW": 0xB7FF, "R": 0x0800}, "ANLNPTR": {"R": 0xFFFF},
+            "CR1": {"RW": 0x01A2}, "CR2": {"RW": 0x0024, "RHW": 0x0002},
+            "CR3": {"RW": 0x0460, "RHW": 0x000F}, "REGCR": {"RW": 0xC01F},
+            "ADDAR": {"RW": 0xFFFF},
+            "PHYSTS": {"R": 0x4019, "RC": 0x3FE0, "RH": 0x0006},
+            "PHYCR": {"RHW": 0xC000, "R": 0x3800, "RW": 0x00A0, "RH": 0x001F},
+            "PHYRCR": {"W1S": 0xC000}, "VOD_CFG3": {"RW": 0xFFC0},
+            "SOR1": {"R": 0x07FF}, "SOR2": {"R": 0x4007, "RH": 0x1FB8},
+        }
+        self.assertEqual(set(expected), ledger.CORE)
+        for name, masks in expected.items():
+            with self.subTest(register=name):
+                actual = {}
+                for field in self.register(name)["fields"]:
+                    actual[field["access"]] = actual.get(field["access"], 0) | int(field["mask"], 16)
+                self.assertEqual(actual, masks)
+
+    def test_nominal_signaling_times_do_not_claim_power_up(self):
+        # Section 7.6 p15: these two NOM rows specify reset, not power-up.
+        by_id = {timing["id"]: timing for timing in self.data["timings"]}
+        for tid, value in (("forced_signal_nominal", 0.5), ("rmii_clock_nominal", 0.2)):
+            with self.subTest(timing=tid):
+                timing = by_id[tid]
+                self.assertEqual((timing["value"], timing["unit"], timing["qualifier"]),
+                                 (value, "ms", "NOM"))
+                self.assertEqual(timing["start"], "reset (table does not specify edge)")
 
     def test_independent_pause_matrix(self):
         # IEEE802.3-2012 Table28B-3, TI Table8-43: RX2000/TX1000.
