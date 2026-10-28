@@ -4,6 +4,10 @@
 
 ### 2026-10-28
 
+- Completed prompt 2's live read-only comparison of sibling CLIs, HIL runners,
+  examples, package/version/documentation checks and prompt workflows. Recorded
+  exact revisions, a broader path inventory, installed tool availability and
+  future file/consumer owners. No buildable driver or hardware result was added.
 - Completed prompt 1's live, read-only comparison of seven sibling drivers and
   FieldCore-node API, health, lifecycle and owner behavior. Recorded exact source
   revisions, registered tests and planned DP8382x decisions. No driver or

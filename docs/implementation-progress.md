@@ -1,7 +1,7 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompt 1's evidence audit is complete; the remaining stages have
+execution. Prompts 1 and 2 evidence audits are complete; the remaining stages have
 not started. Current executable verification is the reference/documentation
 checker; driver code, examples, CLI, runner, software tests and hardware
 qualification are future work.
@@ -11,6 +11,9 @@ qualification are future work.
 Execution branch: `promptset/dp8382x-implementation-20261028`.
 Base: `main` / `origin/main` at `5e148fffde074b85fadc15d8ff66fe2c77111036`
 (fetched, clean and equal before branch creation on 2026-10-28).
+Prompt 1 verified commit/sync checkpoint: `77e839810fe8338223a2c1fef89f0af5f48a6f3e`.
+Prompt 2 comparison checkpoint: `05d69f585e8d8984b90645a8ec931802b071ecb1`
+(verified equal to its same-name upstream before the final report commit).
 
 Before prompt 1 of a new execution, create a new branch from the synchronized
 intended base and record its name/base here. Keep that branch for every prompt
@@ -25,7 +28,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | Prompt | Implementation status | Evidence |
 | --- | --- | --- |
 | [1 Audit current driver APIs, state and ownership](prompts/1-ecosystem-core-audit.md) | COMPLETE | [Live comparison](library-comparison.md), [execution report](reports/implementation/1-core-api-state-ownership.md); local reference/link and diff checks PASS. Commit/sync SHA in final handoff. |
-| [2 Audit examples, tools, repository structure and prompt workflows](prompts/2-ecosystem-tooling-audit.md) | NOT STARTED | None |
+| [2 Audit examples, tools, repository structure and prompt workflows](prompts/2-ecosystem-tooling-audit.md) | COMPLETE | [Live comparison](library-comparison.md), [execution report](reports/implementation/2-ecosystem-tooling-audit.md); local reference/link and diff checks PASS. Commit/sync SHA in final handoff. |
 | [3 Establish the primary register ledger and core silicon behavior](prompts/3-silicon-core-ledger.md) | NOT STARTED | None |
 | [4 Research diagnostic, event and counter procedures](prompts/4-silicon-diagnostic-ledger.md) | NOT STARTED | None |
 | [5 Complete power, wake, interface and remaining source coverage](prompts/5-silicon-power-interface-ledger.md) | NOT STARTED | None |

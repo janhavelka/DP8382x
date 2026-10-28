@@ -1,7 +1,7 @@
 # Scope and architecture
 
 These are implementation intentions, updated on 2026-10-28 after the live
-[API, state and ownership comparison](library-comparison.md). No driver API has
+[API, state, ownership and tooling comparison](library-comparison.md). No driver API has
 been implemented or frozen.
 The [implementation promptset](prompts/README.md) establishes exact contracts
 before coding and requires a fresh relevant sibling audit before every stage.
@@ -82,6 +82,31 @@ effects, output validity, errors, total bounds and cleanup. Private procedures
 will explain ordering and cite exact TI sections for non-obvious chip behavior.
 Prompt 9 introduces checks with the first real public headers; this planning
 decision creates no placeholder API.
+
+## Planned consumer and evidence boundaries
+
+One example-only CLI in `examples/common/` will serve a host fixture and the
+native applications. Attaching it to an application performs local setup only;
+startup, owner admission, driver polling and console transport remain with that
+application. Strict whole-token parsing, bounded input/output and retained
+correlated terminal records need executing dispatcher and parser tests. A
+separate bounded Python runner will require a verified firmware/session identity
+and preserve raw records, case outcomes and cleanup evidence in a finalized
+artifact bundle. Neither CLI nor runner belongs in the portable core.
+
+The plain C++ MCU consumer will link the core without SDK headers. An ordinary
+ESP32-P4 Ethernet example will link the native PHY adapter with the supported
+MAC framework. A separate application-owned EtherCAT boundary will demonstrate
+maintenance admission and frame handoff without claiming an EtherCAT stack.
+Each application retains handles on uncertain cleanup so it can report or retry
+their release. These remain planned tests and examples, not completed builds.
+
+Version metadata will derive from `library.json` when introduced. Source
+documentation checks will inspect actual public declarations, warnings and
+generated pages; Doxygen's `EXTRACT_ALL` alone does not establish comment
+coverage. Exported consumers will build without Git, Python, Doxygen or sibling
+paths. The [comparison](library-comparison.md) maps the future files and current
+tool availability.
 
 ## Intended functionality
 
