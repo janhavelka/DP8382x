@@ -50,7 +50,8 @@ finite frozen-clock poll allowances and reserved cleanup deadlines. They use
 independent synthetic values and integer arithmetic, not a fake PHY or unused
 operation engine. The [operation scenarios](../docs/api-contracts.md#operation-acceptance-scenarios-and-examples)
 remain execution-ready call/status/effect recipes for the first real consumer.
-The current Python discovery total is 85; no test claims driver execution.
+These research/design tests total 85; the 13 version-tool tests below bring
+current Python discovery to 98. No test claims driver execution.
 
 ## Portable C++17 foundation
 
@@ -76,6 +77,26 @@ to a temporary directory, checks documented pages/members/links and verifies
 that missing public comments and a bad `@param` fail. Missing Doxygen means the
 documentation check is NOT RUN/BLOCKED, never PASS. These host results do not
 execute a device, SDK or physical PHY.
+
+## Release version tooling
+
+`test_version_tool.py` is registered by the Python discovery command at the top
+of this guide. Its temporary repositories check valid boundary versions, strict
+JSON/schema/version failures, unchanged committed output on invalid input or
+injected write failures, no-write `check`, import silence and idempotent `sync`.
+The committed generated `Version.h` is also compiled alone with strict warnings
+and included by the tests-OFF CMake consumer. Run these from the repository root:
+
+```sh
+python scripts/generate_version.py sync
+python scripts/generate_version.py check
+python -m unittest discover -s test -p "test_*.py" -v
+```
+
+The second `sync` must leave the generated header unchanged. The
+[tool guide](../scripts/README.md) defines the exact version syntax and the
+separate future firmware Git-identity rule. Neither CMake configure nor the
+consumer invokes the generator.
 
 Prompt 6 also supplies an isolated C11 SDK encoding probe. Obtain the original
 [pinned register header](https://github.com/espressif/esp-idf/blob/fff9895c82d744c7237be8847347bdd1b07c6643/components/esp_eth/include/eth_phy_802_3_regs.h)

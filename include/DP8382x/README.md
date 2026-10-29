@@ -1,8 +1,11 @@
 # Public interface location
 
-This directory now ships the portable C++17 `Status.h`, `Config.h` and
-`CommandTable.h`: passive values, error helpers, pure link validators and a
-small source-proved register/mask set. They perform no MDIO I/O and need no SDK.
+This directory now ships portable C++17 `Status.h`, `Config.h`,
+`CommandTable.h` and generated `Version.h`: passive values, error helpers,
+pure link validators, selected source-proved register/mask constants and release
+version values. They perform no MDIO I/O and need no SDK. Edit `library.json`
+and run `python scripts/generate_version.py sync` for version changes; never
+hand-edit `Version.h`.
 There is no device facade or working operation API yet.
 See [architecture](../../docs/architecture.md) and the accepted
 [ownership/call-chain decisions](../../docs/design-decisions.md).

@@ -187,12 +187,14 @@ maintenance admission and frame handoff without claiming an EtherCAT stack.
 Each application retains handles on uncertain cleanup so it can report or retry
 their release. These remain planned tests and examples, not completed builds.
 
-Version metadata will derive from `library.json` when introduced. Source
-documentation checks will inspect actual public declarations, warnings and
+Portable release version values now derive from `library.json` into a committed
+public `Version.h`; firmware Git identity belongs to later application builds.
+Source documentation checks inspect actual public declarations, warnings and
 generated pages; Doxygen's `EXTRACT_ALL` alone does not establish comment
-coverage. Exported consumers will build without Git, Python, Doxygen or sibling
-paths. The [comparison](library-comparison.md) maps the future files and current
-tool availability.
+coverage. Portable build-tree consumers already build without Git, Python,
+Doxygen or sibling paths. Installed/exported consumer support remains planned.
+The [comparison](library-comparison.md) maps the future files and current tool
+availability.
 
 ## Intended functionality
 

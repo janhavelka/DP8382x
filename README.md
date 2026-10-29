@@ -4,13 +4,14 @@ General microcontroller library workspace for Texas Instruments DP8382x Ethernet
 PHYs, starting with **DP83826IRHBR (DP83826I)**. The planned C++17 core is
 framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet MAC.
 
-**Status: prompts 1–9 complete. The portable value foundation is implemented; device and hardware behavior are not.**
+**Status: prompts 1–10 complete. Portable values and version tooling are implemented; device and hardware behavior are not.**
 Official references and the 80-prompt implementation plan are available. The
 [current source and tooling comparison](docs/library-comparison.md) records
 the first two execution results. The [primary silicon ledger](docs/register-map.md)
 closes primary-part source coverage, including unresolved gates and offline validation.
 The C++17 Status, configuration values, pure validators, selected register masks,
-host tests and source-document checker now exist. Device code, SDK integration,
+host tests, source-document checker and deterministic release-version tooling now
+exist. Device code, SDK integration,
 examples, CLI, runners and hardware qualification are future work.
 
 Prompt 6 selects one shared C++17 chip implementation, a terminal batch MDIO
@@ -66,7 +67,10 @@ remain library scope. See [full-coverage requirements](docs/prompts/FULL_COVERAG
 - [Device coverage](docs/variants.md): primary target and reference-only variants.
 - [ESP32-P4 board context](docs/esp32p4-board.md): the starting hardware and link
   policy, kept separate from reusable driver defaults.
-- [Verification](test/README.md): archive checks now and planned driver checks.
+- [Verification](test/README.md): portable host, version and archive checks,
+  with driver checks planned.
+- [Version tooling](scripts/README.md): release-version source, sync/check and
+  firmware Git-identity boundary.
 - [Core silicon behavior](docs/device-behavior.md), [independent vectors](docs/register-vectors.md)
   and [feature coverage](docs/feature-coverage.md): established facts, open gates
   and explicit implementation/source gates.
@@ -76,6 +80,7 @@ remain library scope. See [full-coverage requirements](docs/prompts/FULL_COVERAG
 ```text
 DP8382x/
   include/DP8382x/       public passive values, Status and register constants
+  scripts/              release-version sync/check
   src/                  future device implementation
   examples/esp_idf/      future P4 networking and EtherCAT-owner examples
   test/                 host foundation and research tests; future driver tests
@@ -89,8 +94,8 @@ DP8382x/
       text/             searchable text derived from archived PDFs
 ```
 
-This follows the basic `Projects/` library layout. Package manifests and version
-generation arrive with their own implementation. The family name is a scope
+This follows the basic `Projects/` library layout. Package manifests arrive
+with their supported build paths. The family name is a scope
 for development, not a claim that every DP8382x device is supported.
 
 ## Local verification
@@ -108,6 +113,12 @@ The first command checks archived payloads, SHA-256 hashes, ZIP integrity,
 derived text and local Markdown links. Ledger checks validate research structure,
 coverage and independent literal values. These commands do not contact TI,
 execute a driver or test a physical PHY.
+
+After editing `library.json`, run `python scripts/generate_version.py sync` and
+commit its changed `Version.h`; use `python scripts/generate_version.py check`
+to verify it without writes. Ordinary CMake consumers use the committed header
+without Python or Git. The [tool guide](scripts/README.md) defines supported
+version syntax and failure behavior.
 
 The portable foundation needs CMake 3.16 or newer and a C++17 compiler. Its
 build-tree consumer does not need Python, Git, Doxygen, an SDK or sibling sources:

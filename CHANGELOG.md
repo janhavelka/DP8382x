@@ -4,6 +4,11 @@
 
 ### 2026-10-29
 
+- Added prompt 10's `library.json` release-version truth, strict deterministic
+  `sync`/read-only `check`, generated public `Version.h` and temporary-fixture
+  tests. The portable consumer uses the committed header without generation;
+  firmware Git identity and SDK/package metadata remain separate later work.
+
 - Added prompt 9's header-only C++17 portable foundation: Status helpers,
   passive configuration/transport values, pure link validators and selected
   source-proved register masks. Added four registered host test suites, isolated

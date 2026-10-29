@@ -44,6 +44,10 @@ The [prompt 9 report](implementation/9-portable-source-foundation.md) records
 the shipped C++17 passive foundation, exact peer evidence, host/consumer tests,
 source-document checks and remaining device/SDK/physical boundaries.
 
+The [prompt 10 report](implementation/10-version-tooling.md) records strict
+release-version generation, read-only checks, temporary preservation fixtures,
+peer metadata precedents and ordinary consumer independence.
+
 - [Sibling drivers](sibling-driver-audit.md): primary driver source audit and
   broader inventory, naming, ownership, Status/health, CLI, runners, tests and CI.
 - [FieldCore conventions](fieldcore-conventions-audit.md): actual promptset,

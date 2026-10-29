@@ -2,7 +2,7 @@
 
 ## Scope and entry
 
-This workspace contains reference material and an unexecuted implementation plan.
+This workspace contains reference material and an executing implementation plan.
 Read README, `docs/architecture.md`, `docs/variants.md` and the reference index
 before implementation. Follow parent `Projects/AGENTS.md`, with the first-set CI
 exception below. Prompt maintenance leaves implementation status unchanged.
@@ -126,9 +126,12 @@ identity, correlated outcomes and complete bounded artifacts. Preserve failures,
 missing evidence and cleanup results in the verdict. Fixture actions require
 identified authorized scope.
 
-Use `library.json` as version truth when metadata is introduced, generating
+Use `library.json` as version truth, generating
 `Version.h` and applicable manifests reproducibly. Keep firmware Git identity
 separate. Ordinary consumers build without Git, Python, Doxygen or sibling paths.
+For a release-version change, run `python scripts/generate_version.py sync`,
+commit the changed generated header and run the read-only `check`; do not edit
+`Version.h` by hand.
 Test clean installed/exported consumers and preserve required licenses. If
 PlatformIO is used on Windows, use the existing managed installation via a
 repository wrapper.
