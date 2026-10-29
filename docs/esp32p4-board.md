@@ -6,6 +6,9 @@ The primary fitted PHY is **DP83826IRHBR**, paired with ESP32-P4NRW32X.
 The local source is `Projects/EasyEDA/ESP32P4X-EasyEDA-PCB/docs/ethernet-mcu.md`,
 read on 2026-10-24. Its 2026-10-16 Ethernet control assignments and 2026-10-20
 interface table supersede older pin assignments in historical audit files.
+Prompt 6 re-read that source on 2026-10-29 at clean revision
+`6f8333ef04caa785be374478d0cd413b8e055ed1`; the listed Ethernet assignments
+remain current. This was a document review, not an electrical/netlist re-audit.
 Recheck the final schematic/netlist before writing or flashing board firmware.
 
 | Setting | Starting board context |
@@ -21,6 +24,15 @@ Recheck the final schematic/netlist before writing or flashing board firmware.
 Keep strap-related MCU pins in the required state during PHY reset. GPIO and
 clock setup, reset timing and post-reset register initialization must follow the
 actual chip datasheet and final board wiring.
+
+The source retains R21/C24 on RESET_N. The datasheet's 25 us reset pulse minimum
+is explicitly without debounce capacitors; qualify the actual board pulse and
+release timestamp. Enforce the 2 ms reset-release and 50 ms power-up SMI-silent
+windows with elapsed-time checks and the documented clock prerequisites.
+ESP-IDF GPIO5, address autodetection, no post-reset delay and 2000 ms link polling
+are generic defaults, not the selected wiring or EtherCAT timing guarantees.
+The source also retains unfinished supply/net qualifications, so this snapshot
+does not authorize an assumed ready-to-flash board.
 
 ## Link policy
 

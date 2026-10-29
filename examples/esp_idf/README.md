@@ -23,3 +23,32 @@ shared CLI will attach without starting hardware work; startup belongs to the
 example. A separate plain C++ MCU consumer proves core portability, while the
 native examples must be linked with the selected ESP-IDF SDK. Existing sibling
 I2C examples do not establish an Ethernet backend or P4 link result.
+
+The [prompt-6 decision](../../docs/design-decisions.md) now fixes these routes:
+
+- Keep native lifecycle/SDK handles inside the application owner. Reserve control
+  work, release the instance gate before synchronous SDK calls, and drain callbacks
+  without holding locks they need. Timer polling is the only running link poller.
+- Register the rejecting raw frame hooks. CLI register/feature commands submit
+  typed owner requests to the shared core/batch path; destructive dumps use the
+  collector. Forward batches directly to the actual MAC under one shared bus lock.
+- Stop and drain before disruptive configuration. Apply AN/speed/duplex through
+  public SDK controls and verify hardware/cache agreement before restart. Full
+  advertisement and diagnostics use the shared chip procedures. MAC flow-control
+  policy is separate from full portable RX/TX pause resolution.
+- Pin v6.1 source plus the required verified lifecycle correction before claiming
+  native support. Failed install may retain a cleanup-only handle under that
+  corrected contract; failed stop/uninstall never licenses freeing live contexts.
+- Select GPIO54 reset, MDC49, MDIO43 and REF_CLK input GPIO44 from the current
+  board evidence, with declared/verified PHY address 0. Recheck actual netlist,
+  R21/C24 reset pulse and power/clock readiness before firmware qualification.
+  Do not inherit GPIO5, auto-detection, no post-reset wait or 2000 ms polling as
+  correct board defaults. Use elapsed-time checks for the 2 ms/50 ms SMI windows.
+  Close shared-controller admission before external power-up/hardware reset and
+  through readiness;
+  other PHYs must remain silent too, although the bus mutex is released.
+
+The portable owner example will bind two core instances to borrowed batch
+contexts sharing one controller lock, explicitly initialize/configure/poll/take
+results and publish copied snapshots. It needs no SDK headers, tasks, heap or
+FieldCore dependency. This is a design walkthrough, not a completed consumer.

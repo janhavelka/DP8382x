@@ -1,9 +1,10 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–5 research stages are complete; the remaining stages have
-not started. Current executable verification includes reference/link checks,
-the silicon-ledger validator and 77 registered research-tool tests. Driver code,
+execution. Prompts 1–6 research and ownership-design stages are complete; the
+remaining stages have not started. Current executable verification includes
+reference/link checks, the silicon-ledger validator, 77 registered research-tool
+tests and an isolated hash-checked SDK MMD encoding probe. Driver code,
 examples, CLI, runner, driver behavior tests and hardware qualification remain
 future work. Prompt 5 closes primary-part source dispositions, including
 explicit unresolved gates. Research completion does not claim driver completion.
@@ -34,6 +35,15 @@ split-field transition/cleanup ordering and closes independent-oracle/schema
 gaps; 77 tests and local checks pass. Its final commit/sync identity is recorded
 in the handoff, avoiding a self-referencing commit. Branch and base are unchanged.
 
+Prompts 4–5 audit checkpoint / prompt 6 clean synchronized entry:
+`e42343b0baf26367fcb22d70d51f4a47744a81b8`.
+Prompt 6 completes the [portable/native ownership design](design-decisions.md)
+and [source/review report](reports/implementation/6-framework-ownership.md).
+It selects one shared core and terminal batch mechanism; native support requires
+the specified SDK lifecycle correction at prompt 37. Local research checks and
+the 272-vector poison probe pass; production/SDK/physical evidence remains
+separate and NOT RUN. Final commit/sync SHA is recorded in the handoff.
+
 Before prompt 1 of a new execution, create a new branch from the synchronized
 intended base and record its name/base here. Keep that branch for every prompt
 and resumed session. Record stage outcomes, actual checks, remaining dependencies
@@ -51,7 +61,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [3 Establish the primary register ledger and core silicon behavior](prompts/3-silicon-core-ledger.md) | COMPLETE | [Ledger/schema](registers/README.md), [behavior](device-behavior.md), [vectors](register-vectors.md), [coverage](feature-coverage.md), [execution report](reports/implementation/3-silicon-core-ledger.md); fresh independent audit integrated, 96 register records, 20 complete core rows, 41 tests and local reference/link/diff checks PASS. Source conflicts remain named implementation gates. |
 | [4 Research diagnostic, event and counter procedures](prompts/4-silicon-diagnostic-ledger.md) | COMPLETE | [Report](reports/implementation/4-silicon-diagnostic-ledger.md), [ledger](registers/dp83826i.json), [vectors](register-vectors.md); 34 detailed diagnostic records plus three exact recipe records, 16 procedures and eight researched features. Integrated 57 research tests and local ledger/reference/link/diff checks PASS. Source/physical gates remain explicit; no driver/SDK/hardware claim. |
 | [5 Complete power, wake, interface and remaining source coverage](prompts/5-silicon-power-interface-ledger.md) | COMPLETE | [Report](reports/implementation/5-silicon-power-interface-ledger.md), [ledger](registers/dp83826i.json), [coverage](feature-coverage.md); 79 complete detailed records, 17 recipe records, five blocked EEE associations, 283 fields, 52 procedures and all 35 researched families. 74 research-tool tests and local ledger/reference/link/diff checks PASS. 24 source gates remain explicit; no driver/SDK/hardware claim. |
-| [6 Resolve portable core and native SDK ownership](prompts/6-framework-ownership.md) | NOT STARTED | None |
+| [6 Resolve portable core and native SDK ownership](prompts/6-framework-ownership.md) | COMPLETE | [Decisions/matrix](design-decisions.md), [architecture](architecture.md), [report](reports/implementation/6-framework-ownership.md); independent ownership review resolved, 77 research tests, 272 poisoned SDK-type vectors and local reference/ledger/link/diff checks PASS. Native lifecycle correction remains an explicit prompt-37 support gate; no driver/SDK-link/physical claim. |
 | [7 Freeze value, Status and direct transport contracts](prompts/7-value-transport-contracts.md) | NOT STARTED | None |
 | [8 Freeze cooperative operation, time and cleanup contracts](prompts/8-operation-contracts.md) | NOT STARTED | None |
 | [9 Build the portable values, tests and source-documentation foundation](prompts/9-portable-source-foundation.md) | NOT STARTED | None |

@@ -4,13 +4,18 @@ General microcontroller library workspace for Texas Instruments DP8382x Ethernet
 PHYs, starting with **DP83826IRHBR (DP83826I)**. The planned C++17 core is
 framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet MAC.
 
-**Status: prompts 1–5 research and ledger checks complete; driver implementation not started.**
+**Status: prompts 1–6 research, ledger checks and ownership design complete; driver implementation not started.**
 Official references and the 80-prompt implementation plan are available. The
 [current source and tooling comparison](docs/library-comparison.md) records
 the first two execution results. The [primary silicon ledger](docs/register-map.md)
 closes primary-part source coverage, including unresolved gates and offline validation. Driver code,
 build/package metadata, examples, CLI, runners and hardware qualification are
 future work.
+
+Prompt 6 selects one shared C++17 chip implementation, a terminal batch MDIO
+boundary and explicit native lifecycle/cache/collector ownership in the
+[design decisions](docs/design-decisions.md). The pinned ESP-IDF baseline needs
+the specified lifecycle corrections before native support can be claimed.
 
 The [fresh prompts 4–5 audit](docs/reports/implementation/4-5-silicon-ledger-audit.md)
 records independent PDF review, corrected split-field transition ordering and
@@ -45,6 +50,8 @@ remain library scope. See [full-coverage requirements](docs/prompts/FULL_COVERAG
   mask, sequence and timing tables, source defects and required verification rules.
 - [Scope and architecture](docs/architecture.md): PHY component responsibilities
   and the boundary with the MAC, network stack and board firmware.
+- [Ownership design](docs/design-decisions.md): complete portable/native entry
+  matrix, transaction exclusion, SDK cache/lifetime and acceptance gates.
 - [Device coverage](docs/variants.md): primary target and reference-only variants.
 - [ESP32-P4 board context](docs/esp32p4-board.md): the starting hardware and link
   policy, kept separate from reusable driver defaults.

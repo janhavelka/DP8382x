@@ -56,13 +56,19 @@ the supported retry/cleanup route. Keep primary and cleanup errors separately.
   Validate the exact part's accessible namespaces, masks and legal encodings.
   Native C45 requires separate source-proved hardware support.
 - Serialize each complete indirect sequence and read/modify/write across every
-  participant on the controller, including other PHYs. Use one application-owned
-  transaction lock or bounded terminal transaction callback with defined lock
-  order and lifetime. Reuse that mechanism through SDK entry points.
+  participant on the controller, including other PHYs. Prompt 6 selects one
+  borrowed terminal batch callback with controller-wide locking, fixed read/write
+  steps and preceding-read masks for RMW; see [the ownership design](../design-decisions.md).
+  Do not introduce a second transaction-scope API. Reuse that mechanism through
+  SDK entry points with its defined lock order and lifetime.
 - Keep long-operation admission separate from the short bus lock. Release the
   lock on every exit before settling waits, subsequent polls or console output.
   Count logical transactions and physical MDIO frames separately. Admit the
   whole indivisible transaction within the current budget.
+- External power-up/hardware-reset readiness closes admission for the entire
+  shared SMI bus before transition and through the clock-qualified silence
+  deadline. Release the mutex during waiting; other PHYs still cannot issue
+  frames. MDIO-issued reset/power commands keep their distinct ledger semantics.
 - Treat C22 REGCR/ADDAR selector/data access as part of an owned MMD transaction.
   Route raw SDK/CLI access through the same admission and access policy. Guard
   destructive reads through the event collector and gate configuration writes

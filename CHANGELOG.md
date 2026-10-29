@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### 2026-10-29
+
+- Completed prompt 6 portable/native ownership design: one shared chip core,
+  terminal MDIO batches, protected raw entry, SDK cache reconciliation, single
+  collector, notification failure handling and controller-wide reset silence.
+  Re-audited current peers and pinned SDK sources; specified required native
+  lifecycle corrections and qualified base reuse. Added a hash-checked poisoned
+  SDK-register encoding probe, API/example notes and independent review evidence.
+  Driver, SDK-link and physical qualification remain future work.
+
 ### 2026-10-28
 
 - Fresh independent prompts 4–5 audit corrected split amplitude updates and

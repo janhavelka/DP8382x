@@ -1,8 +1,11 @@
 # Scope and architecture
 
-These are implementation intentions, updated on 2026-10-28 after the live
-[API, state, ownership and tooling comparison](library-comparison.md). No driver API has
-been implemented or frozen.
+Prompt 6 selected this architecture on 2026-10-29. The complete
+[ownership decisions and call-chain matrix](design-decisions.md) are the design
+contract for portable and native operation. No driver API is implemented;
+prompts 7–8 freeze exact signatures and value layouts. The
+[source comparison](library-comparison.md) and
+[prompt-6 audit](reports/implementation/6-framework-ownership.md) record precedents.
 The [core silicon behavior](device-behavior.md) and [machine-readable ledger](registers/dp83826i.json)
 now close primary-part source research through prompt 5, with explicit unresolved
 implementation gates. Destructive status
@@ -13,7 +16,8 @@ Source-gated EEE/opaque accesses reject before I/O; finite stimulus cleanup
 stops emission before persistent configuration is restored.
 In particular, configured forced
 mode is distinct from resolved link evidence while the PHYSTS conflict remains
-open; prompts 6, 18, 19 and 39 must preserve this in portable/SDK ownership.
+open; the selected native projection cannot manufacture resolved forced-mode
+evidence. Prompts 18, 19 and 39 retain that gate.
 The [implementation promptset](prompts/README.md) establishes exact contracts
 before coding and requires a fresh relevant sibling audit before every stage.
 
@@ -31,31 +35,51 @@ See the [pinned official source references](reference/source-code.md).
 | Layer | Responsibility |
 | --- | --- |
 | Portable DP8382x core | Identity checks, supported chip configuration, PHY status, register access, reset/reinitialization primitives and diagnostics through application-owned transport |
-| ESP-IDF PHY adapter/base | PHY lifecycle integration, mediator calls, standard IEEE 802.3 behavior and MAC link notifications |
+| ESP-IDF PHY adapter/base | Owned callback wrappers, qualified local base storage, shared core execution, SDK cache reconciliation and MAC notification journal |
 | ESP-IDF MAC driver | ESP32-P4 MAC, DMA, frame I/O and management bus transport |
 | Board firmware | Pins, PHY address, clock wiring, power sequencing, link policy, retries and recovery decisions |
 | Application/network stack | IP networking or EtherCAT master operation, scheduling and application protocol behavior |
 
-Portability is a requirement of the requested general library. Decide the exact
-boundary before coding using an operation-by-operation ownership table for the
-portable path and IDF adapter. Standard behavior can delegate to the IDF base
-in IDF mode; the portable core and base must not independently configure, reset
-or poll the same PHY. Share chip-specific semantics, and do not recreate the
-MAC/stack or force a FieldCore dependency. Prove the portable boundary with a
-standalone consumer and the adapter with actual linked SDK firmware.
+Use one core chip implementation in both modes. The adapter reuses the pinned
+base's local object/mediator/address storage under guards, overriding all I/O,
+notification and lifetime callbacks. The generic base's MMD, reset, discovery,
+power and link procedures do not satisfy the selected contract. Framework reuse
+means retaining the supported MAC/PHY interface and mediator, not creating a
+second generic PHY stack. Actual standalone and SDK links remain future evidence.
 
 Application code owns controller setup, callback lifetime, transaction locks,
 monotonic time, scheduling and recovery decisions. Complete indirect MDIO and
 read/modify/write transactions must be serialized across the core, base driver,
-ioctl, polling and CLI. Choose the transaction mechanism before implementation;
-a lock on each MDIO frame is not sufficient. Give read-clear diagnostics a single
-collector and expose passive cached observations to other consumers.
+ioctl, polling and CLI. Select one borrowed synchronous terminal batch callback:
+fixed C22 steps with preceding-read masks for RMW, one controller-wide lock
+through the complete batch, retained partial samples/effects and release on
+every exit. No second transaction-scope API is planned. Give read-clear
+diagnostics one collector and expose passive cached observations to consumers.
+External power-up/hardware-reset readiness closes controller-domain admission for every PHY
+before transition, through the actual-release/clock-qualified SMI silence window.
+The mutex is released during that wait; logical admission still prevents frames.
 
 The application serializes access to each driver instance, including cached
-snapshots, and publishes copies to other tasks. SDK installation/start/stop and
-deletion have explicit partial-failure and callback-lifetime contracts. Resolve
-hook context through supported instance APIs, and retain resource ownership
-until callbacks are quiescent and cleanup outcomes are known.
+snapshots, and publishes copies to other tasks. Lock order is instance gate,
+controller lock, then controller internals. Native lifecycle/control reserves
+the operation under the gate, releases it before entering the SDK, and admits
+only expected synchronous callbacks that reacquire the gate. Notifications and
+callback drain occur without these locks. The framework timer alone polls native
+running-link state; application and IRQ requests use the same collector.
+
+Resolve frame-hook context from the incoming handle using public PHY/MAC getters,
+including before installation publishes its output handle. Reject external raw
+mediator/ioctl frames; approved typed owner requests use complete core batches
+and the actual MAC's frame methods directly. No recursive mediator transport,
+global singleton or multi-call raw selector authorization is used.
+
+Selected ESP-IDF source baseline is v6.1 at
+`fff9895c82d744c7237be8847347bdd1b07c6643`. Prompt 37 must supply and pin
+the [specified lifecycle correction](design-decisions.md#6-lifecycle-correction-selected-for-native-support)
+before native support: checked install/unwind, finite timer quiescence, retained
+cleanup-only handles, retryable step-aware teardown and propagated MAC/HAL
+cleanup errors. Unmodified v6.1 cannot satisfy these failure paths. Retain
+resources until callbacks are quiescent and cleanup outcomes are known.
 
 The core's local `bind` validates borrowed MDIO callbacks and settings before
 replacing a binding, without touching the PHY. `end` is local teardown with
@@ -72,8 +96,12 @@ or console output. Preserve each consumed event sample on partial acquisition
 failure, while marking incomplete aggregate observations stale/invalid.
 
 SDK state also needs one owner: direct core/raw changes to AN enable can stale
-IDF's cached setting, and raw ioctls bypass PHY methods. Use supported control
-paths for SDK-mirrored state and the documented owner/register hooks for access.
+IDF's cached setting, and raw ioctls bypass PHY methods. Use public stopped-driver
+AN/speed/duplex controls for mirrored settings, shared procedures for other PHY
+fields, and hardware readback plus `G_AUTONEGO` agreement before restart after
+invalidation. Raw writes do not become desired settings. There is no SDK full-
+advertisement ioctl. Avoid the pinned flow-control ioctl's argument-width defect;
+the owner calls correctly typed MAC policy and PHY advertisement routes.
 Full portable pause resolution remains richer than the pinned SDK's Boolean MAC
 notification. Base helpers are reused only where their semantics fit; shared
 portable procedures can implement overridden methods without a second driver.
@@ -146,9 +174,13 @@ non-reserved field and hardware-only property using the
 alone do not complete a stateful feature. Unresolved essential evidence remains
 an open implementation gate, not an exclusion justified by the initial use case.
 
-All waits and transport calls must have a defined bound. Application code owns
-synchronization, scheduling, recovery policy and any hardware power cycle.
-An indirect register operation must not interleave with another MDIO owner.
+All waits and transport calls need aggregate bounds including acquisition,
+frames, release and result publication. The pinned MAC's nominal 1000 us polling
+allowance per frame is not a proved wall-clock maximum; it accepts no caller
+deadline. No software preemption is claimed. A timed-out command may remain busy
+and blocks every participant on that controller until owner recovery proves
+safe reuse. Actual backend allowances and physical timing remain qualification
+work. Application code owns scheduling, recovery and power cycles.
 
 The DP83826I/E datasheet documents a 10BASE-Te amplitude configuration in
 section 8.3.13: set `VOD_CFG3` (extended address `0x030E`) to `0x4A40`.

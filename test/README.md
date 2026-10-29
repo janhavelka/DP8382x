@@ -43,6 +43,26 @@ Malformed temporary files reject incomplete source coverage, erased gates,
 borrowed exceptions, fabricated EEE wire offsets and reclassified software scope.
 All 77 registered tests are research-tool evidence only.
 
+Prompt 6 also supplies an isolated C11 SDK encoding probe. Obtain the original
+[pinned register header](https://github.com/espressif/esp-idf/blob/fff9895c82d744c7237be8847347bdd1b07c6643/components/esp_eth/include/eth_phy_802_3_regs.h)
+outside the repository (an existing exact SDK checkout is sufficient), then run:
+
+```sh
+python tools/probe_sdk_mmd.py /path/to/eth_phy_802_3_regs.h --compiler gcc
+```
+
+The tool rejects an unexpected Git blob hash before compiling, copies only that
+header into a temporary build directory, and runs
+[`sdk_mmd_poison.c`](sdk_mmd_poison.c) with C11, warnings-as-errors, optimization
+and `NDEBUG`. Explicit checks remain enabled. It tests 256 poisoned control and
+16 data-word cases against the SDK's actual C types, reproducing 192 partial-
+control initialization hazards and checking zeroed reserved/upper bits for
+complete construction. Compilation/execution have 30/10-second limits. It is a
+separate source-evidence check, not one of the Python ledger tests, a production
+MMD implementation or a linked SDK image. Production width/admission/failure
+and two-instance SDK tests remain assigned in the
+[ownership acceptance matrix](../docs/design-decisions.md#8-source-selection-api-documentation-and-acceptance).
+
 No driver, firmware build, CI workflow or physical hardware test exists at this stage.
 The [80-prompt promptset](../docs/prompts/README.md) now defines those future
 deliverables. Its [verification contract](../docs/prompts/VERIFICATION.md)

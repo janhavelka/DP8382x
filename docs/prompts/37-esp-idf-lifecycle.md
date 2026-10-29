@@ -7,6 +7,15 @@ and the implemented DP83826I procedures reconciled in
 [36](36-primary-feature-closure.md), including transport, initialization,
 reset, configuration and link. Record concrete inputs.
 
+Prompt 6's [accepted ownership design](../design-decisions.md) selects one
+terminal batch route, guarded native callbacks and a required SDK lifecycle
+correction. Implement and pin that correction (or audit an upstream revision
+that satisfies it) before claiming support: checked install/partial unwind,
+cleanup-only ownership on failed unwind, finite timer quiescence, retryable
+teardown, supported mediator detach and MAC/HAL error propagation. A wrapper
+counter alone cannot fence the timer's pre-wrapper callback window. Preserve
+the original baseline and record the exact corrected-source identity.
+
 ## Current evidence and ownership
 
 Reopen current INA228/PCA9555/TCA9548A native component lifecycle, cleanup and

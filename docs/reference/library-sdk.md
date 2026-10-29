@@ -133,3 +133,90 @@ AN-to-forced stop/start/getter agreement, partial notification failure and
 post-hardware-reset bus silence. Compare authorized physical traces to the
 documented readiness and ownership expectations; a successful SDK link or mock
 does not measure MDIO timing. Keep unavailable evidence explicitly open.
+
+## Prompt 6 source re-audit and selected disposition
+
+Reopened 2026-10-29 at the same commit. All seven blob identities above matched
+downloaded original bytes. No SDK payload is imported into this repository.
+The [design decision](../design-decisions.md) now selects shared whole-word MMD
+procedures, one terminal batch callback and rejecting raw-frame hooks. It selects
+a required verified SDK lifecycle correction before native support, with its
+exact revision and executing evidence to be recorded by prompt 37.
+
+Additional original Apache-2.0 sources at the same commit:
+
+| Source | Git blob | Relevant behavior |
+| --- | --- | --- |
+| [esp_timer.c](https://github.com/espressif/esp-idf/blob/fff9895c82d744c7237be8847347bdd1b07c6643/components/esp_timer/src/esp_timer.c) | `cf8d8abd83c1a260c39e571c5fc4ff4dabd57854` | 260–280: nonblocking stop; 291–357: finite blocking-stop primitive; 524–527: callback/argument captured before unlock and invocation. |
+| [emac_hal.c](https://github.com/espressif/esp-idf/blob/fff9895c82d744c7237be8847347bdd1b07c6643/components/esp_hal_emac/emac_hal.c) | `e8be3015b1c6a372d1fdfccfd90c05fe23617d0f` | 26–36: finite 1000-read FIFO flush; 79–91: closest MDC divisor; 656–685: partial stop and ignored FIFO-flush error. |
+| [emac_hal.h](https://github.com/espressif/esp-idf/blob/fff9895c82d744c7237be8847347bdd1b07c6643/components/esp_hal_emac/include/hal/emac_hal.h) | `d2f2a62e0995b672ee04afe36d7b99f1a9a6c81d` | Public HAL operation contract, separate from PHY ownership and timing. |
+| [P4 emac_ll.h](https://github.com/espressif/esp-idf/blob/fff9895c82d744c7237be8847347bdd1b07c6643/components/esp_hal_emac/esp32p4/include/hal/emac_ll.h) | `6b3dd4a39c15dee76eb012c7d5b0ea0fe6b6b6e6` | Actual P4 controller access; Ethernet frame preamble configuration is not MDIO preamble evidence. |
+
+The v6.1 HAL location is `components/esp_hal_emac`, not an assumed older
+`components/hal` path. The lead and independent reviewers traced these additional
+failure boundaries:
+
+- A timer callback can have captured the Ethernet driver before entering the
+  PHY wrapper. An adapter in-flight count of zero therefore does not establish
+  safe driver deletion. SDK-owned finite timer drain must precede free, outside
+  locks required by callbacks. An arbitrary delay cannot close this race.
+- DRIVER stop after a start failure before timer arming can fail at timer stop
+  and skip link-down cleanup. Uninstall's prior refcount mutation makes ordinary
+  retry unsafe; completed teardown steps require a retained journal.
+- MAC 401–420 drops start/stop results; 700–712 drops HAL-stop and low-level
+  deinit notification results. HAL stop also drops flush timeout. Require error
+  propagation and retained partial effects before claiming successful cleanup.
+- DRIVER 151–158 changes MAC and cached link before event posting can fail.
+  MAC 715–724 resets DMA descriptors on start. A failed UP notification cannot
+  be blindly retried: freeze projection until owner stop/drain/reconciliation.
+- MAC 200–207 and BASE 123–127 reject null mediators. The selected correction
+  must provide safe MAC detach after quiescence; do not invent an existing null
+  setter contract. The owned adapter may clear its own local storage.
+- MAC 1183–1190 resets module 0; deletion 745–753 disables its clock/GPIO.
+  Two P4 factory objects are not two independent MACs. One physical EMAC owner,
+  two instrumented MACs for SDK dispatch tests, and second-PHY bus contention
+  are distinct cases and evidence layers.
+
+The [poison probe](../../test/sdk_mmd_poison.c), run by
+[probe_sdk_mmd.py](../../tools/probe_sdk_mmd.py), compiles the original hash-checked
+register header as C11 with explicit poison values. It reproduces retained
+reserved/upper bits without reading uninitialized C storage; complete numeric
+word construction clears them. This is a deterministic encoding experiment,
+not execution of the defective helper's undefined storage, a production driver
+test, native firmware link or physical wire trace.
+
+SNLS647I original pages 15, 34 and 36 were reopened for timing, shared-bus silence,
+16-bit wire width and literal nonincrementing MMD sequences. The entire shared
+SMI bus must remain inactive through reset/POR readiness; release the mutex while
+waiting but keep controller-domain admission closed. A PHY-local delay alone
+does not protect another PHY on the same management bus.
+
+### Bounded check for official fixes
+
+The 2026-10-29 re-audit also inspected the five latest official path-specific
+commits for driver, PHY base, MAC and HAL, relevant patches, and those files at
+observed master `9c37a0a75676c3726284318925b5ae17bba3bd88` (2026-10-27).
+This comparison does not change the selected v6.1 baseline:
+
+- [d2ed96d2](https://github.com/espressif/esp-idf/commit/d2ed96d2d3ab970a1eb0b61e8087b42db49badcb)
+  changes Ethernet stop to `esp_timer_stop_blocking(..., portMAX_DELAY)`. It
+  addresses callback quiescence, but the unbounded wait does not meet this
+  library's finite cleanup contract.
+- [39d7a6a0](https://github.com/espressif/esp-idf/commit/39d7a6a022f37d046222d255cf416062bf6f6d82)
+  introduces short busy waits and rounded-up tick waits for hardware reset.
+  It addresses delay truncation; board timing and aggregate bounds still need
+  their own evidence.
+
+The compared files retain the install/uninstall, partial MMD initialization and
+MAC/HAL error-propagation defects described above. Comparison identities are
+separate from the selected baseline:
+
+| Compared source at master snapshot | Git blob |
+| --- | --- |
+| [Driver](https://github.com/espressif/esp-idf/blob/9c37a0a75676c3726284318925b5ae17bba3bd88/components/esp_eth/src/esp_eth.c) | `1c513ae3c436e2e25cde16eb894cf7c3f5b91bd2` |
+| [PHY base](https://github.com/espressif/esp-idf/blob/9c37a0a75676c3726284318925b5ae17bba3bd88/components/esp_eth/src/phy/esp_eth_phy_802_3.c) | `7b708e464c0adadec859de35388a3e8896edef08` |
+| [MAC](https://github.com/espressif/esp-idf/blob/9c37a0a75676c3726284318925b5ae17bba3bd88/components/esp_eth/src/mac/esp_eth_mac_esp.c) | `7997ce70d3a504b439c089d4349c00bc7f651ae7` |
+| [HAL](https://github.com/espressif/esp-idf/blob/9c37a0a75676c3726284318925b5ae17bba3bd88/components/esp_hal_emac/emac_hal.c) | `8a5c188660266205c1e9c928450f12f151cfc4b8` |
+
+This bounded review is not an exhaustive search of release branches, older
+history or pending changes. The selected correction remains a prompt-37 gate.

@@ -89,6 +89,13 @@ completion or a conservative later timestamp. Release the controller lock before
 waiting. A timeout, cancellation or teardown never retroactively undoes an
 accepted reset. Retain the primary result, pending effects and cleanup result.
 
+The [prompt-6 ownership design](design-decisions.md) assigns external power-up
+and hardware-reset SMI silence to the board/controller coordinator across the
+entire shared bus, including other PHY addresses. Close admission before the
+transition and drain active frames; release the mutex during the readiness wait
+while logical admission remains closed. This does not transpose external-reset
+timing onto MDIO-issued reset/power commands with different ledger procedures.
+
 ## Initialization and link configuration
 
 Apply the exact VOD_CFG3 recipe before permitting 10BASE-Te, including through

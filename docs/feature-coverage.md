@@ -10,6 +10,12 @@ Research COMPLETE includes selected interpretations and unresolved source gates.
 Software implementation remains PENDING; driver host tests, SDK builds and
 hardware qualification are NOT RUN. Ledger tests establish their own research layer.
 
+Prompt 6 completes the [portable/native ownership design](design-decisions.md)
+for all these entry families. It introduces no feature support claim. The native
+lifecycle correction is a named prompt-37 dependency; existing silicon source
+gates remain unchanged. Full pause evidence, SDK projection, raw access and the
+single collector have explicit owners in that matrix.
+
 | Feature / responsibility | Research | Primary implementation owner | Related integration/test stages | Source gates |
 | --- | --- | --- | --- | --- |
 | identity / Exact identity and capabilities | 3 / COMPLETE | 14 (SOFTWARE) | 14 | None named |
