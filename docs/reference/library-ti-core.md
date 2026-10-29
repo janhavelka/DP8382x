@@ -47,6 +47,17 @@ vendor payload archive. No hardware measurement or SDK build was performed.
 
 ## Identity and capability facts
 
+Prompt 7 re-opened the original C/P/G files on 2026-10-29; all three blob IDs
+above matched and official main still resolved to the same commit. A bounded
+five-commit path-history check found no newer main revision for C/G. Original
+SNLS647I pages 56/57/73 were visually rechecked. The
+[API contract](../api-contracts.md) now fixes staged identity/link outputs,
+valid link-down success and explicit revision-1 source admission, separately
+from raw revision defaults and physical qualification. A low first BMSR sample
+is retained even if the second fails. The reset-address defect still requires
+rejecting mask 0x8000 as a C22 address before callbacks. Vendor payloads and
+numeric ledger definitions remain unchanged.
+
 | Source | Concrete value or behavior | Interpretation for this project |
 | --- | --- | --- |
 | C 51-54, 147-160 | OUI `0x080028`; models `0x11` or `0x13`; revision exactly `0x01` accepted | Library filter, not proof that all other revisions are absent or unsupported |

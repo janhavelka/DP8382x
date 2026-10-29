@@ -27,6 +27,10 @@ The [prompt 6 report](implementation/6-framework-ownership.md) records the
 experiment and independent concurrency/lifetime review. It selects explicit
 SDK correction dependencies without claiming native implementation support.
 
+The [prompt 7 report](implementation/7-value-transport-contracts.md) records the
+value/Status/transport freeze, current sibling/TI source review, complete feature
+mapping, independent error/validity review and local syntax/research checks.
+
 - [Sibling drivers](sibling-driver-audit.md): primary driver source audit and
   broader inventory, naming, ownership, Status/health, CLI, runners, tests and CI.
 - [FieldCore conventions](fieldcore-conventions-audit.md): actual promptset,

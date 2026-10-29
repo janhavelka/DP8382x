@@ -1,7 +1,7 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–6 research and ownership-design stages are complete; the
+execution. Prompts 1–7 research and foundational-design stages are complete; the
 remaining stages have not started. Current executable verification includes
 reference/link checks, the silicon-ledger validator, 77 registered research-tool
 tests and an isolated hash-checked SDK MMD encoding probe. Driver code,
@@ -44,6 +44,16 @@ the specified SDK lifecycle correction at prompt 37. Local research checks and
 the 272-vector poison probe pass; production/SDK/physical evidence remains
 separate and NOT RUN. Final commit/sync SHA is recorded in the handoff.
 
+Prompt 6 final commit/sync checkpoint / prompt 7 clean synchronized entry:
+`49aadf784aa17b996fc07ee967183596ea7bead7`.
+Prompt 7 freezes [values and direct-call contracts](api-contracts.md), with
+[source/review evidence](reports/implementation/7-value-transport-contracts.md).
+All 35 feature families and 52 procedures have typed responsibility mappings;
+cooperative lifetime/cleanup signatures remain prompt 8. The 77 research tests,
+reference/ledger/link checks and strict C++17 documentation syntax check pass.
+No production declarations, driver behavior or SDK support are claimed. Final
+commit/sync SHA is recorded in the handoff.
+
 Before prompt 1 of a new execution, create a new branch from the synchronized
 intended base and record its name/base here. Keep that branch for every prompt
 and resumed session. Record stage outcomes, actual checks, remaining dependencies
@@ -62,7 +72,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [4 Research diagnostic, event and counter procedures](prompts/4-silicon-diagnostic-ledger.md) | COMPLETE | [Report](reports/implementation/4-silicon-diagnostic-ledger.md), [ledger](registers/dp83826i.json), [vectors](register-vectors.md); 34 detailed diagnostic records plus three exact recipe records, 16 procedures and eight researched features. Integrated 57 research tests and local ledger/reference/link/diff checks PASS. Source/physical gates remain explicit; no driver/SDK/hardware claim. |
 | [5 Complete power, wake, interface and remaining source coverage](prompts/5-silicon-power-interface-ledger.md) | COMPLETE | [Report](reports/implementation/5-silicon-power-interface-ledger.md), [ledger](registers/dp83826i.json), [coverage](feature-coverage.md); 79 complete detailed records, 17 recipe records, five blocked EEE associations, 283 fields, 52 procedures and all 35 researched families. 74 research-tool tests and local ledger/reference/link/diff checks PASS. 24 source gates remain explicit; no driver/SDK/hardware claim. |
 | [6 Resolve portable core and native SDK ownership](prompts/6-framework-ownership.md) | COMPLETE | [Decisions/matrix](design-decisions.md), [architecture](architecture.md), [report](reports/implementation/6-framework-ownership.md); independent ownership review resolved, 77 research tests, 272 poisoned SDK-type vectors and local reference/ledger/link/diff checks PASS. Native lifecycle correction remains an explicit prompt-37 support gate; no driver/SDK-link/physical claim. |
-| [7 Freeze value, Status and direct transport contracts](prompts/7-value-transport-contracts.md) | NOT STARTED | None |
+| [7 Freeze value, Status and direct transport contracts](prompts/7-value-transport-contracts.md) | COMPLETE | [API contract](api-contracts.md), [report](reports/implementation/7-value-transport-contracts.md); independent state/error review resolved, six C++17 documentation blocks type-checked, all 35 features/52 procedures mapped, 77 research tests and local reference/ledger/link/diff checks PASS. Cooperative lifetimes remain prompt 8; no production/SDK-link/physical claim. |
 | [8 Freeze cooperative operation, time and cleanup contracts](prompts/8-operation-contracts.md) | NOT STARTED | None |
 | [9 Build the portable values, tests and source-documentation foundation](prompts/9-portable-source-foundation.md) | NOT STARTED | None |
 | [10 Add deterministic version metadata and generation](prompts/10-version-tooling.md) | NOT STARTED | None |

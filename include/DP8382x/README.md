@@ -5,8 +5,10 @@ See [architecture](../../docs/architecture.md) and the accepted
 [ownership/call-chain decisions](../../docs/design-decisions.md).
 
 Prompt 6 selects one framework-independent C++17 core, one borrowed terminal
-MDIO batch callback, and one retained operation/result slot. Prompts 7–8 freeze
-the exact types/signatures; this note does not publish placeholder declarations.
+MDIO batch callback, and one retained operation/result slot. Prompt 7's
+[API contract](../../docs/api-contracts.md) now freezes exact foundational values
+and direct signatures; prompt 8 adds cooperative lifetimes. This note does not
+publish placeholder declarations.
 `bind`/`end` and cached snapshots are local, but still require owner serialization.
 Invalid replacement binding preserves the existing valid binding. `end` cannot
 discard active work, owed cleanup or unacknowledged evidence.
@@ -29,3 +31,10 @@ legal states, complete transaction exclusion, aggregate bounds and backend limit
 ordinary output publication versus retained partial destructive samples,
 accepted/uncertain effects, separate primary/cleanup status, acknowledgement and
 teardown/quiescence. Add source documentation checks with real code in prompt 9.
+
+Implement methods only at their owning stage: transport accounting begins at 11,
+identity at 14, settings/link at 17–19 and managed health at 21. Do not publish
+working-looking health methods that return fixed UNINIT/READY before then.
+Drivers and operation owners are neither copyable nor movable. Direct reads stage
+ordinary output, while the collector retains consumed partial evidence. A valid
+link-down is successful output, not missing data or an MDIO error.

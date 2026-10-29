@@ -4,6 +4,13 @@
 
 ### 2026-10-29
 
+- Completed prompt 7's foundational value and direct-call contracts: exact
+  Status/details, identity/revision admission, borrowed batch/deadline values,
+  non-copyable/non-movable ownership, passive health and staged output semantics.
+  Mapped all 35 feature families and 52 procedures to typed responsibilities;
+  recorded live sibling/TI evidence and independent review. Cooperative lifetime
+  contracts remain prompt 8; no future facade methods or headers were shipped.
+
 - Completed prompt 6 portable/native ownership design: one shared chip core,
   terminal MDIO batches, protected raw entry, SDK cache reconciliation, single
   collector, notification failure handling and controller-wide reset silence.

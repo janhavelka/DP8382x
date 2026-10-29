@@ -16,6 +16,13 @@ lifecycle correction is a named prompt-37 dependency; existing silicon source
 gates remain unchanged. Full pause evidence, SDK projection, raw access and the
 single collector have explicit owners in that matrix.
 
+Prompt 7's [complete typed feature map](api-contracts.md#complete-typed-feature-map)
+maps all 35 feature IDs and all 52 procedure IDs to planned configuration/actions
+and observable results. Its normative legal-value rule includes all 283 field
+records and gated/opaque actions without duplicating the ledger. Only foundational
+values/direct signatures are frozen; feature-specific signatures arrive with the
+owning behavior. No raw API substitutes for a multistep typed procedure.
+
 | Feature / responsibility | Research | Primary implementation owner | Related integration/test stages | Source gates |
 | --- | --- | --- | --- | --- |
 | identity / Exact identity and capabilities | 3 / COMPLETE | 14 (SOFTWARE) | 14 | None named |

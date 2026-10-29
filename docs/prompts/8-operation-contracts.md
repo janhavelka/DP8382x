@@ -6,6 +6,13 @@ Read [COMMON](COMMON.md), [CONVENTIONS](CONVENTIONS.md) and
 [6](6-framework-ownership.md)'s complete transaction owner.
 Record scope, rules, fresh source review, documentation/checks and checkpoint.
 
+Use the frozen [value/direct-call contract](../api-contracts.md), including its
+absolute microsecond deadline, terminal batch/result shape and non-movable
+owners. Resolve the explicit clock-fault cleanup dependency: a detected backward
+clock blocks timed I/O until repaired/rebound, while owed cleanup/results prevent
+end/rebind. Define owner-assisted quiescence, retained cleanup evidence and
+acknowledgement without erasing effects or pretending cleanup ran on invalid time.
+
 ## Complete outcome
 
 Complete `docs/api-contracts.md` with one precise operation state machine,

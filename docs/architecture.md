@@ -3,7 +3,8 @@
 Prompt 6 selected this architecture on 2026-10-29. The complete
 [ownership decisions and call-chain matrix](design-decisions.md) are the design
 contract for portable and native operation. No driver API is implemented;
-prompts 7–8 freeze exact signatures and value layouts. The
+prompt 7 freezes [foundational values and direct calls](api-contracts.md), while
+prompt 8 adds cooperative operation lifetimes. The
 [source comparison](library-comparison.md) and
 [prompt-6 audit](reports/implementation/6-framework-ownership.md) record precedents.
 The [core silicon behavior](device-behavior.md) and [machine-readable ledger](registers/dp83826i.json)
@@ -106,7 +107,7 @@ Full portable pause resolution remains richer than the pinned SDK's Boolean MAC
 notification. Base helpers are reused only where their semantics fit; shared
 portable procedures can implement overridden methods without a second driver.
 
-Core Status will use the peer `Err`/`Status` value shape with static message
+Core Status uses the frozen peer `Err`/`Status` value shape with static message
 storage and full signed backend detail, but MDIO-specific error meanings. Four
 passive health states describe managed transport evidence only. Desired settings,
 observed stable bits, configuration trust, link resolution and application
@@ -114,6 +115,23 @@ readiness remain separate. A failed or late write leaves its possible effect
 visible. Primary failure and finite cleanup outcomes stay separate; successful
 cleanup cannot erase the primary failure. The source comparison and
 [conventions](prompts/CONVENTIONS.md) record the selected names and limits.
+
+The direct transport contract now has fixed batches of at most eight frames,
+conservative owner-supplied time bounds and an absolute nonwrapping 64-bit
+microsecond deadline. A borrowed bounded clock callback keeps platform clock
+code outside the core; cached accessors never invoke it. Backend wrappers validate
+completion/effects before reopening shared admission. Ordinary failed reads
+leave caller output unchanged; the collector still retains successful destructive
+samples. A successful live query always assigns a valid observation, including
+down. Identity admits original DP83826I revision 1 explicitly without inferring
+I/E suffix or physical qualification from IDs.
+
+Driver and native/application owner objects cannot be copied or moved, even
+unbound. Passive health counts managed batch transactions separately from frames
+and diagnostic/cleanup traffic; OFFLINE permits later attempts. Statistics reset
+clears only managed cumulative totals. Desired intent, observed active settings
+and verified trust remain separate. These are contracts to implement with their
+owning stages, not placeholder methods in a public facade.
 
 Public declarations will carry Doxygen when implemented: units, validity,
 legal state, borrowed lifetime, owner synchronization, I/O and destructive-read

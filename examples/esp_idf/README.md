@@ -52,3 +52,14 @@ The portable owner example will bind two core instances to borrowed batch
 contexts sharing one controller lock, explicitly initialize/configure/poll/take
 results and publish copied snapshots. It needs no SDK headers, tasks, heap or
 FieldCore dependency. This is a design walkthrough, not a completed consumer.
+
+The [value/direct-call contract](../../docs/api-contracts.md) now supplies exact
+declarations and a plain-owner example. Bind explicit Variant/interface/address,
+borrowed batch and monotonic clock callbacks, and proved time allowances. A live
+link query stages the result and assigns valid down on success; failed aggregate
+queries leave caller output unchanged while retaining consumed samples. Publish
+copied health/link/configuration views separately. `resetStatistics` clears only
+managed cumulative totals, and a later transport success does not verify settings.
+Native examples must preserve original signed errors and release/clock faults;
+the complete stopped-driver SDK transition remains in the owner design. These
+are implementation instructions, not a firmware build result.

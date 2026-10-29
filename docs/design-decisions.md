@@ -5,8 +5,10 @@ not claim an implemented driver, supported SDK build or hardware result.
 The [architecture](architecture.md) gives the layer overview, the
 [execution report](reports/implementation/6-framework-ownership.md) records
 the audit, and the [silicon ledger](registers/dp83826i.json) owns chip facts.
-Prompts 7–8 freeze public signatures and value layouts without reopening these
-ownership choices unless new evidence requires a coordinated change.
+Prompt 7's [API contract](api-contracts.md) freezes foundational public values
+and direct signatures; prompt 8 adds cooperative lifetimes. The batch boundary,
+shared quarantine responsibility and clock/overhead allowances are now precise.
+Ownership choices change only with evidence and a coordinated contract update.
 
 ## 1. One chip implementation and one batch boundary
 
