@@ -10,7 +10,8 @@ target_include_directories(DP8382x INTERFACE
 target_sources(DP8382x INTERFACE
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/DP8382x/Status.h>"
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/DP8382x/Config.h>"
-  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/DP8382x/CommandTable.h>")
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/DP8382x/CommandTable.h>"
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/DP8382x/Version.h>")
 
 option(DP8382X_BUILD_TESTS "Build portable foundation regression tests" OFF)
 if(DP8382X_BUILD_TESTS)
@@ -22,7 +23,8 @@ if(DP8382X_BUILD_TESTS)
   add_library(dp8382x_header_checks OBJECT
     test/header_status.cpp
     test/header_config.cpp
-    test/header_command_table.cpp)
+    test/header_command_table.cpp
+    test/header_version.cpp)
   target_link_libraries(dp8382x_header_checks PRIVATE DP8382x)
 
   foreach(target IN ITEMS dp8382x_foundation_tests dp8382x_header_checks)

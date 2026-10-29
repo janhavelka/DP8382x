@@ -1,0 +1,7 @@
+{
+  "name": "DP8382x",
+  "version": "0.1.0",
+  "description": "Portable C++17 DP8382x values and validation foundation.",
+  "license": "MIT",
+  "repository": "https://github.com/janhavelka/DP8382x.git"
+}
