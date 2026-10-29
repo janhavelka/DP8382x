@@ -41,7 +41,16 @@ Its independent oracles match every semantic field's mask/access type and all
 valid endpoint pairs, legal intermediate codes and restoration prefixes.
 Malformed temporary files reject incomplete source coverage, erased gates,
 borrowed exceptions, fabricated EEE wire offsets and reclassified software scope.
-All 77 registered tests are research-tool evidence only.
+These 77 tests are research-tool evidence only.
+
+`test_operation_timing.py` adds eight executable prompt-8 design probes for
+strict aggregate admission, whole MMD frame allowances, post-callback wait
+anchors, tick quantization, certain versus uncertain expiry, uint64 overflow,
+finite frozen-clock poll allowances and reserved cleanup deadlines. They use
+independent synthetic values and integer arithmetic, not a fake PHY or unused
+operation engine. The [operation scenarios](../docs/api-contracts.md#operation-acceptance-scenarios-and-examples)
+remain execution-ready call/status/effect recipes for the first real consumer.
+The current discovery total is 85; no test claims driver execution.
 
 Prompt 6 also supplies an isolated C11 SDK encoding probe. Obtain the original
 [pinned register header](https://github.com/espressif/esp-idf/blob/fff9895c82d744c7237be8847347bdd1b07c6643/components/esp_eth/include/eth_phy_802_3_regs.h)

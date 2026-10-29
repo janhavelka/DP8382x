@@ -23,6 +23,12 @@ records and gated/opaque actions without duplicating the ledger. Only foundation
 values/direct signatures are frozen; feature-specific signatures arrive with the
 owning behavior. No raw API substitutes for a multistep typed procedure.
 
+Prompt 8 adds the shared operation/cleanup contract used by these owners:
+initialize/reset/configure/recover have exact design signatures, finite polling,
+retained effects and an acyclic persistent restore order. Later feature operations
+extend that same slot/result with working behavior; their signatures and existing
+silicon gates remain explicit. No feature's implementation status changes here.
+
 | Feature / responsibility | Research | Primary implementation owner | Related integration/test stages | Source gates |
 | --- | --- | --- | --- | --- |
 | identity / Exact identity and capabilities | 3 / COMPLETE | 14 (SOFTWARE) | 14 | None named |

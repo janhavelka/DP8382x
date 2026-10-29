@@ -33,6 +33,11 @@ mapping, independent error/validity review and local syntax/research checks.
 Its [fresh independent audit](implementation/7-contract-audit.md) corrects BMSR
 examples and health/time/release accounting without adding operation machinery.
 
+The [prompt 8 report](implementation/8-operation-contracts.md) records exact
+cooperative signatures, token/result/cleanup lifetimes, clock/budget arithmetic,
+fresh peer/SDK evidence and the independent lifetime review. Executable timing
+probes remain separate from future driver and native-link evidence.
+
 - [Sibling drivers](sibling-driver-audit.md): primary driver source audit and
   broader inventory, naming, ownership, Status/health, CLI, runners, tests and CI.
 - [FieldCore conventions](fieldcore-conventions-audit.md): actual promptset,

@@ -69,3 +69,11 @@ output contract directly. Health's last error identifies a counted transport,
 release or timing failure; an earlier admission error can still be the public
 primary result. Copy the retained transport/collector evidence before subsequent
 requests replace the last batch receipt.
+
+The [cooperative examples](../../docs/api-contracts.md#operation-acceptance-scenarios-and-examples)
+now give exact plain-owner and native reset callback paths. Retain full primary
+and cleanup evidence, keep a token when take fails, and budget native scheduling
+inside the existing lifecycle reservation. A cancelled/failed operation may
+still require later owner cleanup. Deletion follows disposition, successful
+result delivery, local end and actual SDK callback/resource drain. Tick sleeps
+are scheduling only; elapsed-time admission uses the qualified monotonic clock.

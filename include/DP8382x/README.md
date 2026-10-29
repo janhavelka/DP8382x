@@ -7,7 +7,7 @@ See [architecture](../../docs/architecture.md) and the accepted
 Prompt 6 selects one framework-independent C++17 core, one borrowed terminal
 MDIO batch callback, and one retained operation/result slot. Prompt 7's
 [API contract](../../docs/api-contracts.md) now freezes exact foundational values
-and direct signatures; prompt 8 adds cooperative lifetimes. This note does not
+and direct signatures; prompt 8 completes cooperative lifetimes. This note does not
 publish placeholder declarations.
 `bind`/`end` and cached snapshots are local, but still require owner serialization.
 Invalid replacement binding preserves the existing valid binding. `end` cannot
@@ -38,3 +38,11 @@ working-looking health methods that return fixed UNINIT/READY before then.
 Drivers and operation owners are neither copyable nor movable. Direct reads stage
 ordinary output, while the collector retains consumed partial evidence. A valid
 link-down is successful output, not missing data or an MDIO error.
+
+The first operation consumer at prompt 15 implements the frozen slot, lifetime
+tokens, separate cleanup budget and exact-result take. Introduce hard reset and
+later configuration/recovery options only with their behavior. Failed cleanup
+requires owner-assisted quiescence/disposition before result delivery and end;
+acknowledgement does not claim a stopped PHY or restored configuration. Include
+clock-return lag, tick rounding, final-poll exhaustion and partial effects in
+public Doxygen and executing tests at that stage.

@@ -1,10 +1,11 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–7 research and foundational-design stages are complete; the
+execution. Prompts 1–8 research and foundational-design stages are complete; the
 remaining stages have not started. Current executable verification includes
 reference/link checks, the silicon-ledger validator, 77 registered research-tool
-tests and an isolated hash-checked SDK MMD encoding probe. Driver code,
+tests, eight executable operation-timing design probes and an isolated hash-checked
+SDK MMD encoding probe. Driver code,
 examples, CLI, runner, driver behavior tests and hardware qualification remain
 future work. Prompt 5 closes primary-part source dispositions, including
 explicit unresolved gates. Research completion does not claim driver completion.
@@ -61,6 +62,15 @@ BMSR examples and health/time/release classification, preserving the selected
 architecture and prompt 8's cooperative scope. Corrective checks and final
 commit/sync identity are recorded in its report and handoff.
 
+Prompt 7 audit checkpoint / prompt 8 clean synchronized entry:
+`382462cdec356ae901c0a501f96435830518430f`.
+Prompt 8 completes the [cooperative API contract](api-contracts.md#one-cooperative-operation-and-retained-result)
+and [source/review report](reports/implementation/8-operation-contracts.md).
+One slot, lifetime tokens, finite primary/cleanup allowances and explicit owner
+disposition resolve the clock-fault cleanup dependency. All 85 research/design
+tests, eight portable documentation blocks and local checks pass; driver/SDK/
+physical evidence remains separate and NOT RUN. Final sync SHA is in the handoff.
+
 Before prompt 1 of a new execution, create a new branch from the synchronized
 intended base and record its name/base here. Keep that branch for every prompt
 and resumed session. Record stage outcomes, actual checks, remaining dependencies
@@ -80,7 +90,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [5 Complete power, wake, interface and remaining source coverage](prompts/5-silicon-power-interface-ledger.md) | COMPLETE | [Report](reports/implementation/5-silicon-power-interface-ledger.md), [ledger](registers/dp83826i.json), [coverage](feature-coverage.md); 79 complete detailed records, 17 recipe records, five blocked EEE associations, 283 fields, 52 procedures and all 35 researched families. 74 research-tool tests and local ledger/reference/link/diff checks PASS. 24 source gates remain explicit; no driver/SDK/hardware claim. |
 | [6 Resolve portable core and native SDK ownership](prompts/6-framework-ownership.md) | COMPLETE | [Decisions/matrix](design-decisions.md), [architecture](architecture.md), [report](reports/implementation/6-framework-ownership.md); independent ownership review resolved, 77 research tests, 272 poisoned SDK-type vectors and local reference/ledger/link/diff checks PASS. Native lifecycle correction remains an explicit prompt-37 support gate; no driver/SDK-link/physical claim. |
 | [7 Freeze value, Status and direct transport contracts](prompts/7-value-transport-contracts.md) | COMPLETE | [API contract](api-contracts.md), [report](reports/implementation/7-value-transport-contracts.md); independent state/error review resolved, six C++17 documentation blocks type-checked, all 35 features/52 procedures mapped, 77 research tests and local reference/ledger/link/diff checks PASS. Cooperative lifetimes remain prompt 8; no production/SDK-link/physical claim. |
-| [8 Freeze cooperative operation, time and cleanup contracts](prompts/8-operation-contracts.md) | NOT STARTED | None |
+| [8 Freeze cooperative operation, time and cleanup contracts](prompts/8-operation-contracts.md) | COMPLETE | [API contract](api-contracts.md), [report](reports/implementation/8-operation-contracts.md); independent lifetime/source review resolved, 85 research/design tests, eight portable C++17 documentation blocks and local reference/ledger/link/diff checks PASS. Native callback example is source-reviewed; driver, SDK link and physical execution remain later-stage work. |
 | [9 Build the portable values, tests and source-documentation foundation](prompts/9-portable-source-foundation.md) | NOT STARTED | None |
 | [10 Add deterministic version metadata and generation](prompts/10-version-tooling.md) | NOT STARTED | None |
 | [11 Implement bounded Clause 22 transport](prompts/11-clause22-transport.md) | NOT STARTED | None |

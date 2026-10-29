@@ -4,6 +4,12 @@
 
 ### 2026-10-29
 
+- Completed prompt 8's cooperative contract: one retained operation slot,
+  lifetime tokens, finite primary/cleanup budgets, owner-assisted disposition,
+  acyclic restoration and exact portable/native design examples. Added eight
+  executable timing probes and qualified clock-return lag; no operation engine
+  or successful hardware stub was introduced.
+
 - Independently audited prompt 7: corrected BMSR example words, error timestamp
   validity, clock-error precedence and health accounting for admission/release
   failures. Clarified callback reports and simplified the plain-owner examples.

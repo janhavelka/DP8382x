@@ -1,8 +1,8 @@
 # Concrete library conventions
 
 Use these names and responsibilities for DP8382x. Prompts 7-8 establish exact
-signatures and behavior in [the API contract](../api-contracts.md); prompt 7's
-values/direct calls are now frozen and prompt 8 adds cooperative lifetimes.
+signatures and behavior in [the API contract](../api-contracts.md); values,
+direct calls and cooperative lifetimes are now frozen through prompt 8.
 Later stages use that contract.
 Recheck relevant sibling implementation/tests under COMMON and adapt the baseline
 with one coordinated update when source evidence requires a change. Read this

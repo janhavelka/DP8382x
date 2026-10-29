@@ -4,7 +4,7 @@ General microcontroller library workspace for Texas Instruments DP8382x Ethernet
 PHYs, starting with **DP83826IRHBR (DP83826I)**. The planned C++17 core is
 framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet MAC.
 
-**Status: prompts 1–7 research, ownership design and value/direct-call contracts complete; driver implementation not started.**
+**Status: prompts 1–8 research, ownership and API contracts complete; driver implementation not started.**
 Official references and the 80-prompt implementation plan are available. The
 [current source and tooling comparison](docs/library-comparison.md) records
 the first two execution results. The [primary silicon ledger](docs/register-map.md)
@@ -19,8 +19,10 @@ the specified lifecycle corrections before native support can be claimed.
 
 Prompt 7 freezes [foundational API contracts](docs/api-contracts.md): values,
 Status/details, batch transport/budgets, identity admission, passive health,
-snapshot validity and direct calls. Cooperative operation lifetimes follow in
-prompt 8; these design declarations are not shipped headers or working stubs.
+snapshot validity and direct calls. Prompt 8 completes cooperative operations,
+finite primary/cleanup budgets, retained results, lifetime tokens and explicit
+owner-assisted teardown. Eight executable timing design probes complement the
+77 research tests. These declarations are not shipped headers or working stubs.
 
 The [fresh prompts 4–5 audit](docs/reports/implementation/4-5-silicon-ledger-audit.md)
 records independent PDF review, corrected split-field transition ordering and

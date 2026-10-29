@@ -3,8 +3,8 @@
 Prompt 6 selected this architecture on 2026-10-29. The complete
 [ownership decisions and call-chain matrix](design-decisions.md) are the design
 contract for portable and native operation. No driver API is implemented;
-prompt 7 freezes [foundational values and direct calls](api-contracts.md), while
-prompt 8 adds cooperative operation lifetimes. The
+prompts 7–8 freeze [values, direct calls and operation lifetimes](api-contracts.md).
+The
 [source comparison](library-comparison.md) and
 [prompt-6 audit](reports/implementation/6-framework-ownership.md) record precedents.
 The [core silicon behavior](device-behavior.md) and [machine-readable ledger](registers/dp83826i.json)
@@ -89,7 +89,7 @@ configuration and recovery use separately named bounded operations. A successful
 bind or controller transfer proves neither PHY identity nor a usable link.
 Keep one retained token/result slot; terminal evidence survives until the owner
 consumes or explicitly acknowledges it. Exact signatures and teardown behavior
-belong to prompts 7-8.
+are frozen in the API contract.
 
 Distinguish operation admission across polls from the short controller lock for
 one indivisible transaction. Never keep that lock through hardware wait intervals
@@ -137,6 +137,22 @@ Health classification uses returned status, frame and release/controller evidenc
 An admission rejection can remain the public primary error while a failed release
 is the counted health cause. Timestamp validity changes with each new error;
 an older timestamp cannot make that error look freshly observed.
+
+Cooperative work uses IDLE/RUNNING/CLEANUP/RESULT_PENDING and one fixed result.
+Tokens advance for the nonmovable object's lifetime across end/rebind. Each poll
+executes at most one atomic batch and spends a finite poll allowance, even when
+zero work is requested or the clock is frozen. Cleanup has its own absolute
+deadline, frame and poll reserves; it never overwrites the primary outcome.
+Core time bounds include an owner-proved clock-return lag. Conservative upper
+timestamps anchor minimum waits, while lower samples establish elapsed readiness.
+
+Failed/unrun cleanup blocks result consumption until the owner explicitly
+acknowledges quiescence and external disposition. That preserves effects and
+makes the binding retire-only: consume the result, end, then bind a repaired
+context. It cannot clear shared-controller quarantine or claim hardware restored.
+This also resolves broken-clock cleanup without timed I/O on invalid time.
+Persistent replay is acyclic; a reset primitive never recursively calls the
+whole EEE/diagnostic recipe or restores temporary stimulus commands.
 
 Public declarations will carry Doxygen when implemented: units, validity,
 legal state, borrowed lifetime, owner synchronization, I/O and destructive-read

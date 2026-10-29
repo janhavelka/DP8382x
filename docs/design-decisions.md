@@ -6,9 +6,15 @@ The [architecture](architecture.md) gives the layer overview, the
 [execution report](reports/implementation/6-framework-ownership.md) records
 the audit, and the [silicon ledger](registers/dp83826i.json) owns chip facts.
 Prompt 7's [API contract](api-contracts.md) freezes foundational public values
-and direct signatures; prompt 8 adds cooperative lifetimes. The batch boundary,
-shared quarantine responsibility and clock/overhead allowances are now precise.
+and direct signatures; prompt 8 completes cooperative lifetimes. The batch boundary,
+shared quarantine responsibility and clock-return-lag/overhead allowances are precise.
 Ownership choices change only with evidence and a coordinated contract update.
+
+Operation contracts now select one fixed slot, lifetime-monotonic tokens,
+separately reserved cleanup and explicit owner quiescence/disposition. Failed
+cleanup cannot be erased by take/end/rebind. The retire-only escape preserves
+unperformed cleanup and borrowed-resource ownership while allowing a repaired
+binding after result delivery and end; it never repairs the controller itself.
 
 ## 1. One chip implementation and one batch boundary
 

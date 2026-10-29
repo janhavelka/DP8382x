@@ -27,6 +27,13 @@ come from [SNLS647I](source/TI-DP83826I-E-SNLS647I.pdf), especially 7.6,
 
 ## Actual defaults and waits
 
+Prompt 8 re-opened the pinned BASE/MAC bytes on 2026-10-29 and verified the
+listed Git blob identities. Its [operation contract](../api-contracts.md)
+rejects command admission without completion/cleanup capacity, refreshes time
+after callbacks, and includes clock-return lag rather than assuming a floor tick
+is a completion timestamp. Native tick sleeps only schedule elapsed-time checks.
+No SDK baseline changed or timing/link qualification was claimed.
+
 | Source | Observed value or behavior | Required interpretation |
 | --- | --- | --- |
 | PHY-H 276-296 | Default address `-1` enables detection; reset timeout `100 ms`; AN timeout `4000 ms`; reset GPIO `5`; assertion/post-reset fields `0` select defaults | Application/SDK choices, not PHY requirements. Select the board's actual address/GPIO explicitly; `-1` for reset GPIO means no physical reset |
