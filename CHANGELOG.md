@@ -4,6 +4,10 @@
 
 ### 2026-10-29
 
+- Independently audited prompt 7: corrected BMSR example words, error timestamp
+  validity, clock-error precedence and health accounting for admission/release
+  failures. Clarified callback reports and simplified the plain-owner examples.
+
 - Completed prompt 7's foundational value and direct-call contracts: exact
   Status/details, identity/revision admission, borrowed batch/deadline values,
   non-copyable/non-movable ownership, passive health and staged output semantics.

@@ -77,7 +77,8 @@ enum class UnsupportedDetail : int32_t { INTERFACE = 1, LINK_MODE, FEATURE };
 ```
 
 These local detail values are explicitly cast to `int32_t`; the error code
-determines the namespace. Zero means no additional detail. `OK` and
+determines the namespace. Zero means no additional detail where permitted;
+callback admission/deadline errors require their specific reasons below. `OK` and
 `IN_PROGRESS` have detail zero. `NOT_BOUND`, `NOT_INITIALIZED`, `CANCELLED`,
 `RESULT_NOT_AVAILABLE`, `TOKEN_MISMATCH` and `CONFIG_MISMATCH` have detail zero;
 the operation/verification result carries tokens and mismatch address/mask/
@@ -288,7 +289,7 @@ struct FrameResult {
     bool valueValid{false};                 ///< Successful read has a complete 16-bit word.
     uint16_t value{0};
     bool effectPossible{false};             ///< Failed write/read may have affected hardware.
-    uint64_t completedAtUs{0};               ///< Same clock domain; valid only if timeValid.
+    uint64_t completedAtUs{0};               ///< Completed frame only; valid if timeValid.
     bool timeValid{false};
 };
 /// @brief Terminal callback result, preserving primary and release outcomes.
@@ -347,7 +348,8 @@ delivery and bus-silent lifecycle remain possible. Retain effects and mark
 time-dependent snapshots stale; suppress new ordinary outputs/timestamps from
 the affected call. Historical timestamps remain historical, never a valid age
 comparison against the broken current timeline. A post-callback regression
-preserves an earlier primary/release transport failure; only otherwise return
+preserves any earlier normalized primary failure, then any release failure or
+unsafe-controller error; only an otherwise successful callback returns
 `INVALID_CONFIG/CLOCK_CONTRACT`. TransportSnapshot.clockInvalid retains this
 second fact even when MDIO_TIMEOUT/-37 remains the primary error. Frozen time
 cannot extend finite frame/step work.
@@ -405,7 +407,14 @@ never success. Failed attempted frames set effectPossible=true unless the
 backend independently proves no hardware write/consumption occurred; absence
 of an acknowledgement alone is not that evidence. Timestamps are
 recorded at observed completion or a conservative later sample, never before
-the frame. The backend must retain successful destructive-read words even when
+the frame. A frame timestamp is optional, requires completed=true, and must lie
+between the core's pre/post-callback samples in nondecreasing frame order.
+With timeValid=false its stored timestamp is zero. Core can use its valid
+post-callback sample as a conservative fallback for a completed frame. An
+out-of-range/out-of-order frame timestamp is a FRAME_REPORT violation; a backward
+core clock sample instead follows CLOCK_CONTRACT and invalidates new time
+evidence. Retain the raw report, but never use an invalid stamp for age or waits.
+The backend must retain successful destructive-read words even when
 a later frame fails. Core transfers them to the single collector before other
 instance access. Failed destructive reads may lose unreturned history.
 
@@ -423,16 +432,21 @@ Local `end`/rebind cannot release or erase application-owned controller resource
 
 Allowed primary callback codes are `OK`, `MDIO_ERROR`, `MDIO_TIMEOUT`, `BUSY`
 and `OPERATION_TIMEOUT`. BUSY means no frames attempted and only owner/silence/
-quarantine admission; OPERATION_TIMEOUT covers exhausted aggregate budget, while
+quarantine admission: its detail must be OWNER_ADMISSION or
+CONTROLLER_QUARANTINED. OPERATION_TIMEOUT requires a defined TimeoutDetail and
+covers exhausted aggregate budget, while
 MDIO_TIMEOUT means the controller/lock attempt timed out. `IN_PROGRESS`, unknown
 Err, other codes, null message or inconsistent frame/effect reports normalize
 to `MDIO_ERROR`. Preserve original code/detail and all independently valid
 prefix evidence; never trust contradictory values or manufacture completion.
 Release codes are only OK/MDIO_ERROR/MDIO_TIMEOUT; other values are violations.
-OK with nonzero detail is a STATUS_CODE violation. Primary OK plus release OK
-but controllerReusable=false returns MDIO_ERROR/detail 0 with static message
-"Controller state uncertain" and CONTROLLER_STATE. Retain raw primary/release
-reports independently.
+OK with nonzero detail, or an invalid local admission/deadline detail, is a
+STATUS_CODE violation. With release OK, controllerReusable=false classifies an
+additional MDIO_ERROR/detail 0 with static message "Controller state uncertain"
+and CONTROLLER_STATE, except for a valid zero-frame BUSY/CONTROLLER_QUARANTINED
+report of a preexisting fault. This additional failure becomes the public return
+only when the primary succeeded; otherwise retain primary precedence. Retain
+raw primary/release reports independently.
 
 The **trusted application controller wrapper** validates/classifies frame reports
 and terminal statuses before making the shared controller available, while
@@ -538,22 +552,43 @@ traffic internally, never with a caller-writable "managed" Boolean:
 | --- | --- |
 | Initialization identity/configuration, normal typed configuration/readback, live link collector, explicit managed reconciliation | One success/failure per attempted managed batch; source/semantic result is separate. |
 | Public raw access, explicit diagnostic probes/sessions, cleanup/restoration after a failed operation, SDK bridge forwarding itself | All-source transport counters only; no extra managed count or accidental recovery. A bridge never double-counts the core batch. |
-| Pure validation, BUSY/silence/quarantine rejection, expired admission with no lock/controller attempt | No managed success/failure. |
-| Controller lock acquisition timeout or attempted managed batch with MDIO failure, malformed result or late completion | One managed failure; completed prefix/frames still recorded. |
+| Pure validation; valid zero-frame BUSY/OPERATION_TIMEOUT with clean release and reusable controller | No managed success/failure, even if the backend checked admission under the controller lock. |
+| Valid zero-frame BUSY/CONTROLLER_QUARANTINED with clean current-call release | No managed success/failure; controllerReusable=false reports the preexisting quarantine, not a new attempt or recovery. |
+| Controller lock acquisition timeout, MDIO failure, malformed report, failed release or newly unsafe controller state | One managed failure even with no frames. Preserve completed prefix/frames; a primary BUSY does not hide a release failure. |
+| OPERATION_TIMEOUT with one or more attempted frames | One managed failure; accepted/uncertain effects remain retained. |
+| Otherwise successful managed callback returns at or after its deadline | One managed timing failure with OPERATION_TIMEOUT/DEADLINE and late=true; completed effects remain retained. |
 | Otherwise successful managed batch cannot fit the post-callback publication reserve | One managed timing-contract failure with OPERATION_TIMEOUT/BOUND_ADMISSION, even if the current timestamp is still before the deadline. No second failure count; no fabricated late=true. |
 | Clock regression before a batch / after an otherwise successful managed batch | No count before callback; after a callback, one managed timing-contract failure with INVALID_CONFIG/CLOCK_CONTRACT and no new valid timestamp. This is not evidence of PHY failure. An existing primary MDIO failure still counts only once. |
 | Successful bus reads yielding wrong identity, CONFIG_MISMATCH, cable-down or policy mismatch | Managed transport success; semantic failure/link state remains separate and visible. |
 
-Because lock acquisition can fail before a frame, the backend must distinguish
-MDIO_TIMEOUT from no-attempt admission BUSY/OPERATION_TIMEOUT. Callback invocation
-itself increases `totalBatches`; frame totals count reported attempted/completed
-frames only. On malformed reports, count only the independently valid prefix
-and mark the violation; counts must not be invented from success status alone.
+These rules use returned statuses, release/controller evidence and frame flags;
+there is no hidden acquisition-attempt flag. A controller lock timeout returns
+MDIO_TIMEOUT and counts, whereas an aggregate-budget rejection before any frame
+with successful release and reusable controller does not. Every callback
+invocation increases `totalBatches`; frame totals count reported attempted/completed
+frames only.
+On malformed reports, count only the independently valid prefix and mark the
+violation; counts must not be invented from success status alone.
+
+For a counted failure, health lastError records normalized primary
+MDIO_ERROR/MDIO_TIMEOUT first, otherwise the normalized release/unsafe-controller
+error, otherwise the operation/clock timing failure. This is the cause of the
+health count, not necessarily the public call's primary status. For example,
+primary BUSY/OWNER_ADMISSION plus release MDIO_ERROR/-37 remains BUSY publicly
+but records one health failure with lastError=MDIO_ERROR/-37. Invalid reports
+normalize to MDIO_ERROR as above. An otherwise clean, excluded no-attempt
+rejection plus clock regression remains uncounted; clockInvalid still latches.
+At most one managed count is produced per callback.
 
 All counters saturate at UINT32_MAX. A managed failure increments totalFailures
 and consecutiveFailures, records normalized status and completion-time
-`lastErrorMs` if valid. A managed success increments totalSuccess, resets the
-streak to zero and updates lastOk/time-valid. It **preserves lastError and its
+`lastErrorMs` if valid. Replacing lastError also replaces its timestamp validity:
+if that failure has no valid completion time, set lastErrorMs=0 and
+lastErrorTimeValid=false. Never attach an older error's valid timestamp to a
+new error. An earlier lastOk/time-valid remains historical evidence; the clock
+fault latch prevents using it to compute age in the broken timeline.
+A managed success increments totalSuccess, resets the streak to zero and updates
+lastOk/time-valid. It **preserves lastError and its
 timestamp**. Successful cleanup/raw/probe traffic cannot change the streak.
 Configuration trust is never repaired by a transport success.
 
@@ -728,6 +763,9 @@ scan, reset, implicit recovery or selector cleanup occurs. On rejection or faile
 read, the ordinary output reference is untouched. `transportSnapshot` retains
 the last batch report for owner copying; its receipt is replaced by the next
 batch, while destructive/operation evidence has separate retention.
+The raw lastBatch receipt contains no register descriptor: the initiating call
+or typed collector supplies address/phase attribution. It is not a standalone
+transaction trace; no generic operation registry is introduced.
 
 ### Live link result and failure examples
 
@@ -765,8 +803,8 @@ the portable query to invent one or label valid link-down a failure.
 
 | Input/failure sequence | Ordinary output and status | Retained evidence |
 | --- | --- | --- |
-| Prior caller snapshot says UP; BMSR first `0x7809`, second `0x7809`, remaining required reads establish down | OK; replace caller snapshot with explicit valid DOWN and invalid resolution/pause. | Both low samples retained, current link-down timestamp; no MDIO health failure. |
-| First BMSR `0x7819` (latched low and fault), second read MDIO_TIMEOUT detail -37 | Caller snapshot unchanged; MDIO_TIMEOUT/-37. | Successful first full word retained, cached aggregate stale; failed destructive second read marks possible lost history. No synthetic second word. |
+| Prior caller snapshot says UP; BMSR first `0x7849`, second `0x7849`, remaining required reads establish down | OK; replace caller snapshot with explicit valid DOWN and invalid resolution/pause. | Both low samples retained, current link-down timestamp; no MDIO health failure. |
+| First BMSR `0x7859` (latched low and fault), second read MDIO_TIMEOUT detail -37 | Caller snapshot unchanged; MDIO_TIMEOUT/-37. | Successful first full word retained, cached aggregate stale; failed destructive second read marks possible lost history. No synthetic second word. |
 | First low, second high, coherent remaining observation | Valid current UP if sufficient evidence; the first low remains historical. | Both samples retained; never claim the pair is an atomic history sample. |
 | ID1 `0x2000`, ID2 transport failure | No newly accepted identity; ordinary identity result unchanged. | First raw word may remain valid; decoded/accepted false. |
 | IDs `0x2000/0xA132` | DEVICE_MISMATCH/REVISION_NOT_ACCEPTED. | Both words/model ENHANCED/revision 2 retained; no suffix inference or replacement revision. |
@@ -790,7 +828,7 @@ recording must not fabricate a transport attempt.
 | Plausibility fails after valid ID reads | DEVICE_NOT_FOUND/ZERO_ID or ONES_ID | Not proof of absent hardware; raw successful reads are transport successes. |
 | Observed wrong OUI/model/revision/mode | DEVICE_MISMATCH with exact IdentityDetail | Preserve raw evidence, no managed identity acceptance. |
 | Controller failure / controller or lock timeout | MDIO_ERROR / MDIO_TIMEOUT, signed backend detail | Preserve successful prefix, uncertain effects and release result. |
-| Detected backward clock | INVALID_CONFIG/CLOCK_CONTRACT unless a primary/release transport failure already takes precedence | Clock-invalid latch blocks timed I/O until owner repair/end/rebind; retain both facts and effects, publish no new valid output/time. |
+| Detected backward clock | Preserve any normalized primary failure, then release/unsafe-controller error; otherwise INVALID_CONFIG/CLOCK_CONTRACT | Clock-invalid latch blocks timed I/O until owner repair/end/rebind; retain both facts and effects, publish no new valid output/time. An otherwise clean no-frame admission rejection remains uncounted in managed health. |
 | No remaining aggregate time/work, bound cannot fit, or successful callback returned late | OPERATION_TIMEOUT with deadline/frame/bound detail | No partial admission; late writes/reads can have effects despite unchanged ordinary output. |
 | Successful in-budget stable-bit readback disagrees | CONFIG_MISMATCH/0 | Trust DIRTY; retain expected/observed/mask/space in typed result; transport health can be READY. |
 | Link/AN changes during aggregate observation | BUSY/OBSERVATION_CHANGED | Cached history stale, ordinary output unchanged; collector retains completed samples. |
@@ -807,7 +845,7 @@ consumer or permits physical fixture operations.
 
 ```cpp example
 // Application supplies terminal runBatch and monotonic readClock functions.
-void bindPortable(DP8382x::DP8382x& phy, void* context,
+DP8382x::Status bindPortable(DP8382x::DP8382x& phy, void* context,
                   DP8382x::ExecuteBatch runBatch, DP8382x::NowUs readClock,
                   const DP8382x::TransportBounds& provedBounds) {
     DP8382x::Config config{};
@@ -816,19 +854,15 @@ void bindPortable(DP8382x::DP8382x& phy, void* context,
     config.interface = DP8382x::MacInterface::RMII;
     config.requiredMode = DP8382x::OperatingMode::ENHANCED;
     config.transport = {context, runBatch, readClock, provedBounds};
-    const auto status = phy.bind(config); // Under owner serialization; no callbacks.
-    if (!status.ok()) return;              // Existing binding survives rejection.
     // Initialization is explicit: prompt 8 supplies its cooperative signature.
+    return phy.bind(config); // Owner-serialized; failure preserves the prior binding.
 }
 
 DP8382x::Status observePortable(DP8382x::DP8382x& phy,
                               const DP8382x::IoBudget& ownerBudget,
                               DP8382x::LinkSnapshot& published) {
-    DP8382x::LinkSnapshot candidate = published;
-    const auto status = phy.readLinkStatus(candidate, ownerBudget);
-    if (!status.ok()) return status; // published unchanged; owner can copy diagnostics.
-    published = candidate;          // Includes a valid DOWN result.
-    return status;
+    // Core stages output: failure preserves published; OK includes valid DOWN.
+    return phy.readLinkStatus(published, ownerBudget);
 }
 ```
 

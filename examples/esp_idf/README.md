@@ -63,3 +63,9 @@ managed cumulative totals, and a later transport success does not verify setting
 Native examples must preserve original signed errors and release/clock faults;
 the complete stopped-driver SDK transition remains in the owner design. These
 are implementation instructions, not a firmware build result.
+
+Owner examples return binding failures to the caller and use the core's staged
+output contract directly. Health's last error identifies a counted transport,
+release or timing failure; an earlier admission error can still be the public
+primary result. Copy the retained transport/collector evidence before subsequent
+requests replace the last batch receipt.

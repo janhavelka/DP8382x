@@ -54,6 +54,13 @@ reference/ledger/link checks and strict C++17 documentation syntax check pass.
 No production declarations, driver behavior or SDK support are claimed. Final
 commit/sync SHA is recorded in the handoff.
 
+Prompt 7 final checkpoint / fresh audit synchronized entry:
+`61e2057590951c740a713786b471228f43d6fbe1`.
+The [fresh contract audit](reports/implementation/7-contract-audit.md) corrects
+BMSR examples and health/time/release classification, preserving the selected
+architecture and prompt 8's cooperative scope. Corrective checks and final
+commit/sync identity are recorded in its report and handoff.
+
 Before prompt 1 of a new execution, create a new branch from the synchronized
 intended base and record its name/base here. Keep that branch for every prompt
 and resumed session. Record stage outcomes, actual checks, remaining dependencies

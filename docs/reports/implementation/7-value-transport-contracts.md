@@ -7,6 +7,11 @@ origin remains `https://github.com/janhavelka/DP8382x.git`. The final handoff
 records this stage's commit and verified upstream equality. No sibling or vendor
 payload was edited; no new execution branch was created.
 
+The [fresh independent audit](7-contract-audit.md) starts from this stage's
+synced commit `61e2057590951c740a713786b471228f43d6fbe1` and corrects four
+contract/example gaps. Verification below records the original stage; the
+audit report carries the corrective evidence.
+
 ## Outcome and scope
 
 The [API contract](../../api-contracts.md) freezes exact foundational values and

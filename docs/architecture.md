@@ -133,6 +133,11 @@ clears only managed cumulative totals. Desired intent, observed active settings
 and verified trust remain separate. These are contracts to implement with their
 owning stages, not placeholder methods in a public facade.
 
+Health classification uses returned status, frame and release/controller evidence.
+An admission rejection can remain the public primary error while a failed release
+is the counted health cause. Timestamp validity changes with each new error;
+an older timestamp cannot make that error look freshly observed.
+
 Public declarations will carry Doxygen when implemented: units, validity,
 legal state, borrowed lifetime, owner synchronization, I/O and destructive-read
 effects, output validity, errors, total bounds and cleanup. Private procedures
