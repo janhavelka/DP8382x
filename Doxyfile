@@ -1,0 +1,27 @@
+PROJECT_NAME           = "DP8382x"
+OUTPUT_DIRECTORY       = build/doxygen
+# Only exported headers are API inputs. Reference archives, implementation,
+# examples and generated build files are deliberately outside this input tree.
+INPUT                  = include/DP8382x
+FILE_PATTERNS          = *.h
+RECURSIVE              = YES
+EXCLUDE_PATTERNS       = */private/* */vendor/* */build/*
+EXTRACT_ALL            = NO
+EXTRACT_PRIVATE        = NO
+EXTRACT_PRIV_VIRTUAL   = NO
+EXTRACT_STATIC         = YES
+EXTRACT_LOCAL_CLASSES  = NO
+HIDE_UNDOC_CLASSES     = YES
+SOURCE_BROWSER         = NO
+VERBATIM_HEADERS       = NO
+INLINE_SOURCES         = NO
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+GENERATE_XML           = NO
+HAVE_DOT               = NO
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_IF_INCOMPLETE_DOC = YES
+WARN_NO_PARAMDOC       = YES
+WARN_AS_ERROR          = YES
+QUIET                  = YES

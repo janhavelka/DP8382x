@@ -1,0 +1,15 @@
+cmake_minimum_required(VERSION 3.16)
+project(DP8382xConsumer LANGUAGES CXX)
+
+# This application starts at C++11; the linked target must raise it to C++17.
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/../.." dp8382x)
+if(DP8382X_BUILD_TESTS)
+  message(FATAL_ERROR "Consumer verification requires DP8382X_BUILD_TESTS=OFF")
+endif()
+add_executable(dp8382x_consumer main.cpp)
+target_link_libraries(dp8382x_consumer PRIVATE DP8382x::DP8382x)
+enable_testing()
+add_test(NAME portable_consumer COMMAND dp8382x_consumer)
