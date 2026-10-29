@@ -1,11 +1,12 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–8 research and foundational-design stages are complete; the
-remaining stages have not started. Current executable verification includes
+execution. Prompts 1–9 research, contracts and portable-foundation stages are
+complete; the remaining stages have not started. Current verification includes
 reference/link checks, the silicon-ledger validator, 77 registered research-tool
 tests, eight executable operation-timing design probes and an isolated hash-checked
-SDK MMD encoding probe. Driver code,
+SDK MMD encoding probe, four C++17 host test suites, a separate tests-OFF
+consumer and the Doxygen source-document check. Driver code,
 examples, CLI, runner, driver behavior tests and hardware qualification remain
 future work. Prompt 5 closes primary-part source dispositions, including
 explicit unresolved gates. Research completion does not claim driver completion.
@@ -79,6 +80,17 @@ their exact PHY and fixes native terminal journaling. All 85 research/design
 tests and strict C++17 owner checks pass. The report and handoff record final
 local verification and the corrective commit/sync identity.
 
+Prompt 8 audit final commit/sync checkpoint / prompt 9 clean synchronized entry:
+`7311a81962f45d5c3a0baf7a709b89603875acfe`.
+Prompt 9 ships passive C++17 values, pure validators and source-proved constants
+with four registered host suites, standalone header compilation, a separate
+tests-OFF consumer and a Doxygen check with negative fixtures. The
+[source/review report](reports/implementation/9-portable-source-foundation.md)
+records the exact local results. The branch/base above remain unchanged;
+verified code/test/tool checkpoint: `079bf0f2f6451069de5296aee1b4e2dc811cea72`;
+the final prompt-9 commit/sync SHA belongs in the handoff to avoid a
+self-referencing commit.
+
 Before prompt 1 of a new execution, create a new branch from the synchronized
 intended base and record its name/base here. Keep that branch for every prompt
 and resumed session. Record stage outcomes, actual checks, remaining dependencies
@@ -99,7 +111,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [6 Resolve portable core and native SDK ownership](prompts/6-framework-ownership.md) | COMPLETE | [Decisions/matrix](design-decisions.md), [architecture](architecture.md), [report](reports/implementation/6-framework-ownership.md); independent ownership review resolved, 77 research tests, 272 poisoned SDK-type vectors and local reference/ledger/link/diff checks PASS. Native lifecycle correction remains an explicit prompt-37 support gate; no driver/SDK-link/physical claim. |
 | [7 Freeze value, Status and direct transport contracts](prompts/7-value-transport-contracts.md) | COMPLETE | [API contract](api-contracts.md), [report](reports/implementation/7-value-transport-contracts.md); independent state/error review resolved, six C++17 documentation blocks type-checked, all 35 features/52 procedures mapped, 77 research tests and local reference/ledger/link/diff checks PASS. Cooperative lifetimes remain prompt 8; no production/SDK-link/physical claim. |
 | [8 Freeze cooperative operation, time and cleanup contracts](prompts/8-operation-contracts.md) | COMPLETE | [API contract](api-contracts.md), [report](reports/implementation/8-operation-contracts.md); independent lifetime/source review resolved, 85 research/design tests, eight portable C++17 documentation blocks and local reference/ledger/link/diff checks PASS. Native callback example is source-reviewed; driver, SDK link and physical execution remain later-stage work. |
-| [9 Build the portable values, tests and source-documentation foundation](prompts/9-portable-source-foundation.md) | NOT STARTED | None |
+| [9 Build the portable values, tests and source-documentation foundation](prompts/9-portable-source-foundation.md) | COMPLETE | [Public headers](../include/DP8382x/README.md), [report](reports/implementation/9-portable-source-foundation.md); four C++17 host suites, tests-OFF consumer, Doxygen negative checks and local research/reference/diff checks PASS. Device, SDK and physical evidence NOT RUN. |
 | [10 Add deterministic version metadata and generation](prompts/10-version-tooling.md) | NOT STARTED | None |
 | [11 Implement bounded Clause 22 transport](prompts/11-clause22-transport.md) | NOT STARTED | None |
 | [12 Implement complete atomic MMD transactions](prompts/12-atomic-mmd.md) | NOT STARTED | None |

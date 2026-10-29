@@ -50,7 +50,32 @@ finite frozen-clock poll allowances and reserved cleanup deadlines. They use
 independent synthetic values and integer arithmetic, not a fake PHY or unused
 operation engine. The [operation scenarios](../docs/api-contracts.md#operation-acceptance-scenarios-and-examples)
 remain execution-ready call/status/effect recipes for the first real consumer.
-The current discovery total is 85; no test claims driver execution.
+The current Python discovery total is 85; no test claims driver execution.
+
+## Portable C++17 foundation
+
+The root `DP8382x` CMake target exports three standalone public headers.
+`DP8382X_BUILD_TESTS` defaults to OFF. With tests ON, four CTest suites exercise
+Status helpers, valid/invalid link settings, register-mask operations and passive
+transport values. Three extra translation units compile each public header alone.
+The tests use explicit checks that stay active in Release builds.
+
+```sh
+cmake -S . -B build/host -DDP8382X_BUILD_TESTS=ON
+cmake --build build/host
+ctest --test-dir build/host --output-on-failure
+cmake -S test/consumer -B build/consumer
+cmake --build build/consumer
+ctest --test-dir build/consumer --output-on-failure
+python tools/check_doxygen.py
+```
+
+The separate consumer configures the root library with tests OFF and links only
+portable values. The Doxygen command requires installed Doxygen; it generates
+to a temporary directory, checks documented pages/members/links and verifies
+that missing public comments and a bad `@param` fail. Missing Doxygen means the
+documentation check is NOT RUN/BLOCKED, never PASS. These host results do not
+execute a device, SDK or physical PHY.
 
 Prompt 6 also supplies an isolated C11 SDK encoding probe. Obtain the original
 [pinned register header](https://github.com/espressif/esp-idf/blob/fff9895c82d744c7237be8847347bdd1b07c6643/components/esp_eth/include/eth_phy_802_3_regs.h)

@@ -40,6 +40,10 @@ probes remain separate from future driver and native-link evidence.
 The [fresh prompt-8 audit](implementation/8-contract-audit.md) records terminal
 invalidation, fixed owner identity and native status-journal corrections.
 
+The [prompt 9 report](implementation/9-portable-source-foundation.md) records
+the shipped C++17 passive foundation, exact peer evidence, host/consumer tests,
+source-document checks and remaining device/SDK/physical boundaries.
+
 - [Sibling drivers](sibling-driver-audit.md): primary driver source audit and
   broader inventory, naming, ownership, Status/health, CLI, runners, tests and CI.
 - [FieldCore conventions](fieldcore-conventions-audit.md): actual promptset,

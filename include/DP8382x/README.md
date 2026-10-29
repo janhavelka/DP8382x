@@ -1,14 +1,17 @@
 # Public interface location
 
-Reserved for the future DP8382x public headers. No API is implemented yet.
+This directory now ships the portable C++17 `Status.h`, `Config.h` and
+`CommandTable.h`: passive values, error helpers, pure link validators and a
+small source-proved register/mask set. They perform no MDIO I/O and need no SDK.
+There is no device facade or working operation API yet.
 See [architecture](../../docs/architecture.md) and the accepted
 [ownership/call-chain decisions](../../docs/design-decisions.md).
 
 Prompt 6 selects one framework-independent C++17 core, one borrowed terminal
 MDIO batch callback, and one retained operation/result slot. Prompt 7's
 [API contract](../../docs/api-contracts.md) now freezes exact foundational values
-and direct signatures; prompt 8 completes cooperative lifetimes. This note does not
-publish placeholder declarations.
+and direct signatures; prompt 8 completes cooperative lifetimes. The remaining
+method signatures are design contracts until implemented at their owning stage.
 `bind`/`end` and cached snapshots are local, but still require owner serialization.
 Invalid replacement binding preserves the existing valid binding. `end` cannot
 discard active work, owed cleanup or unacknowledged evidence.
@@ -30,7 +33,8 @@ Doxygen must describe borrowed context/lock/buffer lifetime, non-reentrancy,
 legal states, complete transaction exclusion, aggregate bounds and backend limits,
 ordinary output publication versus retained partial destructive samples,
 accepted/uncertain effects, separate primary/cleanup status, acknowledgement and
-teardown/quiescence. Add source documentation checks with real code in prompt 9.
+teardown/quiescence. Prompt 9 checks the shipped header comments with Doxygen;
+later methods must add their own documentation when they work.
 
 Implement methods only at their owning stage: transport accounting begins at 11,
 identity at 14, settings/link at 17–19 and managed health at 21. Do not publish

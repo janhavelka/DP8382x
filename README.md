@@ -4,13 +4,14 @@ General microcontroller library workspace for Texas Instruments DP8382x Ethernet
 PHYs, starting with **DP83826IRHBR (DP83826I)**. The planned C++17 core is
 framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet MAC.
 
-**Status: prompts 1–8 research, ownership and API contracts complete; driver implementation not started.**
+**Status: prompts 1–9 complete. The portable value foundation is implemented; device and hardware behavior are not.**
 Official references and the 80-prompt implementation plan are available. The
 [current source and tooling comparison](docs/library-comparison.md) records
 the first two execution results. The [primary silicon ledger](docs/register-map.md)
-closes primary-part source coverage, including unresolved gates and offline validation. Driver code,
-build/package metadata, examples, CLI, runners and hardware qualification are
-future work.
+closes primary-part source coverage, including unresolved gates and offline validation.
+The C++17 Status, configuration values, pure validators, selected register masks,
+host tests and source-document checker now exist. Device code, SDK integration,
+examples, CLI, runners and hardware qualification are future work.
 
 Prompt 6 selects one shared C++17 chip implementation, a terminal batch MDIO
 boundary and explicit native lifecycle/cache/collector ownership in the
@@ -22,7 +23,8 @@ Status/details, batch transport/budgets, identity admission, passive health,
 snapshot validity and direct calls. Prompt 8 completes cooperative operations,
 finite primary/cleanup budgets, retained results, lifetime tokens and explicit
 owner-assisted teardown. Eight executable timing design probes complement the
-77 research tests. These declarations are not shipped headers or working stubs.
+77 research tests. Prompt 9 ships the passive subset in `include/DP8382x/`;
+device and operation declarations remain contracts, not working stubs.
 
 The [fresh prompts 4–5 audit](docs/reports/implementation/4-5-silicon-ledger-audit.md)
 records independent PDF review, corrected split-field transition ordering and
@@ -73,11 +75,11 @@ remain library scope. See [full-coverage requirements](docs/prompts/FULL_COVERAG
 
 ```text
 DP8382x/
-  include/DP8382x/       future public interfaces
-  src/                  future implementation
+  include/DP8382x/       public passive values, Status and register constants
+  src/                  future device implementation
   examples/esp_idf/      future P4 networking and EtherCAT-owner examples
-  test/                 executing ledger tests; future driver tests
-  tools/                reference and silicon-ledger validators
+  test/                 host foundation and research tests; future driver tests
+  tools/                source-document, reference and ledger checks
   docs/
     prompts/            80 implementation prompts and shared contracts
     reports/            planning audits; later implementation evidence
@@ -87,8 +89,8 @@ DP8382x/
       text/             searchable text derived from archived PDFs
 ```
 
-This follows the basic `Projects/` library layout. Build and package manifests
-will be added with the implementation they describe. The family name is a scope
+This follows the basic `Projects/` library layout. Package manifests and version
+generation arrive with their own implementation. The family name is a scope
 for development, not a claim that every DP8382x device is supported.
 
 ## Local verification
@@ -106,6 +108,22 @@ The first command checks archived payloads, SHA-256 hashes, ZIP integrity,
 derived text and local Markdown links. Ledger checks validate research structure,
 coverage and independent literal values. These commands do not contact TI,
 execute a driver or test a physical PHY.
+
+The portable foundation needs CMake 3.16 or newer and a C++17 compiler. Its
+build-tree consumer does not need Python, Git, Doxygen, an SDK or sibling sources:
+
+```sh
+cmake -S . -B build/host -DDP8382X_BUILD_TESTS=ON
+cmake --build build/host
+ctest --test-dir build/host --output-on-failure
+cmake -S test/consumer -B build/consumer
+cmake --build build/consumer
+ctest --test-dir build/consumer --output-on-failure
+```
+
+If Doxygen is installed, `python tools/check_doxygen.py` checks generated public
+pages, member comments and links, and exercises two rejected documentation
+fixtures. Its output is temporary. See [verification](test/README.md).
 
 ## Licensing
 

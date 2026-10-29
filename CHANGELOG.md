@@ -4,6 +4,12 @@
 
 ### 2026-10-29
 
+- Added prompt 9's header-only C++17 portable foundation: Status helpers,
+  passive configuration/transport values, pure link validators and selected
+  source-proved register masks. Added four registered host test suites, isolated
+  header builds, a separate tests-OFF consumer and a Doxygen checker with two
+  rejected negative fixtures. Device behavior and SDK support remain planned.
+
 - Independently audited prompt 8: made invalidation state-specific without
   reopening terminal results, bound example owners to one PHY and disabled
   owner copying/moving, and corrected the native terminal status journal.

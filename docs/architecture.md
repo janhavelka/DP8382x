@@ -2,8 +2,9 @@
 
 Prompt 6 selected this architecture on 2026-10-29. The complete
 [ownership decisions and call-chain matrix](design-decisions.md) are the design
-contract for portable and native operation. No driver API is implemented;
-prompts 7–8 freeze [values, direct calls and operation lifetimes](api-contracts.md).
+contract for portable and native operation. Prompt 9 implements passive public
+values and host verification; no device or MDIO API is implemented. Prompts 7–8
+freeze [values, direct calls and operation lifetimes](api-contracts.md).
 The
 [source comparison](library-comparison.md) and
 [prompt-6 audit](reports/implementation/6-framework-ownership.md) record precedents.

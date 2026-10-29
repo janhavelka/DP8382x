@@ -1,9 +1,10 @@
 # DP8382x value and direct-call contracts
 
 Prompts 7–8 freeze this design on 2026-10-29, using the
-[prompt-6 ownership decisions](design-decisions.md). These declarations are
-documentation, **not shipped headers or implemented methods**. Introduce each
-declaration with its working behavior/tests at its owning stage. The cooperative
+[prompt-6 ownership decisions](design-decisions.md). Prompt 9 implements the
+passive Status, configuration and selected command constants in public headers.
+The device and operation declarations below remain design contracts; introduce
+each method with working behavior and tests at its owning stage. The cooperative
 contract below adds tokens, deadlines and retained cleanup to the audited direct
 calls. Its clock-lag allowance makes the same time contract safe under quantization.
 
