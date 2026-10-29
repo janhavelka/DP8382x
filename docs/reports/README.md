@@ -48,6 +48,10 @@ The [prompt 10 report](implementation/10-version-tooling.md) records strict
 release-version generation, read-only checks, temporary preservation fixtures,
 peer metadata precedents and ordinary consumer independence.
 
+The [fresh prompts 9–10 audit](implementation/9-10-foundation-audit.md)
+corrects current verification guidance and records independent code and scope
+review without changing the shipped behavior.
+
 - [Sibling drivers](sibling-driver-audit.md): primary driver source audit and
   broader inventory, naming, ownership, Status/health, CLI, runners, tests and CI.
 - [FieldCore conventions](fieldcore-conventions-audit.md): actual promptset,

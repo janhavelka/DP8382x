@@ -103,6 +103,12 @@ branch/base above remain unchanged. Verified code/test/tool checkpoint:
 `37c787203c7aa7de86e8871b200846d0f0b4ed5c`. The final prompt-10
 commit/sync SHA is in the handoff to avoid a self-referencing commit.
 
+The [fresh prompts 9–10 audit](reports/implementation/9-10-foundation-audit.md)
+verified the shipped code and tests independently, corrected current header
+counts and CTest zero-test/version guidance, and replaced a stale planning-only
+verification link. Implementation status and version remain unchanged. Its
+final corrective commit/sync SHA is in the handoff.
+
 Before prompt 1 of a new execution, create a new branch from the synchronized
 intended base and record its name/base here. Keep that branch for every prompt
 and resumed session. Record stage outcomes, actual checks, remaining dependencies

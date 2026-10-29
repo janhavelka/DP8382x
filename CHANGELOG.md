@@ -4,6 +4,11 @@
 
 ### 2026-10-29
 
+- Fresh prompts 9–10 audit corrected header counts and CTest instructions so
+  zero registered tests fail, and distinguished CMake 3.16 target support from
+  guarded CTest 3.26 commands. Replaced a stale planning-only verification
+  link. No portable or version behavior changed.
+
 - Added prompt 10's `library.json` release-version truth, strict deterministic
   `sync`/read-only `check`, generated public `Version.h` and temporary-fixture
   tests. The portable consumer uses the committed header without generation;

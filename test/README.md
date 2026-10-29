@@ -55,19 +55,21 @@ current Python discovery to 98. No test claims driver execution.
 
 ## Portable C++17 foundation
 
-The root `DP8382x` CMake target exports three standalone public headers.
+The root `DP8382x` CMake target exports four standalone public headers.
 `DP8382X_BUILD_TESTS` defaults to OFF. With tests ON, four CTest suites exercise
 Status helpers, valid/invalid link settings, register-mask operations and passive
-transport values. Three extra translation units compile each public header alone.
+transport values. Four extra translation units compile each public header alone.
 The tests use explicit checks that stay active in Release builds.
+The commands below use CTest 3.26 or newer so an empty test set fails;
+the portable target itself supports CMake 3.16 or newer.
 
 ```sh
 cmake -S . -B build/host -DDP8382X_BUILD_TESTS=ON
 cmake --build build/host
-ctest --test-dir build/host --output-on-failure
+ctest --test-dir build/host --output-on-failure --no-tests=error
 cmake -S test/consumer -B build/consumer
 cmake --build build/consumer
-ctest --test-dir build/consumer --output-on-failure
+ctest --test-dir build/consumer --output-on-failure --no-tests=error
 python tools/check_doxygen.py
 ```
 
@@ -122,8 +124,11 @@ No driver, firmware build, CI workflow or physical hardware test exists at this 
 The [80-prompt promptset](../docs/prompts/README.md) now defines those future
 deliverables. Its [verification contract](../docs/prompts/VERIFICATION.md)
 separates host, portable consumer, SDK link, package, remote CI and physical
-evidence. See [planning validation](../docs/reports/promptset-validation.md) for
-the checks actually performed on this documentation-only change.
+evidence. The [prompt 9](../docs/reports/implementation/9-portable-source-foundation.md)
+and [prompt 10](../docs/reports/implementation/10-version-tooling.md) reports
+record current source/tool checks. The older
+[planning validation](../docs/reports/promptset-validation.md) records only
+the planning-stage documentation checks.
 
 ## Planned implementation evidence
 

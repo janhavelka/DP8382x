@@ -120,16 +120,17 @@ to verify it without writes. Ordinary CMake consumers use the committed header
 without Python or Git. The [tool guide](scripts/README.md) defines supported
 version syntax and failure behavior.
 
-The portable foundation needs CMake 3.16 or newer and a C++17 compiler. Its
-build-tree consumer does not need Python, Git, Doxygen, an SDK or sibling sources:
+The portable target needs CMake 3.16 or newer and a C++17 compiler. These
+verification commands use CTest 3.26 or newer so zero registered tests fail.
+The build-tree consumer needs no Python, Git, Doxygen, SDK or sibling sources:
 
 ```sh
 cmake -S . -B build/host -DDP8382X_BUILD_TESTS=ON
 cmake --build build/host
-ctest --test-dir build/host --output-on-failure
+ctest --test-dir build/host --output-on-failure --no-tests=error
 cmake -S test/consumer -B build/consumer
 cmake --build build/consumer
-ctest --test-dir build/consumer --output-on-failure
+ctest --test-dir build/consumer --output-on-failure --no-tests=error
 ```
 
 If Doxygen is installed, `python tools/check_doxygen.py` checks generated public
