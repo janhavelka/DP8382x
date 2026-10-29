@@ -762,7 +762,7 @@ struct OperationResult {
     QuiescenceDisposition disposition{QuiescenceDisposition::NONE};
     DeviceIdentity identity{};             ///< Includes partial/rejected identity evidence.
     StrapEvidence straps{};                ///< Raw captured words; reset provenance stays explicit.
-    SettingsSnapshot settings{};           ///< Copied current desired/observed/trust evidence.
+    SettingsSnapshot settings{};           ///< Operation evidence; historical once terminal.
     ConfigurationMismatch mismatch{};
     OperationBatchEvidence primaryBatch{};  ///< First failing batch, else last primary batch.
     OperationBatchEvidence cleanupBatch{};  ///< First failing batch, else last cleanup batch.
@@ -813,7 +813,8 @@ public:
     Status end() noexcept;
     bool isBound() const noexcept;           ///< Local binding validity; not bus readiness.
     bool isInitialized() const noexcept;     ///< Accepted current initialization, not link.
-    /// @brief Record loss of trust locally; never reset/recover hardware or clear history.
+    /// @brief Invalidate current device evidence locally; preserve terminal operation receipts.
+    /// @note Stops active primary work and rechecks remaining cleanup; never reopens a result.
     Status invalidateDeviceState(InvalidationReason reason) noexcept;
 
     /// @brief Read one policy-admitted stable C22 register under the whole-batch owner.
@@ -917,7 +918,9 @@ when unbound, otherwise works even during an active operation: mark trust DIRTY,
 identity/link/observed settings stale, capabilities invalid and initialized false;
 retain desired intent, counters, samples and result/effect evidence. It signals
 the active operation to stop normal progression and preserve cleanup obligations
-under prompt 8. No invalidation reason repairs SDK caches or controller state.
+under the state-specific rules below. A pending terminal result remains historical;
+current device snapshots show the invalidation. No invalidation reason repairs
+SDK caches or controller state.
 
 Direct calls return terminal status, never IN_PROGRESS. No token is needed for
 these bounded short calls. Admission rejects incompatible active work, pending
@@ -1456,10 +1459,24 @@ route. A missing restoration route rejects the entire plan at pure preflight;
 never guess a saved word or add a speculative read. Partial reset/configuration
 invalidates affected trust and link observations as soon as mutation is possible.
 Accepted reset sets initialized=false until the required bootstrap and replay
-complete. Raw public mutation is denied during a slot; external mutation calls
-invalidateDeviceState, which marks evidence stale and freezes INVALID_CONFIG/
-DEVICE_INVALIDATED, then schedules
-only a newly safe cleanup plan. Existing primary failure takes precedence.
+complete. Raw public mutation is denied during a slot. A valid external mutation
+notification through invalidateDeviceState always invalidates current device
+snapshots as specified above, then follows the operation state:
+
+| Operation state | Effect of invalidation on the slot |
+| --- | --- |
+| IDLE | Remain IDLE; no token, result or cleanup is created. External effects belong to the notifying owner until an explicit admitted recovery. |
+| RUNNING | Freeze primary INVALID_CONFIG/DEVICE_INVALIDATED; preserve consumed samples and effects. Enter CLEANUP only for an existing operation obligation, otherwise RESULT_PENDING with cleanup NOT_REQUIRED/OK. |
+| CLEANUP | Preserve the frozen primary and accumulated effects. Recheck the remaining safe cleanup route on the next authorized poll, keeping original deadlines and remaining frame/poll allowances; never restart or extend cleanup. If no safe route remains, publish cleanup FAILED with INVALID_CONFIG/DEVICE_INVALIDATED. |
+| RESULT_PENDING, including FAILED or DISCHARGED cleanup | Preserve the entire terminal receipt, statuses, effects and disposition. Do not reopen work, change a successful historical outcome or retry failed/discharged cleanup. Failed cleanup still requires owner disposition before take; DISCHARGED remains retire-only. |
+
+Active snapshots copy the invalidated current evidence; terminal result fields
+describe the completed operation's historical observation, not current trust.
+Current getSettingsSnapshot/linkSnapshot/isInitialized expose the invalidation
+even while that receipt awaits delivery. New external hardware effects and their
+cleanup belong to the notifying owner; they cannot be folded into an already
+terminal operation or cleared by consuming its result. Invalidation itself is
+bus/clock silent in every state and cannot perform or prove restoration.
 
 All four operations share private chip procedures, not public start calls:
 
@@ -1526,31 +1543,41 @@ now; these tables do not claim execution of an unimplemented driver.
 | Consumed token after end/rebind | RESULT_NOT_AVAILABLE when slot empty, or TOKEN_MISMATCH against newer occupied slot; never aliases a newly issued token. |
 | Lifetime counter has issued UINT64_MAX | Next start BUSY/TOKEN_EXHAUSTED; object replacement requires explicit old-request invalidation, never wrap. |
 | External mutation during wait | Invalidate locally, freeze primary invalidation unless an earlier error exists; retain samples/effects and re-evaluate safe cleanup prerequisites. |
+| External mutation during CLEANUP | Preserve primary; spend only the original remaining cleanup allowance on a revalidated safe route, or retain FAILED/DEVICE_INVALIDATED if none exists. No renewed deadline or hidden retry. |
+| External mutation after successful RESULT_PENDING | Current trust/initialization becomes invalid; retained primary OK and verified historical receipt stay unchanged. Take delivers history, then explicit initialization/recovery addresses the new context. |
+| External mutation after failed cleanup / owner discharge | Preserve FAILED and take BUSY/CLEANUP_REQUIRED, or preserve DISCHARGED and retire-only respectively. No cleanup reopening; owner disposition/take/end remains the finite route. |
 | Hard reset requested with untrusted hardware | Initialized owner may startReset; otherwise startRecover(HARD_RESET) uses bootstrap. Trust is not a prerequisite for repair; source gates still apply. |
 
 ```cpp example
 // Owner state, never shared without application synchronization.
 struct OwnerSession {
+    explicit OwnerSession(DP8382x::DP8382x& phy) noexcept : core(phy) {}
+    OwnerSession(const OwnerSession&) = delete;
+    OwnerSession& operator=(const OwnerSession&) = delete;
+    OwnerSession(OwnerSession&&) = delete;
+    OwnerSession& operator=(OwnerSession&&) = delete;
+
+    DP8382x::DP8382x& core; // Token identity is permanently paired with this instance.
     DP8382x::OperationToken token{};
     DP8382x::OperationResult delivered{};
     DP8382x::OperationSnapshot retained{};
     bool deliveredValid{false};
 };
-DP8382x::Status admitInitialize(DP8382x::DP8382x& phy, OwnerSession& owner,
+DP8382x::Status admitInitialize(OwnerSession& owner,
                               const DP8382x::OperationBudget& budget) {
     DP8382x::OperationToken candidate{};
-    const auto status = phy.startInitialize({}, budget, candidate);
+    const auto status = owner.core.startInitialize({}, budget, candidate);
     if (status.inProgress()) owner.token = candidate;
     return status; // Rejection preserves the previous owner identity/evidence.
 }
-DP8382x::Status ownerPoll(DP8382x::DP8382x& phy, OwnerSession& owner,
+DP8382x::Status ownerPoll(OwnerSession& owner,
                         const DP8382x::IoBudget& slice) {
-    const auto progress = phy.pollOperation(owner.token, slice);
-    owner.retained = phy.getOperationSnapshot(); // Includes a failed primary during cleanup.
+    const auto progress = owner.core.pollOperation(owner.token, slice);
+    owner.retained = owner.core.getOperationSnapshot(); // Includes a failed primary during cleanup.
     if (owner.retained.state != DP8382x::OperationState::RESULT_PENDING)
         return progress;
     DP8382x::OperationResult result{};
-    const auto taken = phy.takeResult(owner.token, result);
+    const auto taken = owner.core.takeResult(owner.token, result);
     if (!taken.ok()) return taken; // Keep token and evidence for explicit disposition.
     owner.delivered = result;
     owner.deliveredValid = true;
@@ -1558,6 +1585,11 @@ DP8382x::Status ownerPoll(DP8382x::DP8382x& phy, OwnerSession& owner,
     return !result.primaryStatus.ok() ? result.primaryStatus : result.cleanupStatus;
 }
 ```
+
+Construct one OwnerSession for each core instance; the core outlives that session.
+Neither the session nor the native owner below can be copied or moved. Only their
+snapshot/result values are published by copy. Equal token numbers from two driver
+instances cannot redirect these helpers to a different PHY.
 
 The owner schedules another finite call at nextPollAtUs or its own later policy
 instant, supplies slices from the original deadlines, and publishes copied
@@ -1604,6 +1636,12 @@ rules. These declarations are SDK-only and not part of the portable syntax probe
 #include "esp_eth_phy.h"
 #include "esp_err.h"
 struct NativeResetContext {
+    explicit NativeResetContext(DP8382x::DP8382x& phy) noexcept : core(phy) {}
+    NativeResetContext(const NativeResetContext&) = delete;
+    NativeResetContext& operator=(const NativeResetContext&) = delete;
+    NativeResetContext(NativeResetContext&&) = delete;
+    NativeResetContext& operator=(NativeResetContext&&) = delete;
+
     DP8382x::DP8382x& core;
     DP8382x::OperationBudget budget;
     DP8382x::OperationToken token{};
@@ -1643,8 +1681,9 @@ esp_err_t ownedReset(esp_eth_phy_t* phy) {
             owner.delivered = result;      // Journal the full result before returning.
             owner.deliveredValid = true;
             owner.token = DP8382x::INVALID_OPERATION_TOKEN;
-            return nativeError(!result.primaryStatus.ok() ?
-                               result.primaryStatus : result.cleanupStatus);
+            owner.nativeStatus = !result.primaryStatus.ok() ?
+                                 result.primaryStatus : result.cleanupStatus;
+            return nativeError(owner.nativeStatus);
         }
         owner.nativeStatus = progress;
         if (!progress.inProgress()) break;

@@ -7,6 +7,9 @@ Original base remains `5e148fffde074b85fadc15d8ff66fe2c77111036`; origin is
 commit and verified upstream equality. Lead alone owns integration and Git;
 sibling repositories and vendor payloads are unchanged.
 
+The later [fresh independent audit](8-contract-audit.md) records state-specific
+invalidation and owner/native example corrections against this completed work.
+
 ## Outcome, rules and owned work
 
 Read prompt 8, COMMON, CONVENTIONS, ENGINEERING and relevant EVIDENCE/VERIFICATION

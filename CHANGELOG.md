@@ -4,6 +4,10 @@
 
 ### 2026-10-29
 
+- Independently audited prompt 8: made invalidation state-specific without
+  reopening terminal results, bound example owners to one PHY and disabled
+  owner copying/moving, and corrected the native terminal status journal.
+
 - Completed prompt 8's cooperative contract: one retained operation slot,
   lifetime tokens, finite primary/cleanup budgets, owner-assisted disposition,
   acyclic restoration and exact portable/native design examples. Added eight

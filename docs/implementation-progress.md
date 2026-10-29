@@ -71,6 +71,14 @@ disposition resolve the clock-fault cleanup dependency. All 85 research/design
 tests, eight portable documentation blocks and local checks pass; driver/SDK/
 physical evidence remains separate and NOT RUN. Final sync SHA is in the handoff.
 
+Prompt 8 final checkpoint / fresh audit clean synchronized entry:
+`2b570bb5dcf52b2eacbf97055babb8d17f944fbd`.
+The [fresh contract audit](reports/implementation/8-contract-audit.md) resolves
+terminal invalidation ambiguity, binds noncopyable/nonmovable example owners to
+their exact PHY and fixes native terminal journaling. All 85 research/design
+tests and strict C++17 owner checks pass. The report and handoff record final
+local verification and the corrective commit/sync identity.
+
 Before prompt 1 of a new execution, create a new branch from the synchronized
 intended base and record its name/base here. Keep that branch for every prompt
 and resumed session. Record stage outcomes, actual checks, remaining dependencies

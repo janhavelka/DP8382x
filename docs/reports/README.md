@@ -37,6 +37,8 @@ The [prompt 8 report](implementation/8-operation-contracts.md) records exact
 cooperative signatures, token/result/cleanup lifetimes, clock/budget arithmetic,
 fresh peer/SDK evidence and the independent lifetime review. Executable timing
 probes remain separate from future driver and native-link evidence.
+The [fresh prompt-8 audit](implementation/8-contract-audit.md) records terminal
+invalidation, fixed owner identity and native status-journal corrections.
 
 - [Sibling drivers](sibling-driver-audit.md): primary driver source audit and
   broader inventory, naming, ownership, Status/health, CLI, runners, tests and CI.

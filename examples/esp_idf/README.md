@@ -77,3 +77,8 @@ inside the existing lifecycle reservation. A cancelled/failed operation may
 still require later owner cleanup. Deletion follows disposition, successful
 result delivery, local end and actual SDK callback/resource drain. Tick sleeps
 are scheduling only; elapsed-time admission uses the qualified monotonic clock.
+
+Owner contexts are non-copyable/non-movable and retain a reference to their exact
+core instance. Native terminal status and the full delivered result must agree.
+External invalidation changes current device snapshots without rewriting a
+pending historical result or restarting failed/discharged cleanup.

@@ -154,6 +154,13 @@ This also resolves broken-clock cleanup without timed I/O on invalid time.
 Persistent replay is acyclic; a reset primitive never recursively calls the
 whole EEE/diagnostic recipe or restores temporary stimulus commands.
 
+External invalidation marks current device evidence stale in every bound state.
+During primary work it terminates normal progression; during cleanup it rechecks
+the remaining safe route within the same allowance. A terminal result remains
+historical and is never reopened, including after failed or discharged cleanup.
+Each example owner retains its core association as well as its token; copying
+published receipts cannot create another operation owner.
+
 Public declarations will carry Doxygen when implemented: units, validity,
 legal state, borrowed lifetime, owner synchronization, I/O and destructive-read
 effects, output validity, errors, total bounds and cleanup. Private procedures
