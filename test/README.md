@@ -51,20 +51,27 @@ independent synthetic values and integer arithmetic, not a fake PHY or unused
 operation engine. The [operation scenarios](../docs/api-contracts.md#operation-acceptance-scenarios-and-examples)
 remain execution-ready call/status/effect recipes for the first real consumer.
 These research/design tests total 85; the 13 version-tool tests below bring
-current Python discovery to 98. No test claims driver execution.
+current Python discovery to 98. These Python tests do not claim driver execution;
+the C++ transport suites below exercise the compiled driver separately.
 
 ## Portable C++17 foundation
 
-The root `DP8382x` CMake target exports four standalone public headers.
-`DP8382X_BUILD_TESTS` defaults to OFF. With tests ON, four CTest suites exercise
+The root `DP8382x` CMake target exports five standalone public headers and links
+the portable direct-access implementation. `DP8382X_BUILD_TESTS` defaults to OFF.
+With tests ON, four foundation CTest suites exercise
 Status helpers, valid/invalid link settings, register-mask operations and passive
-transport values. Four extra translation units compile each public header alone.
+transport values. Five extra translation units compile each public header alone.
+Five transport suites (`binding`, `direct`, `reports`, `timing`, `ownership`)
+execute the production facade with independent literal access vectors and a
+controller fault-injection model. They exhaust all Clause 22 addresses, all
+16-bit LEDCR values and all primary status byte encodings, plus report/release,
+deadline, output-sentinel, no-retry, lifetime and two-instance ownership cases.
 The tests use explicit checks that stay active in Release builds.
 The commands below use CTest 3.26 or newer so an empty test set fails;
 the portable target itself supports CMake 3.16 or newer.
 
 ```sh
-cmake -S . -B build/host -DDP8382X_BUILD_TESTS=ON
+cmake -S . -B build/host -DDP8382X_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build build/host
 ctest --test-dir build/host --output-on-failure --no-tests=error
 cmake -S test/consumer -B build/consumer
@@ -73,12 +80,14 @@ ctest --test-dir build/consumer --output-on-failure --no-tests=error
 python tools/check_doxygen.py
 ```
 
-The separate consumer configures the root library with tests OFF and links only
-portable values. The Doxygen command requires installed Doxygen; it generates
+The separate consumer configures the root library with tests OFF and links the
+real portable driver plus the compiling direct-read example, using an explicitly
+simulated backend. The Doxygen command requires installed Doxygen; it generates
 to a temporary directory, checks documented pages/members/links and verifies
 that missing public comments and a bad `@param` fail. Missing Doxygen means the
 documentation check is NOT RUN/BLOCKED, never PASS. These host results do not
-execute a device, SDK or physical PHY.
+execute a physical PHY or SDK. The controller model cannot qualify lock/controller
+timing or physical MDC/MDIO waveforms; see the [backend requirements](../docs/direct-access.md).
 
 ## Release version tooling
 
@@ -120,7 +129,7 @@ MMD implementation or a linked SDK image. Production width/admission/failure
 and two-instance SDK tests remain assigned in the
 [ownership acceptance matrix](../docs/design-decisions.md#8-source-selection-api-documentation-and-acceptance).
 
-No driver, firmware build, CI workflow or physical hardware test exists at this stage.
+No firmware build, CI workflow or physical hardware test exists at this stage.
 The [80-prompt promptset](../docs/prompts/README.md) now defines those future
 deliverables. Its [verification contract](../docs/prompts/VERIFICATION.md)
 separates host, portable consumer, SDK link, package, remote CI and physical

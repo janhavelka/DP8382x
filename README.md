@@ -1,18 +1,20 @@
 # DP8382x
 
 General microcontroller library workspace for Texas Instruments DP8382x Ethernet
-PHYs, starting with **DP83826IRHBR (DP83826I)**. The planned C++17 core is
+PHYs, starting with **DP83826IRHBR (DP83826I)**. The C++17 core is
 framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet MAC.
 
-**Status: prompts 1–10 complete. Portable values and version tooling are implemented; device and hardware behavior are not.**
+**Status: prompts 1–11 complete. Bounded portable Clause 22 access is implemented; initialization, SDK support and hardware qualification remain future work.**
 Official references and the 80-prompt implementation plan are available. The
 [current source and tooling comparison](docs/library-comparison.md) records
 the first two execution results. The [primary silicon ledger](docs/register-map.md)
 closes primary-part source coverage, including unresolved gates and offline validation.
 The C++17 Status, configuration values, pure validators, selected register masks,
 host tests, source-document checker and deterministic release-version tooling now
-exist. Device code, SDK integration,
-examples, CLI, runners and hardware qualification are future work.
+exist. The [direct-access guide](docs/direct-access.md) covers binding, safe raw
+reads, the restricted LEDCR maintenance-write subset and retained failure evidence.
+It includes a compiling portable read example. Initialization, typed features,
+SDK integration, CLI, runners and hardware qualification remain future work.
 
 Prompt 6 selects one shared C++17 chip implementation, a terminal batch MDIO
 boundary and explicit native lifecycle/cache/collector ownership in the
@@ -79,11 +81,12 @@ remain library scope. See [full-coverage requirements](docs/prompts/FULL_COVERAG
 
 ```text
 DP8382x/
-  include/DP8382x/       public passive values, Status and register constants
+  include/DP8382x/       public driver, passive values, Status and register constants
   scripts/              release-version sync/check
-  src/                  future device implementation
+  src/                  portable bounded direct-access implementation
+  examples/portable/    compiling application-owned direct-read example
   examples/esp_idf/      future P4 networking and EtherCAT-owner examples
-  test/                 host foundation and research tests; future driver tests
+  test/                 host driver/foundation, consumer and research tests
   tools/                source-document, reference and ledger checks
   docs/
     prompts/            80 implementation prompts and shared contracts

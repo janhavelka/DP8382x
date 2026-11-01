@@ -7,8 +7,10 @@ blocked printed EEE associations are accounted for; no research row is PENDING.
 The 52 procedure contracts have explicit API/CLI/test ownership and host/fixture plans.
 
 Research COMPLETE includes selected interpretations and unresolved source gates.
-Software implementation remains PENDING; driver host tests, SDK builds and
-hardware qualification are NOT RUN. Ledger tests establish their own research layer.
+Software implementation is PARTIAL for direct access and raw LEDCR maintenance:
+prompt 11's [restricted subset](direct-access.md) and driver host tests exist.
+Remaining feature procedures are PENDING; SDK builds and hardware qualification
+are NOT RUN. Ledger tests establish their own research layer.
 
 Prompt 6 completes the [portable/native ownership design](design-decisions.md)
 for all these entry families. It introduces no feature support claim. The native

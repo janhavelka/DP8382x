@@ -3,7 +3,9 @@
 Prompts 7–8 freeze this design on 2026-10-29, using the
 [prompt-6 ownership decisions](design-decisions.md). Prompt 9 implements the
 passive Status, configuration and selected command constants in public headers.
-The device and operation declarations below remain design contracts; introduce
+Prompt 11 implements binding, local teardown, the restricted Clause 22 subset
+and transport snapshots described in the [direct-access guide](direct-access.md).
+Remaining device and operation declarations below are design contracts; introduce
 each method with working behavior and tests at its owning stage. The cooperative
 contract below adds tokens, deadlines and retained cleanup to the audited direct
 calls. Its clock-lag allowance makes the same time contract safe under quantization.
@@ -594,6 +596,9 @@ invocation increases `totalBatches`; frame totals count reported attempted/compl
 frames only.
 On malformed reports, count only the independently valid prefix and mark the
 violation; counts must not be invented from success status alone.
+An invalid optional frame timestamp does not erase independently valid physical
+completion/value flags: keep the completion count, reject publication/time use
+and retain the raw contradictory stamp for diagnosis.
 
 For a counted failure, health lastError records normalized primary
 MDIO_ERROR/MDIO_TIMEOUT first, otherwise the normalized release/unsafe-controller
@@ -930,12 +935,18 @@ maintenance state. Raw writes require maintenance and invalidate affected trust
 on accepted **or uncertain** mutation. The portable caller owns maintenance
 serialization; native wrappers enforce their reservation. No argument can bypass
 access policy. Explicit raw read access is available after binding for legal
-stable addresses before initialization; writes and feature/link operations need
-accepted current initialization. Initialization's internal procedures have their
+stable addresses before initialization. Prompt 11 explicitly permits one
+pre-initialization maintenance write subset: LEDCR's independent controls with
+reserved bits zero, under the application's exact-part/address and LED0 electrical
+admission. This resolves the stage-order conflict without a fake initialization
+flag or a public unsafe-write bypass. All other writes and feature/link operations
+need accepted current initialization and their own access policies.
+Initialization's internal procedures have their
 own admitted bootstrap path, not a public unsafe-write flag.
 
 The direct raw methods reject C22 holes, selectors REGCR/ADDAR, read-clear/latch
-registers and recipe-only/gated accesses with INVALID_PARAM/ACCESS_POLICY, or
+registers, CDCR (reading rescal=1 obliges follow-up recovery), and recipe-only/gated
+accesses with INVALID_PARAM/ACCESS_POLICY, or
 INVALID_CONFIG/SOURCE_GATE for an otherwise defined source-gated operation.
 MMD alias access inherits the target's policy, so it cannot bypass these rules.
 Reads of destructive locations use typed collector APIs (such as readLinkStatus),

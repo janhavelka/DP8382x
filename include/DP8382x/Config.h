@@ -233,6 +233,22 @@ struct BatchResult {
 /// @return Complete terminal primary/release/frame evidence, including failure.
 /// @note Backend owns controller-wide exclusion, finite execution and release;
 /// no reentry, asynchronous completion, hidden retry or retained buffers.
+/// Lock acquisition, all frames, error finalization and release consume the
+/// original budget. Validate/classify the report before reopening shared admission.
+/// Release/idle uncertainty or malformed reports quarantine every controller user;
+/// later calls return BUSY/CONTROLLER_QUARANTINED without frames until owner repair.
+/// Allowed primary codes: OK, MDIO_ERROR, MDIO_TIMEOUT, BUSY (OWNER_ADMISSION or
+/// CONTROLLER_QUARANTINED only, no frames), OPERATION_TIMEOUT (TimeoutDetail).
+/// Release codes: OK, MDIO_ERROR, MDIO_TIMEOUT. OK detail is zero; messages must
+/// be static and non-null. Unused/unattempted slots are default. Completed READ
+/// has valueValid, WRITE has no read value. Preserve signed detail and uncertain
+/// effects; absence of an MDIO acknowledgement does not establish no effect.
+/// The driver rechecks reports but cannot repair an out-of-contract shared lock.
+/// @warning SNLS647I 7.6, 8.3.11 and table 8-20 govern physical timing: MDC
+/// 2.5 MHz nominal/24 MHz maximum; suppressed-preamble gap at least 500 ns and
+/// positive MDC edge with MDIO high; 32-bit preamble after reset or invalid
+/// opcode/turnaround. Owner establishes readiness/silence and timing by backend
+/// analysis and measured traces; host callback success is not physical evidence.
 using ExecuteBatch = BatchResult (*)(void* context, const MdioBatch& batch,
                                     const IoBudget& budget) noexcept;
 
@@ -242,6 +258,9 @@ using ExecuteBatch = BatchResult (*)(void* context, const MdioBatch& batch,
 using NowUs = uint64_t (*)(void* context) noexcept;
 
 /// @brief Owner-proved conservative bounds for each complete batch segment.
+/// @note Admission reserves acquire + frameCount*frame + release + overhead
+/// strictly before deadline, including clockLag. Post-return detection alone
+/// cannot bound a blocking backend; these declarations must be truthful.
 struct TransportBounds {
   uint32_t acquireUs{0}; ///< Controller-lock acquisition upper bound, microseconds.
   uint32_t frameUs{0};   ///< Positive bound per frame including wire gap, microseconds.
@@ -259,7 +278,7 @@ struct Transport {
 };
 
 /// @brief Board and transport declaration; construction performs no I/O.
-/// @note Binding will copy this value but still borrow context/callback lifetime.
+/// @note Binding copies this value but still borrows context/callback lifetime.
 /// No pins, SDK objects, network policy or hardware reset are owned here.
 struct Config {
   Variant variant{Variant::UNKNOWN}; ///< Exact ordering part, required for binding.

@@ -23,7 +23,8 @@ ROOT = Path(__file__).resolve().parents[1]
 TIMEOUT_SECONDS = 120
 REQUIRED_TYPES = {"DP8382x::Status", "DP8382x::Config", "DP8382x::LinkSettings",
                   "DP8382x::MdioFrame", "DP8382x::MdioBatch", "DP8382x::BatchResult",
-                  "DP8382x::Transport"}
+                  "DP8382x::Transport", "DP8382x::DP8382x",
+                  "DP8382x::TransportSnapshot"}
 
 
 class HtmlPage(HTMLParser):

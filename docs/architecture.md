@@ -3,7 +3,10 @@
 Prompt 6 selected this architecture on 2026-10-29. The complete
 [ownership decisions and call-chain matrix](design-decisions.md) are the design
 contract for portable and native operation. Prompt 9 implements passive public
-values and host verification; no device or MDIO API is implemented. Prompts 7–8
+values and host verification; prompt 11 adds the bounded
+[direct Clause 22 subset](direct-access.md) using the selected batch boundary.
+Initialization, collectors, cooperative operations and native SDK behavior remain
+unimplemented. Prompts 7–8
 freeze [values, direct calls and operation lifetimes](api-contracts.md).
 The
 [source comparison](library-comparison.md) and

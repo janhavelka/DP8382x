@@ -1,7 +1,8 @@
 # Device coverage
 
-Core evidence re-audited on 2026-10-28. **No variant has an implemented or hardware-qualified
-driver in this workspace yet.** The following describes documentation coverage
+Core evidence re-audited on 2026-10-28, with direct access checked on 2026-11-01.
+**DP83826I has a host-tested bounded direct-access subset; no variant has a complete
+or hardware-qualified driver.** The following describes documentation coverage
 and intended development order.
 
 The primary DP83826I [ledger](registers/dp83826i.json) and

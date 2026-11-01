@@ -6,7 +6,10 @@ pure link validators, selected source-proved register/mask constants and release
 version values. They perform no MDIO I/O and need no SDK. Edit `library.json`
 and run `python scripts/generate_version.py sync` for version changes; never
 hand-edit `Version.h`.
-There is no device facade or working operation API yet.
+`DP8382x.h` now adds the noncopyable driver facade: local binding/teardown,
+restricted bounded Clause 22 read/write and copied transport diagnostics.
+See the [direct-access guide](../../docs/direct-access.md) for exact access policy
+and backend obligations. No MMD or cooperative operation stubs are shipped.
 See [architecture](../../docs/architecture.md) and the accepted
 [ownership/call-chain decisions](../../docs/design-decisions.md).
 
@@ -19,7 +22,8 @@ method signatures are design contracts until implemented at their owning stage.
 Invalid replacement binding preserves the existing valid binding. `end` cannot
 discard active work, owed cleanup or unacknowledged evidence.
 
-Short C22/MMD access uses complete bounded batches; RMW expresses a masked write
+Implemented short C22 access uses one bounded batch. Planned MMD access uses
+complete bounded batches; RMW expresses a masked write
 from a preceding read inside the same batch. The core owns register access policy
 and chip procedure order; transport owns controller-wide exclusion and terminal
 frame execution. Every destructive sample has one collector. Snapshots copy values

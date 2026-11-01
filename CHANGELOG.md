@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### 2026-11-01
+
+- Implemented prompt 11's portable binding, safe Clause 22 reads and restricted
+  LEDCR maintenance writes through one bounded terminal batch. Added staged
+  outputs, signed diagnostic retention, release/quarantine and clock-fault
+  handling, five host suites and a linked direct-read consumer example.
+  Explicitly resolved pre-initialization write admission for the safe LEDCR
+  subset; selectors, destructive accesses and typed feature procedures remain
+  gated. SDK and physical timing qualification remain NOT RUN.
+
 ### 2026-10-29
 
 - Fresh prompts 9–10 audit corrected header counts and CTest instructions so

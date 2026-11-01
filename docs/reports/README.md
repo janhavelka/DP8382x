@@ -52,6 +52,10 @@ The [fresh prompts 9–10 audit](implementation/9-10-foundation-audit.md)
 corrects current verification guidance and records independent code and scope
 review without changing the shipped behavior.
 
+The [prompt 11 report](implementation/11-clause22-transport.md) records usable
+portable direct access, independent transport failure tests and PDF/ownership
+review, with SDK and physical evidence kept separate.
+
 - [Sibling drivers](sibling-driver-audit.md): primary driver source audit and
   broader inventory, naming, ownership, Status/health, CLI, runners, tests and CI.
 - [FieldCore conventions](fieldcore-conventions-audit.md): actual promptset,

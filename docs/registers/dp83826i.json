@@ -11669,15 +11669,15 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "PARTIAL",
+        "hostTested": "PARTIAL",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "eee_wire"
       ],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities."
+      "notes": "Prompt 11 implements binding, nondestructive direct Clause 22 reads and LEDCR-only maintenance writes, with host fault-injection tests and a linked portable consumer. Complete MMD and side-effect-aware access remain prompts 12-13; SDK and physical timing are NOT_RUN. See docs/direct-access.md and test/transport.cpp."
     },
     {
       "id": "reset",
@@ -12524,15 +12524,15 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "PARTIAL",
+        "hostTested": "PARTIAL",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "pin_fields"
       ],
-      "notes": "Source inventory researched, including named source gates. Implementation, host/SDK and hardware evidence remain pending; board wiring does not remove software scope."
+      "notes": "Prompt 11 permits raw maintenance writes to independent LEDCR controls with reserved bits zero; tests exhaust the 16-bit input domain. This is not the complete typed LED/GPIO, mux, source, stretch or pin-conflict feature; prompt 32 remains required. No hardware qualification."
     },
     {
       "id": "pin_mux",

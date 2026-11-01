@@ -1,7 +1,7 @@
 /// @file CommandTable.h
 /// @brief Source-proved DP83826I Clause 22 addresses and selected field masks.
 /// @details Values come from SNLS647I tables 8-19 through 8-23, 8-31/32 and
-/// 8-48. Constants describe the wire map; they do not grant raw access.
+/// 8-42/48. Constants describe the wire map; they do not grant raw access.
 #pragma once
 
 #include <cstdint>
@@ -30,6 +30,10 @@ constexpr uint8_t REG_REGCR = 0x0D;
 constexpr uint8_t REG_ADDAR = 0x0E;
 /// @brief PHY reset/control, C22 0x1F; command bits are W1S, not state.
 constexpr uint8_t REG_PHYRCR = 0x1F;
+/// @brief LED0 control, C22 0x18; SNLS647I table 8-42.
+constexpr uint8_t REG_LEDCR = 0x18;
+/// @brief LEDCR blink, polarity, drive-enable and level; other bits stay zero.
+constexpr uint16_t MASK_LEDCR_DIRECT = 0x0692;
 
 /// @brief BMCR PCS reset W1S command; readback zero is not chip readiness.
 constexpr uint16_t MASK_BMCR_RESET = 0x8000;
