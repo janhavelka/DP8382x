@@ -57,7 +57,7 @@ the C++ transport suites below exercise the compiled driver separately.
 ## Portable C++17 foundation
 
 The root `DP8382x` CMake target exports five standalone public headers and links
-the portable direct-access implementation. `DP8382X_BUILD_TESTS` defaults to OFF.
+the portable direct/indirect implementation. `DP8382X_BUILD_TESTS` defaults to OFF.
 With tests ON, four foundation CTest suites exercise
 Status helpers, valid/invalid link settings, register-mask operations and passive
 transport values. Five extra translation units compile each public header alone.
@@ -66,6 +66,13 @@ execute the production facade with independent literal access vectors and a
 controller fault-injection model. They exhaust all Clause 22 addresses, all
 16-bit LEDCR values and all primary status byte encodings, plus report/release,
 deadline, output-sentinel, no-retry, lifetime and two-instance ownership cases.
+Five MMD suites (`traces`, `admission`, `failures`, `reports`, `ownership`) bring
+the total to 14 registered CTest suites. They execute literal four-frame access
+and five-frame stable RMW, every selector/address/data failure, complete next-call
+reselection, competing users between frames, alias policy, reserved/recipe/EEE
+rejection, aggregate budgets and retained effects. The shared controller fake
+models selection per PHY while one lock excludes all PHY addresses. Deliberate
+corrupt reports test the driver's second check, not a conforming backend example.
 The tests use explicit checks that stay active in Release builds.
 The commands below use CTest 3.26 or newer so an empty test set fails;
 the portable target itself supports CMake 3.16 or newer.
@@ -81,7 +88,7 @@ python tools/check_doxygen.py
 ```
 
 The separate consumer configures the root library with tests OFF and links the
-real portable driver plus the compiling direct-read example, using an explicitly
+real portable driver plus compiling direct-read and atomic-MMD examples, using an explicitly
 simulated backend. The Doxygen command requires installed Doxygen; it generates
 to a temporary directory, checks documented pages/members/links and verifies
 that missing public comments and a bad `@param` fail. Missing Doxygen means the

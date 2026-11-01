@@ -1,5 +1,5 @@
 /// @file DP8382x.h
-/// @brief Portable bounded Clause 22 access and passive transport evidence.
+/// @brief Portable bounded direct/indirect access and passive transport evidence.
 #pragma once
 
 #include <DP8382x/Config.h>
@@ -91,6 +91,42 @@ public:
   /// No cached setting is claimed. Copy transportSnapshot before another batch.
   Status writeClause22(uint32_t registerAddress, uint32_t value,
                        const IoBudget& budget) noexcept;
+  /// @brief Read one nonconsuming vendor-MMD word in one four-frame batch.
+  /// @param[in] devad Device selector; 31 is implemented, 3/7 remain source-gated.
+  /// @param[in] registerAddress Sixteen-bit documented offset; no indirect selectors.
+  /// @param[out] value Unchanged unless all frames, release and timing succeed.
+  /// @param[in] budget Original exclusive deadline and at least four frames.
+  /// @return Direct-access terminal errors, including INVALID_CONFIG/SOURCE_GATE
+  /// for unresolved EEE mapping and INVALID_PARAM for holes or consuming reads.
+  /// @note SNLS647I 8.3.11.1/.5, tables 8-31/32. Clause 22 aliases inherit the
+  /// same policy. Raw TDR/MSE/strap words do not establish freshness or units.
+  Status readMmd(uint32_t devad, uint32_t registerAddress, uint16_t& value,
+                 const IoBudget& budget) noexcept;
+  /// @brief Write one admitted vendor-MMD word in one four-frame batch.
+  /// @param[in] devad Device selector; only 31 is admitted for mutation.
+  /// @param[in] registerAddress Currently only the LEDCR alias (0x0018).
+  /// @param[in] value Sixteen-bit word; reserved bits must be zero.
+  /// @param[in] budget Original exclusive deadline and at least four frames.
+  /// @pre Same exact-part, maintenance and pin-use preconditions as writeClause22.
+  /// @return Terminal status; errors retain selector/possible target effects.
+  /// @note SNLS647I 8.3.11.4 and table 8-42. Always reselects the address;
+  /// no retry or interpretation of a prior ambiguous write as verified success.
+  Status writeMmd(uint32_t devad, uint32_t registerAddress, uint32_t value,
+                  const IoBudget& budget) noexcept;
+  /// @brief Modify safe stable fields under one five-frame MMD transaction.
+  /// @param[in] devad Device selector; only 31 is admitted for mutation.
+  /// @param[in] registerAddress Currently only the LEDCR alias (0x0018).
+  /// @param[in] mask Nonzero sixteen-bit subset of LEDCR's documented stable bits.
+  /// @param[in] value Sixteen-bit replacement bits; must be a subset of mask.
+  /// @param[in] budget Original exclusive deadline and at least five frames.
+  /// @pre Owner excludes reset/external writers and meets writeClause22 preconditions.
+  /// @return Terminal status; a failed or late dependent write may have applied.
+  /// @note SNLS647I 8.3.11.1/.4/.5: nonincrementing selection persists through
+  /// the read and following write. Preserve only stable bits outside mask, force
+  /// reserved bits zero, never replay commands or update mixed/destructive fields.
+  /// No readback verification, automatic retry or separate public lock scope.
+  Status modifyMmd(uint32_t devad, uint32_t registerAddress, uint32_t mask,
+                   uint32_t value, const IoBudget& budget) noexcept;
   /// @brief Copy retained raw/normalized evidence without clock or MDIO callbacks.
   /// @return Passive receipt; raw invalid timestamps/statuses must not be trusted.
   TransportSnapshot transportSnapshot() const noexcept { return _transport; }
@@ -104,8 +140,7 @@ private:
   bool _timeValid{false};
   uint64_t _lastTimeUs{0};
   Status _sampleTime(uint64_t& raw, uint64_t& upper) noexcept;
-  Status _transfer(FrameKind kind, uint8_t address, uint16_t writeValue,
-                   uint16_t& readValue, const IoBudget& budget) noexcept;
+  Status _execute(MdioBatch batch, const IoBudget& budget) noexcept;
 };
 
 } // namespace DP8382x

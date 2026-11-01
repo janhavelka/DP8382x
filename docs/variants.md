@@ -1,7 +1,7 @@
 # Device coverage
 
-Core evidence re-audited on 2026-10-28, with direct access checked on 2026-11-01.
-**DP83826I has a host-tested bounded direct-access subset; no variant has a complete
+Core evidence re-audited on 2026-10-28, with direct/indirect access checked on 2026-11-01.
+**DP83826I has a host-tested bounded direct/indirect access subset; no variant has a complete
 or hardware-qualified driver.** The following describes documentation coverage
 and intended development order.
 

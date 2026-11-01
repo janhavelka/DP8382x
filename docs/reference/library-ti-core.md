@@ -203,6 +203,15 @@ complete transaction ownership, check every phase and preserve consumed evidence
 when the target is mixed/read-clear. Repeating the mode write is library behavior,
 not an independently established silicon-required extra frame.
 
+Prompt 12 rechecked these pinned bytes and original SNLS647I 8.3.11.1/.4/.5 on
+2026-11-01. Nonincrementing selection persists, so the implemented stable RMW is
+five frames under one uninterrupted controller owner: three selection frames,
+one read, one dependent write. It checks every reported phase and reselects fully
+on each next explicit operation. This replaces the early eight-frame project
+policy; it neither copies the vendor's unchecked six-frame helper nor exposes
+arbitrary recipe/mixed-register mutation. See the
+[transport guide](../direct-access.md#complete-indirect-transactions).
+
 The source hardcodes DEVAD 31, so it does not implement the complete DEVAD 3/7 EEE
 access contract. Nor does the presence of postincrement constants prove tested
 incrementing operations. Keep the existing EEE wire-offset gate visible rather

@@ -1,5 +1,5 @@
 /// @file DP8382x.cpp
-/// @brief Local binding and one-frame terminal Clause 22 transactions.
+/// @brief Local binding and complete terminal direct/indirect transactions.
 #include <DP8382x/DP8382x.h>
 #include <DP8382x/CommandTable.h>
 
@@ -37,7 +37,8 @@ bool isDefault(const FrameResult& frame) noexcept {
          !frame.timeValid;
 }
 
-// SNLS647I detailed tables 8-19..48. This is a read policy, not a decoder.
+// SNLS647I detailed tables 8-19..97. One canonical policy for direct/MMD aliases.
+// This is a nonconsuming read policy, not a decoder or freshness assertion.
 // Exclude latch/counter consumption, selectors, holes and CDCR's mandatory
 // rescal recovery follow-up. Raw command readback does not establish readiness.
 bool readable(uint32_t address) noexcept {
@@ -45,9 +46,47 @@ bool readable(uint32_t address) noexcept {
     case 0x00: case 0x02: case 0x03: case 0x04: case 0x05:
     case 0x07: case 0x08: case 0x09: case 0x0A: case 0x0B:
     case 0x11: case 0x16: case 0x18: case 0x19: case 0x1B:
-    case 0x1C: case 0x1F: return true;
+    case 0x1C: case 0x1F:
+    case 0x0025: case 0x0027: case 0x002A: case 0x0117: case 0x0131:
+    case 0x0170: case 0x0173: case 0x0175: case 0x0176: case 0x0177:
+    case 0x0178: case 0x0180: case 0x0185: case 0x018A: case 0x0218:
+    case 0x0302: case 0x0303: case 0x0304: case 0x0305: case 0x0306:
+    case 0x0308: case 0x030B: case 0x030C: case 0x030E: case 0x040D:
+    case 0x0456: case 0x0460: case 0x0461: case 0x0467: case 0x0468:
+    case 0x0469: case 0x04A0: case 0x04A2: case 0x04A3: case 0x04A4:
+    case 0x04A5: case 0x04A6: case 0x04A7: return true;
     default: return false;
   }
+}
+
+// Table 8-42: independent stable LED0 controls only. All other mutations need
+// their initialization/collector/typed procedure; aliasing grants no bypass.
+uint16_t writableMask(uint32_t address) noexcept {
+  return address == cmd::REG_LEDCR ? cmd::MASK_LEDCR_DIRECT : uint16_t{0};
+}
+
+Status mmdAddress(uint32_t devad, uint32_t address) noexcept {
+  if (devad > 31U || address > 0xFFFFU) { return paramError(ParamDetail::ADDRESS_RANGE); }
+  if (devad == 3U || devad == 7U) { return configError(ConfigDetail::SOURCE_GATE); }
+  if (devad != cmd::MMD_VENDOR) { return paramError(ParamDetail::ACCESS_POLICY); }
+  switch (address) {
+    case 0x04D1: case 0x04D3: case 0x04DF: case 0x033E: case 0x033F:
+    case 0x031B: case 0x0466: case 0x04CF: case 0x0416: case 0x04F5:
+    case 0x04E0: case 0x031F: case 0x04F4: return configError(ConfigDetail::SOURCE_GATE);
+    default: return Status::Ok();
+  }
+}
+
+// SNLS647I 8.3.11.1/.4/.5: fresh complete nonincrementing selection per call.
+// Whole words construct REGCR, so no reserved/uninitialized SDK bits can leak.
+MdioBatch mmdBatch(uint16_t address, FrameKind kind, uint16_t value) noexcept {
+  MdioBatch batch;
+  batch.frameCount = 4;
+  batch.frames[0] = {FrameKind::WRITE, cmd::REG_REGCR, cmd::MMD_VENDOR, 0, NO_READ_INDEX};
+  batch.frames[1] = {FrameKind::WRITE, cmd::REG_ADDAR, address, 0, NO_READ_INDEX};
+  batch.frames[2] = {FrameKind::WRITE, cmd::REG_REGCR, cmd::MMD_VENDOR_DATA, 0, NO_READ_INDEX};
+  batch.frames[3] = {kind, cmd::REG_ADDAR, value, 0, NO_READ_INDEX};
+  return batch;
 }
 
 // A terminal backend can report only these code-local details. Raw reports
@@ -128,21 +167,67 @@ Status DP8382x::readClause22(uint32_t registerAddress, uint16_t& value,
                             const IoBudget& budget) noexcept {
   if (registerAddress > 31U) { return paramError(ParamDetail::ADDRESS_RANGE); }
   if (!readable(registerAddress)) { return paramError(ParamDetail::ACCESS_POLICY); }
-  return _transfer(FrameKind::READ, static_cast<uint8_t>(registerAddress), 0, value, budget);
+  MdioBatch batch;
+  batch.frameCount = 1;
+  batch.frames[0].registerAddress = static_cast<uint8_t>(registerAddress);
+  const Status status = _execute(batch, budget);
+  if (status.ok()) { value = _transport.lastBatch.frames[0].value; }
+  return status;
 }
 
 Status DP8382x::writeClause22(uint32_t registerAddress, uint32_t value,
                              const IoBudget& budget) noexcept {
   if (registerAddress > 31U) { return paramError(ParamDetail::ADDRESS_RANGE); }
   if (value > 0xFFFFU) { return paramError(ParamDetail::VALUE_WIDTH); }
-  // Table 8-42 permits independent LED0 control; other direct mutations need
-  // initialization/collector/typed sequencing and are not bootstrap escape hatches.
-  if (registerAddress != cmd::REG_LEDCR || (value & ~uint32_t{cmd::MASK_LEDCR_DIRECT}) != 0U) {
+  const auto allowed = writableMask(registerAddress);
+  if (allowed == 0U || (value & ~uint32_t{allowed}) != 0U) {
     return paramError(ParamDetail::ACCESS_POLICY);
   }
-  uint16_t unused = 0;
-  return _transfer(FrameKind::WRITE, static_cast<uint8_t>(registerAddress),
-                   static_cast<uint16_t>(value), unused, budget);
+  MdioBatch batch;
+  batch.frameCount = 1;
+  batch.frames[0] = {FrameKind::WRITE, static_cast<uint8_t>(registerAddress),
+                     static_cast<uint16_t>(value), 0, NO_READ_INDEX};
+  return _execute(batch, budget);
+}
+
+Status DP8382x::readMmd(uint32_t devad, uint32_t registerAddress, uint16_t& value,
+                       const IoBudget& budget) noexcept {
+  const Status addressStatus = mmdAddress(devad, registerAddress);
+  if (!addressStatus.ok()) { return addressStatus; }
+  if (!readable(registerAddress)) { return paramError(ParamDetail::ACCESS_POLICY); }
+  const Status status = _execute(mmdBatch(static_cast<uint16_t>(registerAddress), FrameKind::READ, 0), budget);
+  if (status.ok()) { value = _transport.lastBatch.frames[3].value; }
+  return status;
+}
+
+Status DP8382x::writeMmd(uint32_t devad, uint32_t registerAddress, uint32_t value,
+                        const IoBudget& budget) noexcept {
+  if (devad > 31U || registerAddress > 0xFFFFU) { return paramError(ParamDetail::ADDRESS_RANGE); }
+  if (value > 0xFFFFU) { return paramError(ParamDetail::VALUE_WIDTH); }
+  const Status addressStatus = mmdAddress(devad, registerAddress);
+  if (!addressStatus.ok()) { return addressStatus; }
+  const auto allowed = writableMask(registerAddress);
+  if (allowed == 0U || (value & ~uint32_t{allowed}) != 0U) { return paramError(ParamDetail::ACCESS_POLICY); }
+  return _execute(mmdBatch(static_cast<uint16_t>(registerAddress), FrameKind::WRITE,
+                           static_cast<uint16_t>(value)), budget);
+}
+
+Status DP8382x::modifyMmd(uint32_t devad, uint32_t registerAddress, uint32_t mask,
+                         uint32_t value, const IoBudget& budget) noexcept {
+  if (devad > 31U || registerAddress > 0xFFFFU) { return paramError(ParamDetail::ADDRESS_RANGE); }
+  if (mask > 0xFFFFU || value > 0xFFFFU) { return paramError(ParamDetail::VALUE_WIDTH); }
+  const Status addressStatus = mmdAddress(devad, registerAddress);
+  if (!addressStatus.ok()) { return addressStatus; }
+  const auto allowed = writableMask(registerAddress);
+  if (!readable(registerAddress) || mask == 0U || (mask & ~uint32_t{allowed}) != 0U ||
+      (value & ~mask) != 0U) { return paramError(ParamDetail::ACCESS_POLICY); }
+  MdioBatch batch = mmdBatch(static_cast<uint16_t>(registerAddress), FrameKind::READ, 0);
+  batch.frameCount = 5;
+  // No postincrement: selection remains valid inside this same ownership scope.
+  // Never preserve reserved bits, even if a backend returns poisoned read storage.
+  batch.frames[4] = {FrameKind::WRITE, cmd::REG_ADDAR, static_cast<uint16_t>(value),
+                     static_cast<uint16_t>(uint32_t{allowed} & ~mask), 3};
+  return _execute(batch, budget);
 }
 
 Status DP8382x::_sampleTime(uint64_t& raw, uint64_t& upper) noexcept {
@@ -158,8 +243,7 @@ Status DP8382x::_sampleTime(uint64_t& raw, uint64_t& upper) noexcept {
   return Status::Ok();
 }
 
-Status DP8382x::_transfer(FrameKind kind, uint8_t address, uint16_t writeValue,
-                         uint16_t& readValue, const IoBudget& budget) noexcept {
+Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget) noexcept {
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (_active) { return busy(BusyDetail::OPERATION_ACTIVE); }
   if (_transport.clockInvalid) { return configError(ConfigDetail::CLOCK_CONTRACT); }
@@ -170,11 +254,11 @@ Status DP8382x::_transfer(FrameKind kind, uint8_t address, uint16_t writeValue,
   Status status = _sampleTime(before, upper);
   if (status.ok()) {
     const auto& bounds = _config.transport.bounds;
-    // All four addends are uint32_t; promotion before addition cannot overflow uint64_t.
-    const uint64_t bound = uint64_t{bounds.acquireUs} + bounds.frameUs +
+    // At most MAX_BATCH_FRAMES uint32_t frame bounds fit the uint64_t sum.
+    const uint64_t bound = uint64_t{bounds.acquireUs} + uint64_t{batch.frameCount} * bounds.frameUs +
                            bounds.releaseUs + bounds.overheadUs;
     if (before >= budget.deadlineUs) { status = timeout(TimeoutDetail::DEADLINE); }
-    else if (budget.maxFrames < 1U) { status = timeout(TimeoutDetail::FRAME_BUDGET); }
+    else if (budget.maxFrames < batch.frameCount) { status = timeout(TimeoutDetail::FRAME_BUDGET); }
     else if (upper >= budget.deadlineUs || bound >= budget.deadlineUs - upper) {
       status = timeout(TimeoutDetail::BOUND_ADMISSION);
     }
@@ -184,12 +268,7 @@ Status DP8382x::_transfer(FrameKind kind, uint8_t address, uint16_t writeValue,
     return status;
   }
 
-  MdioBatch batch;
   batch.phyAddress = static_cast<uint8_t>(_config.phyAddress);
-  batch.frameCount = 1;
-  batch.frames[0].kind = kind;
-  batch.frames[0].registerAddress = address;
-  batch.frames[0].value = writeValue;
   increment(_transport.totalBatches);
   const BatchResult result = _config.transport.executeBatch(_config.transport.context, batch, budget);
   _transport.lastBatch = result;
@@ -214,29 +293,41 @@ Status DP8382x::_transfer(FrameKind kind, uint8_t address, uint16_t writeValue,
     release = Status::Error(Err::MDIO_ERROR, "Invalid release report", result.releaseStatus.detail);
   }
 
-  const auto& frame = result.frames[0];
-  bool frameValid = true;
-  if (!frame.attempted) { frameValid = isDefault(frame); }
-  else {
+  bool reportValid = true;
+  bool prefixOpen = true;
+  uint8_t attempted = 0;
+  uint8_t completed = 0;
+  uint64_t previousStamp = before;
+  for (uint8_t i = 0; i < MAX_BATCH_FRAMES; ++i) {
+    const auto& frame = result.frames[i];
+    if (i >= batch.frameCount || !prefixOpen || !frame.attempted) {
+      if (!isDefault(frame)) { reportValid = false; }
+      prefixOpen = false;
+      continue;
+    }
+    ++attempted;
     increment(_transport.attemptedFrames);
+    const auto kind = batch.frames[i].kind;
     const bool completionValid = frame.completed &&
         (kind == FrameKind::READ ? frame.valueValid : !frame.valueValid);
     // Timing is independent evidence: a bad optional stamp cannot erase a
     // separately valid physical completion, though it prevents publication.
-    if (completionValid) { increment(_transport.completedFrames); }
-    frameValid = (!frame.completed || completionValid) &&
+    if (completionValid) { ++completed; increment(_transport.completedFrames); }
+    const bool frameValid = (!frame.completed || completionValid) &&
                  (!frame.valueValid || (frame.completed && kind == FrameKind::READ)) &&
                  (!frame.timeValid || frame.completed) &&
                  (frame.timeValid || frame.completedAtUs == 0U);
-    if (clockStatus.ok() && frame.timeValid &&
-        (frame.completedAtUs < before || frame.completedAtUs > upper)) { frameValid = false; }
+    if (!frameValid) { reportValid = false; }
+    if (clockStatus.ok() && frame.timeValid) {
+      if (frame.completedAtUs < previousStamp || frame.completedAtUs > upper) { reportValid = false; }
+      else { previousStamp = frame.completedAtUs; }
+    }
+    // A failed/missing read cannot authorize later dependent writes. Retain the
+    // raw remainder for diagnosis, but do not invent a valid physical prefix.
+    if (!completionValid) { prefixOpen = false; }
   }
-  bool reportValid = frameValid;
-  for (uint8_t i = 1; i < MAX_BATCH_FRAMES; ++i) {
-    if (!isDefault(result.frames[i])) { reportValid = false; }
-  }
-  if (result.status.ok() && (!frame.attempted || !frame.completed)) { reportValid = false; }
-  if (result.status.code == Err::BUSY && frame.attempted) { reportValid = false; }
+  if (result.status.ok() && completed != batch.frameCount) { reportValid = false; }
+  if (result.status.code == Err::BUSY && attempted != 0U) { reportValid = false; }
   if (!reportValid) {
     violation(TransportViolation::FRAME_REPORT);
     status = Status::Error(Err::MDIO_ERROR, "Invalid frame report", result.status.detail);
@@ -244,7 +335,7 @@ Status DP8382x::_transfer(FrameKind kind, uint8_t address, uint16_t writeValue,
 
   const bool preexistingQuarantine = validStatus(result.status, false) && reportValid &&
       result.status.code == Err::BUSY &&
-      result.status.detail == static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED) && !frame.attempted;
+      result.status.detail == static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED) && attempted == 0U;
   if (release.ok() && !result.controllerReusable && !preexistingQuarantine) {
     violation(TransportViolation::CONTROLLER_STATE);
     release = Status::Error(Err::MDIO_ERROR, "Controller state uncertain");
@@ -264,7 +355,6 @@ Status DP8382x::_transfer(FrameKind kind, uint8_t address, uint16_t writeValue,
     }
   }
   _transport.lastStatus = status;
-  if (status.ok() && kind == FrameKind::READ) { readValue = frame.value; }
   return status;
 }
 

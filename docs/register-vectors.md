@@ -66,6 +66,9 @@ Section8.3.11 and tables8-31/32/48 yield:
 
 ## Mandatory VOD transaction
 
+The following remains an initialization-owned transaction; `writeMmd` is not
+an arbitrary bootstrap route to VOD configuration.
+
 Section8.3.13 p40 and tables8-31/32/81 independently give this literal trace:
 
 ```text
@@ -82,6 +85,32 @@ writable mask is `0xFFC0`; no access exception is needed. Inject failure before 
 each accepted frame in the future driver suite. No later phase may execute after
 a failed selector. A failed final write retains possible target effects. Repeat
 all selection phases on the next explicitly admitted transaction.
+
+## Atomic stable MMD modification
+
+Prompt 12's independent original-PDF review of 8.3.11.1/.4/.5 and table 8-42
+derives five physical frames: `W0D=001F`, `W0E=0018`, `W0D=401F`, `R0E`, `W0E`.
+The selected nonincrementing data address persists under one controller lock.
+No second control/address setup is needed inside this transaction; every next
+explicit call must nevertheless establish its complete selection anew.
+
+Literal LEDCR test vectors, independent of production constants:
+
+- Injected prior word `FFFF`, mask `0012`, replacement `0002`: preserve mask
+  `0680`, final word `0682`. Reserved poison bits must never be written back.
+- Prior word `0492`, mask `0600`, replacement `0200`: preserve mask `0092`,
+  final word `0292`.
+- Zero mask, reserved mask `0001`, replacement `0010` outside mask `0002`,
+  or any value/mask above `FFFF` reject before callbacks.
+- Four available frames cannot admit the five-frame modification; equality of
+  deadline to clock upper bound plus full transaction bound also rejects.
+- Failed phase index `k` admits no later frame: attempts `k+1`, completions `k`.
+  Successful setup frames alone do not establish target mutation; only the final
+  write may do so, including on ambiguous error. A new explicit operation emits
+  all setup frames again and cannot validate the earlier write retrospectively.
+
+`test/mmd.cpp` executes these protocol/failure rules through production APIs.
+Its simulated register storage does not establish electrical timing or silicon behavior.
 
 ## Negotiation, next page and crossover
 

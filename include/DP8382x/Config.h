@@ -235,6 +235,10 @@ struct BatchResult {
 /// no reentry, asynchronous completion, hidden retry or retained buffers.
 /// Lock acquisition, all frames, error finalization and release consume the
 /// original budget. Validate/classify the report before reopening shared admission.
+/// Execute frames in order and stop at the first failed frame or deadline;
+/// never execute a dependent write without its successful read. Retain the
+/// attempted/completed prefix and release ownership on every return. A cooperative
+/// frame allowance admits the whole batch before starting, never a partial batch.
 /// Release/idle uncertainty or malformed reports quarantine every controller user;
 /// later calls return BUSY/CONTROLLER_QUARANTINED without frames until owner repair.
 /// Allowed primary codes: OK, MDIO_ERROR, MDIO_TIMEOUT, BUSY (OWNER_ADMISSION or

@@ -28,6 +28,10 @@ constexpr uint8_t REG_ANAR = 0x04;
 constexpr uint8_t REG_REGCR = 0x0D;
 /// @brief Indirect MMD address/data register, C22 0x0E; raw access is forbidden.
 constexpr uint8_t REG_ADDAR = 0x0E;
+/// @brief Vendor MMD selector; SNLS647I 8.3.11.1, table 8-31.
+constexpr uint16_t MMD_VENDOR = 0x001F;
+/// @brief Complete no-postincrement vendor data control; REGCR reserved bits zero.
+constexpr uint16_t MMD_VENDOR_DATA = 0x401F;
 /// @brief PHY reset/control, C22 0x1F; command bits are W1S, not state.
 constexpr uint8_t REG_PHYRCR = 0x1F;
 /// @brief LED0 control, C22 0x18; SNLS647I table 8-42.

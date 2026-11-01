@@ -24,8 +24,8 @@ class OperationTimingDesignTests(unittest.TestCase):
         # Independent synthetic bounds: acquire 20, frame 100, release 20,
         # fixed overhead 10 us. These are not ESP-IDF timing measurements.
         bounds = {frames: 20 + 100 * frames + 20 + 10
-                  for frames in (1, 2, 4, 8)}
-        self.assertEqual(bounds, {1: 150, 2: 250, 4: 450, 8: 850})
+                  for frames in (1, 2, 4, 5, 8)}
+        self.assertEqual(bounds, {1: 150, 2: 250, 4: 450, 5: 550, 8: 850})
         # Reset RMW, conservative wait-anchor lag, 10 ms policy interval,
         # first completion read. Full initialization/restore costs are additional.
         reserve = bounds[2] + 1 + 10_000 + bounds[1]
@@ -41,8 +41,8 @@ class OperationTimingDesignTests(unittest.TestCase):
             with self.subTest(allowance=allowance):
                 self.assertFalse(4 <= allowance)
         self.assertTrue(4 <= 4)
-        self.assertFalse(8 <= 7)            # Reselected MMD RMW stays indivisible.
-        self.assertTrue(8 <= 8)
+        self.assertFalse(5 <= 4)            # Nonincrementing MMD RMW stays indivisible.
+        self.assertTrue(5 <= 5)
 
     def test_post_callback_anchor_crosses_tick_boundary(self):
         before, command_completed, after = 9_900, 10_150, 10_200

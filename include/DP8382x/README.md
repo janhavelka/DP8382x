@@ -7,9 +7,10 @@ version values. They perform no MDIO I/O and need no SDK. Edit `library.json`
 and run `python scripts/generate_version.py sync` for version changes; never
 hand-edit `Version.h`.
 `DP8382x.h` now adds the noncopyable driver facade: local binding/teardown,
-restricted bounded Clause 22 read/write and copied transport diagnostics.
+restricted bounded Clause 22 and atomic MMD read/write, stable `modifyMmd`,
+and copied transport diagnostics.
 See the [direct-access guide](../../docs/direct-access.md) for exact access policy
-and backend obligations. No MMD or cooperative operation stubs are shipped.
+and backend obligations. No cooperative operation stubs are shipped.
 See [architecture](../../docs/architecture.md) and the accepted
 [ownership/call-chain decisions](../../docs/design-decisions.md).
 
@@ -22,8 +23,8 @@ method signatures are design contracts until implemented at their owning stage.
 Invalid replacement binding preserves the existing valid binding. `end` cannot
 discard active work, owed cleanup or unacknowledged evidence.
 
-Implemented short C22 access uses one bounded batch. Planned MMD access uses
-complete bounded batches; RMW expresses a masked write
+Implemented C22 and MMD access each use one complete bounded batch. MMD RMW
+uses five frames with a masked write
 from a preceding read inside the same batch. The core owns register access policy
 and chip procedure order; transport owns controller-wide exclusion and terminal
 frame execution. Every destructive sample has one collector. Snapshots copy values

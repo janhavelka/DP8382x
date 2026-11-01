@@ -4,6 +4,12 @@
 
 ### 2026-11-01
 
+- Implemented prompt 12's atomic vendor-MMD read/write and stable LEDCR RMW,
+  with one canonical direct/alias access policy and complete prefix accounting.
+  Original-PDF review establishes the minimum five-frame nonincrementing RMW;
+  updated the earlier eight-frame design, added phase-failure/ownership regressions
+  and linked MMD examples. EEE mapping, mixed access and hardware timing remain gated.
+
 - Implemented prompt 11's portable binding, safe Clause 22 reads and restricted
   LEDCR maintenance writes through one bounded terminal batch. Added staged
   outputs, signed diagnostic retention, release/quarantine and clock-fault

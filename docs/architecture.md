@@ -3,8 +3,8 @@
 Prompt 6 selected this architecture on 2026-10-29. The complete
 [ownership decisions and call-chain matrix](design-decisions.md) are the design
 contract for portable and native operation. Prompt 9 implements passive public
-values and host verification; prompt 11 adds the bounded
-[direct Clause 22 subset](direct-access.md) using the selected batch boundary.
+values and host verification; prompts 11–12 add bounded
+[direct Clause 22 and atomic MMD access](direct-access.md) using the selected batch boundary.
 Initialization, collectors, cooperative operations and native SDK behavior remain
 unimplemented. Prompts 7–8
 freeze [values, direct calls and operation lifetimes](api-contracts.md).

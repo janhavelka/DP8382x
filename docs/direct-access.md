@@ -1,11 +1,13 @@
-# Bounded portable Clause 22 access
+# Bounded portable Clause 22 and indirect MMD access
 
-Prompt 11 ships `DP8382x::DP8382x` in
+Prompts 11–12 ship `DP8382x::DP8382x` in
 [`DP8382x.h`](../include/DP8382x/DP8382x.h), backed by one compiled portable source.
 Link `DP8382x::DP8382x` through CMake. The
 [compiling direct-read example](../examples/portable/DirectRead.h) binds an
 application transport, checks Status before publishing a PHYIDR1 word and detaches
-locally. The [separate consumer](../test/consumer/main.cpp) executes it using an
+locally. The [MMD example](../examples/portable/MmdAccess.h) reads raw straps and
+modifies stable LEDCR fields on an already bound driver. The
+[separate consumer](../test/consumer/main.cpp) executes both using an
 explicit host simulation; it is not a physical MDIO backend.
 
 The owner declares the exact DP83826I, MAC interface, protocol PHY address 0..31,
@@ -25,30 +27,33 @@ SNLS647I tables 8-19..48 for access semantics. Raw observations establish neithe
 identity acceptance nor current diagnostic/link interpretation. PHYCR's address
 field and BISCR status can change independently of the software owner.
 
-The only write policy in this stage is LEDCR's independent blink, polarity,
+The only write/RMW policy in these stages is LEDCR's independent blink, polarity,
 drive-enable and drive-value fields; every reserved bit must be zero. This is an
 explicit pre-initialization maintenance exception, not managed configuration.
 The application establishes the physical part/address and safe LED0 wiring/pin
-use. No initialization, cached LED state, reset, selector, link or diagnostic
+use. No initialization, cached LED state, reset, link or diagnostic
 operation is implied. The complete typed LED/mux API remains prompt 32.
 
-All other writes, holes, REGCR/ADDAR, consuming/latch reads and CDCR reject with
+Other ordinary writes, holes, public selectors, consuming/latch reads and CDCR reject with
 INVALID_PARAM/ACCESS_POLICY before either callback. CDCR itself is not claimed
 read-clear: observing enabled resistor calibration obliges follow-up recovery,
-so a bare read is not an accepted standalone procedure. Selectors will be private
-steps of prompt 12's complete MMD operation. Prompt 13 owns side-effect-aware
+so a bare read is not an accepted standalone procedure. Selectors are private
+steps of the complete MMD operation. Prompt 13 owns side-effect-aware
 access; no placeholder methods expose those operations now.
 
 ## Callback and budget contract
 
-Each accepted call passes one frame in one batch. Address/data values are checked
+Each direct call passes one frame, MMD read/write four and MMD RMW five, always
+in one batch. Address/data values are checked
 at the public uint32 boundary before narrowing, including register 0x8000 and
 data 0x10000. The backend owns the shared controller lock and stops on the first
-failure. It borrows descriptors only until synchronous terminal return and must
+failure. It acquires ownership once and executes the frames inside that scope;
+calling a mediator that recursively reacquires ownership is forbidden.
+It borrows descriptors only until synchronous terminal return and must
 not retain buffers, reenter the driver or retry. All users, including another PHY
 instance, must use the same controller admission/quarantine mechanism.
 
-Admission reserves acquisition + frame execution + release + overhead, strictly
+Admission reserves acquisition + frameCount * frame execution + release + overhead, strictly
 less than remaining time after clock-lag allowance. The original absolute
 exclusive deadline and frame allowance reach the callback unchanged. A zero-frame
 budget, expired deadline or insufficient bound makes no batch call. The backend
@@ -65,7 +70,68 @@ illegal statuses/details, short success, contradictory frame validity and extra
 slots fail normalization. The exact raw report and signed details remain in the
 snapshot. Attempted values without valueValid are not output, even if their
 scratch word is nonzero. Unused/unattempted slots must be default. Optional valid
-completion stamps must lie between the pre-call raw and post-call upper samples.
+completion stamps must be nondecreasing and lie between the pre-call raw and
+post-call upper samples. A failed or missing frame closes the valid prefix;
+later reported attempts are retained as contradictory evidence, never completion
+counts. Bad timestamp metadata alone does not erase independent physical counts.
+
+## Complete indirect transactions
+
+`readMmd` and `writeMmd` validate DEVAD and the sixteen-bit offset before any
+callback. Only vendor DEVAD31 has an admitted wire mapping here. DEVAD3/7 and
+the opaque EEE recipe addresses return INVALID_CONFIG/SOURCE_GATE; no digit
+stripping or DP83825 analogy resolves their offsets. Indirect REGCR/ADDAR accesses
+are explicitly unavailable in SNLS647I 8.3.11.1 and cannot establish a public
+selector session. Native Clause 45 is not implemented or implied.
+
+The direct and indirect aliases share one source-based read/write policy. Beyond
+the direct words listed above, nonconsuming extended reads cover detailed LED,
+compliance-pattern, preamble, FLD, cable configuration and defined result words,
+MSE, pin/clock configuration, amplitude, receiver gain, IPG, straps and WoL
+configuration/MAC/password registers. The explicit switch in the
+[implementation](../src/DP8382x.cpp) corresponds to 38 detailed extended records;
+the [ledger](registers/dp83826i.json) owns their numeric map. All-reserved result
+banks, destructive RXFS, holes and procedure-only addresses remain inaccessible.
+RXFCFG1's W0C acknowledgement is harmless to read but excludes generic write/RMW.
+Raw MSE is not SNR; raw TDR is not a fresh capture or calibrated fault distance;
+raw straps do not prove reset resampling. Field/recipe interpretation gates remain.
+
+Original SNLS647I 8.3.11.1/.4/.5 and tables 8-31/32 give these complete traces:
+
+| Frame | Read SOR1 | Write LEDCR | Modify LEDCR |
+| --- | --- | --- | --- |
+| 1 | W 0D = 001F | W 0D = 001F | W 0D = 001F |
+| 2 | W 0E = 0467 | W 0E = 0018 | W 0E = 0018 |
+| 3 | W 0D = 401F | W 0D = 401F | W 0D = 401F |
+| 4 | R 0E, staged word | W 0E = 0692 | R 0E, earlier-read slot 3 |
+| 5 | — | — | W 0E = (read & preserveMask) OR value |
+
+All words in the table are hexadecimal; readIndex is zero-based. REGCR's reserved
+bits are zero in complete literal control words. `modifyMmd` requires a nonzero
+mask wholly inside the stable writable fields, and replacement value wholly inside
+that mask. It preserves only other documented stable bits and forces reserved bits
+zero. For a deliberately poisoned test read FFFF, mask 0012 and value 0002 yield
+0682, not a replay of reserved ones. The read and dependent write occur within the
+same nonincrementing selection, so five frames are sufficient. The earlier
+eight-frame design was a conservative reselection policy, not a silicon requirement.
+No operation exposes an incrementing mode or caller-supplied function opcode.
+
+Both four- and five-frame calls admit their entire count and bound before the
+callback. A later cooperative caller with fewer frames must yield before entry;
+this direct API returns OPERATION_TIMEOUT/FRAME_BUDGET without launching a prefix.
+The wrapper still stops and releases on an actual in-flight error/deadline; that
+is a terminal failed transaction, never a suspended selector session. The original
+remaining allowance is forwarded unchanged because these calls use one batch.
+Release precedes any later scheduled wait; no poll holds a controller lock.
+
+Snapshot frames 0..2 describe selector/address effects. Frame 3 is the target
+read/write; only frame 4 mutates the target in RMW. A failed setup can change
+selectors without changing the target. A failed final write can have changed the
+target even if Status is an error. Copy the raw receipt with the initiating call's
+address/phase attribution; the snapshot is not a standalone transaction trace.
+Every next explicit call emits the full selection again, regardless of prior
+success/failure. A later read is new evidence, not retroactive confirmation of
+the previous ambiguous write. No retry or selector-cleanup write is hidden.
 
 Every callback increments the saturating batch count; frame counts use only the
 independently valid requested prefix. Successful frames remain counted on later
@@ -101,5 +167,6 @@ Host tests prove admission, normalization, release/effect retention and output
 staging using synthetic time and fault injection. Actual lock/controller bounds,
 waveforms, preamble, gap and readiness require the identified backend plus admitted
 measured traces. SDK link, physical timing and hardware qualification are NOT RUN.
-The [stage report](reports/implementation/11-clause22-transport.md) and
+The [direct-access report](reports/implementation/11-clause22-transport.md),
+[MMD report](reports/implementation/12-atomic-mmd.md) and
 [test guide](../test/README.md) record commands, scope and evidence.

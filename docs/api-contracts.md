@@ -3,8 +3,9 @@
 Prompts 7–8 freeze this design on 2026-10-29, using the
 [prompt-6 ownership decisions](design-decisions.md). Prompt 9 implements the
 passive Status, configuration and selected command constants in public headers.
-Prompt 11 implements binding, local teardown, the restricted Clause 22 subset
-and transport snapshots described in the [direct-access guide](direct-access.md).
+Prompts 11–12 implement binding, local teardown, the restricted Clause 22 subset,
+atomic MMD reads/writes/stable-field RMW and transport snapshots described in the
+[transport guide](direct-access.md).
 Remaining device and operation declarations below are design contracts; introduce
 each method with working behavior and tests at its owning stage. The cooperative
 contract below adds tokens, deadlines and retained cleanup to the audited direct
@@ -399,7 +400,10 @@ not grant more time or perform another batch. Never start a partial MMD/RMW just
 remaining budget. Subsequent batches share the original deadline and subtract
 actual attempted frames; no new allowance or hidden retry is created. Small
 register calls require one C22 frame or four MMD frames; internal C22 RMW two
-and fully reselected MMD RMW eight. Compound observation budgets are specified
+and nonincrementing MMD RMW five. Prompt 12 independently verified SNLS647I
+8.3.11.1/.4/.5: selection persists across the read and dependent write under
+one ownership scope, so the earlier eight-frame reselection policy is unnecessary.
+The fixed capacity remains eight for compound collectors. Compound observation budgets are specified
 below. A raw post-callback sample >= deadline proves late, even with successful
 hardware. An upper bound alone reaching it denies publication but does not set
 late=true. Cached completion stamps encode the conservative upper bound. The
@@ -838,6 +842,11 @@ public:
     /// @brief Write one admitted MMD value; never leave selectors exposed between calls.
     Status writeMmd(uint32_t devad, uint32_t registerAddress, uint32_t value,
                     const IoBudget& budget) noexcept;
+    /// @brief Modify admitted stable fields in one five-frame nonincrementing batch.
+    /// @note Nonzero mask is a subset of the legal stable mask, value a subset
+    /// of mask. Preserve only stable bits outside mask; reserved bits stay zero.
+    Status modifyMmd(uint32_t devad, uint32_t registerAddress, uint32_t mask,
+                     uint32_t value, const IoBudget& budget) noexcept;
     /// @brief Acquire current link through the sole destructive-evidence collector.
     /// @param[out] snapshot Fully assigned on OK, including down; unchanged on failure.
     /// @note Consumed samples remain retained even when this aggregate fails.
@@ -949,6 +958,10 @@ registers, CDCR (reading rescal=1 obliges follow-up recovery), and recipe-only/g
 accesses with INVALID_PARAM/ACCESS_POLICY, or
 INVALID_CONFIG/SOURCE_GATE for an otherwise defined source-gated operation.
 MMD alias access inherits the target's policy, so it cannot bypass these rules.
+`modifyMmd` implements only LEDCR's stable maintenance subset at present, like
+`writeMmd` and `writeClause22`. It does not expose mixed-command/status RMW.
+Raw extended reads use the documented nonconsuming allowlist, including raw
+TDR/MSE/strap words without semantic freshness, scaling or acceptance claims.
 Reads of destructive locations use typed collector APIs (such as readLinkStatus),
 not a raw flag. Writes reject reserved/prohibited values and command/session
 actions requiring a typed procedure. A register labelled R/W is not automatically

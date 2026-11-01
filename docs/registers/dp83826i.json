@@ -9258,7 +9258,7 @@
         "Preflight exact permitted DEVAD/offset and target access semantics. Vendor31 ordinary documented entries and explicit aliases only; selectors0D/0E direct-only. EEE printed offsets remain gated.",
         "Acquire one lock for entire sequence. Write C22 REGCR=001F (for vendor31); on success write ADDAR=target offset; then REGCR=401F.",
         "Read ADDAR for target read or write ADDAR=value for target write. Stop immediately on first failed frame; never continue using potentially stale selectors.",
-        "For RMW retain lock across selection/read/composition/write; preserve successfully consumed evidence, reserved stable bits, exact W0C/W1C/W1S neutral values. Do not RMW recipe-only or destructive targets without a proved composition policy.",
+        "For stable ordinary RMW retain one lock across selection/read/dependent write: no-postincrement selection persists, so three setup frames plus read and write take five frames. Admit only stable readable/writable fields and the target-specific reserved policy; current LEDCR maintenance RMW preserves other documented stable bits and forces reserved bits zero. Mixed command/status, destructive and recipe-only targets require separate source-specific procedures, never generic RMW.",
         "Release lock before waits. No selector cleanup write is needed; next operation always reselects address and mode. Increment modes are documented0/1/2/3; ordinary helpers use nonincrement and never assume contiguous allowed banks."
       ],
       "waits": [],
@@ -9270,9 +9270,9 @@
         "eee_wire"
       ],
       "owner": {
-        "api": "readClause22 / writeClause22 / readMmd / writeMmd",
-        "cli": "owner-routed readClause22 / writeClause22 / readMmd / writeMmd (prompts 44-46)",
-        "test": "Independent literals and boundary failures for readClause22 / writeClause22 / readMmd / writeMmd; prompts 12, 53-55",
+        "api": "readClause22 / writeClause22 / readMmd / writeMmd / modifyMmd",
+        "cli": "owner-routed readClause22 / writeClause22 / readMmd / writeMmd / modifyMmd (prompts 44-46)",
+        "test": "Independent literals and boundary failures for readClause22 / writeClause22 / readMmd / writeMmd / modifyMmd; prompts 12, 53-55",
         "implementationStage": 12
       }
     },
@@ -11661,7 +11661,7 @@
         "mmd_access"
       ],
       "owner": {
-        "api": "readClause22 / writeClause22 / readMmd / writeMmd",
+        "api": "readClause22 / writeClause22 / readMmd / writeMmd / modifyMmd",
         "cli": "owner-routed readClause22 / writeClause22 / readMmd / writeMmd (prompts 44-46)",
         "test": "Independent literals and boundary failures for readClause22 / writeClause22 / readMmd / writeMmd; prompts 11, 53-55",
         "implementationStage": 11
@@ -11677,7 +11677,7 @@
       "gates": [
         "eee_wire"
       ],
-      "notes": "Prompt 11 implements binding, nondestructive direct Clause 22 reads and LEDCR-only maintenance writes, with host fault-injection tests and a linked portable consumer. Complete MMD and side-effect-aware access remain prompts 12-13; SDK and physical timing are NOT_RUN. See docs/direct-access.md and test/transport.cpp."
+      "notes": "Prompts 11-12 implement binding, canonical nondestructive direct/indirect access, four-frame MMD read/write and five-frame stable LEDCR RMW under one terminal batch, with registered host fault/ownership tests and a linked portable consumer. Side-effect-aware access remains prompt 13; EEE wire mappings remain gated. SDK and physical timing are NOT_RUN. See docs/direct-access.md and test/mmd.cpp."
     },
     {
       "id": "reset",

@@ -1,15 +1,15 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–11, covering research, contracts, portable values,
-version tooling and bounded direct access, are complete; later stages have not started. Current
+execution. Prompts 1–12, covering research, contracts, portable values,
+version tooling and bounded direct/indirect access, are complete; later stages have not started. Current
 verification includes
 reference/link checks, the silicon-ledger validator, 77 registered research-tool
 tests, eight executable operation-timing design probes and an isolated hash-checked
-SDK MMD encoding probe, nine C++17 host test suites, a separate tests-OFF
+SDK MMD encoding probe, 14 C++17 host test suites, a separate tests-OFF
 consumer, the Doxygen source-document check and strict version fixture tests.
-The driver now provides the restricted Clause 22 subset and a compiling portable
-read example. Initialization, MMD, typed features, SDK, CLI, runner and hardware
+The driver now provides the restricted Clause 22/MMD subset, stable-field RMW
+and compiling portable examples. Initialization, typed features, SDK, CLI, runner and hardware
 qualification remain future work. Prompt 5 closes primary-part source dispositions, including
 explicit unresolved gates. Research completion does not claim driver completion.
 
@@ -119,6 +119,16 @@ ledger/reference checks pass. Access and raw LEDCR coverage are PARTIAL at the
 feature level; the complete stage-11 subset is implemented. SDK and hardware
 remain NOT RUN. Same execution branch/base; final commit/sync SHA is in the handoff.
 
+Prompt 11 final commit/sync checkpoint / prompt 12 synchronized entry:
+`c678f59b3e74bac359acee1d247b43a1b84c2dea`.
+Prompt 12 implements atomic MMD access and stable LEDCR RMW through the same batch
+boundary and canonical access policy. Independent original-PDF review replaces
+the earlier eight-frame RMW policy with the minimum five-frame nonincrementing
+sequence; every new call reselects completely. See the
+[stage report](reports/implementation/12-atomic-mmd.md). The complete access
+feature remains PARTIAL pending task 13 and EEE gates; SDK/physical evidence is
+NOT RUN. Final verified commit/upstream equality is in the handoff.
+
 Before prompt 1 of a new execution, create a new branch from the synchronized
 intended base and record its name/base here. Keep that branch for every prompt
 and resumed session. Record stage outcomes, actual checks, remaining dependencies
@@ -142,7 +152,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [9 Build the portable values, tests and source-documentation foundation](prompts/9-portable-source-foundation.md) | COMPLETE | [Public headers](../include/DP8382x/README.md), [report](reports/implementation/9-portable-source-foundation.md); four C++17 host suites, tests-OFF consumer, Doxygen negative checks and local research/reference/diff checks PASS. Device, SDK and physical evidence NOT RUN. |
 | [10 Add deterministic version metadata and generation](prompts/10-version-tooling.md) | COMPLETE | [Version tool guide](../scripts/README.md), [report](reports/implementation/10-version-tooling.md); strict generated-header check, temporary version fixtures, C++17 host/consumer/Doxygen and research/reference/diff checks PASS. Device, SDK and physical evidence NOT RUN. |
 | [11 Implement bounded Clause 22 transport](prompts/11-clause22-transport.md) | COMPLETE | [Direct-access guide](direct-access.md), [report](reports/implementation/11-clause22-transport.md); bounded binding/read/write subset, retained transport evidence, five new registered host suites and linked portable example PASS. Doxygen, version, 98 Python tests, ledger/reference/diff PASS. MMD/collector/init/SDK/physical evidence remain separate later scope. |
-| [12 Implement complete atomic MMD transactions](prompts/12-atomic-mmd.md) | NOT STARTED | None |
+| [12 Implement complete atomic MMD transactions](prompts/12-atomic-mmd.md) | COMPLETE | [Transport guide](direct-access.md), [report](reports/implementation/12-atomic-mmd.md); atomic four-frame read/write and five-frame stable RMW, canonical aliases, phase-failure/exclusion tests and linked portable examples PASS. Local Release, Doxygen, ledger, reference, Python and diff checks PASS; EEE, side-effect-aware access and SDK/physical gates remain explicit. |
 | [13 Implement side-effect-aware register access](prompts/13-side-effect-register-access.md) | NOT STARTED | None |
 | [14 Implement exact identity and capability selection](prompts/14-identity-capabilities.md) | NOT STARTED | None |
 | [15 Implement initialization and complete PCS reset operations](prompts/15-initialize-pcs-reset.md) | NOT STARTED | None |

@@ -8,7 +8,8 @@ The 52 procedure contracts have explicit API/CLI/test ownership and host/fixture
 
 Research COMPLETE includes selected interpretations and unresolved source gates.
 Software implementation is PARTIAL for direct access and raw LEDCR maintenance:
-prompt 11's [restricted subset](direct-access.md) and driver host tests exist.
+prompts 11–12's [restricted direct/indirect subset](direct-access.md) and driver
+host tests exist, including stable MMD RMW. Mixed/destructive access remains task 13.
 Remaining feature procedures are PENDING; SDK builds and hardware qualification
 are NOT RUN. Ledger tests establish their own research layer.
 

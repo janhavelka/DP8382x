@@ -56,6 +56,10 @@ The [prompt 11 report](implementation/11-clause22-transport.md) records usable
 portable direct access, independent transport failure tests and PDF/ownership
 review, with SDK and physical evidence kept separate.
 
+The [prompt 12 report](implementation/12-atomic-mmd.md) records complete atomic
+MMD batches, the independently derived five-frame RMW, canonical alias policy,
+phase-failure/exclusion regressions and current source review.
+
 - [Sibling drivers](sibling-driver-audit.md): primary driver source audit and
   broader inventory, naming, ownership, Status/health, CLI, runners, tests and CI.
 - [FieldCore conventions](fieldcore-conventions-audit.md): actual promptset,

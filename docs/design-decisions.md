@@ -34,8 +34,11 @@ The core constructs masks, command-neutral values and order from chip policy;
 the backend only evaluates that fixed data dependency and executes frames.
 Batch descriptors contain no branches, loops or user callback opcodes; backend
 iteration is bounded by their fixed count. Chip-specific decisions stay in core.
-Prompts 7/12 must size the array for an eight-frame, explicitly reselected MMD
-read/modify/write. Simple C22 uses one frame, C22 RMW two, MMD read/write four.
+The array retains an eight-frame capacity for compound observations. Prompt 12's
+independent SNLS647I review establishes five frames for nonincrementing stable
+MMD read/modify/write under one ownership scope; it replaces the earlier
+eight-frame reselected design. Simple C22 uses one frame, C22 RMW two,
+MMD read/write four. Each explicit call fully reselects; no selector cache spans calls.
 
 The application callback acquires one controller-wide lock, executes the whole
 batch and releases it on every exit. Every other PHY/backend user on that bus
