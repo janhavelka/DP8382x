@@ -5,6 +5,11 @@ Date: 2026-11-02. Baseline commit: `e105af6`, branch
 have not run. This audit changes no prompt, contract, ledger or code. It tells the
 coder what to change, in which order, before executing prompt 13.
 
+**The owner delegated every open choice to this audit on 2026-11-02.** The decisions in
+[section 3](#3-decisions-final) are final; apply them without asking again. Reopen one only if
+a primary source contradicts it. Start with [section 4](#4-work-packages); use
+[section 10](#10-per-prompt-index) to see what applies to a given prompt.
+
 ## 1. Result
 
 The library is a framework-independent C++17 driver for TI DP8382x Ethernet PHYs,
@@ -34,9 +39,9 @@ would ship wrong behaviour or block a stage:
 | [G6-1](#g6-1) | Native support requires a private ESP-IDF fork that nothing can deliver (also G11-1) | Prompts 37-42, 47, 70 and 74 stay blocked |
 | [G6-2](#g6-2) | Native failure tests have no layer on which they can run | Prompts 37-42 cannot honestly complete |
 
-The largest maintainability risk is the operation contract ([G11-2](#g11-2) to
-[G11-8](#g11-8)). No operation code has shipped yet, so this is the cheapest moment
-to simplify it.
+The largest maintainability risk is the operation contract. No operation code has shipped
+yet, so this is the cheapest moment to simplify it. [Section 6.3](#63-target-operation-contract)
+gives the complete replacement.
 
 In total: 172 auditor findings plus one lead finding, about 60 S2 and 90 S3 alongside the
 S1s above. See [coverage and limits](#9-coverage-and-limits).
@@ -91,30 +96,27 @@ Each finding carries a severity and a verification mark:
 - **[I]** Rests partly on inference or on knowledge outside the repository (IEEE 802.3,
   general ESP-IDF behaviour, static review only). Treat as a strong hypothesis.
 
-## 3. Decisions taken
+## 3. Decisions (final)
 
-Auditors disagreed or left a choice open on these. Each is decided here so work can
-proceed. The owner can override any of them; **D9 to D11 change frozen contracts and
-are the ones most worth a look.**
-
-| # | Decision | Reason | What is given up |
-| --- | --- | --- | --- |
-| D1 | Native support runs on **unmodified ESP-IDF v6.1** through public APIs (G6-1). A failure the public route cannot resolve is terminal until reboot (G11-1). Drop the timer fence once the baseline contains upstream `d2ed96d2`. | Every required behaviour maps to public APIs except one unobservable HAL result. A fork has no delivery route and contradicts ENG:22. | In-process retry after a failed teardown; detection of errors the SDK swallows. |
-| D2 | Adopt the EEE tuples `(3,0x0001) (3,0x0014) (3,0x0016) (7,0x003C) (7,0x003D)` as **source-implied**, in one constant table, with a fail-closed runtime self-check and a planned probe (G4-1). The public raw API keeps rejecting `(3,0x0001)` and `(3,0x0016)`, which are destructive. | The evidence chain is strong and a wrong tuple is caught before the recipe's opaque writes. | A short period where support rests on implication; status stays "physical check pending". |
-| D3 | Default TDR recipe is **SNLA428 table 2-1**. Keep the datasheet words as independent vectors and record source conflict `tdr_recipe` (G3-1). | 826 8.3.16 and 10.1 defer to this note "for details", and its offset and thresholds pair with its recipe. This is not an app note overriding a datasheet by weight; the datasheet delegates. | Physical comparison stays NOT RUN; the choice may need revisiting. |
-| D4 | When AN is disabled and link is up, **BMCR is the forced speed/duplex source**; PHYSTS low bits are raw evidence only (G2-1). | Table 8-19 says bits 13 and 8 determine the mode; the PHYSTS sentence contradicts the part's own strap table. | Nothing proved is lost. |
-| D5 | Keep `robust=true` for every forced mode on DP83826/A. Move the rule out of the part-agnostic validator into the part table when prompt 56 introduces it (G2-4, G8-10, G9-5). | Satisfies "shall" under either reading; 825 and 822 have no such rule. | Nothing. |
-| D6 | Write and verify `VOD_CFG3=0x4A40` **unconditionally** in `startInitialize` and after hard, external or POR reset; verify only after PCS reset or restart. Owner stage 15 (G1-2, G2-9, G11-10). | Strapped ANAR can advertise 10M from POR; all fields are scoped to 10M mode. | A write on 100-only boards; the 100M-inert claim rests on field naming. |
-| D7 | Un-gate 10M compliance patterns `COMPT=0x10..0x1D`. Keep the 100M `0x0428` branch gated (G5-1, G13-2). | Table 8-50 documents them and `0x0013` confirms the reading; `0x0428` still has no register table or read-effect record. | Nothing. |
-| D8 | Implement next-page exchange from IEEE Clause 28, with NP=1 only for one admitted epoch (G2-2, G2-3). Gate `next_page_handshake` becomes a physical case. | 826 8.3.1 designates Clause 28, and the gate's evidence can never arrive during software work. | Behaviour against real partners is unmeasured until 73. |
-| D9 | **Remove the CLEANUP operation phase**; cleanup is a normal second operation behind a `_cleanupOwed` barrier (G11-2), with one acknowledge call (G11-3). | The largest single cost in the state machine, for a route mostly never run, with "not guarantees" conceded by the contract. | One token covering both phases; automatic continuation by polling; pre-reserved capacity. |
-| D10 | Remove pre-mutation reserve arithmetic (G11-6). Remove poll allowances, or spend them only on polls that issue a batch or see a frozen clock (G11-8). | The sum drifts from the real sequence at every feature stage. Frames already bound I/O. | Early rejection of too-small budgets, except one fixed rule for reset commands. |
-| D11 | Merge `startReset`/`startRecover` into `startInitialize(options)` plus `startVerify` (G11-12). | One private plan with three entry points. | Peer spelling `startRecover`. Check prompt 22 when applying. |
-| D12 | PlatformIO is not a supported consumer in this execution. `library.json` stays version-truth only (G10-3 option a, G10-4). | No backend to link against and no consumer. | A PlatformIO package path; add it later with a real target. |
-| D13 | No renumbering of review stages. Prompt 55 owns the single coverage matrix; 75 and 78 sample it (G10-11). | Five passes over one denominator produce reports, not fixes. | Exhaustive re-derivation at each review stage. |
-| D14 | Apply a 2 ms frame-free floor after PHYRCR hard reset (G1-3). | Table 8-48 equates it to the reset pin; it costs 2 ms. | Nothing measurable. |
-| D15 | Reserved-bit handling is per register, not global zero (G13-1). | Seven registers reset reserved bits non-zero. | Nothing. |
-| D16 | Keep exact-part W0C for RXFCFG1[11] and the five-frame RMW, and qualify both physically (G4-3, G12-8). | Datasheet authority stands, and family parts differ. | Nothing. |
+| # | Decision | Why | Rejected alternatives | Accepted cost |
+| --- | --- | --- | --- | --- |
+| D1 | Native support runs on **unmodified ESP-IDF v6.1** through public APIs (G6-1). A failure the public route cannot resolve is terminal until reboot (G11-1). Drop the timer fence once the baseline contains upstream `d2ed96d2`. | Every required behaviour maps to public APIs except one unobservable HAL result. A fork has no delivery route and contradicts ENG:22. | A private fork. Pinning unreleased master: still swallows MAC/HAL errors and leaves the release baseline. Terminal-only with no fence: a fence is cheap and gives real quiescence. | No in-process retry after a failed teardown; errors the SDK swallows stay invisible. |
+| D2 | Adopt the EEE tuples `(3,0x0001) (3,0x0014) (3,0x0016) (7,0x003C) (7,0x003D)` as **source-implied**, in one constant table, with a fail-closed runtime self-check and planned probe Q1 (G4-1). The public raw API keeps rejecting the destructive `(3,0x0001)` and `(3,0x0016)`. | The evidence chain is strong, and a wrong tuple errors before the recipe's opaque writes. | Blocking on a TI clarification that may never come. Treating the tuples as proven. | Status stays "physical check pending" until Q1 runs. |
+| D3 | Default TDR recipe is **SNLA428 table 2-1**. Keep the datasheet words as independent vectors and record source conflict `tdr_recipe` (G3-1). | 826 8.3.16 and 10.1 defer to this note "for details", so the datasheet delegates rather than being overridden. Its offset and thresholds pair with its recipe. | Datasheet words only: no gain writes and no 1A/1B runs. | Physical comparison stays NOT RUN (Q7). |
+| D4 | With AN disabled and link up, **BMCR is the forced speed/duplex source**; PHYSTS low bits stay raw evidence (G2-1). | Table 8-19 says bits 13 and 8 determine the mode; the PHYSTS sentence contradicts the part's own strap table. | Keeping the gate: forced mode could never publish UP. | None. |
+| D5 | Keep `robust=true` for every forced mode on DP83826 and DP83826A. Move the rule from the part-agnostic validator into the part table at prompt 56 (G2-4, G8-10, G9-5). | Satisfies "shall" under either reading; 825 and 822 have no such rule. | Relaxing it for manual pairs: unsupported by the table. | None. |
+| D6 | `startInitialize` writes and verifies `VOD_CFG3=0x4A40` **unconditionally, for every ResetKind**. There is no verify-only path. Owner stage 15 (G1-2, G2-9, G11-10). | Strapped ANAR can advertise 10M from POR; all its fields are scoped to 10M mode. | Per-profile application: tracking for 100-to-10 transitions. | A write on 100-only boards. |
+| D7 | Un-gate 10M compliance patterns `COMPT=0x10..0x1D`. Keep the 100M `0x0428` branch gated (G5-1, G13-2). | Table 8-50 documents them and `0x0013` confirms the reading. `0x0428` still has no register table or read-effect record. | Keeping `0x0013` as the only exception. | None. |
+| D8 | Implement next-page exchange from IEEE Clause 28, with NP=1 only for one admitted epoch (G2-2, G2-3). Gate `next_page_handshake` becomes physical case Q10. | 826 8.3.1 designates Clause 28, and the gate's evidence cannot arrive during software work. | Rejecting next page indefinitely. A persistent NP bit: it can stall every later AN. | Partner behaviour unmeasured until 73. |
+| D9 | **Remove the CLEANUP phase.** A failed or cancelled operation ends at once; restoration is an ordinary later operation behind one barrier flag, with one escape call `abandonCleanup` (G11-2, G11-3). See OP-9 and OP-10. | The largest cost in the state machine, for a route mostly never run. ENG:110 already says "separately admitted"; AC's "reserved at start" is the outlier, and AC:1354-1355 concedes it guarantees nothing. It also allows an application retry, which the old design forbade. | Keeping CLEANUP with fewer fields: still two budgets per operation. Dropping the barrier: other work could run over an active stimulus. | No single token across both phases; the owner makes one more call. |
+| D10 | **Remove pre-mutation reserve sums and per-phase poll allowances.** Keep one fixed rule before a reset command (OP-6) and one stall counter `maxStalledPolls`, default 100000, for polls that issue no batch and see no clock advance (OP-5) (G11-6, G11-8). | Frames already bound I/O, and normal polling must not time out. Only a frozen clock needs a separate limit, which ENG:104 requires. | Deleting poll limits outright: a frozen clock would then run forever unless the owner steps in. Counting batch polls too: redundant with frames. Keeping allowances: false timeouts on healthy hardware. | Less early rejection of a too-small budget, outside reset commands. |
+| D11 | **Two entry points:** `startInitialize({reset})` and `startVerify`. Remove `startReset`, `startRecover`, `RecoveryMode` and `ResetOptions`, with no alias (G11-12). See the mapping in section 6.3. | One private plan had three entries and precondition rules. CONV:107 says "one method for one meaning". | Thin aliases: more names, docs and tests for no behaviour. Keeping peer spelling `startRecover`: reads well but implies a second procedure. | Differs from peers' `startRecover`; record this under CONV. |
+| D12 | PlatformIO is not a supported consumer in this execution; `library.json` stays version truth only (G10-3 option a, G10-4). | No backend to link against and no consumer. | Relaxing the generator's five-field rule for an unused path. | Add it later with a real target. |
+| D13 | Keep prompt numbering. Prompt 55 owns the single coverage matrix; 75 and 78 sample it (G10-11). | Five passes over one denominator produce reports, not fixes. Renumbering would break many links. | Merging prompts 74 and 75. | Less re-derivation at each review stage. |
+| D14 | Apply a 2 ms frame-free floor after any attempted PHYRCR hard reset, for every kind of frame (G1-3, OP-14). | Table 8-48 equates it to the reset pin, and 2 ms costs nothing. | Polling after 1 ms: risks a false "reset complete". | None measurable. |
+| D15 | Reserved-bit handling is per register, not global zero (G13-1). | Seven registers reset reserved bits non-zero. | A global zero or a global preserve rule. | One table column. |
+| D16 | Keep exact-part W0C for RXFCFG1[11] and the five-frame RMW, and qualify both (Q3, Q4) (G4-3, G12-8). | Datasheet authority stands, and family parts differ. | Importing the DP83822 write-1 recipe. Reverting to eight frames with no evidence. | None. |
+| D17 | Also adopted without alternatives worth keeping: G11-4 clock-lag meaning, G11-5 poll signature, G11-7 health predicate and no publication reserve, G11-11 direct-call matrix, G11-13 small result, G11-14 three transport bounds, G11-15 microseconds everywhere, G11-16 no `RevisionPolicy`, G11-20 no unused codes or token exhaustion, G11-22 snapshot names. | Each removes state or a rule with no safety loss. | Keeping them for peer-name parity. | Peer field names `lastOkMs`/`lastErrorMs` become `...Us`. |
 
 ## 4. Work packages
 
@@ -127,7 +129,7 @@ Run the standard checks after each package: `python tools/verify_references.py`,
 | --- | --- | --- | --- |
 | WP0 | Evidence, truth, ownership | [Section 5](#5-wp0-evidence-truth-and-ownership) | Sources archived; one owner per ledger procedure; COMMON has read map and authority order |
 | WP1 | Shipped code, behaviour-preserving | [Section 6.1](#61-wp1-shipped-code) | One access-policy table; `_execute` split; existing tests pass unchanged except where listed |
-| WP2 | Contracts, before any operation code | [Section 6.2](#62-wp2-contracts-before-prompt-15) | AC, ENG and CONV agree; timing probes updated; AC roughly halved |
+| WP2 | Contracts, before any operation code | [Sections 6.2](#62-wp2-contracts-before-prompt-15) and [6.3](#63-target-operation-contract) | AC, ENG and CONV agree with section 6.3; timing probes updated; AC roughly halved |
 | WP3 | Prompts 13-36 | [Section 7.1](#71-wp3-prompts-13-36-primary-part) | Every listed prompt edited; RV and LEDGER updated with it |
 | WP4 | Prompts 37-42 and DD section 6 | [Section 7.2](#72-wp4-prompts-37-42-native) | No "corrected SDK" wording remains; host-driver evidence layer defined |
 | WP5 | Prompts 43-55 | [Section 7.3](#73-wp5-prompts-43-55-cli-runners-regression) | One fixture, one matrix, one record format |
@@ -295,63 +297,45 @@ returned OK, so failure paths dominated.
 No operation code exists yet. Apply before prompt 15, the first stage that ships operations, and
 update `test/test_operation_timing.py`, ENG, CONV and every prompt that repeats the rule.
 
-<a id="g11-2"></a>
-- **G11-2** S2 [A] (D9) AC:695-714, 1250-1256, 1349-1355 and 1426 mandate a CLEANUP phase with two
+- **G11-2** S2 [L] (D9) AC:695-714, 1250-1256, 1349-1355 and 1426 mandate a CLEANUP phase with two
   deadlines, frame counts and poll counts, `CleanupState` with 5 values, and a 10-row transition
-  table. Sources disagree too: ENG:110 "separately admitted", AC:1426 "reserved at start", P15:53
-  either. AC:1354-1355 concedes these are "not guarantees". For the four frozen kinds, cleanup is
-  replay. Peer TMP1x2 operations are 268 lines with no cleanup phase. **Fix:** `OperationState`
-  {IDLE, RUNNING, RESULT_PENDING}. A failed or cancelled operation goes to RESULT_PENDING with
-  `mutationPossible` and `temporaryMayBeActive`, and sets `_cleanupOwed`. After `takeResult`, other
-  starts and raw writes return BUSY/CLEANUP_REQUIRED, except the owning stop/restore start and
-  `startInitialize`. Those carry an ordinary budget. Successful stop or restore, or an external-reset
-  notification, clears the flag. `end` rejects while it is set until the acknowledge call.
-- **G11-3** S2 [A] (D9) AC:703-705, 771-772, 894-895, 923-924, 1447-1466: no code path branches on
-  the three `QuiescenceDisposition` values, and the clock latch already forces rebind. **Fix:**
-  `Status acknowledgeCleanupAbandoned()`: clear the flag, set initialized=false and trust DIRTY, keep
-  all evidence, never claim restored. Delete `QuiescenceDisposition`, `retiredByOwner`,
+  table. Sources disagree too: ENG:110 "separately admitted", AC:1426 "reserved at start", P15:50
+  "reserved/separately admitted". AC:1354-1355 concedes these are "not guarantees of hardware
+  completion". Peer TMP1x2 operations are 268 lines with no cleanup phase. **Fix:** OP-4 and OP-9.
+- **G11-3** S2 [L] (D9) AC:703-705, 771-772, 894-895, 923-924, 1447-1466: no code path branches on the
+  three `QuiescenceDisposition` values; the only rule it creates is about itself (AC:1460-1461), and the
+  clock latch already forces rebind. **Fix:** OP-10. Delete `QuiescenceDisposition`, `retiredByOwner`,
   `RETIRE_REQUIRED`.
-- **G11-4** S2 [I] AC:353-355 and CFG:273 require proving `clockLagUs` "including... scheduling",
-  which is impossible on an RTOS and not needed. The sample is read after the callback returned, so
-  preemption before the read moves it later (safe) and preemption after does not change it. **Fix:**
-  "Positive bound on how far the returned value can be behind true time at the instant of the read
-  (quantization plus source update latency). Scheduling after the read is excluded." No behaviour
-  change.
-- **G11-5** S2 [L] AC:1321-1327: an insufficient positive poll slice terminates the phase, yet
-  `OperationSnapshot` exposes no next-batch size, so a short EtherCAT slot kills a reset. **Fix:**
-  `Status pollOperation(OperationToken token, uint32_t maxFrames = MAX_BATCH_FRAMES)`. If the next
-  batch does not fit, do no I/O and return IN_PROGRESS. Only admission deadline and frame totals are
-  terminal. Remove `slice.deadlineUs`.
-- **G11-6** S2 [A] (D10) AC:1331-1355 and :1508 require per-procedure reserve sums. Every failure
-  already leaves trust DIRTY with effect evidence, and the sum grows at each of prompts 17-35. "Compile
-  its finite order" invites a plan engine, against ENG:160-161. **Fix:** delete these and scenario
-  :1556. Keep per-batch admission and terminal timeout at the first non-fitting batch, plus one fixed
-  rule: reset commands require remaining time >= `pollIntervalUs` + one batch.
-- **G11-7** S2 [A] AC:590-592 count timing and clock faults toward OFFLINE, while CONV:73-74 defines
-  OFFLINE as repeated MDIO failure; three tight deadlines drive OFFLINE with every frame good. **Fix:**
-  replace the table with: "A callback is counted unless zero frames were attempted, status is BUSY or
-  OPERATION_TIMEOUT, and release is clean. It is a failure if status or release is not OK, the
-  controller is newly not reusable, or the report is malformed. Otherwise success, including late
-  success and clock regression, which stay in `TransportSnapshot`." Delete the post-callback publication
-  reserve (AC:395-399, SRC:352-355), so only a raw post-sample >= deadline denies publication. **Behaviour
-  change in SRC; update tests.**
-<a id="g11-8"></a>
-- **G11-8** S3 [A] (D10) AC:711-712 and 1311-1316: polling every 100 us during a 50 ms wait exhausts
-  `maxPrimaryPolls` and yields a false POLL_BUDGET timeout on healthy hardware. **Fix:** spend allowances
-  only on polls that issue a batch or see no clock advance since the previous poll.
-- **G11-11** S2 [A] AC:941-942 "incompatible active work" is undefined, with two materially different
-  readings, one of which stalls native link polling behind an unconsumed result. **Fix:** add one table.
-  IDLE: everything. RUNNING or RESULT_PENDING: stable reads and the collector are allowed between polls,
-  because no selector state survives a batch; writes are BUSY. During a reset command or hard-reset silence
-  phase: all frames BUSY. Pending result: only starts and writes are blocked.
-- **G11-12** S2 [A] (D11) AC:699-700, 715-719, 755-756, 1506-1532: initialize, reset and recover are one
-  plan with three entries; `RecoveryMode` omits RESTART. **Fix:**
-  `startInitialize(InitializeOptions{ResetKind reset})` with NONE, PCS, HARD, RESTART, plus `startVerify()`.
-  Remove `startRecover`, `RecoveryMode`, `recoveryMode`; keep `startReset` only as a thin alias if wanted.
-- **G11-13** S3 [A] AC:742-750, 777-778, 784: results carry two raw batch dumps. Measured with g++ 15 on
-  x86-64: `OperationResult` 880 B, `OperationSnapshot` 944 B, copied by the owner each poll. **Fix:**
-  `BatchSummary{phase, attemptedFrames, completedFrames, effectPossible, normalized, release, violation,
-  late}` of about 50 B. Make `OperationSnapshot` result-free. The raw report stays in `transportSnapshot`.
+- **G11-4** S2 [L] AC:353-355 and CFG:273 require proving `clockLagUs` "including... scheduling", which is
+  impossible on an RTOS and unnecessary. The sample is read after the callback returned, so preemption
+  before the read moves it later (safe) and preemption after does not change it. A later raw sample >=
+  `sample + lag + minimum` proves the minimum elapsed under any scheduling. For deadlines no lag value can
+  guarantee anything; `late` handles that. **Fix:** "Positive bound on how far the returned value can be
+  behind true time at the instant of the read (quantization plus source update latency). Scheduling after
+  the read is excluded." No behaviour change.
+- **G11-5** S2 [L] AC:1321-1327: an insufficient positive poll slice terminates the phase, and
+  `OperationSnapshot` exposes no next-batch size, so a short EtherCAT slot kills a reset. **Fix:** OP-5.
+- **G11-6** S2 [L] (D10) AC:1331-1355 and :1508 require per-procedure reserve sums. Every failure already
+  leaves trust DIRTY with effect evidence, and the sum grows at each of prompts 17-35. "Compile its finite
+  order" invites a plan engine, against ENG:160-161. **Fix:** OP-6. Delete these lines and scenario AC:1556.
+- **G11-7** S2 [L] AC:590-592 count timing and clock faults toward OFFLINE, while CONV:73-74 defines OFFLINE as
+  repeated MDIO failure; three tight deadlines drive OFFLINE with every frame good. **Fix:** replace rows
+  590-592 with: "A callback is counted unless zero frames were attempted, status is BUSY or OPERATION_TIMEOUT,
+  and release is clean. It is a failure if status or release is not OK, the controller is newly not reusable,
+  or the report is malformed. Otherwise success, including late success and clock regression, which stay in
+  `TransportSnapshot`." Delete the post-callback publication reserve (AC:395-399, SRC:352-355), so only a raw
+  post-sample >= deadline denies publication. **Behaviour change in SRC; update `test/transport.cpp` timing
+  cases and `test/test_operation_timing.py`.**
+- **G11-8** S3 [L] (D10) AC:711-712 and 1311-1316: polling every 100 us during a 50 ms wait exhausts
+  `maxPrimaryPolls` and yields a false POLL_BUDGET timeout on healthy hardware. **Fix:** OP-5.
+- **G11-11** S2 [L] AC:941-942 "incompatible active work" is undefined, with two materially different
+  readings, one of which stalls native link polling behind an unconsumed result. **Fix:** OP-14.
+- **G11-12** S2 [L] (D11) AC:699-700, 715-719, 755-756, 1506-1532: initialize, reset and recover are one plan
+  with three entries, and `RecoveryMode` omits RESTART. **Fix:** declarations and mapping in section 6.3.
+- **G11-13** S3 [L] AC:742-750, 777-778, 784: results carry two raw batch dumps. Auditor measurement with g++ 15
+  on x86-64: `OperationResult` 880 B of which 656 B is batch dumps, `OperationSnapshot` 944 B, copied by the owner
+  each poll. **Fix:** `BatchSummary` of 48 B (compiled), giving a result of about 270 B, and a result-free snapshot of
+  about 100 B. The raw report stays in `transportSnapshot`.
 - **G11-14** S3 [L] Acquire, release and overhead are only summed (CFG:268-274, SRC:258-259). **Fix:**
   `TransportBounds{fixedUs, frameUs, clockLagUs}`. Behaviour identical. Update CFG, AC and tests.
 - **G11-15** S3 [A] AC:411-413's `storedMs*1000+999` exists only because some fields are ms while the only
@@ -365,7 +349,7 @@ update `test/test_operation_timing.py`, ENG, CONV and every prompt that repeats 
   material (AC:1087-1106, 1626-1733) to DD; (3) move the feature map (AC:1108-1176) to COV; (4) move scenarios
   (AC:1542-1574) to tests or `test/README.md`; (5) replace ARCH:114-166 with pointers; (6) turn operation
   sections into numbered rules (OP-1...) with one normative location, and have prompts cite the ids.
-- **G11-20** S3 [L] (also **G1-12**) CONV:61-63 forbids unused codes, yet `BOARD_PREREQUISITE`, `LINK_MODE`,
+- **G11-20** S3 [L] (also **G1-12**, D17) CONV:61-63 forbids unused codes, yet `BOARD_PREREQUISITE`, `LINK_MODE`,
   `FEATURE` have no assigned use. P15:30 and :60-61 require testing token exhaustion, which takes 2^64 starts
   or a test seam CONV:156 forbids. **Fix:** remove those three until a consumer exists; delete `TOKEN_EXHAUSTED`
   and its test with "A 64-bit lifetime counter cannot be exhausted in practice"; update CONV:122 and prompts 8,
@@ -376,6 +360,289 @@ update `test/test_operation_timing.py`, ENG, CONV and every prompt that repeats 
   `startConfigure`" contradicts AC:873. ENG:101, VER:51, P15, P16, P19:58 and P21:51 require "wrap" tests, while
   CFG:261 and AC:346-347 say nonwrapping. **Fix:** replace with "uint64 overflow" and "regressing clock
   (INVALID_CONFIG/CLOCK_CONTRACT, latch, no new valid stamp)".
+
+### 6.3 Target operation contract
+
+This replaces AC's "Cooperative values", the operation methods in "Exact local and direct declarations" and "One cooperative
+operation and retained result" up to its acceptance scenarios.
+
+**Kept from AC, reading "cleanup" per OP-9:** past-deadline detection (1202-1204); initialization and gate admission facts (1210-1216);
+token lookup (1235-1240); result-flag meanings (1270-1284); finishing a verification pass before freezing CONFIG_MISMATCH (1286-1297);
+`nextPollValid` (1299-1303); the post-callback sample (1318-1320); wait anchors (1357-1365); error precedence (1367-1374, without
+the publication reserve); readiness anchors (1385-1391, with G1-3); the phase plan (1396-1406); no configuration write before
+re-identification (1433-1435); desired-intent rules (1470-1485); the restoration order (1509-1521); and never replaying temporary
+triggers (1537-1538). Line 1510 gains: "HARD itself is the stop for a hard-reset exit."
+
+**Evidence for this design.** It tests the design only; no driver implements it yet.
+
+- The declarations compile against the shipped headers with `-Wall -Wextra -Wpedantic -Wconversion -Werror` on g++ 15, using
+  stand-ins for `DeviceIdentity`, `StrapEvidence`, `SettingsSnapshot` and `ConfigurationMismatch`, which are not shipped yet.
+- An independent adversarial review found 18 defects in the first draft (R-1 to R-18), two of them S1. All are applied below and
+  tagged. It also showed the first state model could not detect them.
+- The model was then rebuilt to track physical facts (stimulus active, reset floor pending, persistent field dirty) separately
+  from driver knowledge. It covers these rules exhaustively: 1,334 states, no violation, and every state reaches unbound through local
+  calls, including with a broken clock. Seven flawed variants, re-introducing R-1, R-2, R-3 and the old PCS-over-session gap,
+  each produce violations, so the checks are not vacuous. It is abstract: it has no timing arithmetic, register content or link evidence, so
+  OP-6, OP-13's details and the OP-14 link note rest on review alone.
+
+```cpp
+enum class OperationKind : uint8_t { NONE, INITIALIZE, CONFIGURE, VERIFY };  // Features add kinds with their code.
+enum class OperationState : uint8_t { IDLE, RUNNING, RESULT_PENDING };
+enum class ResetKind : uint8_t { NONE, PCS, HARD, RESTART };
+
+struct OperationBudget {
+  IoBudget io{};                   // Absolute deadline and total frames for this operation.
+  uint32_t pollIntervalUs{1000};   // Positive owner policy between completion reads, not silicon timing.
+  uint32_t maxStalledPolls{100000};  // Positive; consecutive polls with no batch and no clock advance.
+};
+struct InitializeOptions { ResetKind reset{ResetKind::PCS}; };
+
+struct BatchSummary {
+  OperationPhase phase{OperationPhase::NONE};
+  uint8_t attemptedFrames{0};
+  uint8_t completedFrames{0};
+  bool effectPossible{false};
+  Status normalized{Err::RESULT_NOT_AVAILABLE, 0, "No batch"};
+  Status release{Err::RESULT_NOT_AVAILABLE, 0, "No batch"};
+  TransportViolation violation{TransportViolation::NONE};
+  bool late{false};
+};
+struct OperationResult {
+  OperationToken token{};
+  OperationKind kind{OperationKind::NONE};
+  ResetKind reset{ResetKind::NONE};
+  Status status{Err::RESULT_NOT_AVAILABLE, 0, "No operation"};
+  bool mutationAttempted{false};     // Same meanings as AC:1270-1284.
+  bool mutationCompleted{false};
+  bool mutationPossible{false};
+  bool commandRequired{false};
+  bool commandAccepted{false};
+  bool protocolComplete{false};
+  bool temporaryMayBeActive{false};
+  bool persistentRestored{false};
+  bool cleanupOwed{false};           // Barrier state when this operation ended.
+  bool clockInvalid{false};
+  bool late{false};
+  DeviceIdentity identity{};
+  StrapEvidence straps{};
+  SettingsSnapshot settings{};
+  ConfigurationMismatch mismatch{};
+  BatchSummary failingBatch{};       // First failing batch, otherwise the last batch.
+};
+struct OperationSnapshot {           // Bus and clock silent. Holds no result copy.
+  OperationToken token{};
+  OperationState state{OperationState::IDLE};
+  OperationKind kind{OperationKind::NONE};
+  OperationPhase phase{OperationPhase::NONE};
+  Status status{Err::RESULT_NOT_AVAILABLE, 0, "No operation"};
+  bool cleanupOwed{false};
+  bool temporaryMayBeActive{false};
+  uint64_t nextPollAtUs{0};
+  bool nextPollValid{false};
+  uint64_t busQuietUntilUs{0};       // Hard-reset floor end; other PHYs on this bus stay silent until then.
+  bool busQuietValid{false};         // True in every state while the floor is pending.
+  IoBudget remaining{};
+  uint32_t stalledPolls{0};
+};
+
+Status startInitialize(const InitializeOptions& options, const OperationBudget& budget, OperationToken& token) noexcept;
+Status startConfigure(const LinkSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept;
+Status startVerify(const OperationBudget& budget, OperationToken& token) noexcept;
+Status pollOperation(OperationToken token, uint32_t maxFrames = MAX_BATCH_FRAMES) noexcept;
+OperationSnapshot operationSnapshot() const noexcept;
+Status takeResult(OperationToken token, OperationResult& result) noexcept;
+Status cancel(OperationToken token) noexcept;
+Status abandonCleanup() noexcept;
+```
+
+`OperationToken`, `OperationPhase`, `StrapEvidence`, `ConfigurationMismatch`, `DeviceIdentity` and `SettingsSnapshot` stay as AC
+defines them. Enum values ship with their behaviour: NONE and PCS at prompt 15; HARD, RESTART and `EXTERNAL_POWER_ON` at 16;
+CONFIGURE at 17-18; VERIFY at 22.
+
+| Old | New |
+| --- | --- |
+| `startReset({PCS})`, `startRecover({PCS_RESET})` | `startInitialize({ResetKind::PCS})` |
+| `startReset({HARD})`, `startRecover({HARD_RESET})` | `startInitialize({ResetKind::HARD})` |
+| `startReset({RESTART})` | `startInitialize({ResetKind::RESTART})` |
+| `startRecover({REAPPLY})` | `startInitialize({ResetKind::NONE})` |
+| `startRecover({VERIFY_ONLY})` | `startVerify` |
+| `InitializeOptions.pcsReset` | `InitializeOptions.reset` |
+| `pollOperation(token, slice)` | `pollOperation(token, maxFrames)` |
+| `acknowledgeQuiescence(token, disposition)` | `abandonCleanup()` |
+| `getOperationSnapshot`, `getSettingsSnapshot` | `operationSnapshot`, `settingsSnapshot` |
+| `OperationBudget.primary`, `.cleanup`, `.maxPrimaryPolls`, `.maxCleanupPolls` | `.io`, removed, `.maxStalledPolls`, removed |
+| `result.primaryStatus`, `.cleanupStatus`, `.cleanupState` | `result.status`, removed, `result.cleanupOwed` |
+| `primaryBatch`, `cleanupBatch` | `failingBatch` |
+
+**Rules:**
+
+- **OP-1 One slot.** One instance holds one operation, with no task, scheduler or registry. Starts copy their inputs,
+  return IN_PROGRESS and assign a token. They call neither clock nor MDIO.
+- **OP-2 Start rejection order.** Syntax and budget shape (`pollIntervalUs` or `maxStalledPolls` of zero is
+  INVALID_PARAM/BUDGET_RANGE); NOT_BOUND; slot busy (BUSY/OPERATION_ACTIVE, then BUSY/RESULT_PENDING); known clock fault
+  (INVALID_CONFIG/CLOCK_CONTRACT); barrier (OP-9, BUSY/CLEANUP_REQUIRED); NOT_INITIALIZED; capability and source admission; zero budget
+  (OPERATION_TIMEOUT/FRAME_BUDGET or DEADLINE). `startConfigure`, `startVerify`, feature starts and session starts require
+  initialized. `startInitialize` and the owning stop do not, and use the bootstrap identity path. OFFLINE never denies a start.
+  A rejected start changes nothing. (R-4)
+- **OP-3 Tokens.** A 64-bit counter for the object's lifetime, from 1, never reset by end or bind. There is no exhaustion
+  branch, code or test.
+- **OP-4 States.**
+
+  | State and event | Next |
+  | --- | --- |
+  | IDLE, accepted start | RUNNING |
+  | RUNNING, poll with work remaining | RUNNING, IN_PROGRESS |
+  | RUNNING, full success | RESULT_PENDING, status OK |
+  | RUNNING, error, timeout or clock fault | RESULT_PENDING, status frozen; set barrier per OP-9 |
+  | RUNNING, cancel | RESULT_PENDING, status CANCELLED unless an earlier error froze; set barrier per OP-9 |
+  | RUNNING, `invalidateDeviceState` | RESULT_PENDING, INVALID_CONFIG/DEVICE_INVALIDATED unless an earlier error froze; set barrier per OP-9, then apply OP-15. `result.cleanupOwed` is the value after both (R-15) |
+  | RESULT_PENDING, poll or repeated cancel | Unchanged; poll repeats the status silently; cancel returns OK |
+  | RESULT_PENDING, exact take | IDLE; result copied once; barrier unchanged |
+
+  The status never changes once frozen. `takeResult` before terminal returns RESULT_NOT_AVAILABLE. Take always succeeds
+  once pending, so evidence can always be delivered.
+- **OP-5 Poll.** At most one batch per call, in this order:
+  1. Sample time. A regression latches CLOCK_CONTRACT and freezes.
+  2. If raw time >= deadline, freeze OPERATION_TIMEOUT/DEADLINE before any I/O.
+  3. If the next action is not due, or a hard-reset floor is pending, return IN_PROGRESS with no I/O. The floor applies to every
+     operation kind (R-1).
+  4. If the next batch exceeds remaining frames, freeze FRAME_BUDGET. If its bound cannot fit before the deadline, freeze
+     BOUND_ADMISSION.
+  5. If the next batch exceeds `maxFrames`, return IN_PROGRESS with no I/O. So `maxFrames=0` is bookkeeping only, and a short
+     slot is never fatal.
+  6. Otherwise run it.
+
+  A poll that issues no batch and sees the same raw clock value as the last sample any poll took, including a post-callback sample,
+  increments `stalledPolls`. Any batch or clock advance resets it, and the first poll of an operation never stalls (R-14). Reaching
+  `maxStalledPolls` freezes OPERATION_TIMEOUT/POLL_BUDGET. Frames bound batches and stalls bound waits, so a frozen clock always
+  terminates, within `(frames + 1) * maxStalledPolls + 1` polls (brute-forced as the exact worst case with one-frame batches). The
+  default of 100000 is deliberately large, because this is a fault path: a tight loop on a 100 Hz tick clock must not trip it, while a
+  frozen clock still ends in about 100 s at 1 ms polls. Lower it only if the clock's tick is shorter than poll spacing times the value (R-13).
+- **OP-6 Reset admission.** This is the only look-ahead. Before issuing a reset command, require frames for the command batch and
+  the first completion read, and `raw + 3 * clockLagUs + bound(command) + wait + bound(read) < deadline` with checked addition. `wait` is
+  `pollIntervalUs`, or `max(2000, pollIntervalUs)` us for HARD. Otherwise freeze BOUND_ADMISSION with no mutation. Every other step
+  checks only its next batch. The three lags are: upper bound at entry, anchor at completion, and upper bound at the read (R-12).
+- **OP-7 Time.** `clockLagUs` is defined by G11-4. Only a raw post-sample >= deadline denies success; there is no publication reserve.
+- **OP-8 Primary and cleanup stay separate.** Each operation has one status and one result. Restoration is a later
+  operation with its own token, result and budget, so its success can never rewrite the earlier failure. There is no
+  automatic retry; the application may retry.
+- **OP-9 Barrier.** Two pieces of knowledge, plus one private field recording what set them:
+  - `temporaryMayBeActive` becomes true when the first write of a session or temporary profile is **attempted**, including companion
+    writes. It becomes false only on a successful owning stop, a successful HARD, or EXTERNAL_RESET/EXTERNAL_POWER_ON invalidation. A
+    reset command alone never sets it; a pending reset is `commandAccepted && !protocolComplete` (R-2).
+  - `cleanupOwed` is set when an operation ends without `persistentRestored` after a semantic effect (`mutationCompleted` or
+    `mutationPossible`), and when `temporaryMayBeActive` becomes true. Selector writes do not count.
+
+  | While `cleanupOwed` or `temporaryMayBeActive` (R-16) | Admitted |
+  | --- | --- |
+  | Always | Admitted raw reads and the collector |
+  | Temporary active | The owning session's own acquire operations and its stop, even if its start failed (R-2, R-7); `startInitialize({HARD})` |
+  | No temporary active | `startInitialize` with any reset; `startVerify`; `startConfigure` only if a CONFIGURE operation set the barrier (R-3) |
+  | Everything else | Other starts, raw and typed direct writes, `end` and `bind` return BUSY/CLEANUP_REQUIRED |
+
+  `cleanupOwed` clears only on: a successful owning stop; a successful `startInitialize` with `persistentRestored`; a successful
+  `startConfigure` admitted by the row above; `invalidateDeviceState` with EXTERNAL_RESET or EXTERNAL_POWER_ON; or `abandonCleanup`.
+  **`startVerify` never clears it**, because stable bits cannot prove opaque recipe state (R-3, P22:45-46), and it is rejected while a
+  temporary is active, because overridden fields would give false mismatches (R-17). A failed restoration leaves the barrier set. PCS
+  reset and RESTART cannot be assumed to stop a stimulus: they keep vendor registers (table 8-19, table 8-48).
+
+  **Sessions (R-8, R-9).** A stimulus that stays active across owner decisions is two operations with separate budgets; its duration is
+  application policy, and the core only blocks other work. A self-contained test (cable capture, a counted BIST run) may be one operation
+  that must stop and restore before success. A start or stop with no wait may be a direct bounded call: it follows the same set and clear
+  rules at return, requires slot IDLE, and on failure leaves the barrier set. Loopback, BIST, compliance, forced LPI and collision test
+  are sessions.
+- **OP-10 Abandon.** `abandonCleanup()` is bus and clock silent. While RUNNING it returns BUSY/OPERATION_ACTIVE. With no
+  obligation it returns OK and changes nothing. Otherwise it clears `cleanupOwed`, sets initialized false and trust DIRTY,
+  and keeps `temporaryMayBeActive` and all evidence. It never claims restoration, clears controller quarantine or authorizes freeing
+  borrowed resources. Before calling it the owner must close admission, drain callbacks with no lock held across SDK calls, and
+  establish the external disposition: reset, power removal, isolation or transfer to another owner. A later `startInitialize` on
+  this binding still needs HARD while `temporaryMayBeActive` is set.
+- **OP-11 Broken clock.** Timed work is refused once latched, so restoration cannot run. The finite route is: `takeResult`,
+  `abandonCleanup`, `end`, repair the clock, `bind`.
+- **OP-12 End and bind.** Both reject BUSY/OPERATION_ACTIVE, BUSY/RESULT_PENDING or BUSY/CLEANUP_REQUIRED, with no callbacks. A
+  successful `bind` resets local knowledge, including `temporaryMayBeActive`; the owner carries any known hardware state across it. `end`
+  discards a pending hard-reset floor, so the owner must wait at least 2000 us after the last possible PHYRCR[15] write before the new
+  binding's first frame (R-1). Neither touches hardware or controller quarantine.
+- **OP-13 Initialized.** A successful `startInitialize` sets it. It clears when a PCS or HARD reset is attempted or possibly applied,
+  when `invalidateDeviceState` runs, or on abandon. `startInitialize({NONE})` on an initialized object leaves it set unless identity or
+  verification fails, or a mandatory-initialization write is possibly applied and unverified, so link polling continues through a
+  reapply (R-17). Inside a session recipe, RESTART does not clear it, because table 8-48 keeps registers; HARD does. An owning stop that
+  completes the full identity, mandatory and replay procedure sets it (R-6).
+- **OP-14 Direct calls during operations.** "Raw writes" here and in OP-9 means raw and typed direct writes (R-8).
+
+  | Situation | Admitted raw reads and collector | Raw writes |
+  | --- | --- | --- |
+  | IDLE, no barrier | Yes | Per access policy |
+  | IDLE, barrier or temporary | Yes | BUSY/CLEANUP_REQUIRED |
+  | RUNNING, between polls | Yes: no selector state survives a batch | BUSY/OPERATION_ACTIVE |
+  | RUNNING, reset wait | BUSY/OPERATION_ACTIVE | BUSY/OPERATION_ACTIVE |
+  | RESULT_PENDING | Yes, so link polling continues | BUSY/RESULT_PENDING |
+  | Hard-reset floor pending, in any state | BUSY/OPERATION_ACTIVE | BUSY/OPERATION_ACTIVE |
+
+  **Hard-reset floor (R-1).** It starts whenever any operation attempts a PHYRCR[15] write, including a failed or late write, anchored at
+  the post-callback upper bound plus `max(2000, pollIntervalUs)`. It survives cancel, take, abandon and invalidation. Publish it as
+  `busQuietUntilUs`. A shared-bus owner holds other PHYs from before the poll that can issue PHYRCR[15] until that time (R-11).
+
+  **Link evidence during writes (R-10).** If a RUNNING operation has attempted a semantic write, or `temporaryMayBeActive` is set,
+  `readLinkStatus` publishes the link bit only, with `resolvedModeValid=false` and `pauseValid=false`, and copies
+  `temporaryMayBeActive` into `LinkSnapshot`. Otherwise a reader could combine new ANAR with old ALNPAR, or report an internal loopback
+  path as a normal link.
+- **OP-15 Invalidation.** Bus and clock silent in every state. It marks trust DIRTY, observations stale, capabilities invalid and
+  initialized false, and keeps desired intent, samples and evidence. IDLE stays IDLE. RUNNING freezes per OP-4. RESULT_PENDING keeps its
+  historical result. Only EXTERNAL_RESET and EXTERNAL_POWER_ON clear the barrier and `temporaryMayBeActive`; this is the owner's
+  attestation that hardware was reset.
+- **OP-16 Health.** `startInitialize`, `startConfigure`, `startVerify` and live link reads are managed traffic under G11-7. A
+  successful `startInitialize` may restore READY. Session stimulus, session stop and raw access count only in transport totals.
+- **OP-17 Result flags.** `result.cleanupOwed` and `temporaryMayBeActive` are copies at termination. The current truth is in
+  `operationSnapshot`.
+
+**Acceptance scenarios.** These replace AC:1542-1574. Use literal traces and a fake clock:
+
+| Scenario | Required |
+| --- | --- |
+| Start, polls, take, cable unplugged | Status OK; separate `readLinkStatus` gives valid DOWN |
+| Short slot, `maxFrames=1`, next batch needs 4 | IN_PROGRESS, no I/O, nothing terminal; at the deadline OPERATION_TIMEOUT/DEADLINE |
+| Polling every 100 us through a 2 ms wait on a 1 us clock | No POLL_BUDGET; first read not before due |
+| Frozen clock during a wait | No I/O; POLL_BUDGET on stall count `maxStalledPolls`, where the first poll never stalls; barrier set if a reset was issued |
+| Tight loop on a 100 Hz tick clock through a 5 ms wait | No POLL_BUDGET; first read only once a raw sample reaches due |
+| 100 Hz clock, lag 10000 us, HARD, deadline now + 5 ms plus bounds | BOUND_ADMISSION before any write, per OP-6's literal formula |
+| Budget too small for reset command, wait and first read | BOUND_ADMISSION, zero writes, no barrier |
+| Budget just enough for the reset, restore runs out | Timeout at the first non-fitting batch; barrier set; restoration later succeeds with a new budget and clears it |
+| Hard reset with 1000 us interval | No frame before command-completion upper bound + 2000 us |
+| Hard-reset write fails or returns late | Floor still applies; `busQuietValid` true; status frozen |
+| Cancel after a hard-reset write, take, immediate new `startInitialize({HARD})` or `startVerify` | Polls return IN_PROGRESS with no frame until the floor ends |
+| Abandon, end and bind within the floor | Owner waits out 2000 us; a contract test documents this, and the core cannot enforce it |
+| Cancel before any effect | Pending CANCELLED, no barrier, `end` after take succeeds |
+| Cancel after accepted reset | Pending CANCELLED, barrier set; take OK; other starts BUSY/CLEANUP_REQUIRED; `startInitialize` clears it |
+| Restoration fails | Barrier remains; application may retry with a new token; the first result is unchanged |
+| Loopback active, `startInitialize({PCS})` | BUSY/CLEANUP_REQUIRED; `stopLoopback` or `{HARD}` admitted |
+| Cancel after a loopback start's first write | `temporaryMayBeActive` true; `{PCS}` rejected; `stopLoopback` admitted though the start failed |
+| BIST session active, capture requested | The session's acquire operation is admitted; other starts BUSY/CLEANUP_REQUIRED |
+| Power operation fails after a write, then `startConfigure` | BUSY/CLEANUP_REQUIRED; `startInitialize` restores and clears |
+| Configure fails after a write, then `startConfigure` succeeds | Barrier clears |
+| `startVerify` succeeds while a barrier is set | Barrier stays set; evidence only |
+| `readLinkStatus` during reapply after ANAR write | Link bit only, `resolvedModeValid=false`, `pauseValid=false` |
+| External reset notified while barrier set | Barrier and temporary cleared; initialized false; pending result unchanged |
+| Clock regression mid-operation | Frozen CLOCK_CONTRACT; route of OP-11 completes with no timed call |
+| Link poll with result pending | `readLinkStatus` succeeds; start and raw write BUSY/RESULT_PENDING |
+| Wrong token, stale token, double take | TOKEN_MISMATCH or RESULT_NOT_AVAILABLE; no state or output change |
+
+**Files to change for this contract:**
+
+| File | Change |
+| --- | --- |
+| `docs/api-contracts.md` | Replace the sections above, keeping the listed lines. Add a line that this supersedes prompt 8's cooperative design. Fix 353-355, 585, 590-592, 847, 922-924, 931-938, 1392-1393, 1473 ("under the cleanup allowance") and 1510; delete 1508. Add `temporaryMayBeActive` to `LinkSnapshot` |
+| `include/DP8382x/Status.h` | Remove `TOKEN_EXHAUSTED`, `RETIRE_REQUIRED`, `BOARD_PREREQUISITE`, `LINK_MODE`, `FEATURE`. Keep `CLEANUP_REQUIRED` and `POLL_BUDGET` |
+| `include/DP8382x/Config.h`, `src/DP8382x.cpp` | G11-14 bounds, G11-16, publication reserve removed, G11-4 comment |
+| `test/foundation.cpp`, `test/transport.cpp`, `test/mmd.cpp`, `test/consumer/main.cpp` | Follow the bound rename and publication change |
+| `test/test_operation_timing.py` | Delete the two-phase and cleanup-deadline probes, the publication half of the uncertainty probe and token exhaustion. Add probes for OP-5's frozen-clock bound and OP-6 including the 2 ms floor |
+| `docs/prompts/COMMON.md` | Add: "In prompts 13-80 and in ledger text, 'cleanup' means the OP-9 barrier and a later restoration operation; 'primary/cleanup status' means two separate results. A stimulus that stays active across owner decisions is two operations with separate budgets, its duration is application policy and the core only blocks other work; a self-contained test may be one operation that must stop and restore before success." This covers the general mentions in about 50 prompts and the 126 cleanup phrases in the ledger |
+| `docs/prompts/ENGINEERING.md` | 96-98, 104 and 110-113 point to AC; delete the "reserved" option |
+| `docs/prompts/CONVENTIONS.md` | 30 and 112-114 names; 79-81 `...Us` fields; 94-95 snapshot names; 96 and 99-101 (restoration through `startInitialize` may restore health, per OP-16); 122 no exhaustion; 130 barrier. Record the `startRecover` difference from peers |
+| `docs/design-decisions.md`, `docs/architecture.md` | DD:117-131 and :336; ARCH:145-159 become pointers to AC |
+| `docs/prompts/` 15, 16, 22-25, 28, 30, 35, 45, 79 | P15:26-28, :50-52, :60-61; P16:31-33, :45-47; P22 per G2-15; P23:20 and :58-60; P24:46-50; P25:19; P28 power operations under OP-9; P30:46 per G4-2; P35:61-65; P45's retained-operation commands; P79:43 |
+| `docs/registers/dp83826i.json`, `docs/feature-coverage.md` | The 4 procedures with API `startReset / startRecover` become `startInitialize`; `primaryDurationUs`, `cleanupDurationUs` text per G11-19 |
+| `docs/prompts/8-operation-contracts.md`, completed stage reports, `docs/library-comparison.md` | Do not edit: they are history |
 
 ## 7. Prompt corrections
 
@@ -407,15 +674,17 @@ update `test/test_operation_timing.py`, ENG, CONV and every prompt that repeats 
 
 - **G1-2** S2 [A] (also **G2-9**, **G11-10**) P15 never mentions VOD_CFG3, though LEDGER `initialize_10base`, COV:40
   and AC:1400-1401 put it there; P17:42 and P18:41 reimplement it. **Fix (D6):** add to P15: "Mandatory step, one
-  vendor batch `W(0D,001F) W(0E,030E) W(0D,401F) W(0E,4A40)`, then verify stable mask `0xFFC0`. Prompt 16 replays it after
-  hard reset; PCS reset and restart verify only. Prompts 17, 18 and 22 reuse this procedure." Replace ARCH:239-241 with a
+  vendor batch `W(0D,001F) W(0E,030E) W(0D,401F) W(0E,4A40)`, then verify stable mask `0xFFC0`, for every ResetKind. There is no verify-only path, because VOD_CFG3 resets to `0x8400` and
+  PCS reset is the default boot path. Prompts 17, 18 and 22 reuse this procedure." Replace ARCH:239-241 with a
   pointer to DB.
 - **G1-8** S3 [A] P15:69-70 "before RCSR or other mutation" implies init writes RCSR, which has RC bits. **Fix:** "before
   any mutation. Initialization does not write RCSR; interface control belongs to prompt 33."
 - **G1-13** S3 [I] P15:67 has two readings: `W(00,8000)` or read then write. **Fix:** "Single `W(00,8000)`, no preceding
   read; desired fields are replayed after." Same for `W(1F,8000)` and `W(1F,4000)` in P16.
-- **G1-14** S3 [A] P15:26-28's list omits the only escape from failed cleanup. **Fix:** add the acknowledge call from
-  G11-3, `invalidateDeviceState` and `isInitialized`.
+- **G1-14** S3 [L] P15:26-28's list omits the only escape from failed cleanup. **Fix:** replace it with:
+  "Implement `startInitialize` with reset kinds NONE and PCS, `pollOperation`, `takeResult`, `cancel`,
+  `operationSnapshot`, `abandonCleanup`, `invalidateDeviceState` and `isInitialized`, per the operation rules in AC."
+  Change P15:50-52 to the OP-9 barrier and delete P15's "reserved/separately admitted" wording.
 - **G1-11** S3 [A] P15:71-72 and P16:68-69 understate timing. Figure 7-1's T4 starts at the end of the VDDA3V3 ramp, and
   T1 to T3 can add up to 300 ms before it. **Fix:** "at least 50 ms after both supplies reach final level (end of T3)
   before SMI; a clock late relative to the power ramp requires an additional RESET_N pulse, released at least 100 us after
@@ -431,8 +700,8 @@ update `test/test_operation_timing.py`, ENG, CONV and every prompt that repeats 
   via `nextPollAtUs`, reserved at admission, then poll `0x1F` mask `0x8000`. 2 ms is a minimum silence, not a completion
   maximum; no sourced maximum exists. Restart `0x4000` and BMCR reset have no such window. Core cannot stop other PHYs: the
   lifecycle guide requires the shared-bus owner to withhold frames for the same window. Test no frame before due with a 1000
-  us interval." Update AC:1392-1393, ENG:71, LEDGER `hard_reset.waits` and `calibration_recovery`. The EEE recipe's leading
-  `001F=8000` needs the same floor.
+  us interval." Update AC:1392-1393, ENG:71, LEDGER `hard_reset.waits` and `calibration_recovery`. The floor starts on any attempted write and covers
+  every frame source (OP-14). The EEE recipe's leading `001F=8000` and SNLA266B's compliance recipes need the same floor.
 - **G1-10** S3 [L] P16:25-28, DB:64 and gate `hard_reset_straps`: 8.4.1 says straps are "sampled at power up or hard reset",
   table 8-47 names `Hard Reset (Reg 0x1F[15])` and table 8-48 equates it to the pin. Only SNLA423A calls BMCR[15] "hard
   reset". **Fix:** "PHYRCR hard reset: eligible straps resampled per 8.4.1 with 8-47/8-48; ENHANCED Strap1 and Strap6 not
@@ -499,9 +768,11 @@ update `test/test_operation_timing.py`, ENG, CONV and every prompt that repeats 
 
 #### Prompt 22
 
-- **G2-15** S3 [A] P22:41-42 "Select required verify/reapply/reset steps" reads as auto-escalation. **Fix:** "Options select the steps; the driver never
-  escalates. Verify performs no mutation, reapply performs no reset. Insufficient evidence gives an untrusted result, not a stronger action."
-
+- **G2-15** S3 [L] P22:16 and :41-42 "Select required verify/reapply/reset steps" reads as auto-escalation, and
+  P22:49-52 describes a deferred cleanup allowance. **Fix:** P22:16 becomes "`startVerify` and reconciliation through
+  the existing `startInitialize` procedures". P22:41-42 becomes "Options select the steps; the driver never escalates.
+  `startVerify` performs no mutation; `reset=NONE` performs no reset. Insufficient evidence gives an untrusted result, not
+  a stronger action." P22:49-52 becomes OP-9.
 #### Prompt 23
 
 - **G3-3** S2 [I] P23:31, :41-43 and P24:29-30: SNLA423A pp18 and 20 add `0x001F=0x4000` after reverse and analog selection, and SNLA423A 2.5.3 adds
@@ -589,7 +860,7 @@ update `test/test_operation_timing.py`, ENG, CONV and every prompt that repeats 
   0 to stop", and "responsibility of enabling and disabling LPI signaling lies on the Host Controller". The part has no LPI wait, readiness event or session bound, and a session would block link polling for
   the whole dwell. "TX-inhibit" is wrong: the PHY transmits LPI, and MAC frames are not buffered. **Fix:** rename "forced TX LPI control". `startLpi()` and `stopLpi()` are independent bounded operations, each
   one `0x04D1` bit-12 RMW with stable readback: after the recipe `0x008B` to `0x108B` to `0x008B`, generally mask `0x1000`. Cached state `forcedLpi {OFF, REQUESTED, UNCERTAIN}`. The application owns dwell, MAC
-  drain and post-exit delay; 36 us is nominal. Failure leaves UNCERTAIN, reported as "forced LPI may remain active; frames sent now can be lost". Reject below 100 Mbit/s or without qualified EEE/link evidence.
+  drain and post-exit delay; 36 us is nominal. Failure leaves UNCERTAIN, reported as "forced LPI may remain active; frames sent now can be lost". Reject below 100 Mbit/s or without qualified EEE/link evidence. It is a session under OP-9, so the barrier blocks other work while it is active.
 - **G4-8** S3 [A] P30:23-24: 825 table 7-92 says bit 12 "shall be set after setting bits [14:13]"; 826 mentions bit 12 only. **Fix:** "Implement bit 12 only per 8.3.4. Do not import [14:13]. Prompt 73 observes
   LPI after `0x108B`; failure records this comparison as the next question."
 
@@ -806,7 +1077,7 @@ These extend prompts 72-73. They need identified authorized fixtures; none has r
 
 ## 9. Coverage and limits
 
-**Count: 172 findings from 13 scoped auditors plus one lead finding (M-1). Five distinct S1s remain once G11-1 is merged into G6-1.** Duplicates are merged above, and every id appears in this document. Of the catalogue entries, 49 are marked [L], 89 [A] and 18 [I]. All five S1s are [L].
+**Count: 172 findings from 13 scoped auditors plus one lead finding (M-1). Five distinct S1s remain once G11-1 is merged into G6-1.** Duplicates are merged above, and every id appears in this document. Of the catalogue entries, 60 are marked [L], 79 [A] and 17 [I]. All five S1s are [L]. The target contract's own independent review added R-1 to R-18, tagged in section 6.3.
 
 **Read completely and compared with primary sources:** prompts 13-80, the shared contracts, AC, DD, ARCH, the ledger, the catalogues and all shipped code. All 80 prompts have working links and anchors; prerequisite references never point forward, though some omit stages (G5-11). 21 prompts use a "Required inputs" sentence instead of a prerequisite line, which is a format difference, not a defect.
 
@@ -831,3 +1102,80 @@ These extend prompts 72-73. They need identified authorized fixtures; none has r
 - Many table cells for the A, 825 and 822 parts were read from text extracts, as marked by [A]. The lead re-read the [L] items only.
 - TI E2E threads 924830 and 792015 returned HTTP 403; TI errata were not searched again. A full 825 versus 826 field comparison belongs to prompt 60.
 - Behaviour of sibling code beyond existence of the named symbols.
+
+## 10. Per-prompt index
+
+Before executing a prompt, apply its findings if WP3 to WP7 have not already done so. This table is generated from direct prompt
+references in the catalogue. Cross-cutting items apply to every prompt: G11-17, G13-3, the COMMON cleanup glossary, and the
+ledger owner table in section 5. "Cross-cutting only" means no finding targets that prompt's text; it does not mean the prompt was skipped.
+
+| Prompt | Findings |
+| --- | --- |
+| 13 | G1-1, G1-4, G1-5 |
+| 14 | G1-6 |
+| 15 | M-1, G1-2, G1-8, G1-11, G1-13, G1-14, G11-2, G11-20, G11-22, OP rules |
+| 16 | G1-3, G1-7, G1-10, G1-11, G1-13, G11-22, OP rules |
+| 17 | G1-2, G2-2, G2-7, G2-8 |
+| 18 | G1-2, G2-4, G2-5, G2-6, G2-10, G2-16 |
+| 19 | G1-1, G2-1, G2-5, G2-11, G11-22 |
+| 20 | G2-12 |
+| 21 | G11-22 |
+| 22 | G2-15, G2-16, OP rules |
+| 23 | G2-16, G3-3, G13-3, OP rules |
+| 24 | G3-3, OP rules |
+| 25 | M-1, G3-1, G3-2, G3-5, OP rules |
+| 26 | G3-5, G3-6 |
+| 27 | G3-4, G3-8 |
+| 28 | G4-4, G4-7, OP rules |
+| 29 | G4-1 |
+| 30 | G4-2, G4-8, OP rules |
+| 31 | G4-3, G4-5, G4-6 |
+| 32 | G5-7, G5-10, G8-3 |
+| 33 | G5-11, G13-3 |
+| 34 | G5-2, G5-4, G5-5, G5-11, G13-3 |
+| 35 | G5-1, G5-6, G5-8, G5-9, G5-11, OP rules |
+| 36 | G4-1, G5-11, G10-11 |
+| 37 | G6-1, G6-2, G6-4, G6-5, G6-9, G10-1 |
+| 38 | G6-2, G6-5, G6-11 |
+| 39 | G6-9, G6-10, G6-12 |
+| 40 | G6-2, G6-7 |
+| 41 | M-1 |
+| 42 | G6-2, G6-6, G6-8 |
+| 43 | G7-2, G7-3, G7-5, G7-7, G7-12 |
+| 44 | G7-1, G7-6, G7-8, G7-13 |
+| 45 | OP rules |
+| 46 | G7-6, G7-8 |
+| 47 | G7-2, G7-5, G7-6, G7-14 |
+| 48 | G7-3, G7-4, G7-5, G7-12 |
+| 49 | G7-9, G7-14 |
+| 50 | G7-5, G7-10, G7-14 |
+| 51 | G7-5, G7-10 |
+| 52 | G7-10 |
+| 53 | G7-6, G7-13, G10-11 |
+| 54 | G7-13 |
+| 55 | G7-6, G10-11 |
+| 56 | G8-1, G8-2 |
+| 57 | G8-3, G8-9 |
+| 58 | G8-2 |
+| 59 | G4-5, G8-3 |
+| 60 | G8-2, G8-5, G8-6, G8-7, G8-12 |
+| 61 | G8-4, G8-6, G8-7, G8-8 |
+| 62 | G9-3, G9-7, G9-15, G9-17 |
+| 63 | G9-3 |
+| 64 | G9-6, G9-13, G9-15 |
+| 65 | G9-1, G9-2, G9-14, G9-16, G9-17, G9-18 |
+| 66 | G9-11, G9-12, G9-14 |
+| 67 | G9-4, G9-7 |
+| 68 | M-1, G10-9, G10-10 |
+| 69 | G10-3, G10-5, G10-6, G10-7, G10-14 |
+| 70 | G10-4, G10-14 |
+| 71 | G10-2, G10-14 |
+| 72 | G10-7, G10-12 |
+| 73 | G10-12 |
+| 74 | Cross-cutting only |
+| 75 | G10-11 |
+| 76 | Cross-cutting only |
+| 77 | G10-4 |
+| 78 | G10-11 |
+| 79 | G10-11, OP rules |
+| 80 | G10-11, G10-12 |
