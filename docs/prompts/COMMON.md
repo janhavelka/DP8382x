@@ -110,3 +110,11 @@ outputs and required checks exist. Keep unavailable fixtures and essential
 source/tool dependencies explicit; the entire set is complete only when all
 required gates close. Hardware operation, sibling edits and publication require
 their own authorized task scope.
+
+## Apply the remaining-prompts audit
+
+[REMAINING_PROMPTS_AUDIT](REMAINING_PROMPTS_AUDIT.md) lists ordered corrections
+to prompts 13-80, the shared contracts and the shipped code. Apply its work
+packages before prompt 13, following its section 2, and check its per-prompt
+index before each stage. A prompt not yet corrected still carries the defects
+listed there.
