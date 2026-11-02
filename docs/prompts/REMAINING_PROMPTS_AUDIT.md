@@ -3,8 +3,9 @@
 Date: 2026-11-02. Baseline commit: `e105af6`, branch
 `promptset/dp8382x-implementation-20261028`. Re-audited finding by finding the same day; the
 record is in [section 11](#11-re-audit-record). Prompts 1-12 are complete; 13-80
-have not run. This audit changes no prompt, contract, ledger or code. It tells the
-coder what to change, in which order, before executing prompt 13.
+have not run. Apart from links to this file in COMMON and the prompt index, no prompt,
+contract, ledger or code has been changed yet. This audit tells the coder what to change,
+in which order, before executing prompt 13.
 
 **The owner delegated every open choice to this audit on 2026-11-02.** The decisions in
 [section 3](#3-decisions-final) are final; apply them without asking again. Reopen one only if
@@ -1010,6 +1011,8 @@ CONFIGURE at 17-18; VERIFY at 22.
 ## 8. Physical qualification cases to add
 
 These extend prompts 72-73. They need identified authorized fixtures; none has run. Each protects a decision above.
+
+**No physical board is expected for a long time (owner, 2026-11-02).** No software stage waits for a case below. Implement prompts 13-71 and 74-80 from the decisions in section 3, keep each case NOT RUN, and keep its claim marked source-implied or unmeasured. At 72-73 finish the readiness work and case inventory, leave the physical gate BLOCKED/NOT RUN (P72:65-68, P73:65-66) and continue. The set then ends PARTIAL, not COMPLETE (P80:40-41, G10-12). A missing board does not excuse the other layers: SDK link checks still run (G10-1), and so do host-driver tests (G6-2). When a board arrives, re-check its netlist, its pins and the pinned SDK revision before admitting it, because these records may be old by then.
 
 | Case | What to observe | Protects |
 | --- | --- | --- |

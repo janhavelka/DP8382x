@@ -59,6 +59,7 @@ blocked dependencies, collaboration and handoff. Root AGENTS owns Git/CI policy.
 | [VERIFICATION](VERIFICATION.md) | Host, SDK, package, CI and physical checks |
 | [SOURCE_MAP](SOURCE_MAP.md) | Relevant sibling and primary technical source locations |
 | [COVERAGE](COVERAGE.md) | Requirement-to-stage ownership and acceptance |
+| [REMAINING_PROMPTS_AUDIT](REMAINING_PROMPTS_AUDIT.md) | Ordered corrections to apply before prompt 13, final decisions and a per-prompt index |
 
 Use the [public-library catalogues](../reference/library-evidence.md) for concrete
 register, timing and procedure inputs, verifying adopted facts under EVIDENCE.
