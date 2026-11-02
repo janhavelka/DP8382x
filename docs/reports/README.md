@@ -60,6 +60,10 @@ The [prompt 12 report](implementation/12-atomic-mmd.md) records complete atomic
 MMD batches, the independently derived five-frame RMW, canonical alias policy,
 phase-failure/exclusion regressions and current source review.
 
+The [remaining-prompts audit](remaining-prompts-audit.md) of 2026-11-02 reviews
+prompts 13-80, the shared contracts and the shipped code against primary sources.
+It lists ordered corrections to apply before prompt 13; it changes no status.
+
 - [Sibling drivers](sibling-driver-audit.md): primary driver source audit and
   broader inventory, naming, ownership, Status/health, CLI, runners, tests and CI.
 - [FieldCore conventions](fieldcore-conventions-audit.md): actual promptset,
