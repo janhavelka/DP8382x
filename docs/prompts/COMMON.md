@@ -8,6 +8,23 @@ numbered prompt. Use [CONVENTIONS](CONVENTIONS.md) for names and layout,
 [CLI_CONTRACT](CLI_CONTRACT.md) and [SOURCE_MAP](SOURCE_MAP.md) for the work
 being changed. These shared requirements accompany every numbered prompt.
 
+Authority for facts is the exact-part datasheet, then the ledger; shipped headers
+define the shipped API, followed by [API contracts](../api-contracts.md), design
+decisions, ENGINEERING/CONVENTIONS and architecture (overview). The recorded D3
+TDR recipe selection is the explicit exception. Direct user instructions take
+precedence over repository planning instructions.
+Stages 13-36, 43-47, 53-70 and 76 read API contracts. Stages 37-42 read design
+decisions sections 2-7 and the operation contract. Stage 43 onward reads CLI.
+At stage N, implement every ledger procedure with `owner.implementationStage == N`
+and list those procedure IDs at entry.
+
+For prompts 13-80 and ledger text, cleanup means the OP-9 barrier and a later
+restoration operation; primary/cleanup statuses are two separate results. A
+stimulus retained across owner decisions uses two operations with separate budgets;
+duration is application policy. A self-contained test may use one operation that
+must stop and restore before success. Transport lock release remains part of each
+terminal callback and retains its separate release status.
+
 ## Start
 
 1. Inspect branch, upstream, staged/working changes, predecessor outputs and

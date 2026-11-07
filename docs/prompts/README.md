@@ -3,7 +3,7 @@
 Execute these **80 ordered prompts** to build a framework-independent C++17
 Ethernet PHY library and native ESP-IDF adapter. Start with DP83826I/DP83826IRHBR
 and ESP32-P4, then qualify DP83826E, DP83826AI/AE, DP83825I and DP83822I/H/IF/HF.
-All stages are currently **NOT STARTED**.
+Current completion is recorded in [implementation progress](../implementation-progress.md).
 
 Implement each exact part's complete publicly documented software-accessible
 feature set. Keep generic 10/100 operation and supported duplex modes available.
@@ -175,5 +175,5 @@ focused gaps; substantial missing features return to their owning prompt.
 Tests and documentation accompany each behavior. Prompts 36, 53-55 and 74-80
 review completeness and integration; they do not supply the first tests or
 Doxygen for earlier code. The [progress record](../implementation-progress.md)
-starts all 80 prompts as NOT STARTED. Preparing this set does not implement or
-qualify the driver.
+records completed and remaining stages. Editing prompts alone does not implement
+or qualify the driver.

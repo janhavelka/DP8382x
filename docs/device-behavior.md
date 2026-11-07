@@ -98,9 +98,11 @@ timing onto MDIO-issued reset/power commands with different ledger procedures.
 
 ## Initialization and link configuration
 
-Apply the exact VOD_CFG3 recipe before permitting 10BASE-Te, including through
-advertisement. Reapply after a full reset; PCS reset and circuitry restart retain
-vendor register state according to their stated domains. Readback and trust must
+Every `startInitialize`, for every reset kind, writes and verifies the exact
+VOD_CFG3 recipe. This unconditional library policy covers later 10BASE-Te use,
+including advertisement. POR, pin and PHYRCR hard reset lose the setting; PCS
+reset and circuitry restart retain it, but initialization repeats the write.
+Readback and trust must
 still reflect external/raw mutations. Table 8-81 marks both termination-value
 fields and their enables read/write, consistent with the required initialization.
 Reserved bits still cannot be tuned arbitrarily. Other analog-control procedures

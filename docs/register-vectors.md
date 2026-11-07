@@ -198,9 +198,10 @@ driver or hardware evidence. See the [diagnostic review](reports/implementation/
 and [event review](reports/implementation/4-event-source-review.md) for original
 table locations, complete access/reset partitions and conflicts.
 
-- Table 8-19's forced full-duplex MII loopback examples are BMCR `0x6100` at
+- Composed from table 8-19, the forced full-duplex MII loopback vectors are BMCR `0x6100` at
   100 Mbit/s with BISCR selection `0x04`, and BMCR `0x4100` at 10 Mbit/s with
-  selection `0x01`. The generic bit-2 sentence cannot override the latter.
+  selection `0x01`. These words are not printed examples; duplex is the test's
+  choice. The generic bit-2 sentence cannot override the latter.
   BISCR loopback selection accepts `0,1,2,4,8,0x10`; combinations such as `3`
   are not independent enable flags. The 10-Mbit path still requires VOD setup.
 - Section 8.3.14.4's ordered digital sequence is `0000=2100`, `0016=0104`,

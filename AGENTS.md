@@ -51,6 +51,13 @@ Current runnable checks are `python tools/verify_references.py`,
 Ledger tests validate research records, not executing PHY behavior. Introduce
 implementation commands with their working code.
 
+Portable checks: configure/build with `cmake -S . -B build/host -G Ninja
+-DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON`, then `cmake --build build/host`
+and `ctest --test-dir build/host --output-on-failure --no-tests=error`.
+Build `test/consumer` separately with tests OFF and run its registered CTest.
+Also run `python tools/check_doxygen.py` and
+`python scripts/generate_version.py check`.
+
 For the **first implementation execution**, remote CI dispatch, run-status
 checking and waiting belong to **prompt 71 only**. Prompts 1-70 and 72-80 use
 focused local verification, including applicable SDK/package builds. This is the
