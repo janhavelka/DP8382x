@@ -14,9 +14,6 @@ inline DP8382x::Status readIdentityWord(const DP8382x::Config& config,
   if (!status.ok()) { return status; }
   uint16_t word = 0;
   status = phy.readClause22(DP8382x::cmd::REG_PHYIDR1, word, budget);
-  // Copy this receipt before end if the application's diagnostics need it.
-  const auto receipt = phy.transportSnapshot();
-  (void)receipt;
   const auto detach = phy.end(); // Local only; backend faults still belong to owner.
   if (!status.ok()) { return status; }
   if (!detach.ok()) { return detach; }

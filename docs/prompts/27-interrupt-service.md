@@ -68,6 +68,18 @@ connected IRQ. Document polling equivalence, application ISR/lifetime ownership,
 source acknowledgement semantics and physical fixture limits. Pin electrical
 qualification is separate from the host tests and register-level software test.
 
+Own PHYSCR[3,1,0] and pin-conflict validation; prompt 32 owns LED1/LED2 mux=4
+writes, while LED0/LED3 mux remain read-only. OE semantics apply only in ENHANCED;
+in BASIC report strap-selected pin role, not OE=0 as power-down. ENHANCED OE1->0
+requires declared board compatibility because low on the pin means power-down.
+
+Service always reads MISR1 and MISR2 regardless of PHYSTS[7]. Return
+`morePossiblyPending` if either event byte is nonzero or the budget ended. The
+owner schedules another bounded pass/poll without relying on a new edge;
+document level-sensitive or pin-sampling wiring. Half-full events request
+FCSCR/RECR through the same collector. Empty MISRs while test is set are stimulus,
+not error and not a reason to loop. Q9 measures latching/pin behavior.
+
 ## Documentation, verification and checkpoint
 
 Update public Doxygen, procedure citations, affected API/user/test/tool guides,

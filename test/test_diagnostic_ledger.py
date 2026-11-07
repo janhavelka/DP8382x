@@ -253,9 +253,9 @@ class DiagnosticLedgerTests(unittest.TestCase):
         # actions. Whole-word digital recipe changes more than the loop selector.
         expected = {
             'configure_fast_drop': {('CR3', 0x040F), ('FLD_CFG1', 0xFFF0), ('FLD_CFG2', 0x003F)},
-            'loopback_near': {('BMCR', 0x7100), ('BISCR', 0x005F)},
+            'loopback_near': {('BMCR', 0x7100), ('BISCR', 0x005F), ('CR1', 0x0020), ('PHYCR', 0xC000), ('PHYRCR', 0x4000)},
             'loopback_digital': {('BMCR', 0x7D80), ('BISCR', 0x705F), ('PHYRCR', 0x4000)},
-            'loopback_reverse': {('BMCR', 0x4000), ('BISCR', 0x005F), ('PHYSCR', 0x0300)},
+            'loopback_reverse': {('BMCR', 0x4000), ('BISCR', 0x005F), ('PHYSCR', 0x0300), ('PHYRCR', 0x4000)},
             'loopback_external': {('BMCR', 0x4000), ('BISCR', 0x005F)},
             'bist_run': {('BISCR', 0x7000), ('BICSR1', 0x00FF), ('BICSR2', 0x07FF)},
             'bist_capture': {('BICSR1', 0x00FF)},
@@ -281,6 +281,40 @@ class DiagnosticLedgerTests(unittest.TestCase):
                 self.data = copy.deepcopy(original)
                 next(a for a in self.data['writeActions'] if a['id'] == aid)['gates'] = []
                 self.rejected_file('write action must retain its evidence gate')
+
+
+    def test_snla428_independent_six_run_matrix(self):
+        # Original SNLA428 table2-1 p3, not production/ledger-generated values.
+        expected = [
+            [0x5C12, 0x5C12, 0x5C22, 0x5E32, 0x5E42, 0x5E52],
+            [0x0D00, 0x0D0C, 0x0D13, 0x1A20, 0x343A, 0x8F6E],
+            [0x1007, 0x1007, 0x1007, 0x1007, 0x100A, 0x100D],
+            [2, 2, 2, 2, 2, 6],
+            [0x1FA0, 0x1FA0, 0x1FA0, 0x1FA0, 0x1FA0, 0x1F90],
+            [0x0813, 0x0813, 0x0813, 0x0815, 0x0816, 0x0816],
+            [0x0608] * 6, [0x8102] * 6]
+        self.assertEqual([[int(v, 16) for v in row]
+                          for row in self.data['tdrRecipe']['words']], expected)
+        # Table2-5 p6: first qualifying row in scan order is segment5.
+        samples = [(0, 0, 0), (0, 0, 0), (0, 0, 0),
+                   (0x78, 0x11, 0), (0x0C, 0x06, 0x0800), (0x06, 0x44, 0)]
+        selected = next((i, row) for i, row in enumerate(samples)
+                        if row[1] & 0x7F > (10 if i < 4 else 24))
+        self.assertEqual(selected[0], 3)
+        self.assertEqual(selected[1][2], 0)  # Whole word zero: source-implied open.
+        self.assertAlmostEqual(abs(((selected[1][0] & 0xFF) - 5) * 8 / (2 * 4.6)),
+                               100.0, delta=1e-9)
+        self.assertEqual((0x0008 & ~0x0600) | 0x0600, 0x0608)
+        self.assertEqual((0x0000 & ~0x0600) | 0x0600, 0x0600)
+
+    def test_tdr_recipe_rejects_missing_order_gate_and_rows(self):
+        original = copy.deepcopy(self.data)
+        for key, value in [('runs', ['1A']), ('writeOrder', []), ('words', []),
+                           ('gates', ['tdr_recipe'])]:
+            with self.subTest(key=key):
+                self.data = copy.deepcopy(original)
+                self.data['tdrRecipe'][key] = value
+                self.rejected_file('tdrRecipe')
 
 
 if __name__ == '__main__':

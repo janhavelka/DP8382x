@@ -24,12 +24,17 @@ and `probe()`; inspect PCA9555
 `test_address_scan_is_not_identity_proof` plus registration.
 An I2C ACK or plausible configuration is not an MDIO identity oracle.
 
-Implement `DeviceIdentity`, live `readIdentity` and passive capability
-queries under the frozen contracts. Preserve raw IDs, decoded model/revision and
-observed BASIC/ENHANCED mode with explicit validity. Reopen SNLS647I PHYID/mode/
-strap tables. Shared IDs cannot identify ordering suffix or temperature grade;
-the application declares the exact part. Accept revisions only through the
-documented policy, not an unqualified vendor literal or broad OUI match.
+Implement `DeviceIdentity` and these concrete contracts:
+`Status readIdentity(DeviceIdentity&, const IoBudget&) noexcept`,
+`DeviceIdentity identitySnapshot() const noexcept`, and
+`Capabilities capabilities() const noexcept`. `readIdentity` requires binding,
+uses one two-frame C22 batch, and leaves ordinary output unchanged unless complete
+and accepted. It is admitted as a raw read under OP-14, including rejection in a
+reset wait or hard-reset floor. The passive snapshot retains partial/rejected
+words and their validity flags; capabilities remain invalid until identity is
+accepted. Preserve model/revision and BASIC/ENHANCED evidence separately from the
+application-declared suffix. Use the exact-part accepted-revision table, not a
+broad OUI match or a configurable one-value revision policy.
 
 Stage ordinary output until the identity is complete. Preserve partial read
 diagnostics without presenting them as usable identity. Successfully read wrong

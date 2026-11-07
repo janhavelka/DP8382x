@@ -22,19 +22,17 @@ semantics.
 
 ## Source requirements and regression vectors
 
-Apply [SDK timing/notification evidence](../reference/library-sdk.md) and
-[EVIDENCE](EVIDENCE.md). Account for 100 us MAC polling increments up to
-nominal 1000 us, 10 ms reset polling, 100 ms AN polling and default 2000 ms
-link polling. The separate 100 ms MAC mutex does not serialize MDIO. Four
-nominal frame loops are not a 4 ms wall-clock guarantee. Verify the 2 ms reset
-interval from release with coarse ticks, including 100 Hz quantization.
-Distinguish finite instruction counts, scheduling assumptions, silicon limits
-and measured wall time.
+Apply [SDK timing/notification evidence](../reference/library-sdk.md).
+Base reset/AN loops do not run. Bounds include 100 us MAC polling steps to nominal
+1000 us/frame, MAC-init reset polling in 10 ms steps to sw_reset_timeout_ms,
+mac->stop up to 2500 us busy-wait, owner polls and check_link_period_ms.
+The separate 100 ms MAC mutex does not serialize MDIO. State scheduling assumptions;
+nominal loop counts do not prove wall time. Check 2 ms readiness at 100 Hz ticks.
 
 ## Implement
 
 Complete a method-by-method conformance table covering every selected
-`esp_eth_phy_t`/base entry, executing owner, complete transaction, callback
+`esp_eth_phy_t` entry, executing owner, complete transaction, callback
 lifetime, side effects, errors, notification and worst supported blocking
 bound. Close confirmed defects in owning code with focused regressions. Do not
 create a second implementation to make tests pass or defer essential running
@@ -70,10 +68,18 @@ claims; do not replace the controller with a successful mock or advertise a
 guessed minimum/tested SDK range. Avoid private fragile APIs without a narrow
 justified version contract and real tests.
 
+For the pinned P4 MAC, set_link cannot fail: after on_state_changed(LINK,x)
+returns, record published=x and never replay it. An error with valid argument
+sets eventLost and the owner may re-post. For another MAC, including instrumented
+tests, a notification error means publication uncertain and requires stop.
+The factory selects this policy; the mixed error code cannot distinguish it.
+Reject forced100/half plus extendedFullDuplex before mutation because the adapter
+cannot publish a resolved tuple. Keep PHY entry conformance free of base methods.
+
 ## Acceptance
 
 Run notification/flow-control tests, callback error injection,
-start/stop/delete lifetimes and actual raw/base ownership regressions.
+start/stop/delete lifetimes and actual raw/typed ownership regressions.
 Build/link the real P4 fixture, rebuild the portable consumer and record
 actual SDK/tool versions. Separate host contract tests, SDK link and physical
 timing; missing SDK access remains BLOCKED.

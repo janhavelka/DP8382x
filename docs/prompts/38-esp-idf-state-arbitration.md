@@ -46,41 +46,32 @@ finite deadlines and uncertain-write rules. A correctly locked write cannot
 certify a stale `auto_nego_en` cache. Preserve exact legal forced/advertised
 modes and general 10/100 support, keeping application policy separate.
 
-Standard raw ioctls reach the mediator outside PHY methods. Enforce
-arbitration and invalidation through supported `esp_eth_config_t` custom
-register callbacks, with an executable rejection path for unadmitted access
-and a documented owner-routed raw API. A documented caller prohibition alone
-is insufficient. Validate direct read/write address and value widths,
-including C22 `0x0D/0x0E`; selector/data registers cannot be used to bypass
-complete MMD ownership. Route latch/read-clear reads through the collector.
-Test actual SDK raw ioctls, including calls from the current owner task
-without transaction admission. The per-frame `read_phy_reg`/`write_phy_reg`
-hooks forward to MAC methods without recursive ioctl/mediator calls. Whole MMD
-and required RMW ownership surrounds them; per-frame locking alone is
-insufficient.
+Raw ioctls reach the mediator outside PHY methods. Both hooks reject
+unconditionally with ESP_ERR_NOT_SUPPORTED, even on the owner task. The typed
+owner raw route calls core validation and MAC frame methods inside one batch
+scope. Test real ioctl zero-frame rejection, selector/alias protection,
+collector ownership and no recursive locking.
 
-Cover public setters beyond raw BMCR: PHY address, loopback and flow-control
-controls must obey the same admission and invalidation policy. Flow-control
-control can change the MAC before PHY advertisement fails; retain both effects
-and require reconciliation. Expose these controls through the application
-owner and document the contract for any exposed raw SDK handle. A PHY callback
-cannot prevent a preceding MAC-side mutation; do not promise blanket
-zero-effect rejection for arbitrary control ioctls. Keep this limitation
-separate from the raw-register hook's enforceable transfer admission. Guard
-PHY-address changes against pending operations and another instance's address;
-do not silently retarget borrowed core state.
+Control ioctls obey application admission. Flow-control can mutate the MAC
+before PHY advertisement fails, so retain both effects and reconcile explicitly;
+there is no blanket zero-effect promise for arbitrary control ioctls.
+set_addr returns OK for the current value only, otherwise NOT_SUPPORTED.
+Changing address requires delete/recreate, without a per-PHY registry.
 
-Audit the flow-control argument contract: this pinned SDK documents `bool*`
-but reads the same data as `uint32_t*` for PHY advertisement. Use a verified SDK
-correction or the supported owner path with correctly typed MAC and PHY method
-calls; preserve both operations' effects and errors. Test argument width/alignment
-and avoid passing a small Boolean object through the defective path.
+The pinned flow-control ioctl documents bool* but reads uint32_t* for PHY
+advertisement. Use the supported owner path with separately correctly typed MAC
+and PHY calls, preserving both results/effects. Test width/alignment and never
+pass a small Boolean through the defective ioctl.
 
 Apply one lock order across base operations, application, CLI and second-PHY
 entrants. Distinguish long-operation admission from controller ownership,
 never holding the controller across waits or future polls. Bound acquisition
 and aggregate sequences with the SDK limitations established in task 37.
 Preserve write uncertainty, partial configuration and primary/cleanup detail.
+
+Run failures against prompt 37's hash-checked real esp_eth.c host target, then
+link the P4 fixture. Header fakes alone are not SDK link evidence; host-driver
+execution remains explicitly host evidence.
 
 ## Acceptance
 

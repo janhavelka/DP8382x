@@ -13,13 +13,11 @@ unrelated open gates under COMMON.
 
 ## Scope, current evidence and work
 
-Deliver complete exact-part loopback configuration and finite owner-driven
-sessions, including stop and verified restoration. Persistent configured
-loopback and a finite diagnostic session need distinct semantics. A persistent
-setting remains explicitly owned until disabled; its lifetime is not an unfinished
-operation token. A finite session must include disable and verified restoration. Extend the
-existing operation/result mechanism and cohesive diagnostic source; no new
-scheduler or autonomous maintenance worker.
+Deliver exact-part loopback as two-call sessions under OP-9: bounded start and
+stop operations, application-owned dwell, and verified stop/restoration. A
+self-contained counted diagnostic may be one operation only if it stops and
+restores before success. The operation slot is not held for an application-chosen
+dwell; the temporary-state barrier protects it. Extend existing diagnostics.
 
 Revalidate the [TI loopback facts](../reference/library-ti-features.md#loopback-and-bist-anchors)
 against SNLS647I tables 8-19/8-40 and current source. BISCR `0x0016[4:0]`
@@ -53,19 +51,16 @@ Use the detailed speed-specific definition absent stronger exact-part evidence,
 record the conflict and test both independent literal vectors. Do not copy the
 100-Mbit recipe into the 10-Mbit path or block all loopback modes.
 
-Validate capability, mode, interface, maintenance admission and finite-session
-bounds before I/O. Capture only required owned state and explicitly handle/reject
-an untrusted starting profile. Start, wait/acquire where applicable, stop and
-verify-restore use one operation slot and aggregate deadline; release the bus
-lock between polls. Persistent configuration extends reset/recover ownership.
-No implicit loopback activation during initialization, passive status or recovery
-except replay of explicitly requested persistent settings.
+Validate capability, speed/interface, maintenance and each call's budget before
+I/O. Capture owned state and reject untrusted prerequisites. Start and stop each
+use the operation contract; session acquisition remains admitted under OP-9.
+Failure/cancellation leaves temporary state and cleanup obligation. No implicit
+loopback activation occurs in initialization or passive observation.
 
-Cancel/timeout preserves accepted effects. Cleanup runs through later owner
-execution under its finite allowance; primary and cleanup statuses remain
-separate. A completed diagnostic with failed restore is not overall success.
-Report what internal PHY path was selected without claiming MAC-frame, cable or
-peer validation from a register write.
+Failure or timeout ends the operation immediately with its own result. The owner
+admits a later stop/restoration under OP-9; no automatic cleanup phase or hidden
+retry runs. Report the selected internal path without claiming MAC/cable/peer
+validation. A self-contained test cannot report overall success before restore.
 
 Test every supported mode/speed/interface with independent exact sequences,
 unsupported zero-I/O rejection and invalid prior state. Fail/cancel after every
@@ -73,6 +68,19 @@ mutation including stop and each restore/readback. Assert transaction bounds,
 stale-result protection, two sessions after consumption and unchanged unrelated
 state. Compile a maintenance-owner example and document the complete mode matrix,
 external fixture prerequisites and failed-restoration evidence.
+
+Record `loopback_recipe`: SNLA423A scripts on pages 18/20 add `001F=4000`
+after reverse/analog selection, unlike the datasheet and numbered note steps.
+Adopt restart for reverse and analog starts only, with bounded reverse relink;
+MII/PCS get none. The separately sourced digital companion recipe remains its
+explicit exception. Restart retains registers and creates no register-restore
+debt itself. Leave analog `030B=3380` unadopted because [11:6]=0E is outside
+the stated range; record inconclusive if BIST cannot lock.
+
+`loopback_reverse` temporarily owns PHYSCR[9:8] FIFO: save, set and restore;
+persistent `tx100_configure` belongs to prompt 34. Exit restores PHYCR[15:14]
+and CR1[5] from the profile, including manual MDIX. Test every restoration write
+failure and overlapping-field temporary overrides without replaying old traffic.
 
 ## Documentation, verification and checkpoint
 

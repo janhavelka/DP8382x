@@ -313,7 +313,7 @@ expected values from the JSON. These are research tests, not executing PHY code.
   `04A5=2B2A, 04A6=2D2C, 04A7=2F2E`.
   All-zero/all-FF credentials give zero/FFFF words, but only asymmetric
   literals expose a swapped mapping. No DP83822 callback is the oracle.
-- EEE printed sequence, preserving its unresolved namespace:
+- EEE original printed sequence (selected wire mapping recorded separately):
   `001F=8000,203C=0002,04D1=008B,04D3=4F12,04DF=0180,033E=A681,
   033F=0003,0123=0800,031B=8848,0466=FE00,04CF=261D,0416=1F30,
   04F5=2864,04E0=FFF2,031F=FE36,0308=0000,04F4=0800,0000=3300`.
@@ -321,10 +321,11 @@ expected values from the JSON. These are research tests, not executing PHY code.
   `0x0200`; owned mask is `0x7F80`, not just the set bits.
   EEECFG3 bypass bits are set with mask/value `0x0009/0x0009`;
   LPI start/stop uses `0x1000/0x1000` and `0x1000/0`.
-  These exact actions grant no generic read/snapshot permission.
-- MMD3 printed 1001/1014/1016 and MMD7 printed 203C/203D remain blocked,
-  with separately recorded roles and missing field/access evidence.
-  Guessed lower offsets 0001/0014/003C fail documented access policy.
+  Opaque recipe actions grant no generic read/snapshot permission; exact-part
+  EEECFG3 bits0/3/12 permit bounded masked control and readback.
+- D2 selects MMD3 wire 0001/0014/0016 and MMD7 wire 003C/003D as
+  source-implied, not physically qualified. Only 0014/003C/003D allow safe raw
+  reads; 0001/0016 belong to the collector. Reject high-prefix wire addresses.
   EEE sleep 210 us, wake 36 us, quiet 20 ms and refresh 200 us are all
   **NOM**, not MAX; no partner-ready deadline follows from them.
 - COMPT ordinary mask is `0x000F`; 10M codes 0..D are described and
@@ -332,8 +333,8 @@ expected values from the JSON. These are research tests, not executing PHY code.
   `0x0428[5]` into count 0..31; zero clears the shift register.
   Disable/enable actions touch only `0x0010`, count actions only
   `0x0020`, preserving DPD `0x0004` once composition is proved.
-  SNLA266B's exact 10M harmonic `COMPT=0x0013` is a whole-word
-  exception, not permission to write arbitrary reserved bits. Stop/reset
+  Table8-50 admits fourteen actions with mask `0x001F`, values `0x0010..0x001D`;
+  `0x0013` is SNLA266B's repeated-one example. Preserve bits15:5. Stop/reset
   must precede profile restore.
 
 Future host acceptance must reject unsupported pin/mode/code combinations with
@@ -343,3 +344,53 @@ Freeze the fake clock to prove count bounds independently of elapsed time.
 Unresolved source gates reject before unknown reads or mutation. Qualification
 requires identified peers, wiring, MDIO/clock traces and calibrated instruments;
 successful register reads or generated traffic alone are not physical evidence.
+
+## WP3 independent source regressions
+
+These literals were reopened from original PDFs; they are not generated from
+production constants or the ledger. Host arithmetic does not qualify silicon.
+
+- SNLS638C tables 7-99..103 and SNLS505H 7.4.2.9 support the selected EEE
+  inference: wire read `(7,003D)` is `0D=0007,0E=003D,0D=4007,read0E`.
+  Capability `(3,0014)` must equal whole word `0002`; `FFFF` must fail even
+  though bit1 is set. Advertisement `(7,003C)=0002` must read back `0002`.
+  These add eight frames to the 66-frame printed recipe floor: 74 before
+  reset polls/restoration. EEECFG3 LPI `008B -> 108B -> 008B` preserves bypass.
+- D4: AN-disabled BMCR `2100` with link up gives 100/full; `0100` gives10/full.
+  BMCR `2000` with CR2 extended bit known zero gives100/half. With extended
+  enabled or unverified, retain100, duplexUNKNOWN and mode invalid. Forced
+  pause remains invalid. Ordinary ANAR ownership is `0DFF`; next-page `8000`
+  is transient and clears on successful exchange without another restart.
+- SNLA423A reverse/analog scripts require `001F=4000`; MII/PCS do not.
+  Analog script `030B=3380` decodes low field `(3380 & 0FC0)>>6 = 0E`,
+  outside the detailed legal interval `28..38`; reject it.
+
+SNLA428 table2-1 p3, columns **1A, 1B, 2, 3, 4, 5**, in write order:
+
+| Address | 1A | 1B | 2 | 3 | 4 | 5 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0170 | 5C12 | 5C12 | 5C22 | 5E32 | 5E42 | 5E52 |
+| 0173 | 0D00 | 0D0C | 0D13 | 1A20 | 343A | 8F6E |
+| 0175 | 1007 | 1007 | 1007 | 1007 | 100A | 100D |
+| 0178 | 0002 | 0002 | 0002 | 0002 | 0002 | 0006 |
+| 0416 | 1FA0 | 1FA0 | 1FA0 | 1FA0 | 1FA0 | 1F90 |
+| 0411 | 0813 | 0813 | 0813 | 0815 | 0816 | 0816 |
+| 0456 | 0608 | 0608 | 0608 | 0608 | 0608 | 0608 |
+| 001E | 8102 | 8102 | 8102 | 8102 | 8102 | 8102 |
+
+Keep the different datasheet segment literals above; this is an explicit recipe
+selection, not a correction of those tables. GENCFG owns exception `0600`:
+old `0008 -> 0608`; old `0000 -> 0600` is inferred composition pending Q7.
+Never claim opaque 0411/0416 readback or inverse restoration.
+
+SNLA428 table2-5 p6 gives rows2/3/4 zero, row5 `(78,11,0000)`,
+row1B `(0C,06,0800)`, row1A `(06,44,0000)` in location/amplitude/peak-word hex.
+Scan2,3,4,5,1B,1A; amplitude masked7F must exceed decimal10 (rows2..5) or24
+(rows1A/1B). Row5 qualifies first. Its whole peak word is zero (source-implied
+open), and `abs((0x78-5)*8/(2*4.6)) = 100 m` within1e-9. Use the same row's
+location and peak word; do not use the previous row or bit11 alone. Preserve
+raw bit11/bit5 separately. Positive caller propagation delay is mandatory;
+Table2-4 gives5.35ns/m Cat5/5e,5 Cat6,4.6 Cat7. No peak is NO_PEAK, not zero
+metres or good cable. This derives only transmit-A; raw B/cross capture is separate.
+The note's MATLAB indexing, undefined temporary and5.2/5.35 discrepancy are not
+copied as implementation. Q7 fixtures must compare recipes and physical distance.

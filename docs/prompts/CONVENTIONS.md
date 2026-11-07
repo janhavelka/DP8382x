@@ -1,9 +1,8 @@
 # Concrete library conventions
 
 Use these names and responsibilities for DP8382x. Prompts 7-8 establish exact
-signatures and behavior in [the API contract](../api-contracts.md); values,
-direct calls and cooperative lifetimes are now frozen through prompt 8.
-Later stages use that contract.
+signatures and behavior in [the API contract](../api-contracts.md); shipped headers own declarations and the API contract OP-1 through OP-17
+supersede prompt 8's earlier cooperative design.
 Recheck relevant sibling implementation/tests under COMMON and adapt the baseline
 with one coordinated update when source evidence requires a change. Read this
 with [ENGINEERING](ENGINEERING.md) and the exact silicon specification.
@@ -38,7 +37,7 @@ not evidence that two operations mean the same thing.
   target `DP8382x`. Use PascalCase for types and camelCase for methods, fields,
   arguments and locals. Private members use `_camelCase`. Scoped enum values,
   register addresses and masks use uppercase names. Python uses snake_case.
-- Use descriptive units: `timeoutMs`, `observedAtMs`, `phyAddress`, `registerAddress`,
+- Use descriptive units: `timeoutUs`, `observedAtUs`, `phyAddress`, `registerAddress`,
   `maxTransactions`. Do not call a multi-frame MDIO transaction a transfer in one
   layer and a frame in another. Document the chosen accounting unit.
 - `Status` has `Err code`, `int32_t detail`, `const char* msg`. Messages have
@@ -78,7 +77,7 @@ verified configuration or safe motion.
 
 Use these peer field names in `HealthSnapshot` when their semantics apply:
 `state`, `initialized`, `consecutiveFailures`, `totalFailures`, `totalSuccess`,
-`lastOkMs`, `lastErrorMs`, `lastOkTimeValid`, `lastErrorTimeValid`, `lastError`.
+`lastOkUs`, `lastErrorUs`, `lastOkTimeValid`, `lastErrorTimeValid`, `lastError`.
 Freeze widths, saturation, initialization and transitions in prompts 7-8. Timestamp
 zero is valid when its validity flag says so. Last error survives a later success.
 `resetStatistics()` clears documented cumulative counters only; it must not
@@ -91,13 +90,13 @@ Separate these observations:
 | Managed driver health | `driverState()`, `healthSnapshot()` | Cached; no I/O, retry or admission decision |
 | Link/negotiation | `LinkSnapshot`, `linkSnapshot()` | Cached validity and time; distinguish link down, pending negotiation and invalid evidence |
 | Live link read | `readLinkStatus(...)` | Fallible owner-driven acquisition; publish complete valid evidence only |
-| Configuration | `getSettingsSnapshot()` | Desired settings, observed stable bits and trust/dirty evidence stay distinct |
-| Operation | `getOperationSnapshot()` | Active/result-pending state and progress; does not advance or consume work |
+| Configuration | `settingsSnapshot()` | Desired settings, observed stable bits and trust/dirty evidence stay distinct |
+| Operation | `operationSnapshot()` | Active/result-pending state and progress; does not advance or consume work |
 | All bus activity | Separate transport diagnostics | Include raw/probe/SDK/cleanup frames without using them to claim managed recovery |
 | PHY counters | Typed chip diagnostics | Datasheet clear/overflow semantics; not MDIO failure counters |
 
-A successful cleanup or diagnostic probe cannot by itself restore managed health
-or configuration trust. Specify which managed attempts count and how one atomic
+Raw diagnostic/session-stop success cannot restore managed health or configuration
+trust. A later managed startInitialize may restore health under API OP-16. Specify which managed attempts count and how one atomic
 MMD transaction reports its constituent frames; do not copy peer callback counts
 without considering the selected transport boundary. Give read-clear/latch
 evidence one collector. Cached views must not consume it again.
@@ -109,25 +108,27 @@ Use one method for one meaning. Freeze exact arguments, result types and support
 | Purpose | Planned names and constraints |
 | --- | --- |
 | Local binding | `bind`, `isBound`, `isInitialized`, `end`; no MDIO, reset, power-down or implicit recovery |
-| Explicit initialization/reset/configuration | `startInitialize`, `startReset`, `startConfigure`; distinct documented effects, no `init`/`begin`/`startInit` aliases |
-| Explicit replay/recovery | `startRecover`; application-admitted and bounded, restores only owned state |
+| Explicit initialization/reset/configuration | `startInitialize({ResetKind})`, `startConfigure`; reset choices share one initialization/replay procedure |
+| Explicit verification/replay | `startVerify` checks without writes; `startInitialize({NONE})` replays. Unlike peers, there is no `startRecover` alias because it would duplicate the same procedure |
 | Operation progress | `pollOperation`, `takeResult`, `cancel`, `OperationToken`, `OperationResult`, `OperationSnapshot`; no parallel `poll`/`pollJob` surface |
-| Register access | `readClause22`, `writeClause22`, `readMmd`, `writeMmd`; address spaces explicit, MMD path means the exact part's Clause 22 indirect mechanism |
+| Register access | `readClause22`, `writeClause22`, `readMmd`, `writeMmd`, `modifyMmd`, `transportSnapshot`; address spaces explicit, MMD path means the exact part's Clause 22 indirect mechanism |
 | External state change | `invalidateDeviceState`; bus-silent, records lost trust without fabricating recovery |
 | Pure helpers | `isValidVariant`, `isValidPhyAddress`, typed validators/decoders; no callbacks or hidden global state |
 
 Use explicit reset/diagnostic options instead of an ambiguous Boolean overload.
 Short reads/writes use direct bounded calls; do not wrap every field action in
 token/result state. Cooperative operations serve actual scheduled waits or cleanup.
-Use one active slot and monotonic nonzero tokens with explicit exhaustion rather
-than a registry. Operation admission can span polls; the bus lock cannot span
+Use one active slot and monotonic nonzero 64-bit object-lifetime tokens and no registry or exhaustion
+branch; end/bind never reset their counter. Operation admission can span polls; the bus lock cannot span
 wait intervals or console output. Share the underlying register procedures.
 Add typed feature methods only as their behavior is implemented. A blocking
 convenience must reuse the same procedure, have a proved aggregate bound and
 serve an actual consumer. Do not build a second state machine for it. Do not
 retain caller output buffers between polls; retained results belong to the
 instance until consumed. Cancellation is local admission/state work; any hardware
-restoration needs subsequent owner execution with a finite cleanup budget.
+restoration needs a separately admitted operation and finite budget behind
+cleanupOwed; takeResult does not wait for it. abandonCleanup transfers the
+obligation only after external disposition under API OP-10.
 
 ## File responsibilities
 

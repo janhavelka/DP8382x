@@ -105,7 +105,7 @@ tables 8-19 through 8-27 and 8-31:
 | BMSR | capabilities `0x7800`; AN complete `0x0020`; AN capable `0x0008`; link `0x0004`; extended capability `0x0001` | Source's GIGEXTSTS=`0x0100` is reserved on DP83826. Datasheet also supplies preamble suppression `0x0040`, remote fault `0x0010`, jabber `0x0002` |
 | ANAR and ANLPAR | 100/full `0x0100`; 100/half `0x0080`; 10/full `0x0040`; 10/half `0x0020`; 100 group `0x0180`; 10 group `0x0060` | GH supplies ANAR selector bit `0x0001` only. Full selector field is `[4:0]`, mask `0x001F`; do not preserve an invalid selector by only setting bit 0 |
 | ANER | partner AN capable `0x0001` | This lone source constant does not cover the whole register or its read effects |
-| REGCR | address mode `0x0000`; data/no increment `0x4000`; read/write increment `0x8000`; write-only increment `0xC000`; fixed vendor DEVAD `0x001F` | Datasheet additionally identifies DEVAD 3 and DEVAD 7; EEE wire offsets remain separately unresolved in the full inventory |
+| REGCR | address mode `0x0000`; data/no increment `0x4000`; read/write increment `0x8000`; write-only increment `0xC000`; fixed vendor DEVAD `0x001F` | Datasheet additionally identifies DEVAD 3 and DEVAD 7; EEE low offsets are selected source-implied tuples under D2/Q1, separately from vendor aliases |
 
 GH 166-179 and 188-191 also defines gigabit control/status masks. They are generic
 cross-device material, not DP83826 feature evidence: GIGCR master configuration
@@ -214,8 +214,8 @@ arbitrary recipe/mixed-register mutation. See the
 
 The source hardcodes DEVAD 31, so it does not implement the complete DEVAD 3/7 EEE
 access contract. Nor does the presence of postincrement constants prove tested
-incrementing operations. Keep the existing EEE wire-offset gate visible rather
-than inventing a translation from printed addresses `0x1001/0x203C`.
+incrementing operations. Keep Q1 physical qualification visible for the explicit D2 source-implied tuples;
+no generic translation from printed addresses or DEVAD31 alias is admitted.
 
 ## Initialization, reset and recovery procedure audit
 
@@ -364,3 +364,26 @@ These are review results, not hardware observations or implemented fixes.
 [g]: https://github.com/TexasInstruments/ethernet-rtos-drivers/blob/94bf4343004732983b0b8e1eec123d88ff70453b/rtos_drivers/src/generic_phy.c
 [gh]: https://github.com/TexasInstruments/ethernet-rtos-drivers/blob/94bf4343004732983b0b8e1eec123d88ff70453b/rtos_drivers/include/generic_phy.h
 [license]: https://github.com/TexasInstruments/ethernet-rtos-drivers/blob/94bf4343004732983b0b8e1eec123d88ff70453b/LICENSE
+
+## WP3 core interpretation refinements
+
+D4 publishes forced mode from coherent AN-disabled BMCR and current link-up,
+while retaining PHYSTS2:1 raw. Forced100half with extended duplex not known disabled
+keeps speed100 but duplexUNKNOWN/mode invalid. Pause remains invalid in forced
+operation; completed AN uses ANAR/ALNPAR IEEE28B.3 and PHYCR cross-check, with
+mismatch invalidating pause. Q11 remains a physical comparison, not a local
+publication blocker. Ordinary ANAR ownership excludes next-page; its flag is
+transient to the owned exchange and never reset-replayed.
+
+After any attempted PHYRCR8000 write the shared owner enforces a frame-free2ms
+floor (or longer poll interval) from the completion upper bound, across all PHY
+addresses. Ambiguous writes retain this obligation. BMCR8000/PHYRCR4000 do not
+inherit it. Q5 must measure readiness and eligible-strap re-latch; ENHANCED1/6
+remain POR-only. Release timing needs a backend bound, not post-return measurement.
+
+The collector retains ANER,10BTSCR polarity and RXFS as well as MISRs/counters;
+PHYSTS precedes dependent clearers when mirrored evidence is needed. EEE low-offset
+status/counter rows are source-implied collector routes under Q1; the three stable
+capability/advertisement words permit safe reads only. Generic mutation cannot
+bypass their feature owner. No destructive read or later write failure erases an
+already consumed valid sample; ambiguous consumption records possible history loss.

@@ -36,6 +36,16 @@ backend behavior. Physical timing requires identified measurements; no
 successful compiled fixture or source grep can substitute for a waveform or
 elapsed-time observation.
 
+## Delta and operation review boundary
+
+Consume the named 53-54 test results and review only subsequent deltas or
+specific unresolved concerns, not a second exhaustive suite. Apply OP1-17:
+one RUNNING state, two-call temporary sessions, explicit later restoration after
+primary failure, separated retained results, monotonic time and reset quiet
+floor. Check direct SDK raw hooks remain rejected and owner-routed typed calls
+honor the same admission. Record commands/counts only in this report with a
+progress link.
+
 ## Work and acceptance
 
 Trace complete MMD/RMW transactions across core, IDF base, raw access, ioctl,
@@ -71,7 +81,6 @@ and closure criterion; close as fixed with evidence, rejected with cited reason,
 or OPEN with next dependency. The lead ships focused regressions, Doxygen,
 README/CHANGELOG/guides and ledger changes together, with no-change reasons. Run
 affected host/tool/docs and actual SDK/package checks for changed inputs. Record
-review scope/revision, findings/counts and risks in report, validation and
-progress. Keep 71's historical CI SHA and physical gates separate; no remote
+review scope/revision, findings/counts and risks in report and a linked progress row. Keep 71's historical CI SHA and physical gates separate; no remote
 dispatch/poll/wait. Check final diff and commit/sync verified units/completion
 on the recorded execution branch without empty review commits.

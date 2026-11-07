@@ -7,7 +7,7 @@ owned paths, fresh relevant sibling audit, selected names, one MDIO owner,
 documentation/local checks and the recorded execution branch. Use available
 subagents for disjoint work or independent review as COMMON specifies.
 
-Prerequisites: [23](23-loopback-modes.md), [33](33-clock-interface-repeater.md),
+Prerequisites: [24](24-bist-generator-checker.md), [23](23-loopback-modes.md), [33](33-clock-interface-repeater.md),
 [5](5-silicon-power-interface-ledger.md), [22](22-reconcile-recover.md). Verify the
 concrete inputs below; retain unrelated open gates under COMMON.
 
@@ -21,19 +21,15 @@ Keep persistent legal configuration distinct from finite disruptive test session
 configuration, diagnostic engine and restoration; no autonomous calibration/
 reset loop or class per register.
 
-Use [TI electrical/compliance facts](../reference/library-ti-features.md#electrical-and-compliance-anchors)
-as independently checked vectors, not vendor-code endorsement. VOD negative
-codes `0x28..0x38` mean 150% down to 50%; positive `0x08..0x18` mean 50%
-up to 150%, both 6.25% steps. Convert user units to raw codes explicitly;
-test raw defaults `0x30/0x10`, split negative-MDIX fields, endpoints and invalid
-nonrepresentable settings independently. Reconcile 10BASE-Te
-`030E=4A40` and its termination fields. For 100 Mbit/s stimulus, reconfigure by
-clearing then setting `0428[4]`; pattern extension is bit 5. Preserve DPD bit 2.
-COMP's 10 Mbit/s DP83825/26 BISCR `7101` differs from DP83822 `7108`; its
-whole PHYCR `0021/4021` includes strap-loaded read-only address bits. Compose
-owned controls without treating those bits as a programmable address change. CDCR bit 14 high requires clear then PHYRCR hard reset, not an
-invented routine calibration-start API. IOCTRL and RX10BT code-range ambiguities
-remain specific source gates.
+Use [electrical/compliance sources](../reference/library-ti-features.md#electrical-and-compliance-anchors)
+and original SNLS647I/SNLA266B. Retain VOD negative28..38=150..50%, positive
+08..18=50..150%,6.25% steps, split MDIX fields and exact mandatory4A40 setup.
+Eligible compliance is SNLA266B5-1/5-2/5-4 through shared crossover/BIST/loopback,
+and COMPT10M codes 10..1D, each with HARD stop. Reject10M E/F. Keep codeE/F
+legal in their separate 100M count context. The100M0428 branch keeps typed
+validation/literal vectors but rejects before I/O under `compt_reserved`.
+Other gates are `ioctrl_example`, `analog_rx_gain`, `hard_reset_straps`.
+Do not expose generic reserved writes.
 
 Reopen TMP1x2 diagnostic owner/result handling and PCA9555 primary/cleanup,
 ambiguous write and detach-refusal tests. Inspect public documentation and actual
@@ -48,33 +44,24 @@ addresses and values remain bound to their exact source-backed recipe; no
 arbitrary undocumented write escape. Reuse task 23's correct speed-specific
 loopback where a procedure requires it.
 
-Simple persistent controls use whole-profile validation, bounded application and
-stable-owned readback. Extend reset/power/recover restoration and pin/interface
-dependencies. An admitted resistor-calibration action has a finite sequence,
-documented completion evidence, error/effect result and required restoration.
-For CDCR[14] high, table 8-47 requires clearing it then immediately issuing
-PHYRCR hard reset. Admit both commands as one bounded owner step without a
-scheduled wait between them; a failed second command retains the partial effect.
-Use source-defined verification rather than retry-resetting until a measurement
-looks good.
+Persistent controls use whole-profile validation and stable readback. Calibration
+contingency reads CDCR once: if bit 14 high, clear only4000 with bit 15=0 and
+immediately issue PHYRCR8000 in the same bounded owner step. The HARD procedure
+provides completion evidence; nothing proves calibration completed. A second
+command failure preserves the first effect and OP-14's floor applies whenever
+HARD is attempted. No reset-until-good loop.
 
-Disruptive compliance patterns require maintenance admission, finite duration/
-count, explicit start/stop and verified restoration even when silicon offers
-continuous output. Capture only necessary owned state and handle untrusted
-starting settings explicitly. Use the one operation slot, aggregate deadline
-and existing separately bounded cleanup. No bus lock across waits. Cancellation
-retains accepted output effects; failed stop/restore means the stimulus may
-remain active and configuration is untrusted.
+Compliance and collision test are two-call sessions under OP-9 with explicit
+maintenance, bounded start/stop and application dwell. Failed/cancelled start
+leaves temporary state and cleanupOwed; a later stop/restoration has its own
+budget/result. No lock spans waits and no successful test erases restore failure.
 
-Test independent literal values/sequences for all documented options and legal
-boundaries; reject reserved, wrong speed/interface and unavailable admission
-before I/O. Test that entry/exit preserves read-only PHY address and unrelated
-power/isolation settings even when a fixture script uses whole-word constants.
-Inject failure/cancel after every mutation, including start accepted
-before error, calibration completion, stop and each restore/readback. Assert
-exact maximum transfers, token/result isolation, primary/cleanup precedence and
-visible remaining stimulus after abandoned cleanup. Test persistent settings
-across every applicable reset/power kind.
+Test every eligible option and each gated option's zero-I/O rejection. Session
+writes must not set BMCR[11:10] or target PHYCR[4:0]; reject requested IEEE
+power-down/isolation before entry. HARD destroys unrelated configuration, so
+re-read identity/address and restore the persistent profile through later
+`startInitialize` with finite readback. Inject each accepted-write, stop,
+reset-completion and replay failure; retain uncertain stimulus and both results.
 
 Compile a bounded maintenance-owner example and write fixture instructions
 covering termination, probes, reference conditions and operator-controlled
@@ -82,6 +69,14 @@ entry/exit. Source sequences and host tests establish software behavior only.
 Electrical compliance, EMC, resistor calibration accuracy and signal integrity
 require actual suitable measurements and remain unqualified until then. Missing
 fixtures do not excuse missing documented software controls.
+
+Forced MDI/MDIX composes PHYCR[15:14], preserves bit 7 and does not import
+undocumented bit 5 or RH[4:0] from script0021/4021. ScriptBISCR7101 becomes
+owned mask701F/value7001; bit 8 is observed, not written. Forced profiles go
+through `configure_forced`, including CR1[5]=1 though scripts omit it; Q19
+qualifies that difference. The ledger keeps14 exact actions
+`compliance_10_pattern_0`..`compliance_10_pattern_D` under the sourced COMPT
+bit 4 exception, with normal ownedmask000F and reservedmaskFFF0 preserved.
 
 ## Documentation, verification and checkpoint
 

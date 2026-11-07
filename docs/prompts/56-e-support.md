@@ -30,15 +30,33 @@ bit 13 `0x2000` prohibition for each applicable E path. Do not import A's
 revision 4 or Strap11 EMC guidance into original E. Correct any source conflict
 in the ledger and plan; unresolved hardware evidence remains a separate gate.
 
+## Part-keyed implementation contract
+
+Add one private `PartTable` with `RegisterMap { DP83826, DP83826A, DP83825,
+DP83822 }` and `PartProfile { Variant variant; RegisterMap map; uint8_t
+modelCount; uint8_t models[2]; uint16_t revisionMask; uint8_t interfaceMask;
+uint32_t featureMask; bool hasOperatingMode; uint8_t strapAddressMax;
+bool forcedRequiresRobust; }`. `bind()` resolves `_part`; policy takes the map,
+procedures branch only at real differences, and new revisions are table edits.
+No per-part files. Original/A maps may share an address array but not changed
+field masks. Reject `requiredMode != UNKNOWN` on a part without operating modes.
+
+Rows: DP83826 models {0x11,0x13}, revision mask `0x0002`, MII|RMII, strap max 7,
+mode true, forced robust true; A differs by revision mask `0x0010`; DP83825
+model {0x14}, mask `0x0001`, RMII, strap max 3, false, false; DP83822 model
+{0x24}, mask `0x0001`, MII|RMII|RGMII, strap max 31, false, false. Pure link
+validation checks enums/masks/cross-field constraints; robust admission is
+part-keyed preflight. VOD is not a validator rule: its initialization write is
+keyed only to DP83826/A. Update foundation flags to `(flags & 30U) == 0U` and
+make the corresponding public contracts part-specific.
+
 ## Work and acceptance
 
-Repeat the complete public-source/register/field/procedure audit for DP83826E,
-using SNLS647I and applicable current official errata or clarification. Compare
-ordering code, mode, interface, identity/revision, reset domains/defaults, strap
-resampling, 10BASE-Te and every runtime opt-in feature. Sharing a datasheet does
-not establish equality. Share ledger records only with explicit I/E
-applicability and cited identical semantics; a blanket uncited “same as I”
-cannot close E.
+Use one document-level cited SNLS647I record: I/E share a register map and
+procedure set, with temperature and TA-keyed leakage differences only and no
+suffix-conditional software behavior. Add `Variant::DP83826E` sharing I's
+profile; reopen only if new TI evidence adds a suffix condition. Parameterize
+identity and bind tests rather than repeating the complete audit.
 
 Keep the declared suffix when register IDs cannot distinguish it. Do not infer
 temperature grade or board wiring from a shared ID. Add public supported

@@ -34,6 +34,14 @@ reset has its separate table-defined domain. Implement/test those domains,
 readiness and owned-state restoration using exact tables, regardless of driver
 labels. Keep physical clock/reset qualification separate.
 
+## Delta boundary
+
+Own prompt 57's identity, CR1/CR3, PHYSCR, FLD_CFG2, FLDS, SOR1 and FLD note
+deltas; LED/mux/wake/EEE changes remain with 59. AI/AE share cited behavior and
+parameterized admission tests. Strap11 guidance applies if FLD is used;
+preserve CR3[6:5] with owned mask `0x040F`, report SOR1[11], and retain EMC
+physical qualification as NOT RUN.
+
 ## Work and acceptance
 
 Implement source-proved A-generation identity, mode/revision admission,

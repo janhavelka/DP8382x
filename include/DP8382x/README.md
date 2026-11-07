@@ -2,13 +2,15 @@
 
 This directory now ships portable C++17 `Status.h`, `Config.h`,
 `CommandTable.h` and generated `Version.h`: passive values, error helpers,
-pure link validators, selected source-proved register/mask constants and release
+pure link validators, complete named register/field-mask constants with source citations and release
 version values. They perform no MDIO I/O and need no SDK. Edit `library.json`
 and run `python scripts/generate_version.py sync` for version changes; never
 hand-edit `Version.h`.
 `DP8382x.h` now adds the noncopyable driver facade: local binding/teardown,
 restricted bounded Clause 22 and atomic MMD read/write, stable `modifyMmd`,
-and copied transport diagnostics.
+copied transport diagnostics, destructive acquisition, retained evidence, local
+invalidation and safe interrupt/WoL updates. See the
+[side-effect guide](../../docs/side-effect-access.md).
 See the [direct-access guide](../../docs/direct-access.md) for exact access policy
 and backend obligations. No cooperative operation stubs are shipped.
 See [architecture](../../docs/architecture.md) and the accepted
@@ -20,8 +22,8 @@ MDIO batch callback, and one retained operation/result slot. Prompt 7's
 and direct signatures; prompt 8 completes cooperative lifetimes. The remaining
 method signatures are design contracts until implemented at their owning stage.
 `bind`/`end` and cached snapshots are local, but still require owner serialization.
-Invalid replacement binding preserves the existing valid binding. `end` cannot
-discard active work, owed cleanup or unacknowledged evidence.
+Invalid replacement binding preserves the existing valid binding. `end` rejects an active callback. Cached evidence is binding-scoped; copy it
+before ending. Future operation results/cleanup add their own teardown guards.
 
 Implemented C22 and MMD access each use one complete bounded batch. MMD RMW
 uses five frames with a masked write
@@ -35,7 +37,7 @@ Native public headers belong only in `esp_idf/`; core headers cannot include SDK
 types, allocate, use a platform clock or depend on an application framework.
 Native owner entry points reconcile SDK-cached settings through supported stopped
 controls and expose typed raw/feature requests. Arbitrary SDK raw frame ioctls are
-rejected. Native support depends on the selected SDK lifecycle correction.
+rejected. Native support depends on implementing and checking the selected public lifecycle route.
 
 Doxygen must describe borrowed context/lock/buffer lifetime, non-reentrancy,
 legal states, complete transaction exclusion, aggregate bounds and backend limits,
@@ -51,10 +53,10 @@ Drivers and operation owners are neither copyable nor movable. Direct reads stag
 ordinary output, while the collector retains consumed partial evidence. A valid
 link-down is successful output, not missing data or an MDIO error.
 
-The first operation consumer at prompt 15 implements the frozen slot, lifetime
-tokens, separate cleanup budget and exact-result take. Introduce hard reset and
-later configuration/recovery options only with their behavior. Failed cleanup
-requires owner-assisted quiescence/disposition before result delivery and end;
-acknowledgement does not claim a stopped PHY or restored configuration. Include
+The first operation consumer at prompt 15 implements the slot, lifetime tokens
+and exact-result take. Failure can freeze a result with cleanupOwed; restoration
+is a later bounded operation under the API contract. Introduce hard reset and
+later configuration/recovery options only with their behavior. Result delivery
+does not claim a stopped PHY or restored configuration. Include
 clock-return lag, tick rounding, final-poll exhaustion and partial effects in
 public Doxygen and executing tests at that stage.

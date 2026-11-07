@@ -8,11 +8,7 @@
 inline DP8382x::Status readStrapWord(DP8382x::DP8382x& phy,
                                    const DP8382x::IoBudget& budget,
                                    uint16_t& strapWord) noexcept {
-  uint16_t word = 0;
-  const auto status = phy.readMmd(31, 0x0467, word, budget);
-  if (!status.ok()) { return status; }
-  strapWord = word;
-  return status;
+  return phy.readMmd(31, 0x0467, strapWord, budget);
 }
 
 // Application must establish safe LED0 electrical use and exclude reset/other

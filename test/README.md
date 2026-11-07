@@ -40,23 +40,23 @@ Its independent oracles match every semantic field's mask/access type and all
 24 remaining procedure ownership maps. Split-field arithmetic covers all 289
 valid endpoint pairs, legal intermediate codes and restoration prefixes.
 Malformed temporary files reject incomplete source coverage, erased gates,
-borrowed exceptions, fabricated EEE wire offsets and reclassified software scope.
-These 77 tests are research-tool evidence only.
+borrowed exceptions, altered selected EEE wire mappings and reclassified software scope.
+The 80 ledger tests above are research-tool evidence only.
 
-`test_operation_timing.py` adds eight executable prompt-8 design probes for
+`test_operation_timing.py` adds seven executable operation-contract design probes for
 strict aggregate admission, whole MMD frame allowances, post-callback wait
 anchors, tick quantization, certain versus uncertain expiry, uint64 overflow,
-finite frozen-clock poll allowances and reserved cleanup deadlines. They use
+finite stalled-clock polls and the four-lag hard-reset floor. They use
 independent synthetic values and integer arithmetic, not a fake PHY or unused
 operation engine. The [operation scenarios](../docs/api-contracts.md#operation-acceptance-scenarios-and-examples)
 remain execution-ready call/status/effect recipes for the first real consumer.
-These research/design tests total 85; the 13 version-tool tests below bring
-current Python discovery to 98. These Python tests do not claim driver execution;
+Together with two structural catalog/policy checks and 13 version-tool tests,
+current Python discovery contains 102 tests. These Python tests do not claim driver execution;
 the C++ transport suites below exercise the compiled driver separately.
 
 ## Portable C++17 foundation
 
-The root `DP8382x` CMake target exports five standalone public headers and links
+The root `DP8382x` CMake target provides five standalone public headers and links
 the portable direct/indirect implementation. `DP8382X_BUILD_TESTS` defaults to OFF.
 With tests ON, four foundation CTest suites exercise
 Status helpers, valid/invalid link settings, register-mask operations and passive
@@ -67,7 +67,7 @@ controller fault-injection model. They exhaust all Clause 22 addresses, all
 16-bit LEDCR values and all primary status byte encodings, plus report/release,
 deadline, output-sentinel, no-retry, lifetime and two-instance ownership cases.
 Five MMD suites (`traces`, `admission`, `failures`, `reports`, `ownership`) bring
-the total to 14 registered CTest suites. They execute literal four-frame access
+the original subtotal to 14 behavioral CTest suites. They execute literal four-frame access
 and five-frame stable RMW, every selector/address/data failure, complete next-call
 reselection, competing users between frames, alias policy, reserved/recipe/EEE
 rejection, aggregate budgets and retained effects. The shared controller fake
@@ -95,6 +95,21 @@ that missing public comments and a bad `@param` fail. Missing Doxygen means the
 documentation check is NOT RUN/BLOCKED, never PASS. These host results do not
 execute a physical PHY or SDK. The controller model cannot qualify lock/controller
 timing or physical MDC/MDIO waveforms; see the [backend requirements](../docs/direct-access.md).
+
+## Side-effect access and shared harness
+
+Nine `access` suites exercise literal command-neutral composition, all-source
+acquisition, each destructive failure phase, later-batch failure, MISR updates,
+WoL W0C behavior, admission, cached invalidation and cross-owner exclusion.
+They retain partial samples and raw counter arithmetic without inventing a
+qualified event total. Their literals come from original tables, independently
+of production constants. Four registered WILL_FAIL probes prove Release checks
+remain active, bringing CTest to 27 tests. `support/Check.h` is shared by all
+executables; `support/FakeController.h` supplies the transport/MMD controller.
+The independent access fake models clear effects and pending wake state.
+`test_access_policy.py` checks catalog/ledger and raw-access coverage structurally;
+it is not the numeric oracle. The tests-OFF consumer also links
+`examples/portable/EvidenceAccess.h` and exercises the actual collector/MISR API.
 
 ## Release version tooling
 

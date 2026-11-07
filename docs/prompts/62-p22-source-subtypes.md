@@ -34,6 +34,31 @@ locations and resolution steps. Assign each documented field/recipe to 63..67
 before closure; do not let a vendor API's narrower scope replace exact SNLS505H
 coverage.
 
+## Exact subtype and addressing boundaries
+
+Use one DP83822 ledger with parts I/H/IF/HF, fiber capability and temperature
+attributes per Variant, and separate admission/physical rows. Table 8-4 controls
+revision admission; `DeviceIdentity.mode` is UNKNOWN. Record REGCR function 10
+conflict: section 7.4.2.1 rejects it, table 8-13 and sections 7.4.2.6/.7 use it.
+Admit no-post-increment 01 only until physical evidence resolves 10.
+Printed `0xDnnn` maps to DEVAD D and offset `0x0nnn` under section 7.4.2.9;
+use part-keyed DEVAD3/7 policy, e.g. literal `0x0007,0x003D,0x4007`, then read.
+Do not share DP83826's printed-address convention.
+
+Distinguish five literal reset mechanisms: POR/RESET_N latch straps and reset
+all; `0x001F=0x8000` is pin-equivalent and treated as relatching straps despite
+BMCR table 8-1's contradiction; `0x001F=0x4000` restarts digital logic while
+retaining registers (the prose's ambiguous software/soft reset); BMCR[15]
+resets PCS, retains vendor registers and does not latch straps, with the exact
+PCS set unspecified so re-read owned direct fields; MMD3 `0x3000[15]` resets
+MMD3/MMD7/PCS while retaining vendor registers. Label the section 7.4.4.2
+soft-reset interpretation as inferred; never select a recipe by its prose name.
+
+Section 4 establishes FX parts; sections 7.4.1.1/.2 establish MII/RMII. FX with
+RGMII is not stated and not excluded; table 7-10 RX_ER mode 3 can encode it,
+physical NOT RUN. Assign MII TXCPSR `0x0042` to 64, including the [4:0] versus
+[3:0] wording conflict; fixed RGMII RCSR shifts do not remove this phase control.
+
 ## Work and acceptance
 
 Read SNLS505H original tables and explanatory sections, SNLA253, relevant
@@ -54,8 +79,7 @@ undocumented field, relabel unfinished software unsupported, or treat a bounded
 unsuccessful search as proof that no public source exists.
 
 Preserve specific source corrections: SNLS505H table 8-23 has fixed 3.5 ns RGMII
-shifts, RX RCSR bit 12 enables with 1 and TX bit 11 with 0; no arbitrary tap
-range. Fiber media is independent of MAC-side interface. Section 7.4.6 excludes
+shifts, RX RCSR bit 12 enables with 1 and TX bit 11 with 0; no arbitrary RGMII RCSR tap range. Fiber media and MAC-side interface require the exact applicability record below. Section 7.4.6 excludes
 100BASE-FX from autonegotiation; do not inherit copper advertisement, MDIX, TDR
 or 10BASE-Te recipes. A P4 adapter limitation does not remove generic PHY RGMII
 capability or require a P4 RGMII build.

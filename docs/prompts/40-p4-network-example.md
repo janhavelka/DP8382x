@@ -37,13 +37,14 @@ board values in a small application-owned `main/BoardConfig.h`, or a genuinely
 shared helper if both P4 examples use it. Avoid board registries and another
 driver wrapper. Label facts, user inputs and unresolved assumptions.
 
-Validate PHY address/interface, MDC/MDIO/reset mapping and clock
-source/direction before backend creation. When authoritative wiring is
-unavailable, require explicit application configuration and leave hardware
-execution gated. A linked configuration with declared assumptions proves
-compilation only. Keep reusable general 10/100 configuration available and
-provide the initial 100/full-only advertisement as a separate application
-profile.
+Set every BoardConfig field explicitly: smi_gpio={40,39}, RMII,
+clock_config.rmii={EMAC_CLK_EXT_IN,44}, dataif RMII tx_en49,txd0=41,txd1=42,
+crs_dv51,rxd0=52,rxd1=53, reset54. Startup checks every configured field against
+its constant and all pins for uniqueness; SDK defaults otherwise silently select
+wrong data pins. Handle a null esp_eth_mac_new_esp32 result. P4 IO_MUX restricts
+signal pads. Confirm this2026-10-27 mapping against the final netlist before
+flashing; older board paragraphs contain superseded pins. Keep address/clock
+inputs explicit and hardware gated when authority is missing.
 
 Use supported native MAC/PHY, event loop and `esp_netif` integration.
 Application code owns DHCP/static addressing and an optional local-peer probe.
@@ -67,6 +68,11 @@ valid generic 10/half link can fail the selected application profile.
 Include library/source revision and dirty-or-unknown firmware identity, SDK,
 target and board settings without secrets. Retain a standalone useful example
 without FieldCore, servo actions or Internet provisioning dependencies.
+
+Default-loop handlers must not block. Glue deletion has no independent deadline;
+its bound is the longest default-loop handler because unregister can wait for
+the recursive loop mutex. Use prompt 37's pinned-driver host layer for lifecycle
+failure injection and a real P4 link; physical networking stays NOT RUN.
 
 ## Acceptance
 

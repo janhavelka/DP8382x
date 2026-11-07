@@ -1,3 +1,4 @@
+#include "support/FakeController.h"
 #include <DP8382x/DP8382x.h>
 
 #include <cstdio>
@@ -9,16 +10,6 @@
 namespace {
 using namespace DP8382x;
 using Driver = ::DP8382x::DP8382x;
-int failures = 0;
-unsigned checks = 0;
-void check(bool condition, const char* expression, int line) {
-  ++checks;
-  if (!condition) {
-    std::fprintf(stderr, "line %d: %s\n", line, expression);
-    ++failures;
-  }
-}
-#define CHECK(expression) check(static_cast<bool>(expression), #expression, __LINE__)
 
 static_assert(!std::is_copy_constructible<Driver>::value, "one owner");
 static_assert(!std::is_copy_assignable<Driver>::value, "one owner");
@@ -28,118 +19,36 @@ static_assert(!std::is_move_assignable<Driver>::value, "stable owner address");
 constexpr IoBudget BUDGET{1000U, 1U};
 constexpr uint16_t SENTINEL = 0xA55A;
 
-// An application controller model, not an emulated PHY or production adapter.
-// It records each actual invocation/launch, releases before returning, and owns
-// shared quarantine. Deliberate malformed reports test the core's second check.
-struct Controller {
-  uint64_t now{100};
-  uint64_t duration{5};
-  unsigned clocks{0};
-  unsigned callbacks{0};
-  unsigned launches{0};
-  unsigned releases{0};
-  bool locked{false};
-  bool quarantined{false};
-  bool custom{false};
-  bool regress{false};
-  bool reenter{false};
-  bool clockReenter{false};
-  Driver* active{nullptr};
-  Driver* competing{nullptr};
-  uint16_t readValue{0x2000};
-  uint16_t written{0};
-  MdioBatch lastRequest{};
-  IoBudget lastBudget{};
-  BatchResult response{};
+using Controller = test::FakeController;
 
-  Config config(uint32_t address = 1) noexcept {
-    Config result;
-    result.variant = Variant::DP83826I;
-    result.phyAddress = address;
-    result.interface = MacInterface::RMII;
-    result.transport = {this, execute, clock, {3, 5, 2, 4, 2}};
-    return result;
-  }
-  static uint64_t clock(void* context) noexcept {
-    Controller& bus = *static_cast<Controller*>(context);
-    ++bus.clocks;
-    if (bus.clockReenter) {
-      uint16_t value = SENTINEL;
-      CHECK(bus.active->end().is(Err::BUSY));
-      CHECK(bus.active->bind(bus.config()).is(Err::BUSY));
-      CHECK(bus.active->readClause22(2, value, BUDGET).is(Err::BUSY));
-      CHECK(value == SENTINEL);
+void reenter(test::FakeController& bus, const IoBudget& budget) noexcept {
+  const unsigned before = bus.callbacks;
+  uint16_t value = SENTINEL;
+  CHECK(bus.active->end().is(Err::BUSY));
+  CHECK(bus.active->bind(bus.config()).is(Err::BUSY));
+  CHECK(bus.active->readClause22(2, value, budget).is(Err::BUSY));
+  CHECK(value == SENTINEL);
+  CHECK(bus.active->writeClause22(0x18, 0, budget).is(Err::BUSY));
+  CHECK(bus.callbacks == before);
+  if (bus.competing != nullptr) {
+    for (uint32_t reg : {0x0DU, 0x0EU}) {
+      CHECK(bus.competing->readClause22(reg, value, budget).is(Err::INVALID_PARAM));
+      CHECK(bus.competing->writeClause22(reg, 0, budget).is(Err::INVALID_PARAM));
     }
-    return bus.now;
+    CHECK(bus.callbacks == before);
+    CHECK(bus.competing->readClause22(2, value, budget).is(Err::BUSY));
+    CHECK(value == SENTINEL);
+    CHECK(bus.callbacks == before + 1U);
   }
-  static BatchResult complete(FrameKind kind = FrameKind::READ) noexcept {
-    BatchResult result;
-    result.status = Status::Ok();
-    result.releaseStatus = Status::Ok();
-    result.controllerReusable = true;
-    result.frames[0].attempted = true;
-    result.frames[0].completed = true;
-    result.frames[0].valueValid = kind == FrameKind::READ;
-    result.frames[0].value = kind == FrameKind::READ ? 0x2000 : 0;
-    return result;
-  }
-  static BatchResult admission(BusyDetail reason) noexcept {
-    BatchResult result;
-    result.status = Status::Error(Err::BUSY, "Owner admission", static_cast<int32_t>(reason));
-    result.releaseStatus = Status::Ok();
-    result.controllerReusable = reason != BusyDetail::CONTROLLER_QUARANTINED;
-    return result;
-  }
-  static BatchResult execute(void* context, const MdioBatch& batch,
-                             const IoBudget& budget) noexcept {
-    Controller& bus = *static_cast<Controller*>(context);
-    ++bus.callbacks;
-    if (bus.quarantined) return admission(BusyDetail::CONTROLLER_QUARANTINED);
-    if (bus.locked) return admission(BusyDetail::OWNER_ADMISSION);
-    bus.locked = true;
-    bus.lastRequest = batch;
-    bus.lastBudget = budget;
-    CHECK(batch.frameCount == 1U);
-    CHECK(batch.phyAddress <= 31U);
-    CHECK(batch.frames[0].registerAddress <= 31U);
-    CHECK(batch.frames[0].preserveMask == 0U);
-    CHECK(batch.frames[0].readIndex == 0xFFU);
-    if (!bus.custom || bus.response.frames[0].attempted) ++bus.launches;
-    if (bus.reenter) {
-      const unsigned before = bus.callbacks;
-      uint16_t value = SENTINEL;
-      CHECK(bus.active->end().is(Err::BUSY));
-      CHECK(bus.active->bind(bus.config()).is(Err::BUSY));
-      CHECK(bus.active->readClause22(2, value, budget).is(Err::BUSY));
-      CHECK(value == SENTINEL);
-      CHECK(bus.active->writeClause22(0x18, 0, budget).is(Err::BUSY));
-      CHECK(bus.callbacks == before);
-      if (bus.competing != nullptr) {
-        for (uint32_t reg : {0x0DU, 0x0EU}) {
-          CHECK(bus.competing->readClause22(reg, value, budget).is(Err::INVALID_PARAM));
-          CHECK(bus.competing->writeClause22(reg, 0, budget).is(Err::INVALID_PARAM));
-        }
-        CHECK(bus.callbacks == before);
-        CHECK(bus.competing->readClause22(2, value, budget).is(Err::BUSY));
-        CHECK(value == SENTINEL);
-        CHECK(bus.callbacks == before + 1U);
-      }
-    }
-    BatchResult result = bus.custom ? bus.response : complete(batch.frames[0].kind);
-    if (!bus.custom && batch.frames[0].kind == FrameKind::READ)
-      result.frames[0].value = bus.readValue;
-    if (batch.frames[0].kind == FrameKind::WRITE && result.frames[0].attempted)
-      bus.written = batch.frames[0].value; // May apply even when terminal status fails.
-    bus.now = bus.regress ? 99U : bus.now + bus.duration;
-    if (result.releaseStatus.ok()) {
-      bus.locked = false;
-      ++bus.releases;
-    }
-    if (!result.releaseStatus.ok() || !result.controllerReusable)
-      bus.quarantined = true;
-    return result;
-  }
-};
+}
+
+void clockReenter(test::FakeController& bus) noexcept {
+  uint16_t value = SENTINEL;
+  CHECK(bus.active->end().is(Err::BUSY));
+  CHECK(bus.active->bind(bus.config()).is(Err::BUSY));
+  CHECK(bus.active->readClause22(2, value, BUDGET).is(Err::BUSY));
+  CHECK(value == SENTINEL);
+}
 
 void expectRejected(Driver& driver, Controller& bus, uint32_t reg, uint32_t word,
                     bool write, ParamDetail reason) {
@@ -179,14 +88,14 @@ void testBinding() {
     switch (fault) {
       case 0: invalid.variant = Variant::UNKNOWN; break;
       case 1: invalid.requiredMode = static_cast<OperatingMode>(255); break;
-      case 2: invalid.revisionPolicy = static_cast<RevisionPolicy>(255); break;
+      case 2: invalid.requiredMode = static_cast<OperatingMode>(255); break;
       case 3: invalid.interface = static_cast<MacInterface>(255); break;
       case 4: invalid.interface = MacInterface::UNKNOWN; detail = ConfigDetail::INTERFACE_REQUIRED; break;
       case 5: invalid.phyAddress = 32; detail = ConfigDetail::ADDRESS_RANGE; break;
       case 6: invalid.transport.executeBatch = nullptr; detail = ConfigDetail::TRANSPORT; break;
       case 7: invalid.transport.nowUs = nullptr; detail = ConfigDetail::TRANSPORT; break;
       case 8: invalid.transport.bounds.frameUs = 0; detail = ConfigDetail::TRANSPORT; break;
-      case 9: invalid.transport.bounds.overheadUs = 0; detail = ConfigDetail::TRANSPORT; break;
+      case 9: invalid.transport.bounds.fixedUs = 0; detail = ConfigDetail::TRANSPORT; break;
       case 10: invalid.transport.bounds.clockLagUs = 0; detail = ConfigDetail::TRANSPORT; break;
       default: invalid.offlineThreshold = 0; detail = ConfigDetail::HEALTH_THRESHOLD; break;
     }
@@ -452,15 +361,15 @@ void testTiming() {
     }
     CHECK(driver.end().ok());
   }
-  // Successful callback can still violate aggregate publication allowance.
+  // Only a raw post-call sample at the deadline proves late completion.
   for (uint64_t duration : {uint64_t{11}, uint64_t{17}, uint64_t{20}}) {
     Controller bus; bus.duration = duration;
     Driver driver; CHECK(driver.bind(bus.config()).ok());
     uint16_t value = SENTINEL;
     const Status status = driver.readClause22(2, value, {117, 1});
-    CHECK(status.is(Err::OPERATION_TIMEOUT) && value == SENTINEL);
-    CHECK(status.detail == static_cast<int32_t>(duration >= 17U
-        ? TimeoutDetail::DEADLINE : TimeoutDetail::BOUND_ADMISSION));
+    CHECK(status.is(duration >= 17U ? Err::OPERATION_TIMEOUT : Err::OK));
+    CHECK(value == (duration >= 17U ? SENTINEL : 0x2000U));
+    CHECK(status.detail == (duration >= 17U ? static_cast<int32_t>(TimeoutDetail::DEADLINE) : 0));
     CHECK(driver.transportSnapshot().late == (duration >= 17U));
     CHECK(driver.transportSnapshot().completedFrames == 1U);
     CHECK(bus.callbacks == 1U && !bus.locked);
@@ -553,11 +462,29 @@ void testTiming() {
 }
 
 void testOwnership() {
+  {
+    Controller bus;
+    Driver driver;
+    CHECK(driver.bind(bus.config()).ok());
+    bus.custom = true;
+    bus.response = Controller::admission(BusyDetail::CONTROLLER_QUARANTINED);
+    bus.response.controllerReusable = true; // Contradicts shared quarantine.
+    uint16_t value = SENTINEL;
+    CHECK(driver.readClause22(2, value, BUDGET).is(Err::BUSY));
+    const auto snapshot = driver.transportSnapshot();
+    CHECK(snapshot.violation == TransportViolation::RELEASE_REPORT);
+    CHECK(snapshot.stopped && !snapshot.controllerReusable);
+    const auto stopped = driver.readClause22(2, value, BUDGET);
+    CHECK(stopped.is(Err::BUSY));
+    CHECK(stopped.detail == static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED));
+    CHECK(value == SENTINEL && bus.callbacks == 1U);
+    CHECK(driver.end().ok());
+  }
   Controller bus;
   Driver first, second;
   CHECK(first.bind(bus.config(0)).ok());
   CHECK(second.bind(bus.config(31)).ok());
-  bus.reenter = true; bus.active = &first; bus.competing = &second;
+  bus.onFrame = reenter; bus.active = &first; bus.competing = &second;
   uint16_t value = SENTINEL;
   CHECK(first.readClause22(2, value, BUDGET).ok());
   CHECK(value == 0x2000U && bus.callbacks == 2U && bus.launches == 1U);
@@ -565,16 +492,16 @@ void testOwnership() {
   CHECK(first.transportSnapshot().totalBatches == 1U);
   CHECK(second.transportSnapshot().totalBatches == 1U);
   CHECK(second.transportSnapshot().attemptedFrames == 0U);
-  bus.reenter = false;
+  bus.onFrame = nullptr;
   CHECK(second.readClause22(2, value, BUDGET).ok());
   CHECK(bus.lastRequest.phyAddress == 31U && bus.launches == 2U);
   CHECK(first.end().ok()); CHECK(second.end().ok());
 
-  bus.clockReenter = true; bus.active = &first;
+  bus.onClock = clockReenter; bus.active = &first;
   CHECK(first.bind(bus.config()).ok());
   CHECK(first.readClause22(2, value, BUDGET).ok());
   CHECK(first.end().ok());
-  bus.clockReenter = false;
+  bus.onClock = nullptr;
 
   // Independent contexts have independent clocks, receipts and results.
   Controller other; other.readValue = 0x2211;
@@ -673,14 +600,12 @@ void testOwnership() {
 } // namespace
 
 int main(int argc, char** argv) {
-  if (argc != 2) return 2;
-  if (std::strcmp(argv[1], "binding") == 0) testBinding();
-  else if (std::strcmp(argv[1], "direct") == 0) testDirect();
-  else if (std::strcmp(argv[1], "reports") == 0) testReports();
-  else if (std::strcmp(argv[1], "timing") == 0) testTiming();
-  else if (std::strcmp(argv[1], "ownership") == 0) testOwnership();
-  else if (std::strcmp(argv[1], "--verify-failure-path") == 0) CHECK(false);
-  else return 2;
-  std::printf("%u checks; %d failures\n", checks, failures);
-  return failures == 0 ? 0 : 1;
+  const test::Suite suites[] = {
+    {"binding", testBinding},
+    {"direct", testDirect},
+    {"reports", testReports},
+    {"timing", testTiming},
+    {"ownership", testOwnership},
+  };
+  return test::runSuites(argc, argv, suites);
 }

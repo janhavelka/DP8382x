@@ -31,6 +31,22 @@ hardware-reset pulse and up to 200 ms POR register readiness, distinct from
 deadlines. Test no-link/read failure separately and never treat shared ID as
 subtype/medium proof.
 
+## Reset and observation details
+
+Distinguish five literal reset mechanisms: POR/RESET_N latch straps and reset
+all; `0x001F=0x8000` is pin-equivalent and treated as relatching straps despite
+BMCR table 8-1's contradiction; `0x001F=0x4000` restarts digital logic while
+retaining registers (the prose's ambiguous software/soft reset); BMCR[15]
+resets PCS, retains vendor registers and does not latch straps, with the exact
+PCS set unspecified so re-read owned direct fields; MMD3 `0x3000[15]` resets
+MMD3/MMD7/PCS while retaining vendor registers. Label the section 7.4.4.2
+soft-reset interpretation as inferred; never select a recipe by its prose name.
+
+Use table 8-4 revision admission and UNKNOWN operating mode. RXFS[12] resets 0
+on DP83822 (table 8-88), unlike DP83826. Keep that selector in collector state
+and do not inherit the original part's MISR2 WoL interpretation blindly. FX
+procedures in 65 never write CR1[6:5], PHYCR[15:14] or CR3[6:5].
+
 ## Work and acceptance
 
 Implement documented copper identity/revision admission, startup/10 Mbit,

@@ -100,6 +100,27 @@
       "revision": "SNLS603D, April 2025",
       "authority": "Different-part MMD address notation analogy only; not DP83826 wire proof",
       "license": "TI document copyright; original bytes and notices retained"
+    },
+    {
+      "id": "snls638c",
+      "path": "docs/reference/source/TI-DP83825I-SNLS638C.pdf",
+      "revision": "SNLS638C",
+      "authority": "TI source comparison; applicability explicitly identified at each citation",
+      "license": "TI document copyright; original bytes and notices retained"
+    },
+    {
+      "id": "snls505h",
+      "path": "docs/reference/source/TI-DP83822-SNLS505H.pdf",
+      "revision": "SNLS505H",
+      "authority": "TI source comparison; applicability explicitly identified at each citation",
+      "license": "TI document copyright; original bytes and notices retained"
+    },
+    {
+      "id": "snla344c",
+      "path": "docs/reference/source/TI-DP83826-EtherCAT-SNLA344C.pdf",
+      "revision": "SNLA344C",
+      "authority": "TI source comparison; applicability explicitly identified at each citation",
+      "license": "TI document copyright; original bytes and notices retained"
     }
   ],
   "identity": {
@@ -2427,7 +2448,7 @@
       ],
       "resetValue": "0x0002",
       "resetKnownMask": "0xFFFF",
-      "resetNotes": "Published table reset 0002, not a universal post-strap expectation: bits 2:1 conflict with the same table's ENHANCED forced-mode descriptions. Keep the published reset separate from live observations and the forced_physts gate; never verify these dynamic fields as persistent configuration.",
+      "resetNotes": "Published table reset 0002, not a universal post-strap expectation: bits 2:1 conflict with the same table's ENHANCED forced-mode descriptions. Keep the published reset separate from live observations and the forced_physts gate; never verify these dynamic fields as persistent configuration. D4 uses coherent AN-disabled BMCR plus current linkUP for forced mode; PHYSTS2:1 stay raw, and extended100half uncertainty invalidates duplex.",
       "reservedMask": "0x8000",
       "access": "FIELD_DEFINED",
       "readEffects": "See individual fields; access owned by application, destructive observations by collector.",
@@ -2665,7 +2686,7 @@
           "prohibited": [],
           "neutral": null,
           "readEffects": "None.",
-          "validity": "0 half/1 full. BASIC forced strap-latched; ENHANCED AN-disabled says1. Gate universal forced resolution.",
+          "validity": "AN-enabled resolved status only. Forced mode uses coherent BMCR with D4 extended-full-duplex exception; retain PHYSTS raw.",
           "sources": [
             {
               "source": "snls647i",
@@ -2683,7 +2704,7 @@
           "prohibited": [],
           "neutral": null,
           "readEffects": "None.",
-          "validity": "0 100M/1 10M. BASIC forced strap-latched; ENHANCED AN-disabled says1. Gate universal forced resolution.",
+          "validity": "AN-enabled resolved status only. Forced mode uses coherent BMCR with D4 extended-full-duplex exception; retain PHYSTS raw.",
           "sources": [
             {
               "source": "snls647i",
@@ -4359,11 +4380,15 @@
           "prohibited": [],
           "neutral": null,
           "readEffects": "None documented.",
-          "validity": "No encoding description in table8-43. Semantic programming remains source-blocked by pin_fields; led_configure excludes it.",
+          "validity": "Table8-43 names LED Configuration; exact effect unresolved despite SNLA344C label. Excluded from typed profile pendingQ12.",
           "sources": [
             {
               "source": "snls647i",
               "location": "8.5.1.25, table 8-43; table 8-17 inventory"
+            },
+            {
+              "source": "snla344c",
+              "location": "3.2.1 labels8020 enableLED0 config; contradictory surrounding words are not an accepted recipe"
             }
           ],
           "owner": "led"
@@ -8809,6 +8834,10 @@
         {
           "source": "snls647i",
           "location": "8.3.3.1"
+        },
+        {
+          "source": "snla428",
+          "location": "Table2-1 p3, separate TDR recipe"
         }
       ],
       "researchStage": 5,
@@ -8816,7 +8845,8 @@
       "fields": [],
       "gates": [
         "eee_wire",
-        "eee_control_semantics"
+        "eee_control_semantics",
+        "tdr_recipe"
       ]
     },
     {
@@ -9040,6 +9070,37 @@
       "gates": [
         "loopback_recipe"
       ]
+    },
+    {
+      "id": "TDR_0411",
+      "name": "TDR_0411",
+      "modes": [
+        "BASIC",
+        "ENHANCED"
+      ],
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0411",
+      "width": 16,
+      "aliases": [],
+      "resetValue": null,
+      "resetKnownMask": null,
+      "resetNotes": "Opaque SNLA428 TDR recipe only. No reset value, fields or general read permission established.",
+      "reservedMask": null,
+      "access": "RECIPE_ONLY",
+      "readEffects": "Unknown outside exact procedure; no general raw read/write permission.",
+      "sources": [
+        {
+          "source": "snla428",
+          "location": "Table2-1 p3"
+        }
+      ],
+      "researchStage": 4,
+      "status": "RECIPE",
+      "fields": [],
+      "gates": [
+        "tdr_recipe"
+      ]
     }
   ],
   "printedAddresses": [
@@ -9055,6 +9116,18 @@
         {
           "source": "snla328",
           "location": "2.1-2.3 pp10-11; DP83825 only"
+        },
+        {
+          "source": "snls638c",
+          "location": "Tables7-99..103 pp79-81; low offsets in register text"
+        },
+        {
+          "source": "snls505h",
+          "location": "7.4.2.9 p37 literal MMD7/003D trace; tables8-138..142"
+        },
+        {
+          "source": "snls603d",
+          "location": "p47 address-notation analogy on a different part only"
         }
       ],
       "gates": [
@@ -9062,12 +9135,14 @@
         "eee_control_semantics"
       ],
       "feature": "eee",
-      "status": "BLOCKED",
-      "disposition": "Research complete with essential exact-part wire/field evidence unresolved; never a tuple accepted by MMD access helpers.",
+      "status": "SOURCE_IMPLIED",
+      "disposition": "Selected D2 cross-part inference, Q1 physical check NOT RUN. Exact tuple only; no digit-stripping rule or DEVAD31 alias. Printed high-prefix addresses are rejected.",
       "controls": [
-        "DP83826: named among required EEE control/status locations only; exact field map, reset and destructive-read behavior unresolved.",
-        "DP83825 comparison SNLA328 table4: masks0800/0400 latched-high TX/RX received;0200/0100 current TX/RX LPI. Not exact26 implementation permission."
-      ]
+        "Latched TX/RX LPI received bits11/10; current TX/RX LPI bits9/8.",
+        "Source-implied fields, not an exact-part detailed field table. Physical Q1 remains open."
+      ],
+      "wireAddress": "0x0001",
+      "readRoute": "COLLECTOR"
     },
     {
       "id": "eee_printed_1014",
@@ -9081,6 +9156,18 @@
         {
           "source": "snla328",
           "location": "2.1-2.3 pp10-11; DP83825 only"
+        },
+        {
+          "source": "snls638c",
+          "location": "Tables7-99..103 pp79-81; low offsets in register text"
+        },
+        {
+          "source": "snls505h",
+          "location": "7.4.2.9 p37 literal MMD7/003D trace; tables8-138..142"
+        },
+        {
+          "source": "snls603d",
+          "location": "p47 address-notation analogy on a different part only"
         }
       ],
       "gates": [
@@ -9088,12 +9175,14 @@
         "eee_control_semantics"
       ],
       "feature": "eee",
-      "status": "BLOCKED",
-      "disposition": "Research complete with essential exact-part wire/field evidence unresolved; never a tuple accepted by MMD access helpers.",
+      "status": "SOURCE_IMPLIED",
+      "disposition": "Selected D2 cross-part inference, Q1 physical check NOT RUN. Exact tuple only; no digit-stripping rule or DEVAD31 alias. Printed high-prefix addresses are rejected.",
       "controls": [
-        "DP83826: named among EEE locations; complete capability field map/access/reset unresolved.",
-        "DP83825 comparison SNLA328 table5 bits2/1 describe1000/100 capability. Do not infer DP83826 gigabit or copy masks as established exact26 fields."
-      ]
+        "Capability bit1; require whole word0002 before EEE initialization.",
+        "Source-implied fields, not an exact-part detailed field table. Physical Q1 remains open."
+      ],
+      "wireAddress": "0x0014",
+      "readRoute": "SAFE_READ"
     },
     {
       "id": "eee_printed_1016",
@@ -9107,6 +9196,18 @@
         {
           "source": "snla328",
           "location": "2.1-2.3 pp10-11; DP83825 only"
+        },
+        {
+          "source": "snls638c",
+          "location": "Tables7-99..103 pp79-81; low offsets in register text"
+        },
+        {
+          "source": "snls505h",
+          "location": "7.4.2.9 p37 literal MMD7/003D trace; tables8-138..142"
+        },
+        {
+          "source": "snls603d",
+          "location": "p47 address-notation analogy on a different part only"
         }
       ],
       "gates": [
@@ -9114,12 +9215,14 @@
         "eee_control_semantics"
       ],
       "feature": "eee",
-      "status": "BLOCKED",
-      "disposition": "Research complete with essential exact-part wire/field evidence unresolved; never a tuple accepted by MMD access helpers.",
+      "status": "SOURCE_IMPLIED",
+      "disposition": "Selected D2 cross-part inference, Q1 physical check NOT RUN. Exact tuple only; no digit-stripping rule or DEVAD31 alias. Printed high-prefix addresses are rejected.",
       "controls": [
-        "DP83826: named among EEE locations; wake-error role/field width/access/reset requires exact-part confirmation.",
-        "SNLA3282.3.3 describes DP83825 wake-error counter RC, saturation and PCS-reset clearing, without establishing this exact26 wire tuple."
-      ]
+        "16-bit read-clear wake-error counter; saturation all ones is source-implied.",
+        "Source-implied fields, not an exact-part detailed field table. Physical Q1 remains open."
+      ],
+      "wireAddress": "0x0016",
+      "readRoute": "COLLECTOR"
     },
     {
       "id": "eee_printed_203C",
@@ -9133,6 +9236,18 @@
         {
           "source": "snla328",
           "location": "2.1-2.3 pp10-11; DP83825 only"
+        },
+        {
+          "source": "snls638c",
+          "location": "Tables7-99..103 pp79-81; low offsets in register text"
+        },
+        {
+          "source": "snls505h",
+          "location": "7.4.2.9 p37 literal MMD7/003D trace; tables8-138..142"
+        },
+        {
+          "source": "snls603d",
+          "location": "p47 address-notation analogy on a different part only"
         }
       ],
       "gates": [
@@ -9140,12 +9255,14 @@
         "eee_control_semantics"
       ],
       "feature": "eee",
-      "status": "BLOCKED",
-      "disposition": "Research complete with essential exact-part wire/field evidence unresolved; never a tuple accepted by MMD access helpers.",
+      "status": "SOURCE_IMPLIED",
+      "disposition": "Selected D2 cross-part inference, Q1 physical check NOT RUN. Exact tuple only; no digit-stripping rule or DEVAD31 alias. Printed high-prefix addresses are rejected.",
       "controls": [
-        "Exact26 section8.3.3.2 establishes advertisement bit1 set, positioned mask0002/value0002; fullword0002 appears in recipe.",
-        "MMD7 association is known; wire offset, other fields, reset and safe RMW remain unresolved."
-      ]
+        "Advertisement bit1; writes only through the EEE owner, whole-word0002 readback.",
+        "Source-implied fields, not an exact-part detailed field table. Physical Q1 remains open."
+      ],
+      "wireAddress": "0x003C",
+      "readRoute": "SAFE_READ"
     },
     {
       "id": "eee_printed_203D",
@@ -9159,6 +9276,18 @@
         {
           "source": "snla328",
           "location": "2.1-2.3 pp10-11; DP83825 only"
+        },
+        {
+          "source": "snls638c",
+          "location": "Tables7-99..103 pp79-81; low offsets in register text"
+        },
+        {
+          "source": "snls505h",
+          "location": "7.4.2.9 p37 literal MMD7/003D trace; tables8-138..142"
+        },
+        {
+          "source": "snls603d",
+          "location": "p47 address-notation analogy on a different part only"
         }
       ],
       "gates": [
@@ -9166,12 +9295,14 @@
         "eee_control_semantics"
       ],
       "feature": "eee",
-      "status": "BLOCKED",
-      "disposition": "Research complete with essential exact-part wire/field evidence unresolved; never a tuple accepted by MMD access helpers.",
+      "status": "SOURCE_IMPLIED",
+      "disposition": "Selected D2 cross-part inference, Q1 physical check NOT RUN. Exact tuple only; no digit-stripping rule or DEVAD31 alias. Printed high-prefix addresses are rejected.",
       "controls": [
-        "DP83826 lists this MMD7 location with EEE controls/status; partner advertisement is required scope but complete exact field/access/reset map is unresolved.",
-        "Do not invent a bit1 partner flag or normalize003D before exact evidence."
-      ]
+        "Partner advertisement bit1; no inferred gigabit capability.",
+        "Source-implied fields, not an exact-part detailed field table. Physical Q1 remains open."
+      ],
+      "wireAddress": "0x003D",
+      "readRoute": "SAFE_READ"
     }
   ],
   "procedures": [
@@ -9357,9 +9488,10 @@
       "steps": [
         "Admit full disruption and retain all persistent desired state. Invalidate identity/straps/config/link evidence; declared board identity persists as declaration.",
         "Write literal whole word C22 PHYRCR=8000 to register001F; never compose from sampled commands or send to register8000.",
-        "After command completion release lock; bounded polls read C22 register001F and test mask8000 until clear. Do not poll register8000. A remaining4000 restart command prevents declaring overall readiness; retain pending effects.",
+        "After every attempted command enforce the bus-wide2ms silence described below before any poll. Release lock; bounded polls then read001F mask8000 until clear. Never poll register8000. A remaining4000 command prevents readiness; retain pending effects.",
         "Re-read identity, PHY address and loaded straps; application must reconcile reachability/address if straps changed. Do not scan/retry indefinitely.",
-        "Every startInitialize writes and verifies VOD_CFG3=4A40 unconditionally, then restores persistent interface/clock/power state with dependencies, crossover/compatibility, advertisement, AN/forced activation and event enables; reverify stable owned settings and refresh retained link observations."
+        "Every startInitialize writes and verifies VOD_CFG3=4A40 unconditionally, then restores persistent interface/clock/power state with dependencies, crossover/compatibility, advertisement, AN/forced activation and event enables; reverify stable owned settings and refresh retained link observations.",
+        "After every attempted PHYRCR8000 write, including error/ambiguous completion, enforce bus-wide frame-free silence until completion upper bound plus max(2000us,pollInterval). No participant or other PHY address may issue a frame during this window. Release callback bound is required; Q5 remains physical NOT RUN. BMCR8000 and PHYRCR4000 do not inherit this floor."
       ],
       "waits": [
         "Post-command timing is application policy until software-command settling clarified; external reset2ms not claimed as specified hard-reset deadline."
@@ -9512,7 +9644,7 @@
       "ownedMasks": [
         {
           "register": "ANAR",
-          "mask": "0x8DFF"
+          "mask": "0x0DFF"
         },
         {
           "register": "BMCR",
@@ -9525,7 +9657,8 @@
         "If any10 ability enabled, complete initialize_10base. Validate crossover policy. Extended full-duplex CR2[5] belongs to extended_link_configure (prompt18); delegate explicit coordinated opt-in to that owner before negotiation, never write reserved CR2[6].",
         "Under admitted configuration sequence write ANAR stable permitted fields; keep reserved/read-only bits unchanged and RF0. Stage desired local next-page payload locally; the gated next_page_exchange owns post-restart register7 loading.",
         "Enable BMCR AN, compose reset0, issue restart1 only after configuration writes succeed; speed/duplex selections ignored during AN. Verify stable desired bits without comparing self-clearing command.",
-        "Poll AN state boundedly. Restart command clear proves initiation only; full link resolution requires current link, AN complete and partner ability. Link-down/pending is not an MDIO error."
+        "Poll AN state boundedly. Restart command clear proves initiation only; full link resolution requires current link, AN complete and partner ability. Link-down/pending is not an MDIO error.",
+        "Ordinary advertisement always clears next-page8000; host next-page ownership alone enables it transiently."
       ],
       "waits": [
         "No universal negotiation/link timeout from nominal FLP timing. Application deadline and finite acquisition limits."
@@ -9579,7 +9712,8 @@
         "Enable CR1 robust bit5 for forced operation per exact table; for auto set PHYCR15 and preserve manual bit; for manual clear PHYCR15 and select PHYCR14 (0MDI/1MDIX). Robust enable is retained per table even for forced manual pair policy.",
         "Apply independent CR3 pair/polarity swap only when requested; port mirror requires both5/6. Do not confuse these with PHYCR automatic/manual routing.",
         "Write BMCR AN disabled and selected speed/duplex, neutral reset/restart commands; verify stable owned settings. Report configured mode separately from link resolution.",
-        "Acquire current link/routing through collector. Do not infer resolved forced speed/duplex from conflicting PHYSTS text; retain raw status and source gate."
+        "Acquire current link and coherent BMCR through collector/owner; apply the D4 forced-mode rule below, preserving raw PHYSTS without interpreting its forced bits.",
+        "D4: coherent AN-disabled BMCR plus current linkUP establishes speed frombit13 and duplex frombit8; PHYSTS2:1 remain raw only. Forced100half with CR2[5] not known0 yields speed100, duplexUNKNOWN, mode invalid. Pause is never valid in forced mode."
       ],
       "waits": [],
       "timeout": "Application aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Finite frame/poll limit even if clock freezes. Zero work budget performs no I/O. No nominal silicon number is a software timeout.",
@@ -9632,10 +9766,11 @@
         "Validate11-bit payload, next/message/ACK2 booleans, assigned message codes (never transmit reserved message codes), application semantics, finite page count including null pages, and aggregate deadline. Preserve prior consumed events and establish a fresh negotiation epoch. Each series of unformatted pages must be preceded by a message page defining its use; the referenced unformatted pages must immediately follow in the defined order (IEEE Annex 28B.4 and 28.2.3.4.13g).",
         "Prepare desired payload locally, set ANAR next-page intent and restart AN. A pre-restart ANNPTR write is not a proved load trigger: IEEE transmit-disable clears mr_next_page_loaded. Do not write hardware toggle or partner ACK.",
         "Collector retains fresh ANER page evidence. Distinguish initial BASE-page receipt from later NEXT-page events; initial event does not justify reading ANLNPTR as a received next page. Check peer/local next-page capability and peer intent. Peer refusal means unavailable exchange, not transport failure; ordinary negotiation may continue.",
-        "After fresh base-page receipt and bilateral next-page willingness, write first ANNPTR under ownedB7FF; IEEE register7 write sets mr_next_page_loaded. Exact TI load/event ordering remains gated.",
+        "After fresh base-page receipt and bilateral next-page willingness, write first ANNPTR under ownedB7FF; IEEE register7 write sets mr_next_page_loaded. The selected IEEE sequence remains physically unqualified underQ10.",
         "On each subsequent NEXT-page event retain ANLNPTR payload before loading another page. Capture ACK,ACK2,toggle,message,NP and code. ACK2 means ability/will to comply, not merely receipt. Hardware owns toggle; first toggle inverts preceding base-page bit11 and later pages alternate. Preserve event with missing-payload evidence on read failure.",
         "Load later pages without restarting AN; both willing partners exchange at least one next page. When locally exhausted send null message1 with MP1/NP0 while partner still has pages. Require both sides finished before completion, not localNP0 alone. Count null pages and bound event/poll work; never implicitly retransmit/restart.",
-        "Report partial/complete exchange separately from AN complete/link and EEE capability. Timeout/cancel retains consumed pages, current phase and accepted or uncertain load effects; no guessed recovery handshake."
+        "Report partial/complete exchange separately from AN complete/link and EEE capability. Timeout/cancel retains consumed pages, current phase and accepted or uncertain load effects; no guessed recovery handshake.",
+        "Set ANAR8000 only for the owned exchange epoch. On success clear it without another restart. On failure/cancel retain cleanupOwed and issue no further primary write; separately admitted initialize/configureAN restores NP0 and restarts. Reset never replays NP1."
       ],
       "waits": [
         "Event-driven bounded owner polling; application sets maximum pages/deadline. No invented per-page silicon delay."
@@ -9673,9 +9808,11 @@
         "Collector performs BMSR first read retaining latched link/fault evidence immediately; second read can update current link while preserving first sample. Do not turn two reads into an atomic historical claim.",
         "Read PHYSTS through same collector: bits10/9 RC; bits13/12/11/8/7/6 clear via other named registers, not blanket PHYSTS reads. Preserve acquisition order and individual validity/time.",
         "Read partner base page/ANER/PHYCR as needed for negotiated resolution and pause. Stage aggregate until complete consistent acquisition; if link/AN changes during acquisition publish stale/incomplete and boundedly reacquire, never mix epochs as resolved.",
-        "With valid AN-complete full-duplex link, expose RX and TX pause separately from PHYCR13/12 and/or audited full pause resolution. Half duplex, forced, pending or invalid AN does not imply negotiated pause.",
-        "If forced-mode interpretation unresolved, expose raw PHYSTS plus verified configured BMCR mode with explicit provenance; do not label configuration as independently observed resolution.",
-        "Publish copied cached snapshot under application synchronization with no I/O for readers. Cable down and policy mismatch remain distinct from transport failure and application readiness."
+        "For valid AN-complete full-duplex link resolve pause from ANAR/ALNPAR and cross-check PHYCR13:12; mismatch invalidates pause. Forced, half-duplex or incomplete AN has no negotiated pause.",
+        "For AN-disabled linkUP apply the D4 rule below using coherent BMCR and CR2 trust; do not use PHYSTS2:1 for forced resolution.",
+        "Publish copied cached snapshot under application synchronization with no I/O for readers. Cable down and policy mismatch remain distinct from transport failure and application readiness.",
+        "D4: coherent AN-disabled BMCR plus current linkUP establishes speed frombit13 and duplex frombit8; PHYSTS2:1 remain raw only. Forced100half with CR2[5] not known0 yields speed100, duplexUNKNOWN, mode invalid. Pause is never valid in forced mode.",
+        "For completed AN full duplex resolve pause from ANAR/ALNPAR IEEE28B.3; PHYCR13:12 is a cross-check. Mismatch invalidates pause rather than guessing."
       ],
       "waits": [],
       "timeout": "Application aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Finite frame/poll limit even if clock freezes. Zero work budget performs no I/O. No nominal silicon number is a software timeout.",
@@ -9724,7 +9861,8 @@
         "Retain existing FLDS/interrupt evidence through the single collector before changing policy; record the acquisition epoch without interpreting old causes as new failures.",
         "Disable owned CR3 FLD modes while configuring their prerequisites; preserve unrelated port-mirror fields. Configure MLT3 recipe0117=0417 when selected (ownedFFF0 with reserved low nibble retained as documented7); configure0131[5:0]=08 for descrambler. Keep raw threshold choices distinct from guaranteed physical behavior.",
         "Set selected CR3[10,3:0] combination after configuration succeeds. Verify stable owned masks with bounded reads; pending gates remain attached to result. Do not assume BASIC or ENHANCED default strap claims establish actual desired settings.",
-        "During admitted observation use collector FLDS cause bits and actual link evidence; register configuration success alone is not a measured link-drop timing result. Stop temporary observation by restoring prior desired settings, not clearing history silently."
+        "During admitted observation use collector FLDS cause bits and actual link evidence; register configuration success alone is not a measured link-drop timing result. Stop temporary observation by restoring prior desired settings, not clearing history silently.",
+        "Reject nonzero causes on RMII but allow a zero-cause disable and FLDS observation. CR3 reset defaults remain unknown. Modes2/3/5 claim their printed maximum only with RXerror or energy-loss enabled. MLT3 programs0117=0417; descrambler programs0131 low003F=0008; other threshold recipes remain gated."
       ],
       "waits": [
         "No invented settling delay. Section7.6 physical MAX10us modes1-4/MAX11us mode5 is not an MDIO polling deadline; modes2/3/5 require RX-error or signal-energy enabled per footnote5. Strapped150m case separately MAX10us."
@@ -9765,6 +9903,18 @@
         {
           "register": "BISCR",
           "mask": "0x005F"
+        },
+        {
+          "register": "CR1",
+          "mask": "0x0020"
+        },
+        {
+          "register": "PHYCR",
+          "mask": "0xC000"
+        },
+        {
+          "register": "PHYRCR",
+          "mask": "0x4000"
         }
       ],
       "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. Near-end AN disabled before activation. PCS input10 only; standalone digital is separate100-only recipe. Analog needs100-ohm termination. External cable loopback has separate fixture admission.",
@@ -9772,7 +9922,9 @@
         "Validate requested speed/interface/termination and persistent desired state before any write. Clear all other loopback selectors and line-transmit bit.",
         "Disable BMCR auto-negotiation; apply forced speed/duplex through established core procedure including qualified10BASE-Te setup. MII loopback: BISCR low5=4 at100 or1 at10 and BMCR14=1. Standalone PCS-input:10 only,low5=1,BMCR14=0. PCS-output:low5=2,BMCR14=0. Analog:low5=8,BMCR14=0 with100-ohm termination.",
         "Optional line transmit BISCR6=1 only for100Mb/s MII loopback; reject10,PCS,analog use. MAC-interface support follows configured MII/RMII interface, not the historical MII-loopback name.",
-        "Observe bounded correlated MAC sent/received frames or separately qualified BIST; configuration readback alone is not path proof. Stop by clearing BMCR14 and BISCR6/low5, then restore persistent speed/AN state."
+        "Analog only: after selector activation issuePHYRCR4000, then bounded restart completion per SNLA423A2.5.3. MII and PCS modes do not acquire this extra restart. Q8 remains physically unqualified. Reject SNLA423A030B=3380: field11:6=0E is outside documented28..38. Do not turn the contradictory script into reserved/illegal field permission.",
+        "Observe bounded correlated MAC sent/received frames or separately qualified BIST; configuration readback alone is not path proof. Stop by clearing BMCR14 and BISCR6/low5, then restore persistent speed/AN state.",
+        "Preserve and restore robust CR1[5] and automatic crossover PHYCR[15:14] around the temporary mode; these are not new persistent desired settings."
       ],
       "waits": [],
       "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
@@ -9870,12 +10022,17 @@
         {
           "register": "BMCR",
           "mask": "0x4000"
+        },
+        {
+          "register": "PHYRCR",
+          "mask": "0x4000"
         }
       ],
       "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. ",
       "steps": [
         "Require live compatible link partner and selected speed/interface; save ordinary reverse FIFO depth setting. Select PHYSCR8..9 depth using documented code if owner requests it.",
         "Save and clear BMCR14; verify it is zero along with other near-end selectors before setting reverse mode. Clear other loopbacks and line-transmit option; set BISCR low5=10(hex). MAC transmitted data is ignored and partner received data is looped at MAC interface back onto line.",
+        "After activation issue literal PHYRCR4000 and bounded restart completion per SNLA423A scripts; reverse additionally observes bounded relink. Q8 physical comparison remains open.",
         "Observe finite partner-originated correlated packets and returned payloads. Stop low5=0 and restore FIFO/previous persistent state. Do not write reserved BISCR bit5 from troubleshooting0020 example."
       ],
       "waits": [],
@@ -10043,6 +10200,10 @@
         {
           "source": "snls647i",
           "location": "8.3.16; tables8-54..60"
+        },
+        {
+          "source": "snla428",
+          "location": "Table2-1 p3"
         }
       ],
       "ownedMasks": [
@@ -10075,8 +10236,9 @@
       "steps": [
         "Disable manual trigger and autorun under owning procedures; admit quiet/disconnected partner. Preserve reserved fields and unknown tuning state. Do not write CDSCR2 or absent0172/0174/ALCD addresses.",
         "Select TX/RX combination via CDSCR14:13: A->A=2,A->B=0,B->A=1,B->B=3. Set explicit DC-removal no-init policy and averaging0..6; reject7.",
-        "Segment1..5 CDSCR low segment codes1..5; CDSCR3 full words0D07,0D14,1A21,343B,8F6F; TDR175 words1004,1004,1005,1008,100B within documented fields; TDR178 width2,2,2,2,6. Preserve TDR176 default5 and CDSCR4 default1E unless exact-part tuning evidence supplied.",
-        "Verify ordinary owned field readback. Segment descriptions are recipe selection intervals, not decoded measured distance. All capture/configuration phases remain separate and bounded."
+        "Raw typed tuning retains SNLS647I tables8-56/57 words0D07,0D14,1A21,343B,8F6F and1004,1004,1005,1008,100B. The separately selected derived-measurement recipe uses tdrRecipe six-run SNLA428 matrix instead; do not mix rows or infer pairB.",
+        "Verify ordinary owned field readback. Segment descriptions are recipe selection intervals, not decoded measured distance. All capture/configuration phases remain separate and bounded.",
+        "SNLA428 writes0170,0173,0175,0178,0416,0411,0456,001E in that exact order for1A,1B,2,3,4,5. Preserve GENCFG compatibility bit3 through exceptional0600 composition. Reserve hard-reset exit and initialization/reapply; opaque0411/0416 have no general read/restore permission."
       ],
       "waits": [],
       "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
@@ -10084,14 +10246,23 @@
       "cleanup": "Stop diagnostic generation before restoring settings; keep controller lock only across indivisible MDIO/RMW transaction, never across waits. Verify stop/readback with finite cleanup budget; retain cleanup-required on failure.",
       "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
       "gates": [
-        "tdr_calibration"
+        "tdr_calibration",
+        "tdr_recipe"
       ],
       "owner": {
         "api": "startCableTest / CableSettings / CableSample",
         "cli": "owner-routed startCableTest / CableSettings / CableSample (prompts 44-46)",
         "test": "Independent literals and boundary failures for startCableTest / CableSettings / CableSample; prompts 25, 53-55",
         "implementationStage": 25
-      }
+      },
+      "writeActions": [
+        "TDR_0411_tdr_0813",
+        "TDR_0411_tdr_0815",
+        "TDR_0411_tdr_0816",
+        "EEE_0416_tdr_1FA0",
+        "EEE_0416_tdr_1F90",
+        "GENCFG_tdr_0600"
+      ]
     },
     {
       "id": "cable_manual",
@@ -10121,7 +10292,7 @@
         "Read CR1[8]; if set, reject before mutation. Prompt26 adds the disable and restore handoff. Reject overlapping BIST/loopback/reset. Read live CDCR before mutation. Bit14 high ends the session with no cable write and an explicit error, retaining the raw word; prompt35 calibration_recovery is the recovery route. Never clear that bit here without the hard reset table8-47 requires.",
         "For each explicitly selected legal segment/channel configuration, record baseline/status generation, then set CDCR15=1 with calibration neutral0; retain command acceptance/uncertainty and completion timestamp.",
         "Poll CDCR with released controller lock between polls. Accept fresh measurement only after observed post-trigger start/busy or done0 transition followed by start0 and done1, unless stronger exact-part evidence establishes another correlation mechanism. Initial/reset done1 alone never passes. Missed transient progress => freshness unknown, not fabricated failure/success.",
-        "Read fail bit and supported raw result words through cable_capture; preserve completed prior segments when a later iteration fails. Never repeat indefinitely or classify length/fault from unqualified raw words.",
+        "Read fail and supported words through cable_capture; preserve completed runs on later failure. Derive only from correlated matching SNLA428 runs; unperformed runs remain NOT_RUN.",
         "On completion/cancel/deadline disable manual trigger and autorun, retain all effects, then restore persistent settings using finite cleanup."
       ],
       "waits": [
@@ -10167,7 +10338,8 @@
         "Set CR1 bit8=1 and verify readback. It enables automatic TDR after link-down event; it is not an immediate trigger or proof that a measurement occurred.",
         "Record event/reset generations and CDCR progress; use cable_capture only when fresh completion can be correlated. Link flaps may retrigger and replace result words; do not claim atomic coherent sample without evidence.",
         "Disable CR1 bit8 before stopping/restoring the diagnostic session; read back and retain in-flight/result-latching uncertainty. Restore persistent autorun policy only after other temporary TDR settings are restored.",
-        "A link-down transition does not prove the remote transmitter is quiet: record partner/fixture activity and gate result interpretation when ongoing partner signaling can contaminate the capture. Preserve raw evidence and uncertainty."
+        "A link-down transition does not prove the remote transmitter is quiet: record partner/fixture activity and gate result interpretation when ongoing partner signaling can contaminate the capture. Preserve raw evidence and uncertainty.",
+        "CR1[8] is only the autorun enable. Disabling and verifying the bit does not establish engine quiescence. At most one raw run is captured; no six-run derived result without known complete recipe context."
       ],
       "waits": [
         "Link-down occurrence is not guaranteed; finite owner observation session expires without inventing a sample. Completion polling remains bounded."
@@ -10205,7 +10377,7 @@
         "Verify fresh completed request/event generation and record CDCR done/fail, segment/channel/averaging/DC controls and reset identity.",
         "Read only documented result fields: MMD31/0180 mask00FF,0185 mask007F,018A masks0800 and0020. Retain each successful raw read immediately; a later failure returns partial result with validity mask and no composite classification.",
         "No all-reserved bank is a peak result; no read-clear is documented for these raw banks. Recheck generation/status to detect known races, but equal status alone does not prove no autorun occurred.",
-        "Publish raw words with provenance/uncertainty. Distance, amplitude volts, polarity-to-fault mapping and active-link cable diagnosis remain unqualified."
+        "Publish raw words with per-word validity; failed nonconsuming0180/0185/018A reads are missing observations, not history loss, and permit explicitly bounded reread. The separately selected SNLA428 helper may derive transmit-A metres/classification using tdrRecipe, retaining source-implied/Q7 status; arbitrary raw tuning and pairB remain undecoded."
       ],
       "waits": [],
       "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
@@ -10249,7 +10421,9 @@
         "Read MISR1 and MISR2 once each, retaining status plus enables; collect FCSCR and full16-bit RECR, FLDS, RMII-only RCSR,10BASE-Te polarity10BTSCR, and RXFS only as requested and admitted. Capture RXFS source with event epoch; if not known stable during pending events retain ambiguous shared-source label. No fabricated atomic simultaneity across frames.",
         "For BICSR1 use the BIST owner freeze/capture procedure, never a generic destructive-register sweep; PRBS and diagnostic results retain their own session identity. Incidental reads during all configuration RMW/readback use this same retention path.",
         "On cancellation/deadline stop scheduling new primary reads. Preserve completed prefix and late-success consumed words; mark overall result cancelled/timed-out even if all words eventually arrived. Ambiguous failed terminal target read marks history gap; selector-stage failure before target read does not itself consume target history.",
-        "Publish cached latest observations separately from accumulated historical flags, saturating software totals and history-gap evidence. ORed event flags prove occurrence only, never count multiplicity. FCSCR FF is lower bound; RECR numeric aggregation/saturation remains gated. Mark omitted/failed samples stale without deleting retained prior evidence."
+        "Publish cached latest observations separately from accumulated historical flags, saturating software totals and history-gap evidence. ORed event flags prove occurrence only, never count multiplicity. FCSCR FF is lower bound; RECR numeric aggregation/saturation remains gated. Mark omitted/failed samples stale without deleting retained prior evidence.",
+        "D4: coherent AN-disabled BMCR plus current linkUP establishes speed frombit13 and duplex frombit8; PHYSTS2:1 remain raw only. Forced100half with CR2[5] not known0 yields speed100, duplexUNKNOWN, mode invalid. Pause is never valid in forced mode.",
+        "Read PHYSTS before dependent clearers if mirrored history is required. Collector includes ANER,10BTSCR001A polarity0010 (clearsPHYSTS12), RXFS and source-implied EEE latched/RC rows. Retain each successful consumed word immediately; ambiguous read loses possible history, never reports zero."
       ],
       "waits": [],
       "timeout": "Finite aggregate primary deadline includes admission, locking and every callback; bounded per-poll transfer count. No silicon completion wait or interrupt-drain-until-empty loop. Any selector cleanup gets a distinct finite cleanup deadline and frame count. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
@@ -10305,7 +10479,8 @@
         "Validate desired eight-bit source enables, polarity, output role and shared polarity/WoL selector before I/O. Capture stable prior owned configuration and collect any consumed event words during capture.",
         "Disable PHYSCR event enable while changing enables/routing under serialized owner; do not assume this clears latches. Retain pending shared-source events with prior selector context; events spanning selector/WoL auto-change remain ambiguous.",
         "Apply RXFS source, both MISR low-byte enables and PHYSCR polarity/output; all readback/RMW consumes via collector. Compose only owned writable masks, preserve unrelated bits, never echo high event bits as writable controls.",
-        "Enable global event delivery last and verify stable writable fields. Source readback proves control state, not IRQ wiring or absence of history. Failed/mismatched/late accepted writes mark configuration trust uncertain and retain observed/desired/prior values separately."
+        "Enable global event delivery last and verify stable writable fields. Source readback proves control state, not IRQ wiring or absence of history. Failed/mismatched/late accepted writes mark configuration trust uncertain and retain observed/desired/prior values separately.",
+        "MISR2 bit0200 is raw polarity/WoL until RXFS[12] is known. Prompt27 selects RXFS1000 or0000 whole-word, never RMW, and verifies via collector. WoL enable or hard reset restores WoL/unknown routing. PHYSCR configuration owns000B; testbit2 is separate."
       ],
       "waits": [],
       "timeout": "Finite primary deadline/frame budget for preflight, collector reads, writes and readback; distinct finite cleanup allowance; no unbounded IRQ draining. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
@@ -10345,7 +10520,8 @@
       "steps": [
         "Capture IRQ configuration and establish test token. Set PHYSCR[2] with unrelated state preserved and record accepted/uncertain effect.",
         "Observe external IRQ pin/owner notification under finite deadline; service real events through collector without attributing them to test. Register write/readback alone proves control only, not physical IRQ delivery.",
-        "Clear test bit on success, failure, timeout or cancellation using separately reserved finite cleanup; verify bit clear and report external deassertion evidence if available."
+        "Clear test bit on success, failure, timeout or cancellation using separately reserved finite cleanup; verify bit clear and report external deassertion evidence if available.",
+        "Service both MISRs regardless of PHYSTS7. Any nonzero event or budget exhaustion means morePossiblyPending; bounded level/pin sample or re-poll follows. Empty acquisition with a test-bit stimulus is not itself an error."
       ],
       "waits": [
         "Bounded application observation only; no specified silicon IRQ assertion maximum was established. Release controller lock before waiting or output."
@@ -10433,7 +10609,8 @@
         "If live bounded read shows CDCR[14]=0, return no recovery needed without command. Preserve raw CDCR evidence, including diagnostic done/fail without claiming freshness.",
         "If bit14 is high, deassert only4000 using documented mixed access semantics; do not replay cable-start8000. Immediately issue C22 PHYRCR001F command8000 as the next hardware action, with no wait/output/unrelated access between the two writes.",
         "Reserve complete clear/reset pair before starting; cancellation between admitted writes does not erase required reset cleanup. On ambiguous clear/write failure retain possible effects and attempt the immediate hard-reset safety continuation within reserved budget, recording primary and cleanup separately.",
-        "Release controller lock before bounded reset polls; apply existing hard_reset procedure, actual completion observation and initialization order. Reset loses register settings/history epoch; replay persistent owned state and verify stable masks, never transient diagnostics, test interrupt or consumed event latches."
+        "After the required clear/reset pair, release controller ownership and obey the shared hard-reset frame-free floor before bounded polls. Completion leaves persistent initialization/reapply separately admitted behind cleanupOwed; do not replay transient diagnostics or consumed event latches.",
+        "If CDCR14 is high clear only4000 while writing manualstart15=0, then issuePHYRCR8000. Completion is hard-reset completion, not an invented calibration-done event."
       ],
       "waits": [
         "No numerical maximum for the word immediately was specified. Keep writes adjacent under transaction exclusion; no planned hardware wait between them. Reset wait/poll bound follows core hard_reset evidence and application policy, not a fabricated calibration time."
@@ -10492,7 +10669,8 @@
         "Validate LED0/1/2/3 source 0..E, reject F; MLED route must remain1. Map LED1 to0460[7:4], LED2[11:8], LED3[15:12]. Preserve low reserved nibble; PHYCR[5] has no sourced encoding and is excluded.",
         "Validate board pin role and BASIC/ENHANCED polarity. Program source and forced value before enabling drive where possible; LED0 uses0018[4,1], LED1/2 use0469[0:2,4:6]. No LED3 polarity/drive permission is inferred from reserved[10:8].",
         "Apply common blink0018[10:9] and stretch bypass0019[7] once; four independent blink timers are not available. Preserve other owners including crossover and address.",
-        "Read back stable owned fields once. Link-lost and PRBS-error LED sources do not authorize direct BMSR/counter acknowledgement; retain collector ownership. Report configured output, not measured light or waveform."
+        "Read back stable owned fields once. Link-lost and PRBS-error LED sources do not authorize direct BMSR/counter acknowledgement; retain collector ownership. Report configured output, not measured light or waveform.",
+        "BASIC exposesLED0/1 and fixed-low polarity; reject BASIC polarity override pendingQ12. ENHANCED RMII exposes0..3. ENHANCED MII LED2 requires freeCOL plus explicit0305[2:0]=0 write/readback; resetcode0 does not prove route. LED3 MII has no writable route and is rejected. ENHANCED LED1 depends on CLKOUT strap6/IO_CFG1[6]."
       ],
       "waits": [],
       "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
@@ -10536,7 +10714,8 @@
       "steps": [
         "Validate pin-specific mux: LED1 allows0 LED/2 WoL/4 IRQ/5 TX_ER/6 CLKOUT25; LED2 allows0 LED/2 WoL/3,5,6 COL/4 IRQ/7 high. Reject LED1 values1/3/7 and LED2 value1.",
         "Reject writable LED0/3 mux requests while detailed tables label them R. Reject clocks on LED2/3 whose selector fields are reserved. No unsupported input/tristate mux is invented.",
-        "Before route enable, configure the selected source under its owner and mask asynchronous interrupt/wake generation as needed using those procedures. Check MAC CRS/COL and clock consumers: no pin may simultaneously serve incompatible roles. Apply legal route then verify once; retain source and mux partial-state evidence."
+        "Before route enable, configure the selected source under its owner and mask asynchronous interrupt/wake generation as needed using those procedures. Check MAC CRS/COL and clock consumers: no pin may simultaneously serve incompatible roles. Apply legal route then verify once; retain source and mux partial-state evidence.",
+        "No TX_ER pin28 code is established. Reject pin31 codes5/6: figure8-10 LOW conflicts with table8-75 TX_ER/CLKOUT. PHYCR[5] is named LED Configuration table8-43, with SNLA344C3.2.1 enableLED0 label, but contradictory note values prevent typed use; Q12 remains open."
       ],
       "waits": [],
       "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count. The24+16 frame allowance covers only local mux work and prerequisite observations. Source/IRQ/WoL delegation, including its cleanup, requires additional finite counts reserved before admission within the same aggregate durations; it cannot borrow an unbounded child budget. Source setup is a dependency, not a recursive pin/source call.",
@@ -10816,7 +10995,8 @@
         "Before admitting10BASE-Te use initialize_10base exact VOD_CFG3=4A40 contract; desired termination changes require analog_configure policy and must not accidentally undo that required profile.",
         "Through10BTSCR collector program lower-threshold enablebit13, independently documented squelchcodes0..8 (200..600mV in50mV steps), NLP-disablebit7 and jabber-disablebit0. Preserve consumed polarity evidence and reject undocumented codes9..F.",
         "10M_CFG[14]=1 selects short preamble,0 long; require partner preamble declaration. Longer-cable threshold enable is not a supported distance guarantee. ANA_RX10BT_CTRL raw tuning remains separately gated until code mapping established.",
-        "Observe polarity/jabber through existing collectors; readback does not prove packet acceptance. NLP100ns/16ms and jabber approximately100ms/re-enable approximately500ms are descriptive/nominal, not operation completion maxima."
+        "Observe polarity/jabber through existing collectors; readback does not prove packet acceptance. NLP100ns/16ms and jabber approximately100ms/re-enable approximately500ms are descriptive/nominal, not operation completion maxima.",
+        "10BTSCR reads consume polarity evidence and use the collector. Explicit VOD ownership must not silently undo required4A40 initialization."
       ],
       "waits": [],
       "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
@@ -11006,9 +11186,11 @@
       ],
       "prerequisites": "Identified exact DP83826I and mode; one application owner serializes instance and complete bus transactions. Board declares wiring, pin consumers, clock dependencies and MAC state. Pure validation rejects invalid values/source-gated branches without I/O; bounded live prerequisite reads precede mutation. Save persistent desired settings separately from observed values/trust; admit only finite positive primary and cleanup budgets. ",
       "steps": [
-        "Require explicit coordinated partner declaration before extended duplex: CR2[5]=1 can select full-duplex against forced100M partner while local is AN or forced100M. Default0 follows IEEE; reject promise of full-duplex with unknown/half partner.",
+        "Extended duplex is a requested CR2[5] control with no peer-capability preflight. Reject forced10M plus extended; the adapter rejects forced100half plus extended. Configuration success does not prove peer agreement.",
         "Apply CR1[5] robust auto-MDIX as required in forced mode; configure PHYCR[15:14] automatic/manual crossover through existing configure_forced contract. CR2[6] remains reserved; no0020 field is widened to0060.",
-        "Verify stable configuration; retain configured BMCR/extended policy separately from PHYSTS resolved evidence while forced_physts remains open. Restore persistent selection after reset; application decides when to resume MAC."
+        "Verify stable configuration and retain its provenance; use selected D4 and AN parallel-detection rules for resolution. Restore persistent selection after reset; application owns MAC admission.",
+        "D4: coherent AN-disabled BMCR plus current linkUP establishes speed frombit13 and duplex frombit8; PHYSTS2:1 remain raw only. Forced100half with CR2[5] not known0 yields speed100, duplexUNKNOWN, mode invalid. Pause is never valid in forced mode.",
+        "No peer-capability preflight for extendedFullDuplex: compose CR2 mask0020 preserving all others. Reject forced10M plus extended; adapter rejects forced100half plus extended. Parallel detection ANER0 with CR2enabled andPHYSTSfull may resolve100/full but pause remains invalid. Port mirroring requires both CR3 bits0060, not independent selection."
       ],
       "waits": [],
       "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
@@ -11135,9 +11317,10 @@
       "prerequisites": "Identified exact DP83826I and mode; one application owner serializes instance and complete bus transactions. Board declares wiring, pin consumers, clock dependencies and MAC state. Pure validation rejects invalid values/source-gated branches without I/O; bounded live prerequisite reads precede mutation. Save persistent desired settings separately from observed values/trust; admit only finite positive primary and cleanup budgets. ",
       "steps": [
         "Preflight exact requested stimulus, authorized terminated test fixture, no production traffic, saved persistent profile, reset/reapply budget and finite dwell. Execute core hard_reset, force speed withoutAN, exact10BASE-Te4A40 prerequisite when10M. Use existing crossover/loopback/BIST procedures for independent standard100,10NLP and10PCS/BIST tests; never copy DP83822-only7108 analog recipe or ambiguousPHYCR0021.",
-        "10M harmonic repeated-one stimulus uses only exceptional whole-word COMPT0013 action from SNLA266B table5-5. Other10M low-nibble patterns0..D are researched but expandedreserved-bit enable combinations remain gated; E/F invalid10M.",
+        "All14 exact10M patterns0..D use COMPT mask001F and value0010|code; rejectE/F before I/O for10M, retaining their100M count meaning. Bit4 is a named exception, not ordinary writable permission. Stop by hard reset; no imagined inverse.",
         "100M pattern is source-gated before any0428 read: require exact clarification of preservation-read effects and safe unrelated-bit composition. Once resolved, use opaque0428 bit4 disable action, countbit5 action0/1 and COMPT low4, then0428 bit4 enable action. Count0 clears shift register;1..31 selects zero count afterone. Disable before changing and re-enable after; preserve powerbit2 and all other bits. Only the clarified recipe may read0428 for composition; never infer generic read/save/restore permission from its name or bit-setting prose.",
-        "Release bus lock during finite instrumentdwell. Stop100M viaexplicitdisable then verify bounded stop evidence if established; allopaque/10M modes reserve authorized hardreset and persistent reapply cleanup. Uncertainenable/error/cancel means possibleongoingemission untilstop proven; never mark compliancePASS from start/readback alone."
+        "Release bus lock during finite instrumentdwell. Stop100M viaexplicitdisable then verify bounded stop evidence if established; allopaque/10M modes reserve authorized hardreset and persistent reapply cleanup. Uncertainenable/error/cancel means possibleongoingemission untilstop proven; never mark compliancePASS from start/readback alone.",
+        "Refuse requested IEEE power-down or isolation. Forced crossover owns PHYCRC000, preserves bit7 and never copies scriptbit5; lowPHYCR4:0 are read-only. BISCR7101 becomes owned701F/value7001, excluding RO0100. Hard reset destroys prior configuration; stop leaves later startInitialize responsible for one finite reapply/readback. No instrument PASS follows from register traffic."
       ],
       "waits": [
         "Finite caller-specified stimulus dwell; no documented silicon start/stop maximum. Reset/restart wait follows core procedures, anchored to observed write completion. No lock held through instrument waits."
@@ -11160,7 +11343,20 @@
         "compliance_100_enable",
         "compliance_100_count_low",
         "compliance_100_count_high",
-        "compliance_10_harmonic"
+        "compliance_10_pattern_0",
+        "compliance_10_pattern_1",
+        "compliance_10_pattern_2",
+        "compliance_10_pattern_3",
+        "compliance_10_pattern_4",
+        "compliance_10_pattern_5",
+        "compliance_10_pattern_6",
+        "compliance_10_pattern_7",
+        "compliance_10_pattern_8",
+        "compliance_10_pattern_9",
+        "compliance_10_pattern_A",
+        "compliance_10_pattern_B",
+        "compliance_10_pattern_C",
+        "compliance_10_pattern_D"
       ]
     },
     {
@@ -11190,7 +11386,8 @@
       "steps": [
         "Validate request and board ENHANCED INTR/PWRDN role/level. PHY-generated clock dependencies and traffic quiescence are application-owned; keep isolation independent.",
         "Read BMCR, compose owned0800 set/clear preserving stable unrelated settings and forcing reset8000/restart0200 command-neutral zero; issue once under whole RMW exclusion.",
-        "Read back0800 as request state only. Clearing software power-down cannot override an asserted external power-down pin. Publish configured request, pin evidence, observed power validity and resolved link separately."
+        "Read back0800 as request state only. Clearing software power-down cannot override an asserted external power-down pin. Publish configured request, pin evidence, observed power validity and resolved link separately.",
+        "BMCR11 is software request OR external pin. Compose from desired request, not observed bit. Clearing once may still read1: report WAKE_BLOCKED_OR_UNCONFIRMED, requested=false/observed=true; no retries or invented wake deadline. Active sleep BISCR8 is distinct."
       ],
       "waits": [],
       "timeout": "Finite aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Require independent finite logical-transaction and physical-frame/poll limits for primary and cleanup, including delegated work; frozen clock cannot extend count. Zero work budget performs no I/O. No nominal silicon value is a timeout. Base change uses at most3 direct target frames: read/write/readback; declared preflight and cleanup add finite counted work.",
@@ -11366,23 +11563,22 @@
       ],
       "prerequisites": "Application serializes all instance/snapshot access and all participants share complete indirect/RMW transaction exclusion. Exact part, legal settings, clock/power history, operation ownership and finite primary/cleanup budgets validated before mutation; any live precondition reads are explicit bounded work. ",
       "steps": [
-        "Reject before any opaque/printed-address read or first mutation until exact wire mapping, opaque-control composition and clock/pin conflicts are resolved; do not execute only a recipe prefix. Exclude loopback0123, host next-page owner and conflicting power/clock profiles.",
-        "Apply exact printed sequence:001F=8000,203C=0002,04D1=008B,04D3=4F12,04DF=0180,033E=A681,033F=0003,0123=0800,031B=8848,0466=FE00,04CF=261D,0416=1F30,04F5=2864,04E0=FFF2,031F=FE36,0308=0000,04F4=0800,0000=3300. Printed203C is never an offset until clarified.",
+        "Preflight identity, complete recipe budget and no owner holding a clock/LED route affected by0308; reject conflicts before I/O. Read source-implied MMD3:0014 and require whole-word0002 before any write. Exclude loopback0123, next-page and incompatible power profiles.",
+        "Execute001F=8000 and the shared hard-reset2ms frame-free completion rule. Write MMD7:003C=0002 and require whole-word0002 readback before remaining16rows; mismatch/failure stops with the reset effect retained. Then execute exact DEVAD31 opaque actions in writeActions order, followed by BMCR3300. Never send printed203C on the wire.",
         "Use shared hard-reset completion owner after first step; capture generation invalidation. Final literal BMCR3300 changes all stable writable BMCR controls under7D80 and issues AN restart0200: it enables AN and100/full, clears loopback/power-down/isolation/collision test, and keeps reset8000 neutral0. Record/reconcile the whole affected policy and restore those saved persistent controls after recipe-based initialization.",
-        "Verify only documented readable stable fields; establish capability/advertisement/partner/result through clarified EEE status procedure. Replay other persistent owned state acyclically without recursive EEE resets.",
+        "Verify only documented or explicitly source-implied stable fields; publish their source status. Replay persistent state acyclically without recursive EEE resets.",
         "Disable/restore only through source-backed complete exit or admitted reset/reapply; opaque words cannot be restored by fabricated inverse or arbitrary snapshot."
       ],
       "waits": [
         "Shared hard-reset readiness/completion and subsequent AN observation use finite independent count/deadline; no EEE nominal value substitutes for completion."
       ],
-      "timeout": "Finite aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Require independent finite logical-transaction and physical-frame/poll limits for primary and cleanup, including delegated work; frozen clock cannot extend count. Zero work budget performs no I/O. No nominal silicon value is a timeout. After mapping closes,18 targets consist of2 direct and16 indirect writes:66 C22 frames recipe floor, not whole-operation bound. Reset polls, status, restore and callback admission all consume additional finite aggregate budget.",
+      "timeout": "Finite aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Require independent finite logical-transaction and physical-frame/poll limits for primary and cleanup, including delegated work; frozen clock cannot extend count. Zero work budget performs no I/O. No nominal silicon value is a timeout. The selected source-implied18 targets consist of2 direct and16 indirect writes:74 C22 frames floor including8 capability/readback frames, of which66 are recipe frames, not whole-operation bound. Reset polls, status, restore and callback admission all consume additional finite aggregate budget.",
       "partialEffects": "Record each accepted or uncertain write, reset/configuration epoch and consumed event immediately; late callback success cannot erase deadline/cancellation. Invalidate affected configuration trust without discarding desired policy or retained raw evidence. First hard reset invalidates prior configuration;0123 conflicts with loopback and0308 changes clock/profile. Preserve every accepted prefix.",
       "cleanup": "Release controller lock after every indivisible transaction and before waits/output. Cancellation schedules no new primary work; owner-admitted cleanup has a separate finite deadline/count. Retain primary and cleanup outcomes independently; no implicit retry/reset/power cycle. ",
-      "restoration": "Restore only persistent owned settings in dependency order, with source-defined stable readback. Never replay transient commands or stale observations. Hard reset invalidates prior observations and requires acyclic identity/clock/interface/configuration replay; do not infer PCS reset or digital restart has identical retention. No reverse/disable recipe is established by the18-pair table; essential restoration remains source-gated.",
+      "restoration": "Disable or recover by separately admitted hard reset plus one finite persistent initialization/reapply. Opaque inverse or saved-word replay is not established. Never recursively restore EEE by repeating a failed recipe; accepted prefixes and cleanupOwed remain explicit.",
       "gates": [
         "eee_wire",
-        "eee_control_semantics",
-        "pin_fields"
+        "eee_control_semantics"
       ],
       "owner": {
         "api": "EeeSettings / EeeStatus",
@@ -11433,10 +11629,10 @@
       ],
       "prerequisites": "Application serializes all instance/snapshot access and all participants share complete indirect/RMW transaction exclusion. Exact part, legal settings, clock/power history, operation ownership and finite primary/cleanup budgets validated before mutation; any live precondition reads are explicit bounded work. ",
       "steps": [
-        "Do not read printed MMD associations or infer their fields while source gates remain open. Maintain separate documented capability, requested settings, partner advertisement and negotiated-result validity.",
-        "After exact access/read semantics are clarified, set EEECFG3 bits0/3 using approved action; exact26 polarity is1, unlike SNLA328 DP83825 example.",
-        "Enable advertisement bit1 at proven MMD7 mapping of printed203C; restart enabled AN via sole negotiation owner, preserving other settings and reset command-neutral zero. Host next-page exchange cannot compete with hardware EEE pages.",
-        "Acquire capability, partner, LPI/status and wake-error evidence under the single collector using clarified exact fields; retain each consumed partial sample and reset/link epoch. No hidden I/O in cached views.",
+        "Use only the five selected source-implied EEE tuples; keep capability, desired advertisement, partner and negotiated evidence separate. Reject printed high-prefix offsets.",
+        "Set exact-part EEECFG3 bits0/3 using approved masked action and readback; exact26 polarity is1, unlike SNLA328 DP83825 example.",
+        "Enable advertisement bit1 at source-implied MMD7:003C; restart enabled AN via sole negotiation owner, preserving other settings and reset command-neutral zero. Host next-page exchange cannot compete with hardware EEE pages.",
+        "Acquire capability, partner, LPI/status and wake-error evidence under the single collector using explicitly source-implied fields underQ1; retain each consumed partial sample and reset/link epoch. No hidden I/O in cached views.",
         "EEE eligibility requires both partners advertisement and valid completed negotiation; otherwise MAC must not assert LPI. An advertisement setter does not prove negotiated support."
       ],
       "waits": [
@@ -11480,16 +11676,15 @@
       "ownedMasks": [],
       "prerequisites": "Application serializes all instance/snapshot access and all participants share complete indirect/RMW transaction exclusion. Exact part, legal settings, clock/power history, operation ownership and finite primary/cleanup budgets validated before mutation; any live precondition reads are explicit bounded work. ",
       "steps": [
-        "Admit only after qualified EEE setup and valid current partner/link evidence, exact access/exit contract and explicit MAC transmit-stop/drain coordination. PHY has no packet buffer.",
-        "Use existing EEE/AN owner for bypass, advertisement and renegotiation prerequisites; do not start a second configuration/reset loop.",
-        "Set EEECFG3bit12 by exact action, retain accepted/maybe-active state and start finite session. Qualified LPI state observation uses the established collector, not guessed fields.",
-        "On requested stop/session expiry/cancellation, owner executes separately budgeted clear-bit12 cleanup preserving bypass and all unrelated state.",
-        "Keep MAC TX admission blocked until source-supported readiness and application coordination complete; a successful clear or36us NOM delay alone is insufficient. Retain may-remain-inhibited/uncertain state after failed cleanup or teardown."
+        "Admit source-implied EEE configuration and current100M link/partner evidence; reject below100M as library policy. Application stops and drains MAC transmission; PHY buffers no frames.",
+        "startLpi performs bounded04D1 bit12 RMW and bit12 readback only. From008B expect108B; publish REQUESTED on verified set, UNCERTAIN on possible effect. Do not import DP83825 bits14:13.",
+        "Return after bounded start; application owns dwell. LPI is not a finite hardware session. Block writes and other operation starts while REQUESTED/UNCERTAIN, but permit safe reads and link observation.",
+        "stopLpi is separately admitted bounded bit12 clear and readback;108B becomes008B. Publish OFF only after verified clear. Application owns post-exit coordination;36us is nominal, not readiness."
       ],
       "waits": [
-        "100M sleep210us,quiet20ms,wake36us,refresh200us are NOM only. Exact readiness/end events remain source-gated; do not import DP83825 minimum36us as exact26 guarantee."
+        "No hardware dwell or ready event is specified. Application owns dwell and MAC coordination. Sleep210us,quiet20ms,wake36us,refresh200us are NOM, not completion bounds; never import DP83825 minimum36us as an exact26 guarantee."
       ],
-      "timeout": "Finite aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Require independent finite logical-transaction and physical-frame/poll limits for primary and cleanup, including delegated work; frozen clock cannot extend count. Zero work budget performs no I/O. No nominal silicon value is a timeout. Finite session duration plus finite entry/status/exit frame counts, with separate cleanup allowance; no indefinite LPI session.",
+      "timeout": "Each start/stop is one bounded MMD RMW5frames plus verify4frames, with aggregate OperationBudget. No operation slot or controller lock spans application dwell; no invented session deadline.",
       "partialEffects": "Record each accepted or uncertain write, reset/configuration epoch and consumed event immediately; late callback success cannot erase deadline/cancellation. Invalidate affected configuration trust without discarding desired policy or retained raw evidence. MAC may remain inhibited and LPI may remain active even if callback failed after effect.",
       "cleanup": "Release controller lock after every indivisible transaction and before waits/output. Cancellation schedules no new primary work; owner-admitted cleanup has a separate finite deadline/count. Retain primary and cleanup outcomes independently; no implicit retry/reset/power cycle. ",
       "restoration": "Restore only persistent owned settings in dependency order, with source-defined stable readback. Never replay transient commands or stale observations. Hard reset invalidates prior observations and requires acyclic identity/clock/interface/configuration replay; do not infer PCS reset or digital restart has identical retention. Transient forced LPI is never persistent desired state or automatic reset replay; after any reset reacquire EEE/link validity before new admission.",
@@ -11561,7 +11756,9 @@
         "Collector retains pending RXFS/MISR2 evidence with source epoch; disable WoL using owned enable bit while composing bit11 neutral1, preserving unrelated bit6. Do not clear pending level implicitly.",
         "Program/verify MAC04A2/3/4 high:low TI bytes4:5,2:3,0:1. TI byte5 is MSB, so API octet0 (first MAC octet) maps to TI byte5: MAC11:22:33:44:55:66 gives2211/4433/6655. Password04A5/6/7 high:low API octets1:0,3:2,5:4 gives2B2A/2D2C/2F2E for2A..2F. Verify all six ordinary words before enable.",
         "Apply CRC, Secure-ON and pulse/level controls with W0C0800 neutral. Coordinate GPIO/pin routing and RXFS1000 source/MISR2 enable through existing pin/interrupt owner; enabling WoL can automatically select source, so retain epoch and verify owner configuration.",
-        "Enable final policy last, verify stable mask17A1 excluding command0800 and unspecified bit6. Desired/observed/trust remain separate; read-clear acquisition never discarded on later failure."
+        "Enable final policy last, verify stable mask17A1 excluding command0800 and unspecified bit6. Desired/observed/trust remain separate; read-clear acquisition never discarded on later failure.",
+        "Before any RXFCFG1 write harvest RXFS and MISR2 through the collector. Exact-part table8-90 W0C is selected, but Q3 tests disagreement with DP83822/SNLA261A and shared Linux write1. Neutral1981 must retain pending level; explicit1181 acknowledges. No physical qualification is inferred.",
+        "Skip unchanged stable settings under mask17E1 excluding bit11; named mask flag alone does not authorize custom patterns. Reset is not WoL-off: bit7=1,bit0unknown,RXFS12=1. Explicit disable clears owned bits7,5,0 with W0Cneutral1; bit0RH stability remains Q3."
       ],
       "waits": [],
       "timeout": "Finite aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Require independent finite logical-transaction and physical-frame/poll limits for primary and cleanup, including delegated work; frozen clock cannot extend count. Zero work budget performs no I/O. No nominal silicon value is a timeout. Proposed base profile ceiling40 target transactions (at most160 C22 frames if all indirect), with pin/IRQ delegation explicitly consuming remaining aggregate allowance; no unbounded live-event drain.",
@@ -11607,7 +11804,8 @@
       "steps": [
         "Require explicit acknowledgement request and known level-mode configuration; preserve pending collector evidence before mutation. Ordinary configuration never acknowledges.",
         "Compose stable RXFCFG1 settings unchanged and bit11 zero; e.g CRC-on level Magic Packet policy1181 acknowledges, while ordinary policy write1981 is neutral. Secure variant11A1/19A1.",
-        "Issue acknowledgement once. Acknowledge accepted versus externally observed line deassertion are separate. Do not repeatedly write/read-until-clear or invent lossless event queuing."
+        "Issue acknowledgement once. Acknowledge accepted versus externally observed line deassertion are separate. Do not repeatedly write/read-until-clear or invent lossless event queuing.",
+        "Before any RXFCFG1 write harvest RXFS and MISR2 through the collector. Exact-part table8-90 W0C is selected, but Q3 tests disagreement with DP83822/SNLA261A and shared Linux write1. Neutral1981 must retain pending level; explicit1181 acknowledges. No physical qualification is inferred."
       ],
       "waits": [],
       "timeout": "Finite aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Require independent finite logical-transaction and physical-frame/poll limits for primary and cleanup, including delegated work; frozen clock cannot extend count. Zero work budget performs no I/O. No nominal silicon value is a timeout. One indirect target write=4 C22 frames if stable desired configuration valid; any bounded prerequisite RMW/collector reads add counted work.",
@@ -11691,7 +11889,7 @@
       "gates": [
         "eee_wire"
       ],
-      "notes": "Prompts 11-12 implement binding, canonical nondestructive direct/indirect access, four-frame MMD read/write and five-frame stable LEDCR RMW under one terminal batch, with registered host fault/ownership tests and a linked portable consumer. Side-effect-aware access remains prompt 13; EEE wire mappings remain gated. SDK and physical timing are NOT_RUN. See docs/direct-access.md and test/mmd.cpp."
+      "notes": "Prompts 11-13 implement bounded direct/indirect access, complete named catalog, stable LEDCR RMW, collector-routed destructive acquisition, MISR enable updates and RXFCFG1 W0C composition. Three stable source-implied EEE tuples admit reads; physical offsets remain Q1 pending. Host fault/ownership tests and linked portable examples execute these APIs. Typed feature procedures and SDK/physical qualification remain separate. See docs/side-effect-access.md."
     },
     {
       "id": "reset",
@@ -12041,8 +12239,8 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "PARTIAL",
+        "hostTested": "PARTIAL",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
@@ -12051,7 +12249,7 @@
         "wol_live_reconfigure",
         "rxfs_sfd_reference"
       ],
-      "notes": "Research disposition complete, including explicit essential source gates; no implementation or hardware qualification claimed. See power source review for independent literal oracles, finite procedures and fixture matrix."
+      "notes": "Research disposition complete, including explicit essential source gates; no implementation or hardware qualification claimed. See power source review for independent literal oracles, finite procedures and fixture matrix. Prompt 13 supplies low-level destructive acquisition and MISR/WoL mixed updates, with retained partial evidence and independent fault tests; complete typed feature behavior remains at its declared implementation stage. SDK and physical evidence remain NOT_RUN."
     },
     {
       "id": "power",
@@ -12326,7 +12524,9 @@
         "RECIPE_0123",
         "LOOP_0122",
         "LOOP_0130",
-        "PHYRCR"
+        "PHYRCR",
+        "CR1",
+        "PHYCR"
       ],
       "procedures": [
         "loopback_near",
@@ -12416,7 +12616,10 @@
         "CDLAR3",
         "CDLAR4",
         "CDLAR5",
-        "CDLAR6"
+        "CDLAR6",
+        "TDR_0411",
+        "EEE_0416",
+        "GENCFG"
       ],
       "procedures": [
         "cable_configure",
@@ -12441,7 +12644,8 @@
       "gates": [
         "tdr_reserved",
         "tdr_calibration",
-        "tdr_freshness_abort"
+        "tdr_freshness_abort",
+        "tdr_recipe"
       ],
       "notes": "Required full-feature scope; first-board policy does not remove capabilities. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations."
     },
@@ -12612,15 +12816,15 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "PARTIAL",
+        "hostTested": "PARTIAL",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "rxfs_sfd_reference"
       ],
-      "notes": "Prompt4 source coverage complete with named unresolved behavior gates; no implementation, host driver test, SDK build or hardware qualification follows. See event_source_audit. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations."
+      "notes": "Prompt4 source coverage complete with named unresolved behavior gates; no implementation, host driver test, SDK build or hardware qualification follows. See event_source_audit. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations. Prompt 13 supplies low-level destructive acquisition and MISR/WoL mixed updates, with retained partial evidence and independent fault tests; complete typed feature behavior remains at its declared implementation stage. SDK and physical evidence remain NOT_RUN."
     },
     {
       "id": "counters",
@@ -12656,8 +12860,8 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "PARTIAL",
+        "hostTested": "PARTIAL",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
@@ -12667,7 +12871,7 @@
         "rxfs_sfd_reference",
         "forced_physts"
       ],
-      "notes": "Prompt4 source coverage complete with named unresolved behavior gates; no implementation, host driver test, SDK build or hardware qualification follows. See event_source_audit. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations."
+      "notes": "Prompt4 source coverage complete with named unresolved behavior gates; no implementation, host driver test, SDK build or hardware qualification follows. See event_source_audit. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations. Prompt 13 supplies low-level destructive acquisition and MISR/WoL mixed updates, with retained partial evidence and independent fault tests; complete typed feature behavior remains at its declared implementation stage. SDK and physical evidence remain NOT_RUN."
     },
     {
       "id": "quality",
@@ -12941,8 +13145,8 @@
     {
       "id": "forced_physts",
       "conflict": "BMCR allows forced speed/duplex but PHYSTS says ENHANCED AN-disabled speed/duplex bits both1; BASIC says strap-latched.",
-      "decision": "Keep configured BMCR mode separate from independently resolved link. Do not publish PHYSTS as universally resolved forced mode.",
-      "nextEvidence": "Exact-part TI correction or identified BASIC/ENHANCED traces covering software-forced10/100 half/full; coordinate prompts6,18,19,39.",
+      "decision": "D4: coherent AN-disabled BMCR plus current linkUP establishes speed frombit13 and duplex frombit8; PHYSTS2:1 remain raw only. Forced100half with CR2[5] not known0 yields speed100, duplexUNKNOWN, mode invalid. Pause is never valid in forced mode.",
+      "nextEvidence": "Q11 physical BMCR/line-mode and rawPHYSTS comparison; local forced tuple publication follows selected D4, not this unresolved raw polarity.",
       "ownerStage": 19,
       "sources": [
         {
@@ -12954,7 +13158,7 @@
     {
       "id": "hard_reset_straps",
       "conflict": "8.4.1 says software resets reload stored straps; PHYRCR hard reset says same as reset pin. Physical resampling scope for software hard reset is ambiguous.",
-      "decision": "Pin reset resamples eligible straps; ENHANCED1/6 POR-only. Do not claim software hard-reset physically resamples pins. Re-read identity/address/straps after reset and retain uncertainty.",
+      "decision": "Treat PHYRCR8000 as potentially re-sampling eligible straps, consistent with pin-equivalent reset prose; ENHANCED straps1/6 remain POR-only. BMCR8000 reloads stored strap values. Q5 retains exact physical conflict.",
       "nextEvidence": "Exact-part TI clarification or authorized strap-change measurement distinguishing pin reset, PHYRCR hard reset and PCS reset.",
       "ownerStage": 16,
       "sources": [
@@ -12980,8 +13184,8 @@
     {
       "id": "eee_wire",
       "conflict": "MMD3 printed1001/1014/1016 and MMD7 printed203C/203D do not establish wire offsets; recipe extends beyond REGCR prose04D1 ceiling.",
-      "decision": "Keep all five associations outside executable register namespace. No digit stripping, inferred aliases or DP83825 transplant.",
-      "nextEvidence": "Exact DP83826I TI selector/address/data traces or authoritative clarification for all five addresses and complete18-step recipe.",
+      "decision": "D2 selects only MMD3:0001/0014/0016 and MMD7:003C/003D as source-implied tuples. Raw reads only0014/003C/003D; latched0001 and RC0016 use the collector. Reject printed high-prefix offsets and DEVAD31 aliases. Require whole-word capability0002 before any write, then advertisement0002 readback after hard reset and its2ms silence. Q1 remains physical NOT RUN.",
+      "nextEvidence": "Q1 identified exact-part low/high-offset trace, whole-word capability and advertisement checks; partner LPI and induced wake fault separately qualify status/counter.",
       "ownerStage": 29,
       "sources": [
         {
@@ -13057,26 +13261,34 @@
     {
       "id": "loopback_recipe",
       "conflict": "MII prose says BISCR bit2 for all speeds while BMCR table requires1 for10 and4 for100; general all-speed statement conflicts with digital100/PCS-input10 restrictions. SNLA423A adds erroneous reverse0020/RCSR17 checks and analog3B04 expected readback; digital vendor offsets lack ordinary restoration semantics.",
-      "decision": "Select detailed per-speed tables. Exact digital recipe only. Reserve full restart/reset-and-reapply for opaque recipe restoration under authorized owner; do not pretend arbitrary readback restoration is specified.",
+      "decision": "Select detailed per-speed tables and exact digital recipe. SNLA423A reverse/analog scripts addPHYRCR4000; no such restart for MII/PCS. Reject analog3380 because its field is illegal. Reserve reset/initialization for opaque restoration; no arbitrary saved-word replay.",
       "nextEvidence": "Exact-part clarification or identified traces for both10/100 interfaces, MII versus standalone digital mode, opaque recipe restoration and analog-tuning prerequisite. Qualify termination and MAC/partner independently.",
       "ownerStage": 23,
       "sources": [
         {
           "source": "snls647i",
           "location": "8.3.14 pp41-42; tables8-19 and8-40"
+        },
+        {
+          "source": "snla423a",
+          "location": "2.5 scripts pp18-20; Q8 restart and contradictory analog word"
         }
       ]
     },
     {
       "id": "pin_fields",
-      "conflict": "Figure8-10/8.3.8 promise clock/GPIO functions that detailed tables disallow:LED0/3 muxR;LED2/3 clocksreserved;LED1 mux1reserved though clock description requires1;LEDCFG2 lacks LED3 fields;PHYCR[5] undescribed.",
-      "decision": "Expose only individually proved per-pin/mode writable routes and LED fields. No genericGPIO enum,input-disable code,LED3polarity orPHYCR[5] behavior invented.",
+      "conflict": "Clock/GPIO promises disagree with detailed per-mode tables: LED0/3 mux read-only, LED2/3 clock fields reserved, LED1 mux/clock route conflicts, BASIC fixed-low polarity versus override, pin31 codes5/6 LOW versus TX_ER/CLKOUT. PHYCR[5] is named LED Configuration and SNLA344C labels enableLED0, but its surrounding values conflict.",
+      "decision": "Expose only proved per-pin/mode routes. Reject BASIC polarity and ENHANCED MII LED3; MII LED2 requires freeCOL and explicit verified mux0. Do not infer physical role from resetcode0. PHYCR[5] remains excluded from typed profiles pendingQ12.",
       "nextEvidence": "Exact DP83826I TI per-pin/mode correction plus identified MDIO/scope traces; independently usable LED1/2 mux andIO_CFG1[6] continue.",
       "ownerStage": 32,
       "sources": [
         {
           "source": "snls647i",
           "location": "8.3.8/18;tables8-43,8-73..78,8-85/89"
+        },
+        {
+          "source": "snla344c",
+          "location": "3.2.1, conflicting LED0 recipe values"
         }
       ]
     },
@@ -13095,8 +13307,8 @@
     },
     {
       "id": "compt_reserved",
-      "conflict": "COMPTbits15:4reserved but descriptionusesbit4; SNLA266B5-5 confirms0013 harmonic recipe. Otherenablepatterns andstop notfullydefined;sharedscriptsPHYCR0021contains undescribed/read-onlybits.",
-      "decision": "Allow only exact0013exception with forced10/reset prerequisites;100Mexplicit0428bit4/5 sequence. No genericreservedwrites; finite reset/reapply cleanup, no assumptionopaque saved-wordrestore. The100M0428 branch remains blocked before its preservation read until read effects and safe unrelated-bit composition are established. Exact10M0013 is independently eligible with authorized hard-reset stop preceding persistent-profile restoration.",
+      "conflict": "COMPT15:4 are grouped reserved while table8-50 explicitly enables all10M pattern codes0..D with bit4. SNLA266B confirms0013;100M0428 composition/read effects and unrelated upper reserved bits remain unresolved.",
+      "decision": "COMPT15:5 and100M0428 composition remain gated. All14 pattern0..D bit4 exceptions are eligible under exact forced10M, hard-reset and4A40 prerequisites. Ordinary COMPT owned mask remains000F; reservedMask remainsFFF0.",
       "nextEvidence": "Exact-part clarification for other10Mpatterns,100Mstop/readback and PHYCR0021; identified instrumentfixture captures. Exact0428 preservation-read side effects and safe composition of unknown bits with DPDbit2; finite stop/reset observations before profile restoration.",
       "ownerStage": 35,
       "sources": [
@@ -13126,7 +13338,7 @@
     {
       "id": "next_page_handshake",
       "conflict": "TI field tables expose next-page controls/events but do not completely specify management load/event ordering. IEEE restart clears page-loaded state and initial page event is BASE, so pre-restart loading plus treating every event as NEXT is not justified.",
-      "decision": "Use selected phase-separated IEEE sequence as normative comparison. Gate custom exchange implementation until exact-part load acceptance, receive retention and event distinction are established. Preserve raw page observations and ordinary AN independently.",
+      "decision": "D8 selects referenced IEEE Clause28 exchange semantics; ANAR8000 is a transient epoch property, never persistent desired state. Physical Q10 remains open.",
       "nextEvidence": "Prompt17: exact DP83826I TI clarification or identified traces proving fresh base-event distinction, post-restart ANNPTR loading, receive-before-advance retention, ACK2 association and bilateral/null-page termination.",
       "ownerStage": 17,
       "sources": [
@@ -13168,14 +13380,18 @@
     },
     {
       "id": "tdr_calibration",
-      "conflict": "Raw TDR controls/results are documented but complete exact-part calibration, polarity mapping, threshold/pulse time units, DC prerequisites and distance/fault algorithm are not. CDSCR3 reset0D04 differs segment1 recipe0D07. SNLA330A applies to DP83825I and differs in segment3 and other offsets.",
-      "decision": "Use SNLS647I segment literals and raw result fields only; no imported DP83825/DP83822 gain writes, ALCD support, metres or fault types. Keep unexplained threshold defaults; raw field range is not a qualified physical tuning range.",
+      "conflict": "SNLA428 supplies a transmit-A derived recipe and formula, but its table tuning differs from SNLS647I and its MATLAB indexing/temporary/propagation-delay literals disagree internally. Datasheet raw tuning alone does not authorize universal polarity/metres classification.",
+      "decision": "D3 permits the explicit SNLA428 source-implied derived helper only for matching six-run transmit-A samples and positive caller propagation delay; retain raw capture separately. Thresholds, formula, whole-word peak classification and NO_PEAK are in tdrRecipe. Q7 physical validation remains NOT RUN.",
       "nextEvidence": "Prompt25 adopts exact DP83826 SNLA428 recipe/algorithm evidence with explicit conflicts; Q7 at prompts72-73 compares identified fixtures, segments and channel scope.",
       "ownerStage": 25,
       "sources": [
         {
           "source": "snls647i",
           "location": "8.3.16.1 p43; tables8-54..71 pp76-81"
+        },
+        {
+          "source": "snla428",
+          "location": "Tables2-1,2-4,2-5; section3 pp3-8"
         }
       ]
     },
@@ -13221,8 +13437,8 @@
     {
       "id": "eee_control_semantics",
       "conflict": "EEECFG3 has recipe/prose bits but no complete read/access/reset map; exact26 status fields and safe disable/restore remain undocumented. SNLA328 supplies DP83825 status and opposite bypass polarity.",
-      "decision": "Record exact26 set0009 and LPI1000 set/clear as gated actions, opaque full-word recipe separately. Do not invent safe RMW, readback or status fields from another part.",
-      "nextEvidence": "Exact26 complete EEECFG3 and MMD3/MMD7 field/access/reset definitions, safe unknown-bit composition, disable and acyclic reset/reapply restoration.",
+      "decision": "D2 adopts cross-part bits3.1[11:8],3.20[1],7.60[1],7.61[1] and3.22 read-clear counter as source-implied underQ1. Exact-part04D1 only bits0,3,12 permit masked control/readback. Recipe runs printed opaque whole words. Disable is hard reset plus reapply; no invented inverse.",
+      "nextEvidence": "Q1/Q2 exact-part capability, advertisement, partner and LPI observations; wake-error injection for counter semantics.",
       "ownerStage": 29,
       "sources": [
         {
@@ -13260,13 +13476,30 @@
     {
       "id": "wol_live_reconfigure",
       "conflict": "Exact tables define disable/settings but no atomic live credential update or pending-indication retention guarantee across detector disable.",
-      "decision": "Quiesced/disabled configuration and established fields remain usable; no guarantee of uninterrupted live matching. Retain pending collector evidence before changes.",
+      "decision": "Quiesced/disabled configuration and established fields remain usable; no guarantee of uninterrupted live matching. Retain pending collector evidence before changes. Select exact-part W0C pendingQ3 versus DP83822/SNLA261A/shared-Linux write1 intent. HarvestRXFS/MISR2 before every write, skip unchanged stable17E1 excludingbit11, retain resetbit7=1/bit0unknown/RXFS12=1.",
       "nextEvidence": "Exact26 supported live disable/update/re-enable sequence and pending-level/event behavior, or application/fixture evidence for quiesced setup conditions.",
       "ownerStage": 31,
       "sources": [
         {
           "source": "snls647i",
           "location": "8.3.5;tables8-90..97"
+        }
+      ]
+    },
+    {
+      "id": "tdr_recipe",
+      "conflict": "SNLA428 table2-1 tuning differs from SNLS647I tables8-56/57.",
+      "decision": "D3 explicitly selects SNLA428 six-run transmit-A recipe for the derived helper; datasheet typed tuning remains a separate raw capability. Exceptional0411/0416/GENCFG0600 writes authorize only this named recipe.",
+      "nextEvidence": "Q7 compare both recipes against identified known open/short cables; physical qualification NOT RUN.",
+      "ownerStage": 25,
+      "sources": [
+        {
+          "source": "snla428",
+          "location": "Tables2-1..5 pp3-6"
+        },
+        {
+          "source": "snls647i",
+          "location": "Tables8-54..60"
         }
       ]
     }
@@ -13459,29 +13692,6 @@
       "effect": "Exact procedure-only bit update; preserve all other bits, including deep-power bit2. Bit4 enables/disables100M pattern; bit5 selects highcount bit. No general opaque register permission or reset value.",
       "prerequisites": "Exact DP83826I; forced100M; quiescedMAC; knownsafe test fixture; disablebit4 before countchange then enable; one bus owner and finite primary/cleanup budgets. Essential compt_reserved gate includes0428 preservation-read and unknown-bit composition; reject before reading/writing until resolved.",
       "sources": [
-        {
-          "source": "snls647i",
-          "location": "Table8-50p75"
-        }
-      ],
-      "gates": [
-        "compt_reserved"
-      ],
-      "feature": "compliance"
-    },
-    {
-      "id": "compliance_10_harmonic",
-      "register": "COMPT",
-      "mask": "0xFFFF",
-      "value": "0x0013",
-      "neutral": null,
-      "effect": "Exact whole-word repetitive-one harmonic recipe including reservedbit4; no ordinary reserved-bit permission.",
-      "prerequisites": "SNLA266B5-5 order:hardreset,forced10M BMCR0100,COMPT0013; retain DP8382610BASE-Te4A40 prerequisite and finite authorized hardreset/reapply cleanup.",
-      "sources": [
-        {
-          "source": "snla266b",
-          "location": "Table5-5p13"
-        },
         {
           "source": "snls647i",
           "location": "Table8-50p75"
@@ -13759,7 +13969,7 @@
       "value": "0x0000",
       "neutral": null,
       "effect": "Exact whole-word step in ordered18-pair EEE initialization only. Printed recipe value is not reset/default or general writable permission. Hard-reset/profile/clock effects require complete coordinated restoration.",
-      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
+      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW. Reject conflicting clock/LED ownership before I/O.",
       "sources": [
         {
           "source": "snls647i",
@@ -13768,8 +13978,7 @@
       ],
       "gates": [
         "eee_wire",
-        "eee_control_semantics",
-        "pin_fields"
+        "eee_control_semantics"
       ],
       "feature": "eee"
     },
@@ -13799,7 +14008,7 @@
       "mask": "0x0009",
       "value": "0x0009",
       "neutral": null,
-      "effect": "Exact26 sets bits0 and3 to disable capabilities bypass and use MMD3/MMD7. Full-word composition remains source-gated; DP83825 opposite polarity not imported.",
+      "effect": "Exact26 bits0/3=1 disable bypass and use MMD3/MMD7. Only mask0009 RMW/readback is authorized; DP83825 opposite polarity is not imported.",
       "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
       "sources": [
         {
@@ -13871,6 +14080,538 @@
         "deep_power_exit"
       ],
       "feature": "power"
+    },
+    {
+      "id": "TDR_0411_tdr_0813",
+      "register": "TDR_0411",
+      "mask": "0xFFFF",
+      "value": "0x0813",
+      "neutral": null,
+      "effect": "Exact SNLA428 TDR exception only; preserve outside mask, no generic reserved access.",
+      "prerequisites": "Named six-run transmit-A recipe; link down, autorun disabled, finite hard-reset exit and initialization/reapply budget.",
+      "sources": [
+        {
+          "source": "snla428",
+          "location": "Table2-1 p3"
+        }
+      ],
+      "gates": [
+        "tdr_recipe"
+      ],
+      "feature": "cable"
+    },
+    {
+      "id": "TDR_0411_tdr_0815",
+      "register": "TDR_0411",
+      "mask": "0xFFFF",
+      "value": "0x0815",
+      "neutral": null,
+      "effect": "Exact SNLA428 TDR exception only; preserve outside mask, no generic reserved access.",
+      "prerequisites": "Named six-run transmit-A recipe; link down, autorun disabled, finite hard-reset exit and initialization/reapply budget.",
+      "sources": [
+        {
+          "source": "snla428",
+          "location": "Table2-1 p3"
+        }
+      ],
+      "gates": [
+        "tdr_recipe"
+      ],
+      "feature": "cable"
+    },
+    {
+      "id": "TDR_0411_tdr_0816",
+      "register": "TDR_0411",
+      "mask": "0xFFFF",
+      "value": "0x0816",
+      "neutral": null,
+      "effect": "Exact SNLA428 TDR exception only; preserve outside mask, no generic reserved access.",
+      "prerequisites": "Named six-run transmit-A recipe; link down, autorun disabled, finite hard-reset exit and initialization/reapply budget.",
+      "sources": [
+        {
+          "source": "snla428",
+          "location": "Table2-1 p3"
+        }
+      ],
+      "gates": [
+        "tdr_recipe"
+      ],
+      "feature": "cable"
+    },
+    {
+      "id": "EEE_0416_tdr_1FA0",
+      "register": "EEE_0416",
+      "mask": "0xFFFF",
+      "value": "0x1FA0",
+      "neutral": null,
+      "effect": "Exact SNLA428 TDR exception only; preserve outside mask, no generic reserved access.",
+      "prerequisites": "Named six-run transmit-A recipe; link down, autorun disabled, finite hard-reset exit and initialization/reapply budget.",
+      "sources": [
+        {
+          "source": "snla428",
+          "location": "Table2-1 p3"
+        }
+      ],
+      "gates": [
+        "tdr_recipe"
+      ],
+      "feature": "cable"
+    },
+    {
+      "id": "EEE_0416_tdr_1F90",
+      "register": "EEE_0416",
+      "mask": "0xFFFF",
+      "value": "0x1F90",
+      "neutral": null,
+      "effect": "Exact SNLA428 TDR exception only; preserve outside mask, no generic reserved access.",
+      "prerequisites": "Named six-run transmit-A recipe; link down, autorun disabled, finite hard-reset exit and initialization/reapply budget.",
+      "sources": [
+        {
+          "source": "snla428",
+          "location": "Table2-1 p3"
+        }
+      ],
+      "gates": [
+        "tdr_recipe"
+      ],
+      "feature": "cable"
+    },
+    {
+      "id": "GENCFG_tdr_0600",
+      "register": "GENCFG",
+      "mask": "0x0600",
+      "value": "0x0600",
+      "neutral": null,
+      "effect": "Exact SNLA428 TDR exception only; preserve outside mask, no generic reserved access.",
+      "prerequisites": "Named six-run transmit-A recipe; link down, autorun disabled, finite hard-reset exit and initialization/reapply budget.",
+      "sources": [
+        {
+          "source": "snla428",
+          "location": "Table2-1 p3"
+        }
+      ],
+      "gates": [
+        "tdr_recipe"
+      ],
+      "feature": "cable"
+    },
+    {
+      "id": "compliance_10_pattern_0",
+      "register": "COMPT",
+      "mask": "0x001F",
+      "value": "0x0010",
+      "neutral": null,
+      "effect": "Eligible exact10BASE-Te pattern exception including bit4; preserve bits15:5. No generic reserved-bit write permission.",
+      "prerequisites": "Exact forced10M, hard-reset and10BASE-Te4A40 prerequisites. Table8-50 permits this code under mask001F; SNLA266B5-5 corroborates bit4 using code3. Finite fixture dwell, hard-reset stop and later initialization/reapply required.",
+      "sources": [
+        {
+          "source": "snla266b",
+          "location": "Table5-5p13"
+        },
+        {
+          "source": "snls647i",
+          "location": "Table8-50p75"
+        }
+      ],
+      "gates": [
+        "compt_reserved"
+      ],
+      "feature": "compliance"
+    },
+    {
+      "id": "compliance_10_pattern_1",
+      "register": "COMPT",
+      "mask": "0x001F",
+      "value": "0x0011",
+      "neutral": null,
+      "effect": "Eligible exact10BASE-Te pattern exception including bit4; preserve bits15:5. No generic reserved-bit write permission.",
+      "prerequisites": "Exact forced10M, hard-reset and10BASE-Te4A40 prerequisites. Table8-50 permits this code under mask001F; SNLA266B5-5 corroborates bit4 using code3. Finite fixture dwell, hard-reset stop and later initialization/reapply required.",
+      "sources": [
+        {
+          "source": "snla266b",
+          "location": "Table5-5p13"
+        },
+        {
+          "source": "snls647i",
+          "location": "Table8-50p75"
+        }
+      ],
+      "gates": [
+        "compt_reserved"
+      ],
+      "feature": "compliance"
+    },
+    {
+      "id": "compliance_10_pattern_2",
+      "register": "COMPT",
+      "mask": "0x001F",
+      "value": "0x0012",
+      "neutral": null,
+      "effect": "Eligible exact10BASE-Te pattern exception including bit4; preserve bits15:5. No generic reserved-bit write permission.",
+      "prerequisites": "Exact forced10M, hard-reset and10BASE-Te4A40 prerequisites. Table8-50 permits this code under mask001F; SNLA266B5-5 corroborates bit4 using code3. Finite fixture dwell, hard-reset stop and later initialization/reapply required.",
+      "sources": [
+        {
+          "source": "snla266b",
+          "location": "Table5-5p13"
+        },
+        {
+          "source": "snls647i",
+          "location": "Table8-50p75"
+        }
+      ],
+      "gates": [
+        "compt_reserved"
+      ],
+      "feature": "compliance"
+    },
+    {
+      "id": "compliance_10_pattern_3",
+      "register": "COMPT",
+      "mask": "0x001F",
+      "value": "0x0013",
+      "neutral": null,
+      "effect": "Eligible exact10BASE-Te pattern exception including bit4; preserve bits15:5. No generic reserved-bit write permission.",
+      "prerequisites": "Exact forced10M, hard-reset and10BASE-Te4A40 prerequisites. Table8-50 permits this code under mask001F; SNLA266B5-5 corroborates bit4 using code3. Finite fixture dwell, hard-reset stop and later initialization/reapply required.",
+      "sources": [
+        {
+          "source": "snla266b",
+          "location": "Table5-5p13"
+        },
+        {
+          "source": "snls647i",
+          "location": "Table8-50p75"
+        }
+      ],
+      "gates": [
+        "compt_reserved"
+      ],
+      "feature": "compliance"
+    },
+    {
+      "id": "compliance_10_pattern_4",
+      "register": "COMPT",
+      "mask": "0x001F",
+      "value": "0x0014",
+      "neutral": null,
+      "effect": "Eligible exact10BASE-Te pattern exception including bit4; preserve bits15:5. No generic reserved-bit write permission.",
+      "prerequisites": "Exact forced10M, hard-reset and10BASE-Te4A40 prerequisites. Table8-50 permits this code under mask001F; SNLA266B5-5 corroborates bit4 using code3. Finite fixture dwell, hard-reset stop and later initialization/reapply required.",
+      "sources": [
+        {
+          "source": "snla266b",
+          "location": "Table5-5p13"
+        },
+        {
+          "source": "snls647i",
+          "location": "Table8-50p75"
+        }
+      ],
+      "gates": [
+        "compt_reserved"
+      ],
+      "feature": "compliance"
+    },
+    {
+      "id": "compliance_10_pattern_5",
+      "register": "COMPT",
+      "mask": "0x001F",
+      "value": "0x0015",
+      "neutral": null,
+      "effect": "Eligible exact10BASE-Te pattern exception including bit4; preserve bits15:5. No generic reserved-bit write permission.",
+      "prerequisites": "Exact forced10M, hard-reset and10BASE-Te4A40 prerequisites. Table8-50 permits this code under mask001F; SNLA266B5-5 corroborates bit4 using code3. Finite fixture dwell, hard-reset stop and later initialization/reapply required.",
+      "sources": [
+        {
+          "source": "snla266b",
+          "location": "Table5-5p13"
+        },
+        {
+          "source": "snls647i",
+          "location": "Table8-50p75"
+        }
+      ],
+      "gates": [
+        "compt_reserved"
+      ],
+      "feature": "compliance"
+    },
+    {
+      "id": "compliance_10_pattern_6",
+      "register": "COMPT",
+      "mask": "0x001F",
+      "value": "0x0016",
+      "neutral": null,
+      "effect": "Eligible exact10BASE-Te pattern exception including bit4; preserve bits15:5. No generic reserved-bit write permission.",
+      "prerequisites": "Exact forced10M, hard-reset and10BASE-Te4A40 prerequisites. Table8-50 permits this code under mask001F; SNLA266B5-5 corroborates bit4 using code3. Finite fixture dwell, hard-reset stop and later initialization/reapply required.",
+      "sources": [
+        {
+          "source": "snla266b",
+          "location": "Table5-5p13"
+        },
+        {
+          "source": "snls647i",
+          "location": "Table8-50p75"
+        }
+      ],
+      "gates": [
+        "compt_reserved"
+      ],
+      "feature": "compliance"
+    },
+    {
+      "id": "compliance_10_pattern_7",
+      "register": "COMPT",
+      "mask": "0x001F",
+      "value": "0x0017",
+      "neutral": null,
+      "effect": "Eligible exact10BASE-Te pattern exception including bit4; preserve bits15:5. No generic reserved-bit write permission.",
+      "prerequisites": "Exact forced10M, hard-reset and10BASE-Te4A40 prerequisites. Table8-50 permits this code under mask001F; SNLA266B5-5 corroborates bit4 using code3. Finite fixture dwell, hard-reset stop and later initialization/reapply required.",
+      "sources": [
+        {
+          "source": "snla266b",
+          "location": "Table5-5p13"
+        },
+        {
+          "source": "snls647i",
+          "location": "Table8-50p75"
+        }
+      ],
+      "gates": [
+        "compt_reserved"
+      ],
+      "feature": "compliance"
+    },
+    {
+      "id": "compliance_10_pattern_8",
+      "register": "COMPT",
+      "mask": "0x001F",
+      "value": "0x0018",
+      "neutral": null,
+      "effect": "Eligible exact10BASE-Te pattern exception including bit4; preserve bits15:5. No generic reserved-bit write permission.",
+      "prerequisites": "Exact forced10M, hard-reset and10BASE-Te4A40 prerequisites. Table8-50 permits this code under mask001F; SNLA266B5-5 corroborates bit4 using code3. Finite fixture dwell, hard-reset stop and later initialization/reapply required.",
+      "sources": [
+        {
+          "source": "snla266b",
+          "location": "Table5-5p13"
+        },
+        {
+          "source": "snls647i",
+          "location": "Table8-50p75"
+        }
+      ],
+      "gates": [
+        "compt_reserved"
+      ],
+      "feature": "compliance"
+    },
+    {
+      "id": "compliance_10_pattern_9",
+      "register": "COMPT",
+      "mask": "0x001F",
+      "value": "0x0019",
+      "neutral": null,
+      "effect": "Eligible exact10BASE-Te pattern exception including bit4; preserve bits15:5. No generic reserved-bit write permission.",
+      "prerequisites": "Exact forced10M, hard-reset and10BASE-Te4A40 prerequisites. Table8-50 permits this code under mask001F; SNLA266B5-5 corroborates bit4 using code3. Finite fixture dwell, hard-reset stop and later initialization/reapply required.",
+      "sources": [
+        {
+          "source": "snla266b",
+          "location": "Table5-5p13"
+        },
+        {
+          "source": "snls647i",
+          "location": "Table8-50p75"
+        }
+      ],
+      "gates": [
+        "compt_reserved"
+      ],
+      "feature": "compliance"
+    },
+    {
+      "id": "compliance_10_pattern_A",
+      "register": "COMPT",
+      "mask": "0x001F",
+      "value": "0x001A",
+      "neutral": null,
+      "effect": "Eligible exact10BASE-Te pattern exception including bit4; preserve bits15:5. No generic reserved-bit write permission.",
+      "prerequisites": "Exact forced10M, hard-reset and10BASE-Te4A40 prerequisites. Table8-50 permits this code under mask001F; SNLA266B5-5 corroborates bit4 using code3. Finite fixture dwell, hard-reset stop and later initialization/reapply required.",
+      "sources": [
+        {
+          "source": "snla266b",
+          "location": "Table5-5p13"
+        },
+        {
+          "source": "snls647i",
+          "location": "Table8-50p75"
+        }
+      ],
+      "gates": [
+        "compt_reserved"
+      ],
+      "feature": "compliance"
+    },
+    {
+      "id": "compliance_10_pattern_B",
+      "register": "COMPT",
+      "mask": "0x001F",
+      "value": "0x001B",
+      "neutral": null,
+      "effect": "Eligible exact10BASE-Te pattern exception including bit4; preserve bits15:5. No generic reserved-bit write permission.",
+      "prerequisites": "Exact forced10M, hard-reset and10BASE-Te4A40 prerequisites. Table8-50 permits this code under mask001F; SNLA266B5-5 corroborates bit4 using code3. Finite fixture dwell, hard-reset stop and later initialization/reapply required.",
+      "sources": [
+        {
+          "source": "snla266b",
+          "location": "Table5-5p13"
+        },
+        {
+          "source": "snls647i",
+          "location": "Table8-50p75"
+        }
+      ],
+      "gates": [
+        "compt_reserved"
+      ],
+      "feature": "compliance"
+    },
+    {
+      "id": "compliance_10_pattern_C",
+      "register": "COMPT",
+      "mask": "0x001F",
+      "value": "0x001C",
+      "neutral": null,
+      "effect": "Eligible exact10BASE-Te pattern exception including bit4; preserve bits15:5. No generic reserved-bit write permission.",
+      "prerequisites": "Exact forced10M, hard-reset and10BASE-Te4A40 prerequisites. Table8-50 permits this code under mask001F; SNLA266B5-5 corroborates bit4 using code3. Finite fixture dwell, hard-reset stop and later initialization/reapply required.",
+      "sources": [
+        {
+          "source": "snla266b",
+          "location": "Table5-5p13"
+        },
+        {
+          "source": "snls647i",
+          "location": "Table8-50p75"
+        }
+      ],
+      "gates": [
+        "compt_reserved"
+      ],
+      "feature": "compliance"
+    },
+    {
+      "id": "compliance_10_pattern_D",
+      "register": "COMPT",
+      "mask": "0x001F",
+      "value": "0x001D",
+      "neutral": null,
+      "effect": "Eligible exact10BASE-Te pattern exception including bit4; preserve bits15:5. No generic reserved-bit write permission.",
+      "prerequisites": "Exact forced10M, hard-reset and10BASE-Te4A40 prerequisites. Table8-50 permits this code under mask001F; SNLA266B5-5 corroborates bit4 using code3. Finite fixture dwell, hard-reset stop and later initialization/reapply required.",
+      "sources": [
+        {
+          "source": "snla266b",
+          "location": "Table5-5p13"
+        },
+        {
+          "source": "snls647i",
+          "location": "Table8-50p75"
+        }
+      ],
+      "gates": [
+        "compt_reserved"
+      ],
+      "feature": "compliance"
     }
-  ]
+  ],
+  "tdrRecipe": {
+    "source": "snla428",
+    "location": "Table2-1 p3; tables2-4/5 and section3 pp4-8",
+    "runs": [
+      "1A",
+      "1B",
+      "2",
+      "3",
+      "4",
+      "5"
+    ],
+    "writeOrder": [
+      "0x0170",
+      "0x0173",
+      "0x0175",
+      "0x0178",
+      "0x0416",
+      "0x0411",
+      "0x0456",
+      "0x001E"
+    ],
+    "words": [
+      [
+        "0x5C12",
+        "0x5C12",
+        "0x5C22",
+        "0x5E32",
+        "0x5E42",
+        "0x5E52"
+      ],
+      [
+        "0x0D00",
+        "0x0D0C",
+        "0x0D13",
+        "0x1A20",
+        "0x343A",
+        "0x8F6E"
+      ],
+      [
+        "0x1007",
+        "0x1007",
+        "0x1007",
+        "0x1007",
+        "0x100A",
+        "0x100D"
+      ],
+      [
+        "0x0002",
+        "0x0002",
+        "0x0002",
+        "0x0002",
+        "0x0002",
+        "0x0006"
+      ],
+      [
+        "0x1FA0",
+        "0x1FA0",
+        "0x1FA0",
+        "0x1FA0",
+        "0x1FA0",
+        "0x1F90"
+      ],
+      [
+        "0x0813",
+        "0x0813",
+        "0x0813",
+        "0x0815",
+        "0x0816",
+        "0x0816"
+      ],
+      [
+        "0x0608",
+        "0x0608",
+        "0x0608",
+        "0x0608",
+        "0x0608",
+        "0x0608"
+      ],
+      [
+        "0x8102",
+        "0x8102",
+        "0x8102",
+        "0x8102",
+        "0x8102",
+        "0x8102"
+      ]
+    ],
+    "scope": "Transmit-A same-channel recipe only. Printed GENCFG0608 is composed as owned exception0600 while preserving existing compatibility bit3; old0008=>0608, old0000=>0600 (latter inferred, Q7). CDCR8102 requests manual start with calibration neutral0; existing done1 is not fresh.",
+    "interpretation": "Scan runs2,3,4,5,1B,1A; amplitude&007F must exceed decimal10 for2..5 or24 for1A/1B. Use matching row index&00FF and whole raw018A: zero=open, nonzero=short. Preserve raw bits11/5 separately; no individual sign polarity claim. metres=abs((index-5)*8/(2*propagationDelayNsPerM)); require positive caller delay. Table2-4 Cat5/5e5.35,Cat6=5,Cat7=4.6. No qualifying peak=NO_PEAK, never good or zero metres. Unperformed rows=NOT_RUN; no pair-B or whole-cable conclusion.",
+    "cleanup": "Hard reset then initialization/reapply is required after opaque recipe; no invented0411/0416 snapshot restoration. Restore saved GENCFG0600 ownership only.",
+    "gates": [
+      "tdr_recipe",
+      "tdr_calibration",
+      "tdr_freshness_abort"
+    ]
+  }
 }

@@ -30,17 +30,13 @@ interface. Keep frame buffering, protocol demultiplexing and scheduling in the
 application; never reimplement MAC/DMA or add an EtherCAT master facade to the
 PHY library.
 
-Use fixed queue and frame-size capacities, finite owner work/output budgets
-and explicit full queue/drop/rejection evidence. Preserve SDK-specific RX
-release ownership on enqueue failure and TX ownership through actual
-completion. Apply length/overflow validation before copying; byte counts alone
-do not prove buffer lifetime. Tag queued traffic with the admitted session
-generation and drop/release old-session frames before transmission after loss,
-stop or readmission. Define startup, stop, drain and teardown so no callback
-observes freed context, and no accepted buffer loses its release owner. Frame
-servicing cannot bypass the PHY maintenance owner or introduce new reset,
-configuration or link polling. Preserve the previous admission/loss/release/
-recovery sequence and explicit application readmission.
+Use fixed queue/frame capacities and finite service budgets with explicit drops.
+esp_eth_transmit borrows its buffer only during the call; ESP_OK means queued to
+DMA, not transmitted. NO_MEM is backpressure; INVALID_STATE is cached link-down.
+With CONFIG_ETH_TRANSMIT_MUTEX off (default), transmit from one task only.
+stack_input owns each RX buffer on every return including error and frees it
+with free(). Tag traffic by session generation; reject stale frames before TX.
+Frame service never bypasses maintenance or adds PHY polling/reset.
 
 Any harmless test frame traffic is explicit and disabled by default. Document
 what actual traffic can establish and what remains only linked. If the exact
@@ -48,6 +44,14 @@ SDK cannot provide the required safe raw boundary, retain a precise BLOCKED
 gate and continue independent eligible work; do not supply a success stub or
 call the entire owner integration complete. This does not authorize physical
 fixture operation, power actions or servo motion.
+
+RX application context has static lifetime through mac->del. Its nonblocking
+callback drops/frees after session end. Teardown swaps the stub mediator first,
+then waits for the application RX count zero with a finite deadline, uninstalls,
+and deletes MAC. The counter does not prove RX-task idle or close the pre-call
+window documented by prompt 37; retain that SDK limit and at-most-one-frame leak.
+Use header-free owner tests, pinned-driver host failure injection and P4 link;
+none proves actual DMA timing or EtherCAT cycles.
 
 ## Acceptance
 

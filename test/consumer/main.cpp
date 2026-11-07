@@ -4,6 +4,7 @@
 #include <DP8382x/Version.h>
 #include "../../examples/portable/DirectRead.h"
 #include "../../examples/portable/MmdAccess.h"
+#include "../../examples/portable/EvidenceAccess.h"
 
 #ifdef _MSVC_LANG
 static_assert(_MSVC_LANG >= 201703L, "DP8382x must propagate C++17");
@@ -17,7 +18,30 @@ static_assert(DP8382x::VERSION_STRING[0] != '\0',
 static uint64_t nowUs(void*) noexcept { return 0; }
 struct SimulatedPhy {
   uint16_t led{0};
+  uint16_t misr{0xA55A};
 };
+static DP8382x::BatchResult executeEvidence(void* context, const DP8382x::MdioBatch& batch,
+                                          const DP8382x::IoBudget&) noexcept {
+  auto& phy = *static_cast<SimulatedPhy*>(context);
+  DP8382x::BatchResult result;
+  result.releaseStatus = DP8382x::Status::Ok();
+  result.controllerReusable = true;
+  for (uint8_t i = 0; i < batch.frameCount; ++i) {
+    const auto& frame = batch.frames[i];
+    auto& receipt = result.frames[i];
+    receipt.attempted = true;
+    receipt.completed = true;
+    if (frame.kind == DP8382x::FrameKind::READ) {
+      receipt.valueValid = true;
+      receipt.value = frame.registerAddress == 0x12U ? phy.misr : uint16_t{0x0004};
+      if (frame.registerAddress == 0x12U) { phy.misr &= 0x00FFU; }
+    } else {
+      phy.misr = static_cast<uint16_t>((result.frames[frame.readIndex].value & frame.preserveMask) | frame.value);
+    }
+  }
+  result.status = DP8382x::Status::Ok();
+  return result;
+}
 static DP8382x::BatchResult executeMmd(void* context, const DP8382x::MdioBatch& batch,
                                      const DP8382x::IoBudget&) noexcept {
   auto& phy = *static_cast<SimulatedPhy*>(context);
@@ -70,12 +94,12 @@ int main() {
   config.variant = DP8382x::Variant::DP83826I;
   config.interface = DP8382x::MacInterface::RMII;
   config.phyAddress = 31;
-  config.transport = {nullptr, execute, nowUs, {0, 1, 0, 1, 1}};
+  config.transport = {nullptr, execute, nowUs, {1, 1, 1}};
   uint16_t word = 0xCAFE;
   const auto read = readIdentityWord(config, {100, 1}, word);
   if (!status.ok() || !read.ok() || word != 0x2000U) { return 1; }
   SimulatedPhy simulated;
-  config.transport = {&simulated, executeMmd, nowUs, {0, 1, 0, 1, 1}};
+  config.transport = {&simulated, executeMmd, nowUs, {1, 1, 1}};
   DP8382x::DP8382x phy;
   if (!phy.bind(config).ok()) { return 1; }
   uint16_t straps = 0;
@@ -83,5 +107,16 @@ int main() {
   if (!phy.writeMmd(31, 0x0018, 0x0012, {100, 4}).ok()) { return 1; }
   if (!setLedBlink100ms(phy, {100, 5}).ok() || simulated.led != 0x0212U) { return 1; }
   const auto receipt = phy.transportSnapshot();
-  return receipt.totalBatches == 3U && receipt.completedFrames == 13U && phy.end().ok() ? 0 : 1;
+  if (receipt.totalBatches != 3U || receipt.completedFrames != 13U || !phy.end().ok()) { return 1; }
+  config.transport.executeBatch = executeEvidence;
+  if (!phy.bind(config).ok()) { return 1; }
+  DP8382x::EvidenceSnapshot evidence;
+  if (!collectBasicHistory(phy, {100, 2}, evidence).ok()) { return 1; }
+  const auto& basic = evidence.samples[static_cast<uint8_t>(DP8382x::EvidenceSource::BMSR)];
+  if (!basic.valid || basic.raw != 0x0004U) { return 1; }
+  if (!phy.modifyInterruptEnables(0x12, 0x0024, 0x0004, {100, 2}).ok()) { return 1; }
+  const auto cached = phy.evidenceSnapshot();
+  const auto& interrupt = cached.samples[static_cast<uint8_t>(DP8382x::EvidenceSource::MISR1)];
+  return interrupt.valid && interrupt.raw == 0xA55AU && simulated.misr == 0x005EU &&
+         cached.configurationDirty && phy.end().ok() ? 0 : 1;
 }

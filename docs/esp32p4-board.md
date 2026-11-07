@@ -4,19 +4,19 @@ This is a firmware context snapshot, not a hardware re-audit or a library defaul
 The primary fitted PHY is **DP83826IRHBR**, paired with ESP32-P4NRW32X.
 
 The local source is `Projects/EasyEDA/ESP32P4X-EasyEDA-PCB/docs/ethernet-mcu.md`,
-read on 2026-10-24. Its 2026-10-16 Ethernet control assignments and 2026-10-20
-interface table supersede older pin assignments in historical audit files.
-Prompt 6 re-read that source on 2026-10-29 at clean revision
-`6f8333ef04caa785be374478d0cd413b8e055ed1`; the listed Ethernet assignments
-remain current. This was a document review, not an electrical/netlist re-audit.
+re-read on 2026-11-07 at revision
+`ee16c0ed32356cd87e8efec2d6fd5aa5988d2096`. Its adopted allocation table
+(lines 140–154) supersedes the older detailed pin table still present lower in
+that document. The source links its 2026-10-27 current-board checkpoints.
+This is a document review, not an electrical/netlist re-audit.
 Recheck the final schematic/netlist before writing or flashing board firmware.
 
 | Setting | Starting board context |
 | --- | --- |
 | Interface | RMII, DP83826 enhanced mode |
 | Reference clock | 25 MHz oscillator into PHY; PHY supplies 50 MHz to P4 GPIO44 |
-| MDC / MDIO / PHY reset | GPIO49 / GPIO43 / GPIO54 |
-| RMII transmit signals | GPIO40/41/42; use the final netlist for signal-to-pin mapping |
+| MDC / MDIO / PHY reset | GPIO40 / GPIO39 / GPIO54 |
+| RMII transmit signals | TX_EN GPIO49, TXD0 GPIO41, TXD1 GPIO42; recheck final netlist |
 | RMII receive signals | GPIO51/52/53; use the final netlist for signal-to-pin mapping |
 | PHY interrupt | Not connected; plan link polling |
 | PHY management address | Expected address 0 from existing board audit; verify straps and MDIO response during bring-up |

@@ -76,6 +76,11 @@ rejected live transition. Document electrical timing/clock-source assumptions
 and physical measurement gates. A host register test cannot prove a working MAC
 clock, repeater link or compliant board timing.
 
+`mii_configure` and `compatibility_configure` own CR1[1], CR2[1], PHYSCR[4]
+and GENCFG[3]. Reuse prompt 28's power intent for BMCR isolation composition.
+RCSR updates/readback collect RC[3:2] and preserve reserved bit 6; extend
+initialization replay here, not in earlier stages.
+
 ## Documentation, verification and checkpoint
 
 Update public Doxygen, procedure citations, affected API/user/test/tool guides,

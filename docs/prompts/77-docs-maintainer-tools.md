@@ -27,8 +27,8 @@ version sync/check, host Debug/Release with executing assertions, portable
 tests-OFF consumer, actual supported SDK builds, strict Doxygen, clean package
 consumers and bounded HIL preparation/artifact handling. Use real registered
 commands rather than planned targets. Keep Git, Python, Doxygen, tests and tools
-optional for ordinary core consumers. If Windows PlatformIO is actually used,
-document the existing managed-installation wrapper instead of another Core.
+optional for ordinary core consumers. PlatformIO is not a supported consumer
+in this execution.
 
 Review ownership/simplicity: one authoritative mask and chip procedure, one
 configuration/MDIO owner, one shared CLI grammar and one source of verification
@@ -55,6 +55,6 @@ facts remain absent. Update Python protocol/artifact docstrings and affected
 README/CHANGELOG/source Doxygen/guides together, recording no-change reasons.
 Run focused clean-checkout/tool/docs checks and relevant behavior/package/SDK
 checks for actual changed inputs. Record commands/counts, findings and open
-evidence in report, validation and progress. Check final diff against entry
+evidence in report and a linked progress row. Check final diff against entry
 rules and commit/sync verified units and completion on the execution branch. Do
 not dispatch, poll or wait for remote CI here.

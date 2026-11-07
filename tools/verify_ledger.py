@@ -36,7 +36,7 @@ DIAGNOSTIC_REGISTERS = {
     "CDLRR1", "CDLRR2", "CDLRR3", "CDLRR4", "CDLRR5", "CDLAR1", "CDLAR2",
     "CDLAR3", "CDLAR4", "CDLAR5", "CDLAR6", "MSE_Val", "RXFS",
 }
-DIAGNOSTIC_RECIPES = {"RECIPE_0123", "LOOP_0122", "LOOP_0130"}
+DIAGNOSTIC_RECIPES = {"RECIPE_0123", "LOOP_0122", "LOOP_0130", "TDR_0411"}
 REMAINING_REGISTERS = {
     "LEDCR", "MLEDCR", "COMPT", "10M_CFG", "IO_CFG1", "LED0_GPIO_CFG",
     "LED1_GPIO_CFG", "LED2_GPIO_CFG", "LED3_GPIO_CFG", "CLK_OUT_LED_STATUS",
@@ -102,9 +102,13 @@ WRITE_ACTIONS = {
     "compliance_100_enable": ("RECIPE_0428", 0x0010, 0x0010, None, "compliance"),
     "compliance_100_count_low": ("RECIPE_0428", 0x0020, 0x0000, None, "compliance"),
     "compliance_100_count_high": ("RECIPE_0428", 0x0020, 0x0020, None, "compliance"),
-    "compliance_10_harmonic": ("COMPT", 0xFFFF, 0x0013, None, "compliance"),
+    **{f"compliance_10_pattern_{code:X}": ("COMPT", 0x001F, 0x0010 | code, None, "compliance") for code in range(14)},
+    **{f"TDR_0411_tdr_{value:04X}": ("TDR_0411", 0xFFFF, value, None, "cable") for value in (0x0813, 0x0815, 0x0816)},
+    **{f"EEE_0416_tdr_{value:04X}": ("EEE_0416", 0xFFFF, value, None, "cable") for value in (0x1FA0, 0x1F90)},
+    "GENCFG_tdr_0600": ("GENCFG", 0x0600, 0x0600, None, "cable"),
 }
 PROCEDURE_ACTIONS = {
+    "cable_configure": {name for name in WRITE_ACTIONS if "_tdr_" in name},
     "bist_capture": {"BICSR1_freezeClear"},
     "loopback_digital": {"LOOP_0122_digital", "RECIPE_0123_digital", "LOOP_0130_digital"},
     "eee_initialize": {name for name in WRITE_ACTIONS if name.endswith("_eee")},
@@ -114,6 +118,7 @@ PROCEDURE_ACTIONS = {
     "compliance_session": {name for name in WRITE_ACTIONS if name.startswith("compliance_")},
 }
 ACTION_GATES = {
+    "cable": {"tdr_recipe"},
     "bist": {"bist_result_semantics"}, "loopback": {"loopback_recipe"},
     "eee": {"eee_wire", "eee_control_semantics"},
     "lpi": {"eee_wire", "eee_control_semantics"},
@@ -150,10 +155,15 @@ MMD_INVENTORY = {
 }
 RECIPE_OFFSETS = {
     0x04D1, 0x04D3, 0x04DF, 0x033E, 0x033F, 0x0123, 0x031B, 0x0466,
-    0x04CF, 0x0416, 0x04F5, 0x04E0, 0x031F, 0x04F4, 0x0428, 0x0122, 0x0130,
+    0x04CF, 0x0411, 0x0416, 0x04F5, 0x04E0, 0x031F, 0x04F4, 0x0428, 0x0122, 0x0130,
 }
 PRINTED_ADDRESSES = {(3, 0x1001), (3, 0x1014), (3, 0x1016),
                      (7, 0x203C), (7, 0x203D)}
+EEE_WIRE = {(3, 0x1001): (0x0001, "COLLECTOR"),
+            (3, 0x1014): (0x0014, "SAFE_READ"),
+            (3, 0x1016): (0x0016, "COLLECTOR"),
+            (7, 0x203C): (0x003C, "SAFE_READ"),
+            (7, 0x203D): (0x003D, "SAFE_READ")}
 FEATURE_STAGES = {
     **dict.fromkeys(("identity", "access", "reset", "initialization", "negotiation",
                      "next_page", "crossover", "link", "straps", "outside_phy", "absent"), 3),
@@ -529,9 +539,6 @@ def validate(data: object, root: Path = ROOT) -> None:
                 "write action differs from exact sourced allowance")
         require(ACTION_GATES[fid] <= set(item["gates"]), aid,
                 "write action must retain its evidence gate")
-        if aid == "CLK_OUT_LED_STATUS_eee":
-            require("pin_fields" in item["gates"], aid,
-                    "clock recipe must retain its pin conflict gate")
 
     used_actions = set()
     for pid, item in procedures.items():
@@ -593,7 +600,10 @@ def validate(data: object, root: Path = ROOT) -> None:
         tuples.add(pair)
         citations(item["sources"], aid + ".sources")
         refs(item["gates"], gates, aid + ".gates", nonempty=True)
-        require(item["status"] == "BLOCKED", aid, "printed address must retain blocked wire disposition")
+        require(item["status"] == "SOURCE_IMPLIED", aid, "printed address must retain source-implied wire disposition")
+        require(pair in EEE_WIRE and
+                (hex_value(item.get("wireAddress"), aid + ".wireAddress"), item.get("readRoute")) == EEE_WIRE[pair],
+                aid, "EEE tuple or destructive route differs from selected source-implied mapping")
         if "disposition" in item:
             text(item["disposition"], aid + ".disposition")
         for control in sequence(item["controls"], aid + ".controls", nonempty=True):
@@ -603,7 +613,21 @@ def validate(data: object, root: Path = ROOT) -> None:
         require(item["feature"] in features, aid, "unknown printed-address feature")
         require(("MMD", *pair) not in occupied, aid,
                 "unresolved printed address is incorrectly claimed as a wire offset")
-    require(PRINTED_ADDRESSES <= tuples, "coverage", "missing printed EEE address")
+    require(PRINTED_ADDRESSES == tuples, "coverage", "missing or extra printed EEE address")
+
+    tdr = record(data.get("tdrRecipe"), "tdrRecipe", "source location runs writeOrder words scope interpretation cleanup gates")
+    require(tdr["source"] == "snla428", "tdrRecipe", "wrong selected recipe source")
+    require(tdr["runs"] == ["1A", "1B", "2", "3", "4", "5"], "tdrRecipe", "wrong run order")
+    require(tdr["writeOrder"] == ["0x0170", "0x0173", "0x0175", "0x0178", "0x0416", "0x0411", "0x0456", "0x001E"], "tdrRecipe", "wrong write order")
+    rows = sequence(tdr["words"], "tdrRecipe.words")
+    require(len(rows) == 8, "tdrRecipe", "expected eight register rows")
+    for row in rows:
+        require(isinstance(row, list) and len(row) == 6, "tdrRecipe", "expected six run words")
+        for word in row:
+            hex_value(word, "tdrRecipe.word")
+    for key in ("location", "scope", "interpretation", "cleanup"):
+        text(tdr[key], "tdrRecipe." + key)
+    require(set(refs(tdr["gates"], gates, "tdrRecipe.gates")) == {"tdr_recipe", "tdr_calibration", "tdr_freshness_abort"}, "tdrRecipe", "missing recipe evidence gate")
 
     identity = record(data["identity"], "identity", "oui id1 ouiLowMask modelMask revisionMask "
                       "models documentedRevision combinedIds policy sources")

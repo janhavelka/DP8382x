@@ -162,3 +162,7 @@ source/feature coverage, and retain explicit blocked dependencies. Continue
 independent eligible work within the requested scope. Mark completion only when
 the stage's actual outputs/checks exist; keep physical qualification separate.
 Finish with the verified commit/sync result and remaining gates.
+
+First-execution workflow policy: create automatic CI triggers at prompt 71;
+none exists yet. Preserve existing hooks and required checks. Prompts 72–80
+retain the recorded CI-tested SHA and their own local evidence.

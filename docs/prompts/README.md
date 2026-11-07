@@ -177,3 +177,7 @@ review completeness and integration; they do not supply the first tests or
 Doxygen for earlier code. The [progress record](../implementation-progress.md)
 records completed and remaining stages. Editing prompts alone does not implement
 or qualify the driver.
+
+First-execution workflow policy: create automatic CI triggers at prompt 71;
+none exists yet. Preserve existing hooks and required checks. Prompts 72–80
+retain the recorded CI-tested SHA and their own local evidence.

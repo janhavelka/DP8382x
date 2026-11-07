@@ -49,16 +49,13 @@ before I/O. Result retrieval and cancellation remain available for the active
 operation; do not gate the only way to finish or release it behind
 new-operation admission.
 
-Implement operation start/poll/status/result/cancel through existing owner
-procedures. Cached status does not advance work. An admission or `IN_PROGRESS`
-record cannot satisfy completion; retain terminal primary/cleanup results
-until the console accepts the complete record. Distinguish the request ID of a
-status, result or cancel query from the original operation ID; progress
-queries do not produce a second terminal completion for the original
-operation. If automatic result output is chosen, explicit result queries
-return that documented cached result rather than consuming a different owner
-result. Cancellation/stop cannot undo accepted writes or prove restoration.
-Keep residual effects and failed cleanup visible.
+Route start/poll/status/result/cancel and abandon through existing owner APIs.
+Initialization/reset/reapply select startInitialize's ResetKind; read-only verify
+uses startVerify. Cached status never advances work. Retain each operation's
+single terminal result until its record queues; restoration is a separate token,
+result and budget underOP-9. Keep query req distinct from the initiating token;
+never emit a second terminal completion from a progress query. Cancellation
+cannot undo effects; abandon has OP-10's external disposition prerequisite.
 
 Provide finite link watch and stress commands with positive count/duration,
 output budget and stop/fault paths. Zero rounds is rejected. Poll only through
@@ -66,6 +63,14 @@ the existing owner and release controller ownership between complete atomic
 transactions and waits. Distinguish logical operations, all-source MDIO
 frames, managed health attempts and chip counters; one MMD operation is
 several frames. Never starve mandatory cleanup to print another watch line.
+
+Discovery, dump, selftest, watch and stress are CLI-local sequencers over
+public calls: a small fixed index/count/deadline struct advances from tick,
+one batch per tick. They never perform uncoordinated MDIO or duplicate a chip
+procedure. Discovery uses a separate probe driver on the shared transport:
+bind each requested address, readClause22(02/03), end. Before each batch check
+the bound driver's operationSnapshot and reject while RUNNING or busQuietValid;
+this preserves hard-reset silence and normal report/quarantine checks.
 
 ## Acceptance
 

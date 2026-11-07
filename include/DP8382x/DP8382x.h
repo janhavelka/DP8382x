@@ -17,18 +17,74 @@ enum class TransportViolation : uint8_t {
   CONTROLLER_STATE  ///< Release succeeded but controller idle is not established.
 };
 
-/// @brief Copied all-source diagnostics, separate from future managed health.
+/// @brief Transport counts and last backend report, separate from managed health.
 struct TransportSnapshot {
   uint32_t totalBatches{0};    ///< Callback invocations, saturating at UINT32_MAX.
-  uint32_t attemptedFrames{0};///< Independently valid prefix attempts, saturating.
-  uint32_t completedFrames{0};///< Independently valid prefix completions, saturating.
-  bool lastBatchValid{false}; ///< Whether a callback receipt has been retained.
+  uint32_t attemptedFrames{0};///< Valid requested prefix attempts, saturating.
+  uint32_t completedFrames{0};///< Valid requested prefix completions, saturating.
   BatchResult lastBatch{};    ///< Exact report, including invalid codes and possible effects.
-  Status lastStatus{Err::OK, 0, "No transport attempt"}; ///< Normalized batch/time/release outcome.
   TransportViolation violation{TransportViolation::NONE}; ///< Last report defect.
+  bool stopped{false};        ///< Malformed report stopped this binding; owner repair required.
   bool late{false};           ///< Raw post-call time reached deadline; invalid if clockInvalid.
   bool clockInvalid{false};   ///< Latched timeline fault; repair requires end/rebind.
   bool controllerReusable{false}; ///< Last validated report; never authorizes shared access.
+};
+
+/// @brief Destructive sources, in acquisition order; PHYSTS precedes mirrors.
+enum class EvidenceSource : uint8_t {
+  PHYSTS, ///< Raw status before dependent clearing reads; table 8-34.
+  BMSR, ///< Latched basic status; table 8-20.
+  ANER, ///< Page receive consumes PHYSTS mirror; tables 8-25/34.
+  FLDS, ///< Latched fast-link-drop causes; table 8-33.
+  MISR1, ///< Interrupt events and stable enables; table 8-36.
+  MISR2, ///< Interrupt events and stable enables; table 8-37.
+  FCSCR, ///< Eight-bit clear-on-read false-carrier sample; table 8-38.
+  RECR, ///< Raw clear-on-read word; width/saturation conflict remains; table 8-39.
+  RCSR, ///< Raw RMII RC state; polarity/rearm gate remains; table 8-41.
+  BTSCR, ///< 10BTSCR polarity history clears despite R type; table 8-44.
+  RXFS, ///< WoL/filter history and routing; table 8-91.
+  COUNT ///< Number of supported sources, not a readable source.
+};
+
+/// @brief Build an acquisition mask; invalid enum values produce zero.
+/// @param[in] source Named destructive source.
+/// @return One mask bit or zero, without I/O.
+constexpr uint32_t evidenceBit(EvidenceSource source) noexcept {
+  return source < EvidenceSource::COUNT ? uint32_t{1} << static_cast<uint8_t>(source) : 0U;
+}
+/// @brief Every currently supported destructive source; no automatic polling.
+constexpr uint32_t ALL_EVIDENCE = (uint32_t{1} << static_cast<uint8_t>(EvidenceSource::COUNT)) - 1U;
+
+/// @brief Retained evidence from one destructive source, separate from aggregate success.
+struct EvidenceSample {
+  uint16_t raw{0}; ///< Latest successfully returned full word, including unknown bits.
+  uint16_t observedOnes{0}; ///< Union of raw ones; no implied physical event decoding.
+  uint16_t observedZeros{0}; ///< Union of raw zeros, retaining latched-low observations.
+  uint32_t samples{0}; ///< Successful consumed words, saturating; not an event count.
+  uint64_t sampledSum{0}; ///< FCSCR low-byte or RECR raw-word arithmetic sum; not a qualified physical total.
+  bool sumSaturated{false}; ///< Sticky arithmetic overflow; sampledSum is then a lower bound.
+  uint64_t observedAtUs{0}; ///< Conservative completion bound in the binding clock domain.
+  bool valid{false}; ///< At least one independently valid word has been retained.
+  bool timeValid{false}; ///< Timestamp is usable; zero is a valid timestamp.
+  bool stale{true}; ///< Failed refresh or known external/configuration change.
+  bool historyLost{false}; ///< Sticky: a possible consumption returned no trusted word.
+};
+
+/// @brief Passive destructive evidence; binding/end begin a new local history.
+struct EvidenceSnapshot {
+  std::array<EvidenceSample, static_cast<uint8_t>(EvidenceSource::COUNT)> samples{}; ///< Indexed by EvidenceSource.
+  uint32_t lastRequested{0}; ///< Sources requested by the latest admitted acquisition.
+  Status lastStatus{Err::RESULT_NOT_AVAILABLE, 0, "No evidence acquisition"}; ///< Latest acquisition or admitted mixed update result; comparison-only wake exit leaves it unchanged.
+  bool configurationDirty{false}; ///< Semantic raw/external mutation; no verification is implied.
+};
+
+/// @brief Owner notification of lost device trust; no action is taken on the PHY.
+enum class InvalidationReason : uint8_t {
+  EXTERNAL_RESET, ///< Owner reports reset; old samples remain historical.
+  EXTERNAL_POWER_ON, ///< Owner reports a power cycle.
+  EXTERNAL_MUTATION, ///< Another writer may have changed hardware.
+  RAW_MUTATION, ///< Owner performed a raw semantic write.
+  AMBIGUOUS_MUTATION ///< A write may have applied without valid completion.
 };
 
 /// @brief Noncopyable, application-serialized DP83826I direct-access binding.
@@ -89,15 +145,17 @@ public:
   /// verified pin state. A failed/late write may have applied; never auto-retried.
   /// @note SNLS647I table 8-42: blink, polarity, drive enable/value; reserved zero.
   /// No cached setting is claimed. Copy transportSnapshot before another batch.
+  /// Replaces all four fields: unset bits select 20 Hz blink and active-low
+  /// polarity, overriding the strap. Use modifyMmd to change one field.
   Status writeClause22(uint32_t registerAddress, uint32_t value,
                        const IoBudget& budget) noexcept;
-  /// @brief Read one nonconsuming vendor-MMD word in one four-frame batch.
-  /// @param[in] devad Device selector; 31 is implemented, 3/7 remain source-gated.
+  /// @brief Read one admitted nonconsuming MMD word in one four-frame batch.
+  /// @param[in] devad Device selector; vendor31 plus the three source-implied EEE reads.
   /// @param[in] registerAddress Sixteen-bit documented offset; no indirect selectors.
   /// @param[out] value Unchanged unless all frames, release and timing succeed.
   /// @param[in] budget Original exclusive deadline and at least four frames.
-  /// @return Direct-access terminal errors, including INVALID_CONFIG/SOURCE_GATE
-  /// for unresolved EEE mapping and INVALID_PARAM for holes or consuming reads.
+  /// @return Direct-access terminal errors; INVALID_PARAM for holes, consuming reads
+  /// or unadmitted DEVAD/offsets. EEE mappings remain physically unqualified.
   /// @note SNLS647I 8.3.11.1/.5, tables 8-31/32. Clause 22 aliases inherit the
   /// same policy. Raw TDR/MSE/strap words do not establish freshness or units.
   Status readMmd(uint32_t devad, uint32_t registerAddress, uint16_t& value,
@@ -111,6 +169,8 @@ public:
   /// @return Terminal status; errors retain selector/possible target effects.
   /// @note SNLS647I 8.3.11.4 and table 8-42. Always reselects the address;
   /// no retry or interpretation of a prior ambiguous write as verified success.
+  /// Replaces all four fields: unset bits select 20 Hz blink and active-low
+  /// polarity, overriding the strap. Use modifyMmd to change one field.
   Status writeMmd(uint32_t devad, uint32_t registerAddress, uint32_t value,
                   const IoBudget& budget) noexcept;
   /// @brief Modify safe stable fields under one five-frame MMD transaction.
@@ -121,19 +181,63 @@ public:
   /// @param[in] budget Original exclusive deadline and at least five frames.
   /// @pre Owner excludes reset/external writers and meets writeClause22 preconditions.
   /// @return Terminal status; a failed or late dependent write may have applied.
-  /// @note SNLS647I 8.3.11.1/.4/.5: nonincrementing selection persists through
+  /// @note Five frames are inferred from SNLS647I 8.3.11.1, not a printed sequence.
+  /// Nonincrementing selection persists through
   /// the read and following write. Preserve only stable bits outside mask, force
-  /// reserved bits zero, never replay commands or update mixed/destructive fields.
+  /// LEDCR reserved bits zero. Other targets require per-register reserved handling.
+  /// Never replay commands or update mixed/destructive fields through generic RMW.
   /// No readback verification, automatic retry or separate public lock scope.
   Status modifyMmd(uint32_t devad, uint32_t registerAddress, uint32_t mask,
                    uint32_t value, const IoBudget& budget) noexcept;
+  /// @brief Explicitly acquire destructive words through the sole private collector.
+  /// @param[in] sourceMask Nonzero subset of ALL_EVIDENCE; no implicit sources.
+  /// @param[out] evidence Assigned only when every requested read/release succeeds on time.
+  /// @param[in] budget Aggregate deadline and frames; complete requested count admitted first.
+  /// @pre Application owns the instance, exact part/address and diagnostic admission.
+  /// @return Terminal transport/validation status; errors retain consumed partial samples.
+  /// @note PHYSTS is read first when requested. RXFS uses a complete MMD sequence.
+  /// Reads can clear IRQ/history; ambiguous reads set historyLost, never zero events.
+  /// A collection spans bounded batches; it is not a simultaneous hardware snapshot.
+  Status acquireEvidence(uint32_t sourceMask, EvidenceSnapshot& evidence,
+                         const IoBudget& budget) noexcept;
+  /// @brief Update only MISR1/2 stable enables while retaining consumed events.
+  /// @param[in] registerAddress C22 MISR1 (0x12) or MISR2 (0x13).
+  /// @param[in] mask Nonzero low-byte owned mask.
+  /// @param[in] value Replacement subset of mask.
+  /// @param[in] budget Two-frame atomic read/write budget.
+  /// @pre Exact-part maintenance owner coordinates interrupt users and pin routing.
+  /// @return Terminal status; partial reads remain in evidenceSnapshot on write failure.
+  /// @note Tables 8-36/37. This is register maintenance, not IRQ pin setup/service.
+  Status modifyInterruptEnables(uint32_t registerAddress, uint32_t mask,
+                               uint32_t value, const IoBudget& budget) noexcept;
+  /// @brief Maintain RXFCFG1 with exact W0C semantics and pre-write event capture.
+  /// @param[in] mask Stable subset of 0x17A1; zero allowed only for acknowledgement.
+  /// @param[in] value Replacement subset of mask; full pulse-width field when changed.
+  /// @param[in] acknowledge True writes zero to bit 11; false preserves pending level.
+  /// @param[in] budget Aggregate allowance of at least 14 frames; no hidden retries.
+  /// @pre Exact DP83826I, quiesced traffic, safe wake wiring and exclusive semantic
+  /// configuration owner. This does not configure a MAC/password or qualify WoL.
+  /// @return Terminal status; failed writes leave configuration evidence dirty.
+  /// @note Table 8-90. Read stable state, skip unchanged unrelated updates, capture
+  /// RXFS/MISR2, then perform one atomic five-frame RMW. Unknown bit 6 and reserved
+  /// bits are preserved. Full feature admission/restoration belongs to prompt 31.
+  Status modifyWakeControl(uint32_t mask, uint32_t value, bool acknowledge,
+                          const IoBudget& budget) noexcept;
+  /// @brief Read retained samples without MDIO or clock callbacks.
+  /// @return Copied history; valid/timeValid/stale/historyLost are independent.
+  EvidenceSnapshot evidenceSnapshot() const noexcept { return _evidence; }
+  /// @brief Invalidate configuration and mark observations historical without I/O.
+  /// @param[in] reason Known external/raw uncertainty; invalid enum is rejected.
+  /// @return OK or INVALID_PARAM; BUSY during a callback; samples are never erased.
+  Status invalidateDeviceState(InvalidationReason reason) noexcept;
   /// @brief Copy retained raw/normalized evidence without clock or MDIO callbacks.
-  /// @return Passive receipt; raw invalid timestamps/statuses must not be trusted.
+  /// @return Copied report; raw invalid timestamps/statuses must not be trusted.
   TransportSnapshot transportSnapshot() const noexcept { return _transport; }
 
 private:
   Config _config{};
   TransportSnapshot _transport{};
+  EvidenceSnapshot _evidence{};
   bool _bound{false};
   bool _active{false};
   bool _stopped{false};
@@ -141,6 +245,9 @@ private:
   uint64_t _lastTimeUs{0};
   Status _sampleTime(uint64_t& raw, uint64_t& upper) noexcept;
   Status _execute(MdioBatch batch, const IoBudget& budget) noexcept;
+  void _retainEvidence(const MdioBatch& batch, const BatchResult& result,
+                       bool clockValid, uint64_t before, uint64_t upper) noexcept;
+  void _invalidateEvidence() noexcept;
 };
 
 } // namespace DP8382x

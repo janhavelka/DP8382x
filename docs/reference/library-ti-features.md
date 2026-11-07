@@ -108,7 +108,7 @@ these reviewed sources; caller budgets remain software policy.
 | D, 8-54 | CDSCR `[6:4]` segment codes 1-5 = 0-10, 10-20, 20-40, 40-80, 80+ metres; 0,6,7 reserved | Do not derive classification or unbounded maximum length from the last interval. |
 | D, 8-56/57/60 | For segments 1..5: CDSCR3 `0x0173[15:8]` duration = `0D,0D,1A,34,8F`; `[7:0]` initial skip = `07,14,21,3B,6F`; TDR_175 `0x0175[13:11]` shadow averaging location = 2 each; `[3:0]` forward shadow = `4,4,5,8,B`; TDR_178 `0x0178[2:0]` pulse width = `2,2,2,2,6` | These are exact table entries, not freely interchangeable tuning profiles. Default `0x0173=0x0D04` differs from segment-1 recipe skip `0x07`; test the explicit configuration instead of treating reset as the recipe. |
 | D/U, 8-58/59 | TDR_176 `0x0176[4:0]` location threshold reset 5; CDSCR4 `0x0177[12:8]` short-cable threshold reset `0x1E` | Numerical fields are documented, but physical scaling/legal calibration needs more evidence; do not invent metre units. |
-| D/U, 8-61/66/71 | First peak: `0x0180[7:0]` location; `0x0185[6:0]` amplitude; `0x018A[11]` polarity and `[5]` cross indication | Raw masks `0x00FF`, `0x007F`, `0x0800`, `0x0020`. Additional named banks `0x0181..184/186..189` are reserved in detailed tables. No fabricated five-peak decoder or good/open/short conversion. |
+| D/U, 8-61/66/71 | First peak: `0x0180[7:0]` location; `0x0185[6:0]` amplitude; `0x018A[11]` polarity and `[5]` cross indication | Raw masks `0x00FF`, `0x007F`, `0x0800`, `0x0020`. Additional named banks `0x0181..184/186..189` are reserved in detailed tables. No fabricated five-peak decoder. The separately selected SNLA428 transmit-A helper has explicit matching-row and whole-word interpretation, pending Q7. |
 | D, 8-47 | CDCR bit 14 `0x4000` resistor calibration normally stays low; if read high, clear it then immediately issue PHYRCR `0x001F[15]` hard reset | This is a contingency, not permission to start calibration as a routine diagnostic. Preserve its disruptive effects and restore owned configuration. |
 
 ## Interrupts, power, EEE and WoL
@@ -120,11 +120,11 @@ these reviewed sources; caller budgets remain software policy.
 | D, tables 8-37, 8-91 | MISR2 high-to-low: EEE error, AN error, page received, loopback FIFO OF/UF, MDI crossover, sleep, polarity/WoL, jabber. RXFS `0x04A1[12]` selects polarity=0/WoL=1 for the shared source | Do not emit both source labels without the selector evidence. WoL enable automatically selects WoL per the table. |
 | D, 8.3.6; table 8-40 | Active-sleep policy PHYSCR `[14:12]=6`, mask/value `0x7000/0x6000`; BISCR bit 8 = 0 sleeping, 1 normal; sleep checks partner with NLP about every 1.4 s | Policy accepted is not asleep. 1.4 s is the documented behavior, not a deadline for external partner appearance. |
 | D/C, 8.3.6.2; MCU-C 749-778 | BMCR bit 11 `0x0800` requests IEEE power-down; SMI and internal clocks remain. DPD enters by setting `0x0428[2]` first, then IEEE power-down by pin or BMCR | DPD also stops PLL. The entry order does not establish an arbitrary wake delay or prove a reverse-order exit. Pin ownership and clock availability matter. |
-| D/X, 8.3.3.2 | EEE bypass-disabling controls are `0x04D1[0]=1` and `[3]=1` (combined `0x0009`); advertisement is printed MMD7 `0x203C[1]` | DS prints MMD3 `1001/1014/1016`, MMD7 `203C/203D`. Wire-offset translation remains unresolved in the inventory. Do not strip digits or execute this tuple without applicable evidence. |
+| D/X, 8.3.3.2 | EEE bypass-disabling controls are `0x04D1[0]=1` and `[3]=1` (combined `0x0009`); advertisement is printed MMD7 `0x203C[1]` | DS prints MMD3 `1001/1014/1016`, MMD7 `203C/203D`. D2 selects only the five source-implied low tuples in the ledger, with whole-word capability/advertisement checks and Q1 physical gate. No generic digit stripping or DEVAD31 alias. |
 | D, 8.3.4 | Legacy MAC sequence: enable controls/advertisement, restart AN with BMCR bit 9 `0x0200`, request TX LPI with `0x04D1[12]=1`, stop with bit 12=0 | No PHY frame buffering. Application must coordinate transmit silence/wake; control readback is not proof of partner wake or safe frame delivery. |
 | D/U, 7.6 p15 | 100-Mbit EEE sleep **210 us**, quiet **20 ms**, wake Tw_sys_tx **36 us**, refresh **200 us** are in the **NOM** column | Do not present these as worst-case timeout/guaranteed readiness. Actual MAC/partner timing needs appropriate bounds and measurements. |
 | D, table 8-90 | RXFCFG1 `0x04A0`: CRC gate bit 12; W0C level acknowledgement bit 11; pulse selector `[10:9]`; level/pulse bit 8; WoL enable bit 7; Secure-ON bit 5; Magic Packet bit 0 | Unrelated writes keep W0C neutral. Pulse codes 0-3 = 8/16/32/64 cycles at 125 MHz, derived 64/128/256/512 ns. Do not promote bit 6's bare bit-mask label into unsupported DP83826 custom pattern matching. |
-| D, tables 8-91..97 | RXFS status bits 7/6/5/0 are SFD-error/bad-CRC/password-error/Magic-Packet RCH evidence. MAC destination words `0x04A2/3/4` hold DS byte pairs high:low = 4:5, 2:3, 0:1. Secure-ON `0x04A5/6/7` pairs = 1:0, 3:2, 5:4 | Freeze the application byte-order convention explicitly and use literal vectors from these DP83826 tables. Do not borrow a DP83822 app-note word order. |
+| D, tables 8-91..97 | RXFS status bits 7/6/5/0 are SFD-error/bad-CRC/password-error/Magic-Packet RCH evidence. MAC destination words `0x04A2/3/4` hold DS byte pairs high:low = 4:5, 2:3, 0:1. Secure-ON `0x04A5/6/7` pairs = 1:0, 3:2, 5:4 | Freeze the application byte-order convention explicitly and use literal vectors from these DP83826 tables. DP83822 produces the same wire words despite different byte labels; its acknowledgement differs. |
 
 The DS 8.3.3.1 EEE recipe is reproduced here as **printed address/value facts**
 to make omissions detectable, **not** as executable MDIO wire tuples:
@@ -139,7 +139,7 @@ The first hard reset invalidates owned settings. Several addresses are absent
 from the detailed register catalogue, and the overlapping loopback/clock/profile
 controls need reconciliation and restoration. Neither the selected MCU nor
 Zephyr driver establishes this recipe, its reverse/disable procedure or the
-unresolved EEE wire mapping. A missing recipe in a vendor driver does not remove
+physically unqualified EEE wire mapping selected in D2. A missing recipe in a vendor driver does not remove
 EEE from required library scope.
 
 ## LED, interface and link-quality controls
@@ -176,3 +176,41 @@ helper as the implementation can reproduce the source defect. Preserve unknown
 write effects and partial acquisition, verify reset/stop/restore, and keep
 software bounds, real linked firmware and physical measurements as separate
 evidence. No catalogue row closes an implementation or hardware gate.
+
+## WP3 source decisions
+
+[SNLA428](source/TI-DP83826-TDR-SNLA428.pdf) table2-1 is selected for the six-run
+transmit-A derived helper; its tuning differs from datasheet tables8-56/57, which
+remain legal raw tuning. The original matrix and table2-5 example are independently
+transcribed in [vectors](../register-vectors.md#wp3-independent-source-regressions).
+The recipe-only 0411 and shared 0416 words, GENCFG exception, whole peak word,
+matching-row formula, positive caller propagation delay and Q7 gate are explicit
+ledger records. Reserved banks stay reserved; no pair-B diagnosis is inferred.
+
+EEE's selected D2 inference uses SNLS638C tables7-99..103 low-offset descriptions,
+SNLS505H7.4.2.9's literal read trace, exact-part DEVAD association and the
+SNLS603D p47 notation analogy on a different part. Counter-readings remain:
+SNLS647I8.3.3.1 prints7h/203Ch and SNLA328 prints03/1001 and1014. No exact-part
+trace was found. Require capability whole-word0002 before reset and advertisement
+whole-word0002 after reset, before continuing. Status/counter use the collector;
+Q1 remains NOT RUN. Exact04D1 bits0/3/12 permit masked readback; opaque recipes
+have no invented inverse. Host-controlled LPI start/stop return independently;
+application dwell is not a PHY timeout.
+
+Table8-50 authorizes all14 10M patterns under mask001F; SNLA266B's0013 is one
+example. Keep ordinary COMPTmask000F and reservedFFF0; the named action alone
+ownsbit4. The opaque100M0428 branch stays gated before I/O. Fixture scripts do
+not authorize PHYCRbit5 or RO address bits; composeC000 and preservebit7. BISCR
+7101 includes RO0100: compose mask701F/value7001. Refuse power-down/isolation,
+stop with hard reset and require later initialization/reapply.
+
+SNLS647Itable8-90 W0C remains selected despite SNLA261A/DP83822 and shared Linux
+write-one intent; Q3 tests neutral versus acknowledgement on exact silicon. Both
+families pack conventional MAC11:22:33:44:55:66 as2211/4433/6655. Reset WoL is
+not off; bit7=1,bit0unknown,RXFS12=1. Retain RXFS/MISR2 before configuration writes.
+
+SNLA423A reverse and analog scripts include digital restart. Its analog3380
+word is rejected because the detailed amplitude field range excludes it. BASIC
+LED polarity stays fixed-low, ENHANCED MII pin availability remains constrained,
+and SNLA344C's PHYCRbit5 label is evidence of a named control, not permission to
+copy its contradictory script. These physical questions remain Q8/Q12.

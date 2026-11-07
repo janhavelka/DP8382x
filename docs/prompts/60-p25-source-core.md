@@ -37,6 +37,24 @@ other source-proved operations. SNLS638C specifies a 25 us minimum hardware-rese
 policy. Add literal conflict, wrong-device, clock-polarity and
 no-MII/RGMII/fiber cases before claiming support.
 
+## Required DP83825I decisions
+
+Require Config to declare RMII role LEADER or FOLLOWER. Observe SOR1[3]
+directly and RCSR[7] through the collector, retaining FIFO RC bits 3:2. A
+mismatch is reported without writing the role. Despite R/W marking, table 7-26
+says the strap determines the reference and SDAA081 2.4 reads it as confirmation;
+Zephyr's write is comparison only. Use strap-parameterized vectors, not a bit 7
+reset-zero assertion. Record T4's 20 MHz maximum versus 24 MHz prose and use the
+conservative 20 MHz limit.
+
+Leader rejects nonzero `0x0305[2:0]`, BMCR[10]=1 and `0x0428[2]=1` before I/O
+without explicit clock-loss opt-in; later SOR1 mismatch blocks these writes.
+Isolation follows table 7-3, mux/deep-power clock loss is inferred from table
+7-61/section 6.3.8 (physical Q15). No `0x030E=0x4A40` write runs on DP83825.
+Assign the finite whole-word functional modes to 61. Include the PartTable
+audit's added addresses and printed MMD headings in the inventory, without
+assuming headings alone establish their wire offsets.
+
 ## Work and acceptance
 
 Read SNLS638C directly, exact DP83825 troubleshooting/EVM material and relevant

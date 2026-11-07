@@ -1,4 +1,4 @@
-# 30 - Implement bounded legacy-MAC LPI sessions
+# 30 - Implement forced TX LPI control
 
 Follow [COMMON](COMMON.md) and its shared contracts, including
 [CONVENTIONS](CONVENTIONS.md), [EVIDENCE](EVIDENCE.md) and
@@ -13,10 +13,10 @@ gates under COMMON.
 
 ## Scope, current evidence and work
 
-Deliver exact documented legacy-MAC EEE/TX LPI coordination as complete finite
-owner-admitted sessions, including entry, status acquisition, exit and verified
-restoration. Reuse EEE configuration and the existing operation engine; no
-independent LPI task or implicit background control.
+Deliver forced TX LPI control as two bounded calls, `startLpi()` and `stopLpi()`,
+under OP-9. Each performs04D1 bit 12 RMW and masked readback; after the recipe,
+008B->108B->008B. Application owns dwell, MAC drain and post-exit delay. Keep the
+operation slot free during dwell while the temporary-state barrier protects it.
 
 Re-open SNLS647I 8.3.4/7.6 and the
 [LPI timing facts](../reference/library-ti-features.md#interrupts-power-eee-and-wol):
@@ -33,36 +33,28 @@ restoration code. Inspect source and registered tests, not just wrappers.
 Reopen the exact DP83826I legacy-MAC EEE recipe, LPI control/status and wait
 definitions alongside the mapping/procedure evidence settled in task 29.
 
-Specify application/MAC prerequisites, explicit transmit coordination, finite
-session bounds and what the PHY does not buffer. A PHY LPI control cannot
-guarantee the MAC stopped sending or retain frames on its behalf. Require the
-selected owner's maintenance/admission contract and validate request values and
-available cached EEE/link/power evidence before transfers. Any required live
-precondition uses bounded observation reads before mutation; do not demand
-zero-I/O proof of current hardware state. External MAC/frame scheduling remains outside
-portable core.
+Validate explicit MAC/owner admission and cached EEE/link/power prerequisites.
+The PHY sends LPI and does not buffer MAC frames. Restricting below100M is an
+explicit policy inference:8.3.4 is silent and7.6 provides100M timings only.
+Do not import DP83825 bits 14:13; DP83826 section 8.3.4 establishes bit 12 only. Q2 tests
+108B on the line and retains the neighboring-part difference if it fails.
 
-Implement ordered entry, source-defined waits, status/evidence, exit and restore
-using one operation slot and aggregate deadline. Capture only necessary owned
-state, preserve exact command-neutral values and never split indirect sequences.
-The bus lock is released before scheduled waits. Distinguish request accepted,
-verified LPI state, link/partner evidence and successful exit; a local callback
-return cannot prove an environmental condition.
+Use cached `forcedLpi {OFF, REQUESTED, UNCERTAIN}`. There is no documented PHY
+LPI readiness event or dwell limit; 36 us wake is nominal. Stop compares bit 12
+only. Admitted reads/link polling continue under OP-14 but link publishes its
+bit only while the temporary session is active.
 
-Any accepted TX-inhibit/LPI mutation remains visible until source-supported exit/
-restoration proves otherwise. Cancellation is bus-silent; subsequent cleanup has
-its separate finite allowance. Primary test/transport/deadline failure and cleanup
-failure remain independently reported. If cleanup is denied, times out or cannot
-restore, explicitly report whether TX may remain inhibited and leave relevant
-configuration untrusted. No automatic reset/retry or apparent success after
-an uncertain exit.
+An accepted or uncertain LPI write remains visible until explicit stop/restoration.
+Failure leaves UNCERTAIN and reports "forced LPI may remain active; frames sent
+now can be lost". Cancellation ends the call; a later stop has a separate budget
+and result. No automatic reset/retry or false completion follows an uncertain exit.
 
 Test independent literal entry/exit traces and legal setting combinations,
 missing MAC admission and invalid prerequisites with zero I/O. Inject every
-mutation/acquisition/exit/restore failure, including error after TX inhibit took
+mutation/acquisition/exit/restore failure, including error after LPI took
 effect, cancellation at each effect boundary and never-valid status. Assert
 maximum calls, no lock across waits, no stale result reuse, primary/cleanup
-precedence and retained inhibited-state evidence after teardown attempts.
+precedence and retained uncertain-LPI evidence after teardown attempts.
 
 Compile an owner sequence demonstrating application coordination and both normal
 and failed-exit handling. Document bounded software work separately from physical

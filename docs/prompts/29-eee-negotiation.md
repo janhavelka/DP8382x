@@ -19,15 +19,14 @@ documented configuration recipe with verified restoration. This task owns
 negotiation/configuration behavior; explicit legacy-MAC TX LPI sessions are task
 30. Neither a family app note nor a register name proves exact-part support.
 
-Audit all eighteen printed address/value pairs in the
-[TI EEE recipe](../reference/library-ti-features.md#interrupts-power-eee-and-wol)
-against SNLS647I 8.3.3.1, beginning `001F=8000,203C=0002,04D1=008B`
-and ending `0308=0000,04F4=0800,0000=3300`. These are printed facts,
-not verified wire tuples. Bypass controls `04D1[0,3]=1` and printed
-MMD7 `203C[1]=1` need exact-part addressing evidence. Derive full address-mode
-and data-mode words independently and test all reserved bits remain zero. Account for destructive reset,
-`0123` loopback overlap and clock/profile writes. Establish complete setup,
-disable and restore from source-backed procedures and independent tests.
+Audit all eighteen SNLS647I8.3.3.1 recipe pairs, beginning
+`001F=8000,203C=0002,04D1=008B` and ending
+`0308=0000,04F4=0800,0000=3300`. DEVAD3/7 is established by8.3.11.1.
+Adopt `(3,0001),(3,0014),(3,0016),(7,003C),(7,003D)` as source-implied,
+not physically proven, in one table. Record the SNLS638C low-offset prose,
+SNLS505H worked trace and SNLS603D notation analogy, plus AI/AE and SNLA328
+full-address counter-readings. Do not route these through vendor31 aliases.
+Literal selection vectors include0003/0014/4003 and0007/003C/4007.
 
 Reopen peer configuration/readback and explicit power-transition source/tests:
 TMP1x2 `src/TMP1x2Configuration.cpp`, MB85RC sleep/wake procedures and
@@ -35,13 +34,14 @@ PCA9555 ambiguous-apply/cleanup tests. Inspect current API/CLI error contracts.
 Reconcile SNLS647I EEE fields, bypass polarity and all applicable exact-part
 recipes with SNLA328 and pinned TI sources, preserving their respective authority.
 
-Resolve the inventory's printed EEE addresses versus verified wire offsets
-before freezing constants or issuing access. Do not strip address digits,
-assume a neighboring part's MMD mapping or turn a questionable source example
-into a reserved-write exception. Record independent literal selector/address/
-data traces and provenance for every procedure-only access. Missing essential
-mapping evidence blocks that procedure and remains required work; other
-documented controls and unrelated tasks can proceed.
+Before the recipe's HARD write, read(3,0014) and require the whole word0002;
+otherwise stop with zero writes. After HARD and its OP-14 floor, write(7,003C)=0002
+as row2 and require whole-word0002 readback before the other16 rows. Failure
+leaves a hard-reset PHY and OP-9/13 obligations. Keep both fail-closed checks until
+Q1 qualifies the mapping. Read-only raw admission is exactly (3,0014), (7,003C),
+(7,003D); reject all other3/7 offsets and all raw writes. Collector owns latched
+3.1 and read-clear 3.22. Record independent literal traces for each procedure-only
+write; unrelated tasks proceed while physical qualification is pending.
 
 Implement every legal capability/advertisement/status setting and the complete
 source-required setup/disable sequence. Reconcile next-page exchange with task
@@ -73,6 +73,15 @@ failure and no false negotiated-success publication.
 Compile a configuration/status example and document MAC coordination needed
 before future LPI operation. Expose source gaps precisely; host sequence tests
 do not establish physical EEE interoperability, wake latency or energy savings.
+
+Both `eee_wire` and `eee_control_semantics` retain their IDs with physical-check
+pending status. Adopt cross-part bits 3.1[11:8],3.20[1],7.60[1],7.61[1] and
+read-clear 3.22 as source-implied under Q1; the recipe itself remains opaque full
+words. For04D1 admit only exact-part bits 0/3 from8.3.3.2 and12 from8.3.4,
+with masked readback. Disable is HARD plus replay, never an invented inverse.
+The sourced0308=0000 row is not blocked by `pin_fields`; instead reject before
+I/O if an owned clock/LED route conflicts. Preserve0123 loopback overlap and
+all reset/profile effects; minimum recipe floor includes the two self-checks.
 
 ## Documentation, verification and checkpoint
 

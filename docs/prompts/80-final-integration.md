@@ -30,15 +30,14 @@ hardware qualifications to obtain a final passing status.
 
 ## Work and acceptance
 
-Review the finished ordinary C++ consumer, native P4 adapter, network and
-EtherCAT ownership examples, shared CLI, Python runner, packages, documentation
-and complete exact-part source/register/field/procedure coverage. The source
-ledger defines the denominator, not exported functions. Every documented
-programmable feature/legal setting requires implemented typed behavior and
-independent tests; opt-in defaults and missing first-board fixtures do not
-excuse software gaps. Hardware-only/inapplicable/outside-PHY dispositions need
-citations. Essential unresolved silicon, implementation, adapter, CI or
-requested physical evidence prevents overall COMPLETE.
+Use the single coverage matrix and prior verified results. Check only rows
+whose inputs changed or whose evidence became stale; review actual consumer,
+SDK/example, CLI/runner and package consequences for those changes. Do not
+repeat every field reconciliation. Essential unresolved silicon, software,
+adapter, CI or requested physical evidence keeps the overall set PARTIAL.
+Stage 80 is COMPLETE once its actual report/checks exist, even when 72/73 stay
+BLOCKED with physical NOT RUN. The execution record and final handoff must state
+the set's PARTIAL status explicitly.
 
 Create this prompt's report with scope, command, input revision/hash,
 environment, result/artifact and limit for each distinct evidence layer:
@@ -63,7 +62,7 @@ remote CI here.
 
 Reconcile README, CHANGELOG, Doxygen,
 API/architecture/variants/feature/testing/package/hardware guides, CONTRIBUTING,
-validation and progress. Preserve vendor bytes/notices and failed evidence. Keep
+progress. Preserve vendor bytes/notices and failed evidence. Keep
 a finite pending list with dependency, owner and exact next command/fixture;
 continue eligible work and report partial status when required gates remain.
 Record no-change reasons for unaffected guides. Check final links/diff and

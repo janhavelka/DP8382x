@@ -12,7 +12,7 @@
 | Remote CI | Named jobs for the recorded exact commit | A later dirty tree or another commit |
 | Physical fixture | Recorded board/silicon/modes actually exercised | Universal variants, electrical compliance or servo safety |
 
-Keep these separate in `docs/validation.md` when created. Each claim has a
+Keep these separate in each stage report. Each claim has a
 command, result, artifact/revision, environment, date and limit. Record test
 counts; zero tests and configured-but-unrun workflows are not success. Preserve
 failures and exclusions instead of relabeling them as a pass.
@@ -39,7 +39,7 @@ oracle. Compare authorized real traces/readbacks when making physical claims.
   logical operations and actual MDIO frames separately; zero cooperative budget
   causes no I/O. Test selector/alias protection, partial batches, release guarantees
   and subsequent admission after any supported release failure.
-- Register access attributes, reserved masks, W0C/W1C/W1S/read-clear/latch-low/counter
+- Register access attributes, reserved masks, source-backed W0C/W1S/read-clear/latch-low/counter
   behavior and independent test oracles. Pin unresolved datasheet ambiguities;
   do not choose a convenient fake behavior and call it silicon truth.
 - Reset kinds/straps/restore, advertisement and forced-mode validation, 10BASE-Te
@@ -48,7 +48,7 @@ oracle. Compare authorized real traces/readbacks when making physical claims.
   stale observations,
   raw invalidation and wrong-policy links. Cover legal 10/100 and half/full
   combinations per device; board-specific restrictions do not limit core tests.
-- Deadline exhaustion, clock wrap/quantization/frozen clock handling, bounded
+- Deadline exhaustion, monotonic clock overflow/regression/quantization and frozen-clock handling, bounded
   callback budget, cancellation at side-effect boundaries, retained results,
   completion-based minimum waits, persistent versus temporary restore state,
   independent instances, lifecycle reuse, no allocation in core hot paths.
@@ -58,8 +58,8 @@ oracle. Compare authorized real traces/readbacks when making physical claims.
 - Native CLI parser/output/owner execution, all malformed input cases, bounded
   console under saturation, truthful errors/restoration, firmware provenance and
   Python fragmented/duplicate/reboot/truncation cases. Include partial serial
-  write/framing loss, finite finalization, required manifest membership and
-  agreement between artifact and case verdicts.
+  write/framing loss, finite finalization, the two-file transcript/JSON hash-length contract and
+  agreement between artifact and worst case verdicts.
 
 Use CMake/CTest with tests OFF by default for consumers. Register real suites,
 strict compiler warnings, applicable sanitizers and a second host compiler where
@@ -74,13 +74,16 @@ baseline is v6.1, commit `fff9895c82d744c7237be8847347bdd1b07c6643`, not a promi
 that it is the final tested range. A header shim or syntax-only build is not
 native IDF evidence. Build/link the actual component and P4 examples, test callback
 lifetime/start/stop/delete paths, dependency declarations and the IEEE 802.3
-base boundary. State all SDK API/timing restrictions discovered.
+driver boundary. Use the unmodified v6.1 public route and a bare PhyHandle,
+not the 802.3 base; record all SDK API/timing restrictions discovered.
 
-Exercise callback-context resolution during installation, two independent
-instances, partial install/start/stop/delete effects and callback quiescence.
-Use actual raw ioctls for transfer-admission tests; test control-ioctl partial
-effects separately. Verify same-link mode changes and both cached-AN direct-start
-paths. Serialize cached driver access as well as I/O under the application owner.
+Exercise installation phase/journal, two independent instances, partial SDK
+effects and callback quiescence. Static raw read/write hooks always reject;
+owner-routed typed calls use direct MAC primitives under the shared transaction.
+Test pinned real SDK driver code with hash-checked host fakes as its own layer,
+then link real P4 examples. Check fenced stop, bounded STOP delivery, stub
+mediator teardown and retained boot-terminal resources. Source-reviewed RX/HAL
+limits remain explicit, with physical Q13 NOT RUN. Serialize cached access too.
 
 Do not copy I2C peers' S2/S3 matrices into an EMAC example. Additional frameworks
 or targets require a working MAC/MDIO integration and their own build evidence.
@@ -136,8 +139,10 @@ for remote runs even after major fixes or commit/sync. At prompt 71 record actua
 jobs/results and tested SHA; later work keeps that evidence tied to its original
 commit. Never claim an older green SHA covers the final implementation.
 
-Automatic runs can still occur on push. Preserve triggers, hooks and required
-merge/release checks; do not disable or bypass them. After the first execution,
+Prompt 71 creates ci.yml with push on all branches, pull_request and
+workflow_dispatch. Find the push run by tested commit; do not merge main to
+enable dispatch. Preserve those created triggers, hooks and required checks;
+automatic push runs may occur but prompts outside 71 do not query them. After the first execution,
 the parent CI policy resumes unless the user instructs otherwise. Keep fixture
 jobs opt-in to declared hardware; don't fake hardware in hosted CI.
 
@@ -165,3 +170,26 @@ prompts 4–5 extend the ledger. Review all numbered prompt links, dependency
 ordering, shared names, requirement coverage and truthful progress entries.
 Future commands are introduced with
 their implementation; don't claim nonexistent tests or firmware builds ran.
+
+
+## Finite verification ownership
+
+Use the one feature-coverage matrix, closed for the primary part in 55 and
+extended in 59/61/67. Prompt 36 checks critical procedures and representative
+implementations; 75/78 independently sample high-risk rows; 76 reviews exported
+contracts/Doxygen and checker adverse tests; 79 reviews deltas since 53/54;
+80 checks changed/stale inputs only. List existing test names before adding a
+new regression. Report commands/counts once in the stage report and link progress.
+
+Apply COMMON's OP1-17 to cooperative tests: one RUNNING state, separate finite
+start/stop calls for continuous sessions, separate later restoration on primary
+failure, retained results, monotonic time and reset quiet floor. Do not test a
+fictional CLEANUP lifecycle or time wrapping. No source-established W1C field
+is invented merely to fill a test category.
+
+On this Windows host run UBSan trap mode locally; second compiler, ASan/LSan/
+TSan and non-trap UBSan remain NOT RUN locally and execute in Linux at 71.
+Do not install toolchains for these checks. Both real SDK links and the pinned
+host-driver tests remain required despite absent boards. At 72/73 record
+BLOCKED (readiness done, physical NOT RUN) and continue. Stage 80 may be COMPLETE
+with its report/checks while the execution set and handoff remain PARTIAL.

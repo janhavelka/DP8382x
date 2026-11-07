@@ -8,13 +8,12 @@ fallbacks invalidate the claim.
 
 ## Current evidence and ownership
 
-Reopen TCA9548A `tools/check_package.py` (`expected_files`, `check_archive`,
-`build_consumer`) and finite archive/build bounds; compare SCD41
-`tools/check_target_package_consumer.py::platformio_configuration/main` and
-`tools/check_clean_consumer_compile.py::safe_extract`. Inspect their negative
-tests, source membership, license notices and actual workflow registration.
-Record revisions, dirty state, exact paths and adopted/adapted/rejected choices;
-do not import I2C S2/S3 targets or another PlatformIO installation.
+Reopen TCA9548A `tools/check_package.py::expected_files/check_archive/build_consumer`
+and SCD41 `tools/check_clean_consumer_compile.py::safe_extract`, their negative
+tests, source membership and registration. Record revisions and selected rules.
+PlatformIO is not supported in this execution; do not adopt SCD41's
+`platformio_configuration` or create `scripts/pio.cmd` without an actual
+PlatformIO stage.
 
 The lead owns package payload and checker integration.
 
@@ -42,18 +41,13 @@ test fixtures/HIL logs and private paths as appropriate. Preserve actual reused
 source notices and all sources/public headers required by advertised portable
 and adapter consumers. Review payload/license membership explicitly.
 
-Build an archive, validate/extract into a clean temporary directory, then
-compile/link/run a renamed ordinary C++17 consumer with tests OFF using only
-extracted public artifacts. Also install the extracted portable library to a
-separate prefix, relocate that prefix, and build/run a distinct `find_package`
-consumer using its exported target. Verify no absolute checkout/build paths or
-missing transitive usage requirements leak into the install. No source-tree
-generated file, global header, sibling, Git/Python/Doxygen configure dependency
-or fallback is allowed. Build/link an actual native P4 example from extraction
-against the pinned SDK. Missing SDK access is BLOCKED, never shim success. Test
-source archives without Git and truthful unknown firmware identity. PlatformIO
-is conditional and uses the existing managed Windows wrapper if needed, never a
-new Core installation.
+Build `git archive --format=tar.gz` of HEAD using 69's exact payload, validate
+and extract it into a clean temporary directory. Run a renamed tests-OFF C++17
+consumer using only exported artifacts; install, relocate and run a distinct
+`find_package` consumer. No checkout/global/sibling/generated-file fallback or
+Git/Python/Doxygen configure dependency is allowed. Link the native P4 example
+from extraction with the pinned SDK; missing SDK is BLOCKED. Test missing-Git
+archive identity as unknown. PlatformIO is not a supported consumer here.
 
 ## Acceptance and checkpoint
 

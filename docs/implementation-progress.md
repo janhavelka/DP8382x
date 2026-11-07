@@ -1,7 +1,7 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–12, covering research, contracts, portable values,
+execution. Prompts 1–13, covering research, contracts, portable values,
 version tooling and bounded direct/indirect access, are complete; later stages have not started. Current
 verification includes
 reference/link checks, the silicon-ledger validator, 77 registered research-tool
@@ -9,7 +9,8 @@ tests, eight executable operation-timing design probes and an isolated hash-chec
 SDK MMD encoding probe, 14 C++17 host test suites, a separate tests-OFF
 consumer, the Doxygen source-document check and strict version fixture tests.
 The driver now provides the restricted Clause 22/MMD subset, stable-field RMW
-and compiling portable examples. Initialization, typed features, SDK, CLI, runner and hardware
+and compiling portable examples. Prompt 13 adds explicit destructive acquisition,
+retained partial evidence and safe MISR/WoL updates. Initialization, typed features, SDK, CLI, runner and hardware
 qualification remain future work. Prompt 5 closes primary-part source dispositions, including
 explicit unresolved gates. Research completion does not claim driver completion.
 
@@ -129,6 +130,15 @@ sequence; every new call reselects completely. See the
 feature remains PARTIAL pending task 13 and EEE gates; SDK/physical evidence is
 NOT RUN. Final verified commit/upstream equality is in the handoff.
 
+Prompt 13 entry was synchronized `81ab2d3`; prerequisite source checkpoint
+`88af952` was committed, pushed and verified equal to upstream. The
+[stage report](reports/implementation/13-side-effect-register-access.md) records
+COMMON's prerequisite WP0–WP7 corrections and the completed access implementation.
+Latest explicit user instructions retain the collector at 13, superseding the
+audit's proposed deferral. Local Release, portable consumer, Doxygen, ledger,
+Python and reference checks pass; SDK/package/physical evidence is NOT RUN.
+Final commit/upstream equality is recorded in the handoff.
+
 Before prompt 1 of a new execution, create a new branch from the synchronized
 intended base and record its name/base here. Keep that branch for every prompt
 and resumed session. Record stage outcomes, actual checks, remaining dependencies
@@ -153,7 +163,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [10 Add deterministic version metadata and generation](prompts/10-version-tooling.md) | COMPLETE | [Version tool guide](../scripts/README.md), [report](reports/implementation/10-version-tooling.md); strict generated-header check, temporary version fixtures, C++17 host/consumer/Doxygen and research/reference/diff checks PASS. Device, SDK and physical evidence NOT RUN. |
 | [11 Implement bounded Clause 22 transport](prompts/11-clause22-transport.md) | COMPLETE | [Direct-access guide](direct-access.md), [report](reports/implementation/11-clause22-transport.md); bounded binding/read/write subset, retained transport evidence, five new registered host suites and linked portable example PASS. Doxygen, version, 98 Python tests, ledger/reference/diff PASS. MMD/collector/init/SDK/physical evidence remain separate later scope. |
 | [12 Implement complete atomic MMD transactions](prompts/12-atomic-mmd.md) | COMPLETE | [Transport guide](direct-access.md), [report](reports/implementation/12-atomic-mmd.md); atomic four-frame read/write and five-frame stable RMW, canonical aliases, phase-failure/exclusion tests and linked portable examples PASS. Local Release, Doxygen, ledger, reference, Python and diff checks PASS; EEE, side-effect-aware access and SDK/physical gates remain explicit. |
-| [13 Implement side-effect-aware register access](prompts/13-side-effect-register-access.md) | NOT STARTED | None |
+| [13 Implement side-effect-aware register access](prompts/13-side-effect-register-access.md) | COMPLETE | [Report](reports/implementation/13-side-effect-register-access.md), [access guide](side-effect-access.md); complete named catalog, collector, MISR/WoL updates, partial-evidence/invalidation tests and linked portable example. Local Release/consumer/Doxygen/Python/ledger/reference/diff checks PASS; physical/SDK qualification NOT RUN. |
 | [14 Implement exact identity and capability selection](prompts/14-identity-capabilities.md) | NOT STARTED | None |
 | [15 Implement initialization and complete PCS reset operations](prompts/15-initialize-pcs-reset.md) | NOT STARTED | None |
 | [16 Implement hard reset, restart and external-reset reconciliation](prompts/16-hard-reset-restart.md) | NOT STARTED | None |
@@ -224,6 +234,9 @@ local checks. Record the actual CI-tested SHA separately from later results.
 
 A stage can be complete as software while its separately tracked physical
 qualification remains NOT RUN, if its acceptance explicitly permits that.
+Status legend: at 72/73 use BLOCKED when software/readiness is complete but
+physical measurements are NOT RUN. Prompt 80 can be COMPLETE for its report and
+checks while the execution set and final handoff remain PARTIAL.
 Prompts 72-73 cannot complete required physical measurements without actual evidence;
 the final handoff must disclose outstanding required gates and retain incomplete
 overall status until those gates close.

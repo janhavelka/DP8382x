@@ -22,22 +22,17 @@ unrelated open gates under COMMON.
 
 ## Scope, current evidence and work
 
-Audit every row of the
-[TI feature/source catalogue](../reference/library-ti-features.md) against the
-current implementation, exact datasheet and any actual measurements. Require
-explicit source dispositions and independent regressions for odd-nibble
-polarity, per-LED placement and full selector width, zero-reserved MMD words,
-physical-unit/code conversion, retained IRQ samples and 10BASE-Te setup.
-Revisit procedure-only EEE/loopback/compliance writes and remaining TDR, MSE,
-GPIO, IOCTRL and nominal-timing limits. A table of numbers or two agreeing vendor
-drivers cannot close a conflicting silicon requirement or a physical gate.
-Return substantial gaps to their feature owner without reducing required scope.
+Review critical procedures and representative implementations against the
+[TI source catalogue](../reference/library-ti-features.md), original tables
+and actual measurements. Include odd-nibble polarity, LED placement, selector
+width, REGCR reserved zeros, conversion units, retained IRQ samples and mandatory
+VOD. Review unresolved TDR/MSE/GPIO/IOCTRL/timing claims. Substantial missing
+features return to their owner; this stage does not reconcile every row.
 
-Audit DP83826I software completeness against the entire authoritative register/
-field/procedure ledger and independently inspect representative implementations.
-This is a bounded integration review with focused corrections, not a replacement
-for unfinished feature implementations in tasks 11–35. Own the review report,
-coverage reconciliation and narrowly identified fixes with their tests/docs.
+Perform a bounded integration review of prompts11-35 with focused corrections.
+Use the one maintained matrix in `docs/feature-coverage.md`; prompt 55 closes its
+primary-part rows. Own the review report and identified fixes, not another
+coverage catalogue.
 
 Refresh relevant sibling sources for the actual correction/review domains:
 TMP1x2 Config/Status/operations/configuration, PCA9555 transaction/cleanup tests,
@@ -46,13 +41,10 @@ Record paths, revisions and adopted/adapted/rejected findings. Ask independent
 read-only reviewers to inspect disjoint difficult domains with suitable reasoning
 effort; the lead resolves disagreements and owns shared contracts/Git.
 
-Reconcile the complete datasheet summary, detailed register headings, feature
-text and documented procedure-only addresses, using the planning
-inventory as a cross-check, not a completeness oracle. Every non-reserved field,
-legal encoding and multistep feature needs an exact source, public typed behavior,
-source documentation, executing independent-vector/failure tests and clear
-software disposition. Hardware-only/inapplicable claims require exact-part
-evidence; constants or raw writes cannot complete a stateful feature.
+Sample high-risk field/procedure rows and independently inspect representative
+public behavior, Doxygen and literal failure tests. Constants/raw access do not
+complete stateful features. Keep hardware-only and inapplicable claims sourced;
+record findings against the existing matrix.
 
 Cross-check one-owner transport/MMD/RMW atomicity, aggregate deadlines, finite
 cleanup, result/token lifecycle, partial destructive-event retention and raw/
@@ -68,7 +60,7 @@ owner without recursively replaying reset-bearing recipes or test traffic.
 Cross-check the critical procedures: 10BASE-Te setup and replay, robust Auto-MDIX
 Force Mode, prohibited ANAR remote-fault advertisement, speed-specific MII
 loopback, RXFCFG1 W0C and MAC ordering, active-sleep policy versus state,
-EEE printed-address/wire mapping, PHYSTS forced interpretation, RECR arithmetic
+EEE source-implied tuples/self-checks, BMCR forced resolution and raw PHYSTS, RECR arithmetic
 and cable calibration. Closed factual conflicts need source evidence; unresolved
 ones remain named required gates, never silently unsupported features.
 

@@ -51,6 +51,6 @@ Doxygen or code/test corrections when a guide exposes a real defect; review
 README, CHANGELOG and affected guides, recording no-change reasons instead of
 padding Unreleased. Preserve vendor provenance and failed evidence; keep
 execution history in reports/progress. Record commands/counts and remaining
-limits in this prompt's report, validation and progress. Check final diff,
+limits in this prompt's report and a linked progress row. Check final diff,
 commit/sync checked units on the execution branch, and retain 71's CI SHA
 without remote run checks.

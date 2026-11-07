@@ -104,7 +104,6 @@ enum class ConfigDetail : int32_t {
   HEALTH_THRESHOLD,   ///< Passive OFFLINE threshold is zero.
   LINK_COMBINATION,   ///< Typed link settings disagree or omit required intent.
   SOURCE_GATE,        ///< Essential chip procedure evidence remains unresolved.
-  BOARD_PREREQUISITE, ///< Required board condition was not established.
   CLOCK_CONTRACT,     ///< Monotonic clock or its bound was violated.
   ENUM_VALUE,         ///< Binding contains an invalid enum representation.
   ADDRESS_RANGE,      ///< Binding PHY address exceeds Clause 22 range.
@@ -120,8 +119,6 @@ enum class BusyDetail : int32_t {
   CONTROLLER_QUARANTINED, ///< Shared controller is not proved reusable.
   CLEANUP_REQUIRED,    ///< Hardware cleanup still needs a safe route.
   OBSERVATION_CHANGED, ///< Aggregate observation changed while sampled.
-  TOKEN_EXHAUSTED,     ///< Lifetime token counter cannot advance.
-  RETIRE_REQUIRED      ///< Binding must end before reuse.
 };
 
 /// @brief DEVICE_NOT_FOUND or DEVICE_MISMATCH detail values.
@@ -145,8 +142,6 @@ enum class TimeoutDetail : int32_t {
 /// @brief Source-proved absent silicon capability detail values.
 enum class UnsupportedDetail : int32_t {
   INTERFACE = 1, ///< Declared MAC interface is absent.
-  LINK_MODE,     ///< Requested link mode is absent.
-  FEATURE        ///< Requested programmable feature is absent.
 };
 
 } // namespace DP8382x

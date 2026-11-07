@@ -41,16 +41,14 @@ and BISCR[8] reports current sleep/normal state. Policy configuration can
 complete successfully while linked and awake. Do not wait for sleep entry or
 promise partner-dependent wake/link timing as a finite software completion gate.
 
-For explicit IEEE/deep power transitions, document exact prerequisites, owned
-state, controller access availability, clock/PLL effects, waits, completion
-evidence and retained/reset configuration. Validate capability, requested state,
-maintenance and timing before I/O. Apply command-neutral writes once and use
-owner-driven bounded waits only where source-defined completion exists.
-Unknown write effects cannot become known sleep/awake state. Include ENHANCED
-mode's external PWRDN pin: the pin can keep power-down asserted despite clearing
-the software request. Report request readback and actual state separately, and
-bound a blocked wake without repeated writes. Coordinate loss of PHY-generated
-MAC reference clocks with the application before entry and on exit.
+For IEEE/deep power transitions document prerequisite access/clock state, effects
+and bounded source-defined waits. BMCR[11] reads the software/pin OR, so report
+`requestedPowerDown` from owner intent and `observedBmcrPowerDown` from hardware;
+there is no separate actual-state register. Compose bit 11 from desired intent,
+never sampled readback. After one clear write, observed1 means
+WAKE_BLOCKED_OR_UNCONFIRMED and never triggers repeated writes. BISCR[8] reports
+active sleep only. Coordinate PHY-generated clock loss with the application;
+Q6 measures the ENHANCED pin-release hazard.
 
 Preserve desired settings and extend reset/recovery/restoration for each power
 kind, using stable source-supported verification. Pin, oscillator, GPIO reset,
@@ -59,10 +57,10 @@ PoE is not a PHY library feature. No default low-power activation or autonomous
 power cycling; explicit opt-in settings may be replayed by initialization/
 recovery when owned.
 
-Cancellation retains accepted effects and performs no MDIO itself. Later cleanup
-uses its finite allowance and reports primary/cleanup status separately; failed
-wake or restore leaves uncertain state visible. No full-timeout refresh per read,
-lock across waits or inferred successful wake from a local setter.
+Cancellation ends immediately and leaves OP-9's barrier after accepted or
+uncertain mutation. A later restoration operation has its own finite budget and
+result; no refreshed per-read timeout, lock across waits or local-setter wake
+claim is permitted.
 
 Test literal policy/power sequences, active-sleep enable while linked and awake,
 partner-dependent state changes, invalid/unsupported zero-I/O requests and all
@@ -73,6 +71,10 @@ cleanup denial. Verify exact bounds and no false asleep/awake publication.
 Compile policy and explicit-transition owner examples. Document source-bounded
 software operations separately from unbounded environmental link/wake outcomes
 and unperformed physical clock/power measurements.
+
+Own `power_pll_control`: PHYSCR[15] mask8000 is separate from DPD0428[2],
+admitted only in IEEE power-down with explicit application clock-loss approval.
+Active-sleep mask7000 must never alter PLL disable.
 
 ## Documentation, verification and checkpoint
 

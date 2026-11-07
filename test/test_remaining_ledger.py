@@ -32,9 +32,9 @@ class RemainingLedgerTests(unittest.TestCase):
         self.assertIn(message, result.stderr)
 
     def test_full_inventory_has_researched_dispositions(self):
-        self.assertEqual(len(self.data['registers']), 96)
+        self.assertEqual(len(self.data['registers']), 97)
         self.assertEqual(sum(r['status'] == 'COMPLETE' for r in self.data['registers']), 79)
-        self.assertEqual(sum(r['status'] == 'RECIPE' for r in self.data['registers']), 17)
+        self.assertEqual(sum(r['status'] == 'RECIPE' for r in self.data['registers']), 18)
         self.assertEqual(len(self.data['printedAddresses']), 5)
         self.assertTrue(all(f['evidence']['documented'] == 'COMPLETE' for f in self.data['features']))
         for row in self.data['registers']:
@@ -270,7 +270,7 @@ class RemainingLedgerTests(unittest.TestCase):
             'compliance_100_enable': (0x0428, 0x0010, 0x0010),
             'compliance_100_count_low': (0x0428, 0x0020, 0),
             'compliance_100_count_high': (0x0428, 0x0020, 0x0020),
-            'compliance_10_harmonic': (0x0027, 0xFFFF, 0x0013),
+            **{f'compliance_10_pattern_{code:X}': (0x0027, 0x001F, 0x0010 | code) for code in range(14)},
         }
         for aid, values in expected.items():
             action = next(a for a in self.data['writeActions'] if a['id'] == aid)
@@ -283,7 +283,7 @@ class RemainingLedgerTests(unittest.TestCase):
 
     def test_new_actions_cannot_drop_gates_or_change_literals(self):
         original = copy.deepcopy(self.data)
-        for aid in ('EEECFG3_eee', 'RECIPE_0428_dpd_enable', 'compliance_10_harmonic'):
+        for aid in ('EEECFG3_eee', 'RECIPE_0428_dpd_enable', 'compliance_10_pattern_3'):
             for change in ('mask', 'value', 'gates'):
                 with self.subTest(action=aid, change=change):
                     self.data = copy.deepcopy(original)
@@ -292,8 +292,8 @@ class RemainingLedgerTests(unittest.TestCase):
                     self.rejected_file('FAIL:')
         self.data = copy.deepcopy(original)
         clock_action = next(a for a in self.data['writeActions'] if a['id'] == 'CLK_OUT_LED_STATUS_eee')
-        clock_action['gates'].remove('pin_fields')
-        self.rejected_file('clock recipe must retain its pin conflict gate')
+        self.assertNotIn('pin_fields', clock_action['gates'])
+        self.assertIn('clock/LED', clock_action['prerequisites'])
 
     def test_remaining_rows_cannot_revert_to_pending(self):
         names = ('LEDCR MLEDCR COMPT 10M_CFG IO_CFG1 LED0_GPIO_CFG LED1_GPIO_CFG '
@@ -386,7 +386,7 @@ class RemainingLedgerTests(unittest.TestCase):
         self.rejected_file('feature scope must retain documented responsibility')
 
     def test_exception_cannot_be_borrowed_by_another_procedure(self):
-        next(p for p in self.data['procedures'] if p['id'] == 'collision_test')['writeActions'] = ['compliance_10_harmonic']
+        next(p for p in self.data['procedures'] if p['id'] == 'collision_test')['writeActions'] = ['compliance_10_pattern_3']
         self.rejected_file('required procedure write actions are missing or changed')
 
     def test_exception_gates_follow_actions_into_procedures(self):
@@ -397,7 +397,7 @@ class RemainingLedgerTests(unittest.TestCase):
     def test_printed_eee_disposition_cannot_claim_wire_resolution(self):
         original = copy.deepcopy(self.data)
         self.data['printedAddresses'][0]['status'] = 'COMPLETE'
-        self.rejected_file('printed address must retain blocked wire disposition')
+        self.rejected_file('printed address must retain source-implied wire disposition')
         self.data = copy.deepcopy(original)
         self.data['printedAddresses'][0]['controls'] = ['']
         self.rejected_file('expected nonempty text')
@@ -417,6 +417,28 @@ class RemainingLedgerTests(unittest.TestCase):
                            devad=devad, address=offset, aliases=[])
                 self.data['registers'].append(row)
                 self.rejected_file('undocumented primary address')
+
+
+    def test_selected_eee_wire_and_read_routes(self):
+        # SNLS638C7-99..103 and SNLS505H7.4.2.9, selected inference D2.
+        expected = [(3, 0x1001, 0x0001, 'COLLECTOR'),
+                    (3, 0x1014, 0x0014, 'SAFE_READ'),
+                    (3, 0x1016, 0x0016, 'COLLECTOR'),
+                    (7, 0x203C, 0x003C, 'SAFE_READ'),
+                    (7, 0x203D, 0x003D, 'SAFE_READ')]
+        self.assertEqual([(int(a['devad'], 16), int(a['printedAddress'], 16),
+                           int(a['wireAddress'], 16), a['readRoute'])
+                          for a in self.data['printedAddresses']], expected)
+        original = copy.deepcopy(self.data)
+        for index, changes in ((0, {'readRoute': 'SAFE_READ'}),
+                               (2, {'readRoute': 'SAFE_READ'}),
+                               (1, {'wireAddress': '0x1014'}),
+                               (4, {'wireAddress': '0x203D'}),
+                               (3, {'devad': '0x1F'})):
+            with self.subTest(index=index, changes=changes):
+                self.data = copy.deepcopy(original)
+                self.data['printedAddresses'][index].update(changes)
+                self.rejected_file('EEE tuple or destructive route')
 
 
 if __name__ == '__main__':

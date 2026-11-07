@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### 2026-11-07
+
+- Implemented prompt 13: complete named register/mask catalog, explicit destructive
+  acquisition with retained partial samples/history-loss evidence, atomic MISR
+  enable updates and source-specific WoL W0C composition. Added nine independent
+  access suites and a linked evidence example. Cached readers perform no I/O.
+- Applied COMMON's prerequisite audit: explicit access policy and shared test
+  harness, corrected quarantine reports, simpler transport bounds, operation/native
+  contracts and future prompts. Added source-implied EEE mappings and SNLA428 TDR
+  evidence while keeping physical qualification separate. Five-frame MMD RMW is
+  inferred from state retention in SNLS647I 8.3.11.1, not a printed sequence or
+  physically verified behavior. Raw access does not complete typed features.
+
 ### 2026-11-01
 
 - Implemented prompt 12's atomic vendor-MMD read/write and stable LEDCR RMW,

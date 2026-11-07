@@ -8,7 +8,7 @@ handlers follow; expose only working commands here.
 
 ## Current evidence and ownership
 
-Reopen TMP1x2's `examples/common/Tmp1x2Cli.h/.cpp` (`setup`, `feed`,
+Reopen TMP1x2's `examples/common/Tmp1x2Cli.h` and `Tmp1x2Cli.cpp` (`setup`, `feed`,
 `processCommand`, `tick`, `printHelp`) and `ConsoleBuffer.h` (`format`,
 `drain`). Compare 24Cxx's `discardInput`, `Platform::outputReady` and
 session/result retention; inspect SHT3x dispatch, LDC1614 help/parser tests
@@ -22,12 +22,13 @@ semantics.
 
 ## Implement
 
-Freeze exact grammar, aliases and machine schema in `docs/cli.md` before
-coding. Use `examples/common/Dp8382xCli.h/.cpp` and `ConsoleBuffer.h` with one
-small framework-free processor including the public DP8382x API. Keep
-parsing/dispatch together until real responsibilities justify
-output/diagnostic source files; avoid per-command classes and generic
-RPC/registration frameworks.
+Freeze tokenization, aliases, numeric parsing, group names, `<group> <verb> [args]`,
+records and error vocabulary in `docs/cli.md`;44-46 append commands. Use
+`examples/common/Dp8382xCli.h`, `Dp8382xCli.cpp` and `ConsoleBuffer.h`. One static
+command table holds{name,alias,minArgs,maxArgs,flags,handler}; a cfg table holds
+{group,name,enumValues or min/max,unit}. Dispatch/help share them. Each handler
+calls a public API except bounded CLI sequencers. No dynamic registration or
+virtual framework.
 
 Implement working help/topics, version/capabilities, local controls and cached
 health/link/configuration views. Follow grouped aligned sibling presentation,
@@ -42,24 +43,24 @@ overflow recovery. Include embedded NUL, invalid encoding, integer overflow
 and signed versus unsigned conversion. Input loss discards through the next
 complete line boundary; backspace cannot clear discard mode. A truncated
 mutation or its remaining suffix cannot execute later. Define callback
-lifetime, feed/tick budgets, owner routing and processor reconfiguration while
-work is pending.
+lifetime, feed/tick budgets and owner routing.
 
-Provide a passive session/identity query so a runner attaching after boot can
-establish fresh correlation without resetting hardware or depending on a lost
-boot banner. Define who supplies session/request identifiers, their legal
-widths, non-reuse/exhaustion rules and how stale records from an earlier
-attachment are rejected. Reconfiguring a session with pending work/result must
-preserve or reject it explicitly; a new identifier cannot silently discard
-work.
+Application setup supplies a nonconstant u32 boot ID. `session <nonce>` passively
+prints nonce verbatim, boot, current req, identity and schema. Every complete
+input line, including rejected lines, increments a u64 firmware req from1;
+there is no exhaustion branch. Every record includes boot/req. The runner has
+one outstanding command and seeds its count from its own nonce reply; other
+boot/req values are stale. After command timeout only `session <new nonce>` may
+resynchronize; without its reply send nothing further. Session query never
+reconfigures the processor or discards pending work.
 
 The single terminated machine record schema includes version, boot/session,
 request/operation identity, admission versus terminal state, printable `Err`,
 signed backend detail, primary/cleanup status and valid time/deadline fields.
 Keep records ASCII-safe, fully terminated and independent of human-output
 filtering. Specify escaping, duplicate/unknown field policy, integer ranges
-and record-byte capacity. Human logs cannot impersonate record prefixes or
-interleave inside a machine record. Reserve capacity before admitting work, or
+and record-byte capacity. A queued record is indivisible; external unqueued output may corrupt it and
+the parser must reject that corruption. Reserve capacity before admitting work, or
 retain one complete terminal result until its entire record is queued; the
 queue owns bytes through partial writes. Queue acceptance is not host receipt.
 Ordinary help or quiet/color settings cannot erase required protocol output.
@@ -67,13 +68,21 @@ Distinguish boot from sequence reuse, local/firmware time and library/firmware
 identity; archives stay unknown when provenance is unavailable. Pending
 admission is never terminal success.
 
+Records are single uncolored lines at column0 with the fixed prefix. Track the
+console cursor and queue CR LF first when prompt/partial human output is open.
+Runner strips nothing from candidate records and discards non-record lines.
+Queue records as indivisible units; prompt 47 routes ESP_LOGx through the same
+queue, while ROM/panic/direct printf remain possible corruption sources.
+
 ## Acceptance
 
-Register a host executable under `test/cli/` using real shared sources and a
-clearly simulated backend. Test bytewise input, every malformed boundary,
-passive/rejected command-attributed zero-frame/state invariants, short/zero
-output writes, full queue, terminal retention and pending reconfiguration. No
-UART/HIL claim follows.
+Register `test/cli/dp8382x_cli_fixture`, linking real CLI/core over a plain-array
+simulated MDIO model. Feed stdin bytes unchanged to the CLI and its output to
+stdout. Options: --identity, --partner, --fail-after N, --reboot-after N,
+--partial-record. Test-only stdin controls $pause,$resume,$tick N,$output-stall N
+are handled before CLI and absent in firmware. Cover malformed bytewise input,
+zero-frame rejection, full/short/zero output and terminal retention. Campaign
+classification uses recorded/synthetic transcripts; none claims UART/HIL.
 
 Document processor/platform callbacks and source limits in Doxygen; maintain
 `docs/cli.md` with grammar, machine schema, session handshake and example

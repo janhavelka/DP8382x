@@ -165,12 +165,33 @@ WoL/frame filtering, all PHY low-power states, and documented repeater/complianc
 analog controls. The inventory determines exact membership and limits; a name
 on this list does not assert every family member supports that feature.
 
-At prompts 36, 47, 55-67 and 74-80 reconcile the full ledger, not just the
-current driver's exported functions. Tests and raw access cannot mask omitted
-features. Each family expansion repeats the complete source/register/feature
-audit rather than only checking its PHY ID and common networking path.
+Keep one implementation matrix in `docs/feature-coverage.md`: every ledger
+procedure/feature ID maps to exact part/mode, CLI command, owner route, record,
+host test and physical case or reasoned N/A; every field owner resolves to a
+covering row. Prompts 44/46/47 append, 47 closes CLI columns, 55 closes primary
+rows, and 59/61/67 append exact-family rows. Prompt 36 checks critical/representative
+paths; 75/78 sample high-risk rows independently, 79 reviews deltas since 53/54,
+and 80 checks only changed/stale inputs. These limits avoid repeated inventories,
+not required software coverage.
+
+A document-level equality record is sufficient for I/E and AI/AE temperature
+suffixes with no software-visible difference: share maps/procedures and
+parameterize identity/bind tests, reopening on new suffix-conditional evidence.
+Use one DP83822 map with fiber/temperature attributes and separate admission and
+physical rows. New register-map generations still require their complete source
+comparison and explicit deltas.
 
 Final completeness requires no unexplained register/field/procedure omissions
 and no required software rows left deferred. Every exception has a valid silicon
 or application-boundary reason, or remains an open completion gate. Physical
 qualification remains independently honest when fixtures are unavailable.
+
+
+The ledger remains the sole factual field catalog. Complete generated or checked
+named production constants may serve real access behavior, with completeness
+checks and independent literal test oracles. Prompt 13's current consumers are
+explicit destructive acquisition and mixed-register mutation; later features
+extend that collector rather than creating another owner. Reserved behavior and
+neutral values remain target-specific; do not fabricate a W1C feature where the
+exact source documents none. Missing physical fixtures keep the final set
+PARTIAL even after software/readiness stages finish.

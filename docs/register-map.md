@@ -5,10 +5,10 @@ The authoritative numeric map is [dp83826i.json](registers/dp83826i.json), with
 second numeric register table. The [reference inventory](reference/dp83826i-feature-inventory.md)
 remains a source-navigation checklist, not a competing writable register map.
 
-The ledger contains all 79 summary-table entries, 17 additional vendor recipe
+The ledger contains all 79 summary-table entries, 18 additional vendor recipe
 offsets and five separately recorded EEE printed addresses. All 79 detailed
 records have complete bit partitions, known reset masks, legal/prohibited
-encodings, access semantics, sources and feature ownership. Seventeen opaque
+encodings, access semantics, sources and feature ownership. Eighteen opaque
 records have only exact recipe actions and unknown fields/reset values.
 There are 52 ordered procedures and 283 fields. Source research is complete;
 24 named gates retain unresolved implementation and qualification requirements.
@@ -19,7 +19,7 @@ There are 52 ordered procedures and 283 fields. Source research is complete;
 | Control and reset | BMCR, PHYRCR | Distinct PCS reset, full reset, AN restart and circuitry restart; commands have neutral values. |
 | Advertisement and exchange | ANAR, ALNPAR, ANER, ANNPTR, ANLNPTR | Local prohibitions, partner observations, page/ACK/toggle and destructive-event ownership. |
 | Addressing | REGCR, ADDAR | Separate selector/control/data roles; complete transaction serialization. |
-| Link and crossover | CR1, CR2, CR3, PHYSTS, PHYCR | Source records complete; extended duplex/crossover belongs to prompt 18, with forced-mode interpretation gated. |
+| Link and crossover | CR1, CR2, CR3, PHYSTS, PHYCR | Forced speed/duplex uses observed BMCR under the selected interpretation; extended duplex/crossover belongs to prompt 18 and physical confirmation remains separate. |
 | Required initialization | VOD_CFG3 | Exact 10BASE-Te settings use documented read/write fields; reserved bits remain protected. |
 | Strap evidence | SOR1, SOR2 | Captured board configuration, not invariant defaults or current software settings. |
 
@@ -32,7 +32,7 @@ There are 52 ordered procedures and 283 fields. Source research is complete;
 
 | Remaining responsibility | Researched records | Interpretation |
 | --- | --- | --- |
-| Power and EEE | Shared BMCR/PHYSCR/BISCR, opaque EEE/DPD recipes, printed EEE associations | Requested policy, observed state and source-blocked wire/control semantics remain distinct. |
+| Power and EEE | Shared BMCR/PHYSCR/BISCR, opaque EEE/DPD recipes, printed EEE associations | Requested policy, observed state, selected source-implied mappings and physical confirmation remain distinct. |
 | Wake | RXFCFG1, RXFS, MAC and Secure-ON words | Mixed W0C neutrality, exact-part MAC numbering, quiesced update and collector ownership. |
 | LED, GPIO, interface and clock | LED/source/drive/mux records, shared CR/RCSR/PHYCR | Pin-specific legal values, POR straps and conflicting read-only/mux tables. |
 | Electrical, compliance and compatibility | VOD, COMPT, analog, IO and GENCFG records | Coupled fields, exceptional recipe actions and stop-before-restoration; all-reserved entries confer no tuning access. |
@@ -47,10 +47,16 @@ Protocol-valid C22 holes still fail documented-access policy. An MMD offset in
 range does not imply that it is implemented or safe to read/write. No contiguous
 bank is inferred from two documented endpoints.
 
-The EEE entries retain the printed namespace and unresolved translation gate.
-They cannot be fed directly to a wire helper. The disputed MSE alternative stays
+The EEE entries retain both printed namespaces and selected source-implied wire
+tuples, with explicit safe-read/collector routes and physical case Q1 still open.
+Printed addresses cannot be fed directly to a wire helper. The disputed MSE alternative stays
 in its source gate instead of becoming an automatic alias. Recipe-only vendor
 offsets confer permission only through the exact sourced procedure once audited.
+
+The [side-effect guide](side-effect-access.md) documents the executing prompt-13
+catalog, safe dump policy and destructive collector. Named constants are checked
+against every ledger register/field; their existence does not authorize mutation.
+Partial acquisition retains consumed evidence while ordinary output stays unchanged.
 
 `resetValue` represents only known bits under `resetKnownMask`; it is never a
 reset-write template. Field tables take precedence over coarse hexadecimal

@@ -54,7 +54,7 @@ reservedMask 0xFFFF and no fields: it has no ordinary writable bits.
 
 RECIPE means the exact procedure-only write is researched but field/reset meanings
 are not documented. It keeps resetValue/resetKnownMask/reservedMask
-null and fields empty. Seventeen loopback, EEE and shared power/compliance offsets
+null and fields empty. Eighteen loopback, TDR, EEE and shared power/compliance offsets
 use this status. Known prose bits are exact actions, not invented field partitions.
 Its source-backed action does not permit arbitrary reads,
 writes, saved-word restoration or a claimed reset value.
@@ -129,15 +129,19 @@ tool representation bound, not a silicon timing limit. `pauseResolution` contain
 `fields` (ordered local/partner encodings), `phycrRxTx` (row-local, column-partner
 matrix), `eligibility` and `sources`.
 
-`printedAddresses` contains `{id, devad, printedAddress, sources, gates, feature,
-status, controls}` records, with optional explanatory `disposition` text.
-`disposition`, when present, must be nonempty text; it cannot be null or a flag.
-`status` remains BLOCKED; `controls` is a nonempty list of source descriptions
-distinguishing exact-part facts from comparison-only status fields.
-These are **not wire tuples** and cannot be passed to an MMD helper.
-They retain unresolved EEE notation without silently stripping address digits.
-DEVAD uses hex strings, like other numeric address fields. A disputed MSE address
-is retained in its gate, not added as an established register alias.
+`printedAddresses` contains `{id, devad, printedAddress, wireAddress, readRoute,
+sources, gates, feature, status, controls}` records and explanatory `disposition`.
+Status is SOURCE_IMPLIED, retaining the Q1 physical gate. The validator admits only
+the five selected printed-to-wire associations and their safe-read/collector routes;
+no generic digit-stripping convention or DEVAD31 alias follows. These are cross-part
+inferences, not new exact-part detailed field records. A disputed MSE address stays
+in its gate, not an established alias.
+
+`tdrRecipe` records the selected SNLA428 source/location, six named `runs`, ordered
+`writeOrder`, eight rows of six `words`, scope/interpretation/cleanup and gates.
+The validator checks dimensions, order, source and evidence references; independent
+PDF literals in the diagnostic tests check numeric contents. The printed GENCFG
+word is a recipe example; composition owns only the separately enumerated mask.
 
 ## Coverage and evolution
 
@@ -145,15 +149,16 @@ The validator requires the exact core register set and the complete 79-entry
 summary inventory, the feature-only address entries and all 12 core procedures
 with their assigned features. Removing a row cannot
 make coverage pass. It checks the seeded feature families and their stage owners.
-Prompt 4 additionally requires all 37 diagnostic rows (34 detailed records and
-three recipe-only records), eight documented feature families and 16 procedures.
+Prompt 4 originally required37 diagnostic rows (34 detailed and three opaque);
+WP3 adds the SNLA428 TDR opaque row. Eight diagnostic feature families and
+16 procedures remain required.
 Prompt 5 requires the final 39 rows (25 detailed and 14 opaque recipe records),
 24 further procedures and complete research for every feature. The final
-inventory is 96 records, 283 fields, 52 procedures and five blocked printed
+inventory is 97 records, 283 fields, 52 procedures and five source-implied printed
 associations. All 79 detailed entries have complete bit partitions.
 Independent tests check each remaining field's semantic identity, mask and exact
 access type, plus all 24 remaining procedure ownership maps. Aggregate writable
 masks alone cannot detect swapped controls or lost strap-dependent access.
 Continue adding independently sourced vectors and negative tests with changes.
 Do not fill unknown reset bits with zeros or
-turn a printed EEE address into a wire offset while its gate remains open.
+turn an EEE inference into a physically verified fact while its gate remains open.

@@ -22,7 +22,7 @@ replacement register specification or frozen public API.
 Prompts 3–5 have now reconciled all primary-part source rows into the
 [primary ledger](../registers/dp83826i.json) and [coverage matrix](../feature-coverage.md).
 Those records include source conflicts and planned host/fixture acceptance:
-all 79 detailed entries, 17 opaque recipe records and five blocked EEE
+all 79 detailed entries, 18 opaque recipe records and five source-implied EEE
 associations have researched dispositions. This original checklist is
 not a second current numeric map or an implementation-completion claim.
 
@@ -245,8 +245,8 @@ documented chip function.
 | Feature/source | Addresses beyond the main catalogue | Required treatment |
 | --- | --- | --- |
 | EEE initialization, 8.3.3.1, page 26 | Vendor offsets `0x04D1`, `0x04D3`, `0x04DF`, `0x033E`, `0x033F`, `0x0123`, `0x031B`, `0x0466`, `0x04CF`, `0x0416`, `0x04F5`, `0x04E0`, `0x031F`, `0x04F4`; the recipe also names EEE address `0x203C` and already catalogued `0x001F`, `0x0308`, `0x0000` | Audit the entire ordered recipe, hard-reset/negotiation effects, register namespaces, restoration and every failure boundary. Do not expose undocumented internal fields as freely tunable settings. |
-| EEE control/status, 8.3.3.2 and 8.3.11.1 | Printed MMD 3 addresses `0x1001`, `0x1014`, `0x1016`; printed MMD 7 addresses `0x203C`, `0x203D`; vendor DEVAD 31 `0x04D1` (EEECFG3). Exact on-wire EEE offsets/possible aliases remain unresolved | Preserve the printed namespace/address separately from verified wire offsets. The cited DP83826 sections identify these EEE addresses but do not prove an alias translation or provide a complete detailed field catalogue; close this from exact applicable official evidence. Never convert them to vendor offsets or native Clause 45 merely by name. |
-| Legacy-MAC LPI, 8.3.4 | Vendor `0x04D1` control fields; printed MMD7 address `0x203C`, subject to the same unresolved wire-offset gate | Typed enter/exit and enable/advertise procedures need explicit application/MAC coordination. No PHY TX buffering is available in LPI. |
+| EEE control/status, 8.3.3.2 and 8.3.11.1 | Printed MMD 3 addresses `0x1001`, `0x1014`, `0x1016`; printed MMD 7 addresses `0x203C`, `0x203D`; vendor DEVAD 31 `0x04D1` (EEECFG3). Exact tuples are selected source-implied under D2; physical Q1 remains open | Preserve the printed namespace/address separately from verified wire offsets. The cited DP83826 sections identify these EEE addresses but do not prove an alias translation or provide a complete detailed field catalogue; close this from exact applicable official evidence. Never convert them to vendor offsets or native Clause 45 merely by name. |
+| Legacy-MAC LPI, 8.3.4 | Vendor `0x04D1` control fields; printed MMD7 address `0x203C`, mapped by the explicit source-implied D2 association under Q1 | Typed enter/exit and enable/advertise procedures need explicit application/MAC coordination. No PHY TX buffering is available in LPI. |
 | Deep power-down, 8.3.6.3 | Vendor `0x0428`, bit 2, followed by IEEE power-down | Resolve relationship to PHYSCR PLL-disable and define exit/clock restoration before implementing. |
 | Digital loopback, 8.3.14.4; SNLA423A 2.5 | Vendor `0x0122`, `0x0123`, `0x0130` in addition to the base loopback/reset registers | Allow only the sourced loopback preparation values/ordering, validate speed/mode, and reconcile overlap with the EEE recipe at `0x0123`. |
 | Compliance stimulus, 8.5.1.32 | Vendor `0x0428`, bits 4/5; COMPT `0x0027` bit 4 is used by prose despite being grouped as reserved in its table | Resolve and implement exact enable/reconfigure/stop procedure; normal low-level RMW must not automatically authorize these reserved-field exceptions. |
@@ -302,7 +302,7 @@ The correctness review adds these specific constraints to the source ledger:
 - **W0C and mixed registers:** SNLS647I table 8-18 defines W0C/W1S. RXFCFG1
   bit 11 is W0C (table 8-90): zero acknowledges level indication. Unrelated
   updates must use command-neutral composition. SNLA261A table 2-4 is a DP83822
-  example with different acknowledgement and MAC-word ordering; use DP83826
+  example with different acknowledgement and byte labels but identical MAC wire words; use DP83826
   tables 8-90 and 8-92 through 8-94 for literal acknowledgement/byte-order vectors.
 - **Consumed event evidence:** MISR1/MISR2 and FCSCR/RECR have clear-on-read
   behavior (tables 8-36 through 8-39). Retain each valid consumed sample even if
@@ -314,13 +314,20 @@ The correctness review adds these specific constraints to the source ledger:
   speed-dependent BMCR table 8-19: BISCR[4:0]=00100 at 100BASE-TX and 00001 at
   10BASE-Te. Use the detailed definition absent stronger exact-part evidence and
   retain the discrepancy plus independent vectors for both speeds.
-- **EEE printed addresses versus wire offsets remains open:** SNLS647I prints
-  MMD3 1001/1014/1016 and MMD7 203C/203D; SNLS783A and SNLA328 also explicitly
-  pair these full numbers with MMD selectors. Conversely, SNLS638C table 7-92
-  refers to offsets 0014 in MMD3 and 003C/003D in MMD7 despite similar full-number
-  headings. Do not silently strip address digits or assert a translation. Obtain
-  an exact applicable access trace/clarification before freezing the EEE wire
-  tuples; ordinary proved vendor-register addressing remains separate.
+- **EEE wire mapping is source-implied, physically open:** D2 selects only the
+  five explicit tuples recorded in the ledger from SNLS638C low-offset text,
+  SNLS505H's worked trace and exact-part DEVAD associations. Keep the conflicting
+  full-number notation and Q1; there is no generic digit-stripping rule. Before
+  initialization require whole-word capability0002 and, after reset, advertisement
+  readback0002. Status/counter belong to the collector. No exact-part trace was found.
+- **TDR derived recipe:** D3 selects SNLA428's six transmit-A runs, retaining the
+  distinct datasheet raw tuning. The additional0411 recipe-only row and shared0416
+  actions have no general read/restore permission. Q7 qualification remains open;
+  matching-row interpretation and whole-word peak classification never imply pairB.
+- **Forced mode and compliance:** D4 uses coherent BMCR/current-link with the
+  extended-duplex exception, retaining raw PHYSTS questions underQ11. All14 exact
+  COMPT10M actions are eligible; the opaque100M branch stays gated. D8 keeps
+  next-page intent transient, never part of ordinary persistent advertisement.
 
 ## Corrections from public-library extraction
 

@@ -8,6 +8,11 @@ __pycache__/
 *.map
 sdkconfig
 sdkconfig.old
+sdkconfig.*
+!sdkconfig.defaults*
+dependencies.lock
+*.log
+!test/fixtures/**
 managed_components/
 compile_commands.json
 hil_logs/

@@ -122,11 +122,13 @@ pair selection; CR3 pair and polarity swap are separate controls, with both used
 for port mirroring. Apply the complete coupled settings under operation admission,
 verify stable masks and retain partial effects if any write fails.
 
-PHYSTS's forced-mode speed/duplex wording conflicts with BMCR's programmable
-controls, including BASIC strap-latched descriptions. Preserve verified
-**configured** mode and raw status separately. Do not publish these PHYSTS bits
-as universally resolved forced mode until `forced_physts` closes. Prompts 6,
-18, 19 and 39 must share that disposition across the portable and SDK paths.
+Coherent AN-disabled BMCR and current link-up establish the configured line mode
+under decision D4: speed and duplex come from BMCR, while PHYSTS forced bits stay
+raw. Forced 100-half with extended full duplex not known disabled retains speed
+100 but duplex UNKNOWN and invalid mode. The adapter rejects a requested
+100-half plus extended policy. Forced operation never establishes negotiated pause.
+The physical `forced_physts` question remains Q11, without blocking this selected
+local interpretation.
 
 Next-page support includes local message/unformatted code, more-pages and ACK2,
 hardware-controlled toggle, partner ACK/toggle/page fields and consumed page
@@ -140,10 +142,10 @@ raw code must not silently turn it into a supported operation. EEE page/address
 research retains explicit wire/control gates. IEEE's restart state clears the next-page
 loaded flag: prepare desired data locally before restart, but load ANNPTR after
 fresh base-page receipt. Distinguish BASE and NEXT events, retain received payload
-before advancing, and finish only when both sides are done. The
-`next_page_handshake` gate requires exact DP83826I confirmation of these event/load
-boundaries before enabling custom exchange; the selected IEEE sequence is not a
-measured PHY result. A peer declining next pages is not a transport failure.
+before advancing, and finish only when both sides are done. The selected IEEE sequence remains physically unqualified under Q10. Next-page
+intent belongs only to the exchange epoch: success clears it without restart;
+failure/cancel retains cleanupOwed, and separately admitted initialization restores
+ordinary advertisement with next-page clear and restarts. A peer declining next pages is not a transport failure.
 
 Pause RX and TX resolve separately, only after AN selects a full-duplex common
 technology. The ledger records the independently reviewed complete truth table.
@@ -213,9 +215,14 @@ Associate completion and every result word with an admitted trigger/epoch,
 configuration and segment; if freshness cannot be established, report uncertainty
 instead of successful measurement. Distinguish stopping autorun from stopping a
 manual operation. Do not read reserved result banks as additional peaks. The
-documented raw location, amplitude and sign evidence remains available without
-claiming calibrated metres or a universal open/short classifier. Cable type,
-propagation delay, capture timing and exact calibration are separate evidence.
+documented raw location, amplitude and sign evidence remains separately available.
+Decision D3 selects the six-run SNLA428 transmit-A recipe and its source-implied
+derived helper; the datasheet tuning remains a distinct raw capability. Do not
+mix recipes or infer pair-B/whole-cable health. Retain per-run validity, NOT_RUN
+for unperformed rows and NO_PEAK when no threshold qualifies. The matching-row
+location and whole peak word drive interpretation, never a guessed sign bit.
+Caller propagation delay and Q7 fixture evidence remain explicit. Opaque tuning
+requires hard-reset exit and later initialization, not invented saved-word replay.
 
 Cancellation, failure and timeout stop new primary phases and preserve accepted
 or uncertain hardware effects. Cleanup disables temporary stimulus, restores
@@ -270,14 +277,21 @@ An asserted ENHANCED power-down pin can override the software request.
 Deep-power entry has a documented order, but its complete exit/readiness and
 shared opaque-register composition remain source-gated.
 
-EEE capability, advertisement, partner support, LPI state, bypass controls and
-wake-error evidence retain separate validity. Printed MMD associations do not
-prove wire offsets, and DP83825 examples do not establish DP83826 read effects,
-counter fields or bypass polarity. Reject unresolved branches before any opaque
-read or reset-bearing recipe prefix. All four printed EEE timing values are
-nominal, with no guaranteed wake deadline. A legacy-MAC LPI session drains and
-inhibits MAC transmission, has finite primary/exit budgets, and releases TX only
-after readiness is established; the PHY supplies no packet buffer.
+EEE keeps capability, requested advertisement, partner and LPI evidence separate.
+D2 selects five source-implied wire tuples from the recorded cross-part evidence;
+the ledger distinguishes their printed addresses, safe reads and collector reads.
+There is no digit-stripping rule or vendor alias. Initialization checks the whole
+capability word before any write, then verifies the whole advertisement word after
+hard reset before continuing the opaque recipe. Failures stop the sequence and
+retain its reset/accepted effects. Q1 is still physically unqualified. Conflicting
+clock/LED ownership rejects before I/O; the sourced clock recipe row itself is
+eligible. Disabling EEE requires hard reset and reapply, with no invented inverse.
+
+Forced TX LPI start and stop are separate bounded operations. Each modifies and
+verifies the documented request bit, then returns; the application owns dwell,
+MAC drain and post-exit coordination. REQUESTED/UNCERTAIN block other mutations
+but permit safe observation. No hardware session deadline or readiness event is
+invented. All four EEE timing values remain nominal; the PHY buffers no MAC frames.
 
 WoL configuration quiesces detection, retains pending collector evidence, writes
 and verifies credentials, configures source/routing and enables the detector last.
@@ -312,17 +326,17 @@ the shared legal encoding, verify each write before continuing, and use the same
 path for restoration. MAC quiescence does not disable analog output or establish
 glitch-free updates. Failed or uncertain transfers stop dependent writes;
 cleanup must re-observe the current code before choosing a restoration path.
-Retain partial application and recovery-required state when it cannot be established. Raw DAC
+Retain partial application and cleanupOwed state when it cannot be established. Raw DAC
 fields do not prove physical units, and the receiver-gain range lacks an exact
 code map. All-reserved analog entries remain unwritable. IOCTRL examples touching
 reserved bits are not accepted field settings.
 
 Compliance is a finite, fixture-admitted stimulus session. The exact sourced
-10-Mbit harmonic word is a narrow exception to the reserved-bit rule; it does
-not permit other reserved writes. The 100-Mbit recipe's opaque preservation read
+fourteen 10-Mbit pattern actions are narrow mask exceptions; upper reserved bits
+remain protected and codes E/F are not 10-Mbit patterns. The 100-Mbit recipe's opaque preservation read
 and composition remain blocked pending exact evidence. Stop emission or complete
 the authorized hard reset before restoring COMPT or a persistent profile.
-Failure to prove stop retains possible ongoing emission and recovery-required
+Failure to prove stop retains possible ongoing emission and cleanupOwed
 state. Restoration never replays the temporary stimulus.
 
 ## Gates and future public documentation
@@ -342,3 +356,37 @@ operation before I/O. Future tests must exercise each transfer/cancellation
 boundary, finite frozen-clock limits and stop-before-restoration ordering.
 No placeholder C++ is needed to record this research. Vendor bytes/notices remain
 unchanged; factual GPL comparisons do not authorize importing GPL implementation.
+
+## Prerequisite audit refinements (WP3)
+
+Any attempted PHYRCR hard-reset command imposes a bus-wide frame-free 2 ms floor
+from its completion upper bound, including ambiguous failure; the owner also
+honors a longer poll interval. Other PHY addresses share that silence. This is a
+library policy pending Q5 measurement, not host proof of controller timing. Treat
+eligible straps as potentially resampled, while ENHANCED straps 1/6 remain POR-only.
+
+Analog and reverse loopback use the sourced digital restart; MII/PCS do not gain
+one by analogy. The analog troubleshooting tuning word conflicts with the legal
+field range and is rejected. Restore robust crossover and pair policy after
+near-end testing. External cable loopback remains a separate physical fixture.
+
+Read PHYSTS before dependent clearers when mirrored history matters. Service both
+MISRs regardless of PHYSTS's interrupt mirror, preserving possible further pending
+work at a drain boundary. RXFS selects the shared polarity/WoL event; cached or
+unknown selection cannot justify two event labels. Its configuration is a sourced
+whole-word action with collector verification, never destructive RMW.
+
+BMCR power-down observation is the software request OR the external pin. A clear
+request with an observed set bit is WAKE_BLOCKED_OR_UNCONFIRMED after one write,
+not a retry loop. Requested state and BISCR active-sleep observation stay separate.
+WoL reset is not off. Before RXFCFG1 writes, retain RXFS and MISR2 evidence; skip
+unchanged stable policy. W0C follows the exact-part table pending Q3 physical
+comparison with contradictory cross-part/shared-driver intent. DP83822 MAC word
+values match DP83826; their table byte labels differ, while acknowledgement differs.
+
+BASIC exposes LED0/1 and fixed active-low polarity. ENHANCED RMII exposes LED0-3;
+ENHANCED MII LED2 requires free COL and explicit verified mux programming, and LED3
+has no writable route. ENHANCED LED1 also depends on CLKOUT selection. Conflicting
+TX_ER pin codes and PHYCR LED-configuration semantics remain Q12 gates. Fast Link
+Drop allows disabling all causes on RMII, but no nonzero cause policy; printed
+response maxima for modes 2/3/5 require RX-error or energy-loss detection enabled.

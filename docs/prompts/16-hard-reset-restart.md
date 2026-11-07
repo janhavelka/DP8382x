@@ -42,15 +42,14 @@ same restore path rather than creating alternate reset implementations. Explicit
 external notification records uncertainty and changed knowledge without touching
 pins, resetting hardware again or performing implicit recovery.
 
-Cancellation before/after each command and incomplete restoration preserve
-effects and independent primary/cleanup statuses. Cleanup has the existing finite
-allowance; denied/abandoned cleanup remains visible. Local teardown cannot claim
-hardware stopped. A callback/adapter user cannot outlive its borrowed resources.
-Neither a successful management read nor a reset clears unrelated prior failures
-or proves the desired profile restored.
+Cancellation and incomplete restoration freeze the current result and retain
+accepted/possible effects. OP-9 protects them with the barrier; restoration is a
+new operation with its own budget and result. Use `startInitialize({HARD})` and
+`startInitialize({RESTART})`, never separate reset/recover aliases. Local teardown
+cannot claim hardware stopped or outlive borrowed callbacks.
 
 Use independent literal traces per reset kind. Test every trigger, completion,
-restore and readback failure, accepted-write timeout, exact waits, wrap, frozen
+restore and readback failure, accepted-write timeout, exact waits, uint64 overflow and clock regression, frozen
 clock, never-completing command and zero budget. Assert strap/identity/configuration
 differences, external notification's zero callbacks, cancellation/end/rebind
 evidence and contention without lock retention across waits. Compile the owner
@@ -59,16 +58,27 @@ responsibilities and currently supported restoration scope.
 
 ## Concrete TI source inputs
 
-Use the [reset audit](../reference/library-ti-core.md#initialization-reset-and-recovery-procedure-audit)
-and [timing qualifiers](../reference/library-ti-core.md#timing-silicon-limits-versus-library-policy).
-PHYRCR register `0x1F` commands are hard-reset `0x8000` and restart `0x4000`;
-Poll `0x1F`; test that out-of-range Clause 22 address `0x8000` is rejected
-before a truncating backend could substitute BMCR. SNLS647I
-requires external RESET_N low at least 25 us, 2 ms inactivity after deassertion,
-and 50 ms after POR before SMI; delayed clock has a separate 100 us stability
-condition. The 1500 ms FLP figure is nominal, not a maximum reset deadline.
-Recheck exact current documents, software-command applicability and real reset/
-clock traces; retain unmeasured physical timing gates and correct source mistakes.
+Use single literal words `W(1F,8000)` for HARD and `W(1F,4000)` for RESTART,
+not sampled-word RMW. For any attempted HARD write, schedule every next frame
+no earlier than completion upper bound plus `max(2000, pollIntervalUs)` us.
+Publish `busQuietUntilUs` and apply OP-6 admission and OP-14's persistent floor,
+including failure, cancellation, take and later operations. The bus owner holds
+all other PHYs silent too. Then poll `1F` mask `8000`; 2 ms is minimum silence,
+not a completion maximum or proof of the undocumented internal release time.
+Q5 qualifies it. PCS and RESTART have no such floor. Test 1000 us polling and
+out-of-range C22 address `8000` rejection before truncation.
+
+PHYRCR hard reset's best reading is eligible strap resampling (8.4.1 and tables
+8-47/48); the software-reset wording remains arguable. Keep `hard_reset_straps`
+open, report possible resample, and qualify in Q5. ENHANCED Strap1/Strap6 are not
+re-latched by reset; BMCR reset reloads stored values. `invalidateDeviceState`
+adds EXTERNAL_POWER_ON to distinguish POR, which samples all straps, from
+EXTERNAL_RESET. Do not assert a POR-only restriction for BASIC.
+
+RESET_N low is at least 25 us without debounce capacitors. Apply prompt 15's
+50 ms-from-final-supplies and delayed-clock readiness rule, plus 2 ms after
+release. FLP 1500 ms is nominal, not a reset deadline. Keep all physical claims
+NOT RUN until measured.
 
 ## Documentation, verification and checkpoint
 

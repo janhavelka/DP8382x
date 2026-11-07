@@ -1,6 +1,6 @@
 # Device coverage
 
-Core evidence re-audited on 2026-10-28, with direct/indirect access checked on 2026-11-01.
+Core evidence and side-effect access re-audited on 2026-11-07.
 **DP83826I has a host-tested bounded direct/indirect access subset; no variant has a complete
 or hardware-qualified driver.** The following describes documentation coverage
 and intended development order.
@@ -60,9 +60,11 @@ Use these source anchors when establishing support:
 - DP83826, A-generation and DP83825I prohibit local ANAR remote-fault bit 13
   despite its R/W label (SNLS647I table 8-23, SNLS783A table 8-24, SNLS638C table
   7-7). Partner/status observation is separate; other parts require exact evidence.
-- DP83822 IF/HF fiber media support is independent of MII/RMII/RGMII MAC-side
-  selection; 100BASE-FX has no autonegotiation (SNLS505H 7.4.4/7.4.6). RGMII
-  delay controls are fixed 3.5 ns shifts with opposite RX/TX enable polarities
+- DP83822 IF/HF fiber parts are identified in SNLS505H section 4; MII/RMII
+  operation is described in 7.4.1.1/7.4.1.2. FX+RGMII is not explicitly stated;
+  there is no documented exclusion and table 7-10 RX_ER mode 3 can encode it,
+  but physical evidence is NOT RUN. 100BASE-FX has no autonegotiation (7.4.4).
+  RGMII shifts are fixed 3.5 ns with opposite RX/TX enable polarities
   (table 8-23), not a programmable tap range.
 - SDAA067A sections 2 and 3.2 disagree on whether an A-generation register
   setting can substitute for Strap11 in EMC guidance. Keep that specific source

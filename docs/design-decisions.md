@@ -1,466 +1,261 @@
 # Portable core and native SDK ownership decisions
 
-Accepted design, 2026-10-29, prompt 6. This selects the architecture; it does
-not claim an implemented driver, supported SDK build or hardware result.
-The [architecture](architecture.md) gives the layer overview, the
-[execution report](reports/implementation/6-framework-ownership.md) records
-the audit, and the [silicon ledger](registers/dp83826i.json) owns chip facts.
-Prompt 7's [API contract](api-contracts.md) freezes foundational public values
-and direct signatures; prompt 8 completes cooperative lifetimes. The batch boundary,
-shared quarantine responsibility and clock-return-lag/overhead allowances are precise.
-Ownership choices change only with evidence and a coordinated contract update.
-
-Operation contracts now select one fixed slot, lifetime-monotonic tokens,
-separately reserved cleanup and explicit owner quiescence/disposition. Failed
-cleanup cannot be erased by take/end/rebind. The retire-only escape preserves
-unperformed cleanup and borrowed-resource ownership while allowing a repaired
-binding after result delivery and end; it never repairs the controller itself.
+This maintained design applies the delegated remaining-prompts audit decisions.
+The [API contract](api-contracts.md) owns portable values and OP-1 through OP-17;
+headers own shipped declarations. The [architecture](architecture.md) is an
+overview, and [feature coverage](feature-coverage.md) is the single coverage map.
+Native behavior remains planned until the owning stages provide host and SDK-link
+evidence. Source-derived sequences are not physical qualification.
 
 ## 1. One chip implementation and one batch boundary
 
-Use the allocation-free C++17 `DP8382x::DP8382x` core in both modes. It owns
-identity, register policy, chip procedures, persistent intent, observations,
-trust, operation results and the single destructive-evidence collector. The
-application serializes **all** access to an instance, including cached copies.
-The native adapter translates `esp_eth_phy_t` calls to those same procedures;
-it does not maintain another chip configuration or polling state machine.
+Use the allocation-free C++17 core for identity, register policy, chip procedures,
+persistent intent, observations, operations and one destructive-evidence collector.
+The application serializes every instance call, including cached snapshots, and
+publishes copies to other tasks. Native code translates the supported PHY interface
+to those same procedures; it does not create another chip configuration engine.
 
-Select **one synchronous terminal batch callback**, borrowed from the owner.
-Do not also expose a begin/end transaction-scope API or independent public frame
-callbacks. Each batch contains a bounded fixed array of C22 read/write steps.
-A write can use a preceding read slot with an explicit preserve mask and literal
-set bits, so an RMW does not return to the caller between its read and write.
-The core constructs masks, command-neutral values and order from chip policy;
-the backend only evaluates that fixed data dependency and executes frames.
-Batch descriptors contain no branches, loops or user callback opcodes; backend
-iteration is bounded by their fixed count. Chip-specific decisions stay in core.
-The array retains an eight-frame capacity for compound observations. Prompt 12's
-independent SNLS647I review establishes five frames for nonincrementing stable
-MMD read/modify/write under one ownership scope; it replaces the earlier
-eight-frame reselected design. Simple C22 uses one frame, C22 RMW two,
-MMD read/write four. Each explicit call fully reselects; no selector cache spans calls.
+One borrowed synchronous terminal batch callback owns each complete C22/MMD/RMW
+transaction. Fixed frames use preceding-read preserve masks and literal bits.
+The core owns masks, neutral command values and access policy; the backend owns
+controller execution and locking. Eight-frame capacity covers compound accesses.
+C22 costs one frame, C22 RMW two, MMD read/write four and stable MMD RMW five.
+The five-frame sequence is inferred from SNLS647I 8.3.11.1 selector-state text,
+not printed as a combined recipe; Q4 remains a physical case. Each call reselects.
 
-The application callback acquires one controller-wide lock, executes the whole
-batch and releases it on every exit. Every other PHY/backend user on that bus
-must share that lock and the controller fault state. A per-PHY or per-frame lock
-is insufficient. An uncoordinated external debugger or SDK base driver is outside
-the supported concurrent configuration; stop and isolate it before use.
+All bus participants share the controller lock, quarantine and silence admission.
+Close shared admission and drain active traffic before power/reset transitions;
+release the mutex during readiness waits without admitting another PHY's frames.
+No selector state, controller lock, or caller buffer survives a terminal batch.
+Stop on first error and retain valid read prefixes, uncertain effects, time and
+release results. Merge destructive data into the collector before another instance
+call. Failed/unknown controller completion quarantines every participant until
+application repair. Core local end/bind cannot clear shared quarantine.
 
-The board/controller coordinator also owns a **bus-silence admission interval**.
-Before external power-up/hardware-reset transitions requiring SMI silence it
-closes batch admission for every participant, drains any active batch, then
-performs the transition. After actual reset release
-or power-up, admission stays closed until the applicable readiness/clock-qualified
-deadline. Release the controller mutex while waiting, but admit no other PHY's
-frames: SNLS647I 8.3.11 requires the shared SMI bus to remain inactive. Unknown
-release/power timing keeps the bus closed until the owner establishes readiness.
-Check/update this admission flag under the controller lock; closing it drains
-the prior batch without acquiring any other instance gate. It is separate from
-the quarantine flag for unknown controller completion/release.
+## 2. SDK baseline and owned PHY wrapper
 
-Stop at the first failed step. Record attempted/completed frames, completed read
-slots, the failed index, possible write effects, possibly consumed unreturned
-reads, and release status. Keep completed destructive samples in those slots
-even on later failure; merge them into the core collector before releasing
-instance serialization. Ordinary read outputs publish only on complete success.
-An error never implies that the failed frame had no effect. Reestablish MMD
-selectors at the next admitted transaction; no speculative selector cleanup is
-needed. An uncertain lock release or still-running controller command quarantines
-the shared controller for **all** participants until owner recovery proves it
-idle and released. Passive health is not this admission interlock.
+Use unmodified ESP-IDF v6.1 at
+`fff9895c82d744c7237be8847347bdd1b07c6643`. Re-audit the public route below whenever
+the pin changes. No SDK support range is implied by this source selection.
 
-The callback must return terminally; `IN_PROGRESS` is invalid at this boundary.
-No retained caller buffers, asynchronous completion, retries or reentry into the
-driver are allowed. Allocation, mutexes, RTOS, logging and clocks stay outside
-the core. Pure batch data/transform definitions belong with the core transport
-contract; a backend must not duplicate silicon register logic.
+Use `struct PhyHandle { esp_eth_phy_t phy; Phy* owner; };`, recover by a checked
+first-member cast and one layout static_assert. Do not include the generic PHY
+base header or cast private Ethernet driver storage. The application owns one
+wrapper, core and borrowed actual MAC. Address is immutable: set_addr accepts
+the identical address only; retarget by deletion and recreation.
 
-## 2. SDK baseline and qualified base reuse
-
-Select ESP-IDF v6.1, commit `fff9895c82d744c7237be8847347bdd1b07c6643`, as
-the source baseline for ESP32-P4. The seven source identities in
-[library-sdk](reference/library-sdk.md) were rechecked against downloaded bytes.
-This unmodified revision has lifecycle defects described below; a verified
-correction is required before claiming native support. Do not silently move to
-another SDK or label the baseline a tested support range.
-
-The adapter owns one `phy_802_3_t` wrapper, one core instance and native-only
-owner context. Use a standard-layout first-member wrapper with compile-time
-layout checks to recover the owned context from its `esp_eth_phy_t`; do not cast
-the private Ethernet driver layout. Keep borrowed MAC, controller and owner
-resources alive until callback quiescence and acknowledged results.
-
-| Pinned base surface | Selected use and reason |
+| Callback or entry | Executing behavior |
 | --- | --- |
-| `esp_eth_phy_802_3_obj_config_init` | Local base object setup only; overwrite the entire callback table before publication. Validate declared address/configuration first. No inherited I/O callback remains reachable. |
-| `set_mediator`, `get_addr`, `set_addr` | Reuse their local storage behavior inside owner guards. Address changes only while stopped, uninitialized and quiescent; validate 0–31, update the core binding coherently, invalidate old identity. No implicit address scan. |
-| `reset`, `reset_hw`, `init`, `deinit`, `pwrctl` | Override. Generic waits, reset domains, power behavior and implicit scan/reset do not implement the chip contract. Deinit is local after explicit cleanup, never an implicit power-down. |
-| `autonego_ctrl`, `set_speed`, `set_duplex`, `advertise_pause_ability`, `loopback` | Override through shared configuration/diagnostic procedures. Generic BMCR/ANAR RMW lacks the selected coupling, access policy and complete batch exclusion. |
-| `get_link`, `set_link`, `updt_link_dup_spd` | Override. One chip collector and a separate notification journal handle latch semantics, same-link changes and partial publication. Base link cache is not independent evidence. |
-| OUI/model/revision helpers, `basic_phy_init/deinit`, address detection | Do not use their MDIO procedures. Shared identity performs both checked reads and exact-part validation. Generic search ignores read status and can attempt 96 reads. |
-| All `get/set_mmd_addr`, `read/write_mmd_data/register` helpers | Do not use. Partial bitfield initialization, 32-bit values, separate frames and weak function validation conflict with the contract. |
-| `del`, `custom_ioctl` | Owned deletion checks quiescence/results; never use generic `free` on the composed object. Set optional `custom_ioctl` null; typed owner APIs provide chip extensions without invented SDK commands. |
+| set_mediator, get_addr | Local guarded storage; no MDIO |
+| reset_hw, init, deinit | Local no-action success under lifecycle guards; the owner does board readiness before install and typed initialization afterward |
+| autonego_ctrl(G_STAT) during install | Return declared desired AN without MDIO |
+| reset, pwrctl | ESP_ERR_NOT_SUPPORTED; use the explicit typed owner route |
+| autonego_ctrl, speed, duplex, pause, loopback controls | One terminal batch with no wait, or reject and direct to the typed route; no callback token/poll loop |
+| get_link | Same core collector and retained projection; framework timer is the only running-mode poller |
+| set_link(DOWN) | Administrative stop projection, no PHY status read; unsolicited UP rejects |
+| raw mediator register hooks | Unconditional ESP_ERR_NOT_SUPPORTED with zero MAC frames |
+| del | Owned deletion only after completed resource/callback disposition |
+| custom_ioctl | Null; typed owner requests expose extensions |
 
-MMD control is constructed as a complete numeric word, including reserved
-`[13:5] = 0` and upper 16 bits zero. Validate external integer widths **before**
-narrowing: PHY/register address, DEVAD, function, 16-bit offset and data. The
-accepted DP83826I extended procedure uses DEVAD 31 and literal `0x001F`, then
-`0x401F`, with a 16-bit ADDAR value. Other namespaces/functions require their own
-ledger evidence; generic 5-bit DEVAD validity is not silicon authorization.
-The [poison probe](../test/sdk_mmd_poison.c) tests the pinned SDK types after
-nonzero initialization and independently checks complete-word construction.
-It demonstrates source/encoding behavior, not an executing DP driver.
+No generic base reset, power, discovery, MMD or AN polling procedure executes.
+All public widths are validated before narrowing. Vendor MMD REGCR values are
+whole numeric 0x001F/0x401F words with reserved bits zero; that rule is not a
+global target-register reserved policy.
 
 ## 3. Admission, call chains and lock order
 
-The application supplies an instance gate, a controller batch callback and a
-monotonic clock. Native code additionally owns a control reservation recording
-operation, generation, calling task and allowed synchronous SDK callback kinds.
-Validate the expected phase and one active callback at a time; task identity alone
-never authorizes nested mutation or reentry. Unexpected callback nesting rejects.
-The reservation is logical admission across calls, not a held mutex. There is
-one cooperative core operation/result slot. A pending result is never overwritten
-by timer polling, reset or a later command.
+Native admission uses one Phase enum: Stopped, Control, Starting, Running,
+Stopping, Maintenance. A phase-by-method switch admits expected callbacks;
+unexpected nesting rejects. Track one record containing stage, firstError,
+cleanupError, publishedTuple, publicationUncertain and eventLost. A reservation
+is logical admission, not a held mutex. No callback steals an application token.
 
-Each native synchronous wrapper records the exact token it creates. It drives
-that same cooperative procedure, releasing the instance gate and controller lock
-between waits, then consumes only its own token into the enclosing native
-operation journal before a subsequent SDK callback can use the slot. The
-journal preserves substep results until application delivery/acknowledgement.
-An application-owned token/result makes such native work busy; wrappers never
-consume it. Direct short reads and timer collection do not allocate a second
-operation slot.
+Lock order is instance gate, controller lock, controller internals. Never acquire
+another instance gate with the controller lock held. Release locks before SDK
+lifecycle/control calls that may re-enter the adapter, mediator notifications,
+callback draining, waits and output. The outer owner reserves under its gate,
+releases it for the SDK call, and reacquires to record the result; callbacks
+reacquire and check the phase. Never synchronously queue a request to the owner
+and wait from a callback invoked by that same owner.
 
-The lock order is **instance gate → controller lock → controller internals**.
-Never acquire another instance gate while holding the controller lock. Never
-enter an SDK control API, emit a mediator notification, wait for callback drain,
-sleep for hardware, or print while holding the controller lock. Instance access
-may span a short terminal batch but cannot remain locked across an SDK call that
-synchronously reenters a PHY wrapper.
+Notifications use an immutable acquired projection. Reserve under the instance
+gate, release locks, call the mediator, reacquire and record accepted or uncertain
+effects. Event handlers only request later work and do not wait for synchronous
+mutations. Callback counters cover adapter work; the timer fence also addresses
+callbacks that captured the driver before entering the adapter.
 
-For native lifecycle/control: acquire the instance gate, validate and reserve,
-release the gate, call the SDK, let each synchronous wrapper acquire the gate
-and validate the reservation/task, then reacquire to record the SDK result.
-The outer caller does not access core memory while the gate is released.
-Unsolicited direct PHY mutation callbacks fail admission before MDIO. Timer
-`get_link` uses nonblocking admission and returns busy during incompatible work;
-its SDK caller ignores errors, so the adapter retains the error for the owner.
-No task waits for the owner task to process a request from a synchronous SDK
-callback. This avoids an owner→SDK→owner queue deadlock.
-
-Notifications use a reserved immutable projection: finish acquisition and record
-it under the gate, release the gate and controller lock, call the mediator, then
-reacquire the gate to journal success/failure. Competing mutations remain denied
-by the logical reservation; snapshots can copy the last published state. Mediator
-and event handlers must not synchronously submit a mutation and wait for it.
-Events request later work. Callback counters cover executing adapter work, but
-SDK timer drain must also fence callbacks that have not yet entered the adapter.
-
-```text
-Portable application owner (serialized, supplies time)
-  -> DP8382x public method -> shared chip procedure -> terminal batch
-  -> application controller lock -> MCU MDIO frames -> release
-  -> retain samples/effects and publish result -> owner schedules next poll
-
-Native owner control -> reservation -> esp_eth_* (no instance gate held)
-  -> owned esp_eth_phy_t callback -> instance gate -> same core procedure
-  -> terminal batch -> shared controller lock -> actual MAC read/write_phy_reg
-  -> release controller -> retain evidence -> release instance gate
-  -> mediator on_state_changed (if needed) -> journal result
-
-SDK link timer -> owned get_link -> same admission/collector/projection
-CLI / IRQ request -> application owner -> typed operation / same collector
-```
-
-Only the framework timer polls link in RUNNING native mode. The application
-copies cached link state; it does not run a second link poller. While STOPPED or
-in maintenance, the application may explicitly collect link through the same
-procedure. IRQ requests and link polling share one collector, not separate
-destructive readers. The initial board has no PHY IRQ connection.
+Portable owner -> shared core procedure -> terminal batch -> controller lock
+-> MDIO -> release -> retained evidence -> owner scheduling.
+Native typed owner -> same core -> batch -> borrowed actual MAC frame methods.
+SDK timer -> owned get_link -> same collector -> unlocked mediator projection.
+CLI and IRQ requests -> same owner; ISR never performs MDIO.
 
 ### Frame hooks and handle context
 
-Install both public `esp_eth_config_t::read_phy_reg`/`write_phy_reg` hooks.
-Reject **all external raw mediator/ioctl frames**, even apparently safe ones;
-the supported register entry is the typed owner API below. There is no hidden
-thread-local authorization flag that turns several raw calls into an MMD batch.
-Raw `ETH_CMD_READ_PHY_REG`/`WRITE_PHY_REG` get the address then call the mediator,
-bypassing PHY register methods; the hooks are the final rejection point.
-
-Resolve each incoming handle with `esp_eth_get_phy_instance` and
-`esp_eth_get_mac_instance`, verify the owned callback identity before recovering
-the adapter wrapper, and compare the actual MAC with its borrowed transport.
-The pinned install assigns both pointers before set-mediator/reset/init and
-before publishing `*out_hdl`. Therefore context comes from the **incoming**
-handle, never a global singleton or the not-yet-returned application handle.
-Foreign/mismatched instances reject before transport. The approved core batch
-calls this actual MAC's `read_phy_reg`/`write_phy_reg` directly; it never returns
-through the mediator, raw ioctl or another lock-acquiring hook.
-
-The actual P4 MAC's init/control code does not require mediator PHY-register
-frames. All selected base I/O is overridden. Thus rejecting those frame hooks
-does not remove a required internal transport route. A newly selected MAC/SDK
-must re-audit this assumption. Applications keep SDK handles and MAC pointers
-inside their native owner; other clients receive request interfaces and copied
-state. Direct SDK controls and direct MAC MDIO are unsupported bypasses.
+Both public raw register hooks are static unconditional rejection functions.
+They need no incoming-handle lookup, global mapping or thread-local permit.
+Raw SDK ioctls reach the mediator outside PHY methods, including when called by
+the owner task, and always reject. Owner-routed raw/typed maintenance uses the
+core policy and actual MAC frame methods inside the terminal batch. No loop
+through mediator or another locking hook is permitted. The selected MAC's local
+init/control needs no raw PHY hook route; a new MAC/SDK must re-audit that fact.
 
 ## 4. Complete responsibility matrix
 
-`P` is the serialized portable application. `N` is the native reservation and
-instance gate above. `B` is the single controller-wide terminal batch. `T` is
-the application monotonic time, sampled by native code with `esp_timer_get_time`
-and supplied to the same core procedure. Local cached calls do not invoke T.
-All I/O rows use B, terminal bounds and retained failed-step evidence. All
-native rows use N, including getters. These are planned public entry families,
-not fabricated implemented signatures or SDK ioctls.
+| Responsibility | Portable owner | Native owner |
+| --- | --- | --- |
+| Board readiness | Supplies, pins, address, clocks, power/reset timing and shared silence | Complete before install; confirm REF_CLK for MAC initialization |
+| Bind/end/invalidation/result | Serialized core local calls under OP rules | Same core, plus retained native resources/callback lifetime |
+| Initialization/reset/replay | startInitialize selects NONE/PCS/HARD/RESTART | Typed stopped owner runs core after install, reconciles SDK cache before start |
+| Verify/configure | startVerify and startConfigure | Same core; public stopped SDK controls own mirrored cache fields |
+| Live link and events | Explicit core collector; passive copied snapshots | Framework timer only while Running; explicit owner collection when stopped |
+| Interrupt configuration/service | Same collector owns consumed samples | No independent SDK or raw interrupt reader |
+| Diagnostics and temporary stimulus | Source-admitted sessions, later stop/restoration and barrier | Stopped/maintenance owner also coordinates MAC and fixture |
+| Power/EEE/WoL/LED/interface/clock | Exact typed procedures, configuration trust and source gates | Same procedures; no imaginary SDK commands |
+| Raw C22/MMD/CLI | Core policy, complete transactions and invalidation | Owner route to actual MAC; raw SDK hooks reject |
+| SDK lifecycle/notification | Not applicable | Public route below and one retained lifecycle record |
+| DMA, IP/EtherCAT, retry policy | Application/backend owns them | Existing MAC/framework and application stack own them |
 
-| Operation / public entry | Portable chain and owner | Native chain / base or mediator method | Time, state effects and result collector |
-| --- | --- | --- | --- |
-| Construction, `bind`, `end`, factory, `del` | P validates replacement before changing borrowed binding. No bus I/O. Refuse active work, owed cleanup or unacknowledged result. | Owner constructs MAC/adapter before install; guarded base object configuration, then owned `del` after successful uninstall/drain. | No clock for local core calls. Binding generation and retained results stay core-owned; allocation/resource outcomes stay native-owner-owned. |
-| Install/init and identity, `startInitialize` | P → shared identity, initialization and replay; exact declared part/address and checked ID1/ID2. Explicit discovery is separate bounded read-only work. | `esp_eth_driver_install` → guarded mediator/reset hooks → MAC init → owned PHY `init` → shared procedure; `autonego_ctrl(G_STAT)` reads verified state. No base implicit scan/power/reset. | T; board readiness prerequisite, finite frames/polls. Core identity/config/result collector; native resource journal for earlier SDK effects. |
-| PCS reset / hard reset / circuitry restart, `startReset` | P → exact ledger reset procedure and finite replay; invalidate affected observations without discarding consumed samples. | Stopped owner → owned `reset` (PCS) or typed reset route → same procedure. Reconcile SDK settings before next start. | T; reset completion, command issue/effect and cleanup recorded separately. No borrowed base 10 ms polling loop. |
-| External reset/POR, `invalidateDeviceState`, `reset_hw` | P owns GPIO/power/clock and records actual release/readiness; core invalidates then initializes. | Owned `reset_hw` invokes application board action under install/maintenance reservation; no inherited GPIO 5. Failure precedes MAC init in corrected SDK. | Board high-resolution time plus T. Core trust/link invalidation; native board receipt/partial reset outcome. No MDIO before readiness. |
-| Power, `startConfigure` / typed power operation | P → shared IEEE power/down/deep-power/active-sleep procedure with exact feature gates and cleanup. | Owned `pwrctl` maps Boolean only to documented IEEE power; other modes use typed owner entry while stopped and clocks coordinated. | T, separate requested policy/observed mode/trust. No implicit power action in local end/deinit; result includes uncertain wake/clock effects. |
-| Persistent settings / advertisement / next pages / crossover | P → shared validated configuration and finite replay; temporary profiles excluded. | Stopped owner composes transaction: PHY-owned fields through shared procedure; SDK-mirrored fields through public stopped controls below. No full-advertisement ioctl exists. | T; desired vs observed stable bits vs trust; core operation result plus native SDK reconciliation journal. Source-gated branches reject before mutation. |
-| AN enable/disable/restart/status | P → shared AN procedures; restart acceptance is distinct from completed negotiation. | Owner → `ETH_CMD_S_AUTONEGO` → owned `autonego_ctrl(EN/DIS)`; `G_STAT` for install; start's `RESTART` uses shared bounded initiation. `ETH_CMD_G_AUTONEGO` checks SDK cache agreement. | T; publish callback Boolean only on verified success, leave output unchanged on failure. Cache disagreement/uncertain write blocks restart; core keeps effects even on SDK error. |
-| Forced speed/duplex | P → coupled forced-mode procedure, including crossover and 10BASE-Te prerequisites. | Stopped owner first disables AN publicly, then `ETH_CMD_S_SPEED` and `ETH_CMD_S_DUPLEX_MODE` → owned callbacks using same coupled procedure. Entire setting tuple validated before first mutation; partial steps retained. | T; configured mode is not resolved PHYSTS evidence. Getter cache may reflect last notification; identify it as such, never as hardware verification. |
-| Pause advertisement and MAC policy | P → complete four-combination advertisement and full RX/TX resolution. | Owned `advertise_pause_ability` accepts only 0/1 for SDK Boolean compatibility (clear both/set both); typed owner API handles exact bits. MAC policy calls actual `enable_flow_ctrl(bool)` with its own result. Do not call defective `ETH_CMD_S_FLOW_CTRL`. | T for PHY I/O; retain both MAC and PHY partial effects. Portable resolved pause and SDK peer Boolean projection are distinct values. |
-| Live link / cached link / notifications | P → `readLinkStatus` → single latch/event collector; `linkSnapshot` copies only. | Timer → owned `get_link` → same collector → `on_state_changed(SPEED, DUPLEX, PAUSE, LINK)` journal. Owned `set_link(DOWN)` performs SDK stop projection only, not a PHY status read; unsolicited UP rejected. | T for live read. Timestamp/validity, raw sample history, full resolution in core; projection steps and failures in adapter. No notification while B held. |
-| Interrupt enables/service and destructive counters/events | P → shared typed configure/service → one collector; ISR only signals P. | N admits owner request, same collector as `get_link`; no SDK interrupt reader or raw read-clear route. | T, each consumed partial sample retained; failed read may lose unreturned history. IRQ enable mutation and cleanup use operation result. Cached consumers never clear hardware. |
-| Loopback, BIST, cable, electrical stimulus | P admits fixture/prerequisites → shared temporary profile/test/stop/restore. | Stopped N → same operation; owned `loopback` maps to exact supported procedure, not bare BMCR bit change. No second generic loopback implementation. | T, primary and separate finite cleanup budget; core retains samples, temporary effects, pending restore and persistent intent. Native owner coordinates MAC stop. |
-| EEE/LPI/WoL, LED/GPIO, interface/clock/repeater, quality/compatibility | P → typed shared feature procedures and ledger gates. | Stopped N for disruptive settings, same procedures; board/network coordination external. No imaginary SDK controls. | T where I/O/waits occur; feature collector and configuration trust. Reset-bearing EEE replay is finite and nonrecursive; unresolved gates remain explicit. |
-| Raw C22/MMD and CLI register commands | P → shared access-policy checks → B. Selectors only internal; destructive addresses only via collector. Authorized raw mutations require maintenance and invalidate affected trust. | CLI submits typed N request → same core access path → actual MAC. Raw ioctls always rejected by hooks. `custom_ioctl` absent. | T for access; width/namespace errors cause zero I/O. Raw result, all-bus statistics and mutation uncertainty retained separately from managed health. |
-| Health/config/operation snapshots, `takeResult`, `cancel` | P copies/consumes exact token; cancellation is local and schedules bounded cleanup through later owner polls. | N copies core evidence for application publication; no SDK or timer read on snapshot. SDK callbacks do not steal application tokens/results. | No clock or I/O for snapshots/cancel/result retrieval. Core owns terminal evidence until explicit take/acknowledgement. |
-| Start/stop/uninstall and callback drain | Portable owner stops its own scheduling, finishes/acknowledges cleanup, then local end. | Native owner reserves, calls corrected SDK without gates held; timer drain, application/stack references and callbacks complete before deinit/uninstall/del. | T and finite SDK cleanup deadline. Native resource journal owns FSM/timer/notifications/handles; core result survives stop/failure. Failed cleanup retains resources. |
-| MAC/DMA frames, IP/EtherCAT, board supply/clock and recovery policy | Application/backend owns these; no core entry. | Existing MAC/framework and application stack own frame transmission/reception. Owner coordinates MAC settings, netif/event references and frame drain. | Application deadlines/readiness and native resource journal; neither PHY health nor link proves application timing or safety. |
+No public entry is implemented merely by appearing in this matrix. Exact source
+gates and acceptance cases remain with each owning feature stage.
 
 ## 5. SDK cache, notifications and raw reconciliation
 
-`esp_eth.c` stores `auto_nego_en`; its getter is cached. `ETH_CMD_S_AUTONEGO`
-requires STOP and passes the cache's address to the PHY callback. The callback
-must stage its output and write it only after the shared operation succeeds.
-Forced speed/duplex controls require cached AN disabled. No direct core write
-may quietly bypass those controls in native managed configuration.
+SDK auto_nego_en is a cache. Public stopped S_AUTONEGO passes its storage to the
+callback: stage output and assign only after verified success. Speed/duplex
+controls require cached AN disabled. Native managed changes cannot bypass these
+public controls, and no full-advertisement ioctl exists.
 
-For AN→forced: stop/drain, validate the complete tuple, apply prerequisites and
-PHY-owned fields, use public AN-disable, then public speed/duplex controls, read
-back stable owned bits, check `ETH_CMD_G_AUTONEGO`, and only then allow restart.
-For forced→AN: prepare advertisement/crossover/10BASE-Te dependencies, use public
-AN-enable, verify stable state/cache agreement, then start. The driver start
-path also works when cached AN is false; its owned `get_link` must enforce
-readiness even though no `autonego_ctrl(RESTART)` callback occurs.
+For AN-to-forced: stop/drain, validate the complete tuple, prepare chip-owned
+prerequisites, publicly disable AN, set speed/duplex, verify hardware and
+G_AUTONEGO agreement, then permit start. Reverse the dependency order for AN.
+An accepted/uncertain write, external reset or raw mutation invalidates agreement;
+remain stopped until re-identification/replay/readback/public cache reconciliation
+succeeds. Never patch SDK private caches or turn raw writes into desired intent.
 
-An accepted-then-failed BMCR write, external reset, or authorized raw mutation
-marks configuration and SDK agreement dirty. While stopped, re-identify if
-needed, replay desired settings through their respective public owners and
-verify hardware plus `G_AUTONEGO` before restart. If a public reconciliation
-step fails, remain stopped with stale/unknown evidence; do not patch private
-caches. Raw writes never silently become persistent desired settings.
+BMCR readback supplies forced speed/duplex when AN is disabled and link is up;
+PHYSTS low bits stay raw. The forced_physts question remains a physical-value
+question rather than a blanket software block. With extended full-duplex enabled
+or unverified, forced 100/half cannot be universally resolved; native admission
+rejects that tuple when it cannot publish UP. Portable pause retains complete
+RX/TX resolution, while SDK peer pause is its narrower full-duplex/partner-symmetric
+Boolean. MAC flow-control policy is separate; avoid the pinned flow-control ioctl
+argument-width defect and call the correctly typed MAC method.
 
-Link acquisition uses the ledger's latch/clear owners and resolves speed/duplex
-only from sufficient evidence. `forced_physts` remains an implementation gate
-for unresolved forced-mode observation: configured mode may be reported as
-configured, but cannot generate a fabricated resolved UP notification. AN
-observation can proceed independently when its evidence is sufficient.
+For UP send speed, duplex, peer pause, then link and record each accepted step.
+For a changed tuple while up, project DOWN before updates and UP. Emit nothing for
+an unchanged verified tuple. Unknown observation does not invent cable-down;
+administrative DOWN is explicit and distinct. OP-14 limits live resolution during
+semantic writes or temporary profiles.
 
-Retain the complete portable pause result. The native `ETH_STATE_PAUSE` value
-is the pinned framework's narrower full-duplex/partner-symmetric-pause Boolean;
-it cannot encode all resolved RX/TX combinations. Publish that projection with
-its meaning, and keep MAC/application flow-control policy external. Do not
-promise that the SDK automatically implements every portable asymmetric result.
+The P4 factory knows its pinned set_link cannot fail for a valid link argument:
+after on_state_changed(LINK,x) returns, record published=x and never replay it.
+If event posting failed, set eventLost and let the owner re-post the event only.
+For another MAC, including instrumented ones, notification error may leave MAC
+effects uncertain: stop and reconcile. Factory identity selects this behavior,
+not the error code. Never retry UP blindly; it can rebuild DMA descriptors.
 
-On an UP projection, send speed, duplex, peer-pause, then link, recording each
-accepted step. If a later callback fails, retain earlier effects and leave the
-projection incomplete; never report atomic rollback. On a changed tuple while
-link remains up, project DOWN first, update the tuple, then UP so MAC settings
-are changed while stopped. An unchanged verified projection emits nothing.
-Unknown observation does not invent down/up; mark stale and let application
-policy choose stop/recovery. Stop's explicit DOWN is an administrative event,
-distinct from physically observed cable-down.
+<a id="6-lifecycle-correction-selected-for-native-support"></a>
+## 6. Public lifecycle route for the pinned SDK
 
-The **failing notification itself** may already have changed MAC/SDK state.
-Pinned LINK handling calls MAC `set_link`, changes the cached link and then
-posts the event; a failed event post can follow a successful MAC start. Repeating
-UP can reinitialize DMA descriptor chains. On any notification failure, mark
-publication uncertain and freeze ordinary notification replay, including timer
-UP retries. The owner must stop/drain and reconcile through the corrected SDK
-before publishing another UP. Preserve event-delivery uncertainty separately
-from physical observation and accepted/uncertain MAC effects. Acceptance includes
-event-post failure after MAC start, not only failures before a callback acts.
+1. Before esp_eth_driver_install, drive board reset and finish readiness waits
+   without MDIO. MAC init configures SMI and needs PHY REF_CLK already present.
+   Its reset polls in 10 ms steps up to sw_reset_timeout_ms, default 100 ms.
+   Adapter reset_hw returns local OK and set_mediator only stores context.
+2. Adapter init and install G_STAT are local/nonfallible under validated input.
+   Install errors leave owner mac->del and phy->del; the API returns no retained
+   partially installed handle. No reset error is deferred until after MAC init.
+3. After install run typed startInitialize/configure through direct MAC batches.
+   Their failure follows ordinary stopped teardown, retaining primary evidence.
+4. On esp_eth_start failure call esp_eth_stop. If no timer was armed it changes
+   FSM to STOP then returns ESP_ERR_INVALID_STATE before DOWN or STOP publication.
+   Other stop errors may also omit them. After the fence below, send missing
+   administrative DOWN; if START was posted but STOP was not, post STOP using
+   &hdl and sizeof(hdl), with finite ticks. get_link in Starting records START.
+5. After every stop, fence first: an owner-created ESP_TIMER_TASK one-shot exists
+   before install. Arm once with esp_timer_start_once(fence, 0), then poll
+   esp_timer_is_active with task delay until false under a finite deadline.
+   Never wait from the timer task or re-arm while polling. Timeout retains all
+   resources. After the fence, publish DOWN if the journal still says UP; then
+   call mac->stop(mac) directly to observe the HAL result set_link discards.
+   Each attempt can busy-wait 2500 us; finite retry holds no instance/bus lock.
+6. Stop all transmit callers. For attached netif, wait finitely for the owner's
+   STOP handler before deleting glue. All default-loop handlers must be bounded
+   and nonblocking: glue deletion has no independent timeout and may wait for
+   their mutex. Swap MAC mediator to a static stub: stack_input and stack_input_info
+   free buffers and return OK; on_state_changed returns OK; both register hooks
+   return NOT_SUPPORTED. Do not use on_lowlevel_deinit_done for this. Drain the RX
+   callback count under a finite deadline, uninstall, mac->del, phy->del, delete
+   fence, destroy netif last. Track FSM and reference ownership before uninstall;
+   the applicable precondition errors are side-effect-free but have no public getter.
+7. Any unresolved failure is terminal for this boot: retain MAC, PHY and borrowed
+   resources, close admission, preserve first/cleanup errors and recover by system
+   restart. No unverified retry of partially completed destruction is admitted.
 
-## 6. Lifecycle correction selected for native support
-
-Unmodified v6.1 cannot meet the complete failure contract. Install ignores
-mediator/reset errors and frees the driver on failure without MAC/PHY unwind;
-uninstall consumes its reference count before fallible teardown. Nonblocking
-timer stop/delete cannot prove callback quiescence. The MAC additionally drops
-some stop/deinit errors. An adapter counter cannot fence a timer callback that
-already captured the driver but has not entered the adapter.
-
-**Selected route:** prompt 37 must carry or select a narrowly scoped, reviewed
-SDK lifecycle correction against this baseline, pin its actual source identity
-and execute failure regressions before enabling native support. This is a
-required dependency, not an alternative wrapper-only implementation. No such
-patched revision is claimed to exist yet. Corrected behavior must provide:
-
-1. Checked mediator/reset returns before MAC init, with a per-step installation
-   journal. Treat failed init as potentially partial, not merely uninitialized.
-2. Finite unwind while the driver/mediator remains alive. Extend the supported
-   install failure contract to return a non-null **cleanup-only handle** when
-   unwind is incomplete; null means all internal resources were released. The
-   owner preserves the primary install error separately from cleanup status.
-   This is a proposed SDK correction, not an API in unmodified v6.1.
-3. A stopped/closing barrier that disables new timer callbacks and uses finite
-   blocking timer quiescence outside callback/instance/controller locks. It must
-   work after start fails before the timer was armed and from a non-timer task.
-   A timeout retains the handle and resources, with admission closed.
-4. Start/stop result records for FSM changes, event publication, timer arming
-   and MAC link effects. Stop continues required cleanup after an earlier error;
-   the first failure survives. No success merely because FSM already says STOP.
-5. Retryable step-aware uninstall: reject live external references before
-   teardown, drain callbacks, and retain resources/journal on failure. Do not
-   retry an already-deleted timer or deinitialize freed resources. After all
-   callbacks/references are gone and cleanup completed, detach borrowed mediator
-   pointers while the driver is alive; then free the driver and permit PHY/MAC
-   deletion. The correction must provide supported local MAC
-   detach semantics after quiescence; the current MAC `set_mediator` rejects
-   null. The owned PHY wrapper can clear its own local base storage without
-   calling the base setter, which also rejects null. No existing null-setter
-   contract is assumed.
-6. Propagated MAC start/stop/deinit and HAL FIFO-flush errors so successful
-   teardown actually establishes its promised state. Hardware effects can still
-   be partial; failure does not license freeing live DMA resources.
-
-Applications use the owner wrapper for lifecycle and controls; they do not call
-SDK lifecycle directly while an owner operation is active. Incomplete corrected
-SDK cleanup is quarantined and retried only through its supported cleanup path.
-If this correction cannot be supplied, native implementation/support remains
-BLOCKED; portable work remains eligible. Do not bypass the gate with successful
-stubs, private field edits, an arbitrary delay, or unverified repeated uninstall.
+The stub swap is not synchronized with the RX task: a task preempted after loading
+emac->eth but before its call may touch the freed driver. Public APIs do not close
+this window; callback-count zero proves only application callback completion.
+Deletion in the pre-handoff window can also leak at most one frame buffer. The
+HAL FIFO-flush timeout is unobservable. These are explicit SDK limitations; the
+public route is source-derived, not an assertion of universal race-free teardown.
+Q13 retains physical concurrency qualification. If a future baseline includes
+upstream d2ed96d2, remove the obsolete fence only after re-auditing blocking stop
+and the unarmed-timer failure route.
 
 ### Failure and two-instance walkthrough
 
-| Boundary | Required disposition |
-| --- | --- |
-| A and B construct, no public handle yet | Each owns distinct PHY wrapper/core/MAC. Their buses may share one controller lock; no shared singleton identity or result slot. |
-| Install A or B invokes a frame hook | The incoming handle resolves its assigned PHY/MAC via public getters before output publication. Hook denies raw I/O; any approved core operation uses that instance's stored actual MAC directly. |
-| Mediator/reset setup fails | Corrected SDK stops before MAC init; retain reset partial effects and finite unwind results. Borrowed context survives until cleanup completes. |
-| MAC init or later PHY init fails | Corrected SDK unwinds partial steps while mediator remains valid; failed cleanup publishes cleanup-only handle. Other instance stays independent unless the shared controller is quarantined. |
-| Stop races an active/queued link callback | Close admission, drain SDK timer including pre-wrapper callback window without held gates, then drain adapter/stack work. A counter alone or STOP flag is insufficient. |
-| Delete with active work/result or failed SDK cleanup | Reject local deletion; retain core result and native handles. Only explicit result delivery/acknowledgement and proved resource release permit delete. |
-
-These are source-reviewed call chains and implementation acceptance cases.
-Prompt 37 must execute them against the actual corrected SDK; a host dispatch
-model cannot substitute for that firmware/lifecycle evidence.
-
-The P4 on-chip MAC factory resets EMAC module 0 and its deletion disables that
-module's clock/GPIO. Use **one** physical P4 EMAC owner; two native P4 factory
-objects are not independent hardware instances. Two-handle dispatch/lifecycle
-tests use two identified instrumented MAC instances in the actual SDK fixture
-(software lifecycle evidence only). Test another PHY sharing the physical MDIO
-controller as a separate batch-participant case, not by attaching the same MAC
-object to two Ethernet drivers. A real second MAC backend needs its own source,
-link and physical qualification.
+Keep distinct core/owner/wrapper records for two instrumented MAC instances;
+one physical P4 EMAC module supports only one owner. A second PHY sharing MDIO
+is a separate batch participant, never another native object sharing that MAC.
+Test partial install/start/stop/deletion, callback fence ordering, zero-frame raw
+ioctl rejection, result backpressure, event-post failure and shared quarantine.
+An SDK-linked image proves symbols and configuration, not these executing cases.
 
 ## 7. Bounds, board readiness and competing operations
 
-For n frames, admit an entire batch only when remaining time/work can cover
+API OP rules define core timing, direct-call admission, cleanup barriers and
+hard-reset floors. Native bounds also include owner admission, SDK/event/notification
+work, frame methods and scheduling. The MAC uses 100 us MDIO steps with a nominal
+1000 us frame polling allowance, no caller deadline and no MDIO transaction mutex.
+Its 100 ms multi-register MAC mutex is not the bus lock. These are not wall-clock
+or EtherCAT real-time guarantees; adapters must prove or report missing bounds.
+Use high-resolution elapsed checks, not floor-rounded RTOS delays.
 
-`B(n) = A_instance + A_controller + sum(F_i + gap_i) + R_controller + P_result`.
+Current board record after the 2026-10-27 re-pin: MDC40, MDIO39, RESET54,
+TX_EN49, TXD0=41, TXD1=42, CRS_DV51, RXD0=52, RXD1=53, REF_CLK44; expected address0,
+PHY-supplied 50 MHz, no wired PHY IRQ. Explicitly set every P4 RMII pin because
+SDK defaults differ, verify unique pin assignments and confirm final netlist before
+flashing. P4 IO_MUX constrains the pads. R21/C24 reset circuitry requires measured
+pulse qualification; the 25 us no-debounce-cap figure alone is insufficient.
 
-`F_i` includes controller launch, waiting, validation and scheduler/instruction
-overhead; release and evidence publication have allowances too. `A_instance`
-is charged by the owner before entering core. A failed lock acquisition performs
-no frames. Do not multiply a per-frame timeout after each step to extend the
-original deadline. Reserve finite cleanup separately. A full operation also
-includes admitted hardware waits, poll intervals, scheduling, notification work
-and cleanup; synchronous native wrappers use the same procedure and budget,
-never another reset/configuration loop. They release B between polls and waits.
+External power/reset and attempted PHYRCR hard reset close shared admission for
+all PHYs while releasing the controller mutex. OP-14 publishes busQuietUntilUs;
+owner carries the outstanding floor across end/rebind. CLI discovery must inspect
+the bound owner's operation/silence state instead of bypassing core transport.
 
-The P4 MAC has finite 100 us busy-loop steps with a nominal 1000 us frame polling
-allowance, no passed caller deadline and no MDIO mutex in these methods. Its
-100 ms MAC multi-register mutex is not an MDIO transaction lock. Four frames
-therefore have a nominal 4000 us polling contribution, **not a proven 4 ms
-wall-clock bound**. The unmodified backend supplies no unconditional scheduler
-latency maximum or software preemption. A late callback is reported late with
-its effects; a controller timeout may leave hardware busy and quarantines B.
-Implementation must establish platform allowances or explicitly report the
-backend's unproved wall-clock bound. Do not claim hard real-time EtherCAT timing.
-
-Use a finite frame/poll count even when the clock freezes. Anchor post-action
-minimum waits after observed completion, or conservatively at the next owner
-timestamp. Native elapsed-time rechecks use `esp_timer_get_time`; RTOS sleep
-rounding alone is insufficient. No controller lock is held during settling or
-output. Nested notification/MAC internal waits are outside B and included in
-the operation's native bound; missing SDK/backend bounds remain visible.
-
-The current [board snapshot](esp32p4-board.md) was re-read at hardware-repository
-commit `6f8333ef04caa785be374478d0cd413b8e055ed1`: reset GPIO54, MDC49,
-MDIO43, PHY-supplied 50 MHz on GPIO44, expected PHY address 0 and no connected
-PHY IRQ. GPIO5/auto-detect are not valid inherited choices. Existing R21/C24
-reset circuitry means the datasheet's 25 us minimum **without debounce caps**
-does not by itself qualify the board pulse. Board firmware establishes actual
-pin release and clock stability; this task did not validate the netlist or pulse.
-
-SNLS647I 7.6/8.3.11 require SMI bus silence for 2 ms after reset release and
-50 ms after power-up, under their clock conditions; table values are readiness
-maxima, enforced as minimum waiting windows. If external clock arrives late,
-reset follows POR and at least 100 us stable clock. Base default 100 us assertion,
-no post-reset delay, 100 ms reset timeout, 4000 ms AN timeout and 2000 ms link
-poll are SDK policies. At a 100 Hz RTOS tick, truncating 2 ms to zero ticks
-violates readiness; round conservatively and recheck elapsed time. The first
-board's poll period is explicitly configured application policy, not EtherCAT
-timing. Validate resulting MDC frequency and actual management-frame gap/preamble
-behavior; the MAC's Ethernet frame preamble setting proves neither.
-
-| Competing operations | Admission, invalidation and cleanup owner |
-| --- | --- |
-| Live status against MMD/RMW, including another PHY | Instance gate serializes same-instance work; shared B excludes all frames of each batch across instances. No controller→instance inversion. Each acquired batch releases on failure. |
-| Reset against retained diagnostic/event evidence | P/N admits only after prior result delivery/acknowledgement and needed cleanup. Invalidation marks old samples stale but preserves consumed history and possible loss epoch. Reset is not an evidence clear command. |
-| External power-up/hardware-reset readiness against another PHY's frames | Board/controller coordinator closes all batch admission before transition and drains active B; holds logical bus-silence admission through the actual-release/clock-qualified deadline, without holding the controller mutex during the wait. MDIO-issued reset/power commands retain their distinct ledger procedures. |
-| Accepted write then timeout/cancel | Core retains attempted effects and loses affected trust; owner admits separate finite cleanup. Cancellation cannot undo a frame. Shared controller busy/unknown prevents any participant's next batch. |
-| Raw mutation against SDK polling/cache | Maintenance stop/drain precedes admitted raw mutation. Core invalidates; owner publicly reconciles SDK fields/readback before restart. External raw ioctls reject at hooks even while a reservation exists. |
-| IRQ against link/event/counter acquisition | ISR only queues bounded indication; the same collector combines requests. Consumers copy retained samples; no destructive raw dump. |
-| Stop/delete against callbacks/notifications | Native closing barrier blocks new work; corrected SDK drains before freeing driver; owner drains stack/adapter work without their locks held and preserves incomplete cleanup handles/results. |
+esp_eth_transmit borrows its buffer for the call only. ESP_OK means queued to DMA,
+NO_MEM is backpressure and INVALID_STATE means cached link down. If the default-off
+transmit mutex is disabled, use one sending task. RX callbacks own each buffer on
+every return, including error, and free it. Context has static lifetime through
+MAC deletion and drops/frees after session end without blocking.
 
 ## 8. Source selection, API documentation and acceptance
 
-Portable public headers stay in `include/DP8382x/`, implementation in explicit
-`src/` lists. Native files are selected separately from
-`include/DP8382x/esp_idf/` and `src/esp_idf/`; only those and applications may
-include SDK headers or use heap/tasks/platform clocks. Tests, examples, CLI,
-reference archives and SDK patches are not portable production sources.
-No sibling paths are runtime/build dependencies.
+Separate portable host, pinned-driver-on-host, SDK link, package, remote CI and
+physical evidence. Stages 37-42 need executing pinned-driver host tests plus a
+real ESP32-P4 idf.py build. The opt-in host target, off for consumers, takes
+supplied esp_eth.c and its public header set, validates git blob hashes, and
+compiles actual driver source with the adapter against small SDK/platform fakes
+and an instrumented MAC. Model pinned timer return codes, including stop on an
+unarmed timer. It proves install/start/stop/uninstall/ioctl routing, not real
+timer concurrency, MAC hardware or timing. Missing source is NOT RUN, no success stub.
 
-The plain C++ walkthrough is: construct two core instances, bind borrowed batch
-contexts sharing a bus lock, explicitly initialize/configure each using owner
-time, poll only active operations, take retained results, publish copied
-snapshots, then quiesce/acknowledge/end. An ordinary polling wait on A holds no
-bus lock, so B can run when no shared bus-silence interval is active. Power/reset
-readiness waits block all bus participants through logical admission. No IDF
-type, task, heap, global clock or FieldCore owner is needed.
-This proves design reachability; actual standalone build/link belongs to the
-source foundation and later consumer stages.
-
-Public Doxygen must specify borrowed context/buffer/lock lifetime, serialized
-cached access, no callback reentrancy, complete batch exclusion, terminal return
-and release obligations, aggregate bounds and unproved backend limits. Document
-output staging versus retained destructive samples, accepted/uncertain effects,
-primary versus cleanup status, result acknowledgement, teardown rejection and
-native callback quiescence. Include exact register namespace/units/access effects,
-source gates and the narrower SDK pause/cache meaning. Source documentation is
-introduced with real declarations in prompt 9, not placeholder success code.
-
-| Acceptance work | Owning stage / evidence required |
-| --- | --- |
-| Poisoned MMD storage, exact 0x001F/0x401F and 16-bit values | Prompt 6 research probe; prompts 7/12 execute equivalent cases through production transport, invalid inputs and every failing frame. |
-| Cross-entry/same-bus MMD and RMW, selector denial, raw ioctl contention | 11–13, 37–38 and 53; actual complete batches, second PHY, errors/release quarantine and actual SDK raw ioctl rejection. |
-| Lifetime and two-instance hook dispatch, install/start/stop/uninstall failures | 37; corrected pinned source, real SDK link, callbacks before output publication, pre-wrapper timer race, partial MAC/HAL failures and cleanup retries. |
-| Cache reconciliation and link/pause projection | 17–22, 38–39; cached AN true/false start, four pause advertisements, full portable resolution, narrower native projection, same-link mode changes and partial mediator failure. |
-| Zero budgets, late writes, reset silence, coarse/frozen clocks | 8, 15–16, 37–39, 54; aggregate admission and conservative anchors; physical timing separately in 72–73. |
-| Plain C++ and native source/include separation | 9/37/68–70; actual core and pinned SDK links, later clean installed/exported consumers. |
-
-Source-gated PHY features remain attached to their existing ledger gates. Native
-lifecycle corrections, physical reset/MDIO timing and the unresolved forced-mode
-observation are explicit implementation/qualification limits; none is relabeled
-as absent silicon or covered by a design review.
+Retain source references in [library-sdk](reference/library-sdk.md), public Doxygen,
+literal core tests, adverse lifecycle cases and exact result identities. The
+2026-11-07 draft re-opened pinned source: esp_eth.c blob
+76dab829d2099a574a07aeceeaa82491950fe07c, esp_timer.h blob
+e48a213634d3e2cd6ba1dec657687a756d48c291, esp_eth_mac_esp.c blob
+6448fcd6de4669ddf1e836c992ca8a1accc9dd96. Install lines200-271, stop323-344,
+uninstall274-298, MAC set_link401-419/stop727-742 and timer activity430-444 were
+re-read. The rest of this route retains the audit's source-reviewed decision;
+no native build, execution or board measurement was performed for these drafts.

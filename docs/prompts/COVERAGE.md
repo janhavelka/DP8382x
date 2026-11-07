@@ -28,7 +28,7 @@ and evidence from the maintained feature matrix. A listed stage is planned work.
 | Full practical diagnostics | 23-35, 46, 51, 73 | Exact-capability loopback/BIST/cable/IRQ/LED/wake/power coverage, cleanup evidence |
 | Useful example CLI | 43-47 | Shared portable executable processor, strict input, bounded output, owner routing |
 | Python runners | 48-52 | Real session/artifact tooling, compiled-CLI and parser negatives, explicit fixtures |
-| Session and artifact integrity | 43-54 | Passive handshake, retained correlated terminal records, finite serial/finalization paths, partial-write framing loss and manifest-last payload hashes |
+| Session and artifact integrity | 43-54 | Passive handshake, correlated terminal records, finite serial/finalization, framing-loss detection and exactly transcript.txt plus record.json |
 | Tests and honest test claims | Every implementation prompt; 53-55, 71-73, 78-80 | Registered independent behavior tests; SDK, CI, hardware evidence separated |
 | Packaging/version/license/maintainability | 9-10, 69-71, 74-80 | Deterministic metadata, clean package consumers, correct notices, current guides |
 | Build-tree, installed and exported consumers | 68-71 | Build-tree use first; then relocatable install/export, installed find_package and clean extracted source/SDK builds |

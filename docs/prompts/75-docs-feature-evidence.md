@@ -22,16 +22,12 @@ The lead owns shared maintained claims and feature matrices.
 
 ## Work and acceptance
 
-Trace every advertised capability from exact primary source/ledger through
-public declaration, implemented procedure, executing independent test, shared
-CLI route and runner/physical evidence where applicable. Review every
-authoritative row, not only current exported functions. Full software coverage
-requires every documented programmable feature and legal setting, including
-runtime opt-in controls unused by the first board. A raw-write escape hatch,
-vendor API omission or missing fixture cannot close a multistep feature. If the
-audit finds required software gaps, record concrete implementation/verification
-work and fix eligible defects; documentation cannot wave them away or declare
-full support.
+Use the single `docs/feature-coverage.md` matrix closed in 55 and extended in
+59/61/67. Sample high-risk advertised claims and independently rederive their
+source/implementation/test/CLI evidence; do not repeat every-row reconciliation.
+Fix confirmed gaps within scope. Full software coverage still requires each
+source-defined feature and legal setting: raw writes, absent wiring and vendor
+API omissions do not close a procedure.
 
 Keep implemented, source-proved inapplicable silicon/mode, hardware-only,
 outside-PHY and unfinished/source-blocked rows distinct. Each exception needs
@@ -54,6 +50,6 @@ Check affected snippets/help, local links and generated API pages; run focused
 behavior/SDK/package checks only for actual changed inputs. Source Doxygen,
 README/CHANGELOG and relevant guides ship with any fixes; record no-change
 reasons. Preserve archived vendor bytes/notices and failed artifacts. Record
-claim coverage, commands/counts and gates in report, validation and progress.
+claim coverage, commands/counts and gates in report and a linked progress row.
 Check final diff and commit/sync verified units on the execution branch. Only 71
 executes/checks remote CI; report that SHA separately from later local fixes.

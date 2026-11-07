@@ -31,11 +31,6 @@ enum class MacInterface : uint8_t {
   RGMII    ///< Representable for validation, absent on DP83826I.
 };
 
-/// @brief Acceptance rule for complete identity; not a reset-value guess.
-enum class RevisionPolicy : uint8_t {
-  DP83826I_REV1_ONLY ///< Current evidence accepts revision 1 only.
-};
-
 /// @brief API technology bits, distinct from ANAR wire positions.
 constexpr uint8_t LINK_10_HALF = 0x01; ///< API bit for 10 Mbit/s half duplex.
 constexpr uint8_t LINK_10_FULL = 0x02; ///< API bit for 10 Mbit/s full duplex.
@@ -82,7 +77,6 @@ struct Advertisement {
   uint8_t technologyMask{0}; ///< Nonempty LINK_* subset for active AN.
   bool symmetricPause{false}; ///< ANAR symmetric pause request.
   bool asymmetricPause{false}; ///< ANAR asymmetric pause request.
-  bool nextPage{false};        ///< Requires a later source-gated exchange owner.
 };
 
 /// @brief Forced link intent; both fields must be known when active.
@@ -157,10 +151,10 @@ inline constexpr Status validateLinkSettings(const LinkSettings& settings) noexc
   if (settings.forced.speed == LinkSpeed::UNKNOWN ||
       settings.forced.duplex == Duplex::UNKNOWN ||
       !settings.crossover.robust ||
+      (settings.extendedFullDuplex && settings.forced.speed == LinkSpeed::MBPS_10) ||
       settings.advertisement.technologyMask != 0U ||
       settings.advertisement.symmetricPause ||
-      settings.advertisement.asymmetricPause ||
-      settings.advertisement.nextPage) {
+      settings.advertisement.asymmetricPause) {
     return Status::Error(Err::INVALID_CONFIG, "Invalid forced link combination",
                          static_cast<int32_t>(ConfigDetail::LINK_COMBINATION));
   }
@@ -231,28 +225,13 @@ struct BatchResult {
 /// @param[in] batch Borrowed descriptor; never retained beyond the call.
 /// @param[in] budget Original exclusive deadline and physical-frame allowance.
 /// @return Complete terminal primary/release/frame evidence, including failure.
-/// @note Backend owns controller-wide exclusion, finite execution and release;
-/// no reentry, asynchronous completion, hidden retry or retained buffers.
-/// Lock acquisition, all frames, error finalization and release consume the
-/// original budget. Validate/classify the report before reopening shared admission.
-/// Execute frames in order and stop at the first failed frame or deadline;
-/// never execute a dependent write without its successful read. Retain the
-/// attempted/completed prefix and release ownership on every return. A cooperative
-/// frame allowance admits the whole batch before starting, never a partial batch.
-/// Release/idle uncertainty or malformed reports quarantine every controller user;
-/// later calls return BUSY/CONTROLLER_QUARANTINED without frames until owner repair.
-/// Allowed primary codes: OK, MDIO_ERROR, MDIO_TIMEOUT, BUSY (OWNER_ADMISSION or
-/// CONTROLLER_QUARANTINED only, no frames), OPERATION_TIMEOUT (TimeoutDetail).
-/// Release codes: OK, MDIO_ERROR, MDIO_TIMEOUT. OK detail is zero; messages must
-/// be static and non-null. Unused/unattempted slots are default. Completed READ
-/// has valueValid, WRITE has no read value. Preserve signed detail and uncertain
-/// effects; absence of an MDIO acknowledgement does not establish no effect.
-/// The driver rechecks reports but cannot repair an out-of-contract shared lock.
-/// @warning SNLS647I 7.6, 8.3.11 and table 8-20 govern physical timing: MDC
-/// 2.5 MHz nominal/24 MHz maximum; suppressed-preamble gap at least 500 ns and
-/// positive MDC edge with MDIO high; 32-bit preamble after reset or invalid
-/// opcode/turnaround. Owner establishes readiness/silence and timing by backend
-/// analysis and measured traces; host callback success is not physical evidence.
+/// @note One controller-wide lock covers admission, every frame and release.
+/// Stop on first failure; no reentry, retry, asynchronous completion or retention.
+/// Preserve primary/release/effect evidence and quarantine uncertain ownership.
+/// Dependent writes require their earlier successful read; validate the terminal
+/// report before reopening admission. See docs/direct-access.md for all report,
+/// lifetime and budget rules, allowed statuses and physical timing obligations.
+/// @warning Host callback success does not prove physical MDC/MDIO timing.
 using ExecuteBatch = BatchResult (*)(void* context, const MdioBatch& batch,
                                     const IoBudget& budget) noexcept;
 
@@ -262,15 +241,14 @@ using ExecuteBatch = BatchResult (*)(void* context, const MdioBatch& batch,
 using NowUs = uint64_t (*)(void* context) noexcept;
 
 /// @brief Owner-proved conservative bounds for each complete batch segment.
-/// @note Admission reserves acquire + frameCount*frame + release + overhead
-/// strictly before deadline, including clockLag. Post-return detection alone
+/// @note Admission reserves fixedUs + frameCount*frameUs
+/// strictly before deadline, including clockLag. Scheduling after the clock read
+/// is excluded from lag. Post-return detection alone
 /// cannot bound a blocking backend; these declarations must be truthful.
 struct TransportBounds {
-  uint32_t acquireUs{0}; ///< Controller-lock acquisition upper bound, microseconds.
+  uint32_t fixedUs{0}; ///< Positive acquisition/release/core overhead bound, microseconds.
   uint32_t frameUs{0};   ///< Positive bound per frame including wire gap, microseconds.
-  uint32_t releaseUs{0}; ///< Release/error-finalization bound, microseconds.
-  uint32_t overheadUs{0};///< Positive clock/core/publication bound, microseconds.
-  uint32_t clockLagUs{0};///< Positive maximum sample age on clock return, microseconds.
+  uint32_t clockLagUs{0};///< Positive quantization/source-update lag at read instant, microseconds.
 };
 
 /// @brief Borrowed application transport; core never owns controller resources.
@@ -289,7 +267,6 @@ struct Config {
   uint32_t phyAddress{0};            ///< Validate before narrowing to 5-bit wire value.
   MacInterface interface{MacInterface::UNKNOWN}; ///< Required board MAC wiring.
   OperatingMode requiredMode{OperatingMode::UNKNOWN}; ///< UNKNOWN accepts either valid mode.
-  RevisionPolicy revisionPolicy{RevisionPolicy::DP83826I_REV1_ONLY}; ///< Identity policy.
   Transport transport{};            ///< Borrowed owner callback and bounds.
   uint32_t offlineThreshold{3};     ///< Passive count threshold; legal 1..UINT32_MAX.
 };
