@@ -47,6 +47,15 @@ vendor payload archive. No hardware measurement or SDK build was performed.
 
 ## Identity and capability facts
 
+Prompt 14 rechecked the original PDF and official TI sources on 2026-11-07.
+The live SNLS647I PDF is byte-identical to the archive (SHA-256
+`4e440fb8bd1cd44ee9ab0773944bef4f0605884f25c4ab96ea55d0ed859fd9c3`).
+Official main and the C blob below remain unchanged. Tables 8-21/22 pp56–57
+confirm the literal IDs; table 4-3 p3 and BASIC strap table 8-12 p51 confirm
+MII/RMII in both modes. SOR2 table 8-88 p90 separately records interface strap
+evidence. The adjacent vendor RGMII comment is not a silicon capability.
+See [executing identity behavior](../identity.md); physical evidence is NOT RUN.
+
 Prompt 7 re-opened the original C/P/G files on 2026-10-29; all three blob IDs
 above matched and official main still resolved to the same commit. A bounded
 five-commit path-history check found no newer main revision for C/G. Original

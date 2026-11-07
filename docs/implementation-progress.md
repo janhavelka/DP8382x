@@ -1,13 +1,12 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–13, covering research, contracts, portable values,
-version tooling and bounded direct/indirect access, are complete; later stages have not started. Current
-verification includes
-reference/link checks, the silicon-ledger validator, 77 registered research-tool
-tests, eight executable operation-timing design probes and an isolated hash-checked
-SDK MMD encoding probe, 14 C++17 host test suites, a separate tests-OFF
-consumer, the Doxygen source-document check and strict version fixture tests.
+execution. Prompts 1–14 are complete: source research, shared contracts, portable
+values/version tooling, direct/indirect and side-effect access, and exact identity.
+Current local checks include 33 registered Release CTests, 102 Python tests,
+the linked tests-OFF consumer, Doxygen negative checks, ledger/reference integrity
+and deterministic version validation. SDK and physical qualification remain later
+work; first-execution remote CI belongs to prompt 71.
 The driver now provides the restricted Clause 22/MMD subset, stable-field RMW
 and compiling portable examples. Prompt 13 adds explicit destructive acquisition,
 retained partial evidence and safe MISR/WoL updates. Initialization, typed features, SDK, CLI, runner and hardware
@@ -139,6 +138,12 @@ audit's proposed deferral. Local Release, portable consumer, Doxygen, ledger,
 Python and reference checks pass; SDK/package/physical evidence is NOT RUN.
 Final commit/upstream equality is recorded in the handoff.
 
+Prompt 14 began after the requested 45-minute delay on 2026-11-07, at 22:01 UTC.
+Its clean synchronized entry was `4bc8e043890d9aaf601879a459b7db64cd7f6320`.
+The [stage report](reports/implementation/14-identity-capabilities.md) records
+source/peer review, accepted identity policy, failure/invalidation behavior and
+actual local verification. Final commit/upstream equality is in the handoff.
+
 Before prompt 1 of a new execution, create a new branch from the synchronized
 intended base and record its name/base here. Keep that branch for every prompt
 and resumed session. Record stage outcomes, actual checks, remaining dependencies
@@ -164,7 +169,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [11 Implement bounded Clause 22 transport](prompts/11-clause22-transport.md) | COMPLETE | [Direct-access guide](direct-access.md), [report](reports/implementation/11-clause22-transport.md); bounded binding/read/write subset, retained transport evidence, five new registered host suites and linked portable example PASS. Doxygen, version, 98 Python tests, ledger/reference/diff PASS. MMD/collector/init/SDK/physical evidence remain separate later scope. |
 | [12 Implement complete atomic MMD transactions](prompts/12-atomic-mmd.md) | COMPLETE | [Transport guide](direct-access.md), [report](reports/implementation/12-atomic-mmd.md); atomic four-frame read/write and five-frame stable RMW, canonical aliases, phase-failure/exclusion tests and linked portable examples PASS. Local Release, Doxygen, ledger, reference, Python and diff checks PASS; EEE, side-effect-aware access and SDK/physical gates remain explicit. |
 | [13 Implement side-effect-aware register access](prompts/13-side-effect-register-access.md) | COMPLETE | [Report](reports/implementation/13-side-effect-register-access.md), [access guide](side-effect-access.md); complete named catalog, collector, MISR/WoL updates, partial-evidence/invalidation tests and linked portable example. Local Release/consumer/Doxygen/Python/ledger/reference/diff checks PASS; physical/SDK qualification NOT RUN. |
-| [14 Implement exact identity and capability selection](prompts/14-identity-capabilities.md) | NOT STARTED | None |
+| [14 Implement exact identity and capability selection](prompts/14-identity-capabilities.md) | COMPLETE | [Report](reports/implementation/14-identity-capabilities.md), [identity guide](identity.md); exact-address two-frame acquisition, partial/rejected evidence, passive capabilities, negative-evidence admission, independent Release suites and linked probe. Local host/consumer/Doxygen/Python/ledger/reference checks PASS; SDK/physical NOT RUN. |
 | [15 Implement initialization and complete PCS reset operations](prompts/15-initialize-pcs-reset.md) | NOT STARTED | None |
 | [16 Implement hard reset, restart and external-reset reconciliation](prompts/16-hard-reset-restart.md) | NOT STARTED | None |
 | [17 Implement negotiated link settings and verified application](prompts/17-negotiated-link-settings.md) | NOT STARTED | None |

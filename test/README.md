@@ -111,6 +111,18 @@ The independent access fake models clear effects and pending wake state.
 it is not the numeric oracle. The tests-OFF consumer also links
 `examples/portable/EvidenceAccess.h` and exercises the actual collector/MISR API.
 
+## Exact identity
+
+Five `identity` suites (`decode`, `policy`, `failures`, `lifecycle`, `ownership`)
+test literal BASIC/ENHANCED IDs, every model/revision code, both OUI portions,
+all protocol addresses, zero/FFFF precedence, partial and malformed reports,
+release/clock/deadline failures, cached query silence, negative-evidence write
+admission, mode changes, invalidation, rebind and two-owner exclusion. A fifth
+registered negative probe proves active Release checks; CTest now has 33 tests.
+The tests reuse the shared controller's ownership/descriptor engine with an
+identity-specific fixture. The tests-OFF consumer also executes
+`examples/portable/IdentityProbe.h` against the real linked driver.
+
 ## Release version tooling
 
 `test_version_tool.py` is registered by the Python discovery command at the top

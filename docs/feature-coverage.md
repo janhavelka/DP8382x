@@ -11,7 +11,8 @@ Software implementation is PARTIAL: prompts 11–13 provide the
 [restricted direct/indirect subset](direct-access.md), complete named catalog,
 [collector and mixed-register updates](side-effect-access.md), with executing
 host tests. Raw access and low-level capture do not complete typed features.
-Remaining feature procedures are PENDING; SDK builds and hardware qualification
+Prompt 14 completes [identity admission and foundational capabilities](identity.md)
+with independent host tests. Remaining feature procedures are PENDING; SDK builds and hardware qualification
 are NOT RUN. Ledger tests establish their own research layer.
 
 Prompt 6 completes the [portable/native ownership design](design-decisions.md)
@@ -38,7 +39,7 @@ silicon gates remain explicit. No feature's implementation status changes here.
 
 | Feature / responsibility | Research | Primary implementation owner | Related integration/test stages | Source gates | Planned typed route / result | Ledger procedures |
 | --- | --- | --- | --- | --- | --- | --- |
-| identity / Exact identity and capabilities | 3 / COMPLETE | 14 (SOFTWARE) | 14 | None named | Declared Variant; identity/capability acquisition; Raw/decoded IDs, acceptance and source/physical evidence separately | identify |
+| identity / Exact identity and capabilities | 3 / COMPLETE | 14 (SOFTWARE COMPLETE; HOST PASS) | 14; SDK/physical NOT RUN | None named | readIdentity / identitySnapshot / capabilities; raw/decoded IDs and partial/admission evidence | identify |
 | access / Clause 22 and complete indirect access | 3 / COMPLETE | 11 (SOFTWARE) | 11, 12, 13 | eee_wire | C22/MMD direct access and internal side-effect-aware update; Value or retained frame/effect report | direct_access, mmd_access |
 | reset / PCS, hard reset, restart and reconciliation | 3 / COMPLETE | 15 (SOFTWARE) | 15, 16 | hard_reset_straps, pcs_reset_extent | PCS/hard/circuitry reset and external-reset reconciliation; Completion, lost trust, accepted effects, cleanup | pcs_reset, hard_reset, restart, external_reset |
 | initialization / Required 10BASE-Te initialization | 3 / COMPLETE | 15 (SOFTWARE) | 15, 17, 18 | None named | Mandatory 10BASE-Te preparation; Verified initialization evidence | initialize_10base |

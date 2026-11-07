@@ -38,6 +38,11 @@ destructive addresses and show cached evidence. Explicit acquisition and narrow
 mixed-register maintenance are stage 13 consumers, later reused by link, IRQ and
 diagnostics. Unknown register semantics remain named gates, not guessed permissions.
 
+Stage 14 adds one exact-address two-read identity batch. Partial/rejected raw
+words remain diagnostic evidence; only fresh accepted identity supplies
+foundational capabilities. Mode changes invalidate older observations. See
+[identity admission](identity.md); no factory, scan or suffix inference is used.
+
 ## Operations and native integration
 
 One core operation slot holds IDLE, RUNNING or RESULT_PENDING. Starts copy input
