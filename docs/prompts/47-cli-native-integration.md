@@ -49,13 +49,21 @@ setup perform no hidden configuration, scan, reset or diagnostic stimulus. The
 applications retain their explicit documented initialization/start sequence
 from prompts 40-42.
 
-Reconcile the maintained exhaustive ledger against exact variant/mode, public
-operation/field, every legal setting, command/help entry, owner route, output
-record, host test and physical requirement. Close primary omissions in owning
-code with tests/docs; do not shrink the denominator to exported methods.
-Separate unsupported silicon, incomplete implementation and unavailable
-fixtures. Guards may check grammar/help/runner parity but cannot replace
-executable dispatch.
+Use `docs/feature-coverage.md` as the one matrix: one row per ledger procedure
+and feature ID, exact part/mode, command or cfg path, owner route, record,
+host test name and physical case or reasoned N/A. Require every ID and field
+owner to resolve to a complete row. Prompts44/46/47 append CLI cells,47 closes
+those cells,55 closes primary coverage;53 adds only gaps. `docs/cli.md` owns
+grammar/records, not a duplicate matrix.
+
+Record actual console type, UART bridge or USB Serial/JTAG. Install a reentrant,
+nonblocking esp_log_set_vprintf hook: bounded local formatting then whole-line
+queue insertion under a short try-lock; drop/count when lock or queue unavailable.
+Never use terminal-reserved capacity. Pin CONFIG_LOG_VERSION_1, where one call is
+one line; V2 fragments lines. ROM/panic/direct printf bypass this hook. Test logs
+between drains and concurrent hook calls. Records start at column0; garbled
+candidates fail strict parsing. Missing IRQ wiring blocks physical pin cases,
+not polled status.
 
 ## Acceptance
 

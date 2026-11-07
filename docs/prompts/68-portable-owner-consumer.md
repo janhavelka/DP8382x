@@ -11,7 +11,8 @@ application.
 
 Reopen TCA9548A standalone consumption, TMP1x2's public-header consumer and
 TMP1x2/24Cxx CMake tests-OFF/source selection. Inspect current
-`FieldCore-node/src/devices/i2c/Ina228Module.h/.cpp`, borrowed
+`FieldCore-node/src/devices/i2c/Ina228Module.h` and
+`FieldCore-node/src/devices/i2c/Ina228Module.cpp`, borrowed
 `I2cOwnerTransport`, `DeviceModuleStatus` and result contracts; compare
 `mapLibraryStatus`, `mapJobEffect`, `snapshot` and `copyStatus`. Record
 revisions, paths and adopted/adapted/rejected conventions. FieldCore remains
@@ -35,14 +36,12 @@ Initialize/configure one instance, progress cooperative work with finite owner
 budgets, retain/take results and render passive health/link/config evidence. Do
 not hide a blocking convenience loop behind a poll name.
 
-Show generic legal 10/100 policy versus a separate 100/full application test,
-cancellation/recovery admission, partial write/cleanup uncertainty and no silent
-replay/reset. Inject one instance's backend failure and prove independent
-status/detail/counters/trust on the other. Cached rendering has zero frame
-delta; failed reads preserve caller output. Release results/resources in the
-contract-defined order. Exercise rebinding/end admission while work is owned,
-then finish cancellation and required cleanup before destroying the driver or
-borrowed context. Teardown remains bus-silent.
+Reuse `DirectRead.h` and `MmdAccess.h` in the two-instance owner application,
+exiting nonzero on a failed demonstration. Keep `test/consumer` as the link
+check. Registered CTest suites own independence, zero-frame, sentinel and
+failure assertions; do not turn the example into another assertion suite.
+Demonstrate cancellation, separate recovery admission, accepted-write uncertainty
+and result/resource lifetime with the OP rules, without automatic reset/replay.
 
 Write `docs/firmware-integration.md` with a concrete mapping table for
 `Status::{code,detail,msg}`, operation progress, transport health, configuration
@@ -52,12 +51,13 @@ firmware types, task topology, sensor policy or a generic backend registry.
 
 ## Acceptance and checkpoint
 
-Configure/link/run a clean tests-OFF consumer without Git/Python/Doxygen/SDK or
-sibling dependencies; repeat with a second available compiler. Rebuild both real
-P4 examples and inspect portable/platform source selection. Additional
-Arduino/MCU adapters require an actual supported MAC/MDIO backend and separate
-evidence; document precise unimplemented scope instead of advertising fictitious
-targets. Package extraction belongs to task 70, not this evidence claim.
+Configure/link/run the clean tests-OFF consumer without Git/Python/Doxygen/SDK
+or siblings. Locally run UBSan with
+`-fsanitize=undefined -fsanitize-trap=undefined`; record second compiler and
+other sanitizers NOT RUN locally, to run in Linux at 71 including the tests-OFF
+consumer. Do not install toolchains for this. Rebuild both real P4 examples and
+inspect source selection. Additional MCU adapters need an actual supported
+backend; extraction evidence belongs to 70.
 
 Update helper Doxygen, portable README and integration guidance with the actual
 consumer contract. Record host execution and real SDK links separately, then

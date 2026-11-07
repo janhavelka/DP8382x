@@ -39,13 +39,13 @@ Every relevant programmable setting needs a usable typed configuration path,
 legal-value help and effect/result reporting; raw access cannot substitute for
 a multistep feature procedure.
 
-Validate all tokens, arity, units, range, enums and cross-field combinations
-before owner admission or mutation. Reject reserved/unknown addresses and
-unsupported exact-part settings without transfers. Discovery visits only
-requested legal PHY addresses under a total finite budget, reports per-address
-read status and raw identity evidence, and never silently binds, initializes
-or selects a profile. Respect address-zero/broadcast and isolation rules from
-the exact-part contract; keep the configured core instance untouched.
+Validate arity, units, ranges, enums and cross-fields before admission. Discovery
+reads only PHYIDR1/2 over an inclusive requested range with one deadline/frame
+budget. Default upper strap address: DP83826/A7, DP83825=3, DP83822=31; other
+0..31 ranges need explicit argument. Address0 is ordinary, with no invented
+broadcast behavior. FFFF/0000 means no response evidence; transport errors are
+per-address. Candidates never select/initialize a profile. Isolation/power-down
+still answer MDIO and cannot be inferred from discovery.
 
 Safe dumps skip side-effect/read-clear registers and indirect selectors/data
 ports unless using their typed owner path; explicitly requested event
@@ -67,10 +67,20 @@ cannot repair stale SDK cache. Keep generic legal 10/100 behavior separate
 from the 100/full application policy, and distinguish absent silicon support,
 incomplete software and unavailable backend/fixture.
 
-Maintain ledger rows for exact variant/mode, public field/operation, input,
-CLI/help, owner route, record, host case and physical requirement. Blank
-required cells remain open work. Use current public names and `Status::ok()`
-versus `inProgress()` deliberately; admission is not command completion.
+Use `docs/feature-coverage.md` as the one matrix: one row per ledger procedure
+and feature ID, exact part/mode, command or cfg path, owner route, record,
+host test name and physical case or reasoned N/A. Require every ID and field
+owner to resolve to a complete row. Prompts44/46/47 append CLI cells,47 closes
+those cells,55 closes primary coverage;53 adds only gaps. `docs/cli.md` owns
+grammar/records, not a duplicate matrix.
+
+Discovery, dump, selftest, watch and stress are CLI-local sequencers over
+public calls: a small fixed index/count/deadline struct advances from tick,
+one batch per tick. They never perform uncoordinated MDIO or duplicate a chip
+procedure. Discovery uses a separate probe driver on the shared transport:
+bind each requested address, readClause22(02/03), end. Before each batch check
+the bound driver's operationSnapshot and reject while RUNNING or busQuietValid;
+this preserves hard-reset silence and normal report/quarantine checks.
 
 ## Acceptance
 

@@ -33,24 +33,17 @@ tests. Inspect current registrations and examples. Reopen all SNLS647I hardware
 autorun, link-down trigger, cable status and shadow/result descriptions. Do not
 infer generations or timing guarantees the device does not expose.
 
-Define typed autorun policy configuration with every source-supported setting,
-supported mode/peer constraints and explicit ownership. Validate pure inputs
-before I/O; acquire any required live precondition through bounded reads before
-mutation. Apply once, verify stable owned controls and preserve desired/observed/trusted
-state through partial errors. Enabled autorun is an explicit opt-in persistent
-setting; initialization/recovery may replay it only when the application
-requested and owns it. Extend reset/power restoration as applicable.
+The documented autorun policy is one CR1[8] enable flag. Validate and apply it
+once with owned-bit readback and persistent desired/observed/trusted state.
+Do not invent additional settings or silicon quiescence evidence. Replay only
+explicitly owned policy after applicable reset/power transitions.
 
-Keep successful policy configuration separate from a physical trigger, active
-capture, completed valid evidence and consumed history. Reuse the collector for
-manual sessions, IRQ/poll status and autorun results. Specify arbitration while
-a manual session is active and what happens when another hardware event changes
-results during acquisition. A software lock cannot stop hardware autorun. Resolve
-manual-start admission using the documented disable/quiesce sequence, restoring
-the persistent autorun policy afterward, or reject the combination while its
-safe handoff remains unresolved. Test a trigger during each handoff phase. A link-down observation alone cannot prove a fresh
-completed cable measurement. Where freshness/generation is not observable,
-publish that limit and retain raw evidence without declaring a new PASS.
+Separate configured policy from a physical trigger and fresh capture. To hand
+off to manual capture, clear CR1[8], verify it, and report engine quiescence as
+unknown; otherwise reject manual start while enabled. There is no documented
+quiesce sequence. Test hardware updates during each handoff phase. A captured
+autorun result is at most one run under the current settings, never SNLA428's
+six-run result, and has no derived distance without known recipe context.
 
 Bound acquisition and any manual-session handoff. Never drain until stable or
 poll until the environment triggers. Stop/reconfigure with explicit maintenance
@@ -59,13 +52,11 @@ failure. Cancellation and cleanup keep their separate finite budget, retained
 effects and status rules. Hardware autorun does not authorize software reset,
 link recovery or application scheduling policy.
 
-Test literal enable/disable/readback sequences, legal settings and invalid
-zero-I/O rejection. Simulate link triggers, no trigger, old results, changing
-results between reads, manual-session contention and simultaneous status
-consumption. Fail every mutation/acquisition/restore phase, including a
-destructive read-after-effect timeout. Assert stale/unknown evidence cannot
-become a measured length, exact transfer limits, no background MDIO and
-cached views without new reads.
+Test enable/disable/readback, invalid requests, old done/results, trigger during
+acquisition and manual handoff, each mutation/read/restore failure and exact bounds.
+CDCR/0180/0185/018A are non-destructive: failed words become invalid without
+history-loss flags; bounded re-read is legal. Destructive prerequisite reads
+remain collector-routed. Cached views do no I/O.
 
 Extend the diagnostics guide with manual-versus-autorun ownership, persistence,
 freshness limits and fixture scenarios. Compile an owner example that explicitly

@@ -3,7 +3,7 @@
 Read [COMMON](COMMON.md), [CONVENTIONS](CONVENTIONS.md),
 [CLI_CONTRACT](CLI_CONTRACT.md) and [VERIFICATION](VERIFICATION.md).
 Prerequisite: [48](48-runner-protocol-artifacts.md). Reuse its parser,
-classification and durable bundles as one canonical runner; no second
+classification and durable two-file records as one canonical runner; no second
 protocol.
 
 ## Current evidence and ownership
@@ -52,19 +52,18 @@ unavailable cleanup visible. Read under aggregate deadline, maximum
 record/decoder state and total capture limits; fragmentation cannot turn an
 unterminated numeric field into completion.
 
-Use the existing strict session/request/operation terminal correlation and
-failure classification. Serial loss, reboot, stale/duplicate/conflicting
-evidence, wrong firmware, cancellation and timeout remain unsuccessful. Only
-explicitly admitted cleanup runs, under a separate finite budget, with
-residual effects visible. Preserve first failure when cleanup succeeds. Bound
-the actual backend open, write, drain/flush and close behavior, plus process
-termination and evidence finalization; a Python timeout value cannot preempt
-an unbounded OS call. Avoid unbounded flush calls. Where supported backend
-operations cannot meet the finite session contract, isolate that blocking work
-with bounded process termination or leave the backend explicitly gated.
-Finalize closed payloads and the last-written manifest using prompt 48's
-sequence; close or manifest failure cannot become PASS. Keep device and host
-time claims separate.
+Use prompt 43's one-outstanding-command boot/req correlation and nonce
+resynchronization after timeout. Partial input remains framing-unsafe: no appended
+cleanup or replay. Preserve first failure separately from explicitly admitted
+restoration. Create pyserial with port=None and finite timeout/write_timeout;
+set DTR/RTS before open. Never flush/drain. Run open and close on daemon threads
+joined under finite deadlines; if either stalls, mark INCONCLUSIVE, finalize
+artifacts and exit via os._exit(nonzero). No serial child-process layer.
+Test a backend whose open/close never returns; compiled fixture subprocess
+management remains separate. Finalize the two artifacts as prompt 48 specifies.
+
+Record console type, whether baud applies, and DTR/RTS behavior at open.
+A USB Serial/JTAG session must not inherit UART-bridge reset assumptions.
 
 ## Acceptance
 

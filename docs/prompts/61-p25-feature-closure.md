@@ -31,6 +31,23 @@ exact DP83825I TDR/EEE/compliance notes; DP83822's calibration and custom filter
 map require independent applicability and cannot be inferred. Correct conflicts
 before dependent implementation; missing fixtures remain physical gates.
 
+## Exact access and mode corrections
+
+Treat Register_12 `0x000C`, MISR1/2 `0x12/0x13` and FLDS `0x0F` as consuming,
+collector-owned and excluded from ordinary `readable()`. Record R-versus-RC
+prose conflicts and unknown Register_12 latch relation; collect IRQs through
+MISR1/2 only. Test consumed first sample followed by failed second read and
+prompt 60's RMII role/clock-loss admission.
+
+Implement tables 6-5..6-7 functional modes as one finite typed procedure.
+For `0x04D1`, sections 6.3.3.2/6.3.4 and table 6-7 (`0x00C2`, bits 0/3 clear)
+govern over table 7-92's R marking/reversed bit 3 wording. Recipe addresses
+`0x030E,0x0333,0x0218,0x031B,0x033A,0x033D` need exact allowlists citing those
+tables, table 8-3 and SDAA081 2.3.3 against table 7-1's reserved statement.
+SecureON `0x04A5..0x04A7` is absent from that map, but SNLA261A table 2-1/2.2.2
+names DP83825; allowlist those addresses with the source gap and physical Q15.
+Append exact-part rows to the single feature-coverage matrix.
+
 ## Work and acceptance
 
 Implement the finite feature-family differences assigned by 60: every applicable

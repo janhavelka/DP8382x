@@ -32,6 +32,16 @@ include exact LDCTRL voltage codes and fractional-ohm termination; Linux rounded
 property tables are comparison facts. Keep calibration and measured electrical
 accuracy explicit; correct source conflicts instead of fitting tests to a guess.
 
+## Diagnostic literal corrections
+
+Use seven-bit amplitudes (`0x7F`; bits 15 and 7 reserved) under tables 8-60..8-64
+against SNLA253's eight-bit wording, eight-bit locations, and the peak map in
+tables 8-55..8-59. CDCR Done resets to one: manual completion requires start
+bit 15 clear AND done bit 1 set; bit 0 reports fail. Test Done already set before
+launch. Include LDCTRL[11:8] FX swing with prompt 65's medium controls. Apply
+only access types actually established for each field; do not invent W1C
+coverage for a family with no such documented field.
+
 ## Work and acceptance
 
 Implement every assigned documented loopback, BIST/generator/checker/PRBS,
@@ -48,7 +58,7 @@ fiber before I/O. Link-disrupting/test modes need explicit application
 maintenance admission, finite budgets and owned pre-state; board wiring or
 missing measurement equipment changes qualification, not required software. Keep
 one MDIO transaction owner and destructive-status collector. Compose mixed
-control/status writes with exact W0C/W1C/W1S/RC/command-neutral semantics.
+control/status writes with exact source-backed W0C/W1S/RC and command-neutral semantics.
 
 Register independently derived literal vectors and explicit part/medium/mode
 rows with Release-active checks. Cover every legal diagnostic setting, invalid

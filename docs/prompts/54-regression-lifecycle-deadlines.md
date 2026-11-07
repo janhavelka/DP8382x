@@ -33,7 +33,7 @@ maxima.
 ## Implement
 
 Extend the established fixtures with zero budget, exhausted aggregate
-deadline, exact timeout edges, quantized/wrapping/frozen clocks and illegal
+deadline, exact timeout edges, quantized/frozen clocks, uint64 overflow and CLOCK_CONTRACT regression latch and illegal
 callback progress. No extra transfers, unbounded busy loops or fresh full
 timeout at each step are allowed. Distinguish primary and finite cleanup
 budgets; a late callback does not prove preemption or permission to extend an
@@ -65,12 +65,16 @@ unrelated reads do not repair configuration. Exercise saturating health
 counters, valid timestamp zero and independent instances without hidden
 platform timing or hot-path allocation.
 
+List existing named tests from43/48/49/53 before adding regressions. Add only
+missing boundaries or cross-entry cases. Exercise OP-5 short slices and stalled
+clock rules, OP-9 separate restoration results and OP-14 hard-reset silence.
+
 ## Acceptance
 
 Execute core/CLI/Python boundary tests with full/slow output and fragmented or
 malformed records. Cover attach-after-boot session handshake, partial input
-followed by cancellation, session replacement with pending work, late
-duplicate terminal records and payload corruption after manifest creation.
+followed by cancellation, passive nonce resynchronization without discarding pending work, late
+duplicate terminal records and transcript corruption after JSON finalization.
 Owner cleanup must remain bounded and fair while terminal output is retained;
 zero-case, skip-only and incomplete campaigns cannot pass. Track actual
 allocations after caller setup, supplementing source checks. Rebuild affected

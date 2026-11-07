@@ -69,10 +69,22 @@ enables (`0x00FF`) with different event meanings. FLDS `0x0F` cause mask is `0x0
 collector and exclude it from bus-active safe dumps.
 FCSCR `0x14` is an 8-bit saturating RC counter, maximum `0xFF`, interrupt on
 exceeding `0x7F`. RECR `0x15` remains a 16-bit-field versus `0xFF` saturation
-source conflict; RCSR `0x17` bits3/2 remain an RC/polarity conflict. Retain raw
+source conflict; RCSR `0x17` bits 3/2 remain an RC/polarity conflict. Retain raw
 values and partial consumed samples instead of inventing count or fault semantics.
 Reopen current exact tables and retain physical counter/event verification as
 a separate qualification gate.
+
+The collector also owns ANER `06`, 10BTSCR `1A` (polarity `0010`), and RXFS
+status. Every 10BTSCR RMW/readback is collector-routed. When mirrors are wanted,
+read PHYSTS first: reads of RECR, 10BTSCR, FCSCR, ANER, MISR and BMSR clear
+PHYSTS[13], [12], [11], [8], [7] and [6] respectively. MISR2 `0200` is raw
+polarity-or-WoL unless owned RXFS[12] is known; do not add an RXFS read merely
+to decode it. DP83826 reset selects WoL. Prompt 27 owns whole-word RXFS
+`1000/0000` selector writes without a prior read, followed by one collector
+read. WoL enable or hard reset returns selection to WoL or unknown. DP83825
+matches; DP83822 resets selection to polarity and has W1S status, requiring
+zero status bits on unrelated writes. RECR width and RMII RC polarity stay
+gated here; Q16/Q17 supply the missing physical evidence.
 
 ## Documentation, verification and checkpoint
 

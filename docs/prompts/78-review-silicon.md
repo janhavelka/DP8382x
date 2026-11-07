@@ -36,20 +36,19 @@ ledger merely because every row has a checkmark.
 
 ## Work and acceptance
 
-Review the authoritative denominator: every exact-part register, non-reserved
-field, legal setting and documented procedure, including recipe-only addresses
-and features absent from partial vendor APIs. Trace each to source authority,
-production symbol/codec, typed path, CLI and executing independent tests.
-Runtime opt-in defaults, missing pins and unavailable fixtures cannot justify
-missing portable software. Recheck shared-record applicability per part rather
-than assuming equality from a family name, ID or mnemonic.
+Use the authoritative coverage matrix as the denominator, then independently
+sample high-risk rows and rederive their literal masks, encodings and sequences
+from original sources. Do not repeat the complete row reconciliation from 55
+and family closure. Inspect corresponding actual implementation/tests and
+shared-record applicability. Missing pins, opt-in defaults and fixture absence
+do not excuse a confirmed software gap.
 
 Trace accepted ID/mode/revision policies, declaration versus observation, reset
 kinds/defaults/straps/restore, startup/10BASE-Te, MDIX, advertised/forced modes,
 next-page/pause, copper/fiber/interfaces, link validity/staleness and diagnostic
 success/inconclusive/failure. Reconcile PHYSTS/RECR ambiguities and retain gates
 where primary evidence remains insufficient. Challenge ANAR legal values,
-W0C/W1C/W1S/RC/latch/counter attributes, neutral writes and exact recipe
+source-backed W0C/W1S/RC/latch/counter attributes, neutral writes and exact recipe
 allowlists. Inspect full failure exits, including final writes,
 accepted-write/error, cancellation, exhausted budgets and failed restore, with
 independently derived literal vectors rather than production constants on both
@@ -68,7 +67,7 @@ The lead fixes confirmed defects with focused tests, Doxygen, README/CHANGELOG,
 affected guides and ledger updates; record inspected no-change reasons. Run
 affected host/docs/CLI/Python checks and actual SDK/package links when public
 inputs or source membership change. Record scope, revision, findings/counts,
-fixes and residual risk in report, validation and progress. Keep 71's tested SHA
+fixes and residual risk in report and a linked progress row. Keep 71's tested SHA
 historical and physical claims separate; no remote CI dispatch/poll/wait here.
 Check final diff, commit/sync verified units and completion on the execution
 branch. Continue eligible work while unresolved required gates remain open.

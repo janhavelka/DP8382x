@@ -13,16 +13,13 @@ open gates under COMMON.
 
 ## Scope, current evidence and work
 
-Deliver complete autonegotiated link configuration, including supported
-advertisement, pause/asymmetric pause, selector and next-page controls and
-restart. Implement the documented next-page transmit/receive handoff and bounded
-exchange procedure, including message/unformatted data, Acknowledge2, read-only
-toggle, page-received evidence and partner inability. Assign a finite page count
-and time budget; a next-page-enable bit alone is not complete exchange support.
-Use tables 8-25 through 8-27 and retain unresolved protocol facts as gates.
-Extend existing Config/settings and one configuration procedure;
-`startConfigure` uses the established operation slot. Forced-mode configuration
-remains explicitly unavailable until task 18.
+Deliver autonegotiated advertisement/pause and IEEE Clause 28 next-page exchange,
+which SNLS647I 8.3.1 designates. Implement ledger `next_page_exchange`; freeze
+its typed page API here, including message/unformatted data, Acknowledge2,
+read-only toggle, partner refusal and finite page/time budgets. Extend prompt
+13's collector for ANER page evidence. `next_page_handshake` is physical Q10,
+not a software block. `startConfigure` uses the existing operation slot;
+forced configuration remains prompt 18.
 
 Reopen TMP1x2 `src/TMP1x2Configuration.cpp::validateSettings`,
 `beginApply`, `stepApply`, `verify`, `update` and
@@ -31,25 +28,23 @@ and ambiguous-apply/raw-write/readback tests. Inspect actual public Doxygen and
 CLI error rendering; sensor settling and expander direction ordering do not
 supply PHY sequences.
 
-Build the exact legal-settings/dependency table from SNLS647I. Reject empty or
-reserved advertisement, invalid selectors and contradictory controls before any
-transfer or committed desired-state change. Table 8-23 marks ANAR bit 13 R/W but
-prohibits local remote-fault advertisement on this part: reject it while retaining
-partner/status remote-fault observation. Include all legal pause combinations and
-their duplex meaning; MAC flow-control policy remains outside core.
+Reject empty/reserved technology advertisement and contradictory settings before
+I/O or desired-state change. Always encode selector `0001`, overwriting and
+verifying any prior non-default selector. ANAR bit 13 remains prohibited despite
+its R/W label; partner remote-fault observation remains supported. Cover every
+legal pause combination; MAC flow-control policy stays outside the core.
 
-Apply the whole validated profile with source-defined ordering and restart.
-Implement required 10BASE-Te setup from section 8.3.13:
-`VOD_CFG3 0x030E = 0x4A40`, with exact MMD access, applicability and reset
-reapplication. Neither reference-driver omission nor a successful generic status
-read removes this requirement. Preserve stable/reserved fields and use mixed
-register procedures; do not silently enable EEE/WoL.
+Apply the complete admitted profile in source order. `startConfigure` requires
+initialized, including prompt 15's unconditional VOD_CFG3 setup; add no second
+`030E=4A40` write here. Preserve target-specific reserved bits and command-neutral
+values. Do not silently enable EEE/WoL.
 
-Define when admitted desired settings become authoritative. Track desired values,
-observed readback and verified trust separately. Apply once and verify all stable
-owned bits before publishing trust. Partial writes, cancellation, late completion
-or mismatch preserve uncertainty; no automatic retry or fake rollback. Extend
-every applicable reset's restoration through this same procedure.
+Define when admitted desired settings become authoritative and retain desired,
+observed and verified state separately. Until prompt 18, trust covers ANAR,
+BMCR and stage-15 VOD_CFG3 only. Crossover and extended duplex are not yet applied;
+non-default requests reject at preflight. Partial writes, cancellation, late
+completion or mismatch keep uncertainty and OP-9's restoration obligation.
+Extend the same initialization replay, with no retry or fake rollback.
 
 Successful register application differs from negotiation completion. Any requested
 negotiation wait uses an explicit finite owner-driven contract. Provide the
@@ -79,6 +74,15 @@ BMCR AN enable/restart are `0x1000/0x0200`; restart-clear is not AN-complete.
 Derive the four-frame `0x030E=0x4A40` setup vector directly from the PDF, then
 compare it with the catalogue. Reconcile current source and real advertisement/link
 readbacks; library omissions and nominal timing never waive documented controls.
+
+NP=1 belongs only to the typed exchange epoch, never persistent `Advertisement`.
+It obliges page service on each AN cycle. On success clear ANAR NP without
+restart, because AN has completed. On timeout/cancel/failure terminate at once
+with `cleanupOwed` and report NP may remain set; issue no extra write. A later
+`startInitialize`, or eligible CONFIGURE retry, replays NP=0 and restarts AN.
+Reset replay never writes NP=1. Test re-AN with NP=1 but no page load as explicit
+pending/stalled negotiation, never silently down. The ledger is the field
+catalogue; use independent original-source vectors for named production masks.
 
 ## Documentation, verification and checkpoint
 

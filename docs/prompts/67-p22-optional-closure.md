@@ -29,9 +29,27 @@ only Magic/Secure-ON. [Power
 facts](../reference/library-family.md#fiber-reset-diagnostic-and-power-procedures)
 require IEEE power-down before `0x0428[2]` deep power-down, with bit 3 selecting
 50/100 ms exit; preserve adjacent test-mode bits. Reconcile LED0/GPIO2 MLED,
-clock/LED pin conflicts, EEE/LPI and SFD's documented WoL-enable dependency.
+clock/LED pin conflicts, EEE/LPI and SFD's optional WoL-enable accuracy aid.
 Verify exact-part semantics and actual hardware separately; API omissions and
 missing wiring cannot close required software rows.
+
+## Exact remaining DP83822 procedures
+
+After IOCTRLx selects RX/TX SFD, write literal `0x0456=0x000A`; this exact
+allowlist is exceptional because table 8-78 marks bit 1 reserved R/W. Bit 3
+minimum IPG stays one: reject owners requiring zero before I/O. Optionally set
+RXFCFG1[7] with owned WoL controls, preserving bit 12 and neutral bit 11 zero;
+this auto-sets RXFS[12], making MISR2[9] WoL. Finish `0x001F=0x4000`. WoL is
+an optional SFD accuracy aid, not a mandatory enable dependency. Own PTPPSEL
+`0x003E` and PTPCFG `0x003F` here.
+
+DP83822 acknowledgement writes owned RXFCFG1 config OR `0x0800`; unrelated
+writes keep bit 11 zero (SNLA261A table 2-4 step 6). RXFS[12] resets zero and
+must be tracked. RXFCFG1[6] has only the name Bit Mask Flag: preserve it, expose
+no typed setter and leave semantics OPEN. Printed `0xDnnn` maps to DEVAD D,
+offset `0x0nnn`; use the part-keyed policy from 62, not DP83826 constants.
+Append exact-part rows to the single coverage matrix while sharing the cited
+I/H/IF/HF map and separating admission/physical results.
 
 ## Work and acceptance
 

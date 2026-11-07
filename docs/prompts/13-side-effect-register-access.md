@@ -24,18 +24,24 @@ declarations, implementation and tests. Read actual sibling CLI rendering to
 distinguish cached display from live destructive reads. Recheck the exact
 SNLS647I access tables and the authoritative ledger.
 
-Cover all documented non-reserved register fields with named addresses, masks,
-legal encodings and access attributes; independently justified procedure-only
-addresses remain an exact-sequence allowlist. Unknown reset bits remain unknown.
-Define safe-dump reads and explicit destructive acquisition. Raw access cannot
-bypass addressing, ownership, maintenance or invalidation rules.
+The ledger remains the authoritative per-field catalogue. Cover every documented
+non-reserved field with checked named addresses, masks, encodings and access
+attributes; do not maintain an independent factual map in C++. Re-check every
+ledger address's access-policy classification against the original tables and
+require every production `cmd::` constant to match its ledger record. Keep
+procedure-only locations in exact-sequence allowlists and unknown reset bits
+unknown. Define safe-dump reads and explicit destructive acquisition without
+bypassing ownership, maintenance or invalidation.
 
-Implement source-specific composition for W0C/W1C/W1S, self-clearing commands,
-read-clear fields and reserved bits. There is no universal zero-all-command-bits
-policy. Preserve consumed status before updating owned stable controls and use
-each command's documented neutral value. In RXFCFG1, bit 11 is W0C under
-SNLS647I table 8-90: unrelated updates preserve pending WoL and an intentional
-zero acknowledges it. Do not import SNLA261A's DP83822 acknowledgement recipe.
+Implement source-specific composition for W0C (RXFCFG1[11] only on this part),
+RH/W1S commands, self-clearing commands typed R/W (CDCR[15]), BICSR1's bit-15
+write-1 lock-and-clear, RC/RCH fields and description-only read effects such as
+10BTSCR[4]. No W1C field is established by these datasheets. Read the description
+column as well as the type. Preserve consumed status before stable updates.
+RXFCFG1 bit 11 uses W0C under table 8-90: one is neutral and intentional zero
+acknowledges. Preserve reserved readback per target; LEDCR's force-zero policy
+is specific to LEDCR, while sourced whole-word commands are explicit exceptions.
+Do not import SNLA261A's DP83822 acknowledgement recipe.
 
 Retain every successfully consumed event/counter sample immediately with source
 validity/time, even if a later read fails. Keep aggregate output unchanged or

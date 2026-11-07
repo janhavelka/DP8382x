@@ -13,10 +13,9 @@ unrelated open gates under COMMON.
 
 ## Scope, current evidence and work
 
-Deliver stable-owned-bit reconciliation and `startRecover` through the
-existing reset/configuration verification procedures. Complete raw/external
-invalidation semantics for all implemented fields. Do not create a recovery
-manager or duplicate the apply/reset state machine.
+Deliver `startVerify` and reconciliation through existing `startInitialize`
+procedures. Complete raw/external invalidation for implemented fields without
+adding a recovery manager or a second apply/reset state machine.
 
 Reopen TMP1x2 `invalidateDeviceState`, configuration dirty/verify/apply
 source and operation declarations; compare PCA9555 `ObservedState`,
@@ -37,21 +36,18 @@ latches or unowned fields. Publish verified trust only after complete proof;
 retain mismatch evidence if a later read fails. Partial observation is not
 atomic silicon state and cannot validate an entire profile.
 
-Admit recovery with the existing token, one-operation slot, maintenance/lifetime
-rules and aggregate deadline. Select required verify/reapply/reset steps from
-source/current evidence; reuse the exact procedures including 10BASE-Te and
-forced/crossover dependencies. Valid desired settings can support recovery even
-when the current hardware image is untrusted. Verify documented stable readable
-owned fields independently by readback. For non-readable recipe state, require
-source-defined completion evidence; unprovable restoration remains untrusted.
-Keep retries and desired-profile changes explicit application decisions.
+Options select steps; the driver never escalates. `startVerify` performs no
+semantic/command mutation; `startInitialize({NONE})` performs no reset. Verify
+VOD_CFG3 under `FFC0` without writing; every initialization rewrites and verifies
+`4A40`, including reset kinds that retained it. Insufficient evidence leaves
+trust unverified. Reuse the same forced/crossover and reset procedures, with
+explicit owner retry and profile changes.
 
-Cancellation retains accepted effects. Deferred cleanup has its explicit finite
-allowance and independent status; successful cleanup cannot replace the primary
-failure or falsely recover managed health. Abandoned/denied cleanup leaves
-remaining effects and untrusted configuration observable. Cable reconnect does
-not start recovery or change speed policy. The application decides scheduling,
-backoff and whether disruption is allowed.
+Cancellation freezes its result and effects under OP-9. Restoration is a new
+operation with its own token, result and budget. Successful `startVerify` never
+clears cleanupOwed; stable readback cannot prove opaque recipe restoration.
+Abandon preserves evidence and invalidates trust. Cable reconnect triggers no
+recovery or policy change.
 
 Test recovery after raw writes, partial apply, external reset and changed mode.
 Inject failure at each verify/apply/reset/readback/cleanup boundary, including
@@ -60,13 +56,10 @@ budget, cancellation, stale token, pending result and contention; exact call
 bounds and whole MMD atomicity must hold. Assert invalidation/cached getters
 perform no I/O and healthy reads alone cannot revalidate a profile.
 
-Add a compiling bounded recovery owner example and a guide showing unchanged
-desired intent, partial observation, failed restoration and application-owned
-retry policy. New feature tasks must extend this single restoration ledger. Give each stable
-field one configuration owner and a reset/power dependency. Temporary diagnostics
-override that owner only for the admitted session; restore the persistent profile
-without recursively invoking reset-bearing setup or restarting prior test traffic.
-Test an overlapping-field restore and an interrupted reset/reapply sequence.
+Compile an owner example showing unchanged intent, partial observations,
+failed restoration and an explicitly admitted retry. Keep one restoration ledger
+and one owner per stable field. Test interrupted reset/reapply here; temporary
+diagnostic overrides and overlapping-field restoration belong to prompt 23.
 
 ## Concrete TI source inputs
 
@@ -76,7 +69,7 @@ write invalidates addressing certainty; reconstruct all MMD selectors on the
 next explicit access instead of using a later data read as proof of the target.
 PHYRCR hard reset `0x1F/0x8000`, restart `0x1F/0x4000` and BMCR PCS reset
 `0x00/0x8000` require distinct trust/restoration treatment. Reapply the currently
-owned `0x030E=0x4A40` setup where reset scope requires it, and do not clear an
+owned `0x030E=0x4A40` setup on every initialization, even when reset retained it, and do not clear an
 earlier partial-configuration error because one later read succeeded. Preserve
 source conflicts and hardware gates through recovery; compare admitted real
 reset/restore traces without inventing a fallback sequence or a successful fixture.

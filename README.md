@@ -4,7 +4,7 @@ General microcontroller library workspace for Texas Instruments DP8382x Ethernet
 PHYs, starting with **DP83826IRHBR (DP83826I)**. The C++17 core is
 framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet MAC.
 
-**Status: prompts 1–12 complete. Bounded direct and atomic indirect access are implemented; initialization, SDK support and hardware qualification remain future work.**
+**Status: prompts 1–13 complete. Bounded direct/indirect access, destructive-evidence acquisition and safe mixed-register updates are implemented; initialization, SDK support and hardware qualification remain future work.**
 Official references and the 80-prompt implementation plan are available. The
 [current source and tooling comparison](docs/library-comparison.md) records
 the first two execution results. The [primary silicon ledger](docs/register-map.md)
@@ -13,21 +13,24 @@ The C++17 Status, configuration values, pure validators, selected register masks
 host tests, source-document checker and deterministic release-version tooling now
 exist. The [direct-access guide](docs/direct-access.md) covers binding, safe raw
 reads, atomic MMD read/write, stable-field RMW, the restricted LEDCR maintenance
-subset and retained failure evidence. Compiling portable examples exercise direct
-and indirect transactions. Initialization, typed features,
+subset and retained failure evidence. The [side-effect access guide](docs/side-effect-access.md)
+covers the complete named catalog, safe dump limits, retained partial samples,
+interrupt enables and WoL W0C acknowledgement. Linked portable examples exercise
+direct/indirect transactions and explicit evidence acquisition. Initialization, typed features,
 SDK integration, CLI, runners and hardware qualification remain future work.
 
 Prompt 6 selects one shared C++17 chip implementation, a terminal batch MDIO
 boundary and explicit native lifecycle/cache/collector ownership in the
-[design decisions](docs/design-decisions.md). The pinned ESP-IDF baseline needs
-the specified lifecycle corrections before native support can be claimed.
+[design decisions](docs/design-decisions.md). The selected native design uses public APIs on unmodified ESP-IDF v6.1;
+its executing adapter and SDK/physical checks remain later work, with the
+source limitations retained in the design record.
 
 Prompt 7 freezes [foundational API contracts](docs/api-contracts.md): values,
 Status/details, batch transport/budgets, identity admission, passive health,
 snapshot validity and direct calls. Prompt 8 completes cooperative operations,
 finite primary/cleanup budgets, retained results, lifetime tokens and explicit
-owner-assisted teardown. Eight executable timing design probes complement the
-77 research tests. Prompt 9 ships the passive subset in `include/DP8382x/`;
+owner-assisted teardown. Executable timing design probes complement the
+ledger and source-policy tests. Prompt 9 ships the passive subset in `include/DP8382x/`;
 device and operation declarations remain contracts, not working stubs.
 
 The [fresh prompts 4–5 audit](docs/reports/implementation/4-5-silicon-ledger-audit.md)

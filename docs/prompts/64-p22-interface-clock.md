@@ -29,9 +29,8 @@ RCSR `0x17` RX/TX shift-mask `0x1800` independent vectors are `0x0800` off/off,
 either shift can be enabled or disabled independently. SNLS505H table 8-23
 requires after setting RMII bit 5: write `0x0462=0x4300`, then `0x001F=0x4000`.
 Register `0x0462` also owns GPIO/clock controls: reconcile the whole-register
-recipe, restart effects and final mux state before implementation. Admit the
-transition only when affected settings are owned; restore compatible desired
-controls in the source-proved order. Do not substitute an inferred RMW for the
+recipe, restart effects and final mux state before implementation. Admit the transition and restore compatible fields under the explicit
+source/inference rules below. Do not substitute an inferred RMW for the
 documented recipe or silently overwrite another owner. SNLS505H 7.4.2.1 permits
 standard 0..31 direct or indirect access through vendor DEVAD 31; REGCR `0x0D`
 and ADDAR `0x0E` are direct-only exceptions. Test RCSR `0x17` access with
@@ -39,6 +38,24 @@ complete transaction ownership and literal selector frames; this DP83822 fact
 does not establish another part's aliases or real traces. GPIO clock selectors
 0, 1, 2, 4, 6, 7 are documented; 3/5 reserved. Validate mux conflicts, preserve
 RC FIFO evidence and keep actual clock/timing measurement gates separate.
+
+## RMII transition and clock evidence
+
+Run literal `0x0462=0x4300`, then `0x001F=0x4000`, only for software RCSR[5]
+0-to-1; strap-selected RMII runs no recipe (7.4.1.2). This word selects RX_D3
+50 MHz output and LED_1 tri-state. Read `0x0462` before changing RCSR and reject
+owners requiring different [14:12]/[10:8] values. If [6:4] or [2:0] is nonzero,
+owned or strap-loaded, reapply it after restart by masked write, explicitly
+INFERRED and physical NOT RUN. Keep OPEN that the literal selects Leader
+reference even in Follower mode. Leaving RMII (RCSR[5] 1-to-0 or [9] 0-to-1)
+returns `0x0462[10:8]` to zero by masked write, then digital restart: inferred
+from table 5-1 data-pin requirements because no reverse recipe is documented.
+
+Include GPIO1 clock output `0x0462[6:4]`, active with [2:0]=011; infer mutual
+exclusion with FX SD on pin 24. Implement MII TXCPSR `0x0042` phase control with
+its [4:0]/[3:0] wording gate. Fixed 3.5 ns choices apply specifically to RGMII
+RCSR[12:11]. Cite section 4 and 7.4.1.1/.2 for FX/MII/RMII; FX+RGMII is not
+stated or excluded, table 7-10 RX_ER mode 3 encodes it, physical NOT RUN.
 
 ## Work and acceptance
 
@@ -61,8 +78,8 @@ Portable PHY capability includes source-proved RGMII even when the current P4
 MAC cannot consume it. Adapter admission must explicitly reject unavailable MAC
 interfaces while preserving generic device capabilities and useful diagnostics.
 Do not require a nonexistent P4 RGMII firmware build or pretend an SDK header
-shim proves a supported MAC path. Fiber is a media-side selection independent of
-this interface; preserve valid IF/HF interface choices for prompt 65.
+shim proves a supported MAC path. Preserve the exact IF/HF medium/interface evidence and unresolved physical
+combinations for prompt 65.
 
 Use independent literal vectors for every legal/boundary clock and shift
 encoding and subtype/interface row, including opposite TX/RX polarity. Check

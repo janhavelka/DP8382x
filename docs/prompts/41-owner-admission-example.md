@@ -8,7 +8,8 @@ from [40](40-p4-network-example.md) where applicable.
 
 ## Current evidence and ownership
 
-Reopen `FieldCore-node/src/devices/i2c/Ina228Module.h/.cpp`: `bind`, `start`,
+Reopen `FieldCore-node/src/devices/i2c/Ina228Module.h` and
+`FieldCore-node/src/devices/i2c/Ina228Module.cpp`: `bind`, `start`,
 `poll`, `takeResult`, `refreshStatus`, `snapshot`, `copyStatus`,
 `mapLibraryStatus` and their owner/result contracts. Review current peer owner
 examples and SNLA344C/494/495 applicability. Record source revisions, paths
@@ -32,7 +33,7 @@ RMII guarantee.
 ## Implement
 
 Create a compact native `examples/esp_idf/owner/` application with build
-files, board settings and README. A small `main/PhyOwner.h/.cpp` is justified
+files, board settings and README. A small `main/PhyOwner.h` and `main/PhyOwner.cpp` is justified
 when it makes states testable; avoid generic registries and stage-named
 classes. Freeze example-local names while retaining the selected public core
 vocabulary.
@@ -66,6 +67,9 @@ frame integration belongs to task 42; the application remains useful and
 linked without invented frame/master success stubs. Servo control, master
 stack, process data and machine recovery policy remain separate application
 work.
+
+Keep owner state independent of SDK headers so state/admission/failure tests run
+on host. Exercise the real pinned-driver layer separately and link the P4 image.
 
 ## Acceptance
 

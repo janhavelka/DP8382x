@@ -21,8 +21,8 @@ consumer links real chip behavior through its own MDIO transport.
 
 Use the supported ESP-IDF `esp_eth_phy_t` interface and existing MAC/frame driver.
 Put SDK code in explicitly selected `include/DP8382x/esp_idf/` and
-`src/esp_idf/` paths. Reuse the IEEE 802.3 base only for operations whose actual
-semantics fit the core contract. Share chip procedures between portable and SDK
+`src/esp_idf/` paths. Use one owned esp_eth_phy_t first-member wrapper, without the generic IEEE base;
+all executing chip procedures belong to the core. Share chip procedures between portable and SDK
 paths. The MAC owns DMA/frame I/O; applications own network/EtherCAT stacks,
 board power delivery, pins, clocks and reset GPIO.
 
@@ -40,15 +40,16 @@ race-free access to shared memory. Publish copied snapshots to other tasks under
 application synchronization. ISR work signals the owner; MDIO runs in task context.
 
 Borrowed callbacks, context and synchronization objects outlive every operation
-and SDK callback. Define installation-time context resolution and multiple-instance
-behavior using supported SDK APIs, including callbacks before handle publication.
+and SDK callback. Define local installation callbacks and instance-owned context before handle
+publication; raw mediator hooks always reject and need no handle lookup.
 Use explicit instance ownership rather than a hidden global singleton.
 
 Model framework lifecycle calls as fallible sequences with partial effects.
 Installation, start, stop and deletion errors can leave callbacks/resources or
 state active. Track acquired resources and completed steps; release only after
-callbacks are quiescent. Preserve recoverable ownership on failure and specify
-the supported retry/cleanup route. Keep primary and cleanup errors separately.
+callbacks are quiescent. Use the public unmodified ESP-IDF route in the ownership design. An unresolved
+native teardown failure retains resources and admission closure until reboot;
+keep first and cleanup errors separately.
 
 ## MDIO transactions and raw access
 
@@ -91,26 +92,26 @@ the supported retry/cleanup route. Keep primary and cleanup errors separately.
 
 ## Time, operations and teardown
 
-Use direct bounded calls for short register work. Use one cooperative operation
-slot for procedures requiring waits or deferred restoration, with retained
-results and nonzero tokens. Freeze exact `start...`, `pollOperation`, `cancel`
-and `takeResult` signatures in prompt 8. Apply the same procedure for any
-consumer-required blocking wrapper.
+[API OP-1 through OP-17](../api-contracts.md#one-cooperative-operation-and-retained-result)
+are the normative operation rules. Short accesses remain direct and bounded;
+waiting procedures share one cooperative slot and retained terminal result.
+startInitialize selects NONE/PCS/HARD/RESTART; startVerify is read-only. There is
+no automatic cleanup phase: failures terminate, cleanupOwed blocks incompatible
+work, and restoration is a separately admitted operation with its own budget.
 
-Use aggregate deadlines that include controller/owner acquisition and all frames.
-Specify monotonic units, wrap/overflow range, quantization and timestamp validity.
-Take a fresh timestamp after a side-effecting callback before starting a minimum
-wait; with caller-supplied time only, anchor to a conservative subsequent sample.
-Use finite work limits even with a frozen/malformed clock. A zero work budget
-performs no I/O; deadline/status bookkeeping can still run.
+Use nonwrapping uint64 microseconds and checked arithmetic. Test overflow and
+regressing clocks, not modular wrap. clockLagUs bounds quantization/source update
+latency at the clock read; scheduling afterward is excluded. One complete batch
+per poll and maxStalledPolls bound frozen-time work; a short maxFrames slice merely
+defers an otherwise admissible batch. Raw post-sample deadline checking replaces
+the old publication reserve. Minimum waits start at observed completion upper
+bounds, with the OP-14 shared-bus floor after attempted PHYRCR hard reset.
 
-Binding, snapshots, invalidation and local teardown perform no bus operations.
-Define which local calls reject active work/unconsumed results and which return
-retained evidence. Cancellation records a request or terminal local state;
-owner-driven restoration uses a separately admitted finite cleanup allowance.
-Track its outcome independently of the primary deadline/status. Preserve pending
-hardware effects if cleanup cannot run. Release context only after callbacks
-are stopped and evidence has been delivered or explicitly acknowledged.
+Snapshots, invalidation, cancel, result delivery, abandonCleanup and local teardown
+are clock/bus silent. takeResult always delivers a terminal result, even when
+cleanupOwed remains. Before abandon the application closes admission, drains
+callbacks and establishes external disposition; abandonment cannot claim hardware
+restoration, clear quarantine or free borrowed resources.
 
 ## Chip behavior and configuration
 
@@ -132,7 +133,7 @@ are stopped and evidence has been delivered or explicitly acknowledged.
   finite procedure; separate reset-bearing recipes from ordinary field replay.
 - Compose mixed control/status writes using owned stable bits and exact command-
   neutral values. Preserve consumed evidence during updates. Apply exact
-  W0C/W1C/W1S/RC/latch semantics and per-part MAC byte ordering.
+  W0C/W1S/RC/latch semantics, including description-only effects, and per-part MAC byte ordering.
 - Raw writes, external reset/writers and ambiguous mutations invalidate affected
   configuration, link and diagnostic evidence. Snapshots expose validity and
   observation time; old data can remain available as explicitly stale evidence.

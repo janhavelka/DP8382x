@@ -57,6 +57,14 @@ generic required software cases survive first-board fixture limits. Missing
 required evidence must remain NOT RUN/BLOCKED, never silently disappear from
 summaries.
 
+For each positive transcript, generate negatives by removing, corrupting or
+duplicating every required field in turn. Each mutation must produce a verdict
+other than PASS; do not rely on one hand-picked missing field per case.
+
+List the minimum suitable partner/equipment per case in hardware-validation;
+mark cases NOT RUN when missing. Initial-board INT-pin cases are BLOCKED without
+wiring, while polled status cases remain eligible.
+
 ## Acceptance
 
 Test suite selection and every case with complete positive transcripts plus

@@ -12,7 +12,7 @@ explicit host simulation; it is not a physical MDIO backend.
 
 The owner declares the exact DP83826I, MAC interface, protocol PHY address 0..31,
 terminal batch callback, microsecond clock and conservative platform bounds.
-Null context is legal; missing callbacks or positive frame/overhead/clock-lag
+Null context is legal; missing callbacks or positive fixed/frame/clock-lag
 bounds are not. Protocol width is separate from the part's three address straps.
 `bind`, `end`, construction/destruction and copied snapshots make no bus or clock
 calls. Invalid replacement preserves the old binding and receipts. Drivers cannot
@@ -27,7 +27,7 @@ SNLS647I tables 8-19..48 for access semantics. Raw observations establish neithe
 identity acceptance nor current diagnostic/link interpretation. PHYCR's address
 field and BISCR status can change independently of the software owner.
 
-The only write/RMW policy in these stages is LEDCR's independent blink, polarity,
+The ordinary raw write/RMW policy is LEDCR's independent blink, polarity,
 drive-enable and drive-value fields; every reserved bit must be zero. This is an
 explicit pre-initialization maintenance exception, not managed configuration.
 The application establishes the physical part/address and safe LED0 wiring/pin
@@ -38,8 +38,8 @@ Other ordinary writes, holes, public selectors, consuming/latch reads and CDCR r
 INVALID_PARAM/ACCESS_POLICY before either callback. CDCR itself is not claimed
 read-clear: observing enabled resistor calibration obliges follow-up recovery,
 so a bare read is not an accepted standalone procedure. Selectors are private
-steps of the complete MMD operation. Prompt 13 owns side-effect-aware
-access; no placeholder methods expose those operations now.
+steps of the complete MMD operation. Explicit destructive acquisition and mixed maintenance use the
+[side-effect access guide](side-effect-access.md), preserving the same policy.
 
 ## Callback and budget contract
 
@@ -53,13 +53,22 @@ It borrows descriptors only until synchronous terminal return and must
 not retain buffers, reenter the driver or retry. All users, including another PHY
 instance, must use the same controller admission/quarantine mechanism.
 
-Admission reserves acquisition + frameCount * frame execution + release + overhead, strictly
+Execute descriptors in order; a dependent write uses only its earlier successful
+read and computes `(read & preserveMask) | value`. Stop on the first failed frame
+or deadline, release on every return and classify the terminal report before
+reopening shared admission. Release/idle uncertainty or malformed evidence
+quarantines every controller user until owner repair. A completed READ supplies
+valueValid; a WRITE supplies no read value. OK has detail zero and every message
+has static non-null storage. Preserve signed backend detail and possible effects;
+absence of an MDIO acknowledgement does not establish absence of a hardware effect.
+
+Admission reserves fixedUs + frameCount * frameUs, strictly
 less than remaining time after clock-lag allowance. The original absolute
 exclusive deadline and frame allowance reach the callback unchanged. A zero-frame
 budget, expired deadline or insufficient bound makes no batch call. The backend
 must bound execution itself, including scheduling and controller finalization;
-detecting lateness after return cannot prove a finite backend. Output publication
-also reserves clock-lag and overhead. Equality is insufficient. A backward clock
+detecting lateness after return cannot prove a finite backend. Only a raw post-return sample at or beyond the deadline denies successful
+publication; there is no publication reserve. Admission equality is insufficient. A backward clock
 or overflow of raw time plus lag latches CLOCK_CONTRACT until owner repair and a
 fresh binding; no later sample silently repairs it. Frozen time cannot add frames.
 
@@ -78,9 +87,10 @@ counts. Bad timestamp metadata alone does not erase independent physical counts.
 ## Complete indirect transactions
 
 `readMmd` and `writeMmd` validate DEVAD and the sixteen-bit offset before any
-callback. Only vendor DEVAD31 has an admitted wire mapping here. DEVAD3/7 and
-the opaque EEE recipe addresses return INVALID_CONFIG/SOURCE_GATE; no digit
-stripping or DP83825 analogy resolves their offsets. Indirect REGCR/ADDAR accesses
+callback. Vendor DEVAD31 uses the documented mapping. The source-implied EEE read tuples (3,0014), (7,003C), (7,003D) are also admitted
+under the recorded D2 decision and physical case Q1. Other DEVAD3/7 offsets and
+all raw EEE writes reject with INVALID_PARAM/ACCESS_POLICY. Opaque recipe-only
+addresses also reject; their named recipes own exceptional access. Indirect REGCR/ADDAR accesses
 are explicitly unavailable in SNLS647I 8.3.11.1 and cannot establish a public
 selector session. Native Clause 45 is not implemented or implied.
 
@@ -88,7 +98,7 @@ The direct and indirect aliases share one source-based read/write policy. Beyond
 the direct words listed above, nonconsuming extended reads cover detailed LED,
 compliance-pattern, preamble, FLD, cable configuration and defined result words,
 MSE, pin/clock configuration, amplitude, receiver gain, IPG, straps and WoL
-configuration/MAC/password registers. The explicit switch in the
+configuration/MAC/password registers. The policy table in the
 [implementation](../src/DP8382x.cpp) corresponds to 38 detailed extended records;
 the [ledger](registers/dp83826i.json) owns their numeric map. All-reserved result
 banks, destructive RXFS, holes and procedure-only addresses remain inaccessible.
@@ -96,7 +106,8 @@ RXFCFG1's W0C acknowledgement is harmless to read but excludes generic write/RMW
 Raw MSE is not SNR; raw TDR is not a fresh capture or calibrated fault distance;
 raw straps do not prove reset resampling. Field/recipe interpretation gates remain.
 
-Original SNLS647I 8.3.11.1/.4/.5 and tables 8-31/32 give these complete traces:
+Separate read/write traces are printed in SNLS647I 8.3.11.4/.5; the combined
+five-frame RMW below is inferred from selector retention in 8.3.11.1, not printed:
 
 | Frame | Read SOR1 | Write LEDCR | Modify LEDCR |
 | --- | --- | --- | --- |
@@ -109,8 +120,8 @@ Original SNLS647I 8.3.11.1/.4/.5 and tables 8-31/32 give these complete traces:
 All words in the table are hexadecimal; readIndex is zero-based. REGCR's reserved
 bits are zero in complete literal control words. `modifyMmd` requires a nonzero
 mask wholly inside the stable writable fields, and replacement value wholly inside
-that mask. It preserves only other documented stable bits and forces reserved bits
-zero. For a deliberately poisoned test read FFFF, mask 0012 and value 0002 yield
+that mask. LEDCR preserves other documented stable bits and forces its reserved bits
+zero. Other targets preserve read-back reserved bits unless an exact recipe overrides them. For a deliberately poisoned test read FFFF, mask 0012 and value 0002 yield
 0682, not a replay of reserved ones. The read and dependent write occur within the
 same nonincrementing selection, so five frames are sufficient. The earlier
 eight-frame design was a conservative reselection policy, not a silicon requirement.
@@ -138,13 +149,14 @@ independently valid requested prefix. Successful frames remain counted on later
 primary/release/time failure. No managed-health API is implemented here and raw
 access will not feed its success/failure statistics. The normalized primary error
 takes precedence over release/unsafe-controller error, then clock fault, then
-deadline/publication failure. `late` records positive raw-clock evidence only;
-an upper-bound overlap alone denies publication without proving lateness.
+deadline failure. `late` records positive raw-clock evidence only;
+an upper-bound overlap alone does not deny publication. Clock-lag uncertainty
+remains a declared limitation rather than a second publication reserve.
 
 Release/idle uncertainty quarantines all controller users in the trusted backend.
 Subsequent calls may enter that wrapper but cannot launch a frame until application
 recovery proves safe reuse. If malformed evidence escapes the wrapper, this
-instance stops locally too; the owner must shut down all affected users and repair
+instance exposes stopped=true and stops locally too; the owner must shut down all affected users and repair
 the backend. Local `end`/rebind cannot release a controller or clear its shared
 interlock. Copy needed receipts before another batch, rebind or end replaces them.
 

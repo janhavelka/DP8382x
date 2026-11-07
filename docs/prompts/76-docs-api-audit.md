@@ -18,6 +18,14 @@ do not import unrelated peer release/model/maintainer policies.
 
 The lead owns shared headers, source-contract fixes and integration.
 
+## Review boundary
+
+Limit this stage to exported-contract/Doxygen review and meaningful checker
+adverse tests. Use the existing coverage matrix and named test evidence; do not
+repeat whole-ledger reconciliation or previous completed behavior suites without
+changed inputs or a concrete concern. Put commands/counts in this report and
+link its progress row.
+
 ## Work and acceptance
 
 Walk every exported type/value/method in `include/DP8382x/Status.h`, `Config.h`,
@@ -53,6 +61,6 @@ coordinated Doxygen/README/CHANGELOG/guide/ledger updates. Record inspected
 no-change reasons. Run strict documentation and focused host/tool checks; actual
 SDK/package links follow changed interfaces/exports. Preserve physical/source
 gates and 71's historical CI SHA without remote dispatch/poll/wait. Record
-findings, commands, counts and limits in report, validation and progress. Check
+findings, commands, counts and limits in report and a linked progress row. Check
 entry rules against final diff, then commit/sync checked units and completion on
 the execution branch.

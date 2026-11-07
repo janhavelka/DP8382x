@@ -43,8 +43,8 @@ Every handler validates tokens, cross-field legality and exact-part capability
 before transfers. Report absent silicon support, missing software and absent
 board/backend/fixture as different facts. Unconnected IRQ/clock pins do not
 remove generic command paths. Reuse typed public operations and the single
-owner; do not create CLI-only setters, direct uncoordinated MDIO or another
-diagnostic state machine.
+owner; do not create CLI-only setters, direct uncoordinated MDIO or a second
+implementation of a chip procedure.
 
 Disruptive stimulus, power/clock changes, raw writes and resets require
 explicit maintenance admission and reject an active application session, busy
@@ -57,10 +57,20 @@ cleanup success cannot turn a failed command into success. Preserve consumed
 event samples and exact mixed command/status semantics through existing
 procedures.
 
-Update ledger rows with exact variant/mode, legal values, public method/field,
-CLI/help, owner route, record, independent host case and physical requirement.
-Required omissions stay open until filled; neither the initial P4
-configuration nor the vendor reference driver defines the maximum feature set.
+Use `docs/feature-coverage.md` as the one matrix: one row per ledger procedure
+and feature ID, exact part/mode, command or cfg path, owner route, record,
+host test name and physical case or reasoned N/A. Require every ID and field
+owner to resolve to a complete row. Prompts44/46/47 append CLI cells,47 closes
+those cells,55 closes primary coverage;53 adds only gaps. `docs/cli.md` owns
+grammar/records, not a duplicate matrix.
+
+Discovery, dump, selftest, watch and stress are CLI-local sequencers over
+public calls: a small fixed index/count/deadline struct advances from tick,
+one batch per tick. They never perform uncoordinated MDIO or duplicate a chip
+procedure. Discovery uses a separate probe driver on the shared transport:
+bind each requested address, readClause22(02/03), end. Before each batch check
+the bound driver's operationSnapshot and reject while RUNNING or busQuietValid;
+this preserves hard-reset silence and normal report/quarantine checks.
 
 ## Acceptance
 

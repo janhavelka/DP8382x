@@ -20,21 +20,22 @@ The lead owns shared capabilities, declarations and integration.
 
 ## Concrete source checks
 
-Use [the family IRQ/wake
-facts](../reference/library-family.md#interrupt-and-wake-facts-from-ti-linux) to
-challenge inherited paths, then establish exact AI/AE equality from SNLS783A.
-MISR1/2 addresses `0x12/0x13` have enable/status byte pairs; test a consumed
-first sample followed by failed second read. Vendor-MMD 31 wake config `0x04A0`
-includes bit 11 clear-indication command `0x0800`, distinct from retained state.
-SNLS783A table 8-91 marks bit 11 W0C: zero clears the indication, and ordinary
-configuration updates must write the command-neutral one. Test both intentional
-acknowledgement and unrelated configuration with a pending indication. Linux
-packs array bytes for MAC `02:12:34:56:78:9A` into `0x1202,0x5634,0x9A78`. This
-is an observed candidate, not an independent oracle. Define application octet
-order versus TI's Byte 5/MSB convention and derive the actual AI/AE expected
-words independently before accepting that vector. Linux omits intermediate error
-checks; require partial-write uncertainty and finite cleanup. Do not transfer
-DP83822's 64-byte custom filter by a family register label.
+Use [the family IRQ/wake facts](../reference/library-family.md#interrupt-and-wake-facts-from-ti-linux)
+against SNLS783A and prompt 57's explicit field moves. Retain a consumed MISR1
+sample if MISR2 fails. Table 8-91 RXFCFG1[11] remains W0C: unrelated updates
+write neutral one; acknowledgement writes zero. DP83826 application MAC octet
+order applies to A: `02:12:34:56:78:9A` yields `0x1202,0x5634,0x9A78`.
+Independently derive it and asymmetric SecureON words from the tables; Byte
+5/MSB labels do not imply different wire order. Do not transfer DP83822 custom
+filtering or Linux's missing intermediate-error checks.
+
+## Closure inputs
+
+Implement prompt 57's LEDCFG/2, mux, IO_CFG1, reserved PHYCR[5], RXFCFG1 and
+ordered 27-row EEE differences. Per-pin tests must catch original masks writing
+another LED or A reserved bits. Append exact-part rows to the single
+`docs/feature-coverage.md` matrix, with a shared AI/AE map and separate physical
+results.
 
 ## Work and acceptance
 

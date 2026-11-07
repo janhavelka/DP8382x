@@ -43,19 +43,20 @@ Caches cannot inject source-tree builds into package qualification. Hardware
 jobs are opt-in to explicitly named fixtures; no fixture is NOT RUN, not hosted
 hardware PASS.
 
-Run affected local inputs and inspect the complete staged change, then
-commit/sync actual workflow/source/test inputs on the execution branch before
-remote verification. Resolve the immutable remote commit; dispatch only if
-needed and inspect terminal jobs. Fix confirmed failures without weakening
-checks, run local regressions, checkpoint/sync and repeat affected remote inputs
-here. Do not repoll unchanged green jobs. Missing access remains a precise
-blocked gate while independent work continues; never bypass protection.
+Create ci.yml with `push` on all branches, `pull_request` and
+`workflow_dispatch`. Run affected local checks, inspect/stage and commit/sync
+inputs before remote verification. Find the push run with
+`gh run list --commit <sha>`; workflow_dispatch needs the file on the default
+branch, so do not merge main merely to enable dispatch. Inspect terminal jobs
+for the immutable SHA, fix first-run Linux/toolchain failures here, checkpoint
+and rerun affected inputs. Do not repoll unchanged green jobs or bypass
+protection; report unavailable access precisely.
 
 ## Acceptance and checkpoint
 
 Record tested SHA, workflow revision, run/job URLs, dimensions, versions,
 commands/artifacts and terminal results. Canceled/timed-out/missing/skipped
-required jobs cannot close the gate. Keep `ciTestedCommit` distinct from the
+required jobs cannot close the gate. Keep the tested SHA distinct from the
 later evidence-document commit; no self-referencing CI loop. Later changes do
 not inherit this SHA's green result or require a new first-set remote run.
 

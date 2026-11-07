@@ -33,11 +33,11 @@ specifications.
 
 ## Implement
 
-Build a regression matrix by public operation/family: independently derived
-literal source vector, success ordering, every failure boundary, output/state
-invariant, owner/frame budget, actual target and remaining silicon/SDK/fixture
-gate. Keep production constants, generated coverage metadata and independent
-expected values separate; self-consistency is not a silicon oracle.
+Use the existing feature-coverage matrix. List current test names for each
+required source vector, failure boundary, invariant and cross-entry route.
+Add tests only for uncovered behavior or cross-entry gaps; do not duplicate the
+existing MMD selector/failure suites. Independent expected values remain separate
+from production metadata.
 
 Fail every constituent indirect frame in turn, including address/data writes
 accepted before timeout. Preserve caller read output until valid completion,
@@ -49,7 +49,7 @@ of locks never acquired.
 Attempt base, raw ioctl, CLI, application and second-PHY entry at every
 selector/ data boundary. No path may interleave or bypass
 arbitration/invalidation. Exercise callback reentry without deadlock,
-install-time hook context, two adapter instances and unadmitted calls from the
+unconditional hook rejection, two adapter instances and unadmitted calls from the
 current owner task. Cover raw selector/data-port access, side-effect reads,
 PHY-address and flow-control setters, failed restart admission after raw/reset
 invalidation, and partial MAC/PHY updates. Distinguish logical operations from

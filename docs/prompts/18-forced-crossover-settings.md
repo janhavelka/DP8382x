@@ -24,25 +24,21 @@ cases rather than copying their Boolean setting patterns. Reopen SNLS647I
 sections 8.3.2 and 8.5.1.10, relevant BMCR/PHYCR definitions and 10BASE-Te
 requirements. Preserve task 17's next-page/pause/advertisement contract.
 
-Construct a legal combination matrix for forced/negotiated mode, speed, duplex,
-interface and automatic/robust/manual crossover. Require robust Auto-MDIX when
-Auto-MDIX is used in Force Mode under table 8-28. Review manual pair selection
-separately against sections 8.3.2 and 8.5.1.25; preserve any unresolved restriction
-instead of treating manual MDI/MDIX as automatic crossover. Validate the full request before
-MDIO or committing partial desired values. Reject contradictory manual and
-automatic controls and unsupported mode/interface encodings explicitly.
-Retain full negotiated capability when switching back to autonegotiation.
-Include CR2[5] extended full-duplex ability as an explicit opt-in setting with
-its source-defined forced-partner behavior. Standard parallel-detection results
-must not silently gain that extension or inferred negotiated pause.
+Build the legal forced/negotiated speed, duplex and routing matrix. Every forced
+profile writes CR1[5]=1, including manual MDI/MDIX (table 8-28). PHYCR[15:14]
+selects automatic (`8000`, bit 14 preserved), MDI (`0000`) or MDIX (`4000`).
+Forced manual plus robust is legal; qualify routing physically. CR2[5] extended
+full duplex is an owner opt-in with no invented partner-evidence preflight.
+Change only mask `0020`, preserving other bits. Reject forced-10 plus extension.
+Document the altered IEEE result against a forced-100 partner. With extension
+clear, parallel detection cannot gain it; never infer negotiated pause.
 
-Implement exact ordered coupled writes, readback and restart/transition behavior
-under the existing aggregate operation deadline. Preserve reserved bits, use
-command-neutral composition and apply the `0x030E=0x4A40` 10BASE-Te sequence
-where required. Forced configuration does not invent negotiated pause evidence,
-partner policy or link completion. Symmetric/asymmetric advertisement stays
-available for a later return to negotiated operation under the declared profile
-semantics; document ownership and validity.
+Apply ordered writes/readback under the operation deadline, preserving reserved
+bits with source-specific neutral composition. Initialization already established
+`030E=4A40`; do not write it a second time here. A forced profile carries no AN
+intent and neither writes nor verifies ANAR. Returning to AN requires a new
+complete Advertisement. Forced mode provides no negotiated pause or partner
+duplex proof.
 
 Keep desired/observed/trusted evidence independent through partial apply,
 cancellation and error. Restore every newly owned crossover/forced field through
@@ -66,16 +62,10 @@ restoration pass.
 
 ## Concrete TI source inputs
 
-Use the [forced-mode source audit](../reference/library-ti-core.md#negotiation-forced-modes-and-observations)
-with current SNLS647I tables 8-19/28/30/43. Forced speed/duplex contributions are
-`0x0000/0x0100/0x2000/0x2100` for 10/half, 10/full, 100/half, 100/full, after
-explicitly disabling AN. Preserve reserved bit 6 and test that no 1000-Mbit encoding can enter this PHY's
-profile. PHYCR Auto-MDIX/forced-MDIX masks are `0x8000/0x4000`;
-CR1 robust Auto-MDIX is `0x0020`; CR3 pair/polarity swap are `0x0020/0x0040`.
-Audit robust behavior separately for automatic versus manual pair selection.
-Preserve the requested crossover profile through loopback exit and test every
-partial write, including restoration of manual MDIX. Verify mode-dependent
-behavior against real part/partner evidence; missing fixtures stay explicit.
+CR3 `0060` is port mirror (table 8-30), not two independently justified corrections;
+include it in the matrix, Doxygen and vectors. Physical qualification Q11 covers
+robust manual routing and mirror interaction. Loopback restoration tests belong
+to prompt 23, when loopback is implemented.
 
 ## Documentation, verification and checkpoint
 

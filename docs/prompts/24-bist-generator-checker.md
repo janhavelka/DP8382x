@@ -43,11 +43,11 @@ encoding and prohibited combination a typed setting or coherent configuration
 helper. Reuse task 23's speed-correct loopback procedures rather than duplicate
 their register programming.
 
-Validate all settings, capability, maintenance admission and finite duration/count
-before I/O. A hardware continuous mode still has a finite owner session and
-explicit stop. Capture only needed owned state, handle untrusted starting settings,
-execute ordered start/acquire/stop/restore through the same operation slot and
-observe aggregate primary and finite cleanup budgets. No lock spans a wait.
+Validate settings, capability and maintenance before I/O. Continuous BIST uses
+bounded start/acquire/stop operations under OP-9; application policy owns dwell.
+A counted self-contained run may be one operation that must stop and restore
+before success. No lock spans a wait; failure/cancel ends at once and restoration
+is a new operation with its own result and budget.
 
 Define activity, lock, measurement validity, counter width/overflow and expected
 setup before deciding the result. Zero errors without evidence that the selected mode generated or checked its
@@ -71,6 +71,11 @@ Compile a bounded owner example and document setup, inconclusive outcomes,
 counter semantics and internal-path versus physical-frame limitations. Do not
 claim measured signal integrity or delivered application frames from simulated
 counters. Future CLI/runner mappings remain planned until implemented.
+
+After any loopback restart, acquire PHYSTS link through the collector before
+writing PRBS mode. Reuse prompt 23's exact loopback recipe and conflict record;
+`030B=3380` stays unadopted. Lack of analog checker lock is inconclusive with
+the source gate cited, not permission to guess a gain word.
 
 ## Documentation, verification and checkpoint
 

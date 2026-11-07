@@ -33,15 +33,15 @@ contradictions retain their exact affected gate.
 
 ## Implement
 
-Reconcile every authoritative register, non-reserved field and documented
-procedure with exact-part evidence, symbols, typed operations/configuration,
-CLI/legal settings and independent behavioral tests. Include documented recipe
-addresses and runtime opt-in features unused by the first board. Source-proved
-nonprogrammable/inapplicable items need reasons; smaller reference-driver
-maps, board limitations and unfinished code cannot close gaps.
+Use `docs/feature-coverage.md` as the one matrix: one row per ledger procedure
+and feature ID, exact part/mode, command or cfg path, owner route, record,
+host test name and physical case or reasoned N/A. Require every ID and field
+owner to resolve to a complete row. Prompts44/46/47 append CLI cells,47 closes
+those cells,55 closes primary coverage;53 adds only gaps. `docs/cli.md` owns
+grammar/records, not a duplicate matrix.
 
 Check independent oracles for field extraction, reserved/access masks,
-W0C/W1C/W1S/RC commands, reset restoration and feature sequencing. Production
+exact per-part W0C/W1S/RC/latch semantics, including description-only effects, reset restoration and feature sequencing. Production
 metadata agreeing with its own checker proves no silicon interpretation.
 Resolve confirmed omissions in the owning module with tests and source/user
 docs; keep genuine ambiguities as exact open gates rather than convenient fake
@@ -54,14 +54,12 @@ consumer with tests OFF; task 68 later supplies the complete two-instance
 owner application. Do not invent other MCU support or import I2C S2/S3
 firmware matrices.
 
-Run registered Debug and optimized host suites with strict warnings,
-applicable sanitizers and a second available compiler. Record actual test
-counts and tool availability. Prove the test system rejects a deliberately
-failing assertion in a temporary experiment, leaving no broken test/fault
-toggle committed. Zero tests, inactive Release asserts and unregistered source
-cannot pass. Extend existing focused fixtures rather than creating duplicate
-harnesses or a large AST/checker framework; source guards supplement
-execution.
+Run registered Debug/optimized suites with strict warnings and locally supported
+`-fsanitize=undefined -fsanitize-trap=undefined`. Record second compiler and
+other sanitizers NOT RUN locally; Linux prompt 71 runs them and the tests-OFF
+consumer. Do not install toolchains for this check. Keep Release checks active,
+registered WILL_FAIL probes executing, and no empty suites. Extend shared focused
+fixtures rather than duplicate harnesses or AST frameworks.
 
 ## Acceptance
 
@@ -72,8 +70,8 @@ archives. Rebuild real SDK images if public/adapter paths change; missing SDK
 remains a separate BLOCKED layer. Report behavior coverage and unresolved
 sources/SDK/fixtures, without an unsupported coverage percentage.
 
-Update Doxygen, API/testing/feature guides and `test/README.md` with the
-coverage matrix, actual registered suites and confirmed corrections.
+Update Doxygen, API/testing/feature guides and `test/README.md` with a link to the
+feature-coverage matrix, actual registered suites and confirmed corrections.
 
 Review README/CHANGELOG and affected guides. Run focused local and
 source-documentation checks (Doxygen where applicable), then update

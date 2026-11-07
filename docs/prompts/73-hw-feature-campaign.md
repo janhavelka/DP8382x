@@ -30,6 +30,24 @@ flash cannot qualify derived cable distance, clock compliance or EtherCAT
 latency. Record instrument/raw-data limits and correct contradicted software
 assumptions without overwriting prior evidence.
 
+## Required unmeasured cases
+
+Extend the finite cases with Q1 EEE exact low/full-offset probe, gated writes and
+final hard reset, then peer advertisement/LPI collector evidence; Q2 forced TX
+LPI; Q3 asymmetric MAC WoL level-neutral/ack behavior and reset bit 0; Q4 direct
+versus MMD LEDCR alias; Q6 power-pin/BMCR state; Q7 both TDR recipes with known
+open/short cables; Q8 reverse/analog restart comparison; Q9 interrupt level,
+disabled-enable latching and RXFS retention; Q12 PHYCR[5]/LED0; Q16 RECR boundary
+injection; Q17 controlled RMII FIFO polarity/clear; Q18 CR3 strap readback; Q19
+compliance stimulus with robust bit set. Preserve the exact stimuli, decision
+branches and limits in REMAINING_PROMPTS_AUDIT section 8, including Q1's rule
+not to consume 3.1/3.22 during its raw probe. Q1 closes only observed offsets;
+unproduced wake-fault evidence remains source-implied.
+
+Without admitted equipment mark 73 BLOCKED (readiness done, physical NOT RUN)
+and continue 74-80. The execution set remains PARTIAL; SDK links and host-driver
+tests still run. Console transport/baud is recorded for every firmware case.
+
 ## Work and acceptance
 
 Freeze the finite campaign matrix from implemented features, intended physical
@@ -53,19 +71,16 @@ another suffix/revision does not inherit a pass. Electrical compliance needs its
 own explicit setup and claimed limits. PHY low-power controls remain in scope;
 board power delivery and PoE remain outside the library.
 
-Retain actual firmware identity, SDK, part/mode/fixture data, bounded raw and
-structured artifacts and manifest/hash in unique run directories. Preserve
-failed retries, interruptions and skipped/missing cases. Reject
-stale/duplicate/truncated output, identity mismatch and artifact failure. Record
-primary test and restoration separately; failed restoration leaves the result
-failed/untrusted even if the primary measurement passed. Fix confirmed defects
-with executing host regressions, Doxygen/contracts and affected authorized
-physical reruns.
+Retain firmware/SDK/part/mode/fixture identity and exactly two artifacts per
+run, `<run>.txt` and `<run>.json`, under 48-52. Verify transcript hash/length,
+schema and worst-case verdict; preserve failed retries/interruptions. Failed
+restoration cannot yield PASS. Fix defects with host regressions and rerun only
+affected authorized physical cases.
 
 Missing equipment/permission leaves a precise physical gate with next
 fixture/case, while readiness/host work and unrelated stages can finish.
 Reconcile exact feature-matrix rows, README qualification, CHANGELOG,
-hardware/fixture guides, report, validation and progress; record inspected
+hardware/fixture guides, report and a linked progress row; record inspected
 no-change reasons. Run focused local checks and check final diff. Commit/sync
 verified units and available work on the recorded branch, keeping BLOCKED
 evidence visible. Preserve prompt 71's historical CI SHA; no remote

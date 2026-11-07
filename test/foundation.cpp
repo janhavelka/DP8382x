@@ -1,3 +1,4 @@
+#include "support/Check.h"
 #include <DP8382x/CommandTable.h>
 #include <DP8382x/Config.h>
 #include <DP8382x/Status.h>
@@ -10,25 +11,12 @@
 
 namespace {
 using namespace DP8382x;
-int failures = 0;
-unsigned checks = 0;
-
-// Deliberately independent of assert(), so Release/NDEBUG cannot erase checks.
-void check(bool condition, const char* expression, int line) {
-  ++checks;
-  if (!condition) {
-    std::fprintf(stderr, "line %d: %s\n", line, expression);
-    ++failures;
-  }
-}
-#define CHECK(expression) check(static_cast<bool>(expression), #expression, __LINE__)
 
 bool sameSettings(const LinkSettings& a, const LinkSettings& b) {
   return a.mode == b.mode &&
       a.advertisement.technologyMask == b.advertisement.technologyMask &&
       a.advertisement.symmetricPause == b.advertisement.symmetricPause &&
       a.advertisement.asymmetricPause == b.advertisement.asymmetricPause &&
-      a.advertisement.nextPage == b.advertisement.nextPage &&
       a.forced.speed == b.forced.speed && a.forced.duplex == b.forced.duplex &&
       a.crossover.pairSelection == b.crossover.pairSelection &&
       a.crossover.robust == b.crossover.robust &&
@@ -86,17 +74,16 @@ void testStatus() {
 void testLink() {
   CHECK(!validateLinkSettings(LinkSettings{}).ok());
   // Every possible mask is checked against literal protocol-independent API bits.
-  // Every pause/next-page/swap/extended intent remains representable for AN.
+  // Every pause/swap/extended intent remains representable for AN.
   for (unsigned mask = 0; mask < 256U; ++mask) {
-    for (unsigned flags = 0; flags < 64U; ++flags) {
+    for (unsigned flags = 0; flags < 32U; ++flags) {
       LinkSettings settings;
       settings.advertisement.technologyMask = static_cast<uint8_t>(mask);
       settings.advertisement.symmetricPause = (flags & 1U) != 0U;
       settings.advertisement.asymmetricPause = (flags & 2U) != 0U;
-      settings.advertisement.nextPage = (flags & 4U) != 0U;
-      settings.crossover.swapPair = (flags & 8U) != 0U;
-      settings.crossover.swapPolarity = (flags & 16U) != 0U;
-      settings.extendedFullDuplex = (flags & 32U) != 0U;
+      settings.crossover.swapPair = (flags & 4U) != 0U;
+      settings.crossover.swapPolarity = (flags & 8U) != 0U;
+      settings.extendedFullDuplex = (flags & 16U) != 0U;
       expectLink(settings, mask >= 1U && mask <= 15U ? Err::OK : Err::INVALID_CONFIG);
     }
   }
@@ -104,7 +91,7 @@ void testLink() {
   for (unsigned speed = 0; speed < 3U; ++speed) {
     for (unsigned duplex = 0; duplex < 3U; ++duplex) {
       for (unsigned pair = 0; pair < 3U; ++pair) {
-        for (unsigned flags = 0; flags < 256U; ++flags) {
+        for (unsigned flags = 0; flags < 128U; ++flags) {
           LinkSettings settings;
           settings.mode = LinkMode::FORCED;
           settings.forced.speed = static_cast<LinkSpeed>(speed);
@@ -114,11 +101,11 @@ void testLink() {
           settings.advertisement.technologyMask = (flags & 2U) != 0U ? 8U : 0U;
           settings.advertisement.symmetricPause = (flags & 4U) != 0U;
           settings.advertisement.asymmetricPause = (flags & 8U) != 0U;
-          settings.advertisement.nextPage = (flags & 16U) != 0U;
-          settings.crossover.swapPair = (flags & 32U) != 0U;
-          settings.crossover.swapPolarity = (flags & 64U) != 0U;
-          settings.extendedFullDuplex = (flags & 128U) != 0U;
-          const bool valid = speed != 0U && duplex != 0U && (flags & 31U) == 1U;
+          settings.crossover.swapPair = (flags & 16U) != 0U;
+          settings.crossover.swapPolarity = (flags & 32U) != 0U;
+          settings.extendedFullDuplex = (flags & 64U) != 0U;
+          const bool valid = speed != 0U && duplex != 0U && (flags & 15U) == 1U &&
+              !(speed == 1U && (flags & 64U) != 0U);
           expectLink(settings, valid ? Err::OK : Err::INVALID_CONFIG);
           // Known inactive forced values and either robust policy are legal in AN.
           settings.mode = LinkMode::AUTONEGOTIATED;
@@ -204,13 +191,11 @@ void testPassive() {
 } // namespace
 
 int main(int argc, char** argv) {
-  if (argc != 2) return 2;
-  if (std::strcmp(argv[1], "status") == 0) testStatus();
-  else if (std::strcmp(argv[1], "link") == 0) testLink();
-  else if (std::strcmp(argv[1], "masks") == 0) testMasks();
-  else if (std::strcmp(argv[1], "passive") == 0) testPassive();
-  else if (std::strcmp(argv[1], "--verify-failure-path") == 0) CHECK(false);
-  else return 2;
-  std::printf("%u checks; %d failures\n", checks, failures);
-  return failures == 0 ? 0 : 1;
+  const test::Suite suites[] = {
+    {"status", testStatus},
+    {"link", testLink},
+    {"masks", testMasks},
+    {"passive", testPassive},
+  };
+  return test::runSuites(argc, argv, suites);
 }

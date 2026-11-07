@@ -32,12 +32,16 @@ Distinguish down, negotiating, resolved, forced, stale/unknown observation and
 MDIO failure. Numeric defaults never imply valid speed/duplex. Old values after
 failure keep old time with explicit invalidity/staleness.
 
-Resolve speed/duplex from exact mode evidence. PHYSTS forced-mode ambiguity
-remains a named gate if stronger official evidence does not resolve it; retain
-documented raw evidence without inventing resolution. Derive RX/TX pause from
-both advertisements and documented ANAR/ANLPAR/PHYCR semantics, valid only under
-the required full-duplex negotiation conditions. Forced, half-duplex or incomplete
-negotiation cannot imply resolved pause.
+For a coherent pass with BMCR[12]=0 and current link up, resolve local forced
+speed from BMCR[13] (1=100) and duplex from BMCR[8], with pause invalid. Exception:
+100/half with CR2[5] not known zero (extension desired or trust not VERIFIED)
+has UNKNOWN duplex and unresolved mode. Never use PHYSTS[2:1] with AN disabled;
+keep it raw. This describes local mode, not partner duplex; strap-forced BMCR
+readback stays source-implied until Q11. No extra read is needed in the existing
+10-read plan. With AN enabled, CR2[5]=1, ANER[0]=0 and PHYSTS[2]=1, report 100/full
+with pause invalid. Compute RX/TX pause from ANAR/ANLPAR using Table 28B-3;
+PHYCR[13:12] is a cross-check and disagreement invalidates pause while retaining
+both raw words.
 
 Define coherence if link changes between reads. Use a fixed maximum for any
 resample or publish uncertainty; never retry until stable. Preserve each consumed
@@ -55,22 +59,20 @@ machine readiness are not PHY snapshot fields.
 Test literal latch-low/current-up/down and negotiation transitions, forced
 resolution/gates and independent pause truth-table vectors. Change link between
 every read; fail every phase and verify no falsely current aggregate output.
-Test zero/missing/wrapped timestamps, age, repeated readers, reset invalidation,
+Test zero/missing timestamps, uint64 overflow and clock regression, age, repeated readers, reset invalidation,
 change evidence and cable-down successful transport accounting. Add a compiling
 cached-status example and a guide table separating link, freshness, transport
 and application policy.
 
 ## Concrete TI source inputs
 
-Use the [link helper audit](../reference/library-ti-core.md#negotiation-forced-modes-and-observations).
-PHYSTS `0x10` low-bit vectors `0x0001/0x0005/0x0003/0x0007` decode 100/half,
-100/full, 10/half, 10/full only where the mode's status semantics are proved;
-do not use them to close the ENHANCED forced-mode ambiguity. For BMSR link bit `0x0004`, implement the documented latch-low/current read
-plan. Test first-low/second-high, persistent low, first-high/second-low and
-second-read failure with previous output true. Every success assigns an explicit
-result; preserve consumed first-read history and render only valid fields.
-Check current source/datasheet and actual mode/partner traces before asserting
-current link, pause or speed; hardware evidence cannot be replaced by literals.
+PHYSTS `10` low bits `0001/0005/0003/0007` decode 100/half, 100/full,
+10/half, 10/full only for applicable AN status. A forced 100/half BMCR with PHYSTS
+low bits `0007` still reports 100/half when CR2[5] is known zero. Keep
+`forced_physts` as a nonblocking raw-value question. BMSR `0004` uses the
+latch-low/current two-read plan; retain the first sample even if the second fails.
+Test first-low/second-high, first-high/second-low, persistent low and sentinel
+output on failure. Extend the single collector, never create another.
 
 ## Documentation, verification and checkpoint
 

@@ -12,6 +12,12 @@ in which order, before executing prompt 13.
 a primary source contradicts it. Start with [section 4](#4-work-packages); use
 [section 10](#10-per-prompt-index) to see what applies to a given prompt.
 
+Application record (2026-11-07): WP0–WP7 corrections are integrated with
+[prompt 13](../reports/implementation/13-side-effect-register-access.md).
+The opening baseline and findings below remain historical review evidence.
+The latest explicit prompt-13 request supersedes the collector deferral: its
+current acquisition and mixed-register consumers are implemented now.
+
 ## 1. Result
 
 The library is a framework-independent C++17 driver for TI DP8382x Ethernet PHYs,

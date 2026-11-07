@@ -1,6 +1,9 @@
-# Implementation location
+# Portable implementation
 
-The prompt-9 foundation is header-only because its values and validators need
-no compiled implementation. Device logic belongs here when it works; SDK-only
-code belongs under `esp_idf/`. No driver or hardware-access stub is supplied yet.
-See [scope and architecture](../docs/architecture.md).
+`DP8382x.cpp` owns the explicit register access policy, bounded terminal transport,
+Clause 22/MMD operations, destructive-evidence retention and source-specific mixed
+updates. It uses fixed storage, no SDK or platform clock and no allocation.
+Public contracts live in `include/DP8382x/`; the ledger owns source facts.
+See [architecture](../docs/architecture.md), [direct access](../docs/direct-access.md)
+and [side-effect access](../docs/side-effect-access.md). SDK-only code belongs in
+`esp_idf/`; typed features arrive with their complete procedures.

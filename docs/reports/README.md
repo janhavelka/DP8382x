@@ -1,5 +1,10 @@
 # Planning audits and later implementation evidence
 
+The [prompt 13 report](implementation/13-side-effect-register-access.md) records
+the current named catalog, collector and mixed-register implementation, independent
+PDF/failure review and COMMON's WP0–WP7 prerequisite corrections. It supersedes
+earlier contract/source-policy decisions only where explicitly identified.
+
 These reports describe the **2026-10-26 planning review**. They do not implement
 or qualify a PHY. Sibling repositories were read-only; reported dirty states and
 changing revisions are observations of concurrent work, not changes by this task.
@@ -57,7 +62,7 @@ portable direct access, independent transport failure tests and PDF/ownership
 review, with SDK and physical evidence kept separate.
 
 The [prompt 12 report](implementation/12-atomic-mmd.md) records complete atomic
-MMD batches, the independently derived five-frame RMW, canonical alias policy,
+MMD batches, the five-frame RMW inferred from SNLS647I state retention (physical check pending), canonical alias policy,
 phase-failure/exclusion regressions and current source review.
 
 The [remaining-prompts audit](../prompts/REMAINING_PROMPTS_AUDIT.md) of 2026-11-02

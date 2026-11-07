@@ -51,12 +51,17 @@ plans, early cancellation, missing terminal results or failed restoration
 cannot become a passing campaign. A command expected to reject passes its test
 only with the precise allowed error and unchanged state/frame proof.
 
-Keep raw transcripts and structured summaries bounded and durable through the
-existing exclusive-create bundle/manifest implementation. Summaries identify
-actual firmware/session, runner, fixture declarations, exact commands and time
-domains. Device monotonic values do not establish host timing correlation or
-real-time guarantees. Hardware counters or link LEDs alone cannot qualify
-electrical behavior, EtherCAT timing or servo safety.
+Keep exactly two files per run: `<run>.txt` transcript and `<run>.json` with
+verdict, cases, identity, fixture, UTC times, commands, restoration, transcript
+SHA-256/length and truncation. Exclusive create reserves both with an INCONCLUSIVE
+placeholder. Close transcript first; write JSON via temp file, flush, fsync and
+os.replace. Offline verify checks schema/hash/length and aggregate worst verdict:
+FAIL, then INCONCLUSIVE/BLOCKED/NOT RUN, then PASS. Zero cases, skipped-only runs,
+failed restoration and incomplete/corrupt evidence never pass. Preserve prior runs.
+
+For each positive transcript, generate negatives by removing, corrupting or
+duplicating every required field in turn. Each mutation must produce a verdict
+other than PASS; do not rely on one hand-picked missing field per case.
 
 ## Acceptance
 

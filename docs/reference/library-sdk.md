@@ -7,6 +7,16 @@ source and apply [EVIDENCE](../prompts/EVIDENCE.md) before reuse. All inspected
 files below declare Apache-2.0. Git blob IDs identify repository objects; they
 are not SHA-256 hashes of archived payloads. No SDK code was imported here.
 
+## Current implementation decision
+
+The historical findings below remain observations of their pinned files. The
+2026-11-02 audit selected the [public lifecycle route](../design-decisions.md)
+on **unmodified v6.1**, replacing the earlier requirement for an SDK fork or
+lifecycle patch. Timer fencing, explicit cleanup and retained-resource failure
+handling belong to prompts 37–39. The RX pre-handoff race and hidden HAL flush
+failure remain disclosed limits; neither source review nor a future linked image
+proves universal teardown safety. No SDK implementation is shipped at prompt 13.
+
 ## Source identities
 
 | Key | Pinned source | Git blob |
@@ -145,10 +155,10 @@ does not measure MDIO timing. Keep unavailable evidence explicitly open.
 
 Reopened 2026-10-29 at the same commit. All seven blob identities above matched
 downloaded original bytes. No SDK payload is imported into this repository.
-The [design decision](../design-decisions.md) now selects shared whole-word MMD
-procedures, one terminal batch callback and rejecting raw-frame hooks. It selects
-a required verified SDK lifecycle correction before native support, with its
-exact revision and executing evidence to be recorded by prompt 37.
+The original decision selected shared whole-word MMD procedures, one terminal
+batch callback and rejecting raw-frame hooks. Its then-required SDK lifecycle
+patch is superseded by the current [public route](../design-decisions.md).
+Prompt 37 must implement that route and record executing SDK evidence.
 
 Additional original Apache-2.0 sources at the same commit:
 
@@ -171,14 +181,15 @@ failure boundaries:
   and skip link-down cleanup. Uninstall's prior refcount mutation makes ordinary
   retry unsafe; completed teardown steps require a retained journal.
 - MAC 401–420 drops start/stop results; 700–712 drops HAL-stop and low-level
-  deinit notification results. HAL stop also drops flush timeout. Require error
-  propagation and retained partial effects before claiming successful cleanup.
+  deinit notification results. HAL stop also drops flush timeout. The public
+  route retains observable partial effects; hidden failures remain explicit
+  limitations rather than a claimed propagation guarantee.
 - DRIVER 151–158 changes MAC and cached link before event posting can fail.
   MAC 715–724 resets DMA descriptors on start. A failed UP notification cannot
   be blindly retried: freeze projection until owner stop/drain/reconciliation.
-- MAC 200–207 and BASE 123–127 reject null mediators. The selected correction
-  must provide safe MAC detach after quiescence; do not invent an existing null
-  setter contract. The owned adapter may clear its own local storage.
+- MAC 200–207 and BASE 123–127 reject null mediators. The public route uses a
+  stable non-null stub mediator; do not invent a null setter contract. The RX
+  pre-handoff race remains disclosed. The adapter may clear its own local storage.
 - MAC 1183–1190 resets module 0; deletion 745–753 disables its clock/GPIO.
   Two P4 factory objects are not two independent MACs. One physical EMAC owner,
   two instrumented MACs for SDK dispatch tests, and second-PHY bus contention
@@ -226,4 +237,5 @@ separate from the selected baseline:
 | [HAL](https://github.com/espressif/esp-idf/blob/9c37a0a75676c3726284318925b5ae17bba3bd88/components/esp_hal_emac/emac_hal.c) | `8a5c188660266205c1e9c928450f12f151cfc4b8` |
 
 This bounded review is not an exhaustive search of release branches, older
-history or pending changes. The selected correction remains a prompt-37 gate.
+history or pending changes. The public lifecycle integration and its executing tests remain prompt-37 work;
+the earlier patch requirement is superseded by the current decision above.

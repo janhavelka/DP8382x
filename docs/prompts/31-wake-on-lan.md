@@ -18,15 +18,13 @@ indication, status/acknowledgement and routing, with readback and restoration.
 Do not import DP83822 custom pattern matching or claim an application/MAC has
 actually awakened because the PHY indication is set.
 
-Revalidate [WoL field/byte-order facts](../reference/library-ti-features.md#interrupts-power-eee-and-wol)
-against SNLS647I tables 8-90..97. RXFCFG1 `04A0[11]` is W0C;
-pulse selector `[10:9]` gives 8/16/32/64 cycles at 125 MHz
-(derived 64/128/256/512 ns), and RXFS `04A1[12]` selects WoL/polarity IRQ.
-Freeze explicit byte indexing: MAC words `04A2/3/4` hold high:low DS byte pairs
-4:5, 2:3, 0:1; Secure-ON `04A5/6/7` hold 1:0, 3:2, 5:4. Test literal packets and words
-from the exact DP83826 tables, preserving read-clear samples and neutral W0C
-during unrelated updates. SNLA261A's DP83822 word order and custom-pattern
-examples are not DP83826 implementation authority.
+Revalidate SNLS647I tables8-90..97 and the
+[WoL comparison](../reference/library-ti-features.md#interrupts-power-eee-and-wol).
+RXFCFG1[11] is exact-part W0C. Pulse[10:9] gives8/16/32/64 cycles at125MHz
+(64/128/256/512ns). DS MAC byte5 is API octet0:11:22:33:44:55:66 packs
+04A2=2211,04A3=4433,04A4=6655; SecureON2A..2F packs2B2A/2D2C/2F2E.
+SNLA261A and TI Linux yield the same wire words despite different byte labels;
+the different custom-pattern feature is not imported.
 
 Reopen INA228 destructive alert acquisition, PCA9555 mixed evidence/cleanup
 tests and MB85RC explicit sleep/wake uncertainty contracts. Inspect relevant
@@ -34,25 +32,21 @@ sibling public fields and CLI formatting. Reopen SNLS647I RXFCFG and MAC/Secure-
 tables, especially 8-90 and 8-92 through 8-94; compare SNLA261A only to identify
 part-specific differences.
 
-Define complete typed settings with exact octet ordering, legal Secure-ON/CRC/
-pulse-level combinations and pin-routing conflicts. Validate the whole request
-before I/O. State that API byte 0 is the first transmitted octet; map datasheet
-byte labels explicitly to that convention. Produce asymmetric literal MAC and
-password-word vectors and readback expectations directly from exact-part tables;
-a codec round trip cannot prove wire order. Do not assume the
-DP83822 example's word order applies.
+Define typed MAC/SecureON/CRC/pulse-level settings and pin conflicts with
+whole-request validation. API octet0 is first transmitted; asymmetric literals
+must match the original tables independently of codec round trips.
 
-RXFCFG1 bit 11 is W0C: explicit zero acknowledges the level indication.
-Unrelated updates must preserve pending WoL through the existing command-neutral
-composition. Do not use a W1C-like acknowledgement or a generic all-command-zero
-write. Separate policy configuration, consumed event/status and explicit
-acknowledgement so an unrelated setting cannot erase wake evidence.
+Keep exact-part W0C: one neutral, zero acknowledgement. SNLA261A/DP83822/TI Linux
+use write1 on family paths, so qualify with Q3. Before any RXFCFG1 write harvest
+RXFS and MISR2 through the collector; skip unrelated updates unchanged under
+stable mask17E1. Explicit acknowledgement still writes. This retains evidence
+under either physical polarity without importing the DP83822 recipe.
 
 For reconfiguration of an already enabled detector, source and test the disable,
 MAC/password/filter update, verification and re-enable order. Avoid exposing a
 partially updated match, preserve pending events and coordinate RXFS source
 selection with task 27. Extend reset/power/recovery restoration in source-defined
-order; source conflicts about safe live reconfiguration remain explicit gates. Opt-in WoL is never an undocumented initialization default;
+order; source conflicts about safe live reconfiguration remain explicit gates. Initialization does not add an undocumented WoL write;
 owned requested settings may be replayed. Use the same collector as IRQ/polling,
 retaining each consumed source immediately if a later read fails. A destructive
 read-after-effect timeout records possible history loss.
@@ -73,6 +67,11 @@ and reset/power replay. Unsupported features reject before I/O.
 Compile configuration and event-handling examples. Document exact-part matching
 scope, pending-event preservation and how PHY indication differs from measured
 application wake; absent board wiring never removes the software feature.
+
+Reset is not WoL-off: RXFCFG1 resets108X with enable bit 7 set and bit 0 unknown;
+RXFS[12] selectsWoL. Initialization writes RXFCFG1 only when owned settings
+require it. Publish observed fields. Explicit disable clears bits 7,5,0 with W0C
+neutral; bit 0 is RH and its stability is part of Q3 qualification.
 
 ## Documentation, verification and checkpoint
 

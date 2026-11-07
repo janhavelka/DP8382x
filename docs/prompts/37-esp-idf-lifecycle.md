@@ -7,14 +7,11 @@ and the implemented DP83826I procedures reconciled in
 [36](36-primary-feature-closure.md), including transport, initialization,
 reset, configuration and link. Record concrete inputs.
 
-Prompt 6's [accepted ownership design](../design-decisions.md) selects one
-terminal batch route, guarded native callbacks and a required SDK lifecycle
-correction. Implement and pin that correction (or audit an upstream revision
-that satisfies it) before claiming support: checked install/partial unwind,
-cleanup-only ownership on failed unwind, finite timer quiescence, retryable
-teardown, supported mediator detach and MAC/HAL error propagation. A wrapper
-counter alone cannot fence the timer's pre-wrapper callback window. Preserve
-the original baseline and record the exact corrected-source identity.
+Use unmodified ESP-IDF v6.1 through public headers under the current
+[ownership design](../design-decisions.md). Re-audit its source-derived
+`mac->stop`/`set_mediator` sequence per SDK revision. No SDK fork or unpublished
+patch is required. Public-route failures that cannot be resolved are terminal
+until system restart; retained resources and limits remain explicit.
 
 ## Current evidence and ownership
 
@@ -45,30 +42,20 @@ can attempt 96 reads).
 
 ## Implement
 
-Implement a real native factory in `include/DP8382x/esp_idf/Phy.h` and
-`src/esp_idf/Phy.cpp`, unless the frozen API selects equivalent platform
-paths. Use one adapter and existing core chip procedures. Enumerate every
-pinned PHY and selected base method: owner, backend calls, transaction
-boundary, side effects, notification, error and finite bound. Classify
-required methods and optional SDK hooks explicitly. Implement every required
-method; leave an optional hook absent only when the pinned API permits it and
-its real capability disposition is documented. Audit base address
-selection/discovery and reset semantics before reuse. Bind only the
-caller-selected legal PHY address; any explicit discovery is bounded,
-owner-routed and cannot silently select or configure a device.
+Implement the native factory in `include/DP8382x/esp_idf/Phy.h` and
+`src/esp_idf/Phy.cpp`. Use `struct PhyHandle { esp_eth_phy_t phy; Phy* owner; };`
+with first-member recovery and a static_assert, not `phy_802_3_t` or its header.
+Enumerate all PHY entries, their owner, access, errors and bounds. Bind only the
+declared legal address; discovery is explicit, bounded and never selects.
+`set_addr` accepts the same value only; retarget by delete/recreate.
 
-Deliver correct binding, initialization, reset, link observation,
-deinit/delete and integration with framework start/stop now. Separate PHY
-methods from framework lifecycle functions; driver installation may perform
-MDIO/reset even though portable bind is bus-silent. Reuse audited base methods
-only where semantics agree. Establish complete-transaction serialization and
-lock order for actual base-to-mediator calls without recursive locking.
-Release controller ownership before waits. Define lock order for framework
-timer, owner requests, mediator and notifications. Stop/drain never waits
-while holding a lock needed by the callback being drained. Borrowed contexts
-outlive every callback; SDK allocation remains outside the allocation-free
-core. Separate bus-silent release from explicit fallible power/reset actions,
-preserving primary and cleanup failures.
+Deliver binding, local init/deinit/delete, live link and framework start/stop
+integration. The owner resets the board and waits clock-qualified readiness
+before install, with no MDIO. Adapter `reset_hw` returns OK without action;
+`set_mediator` only stores. `init` is local and `autonego_ctrl(G_STAT)` returns
+desired AN without I/O. After install, run typed initialization/configuration
+through direct MAC frames inside the core batch lock. Borrowed contexts outlive
+all callbacks; no lock needed by a callback is held while draining it.
 
 Basic notifications and controller bounds must already be correct. Do not
 defer working callback behavior to task 39. Avoid duplicate link events and
@@ -80,35 +67,72 @@ unadmitted raw MDIO at the mediator boundary. Keep control ioctls application-
 owned and record their partial-effect limits as specified in task 38. Maintain
 explicit availability for routes introduced by later stages.
 
-Resolve custom register-hook context during installation, before the output
-driver handle is published, and during failed-install cleanup. Hooks receive
-an Ethernet handle rather than a user-context argument. Use public
-`esp_eth_get_phy_instance` / `esp_eth_get_mac_instance` on that incoming handle
-to obtain the owned adapter context and actual MAC; the pinned driver assigns
-both before initialization. Verify the selected SDK's order, failed-install
-lifetime and two independent instances.
+Use two static raw-register ioctl hooks that unconditionally return
+ESP_ERR_NOT_SUPPORTED, including calls from the current owner task. No handle
+context lookup is needed for rejecting hooks. Typed owner raw access uses the
+core policy and direct MAC frame methods inside the batch; no recursive ioctl
+or mediator acquisition. Test real ioctl rejection with zero MAC frames.
 
-Trace partial framework failures: start/stop state changes, timer creation or
-removal, event publication and deinit can precede a reported error. Record
-which resources and callbacks remain owned; preserve them until safely
-drained. Select a tested cleanup path for each failure rather than blindly
-retrying uninstall or freeing MAC/PHY after a failed stop. Keep any SDK
-limitation as an open gate.
+Trace install/start/stop/uninstall partial effects in one record:
+`{stage, firstError, cleanupError, publishedTuple, publicationUncertain, eventLost}`.
+One phase enum (Stopped, Control, Starting, Running, Stopping, Maintenance)
+controls entry. PHY reset/pwrctl return NOT_SUPPORTED and point at typed operations.
+Any SDK-called AN/speed/duplex/pause/loopback callback completes as one terminal
+batch without a wait, or rejects and points at the typed route; no callback
+owns a token/poll loop.
 
-The pinned install path ignores `set_mediator`/`reset_hw` return values, then
-initializes MAC before PHY. A later PHY rejection cannot prevent those MAC
-effects or detect MAC mediator errors by itself. Require verified error
-propagation or a source-proved owner preflight path making that order safe;
-use a verified SDK correction when the selected APIs cannot provide it. The
-error path attempts timer deletion without checking its result and frees the
-driver without MAC/PHY deinit. Define cleanup for stale mediator pointers and
-partially initialized resources, preserving failed cleanup evidence. Test the
-actual setup/reset failures and pre-MAC admission as well as unwind.
+The pinned installer ignores set_mediator/reset_hw results, so make those local
+and infallible as above. MAC init needs an existing PHY REF_CLK and performs
+10 ms-step reset polling up to sw_reset_timeout_ms (default 100 ms). Board reset
+failure is handled before install. An install error leaves only mac->del and
+phy->del; there is no partially installed handle route. After successful install,
+typed initialization failure uses ordinary uninstall with retained evidence.
 
 Add exact component metadata/source selection and a small real P4 firmware
 fixture, such as `test/esp_idf/adapter_link/main/main.cpp`, instantiating
 actual MAC/PHY framework dependencies. The portable source list excludes SDK
 files.
+
+Apply the pinned lifecycle order and qualify it in Q13:
+
+1. Create an adapter-owned ESP_TIMER_TASK one-shot fence before installation.
+   On esp_eth_start failure call esp_eth_stop; an unarmed timer returns
+   INVALID_STATE after FSM STOP and may omit link-down/STOP events.
+2. After every stop, arm the fence once with esp_timer_start_once(fence,0), then
+   task-delay/poll esp_timer_is_active to false under a finite deadline, outside
+   the timer task. Retry by polling, not rearming. Timeout retains resources.
+3. After the fence, if UP was published call adapter set_link(DOWN). If START
+   was posted but STOP was not, post ETHERNET_EVENT_STOP using &hdl,sizeof(hdl)
+   and finite ticks. Then call mac->stop to observe its HAL error, with finite
+   retries and no held lock; each call may busy-wait 2500 us.
+4. Stop all transmit callers. If netif attached, wait for the owner's STOP
+   handler under a finite deadline, then delete netif glue. Swap the MAC mediator
+   to a static stub: both stack-input callbacks free buffers and return OK,
+   on_state_changed returns OK, register hooks return NOT_SUPPORTED. Do not use
+   on_lowlevel_deinit_done. Wait for application RX in-flight count zero.
+5. Uninstall driver, then mac->del, phy->del, delete fence, destroy netif last.
+   Track FSM/ref-count admission since SDK exposes no public getter. A failure
+   this public route cannot resolve leaves admission closed and resources alive
+   until reboot. The HAL FIFO-flush timeout is unobservable, a documented limit.
+
+The stub swap is unsynchronized with the RX task: a task paused after loading
+emac->eth can still touch the freed driver. No public API closes this window;
+the RX counter proves application callback completion only. A pre-handoff delete
+can leak at most one frame. These are SDK limits, not claims a host fake proves
+safe concurrency. When the selected baseline includes d2ed96d2, drop the timer
+fence and re-audit the blocking-stop behavior.
+
+If ESP-IDF is absent, clone tag v6.1 / commit fff9895c outside the repository with
+submodules, run install.ps1 esp32p4, and export.ps1 in each build shell. Record
+path, commit and tool versions; later stages reuse it. Installation failure
+makes SDK evidence BLOCKED, never replaced by a header shim.
+
+Implement opt-in pinned-driver host tests (off for consumers) per VERIFICATION:
+hash-check supplied esp_eth.c and its seven public headers, compile real driver
+source plus adapter with small OS/event/timer fakes and an instrumented MAC.
+The timer fake preserves stop-on-unarmed INVALID_STATE. This proves driver order
+and ioctl routing, not timer concurrency/MAC timing. Acceptance needs these
+failure tests plus the real P4 idf.py image link.
 
 ## Acceptance
 

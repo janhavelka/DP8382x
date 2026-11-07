@@ -72,6 +72,20 @@ units, physical pin dependencies and the difference between configured drive/
 blink behavior and measured electrical/timing performance. Do not claim actual
 visible LEDs, IRQ delivery or external clocks from host register tests.
 
+Mode constrains pin availability. BASIC hasLED0/1 and printed fixed active-low
+polarity; reject BASIC polarity overrides under `pin_fields`/Q12 despite table 8-42's
+register offering. ENHANCED RMII hasLED0..3. ENHANCED MII hasLED0/1 and LED2 only
+when COL is unused and0305[2:0]=0 is written/read back; resetcode0 does not prove
+routing because table 5-1 says COL. LED1 depends on CLKOUT selection (Strap6 or
+IO_CFG1[6]). LED3 on MII remains rejected: table 5-1 promises routing but table 8-77
+makes mux read-only. NoTX_ER option exists on pin28's mux table.
+
+Keep PHYCR[5] out of the typed profile:8-43 names LED Configuration without
+semantics; SNLA344C's contradictory recipe is not authority. Record Q12. Pin 31
+codes 5/6 conflict between figure 8-10 LOW and table 8-75 TX_ER/CLKOUT25M; reject
+until clarified. Derive pin vectors from detailed tables and preserve LEDCFG's
+reserved low nibble; AI/AE field positions are a later map-specific difference.
+
 ## Documentation, verification and checkpoint
 
 Update public Doxygen, procedure citations, affected API/user/test/tool guides,

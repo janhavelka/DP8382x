@@ -59,6 +59,10 @@ Power delivery/PoE, automatic flashing/reset and servo motion stay outside
 scope. Absent fixtures, unfinished software and source-proved absent silicon
 use different dispositions and remain visible in run summaries.
 
+For each positive transcript, generate negatives by removing, corrupting or
+duplicating every required field in turn. Each mutation must produce a verdict
+other than PASS; do not rely on one hand-picked missing field per case.
+
 ## Acceptance
 
 Unit-test every suite's positive and negative classifications with complete

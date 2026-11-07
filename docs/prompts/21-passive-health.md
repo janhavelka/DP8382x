@@ -49,7 +49,7 @@ active failure evidence.
 
 Use table-driven tests for every transition/threshold and actual counter width,
 independent literal frame/transaction totals, saturation, last-error retention,
-timestamp zero/missing/wrap and two instances. Test primary failure plus both
+timestamp zero/missing, uint64 overflow and clock regression and two instances. Test primary failure plus both
 successful and failed cleanup, raw/probe traffic, no-I/O cached views, cable
 disconnect and application-policy mismatch. Prove OFFLINE still admits an
 otherwise valid explicit operation and unrelated reads cannot establish
@@ -67,7 +67,7 @@ against current source. A vendor MMD read/write has four frames; its first three
 successful selector/address writes do not establish target success. The source
 RMW comparison supplies fail-at-every-frame cases. Count attempted frames,
 logical operation status and uncertain target effects independently.
-Successful PHYSTS with link bit0 clear is link-down with healthy MDIO; stale
+Successful PHYSTS with link bit 0 clear is link-down with healthy MDIO; stale
 caller state cannot become fresh link evidence.
 Use literal failure traces and prove health getters perform zero I/O. Record
 actual backend/physical evidence separately; never infer wire health from mocks.

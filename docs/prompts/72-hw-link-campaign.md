@@ -29,17 +29,28 @@ change an expected ID or delay until the fixture passes. Typical FLP timing is
 not a guaranteed link-up deadline; source/host/SDK and physical results remain
 distinct even when the same runner records them.
 
+## Readiness and physical cases
+
+No board is expected for a long time. Complete case inventory/readiness, mark
+this stage BLOCKED (software/readiness done, physical NOT RUN), and continue
+74-80; absence of hardware does not excuse host or SDK layers. Recheck current
+netlist/pins/SDK when fixtures arrive. Define Q5 hard-reset first-valid-read and
+strap relatch; Q10 next-page/re-AN; Q11 forced-mode raw PHYSTS, robust/manual
+MDI and port-swap; Q13 P4 fenced stop, repeated/never-started stop, STOP delivery,
+stub mediator and RX teardown; Q14 FX BMSR/SD and explicit restart refresh;
+Q15 DP83825 identity/latch/Leader clock/SecureON. Use the exact observations
+and authorization boundaries in REMAINING_PROMPTS_AUDIT section 8; none is
+pre-qualified by the readiness record.
+
 ## Work and acceptance
 
-Before each case, record exact PHY part/revision/interface/address,
-board/netlist, reset/strap/clock arrangement, partner/cable, SDK, actual
-firmware-reported SHA/dirty identity, separate host runner revision, initial
-state, correlated request token, finite duration, observations, restoration and
-pass limits. Recheck wiring before any authorized flashing; the planning board
-snapshot is not final netlist authority. Independently record negotiated versus
-forced peer settings, rather than trusting a nominal “100/full” label or the
-host checkout identity. Extend the existing hardware-validation guide and runner
-fixture manifest; do not create a competing campaign schema.
+Extend the evidence record and fixture selection from 48-52. Before each case
+record exact part/revision/interface/address, board/netlist, reset/strap/clock,
+partner/cable, SDK, firmware SHA/dirty identity, host runner revision, initial
+state, boot/request/nonce correlation, finite duration, observations, restoration
+and pass limits. Recheck wiring before authorized flashing and independently
+record peer settings. Extend the hardware-validation guide without a second
+campaign schema or fixture manifest.
 
 Prioritize DP83826IRHBR/P4 cold boot, each applicable reset/restart, owned
 configuration restoration, 100/full-only advertisement and resolved-policy
@@ -53,20 +64,18 @@ does not establish PHY failure or broaden application scope. Include a finite
 sustained ordinary-traffic case with actual duration, packet/error counts,
 partner conditions and final restoration evidence.
 
-Run only actual supported exact-part suites. Preserve bounded raw transcript,
-structured per-case results and artifact manifest/hashes in unique directories;
-failed/interrupted runs survive passing retries. Reject
-stale/duplicate/truncated results, firmware mismatch, missing cases,
-skipped-only campaigns and artifact persistence failure. Retain restored versus
-untrusted state and separate primary/cleanup verdicts. Fix confirmed
-library/runner defects with host regressions and rerun affected authorized
-cases.
+Run only admitted exact-part suites. Each run has exactly `<run>.txt` and
+`<run>.json` under the 48-52 contract: preserve failed/interrupted runs, verify
+transcript hash/length and worst-case verdict, and reject stale/duplicate/
+truncated output, identity mismatch, zero/skipped-only cases and persistence
+failure. Keep primary/restoration evidence distinct and rerun only affected
+authorized cases after defects are fixed.
 
 Without fixture or authorization, finish useful readiness/case inventory, record
 the precise dependency and next reproducible case, and leave this physical gate
-BLOCKED/NOT RUN. Do not mark it DONE or the entire set COMPLETE; continue
+BLOCKED/NOT RUN. Do not mark it COMPLETE or the entire set COMPLETE; continue
 eligible software/docs work. Update Doxygen/tests with behavior fixes, README
-qualification, CHANGELOG, hardware/fixture guides, validation/progress and this
+qualification, CHANGELOG, hardware/fixture guides, progress and this
 prompt's report, including no-change reasons. Run focused local checks. Check
 final diff and commit/sync checked units on the execution branch; do not
 dispatch/poll/wait for remote CI here. Timing/features belong to

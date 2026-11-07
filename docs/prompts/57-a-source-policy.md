@@ -34,6 +34,35 @@ datasheet and specify complete indirect-selector phases with independent
 literals. Record discrepancies and required regression cases in the evidence
 ledger.
 
+## Required original/A deltas
+
+AI/AE share one cited map/procedure set with temperature-only suffix differences.
+Seed and independently check these SNLS783A deltas:
+
+- LEDCFG table 8-86 reset `0x5565`: LED3 [11:8], LED2 [7:4], LED1 [3:0]; preserve
+  reserved [15:12]. LEDCFG2 table 8-90 bits 10/9/8 are LED3 polarity/value/enable.
+- Mux `0x0303[2:0]` and `0x0306[2:0]` change R to R/W; `0x0304[2:0]` is RH/W,
+  strap default, header `000Xh`; `0x0305[2:0]` is RH/W with strap default.
+  IO_CFG1 bit 6 becomes reserved R; PHYCR[5] becomes reserved.
+- SOR1[11] is Strap11, pin 19. FLD_CFG2 reset `0x2284` becomes `0x0288`,
+  [15:6] `0x8A` becomes `0x0A`, threshold [5:0] 4 becomes 8. CR1[5]/CR3[10]
+  are RH/W X, BASIC 0, ENHANCED strap. PHYSCR[1:0] are RH/W X, ENHANCED 0,
+  BASIC 1; register reset `010Xh`.
+- RXFCFG1 reset `108Xh` becomes `10X1h`; bit 7 is RH/W X, BASIC strap,
+  ENHANCED 1; bit 0 table reset 1 with strap wording. FLDS RC becomes RCH,
+  retaining consuming handling. FLD tables 8-5/8-6 add Strap11 and dependent
+  BASIC mechanisms; section 8.3.17 requires MLT3, low SNR and descrambler with
+  energy loss or RX error.
+- EEE section 8.3.3.1 has 27 ordered rows versus 18: drop `04D3=4F12`; change
+  `0416` from `1F30` to `1830` and `0466` from `FE00` to `FD00`; add
+  `0126=5D23,0132=0183,04D4=3322,0310=76E1,0311=01FC,0313=06E3,033A=579B,
+  033C=EC00,0317=1000` and a second `04F5=2864`. `0466` moves last after
+  `0000=3300`. Preserve ordering and duplicate writes.
+
+Assign identity, CR1, CR3, PHYSCR, FLD_CFG2, FLDS, FLD note and SOR1 to 58;
+LEDCFG/2, mux, IO_CFG1, PHYCR[5], RXFCFG1 and EEE to 59. Require literal field,
+unknown-default and complete ordered-recipe tests.
+
 ## Work and acceptance
 
 Read exact SNLS783A and SDAA067A sections and tables, current TI A-generation
@@ -56,12 +85,11 @@ ordering requirements rather than inventing a different procedure. Preserve
 prohibited ANAR remote-fault bit 13 advertisement and supported remote-fault
 observations.
 
-Record SDAA067A's specific conflict: section 2 allows Strap11 high or
-CR3=0x0001, while section 3.2 requires Strap11 high. Separate programmable FLD
-from measured EMC claims; unresolved physical guidance cannot prove
-register-only EMC equivalence. An unresolved essential software interpretation
-blocks that dependent path, without becoming “unsupported silicon” or stopping
-unrelated work.
+Record Strap11 guidance **if FLD is used** and distinguish programmable FLD
+from EMC qualification. SDAA067A table 3-3 option 5 says Strap8 HIGH while its
+Figure 3-2 and SNLS783A table 8-5 say LOW; the datasheet governs. Software
+writes only CR3 mask `0x040F`, preserving bits 6:5, and reports SOR1[11]. Do not
+claim register-only EMC equivalence.
 
 Assign every changed/inherited field and procedure to [58](58-a-core-link.md) or
 [59](59-a-feature-closure.md), with source-backed applicability and independent
