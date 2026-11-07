@@ -86,6 +86,20 @@
       "revision": "2026-10-28 original PDF and pinned-source audit",
       "authority": "Independent exact-part field/polarity/order/timing derivation and source comparison",
       "license": "Original analysis MIT; cited documents/code keep their own notices"
+    },
+    {
+      "id": "snla428",
+      "path": "docs/reference/source/TI-DP83826-TDR-SNLA428.pdf",
+      "revision": "SNLA428, June 2023",
+      "authority": "TI exact-part TDR application note; recipe selection follows recorded D3 and retains datasheet conflict",
+      "license": "TI document copyright; original bytes and notices retained"
+    },
+    {
+      "id": "snls603d",
+      "path": "docs/reference/source/TI-DP83TG720R-Q1-SNLS603D.pdf",
+      "revision": "SNLS603D, April 2025",
+      "authority": "Different-part MMD address notation analogy only; not DP83826 wire proof",
+      "license": "TI document copyright; original bytes and notices retained"
     }
   ],
   "identity": {
@@ -9298,10 +9312,10 @@
       "prerequisites": "Application owner serializes all instance calls/snapshots. Controller transaction lock covers every bus participant; active-operation admission is separate. Declared exact variant, legal values and valid clock/power history checked before mutation.",
       "steps": [
         "Admit disruption, quiesce application traffic and freeze desired settings separately from observations. Invalidate link and affected PCS trust.",
-        "Compose BMCR reset1 with AN-restart0 and owned stable controls/reserved preservation; never echo a sampled command1.",
+        "Write literal whole word C22 BMCR=8000; never compose the reset command from a sampled word. Any already-active-reset check is a separate state read; desired stable fields are replayed afterward.",
         "After successful command return anchor any policy settle to observed completion timestamp. Poll C22 BMCR bit8000 until zero within aggregate/poll limits.",
         "Re-establish current identity/mode and readback of standard configuration; replay owned PCS link/AN/page state conservatively. Vendor state is retained by specification; reverify if external mutation possible.",
-        "If10M remains possible ensure mandatory VOD setup still trusted before readiness. Mark reset complete distinct from negotiation/link complete."
+        "Every startInitialize repeats and verifies VOD_CFG3=4A40 even though PCS reset retained it. Mark reset completion distinct from negotiation/link readiness."
       ],
       "waits": [
         "No exact software-reset maximum established; caller polling deadline is policy, not the external2ms number."
@@ -9342,10 +9356,10 @@
       "prerequisites": "Application owner serializes all instance calls/snapshots. Controller transaction lock covers every bus participant; active-operation admission is separate. Declared exact variant, legal values and valid clock/power history checked before mutation.",
       "steps": [
         "Admit full disruption and retain all persistent desired state. Invalidate identity/straps/config/link evidence; declared board identity persists as declaration.",
-        "Compose PHYRCR hard-reset1/restart0 with reserved preservation; send to C22 register001F, never to8000.",
+        "Write literal whole word C22 PHYRCR=8000 to register001F; never compose from sampled commands or send to register8000.",
         "After command completion release lock; bounded polls read C22 register001F and test mask8000 until clear. Do not poll register8000. A remaining4000 restart command prevents declaring overall readiness; retain pending effects.",
         "Re-read identity, PHY address and loaded straps; application must reconcile reachability/address if straps changed. Do not scan/retry indefinitely.",
-        "Replay initialization VOD when10M possible, then interface/clock/power persistent state with dependencies, crossover/compatibility, advertisement/next-page, AN/forced activation and event enables; reverify stable owned settings and refresh retained link observations."
+        "Every startInitialize writes and verifies VOD_CFG3=4A40 unconditionally, then restores persistent interface/clock/power state with dependencies, crossover/compatibility, advertisement, AN/forced activation and event enables; reverify stable owned settings and refresh retained link observations."
       ],
       "waits": [
         "Post-command timing is application policy until software-command settling clarified; external reset2ms not claimed as specified hard-reset deadline."
@@ -9386,7 +9400,7 @@
       "prerequisites": "Application owner serializes all instance calls/snapshots. Controller transaction lock covers every bus participant; active-operation admission is separate. Declared exact variant, legal values and valid clock/power history checked before mutation.",
       "steps": [
         "Admit disruption; preserve desired and previously verified persistent settings but invalidate live link/diagnostic evidence.",
-        "Compose PHYRCR restart1/hard-reset0; poll C22 register001F mask4000 until clear with finite budget.",
+        "Write literal whole word C22 PHYRCR=4000; poll register001F mask4000 until clear with finite budget. Do not echo a sampled hard-reset bit.",
         "Registers remain retained per table8-48; do not unnecessarily replay temporary settings or restart commands. Verify critical stable settings if any uncertainty and reacquire current link/AN evidence."
       ],
       "waits": [
@@ -9464,7 +9478,7 @@
       ],
       "prerequisites": "Application owner serializes all instance calls/snapshots. Controller transaction lock covers every bus participant; active-operation admission is separate. Declared exact variant, legal values and valid clock/power history checked before mutation.",
       "steps": [
-        "After any full reset and before enabling forced10 or advertising any10 capability, apply exact TI 10BASE-Te initialization; application may choose apply at general initialization for later10 use.",
+        "Every startInitialize, for every ResetKind, applies exact TI 10BASE-Te initialization. Unconditional application is library policy so later10 capability is not dependent on a previous profile.",
         "One atomic vendor transaction: W(0D,001F), W(0E,030E), W(0D,401F), W(0E,4A40). This exact initialization selects code 4 and enables both documented R/W termination fields, with reserved bits zero as specified by the recipe.",
         "Verify stable configured fields by an owner-routed read; mismatch or failure preserves uncertain readiness. Table 8-81 marks all four functional fields R/W; no read-only access exception is needed.",
         "Record initialized trust only after required successful verification; no new PHY feature support or physical qualification is implied."
@@ -9473,7 +9487,7 @@
       "timeout": "Application aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Finite frame/poll limit even if clock freezes. Zero work budget performs no I/O. No nominal silicon number is a software timeout.",
       "partialEffects": "Before final data frame only selectors changed; failed final frame may apply4A40. Do not declare10 readiness from selector success.",
       "cleanup": "Release controller lock on every exit before any hardware wait or output. Preserve primary error and finite cleanup outcome separately; no automatic retry/reset. Accepted or uncertain writes invalidate affected trust. Cancellation retains hardware effects; owner may admit bounded reconciliation.",
-      "restoration": "Reapply after POR/pin/PHYRCR hard reset; PCS reset retains vendor setting, restart retains registers. Reverify after external/raw writes.",
+      "restoration": "Written and verified by every startInitialize. POR, pin and PHYRCR hard reset lose it; PCS reset and restart retain it, but initialization repeats the write. Reverify after external/raw writes.",
       "gates": [],
       "owner": {
         "api": "startInitialize",
@@ -10104,7 +10118,7 @@
       ],
       "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. Link down with disconnected or demonstrably quiet link partner. Manual iteration plan finite: requested segments and channel combinations explicit.",
       "steps": [
-        "Save desired autorun state and temporarily disable CR1 bit8; reject overlapping BIST/loopback/reset. Read live CDCR before mutation; calibration bit14 high transfers to calibration recovery rather than treating it as a normal cable-test bit.",
+        "Read CR1[8]; if set, reject before mutation. Prompt26 adds the disable and restore handoff. Reject overlapping BIST/loopback/reset. Read live CDCR before mutation. Bit14 high ends the session with no cable write and an explicit error, retaining the raw word; prompt35 calibration_recovery is the recovery route. Never clear that bit here without the hard reset table8-47 requires.",
         "For each explicitly selected legal segment/channel configuration, record baseline/status generation, then set CDCR15=1 with calibration neutral0; retain command acceptance/uncertainty and completion timestamp.",
         "Poll CDCR with released controller lock between polls. Accept fresh measurement only after observed post-trigger start/busy or done0 transition followed by start0 and done1, unless stronger exact-part evidence establishes another correlation mechanism. Initial/reset done1 alone never passes. Missed transient progress => freshness unknown, not fabricated failure/success.",
         "Read fail bit and supported raw result words through cable_capture; preserve completed prior segments when a later iteration fails. Never repeat indefinitely or classify length/fault from unqualified raw words.",
@@ -10115,7 +10129,7 @@
       ],
       "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
       "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
-      "cleanup": "Write manual start0 and autorun0; verify control readback within finite cleanup budget. Engine abort acknowledgement is unspecified, so retain quiescence unknown if not otherwise proved. Reset/reinitialize requires explicit owner recovery policy; do not reset merely to hide primary failure.",
+      "cleanup": "If CR1[8] or CDCR[14] rejects admission, perform no cable write. Once a manual command may have applied, retain cleanupOwed and its possible effects; separately admitted restoration writes manual start0 and verifies control readback. Autorun was required disabled; prompt26 owns its disable/restore handoff. Engine abort acknowledgement is unspecified, so retain quiescence unknown if not otherwise proved. Prompt35 calibration_recovery owns the required rescal-clear then hard-reset recipe. Preserve the primary failure; do not reset merely to hide it.",
       "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
       "gates": [
         "tdr_freshness_abort",
@@ -10168,8 +10182,8 @@
       "owner": {
         "api": "startCableTest / CableSettings / CableSample",
         "cli": "owner-routed startCableTest / CableSettings / CableSample (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startCableTest / CableSettings / CableSample; prompts 25, 53-55",
-        "implementationStage": 25
+        "test": "Independent literals and boundary failures for startCableTest / CableSettings / CableSample; prompts 26, 53-55",
+        "implementationStage": 26
       }
     },
     {
@@ -10304,8 +10318,8 @@
       "owner": {
         "api": "InterruptSettings / collectEvents",
         "cli": "owner-routed InterruptSettings / collectEvents (prompts 44-46)",
-        "test": "Independent literals and boundary failures for InterruptSettings / collectEvents; prompts 20, 53-55",
-        "implementationStage": 20
+        "test": "Independent literals and boundary failures for InterruptSettings / collectEvents; prompts 27, 53-55",
+        "implementationStage": 27
       }
     },
     {
@@ -10344,8 +10358,8 @@
       "owner": {
         "api": "InterruptSettings / collectEvents",
         "cli": "owner-routed InterruptSettings / collectEvents (prompts 44-46)",
-        "test": "Independent literals and boundary failures for InterruptSettings / collectEvents; prompts 20, 53-55",
-        "implementationStage": 20
+        "test": "Independent literals and boundary failures for InterruptSettings / collectEvents; prompts 27, 53-55",
+        "implementationStage": 27
       }
     },
     {
@@ -10401,7 +10415,7 @@
       "sources": [
         {
           "source": "snls647i",
-          "location": "Table8-47 p73; table8-48;8.4.5"
+          "location": "Table 8-47 p73; table 8-48 p73; 8.4.1 p48"
         }
       ],
       "ownedMasks": [
@@ -10426,7 +10440,7 @@
       ],
       "timeout": "Finite aggregate admission+pair+reset+restoration budget with independently reserved finite cleanup/reset continuation; reject admission if the pair cannot fit policy. No repeated calibration or automatic unbounded reset retries. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
       "partialEffects": "Deassertion is not completed recovery without hard reset. Write errors can leave calibration or reset state uncertain; reset destroys hardware counters/latches and may disrupt RMII clock. Retained host evidence persists with an epoch boundary and possible history loss.",
-      "cleanup": "Once clear may have occurred, owed hard reset is cleanup and remains bounded even after primary cancellation/deadline; if impossible mark recoveryRequired and unsafe configuration trust. Never hide original failure behind successful reset.",
+      "cleanup": "Once clear may have occurred, owed hard reset is cleanup and remains bounded even after primary cancellation/deadline; if impossible mark cleanupOwed and unsafe configuration trust. Never hide original failure behind successful reset.",
       "restoration": "Verify identity/reset completion and restored persistent configuration using core procedure. Source gate about software hard-reset strap relatching remains. Application alone resumes traffic after readiness evidence; calibration flag clear is not proof of analog calibration accuracy.",
       "gates": [
         "hard_reset_straps"
@@ -10434,8 +10448,8 @@
       "owner": {
         "api": "startCalibrationRecovery",
         "cli": "owner-routed startCalibrationRecovery (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startCalibrationRecovery; prompts 15, 53-55",
-        "implementationStage": 15
+        "test": "Independent literals and boundary failures for startCalibrationRecovery; prompts 35, 53-55",
+        "implementationStage": 35
       }
     },
     {
@@ -10481,9 +10495,9 @@
         "Read back stable owned fields once. Link-lost and PRBS-error LED sources do not authorize direct BMSR/counter acknowledgement; retain collector ownership. Report configured output, not measured light or waveform."
       ],
       "waits": [],
-      "timeout": "One snapshot/RMW/write-verification pass over at most 5 owned registers: at most 60 MDIO frames with fresh four-frame MMD setup per logical access; no retries. Up to 16 additional prerequisite observation frames. Cleanup one restore/readback pass at most 40 frames; any delegated reset/restart has separately reserved finite poll/transaction counts and total duration. Admission requires finite primaryDurationUs and cleanupDurationUs; all admission, lock acquisition and terminal callbacks count against those aggregate durations. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark recoveryRequired and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
+      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [
         "pin_fields"
@@ -10525,9 +10539,9 @@
         "Before route enable, configure the selected source under its owner and mask asynchronous interrupt/wake generation as needed using those procedures. Check MAC CRS/COL and clock consumers: no pin may simultaneously serve incompatible roles. Apply legal route then verify once; retain source and mux partial-state evidence."
       ],
       "waits": [],
-      "timeout": "One snapshot/RMW/write-verification pass over at most 2 owned registers: at most 24 MDIO frames with fresh four-frame MMD setup per logical access; no retries. Up to 16 additional prerequisite observation frames. Cleanup one restore/readback pass at most 16 frames; any delegated reset/restart has separately reserved finite poll/transaction counts and total duration. Admission requires finite primaryDurationUs and cleanupDurationUs; all admission, lock acquisition and terminal callbacks count against those aggregate durations. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count. The24+16 frame allowance covers only local mux work and prerequisite observations. Source/IRQ/WoL delegation, including its cleanup, requires additional finite counts reserved before admission within the same aggregate durations; it cannot borrow an unbounded child budget. Source setup is a dependency, not a recursive pin/source call.",
+      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count. The24+16 frame allowance covers only local mux work and prerequisite observations. Source/IRQ/WoL delegation, including its cleanup, requires additional finite counts reserved before admission within the same aggregate durations; it cannot borrow an unbounded child budget. Source setup is a dependency, not a recursive pin/source call.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark recoveryRequired and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
+      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [
         "pin_fields"
@@ -10573,9 +10587,9 @@
         "For the independently proved IO_CFG1 route, apply once and observe CLK_OUT_LED_STATUS[0]. This proves route status only. Asserted isolation, PLL shutdown, reset and lost recovered link can stop clocks; notify application owner before any such action."
       ],
       "waits": [],
-      "timeout": "One snapshot/RMW/write-verification pass over at most 3 owned registers: at most 36 MDIO frames with fresh four-frame MMD setup per logical access; no retries. Up to 16 additional prerequisite observation frames. Cleanup one restore/readback pass at most 24 frames; any delegated reset/restart has separately reserved finite poll/transaction counts and total duration. Admission requires finite primaryDurationUs and cleanupDurationUs; all admission, lock acquisition and terminal callbacks count against those aggregate durations. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark recoveryRequired and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
+      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [
         "pin_fields"
@@ -10625,9 +10639,9 @@
         "Apply PHYSCR[4] only with explicit application policy:1 enables COL in full duplex. Quiesce conflicting LED2/3 COL/CRS mux ownership. Read back stable controls; actual MAC pin timing remains a fixture claim."
       ],
       "waits": [],
-      "timeout": "One snapshot/RMW/write-verification pass over at most 4 owned registers: at most 48 MDIO frames with fresh four-frame MMD setup per logical access; no retries. Up to 16 additional prerequisite observation frames. Cleanup one restore/readback pass at most 32 frames; any delegated reset/restart has separately reserved finite poll/transaction counts and total duration. Admission requires finite primaryDurationUs and cleanupDurationUs; all admission, lock acquisition and terminal callbacks count against those aggregate durations. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark recoveryRequired and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
+      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [
         "rmii_rc"
@@ -10670,9 +10684,9 @@
         "Set IO_CFG1[8] CRS_DV=0 or RX_DV=1 as board/MAC requires; verify stable settings and hand configuration trust to MAC owner. RC polarity remains raw/table-specific0 fault1 normal; readback does not prove interface traffic."
       ],
       "waits": [],
-      "timeout": "One snapshot/RMW/write-verification pass over at most 2 owned registers: at most 24 MDIO frames with fresh four-frame MMD setup per logical access; no retries. Up to 16 additional prerequisite observation frames. Cleanup one restore/readback pass at most 16 frames; any delegated reset/restart has separately reserved finite poll/transaction counts and total duration. Admission requires finite primaryDurationUs and cleanupDurationUs; all admission, lock acquisition and terminal callbacks count against those aggregate durations. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark recoveryRequired and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
+      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [
         "rmii_rc"
@@ -10714,9 +10728,9 @@
         "Verify each side independently; if the second side fails retain first-side applied settings and restore both using their own bounded owners. Do not publish repeater readiness from one configured PHY."
       ],
       "waits": [],
-      "timeout": "One snapshot/RMW/write-verification pass over at most 2 owned registers: at most 24 MDIO frames with fresh four-frame MMD setup per logical access; no retries. Up to 16 additional prerequisite observation frames. Cleanup one restore/readback pass at most 16 frames; any delegated reset/restart has separately reserved finite poll/transaction counts and total duration. Admission requires finite primaryDurationUs and cleanupDurationUs; all admission, lock acquisition and terminal callbacks count against those aggregate durations. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count. This is the PER-PHY bound; two-PHY coordinator reserves twice these framecounts and both finite durations before either mutation; failure cleanup visits each side at most once.",
+      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count. This is the PER-PHY bound; two-PHY coordinator reserves twice these framecounts and both finite durations before either mutation; failure cleanup visits each side at most once.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark recoveryRequired and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
+      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [
         "rmii_rc"
@@ -10758,9 +10772,9 @@
         "Analog VOD settings delegate analog_configure with validated cross-word values. PHYSTS error observations remain owned by the existing event/link collector. Verify configuration, then require separate partner/traffic evidence to establish operation."
       ],
       "waits": [],
-      "timeout": "One snapshot/RMW/write-verification pass over at most 2 owned registers: at most 24 MDIO frames with fresh four-frame MMD setup per logical access; no retries. Up to 16 additional prerequisite observation frames. Cleanup one restore/readback pass at most 16 frames; any delegated reset/restart has separately reserved finite poll/transaction counts and total duration. Admission requires finite primaryDurationUs and cleanupDurationUs; all admission, lock acquisition and terminal callbacks count against those aggregate durations. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark recoveryRequired and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
+      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [],
       "owner": {
@@ -10805,9 +10819,9 @@
         "Observe polarity/jabber through existing collectors; readback does not prove packet acceptance. NLP100ns/16ms and jabber approximately100ms/re-enable approximately500ms are descriptive/nominal, not operation completion maxima."
       ],
       "waits": [],
-      "timeout": "One snapshot/RMW/write-verification pass over at most 3 owned registers: at most 36 MDIO frames with fresh four-frame MMD setup per logical access; no retries. Up to 16 additional prerequisite observation frames. Cleanup one restore/readback pass at most 24 frames; any delegated reset/restart has separately reserved finite poll/transaction counts and total duration. Admission requires finite primaryDurationUs and cleanupDurationUs; all admission, lock acquisition and terminal callbacks count against those aggregate durations. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark recoveryRequired and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
+      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [
         "analog_rx_gain"
@@ -10859,14 +10873,14 @@
         "Validate the complete desired profile before I/O:100M minus codes0x28..0x38 (150% to50%),plus0x08..0x18 (50% to150%). The MDIX-minus code spans VOD_CFG1[13:12] and VOD_CFG2[15:12]; both endpoints and every intermediate combined code must be legal. Preserve the documented zero DAC raw value; no physical zero-level scale is established.",
         "Keep10M initialization4A40 unless an exact authorized tuning profile accounts for its override. VOD_CFG3 MDI/MDIX termination codes0..F map122,119,116,113,110,107,105,102,100,98,96,94,92,90,88,86 with separate enable bits; units and qualification follow exact source.",
         "IOCTRL low5 only10fast/11slow; never write example0400. IO_CFG1[15:14] allows0slow/1fast only; do not infer these controls are interchangeable or promise impedance values.",
-        "Admit a temporary intermediate amplitude profile and exclude conflicting writers or reset throughout snapshot, staged writes and verification. MAC traffic quiescence does not prove the analog transmitter is disabled. Snapshot both VOD words with bounded reads and establish a current combined code0x28..0x38 before dependent writes; if unavailable or invalid, report recoveryRequired without attempting the split-field update.",
+        "Admit a temporary intermediate amplitude profile and exclude conflicting writers or reset throughout snapshot, staged writes and verification. MAC traffic quiescence does not prove the analog transmitter is disabled. Snapshot both VOD words with bounded reads and establish a current combined code0x28..0x38 before dependent writes; if unavailable or invalid, report cleanupOwed without attempting the split-field update.",
         "If the high code changes, first set only VOD_CFG2[15:12] to0x8, preserving its other fields, then verify that word. Next apply the desired VOD_CFG1 fields and verify; finally apply the desired VOD_CFG2 fields and verify. The shared low nibble8 is legal with high2 and high3:0x2F -> 0x28 -> 0x38 -> 0x30; the reverse uses0x30 -> 0x38 -> 0x28 -> 0x2F. Never directly traverse0x3F or0x20. If high does not change, omit the bridge and update the requested words with verification. Reuse owner-retained snapshots/verified words for composition; preserve reserved and unrelated fields. This prevents undocumented intermediate codes, not analog glitches or transient amplitude changes.",
         "On any failed, late or uncertain write/readback, stop dependent primary writes and retain the last confirmed and possibly applied prefix. Cleanup re-observes both VOD words before selecting its legal restoration path. ANA_LD_PROG_SL remains wholly reserved; ANA_RX10BT_CTRL physical mapping remains gated. Verify other owned stable fields and release for identified scope measurements; configuration success does not establish electrical compliance."
       ],
       "waits": [],
-      "timeout": "Primary permits at most5 initial register snapshots,6 writes and6 immediate readbacks:17 MMD targets,68 C22 frames with fresh four-frame setup per target, plus at most16 additional prerequisite observation frames. The sixth write and readback cover the split-code bridge. These counts assume retained snapshots and verified words supply composition without additional RMW reads, under continuous conflicting-writer/reset exclusion. Cleanup permits2 current VOD rereads,6 restoration writes and6 readbacks:14 targets,56 frames. Require finite primaryDurationUs and cleanupDurationUs including admission, lock acquisition and terminal callbacks; delegated reset recovery needs separately reserved finite counts and duration. Zero budget admits no I/O. No retries; release controller lock before waits/output. Frozen clock still terminates by frame count.",
+      "timeout": "Primary permits at most5 initial register snapshots,6 writes and6 immediate readbacks:17 MMD targets,68 C22 frames with fresh four-frame setup per target, plus at most16 additional prerequisite observation frames. The sixth write and readback cover the split-code bridge. These counts assume retained snapshots and verified words supply composition without additional RMW reads, under continuous conflicting-writer/reset exclusion. Cleanup permits2 current VOD rereads,6 restoration writes and6 readbacks:14 targets,56 frames. Deadlines via OperationBudget; restoration is a separately admitted operation behind cleanupOwed. Zero budget admits no I/O. No retries; release controller lock before waits/output. Frozen clock still terminates by frame count.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After failed/cancelled mutation, first re-read both VOD words once within the separate cleanup budget. If their combined current code is legal and no reset or competing writer invalidated the profile, restore through the same low8 bridge with verification after each write before dependent continuation, then restore the remaining saved owned fields once. If the current code cannot be established or is undocumented, issue no dependent analog restoration writes; retain recoveryRequired/configuration uncertainty for the application recovery owner. Do not guess which prefix an ambiguous transfer applied. Preserve primary and cleanup outcomes separately, with no retries or implicit reset. Successful configuration retains its desired settings.",
+      "cleanup": "After failed/cancelled mutation, first re-read both VOD words once within the separate cleanup budget. If their combined current code is legal and no reset or competing writer invalidated the profile, restore through the same low8 bridge with verification after each write before dependent continuation, then restore the remaining saved owned fields once. If the current code cannot be established or is undocumented, issue no dependent analog restoration writes; retain cleanupOwed/configuration uncertainty for the application recovery owner. Do not guess which prefix an ambiguous transfer applied. Preserve primary and cleanup outcomes separately, with no retries or implicit reset. Successful configuration retains its desired settings.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence. Split MDIX-minus replay/restoration always starts from an established current code and uses the same legal bridge. A reset during the procedure invalidates the saved composition and requires bounded reconciliation before further writes.",
       "gates": [
         "ioctrl_example",
@@ -10913,9 +10927,9 @@
         "Read back owned fields and report actual profile; EtherCAT stack behavior and protocol conformance remain application-owned. Reapply persistent approved policy after reset."
       ],
       "waits": [],
-      "timeout": "One snapshot/RMW/write-verification pass over at most 3 owned registers: at most 36 MDIO frames with fresh four-frame MMD setup per logical access; no retries. Up to 16 additional prerequisite observation frames. Cleanup one restore/readback pass at most 24 frames; any delegated reset/restart has separately reserved finite poll/transaction counts and total duration. Admission requires finite primaryDurationUs and cleanupDurationUs; all admission, lock acquisition and terminal callbacks count against those aggregate durations. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark recoveryRequired and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
+      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [],
       "owner": {
@@ -10951,16 +10965,16 @@
         "Retain desired policy and raw link history separately. Approximate250us normal loss and a few additional milliseconds in prose do not become a completion bound; application owns any bounded link-reacquisition wait."
       ],
       "waits": [],
-      "timeout": "One snapshot/RMW/write-verification pass over at most 1 owned registers: at most 12 MDIO frames with fresh four-frame MMD setup per logical access; no retries. Up to 16 additional prerequisite observation frames. Cleanup one restore/readback pass at most 8 frames; any delegated reset/restart has separately reserved finite poll/transaction counts and total duration. Admission requires finite primaryDurationUs and cleanupDurationUs; all admission, lock acquisition and terminal callbacks count against those aggregate durations. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark recoveryRequired and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
+      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [],
       "owner": {
         "api": "link_recovery_configure",
         "cli": "Owner-routed link_recovery_configure with typed preflight and bounded result (44-46).",
-        "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: Identified partner with controlled short interference/signal removal; timestamp line disturbance versus link status for enabled/disabled modes.",
-        "implementationStage": 18
+        "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: Identified partner with controlled short interference/signal removal; timestamp line disturbance versus link status for enabled/disabled modes. Implementation-stage regression owner: prompt 34.",
+        "implementationStage": 34
       }
     },
     {
@@ -10997,9 +11011,9 @@
         "Verify stable configuration; retain configured BMCR/extended policy separately from PHYSTS resolved evidence while forced_physts remains open. Restore persistent selection after reset; application decides when to resume MAC."
       ],
       "waits": [],
-      "timeout": "One snapshot/RMW/write-verification pass over at most 3 owned registers: at most 36 MDIO frames with fresh four-frame MMD setup per logical access; no retries. Up to 16 additional prerequisite observation frames. Cleanup one restore/readback pass at most 24 frames; any delegated reset/restart has separately reserved finite poll/transaction counts and total duration. Admission requires finite primaryDurationUs and cleanupDurationUs; all admission, lock acquisition and terminal callbacks count against those aggregate durations. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark recoveryRequired and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
+      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [
         "forced_physts"
@@ -11037,9 +11051,9 @@
         "Verify isolation bit; reconnect only under declared stable external/reference clock and MAC sequencing. BASIC strap default is observation, not permission to change external wiring. Hardware reset reloads settings; persistent requested isolation is replayed only at its safe dependency point."
       ],
       "waits": [],
-      "timeout": "One snapshot/RMW/write-verification pass over at most 1 owned registers: at most 12 MDIO frames with fresh four-frame MMD setup per logical access; no retries. Up to 16 additional prerequisite observation frames. Cleanup one restore/readback pass at most 8 frames; any delegated reset/restart has separately reserved finite poll/transaction counts and total duration. Admission requires finite primaryDurationUs and cleanupDurationUs; all admission, lock acquisition and terminal callbacks count against those aggregate durations. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark recoveryRequired and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
+      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [],
       "owner": {
@@ -11075,9 +11089,9 @@
         "End/cancel clears onlycollision-testbit, verifies once and leaves recorded scope evidence distinct from register acceptance. If clear uncertain, mark possible active test until bounded reset/recovery establishes stopped state."
       ],
       "waits": [],
-      "timeout": "One snapshot/RMW/write-verification pass over at most 1 owned registers: at most 12 MDIO frames with fresh four-frame MMD setup per logical access; no retries. Up to 16 additional prerequisite observation frames. Cleanup one restore/readback pass at most 8 frames; any delegated reset/restart has separately reserved finite poll/transaction counts and total duration. Admission requires finite primaryDurationUs and cleanupDurationUs; all admission, lock acquisition and terminal callbacks count against those aggregate durations. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark recoveryRequired and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Stop stimulus and reserve an authorized hard reset plus persistent-profile reapply; do not claim stop until confirmed.",
+      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Stop stimulus and reserve an authorized hard reset plus persistent-profile reapply; do not claim stop until confirmed.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [],
       "owner": {
@@ -11128,9 +11142,9 @@
       "waits": [
         "Finite caller-specified stimulus dwell; no documented silicon start/stop maximum. Reset/restart wait follows core procedures, anchored to observed write completion. No lock held through instrument waits."
       ],
-      "timeout": "One snapshot/RMW/write-verification pass over at most 3 owned registers: at most 36 MDIO frames with fresh four-frame MMD setup per logical access; no retries. Up to 16 additional prerequisite observation frames. Cleanup one restore/readback pass at most 24 frames; any delegated reset/restart has separately reserved finite poll/transaction counts and total duration. Admission requires finite primaryDurationUs and cleanupDurationUs; all admission, lock acquisition and terminal callbacks count against those aggregate durations. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count. Additional explicit exceptional actions: one opaque0428 preservation read followed by three masked writes under transaction exclusion (16frames), at most3 stop/readback logical transfers (12frames); core reset/initialize/forced/crossover/BIST dependencies must add their own finite admitted counts before start. One primary stimulus dwell; no automatic cycle/retry.",
+      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count. Additional explicit exceptional actions: one opaque0428 preservation read followed by three masked writes under transaction exclusion (16frames), at most3 stop/readback logical transfers (12frames); core reset/initialize/forced/crossover/BIST dependencies must add their own finite admitted counts before start. One primary stimulus dwell; no automatic cycle/retry.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "Stop stimulus before restoring any profile or COMPT field. For the clarified100M branch use explicit disable and bounded stop verification; for10M/opaque or uncertain stop, use the authorized hard_reset completion procedure first. Reserve that reset and persistent-profile reapply count/duration before admission. Do not restore a pattern nibble while exceptional bit4 may still enable emission. If stop cannot be established, retain possible ongoing emission and recoveryRequired; no further stimulus programming or false rollback success. After verified stop/reset, perform one finite persistent-profile reapply/readback pass, never restore temporary test mode. Preserve primary and cleanup outcomes separately; no implicit retries.",
+      "cleanup": "Stop stimulus before restoring any profile or COMPT field. For the clarified100M branch use explicit disable and bounded stop verification; for10M/opaque or uncertain stop, use the authorized hard_reset completion procedure first. Reserve that reset and persistent-profile reapply count/duration before admission. Do not restore a pattern nibble while exceptional bit4 may still enable emission. If stop cannot be established, retain possible ongoing emission and cleanupOwed; no further stimulus programming or false rollback success. After verified stop/reset, perform one finite persistent-profile reapply/readback pass, never restore temporary test mode. Preserve primary and cleanup outcomes separately; no implicit retries.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [
         "compt_reserved"
@@ -12472,7 +12486,6 @@
       "name": "Hardware link-loss recovery",
       "researchStage": 5,
       "implementationStages": [
-        18,
         34
       ],
       "registers": [
@@ -12484,8 +12497,8 @@
       "owner": {
         "api": "LinkRecoverySettings",
         "cli": "owner-routed LinkRecoverySettings (prompts 44-46)",
-        "test": "Independent literals and boundary failures for LinkRecoverySettings; prompts 18, 53-55",
-        "implementationStage": 18
+        "test": "Independent literals and boundary failures for LinkRecoverySettings; prompts 34, 53-55",
+        "implementationStage": 34
       },
       "scope": "SOFTWARE",
       "evidence": {
@@ -12593,8 +12606,8 @@
       "owner": {
         "api": "InterruptSettings / collectEvents",
         "cli": "owner-routed InterruptSettings / collectEvents (prompts 44-46)",
-        "test": "Independent literals and boundary failures for InterruptSettings / collectEvents; prompts 20, 53-55",
-        "implementationStage": 20
+        "test": "Independent literals and boundary failures for InterruptSettings / collectEvents; prompts 27, 53-55",
+        "implementationStage": 27
       },
       "scope": "SOFTWARE",
       "evidence": {
@@ -12803,7 +12816,6 @@
       "name": "Resistor calibration contingency",
       "researchStage": 4,
       "implementationStages": [
-        15,
         16,
         25,
         35
@@ -12818,8 +12830,8 @@
       "owner": {
         "api": "startCalibrationRecovery",
         "cli": "owner-routed startCalibrationRecovery (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startCalibrationRecovery; prompts 15, 53-55",
-        "implementationStage": 15
+        "test": "Independent literals and boundary failures for startCalibrationRecovery; prompts 35, 53-55",
+        "implementationStage": 35
       },
       "scope": "SOFTWARE",
       "evidence": {
@@ -13003,8 +13015,8 @@
       "id": "recr_width",
       "conflict": "Table8-39 says bits15:0 and16-bit counter, yet maximumFF and half-full7F.",
       "decision": "Preserve raw16-bit consumed samples, no invented effective width, modulo delta, saturation or exact accumulated total. FCSCR8-bit semantics do not resolve RECR.",
-      "nextEvidence": "Prompt21: exact-part TI correction or controlled invalid-symbol/RXDV injection demonstrating7F/80,FF/100 and7FFF/8000/FFFF boundaries and read-clear behavior, with link/mode/IRQ trace.",
-      "ownerStage": 21,
+      "nextEvidence": "Prompt20 retains raw samples while gated. Q16 at prompts72-73: exact-part TI correction or controlled invalid-symbol/RXDV injection at7F/80,FF/100,7FFF/8000/FFFF and read-clear behavior with link/mode/IRQ trace.",
+      "ownerStage": 20,
       "sources": [
         {
           "source": "snls647i",
@@ -13016,8 +13028,8 @@
       "id": "rmii_rc",
       "conflict": "Table8-41 labels RCSR[3:2] RC, reset0, while0 means fault and1 normal; rearm/clear timing not explained.",
       "decision": "Retain raw RC samples with table polarity0 fault/1 normal; never impose active-high fault or infer a reset-time fault event. No fake-based physical semantics.",
-      "nextEvidence": "Prompt21: exact-part TI explanation and identified stable-RMII clock-offset/fault-injection traces before/after repeated reads/reset to establish rearm/current versus latched meaning.",
-      "ownerStage": 21,
+      "nextEvidence": "Prompt20 retains raw RC samples while gated. Q17 at prompts72-73: exact-part TI explanation and identified stable-RMII clock-offset/fault-injection traces before/after repeated reads/reset to establish rearm/current versus latched meaning.",
+      "ownerStage": 20,
       "sources": [
         {
           "source": "snls647i",
@@ -13102,8 +13114,8 @@
       "id": "fld_reset_defaults",
       "conflict": "CR3 detailed reset zero and strap annotations conflict with BASIC default RX-error plus energy-loss detection in feature prose.",
       "decision": "Retain FLD nibble reset unknown; no fixed zero or9 expectation before board/mode observation.",
-      "nextEvidence": "Prompt4 compare exact BASIC/ENHANCED default readback and obtain TI clarification.",
-      "ownerStage": 4,
+      "nextEvidence": "Prompt34 retains unknown defaults. Q18 at prompt73: compare identified BASIC/ENHANCED POR readback with strap settings and obtain TI clarification.",
+      "ownerStage": 34,
       "sources": [
         {
           "source": "snls647i",
@@ -13158,8 +13170,8 @@
       "id": "tdr_calibration",
       "conflict": "Raw TDR controls/results are documented but complete exact-part calibration, polarity mapping, threshold/pulse time units, DC prerequisites and distance/fault algorithm are not. CDSCR3 reset0D04 differs segment1 recipe0D07. SNLA330A applies to DP83825I and differs in segment3 and other offsets.",
       "decision": "Use SNLS647I segment literals and raw result fields only; no imported DP83825/DP83822 gain writes, ALCD support, metres or fault types. Keep unexplained threshold defaults; raw field range is not a qualified physical tuning range.",
-      "nextEvidence": "Exact DP83826I TDR app note/official correction with supported recipes, sign/no-peak rules, timing units, propagation calibration and fixture measurements for each segment/channel combination.",
-      "ownerStage": 26,
+      "nextEvidence": "Prompt25 adopts exact DP83826 SNLA428 recipe/algorithm evidence with explicit conflicts; Q7 at prompts72-73 compares identified fixtures, segments and channel scope.",
+      "ownerStage": 25,
       "sources": [
         {
           "source": "snls647i",
@@ -13184,8 +13196,8 @@
       "id": "rxfs_sfd_reference",
       "conflict": "RXFS[7] table8-91 describes SFD error referring to RXFCFG1[13], but table8-90 declares13 reserved.",
       "decision": "Retain raw SFD-error status; do not infer programmable SFD byte/pattern support or write RXFCFG1[13].",
-      "nextEvidence": "Prompt29: TI exact-part correction of cross-reference and any supported SFD detection configuration; physical WoL/error fixture checks afterward.",
-      "ownerStage": 29,
+      "nextEvidence": "Prompt31: TI exact-part correction of cross-reference and any supported SFD detection configuration; physical WoL/error fixture checks afterward.",
+      "ownerStage": 31,
       "sources": [
         {
           "source": "snls647i",

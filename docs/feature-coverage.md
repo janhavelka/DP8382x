@@ -56,16 +56,16 @@ silicon gates remain explicit. No feature's implementation status changes here.
 | bist / BIST/PRBS modes and retained acquisition | 4 / COMPLETE | 24 (SOFTWARE) | 24 | bist_result_semantics |
 | cable / Manual and autorun cable capture | 4 / COMPLETE | 25 (SOFTWARE) | 25, 26 | tdr_reserved, tdr_calibration, tdr_freshness_abort |
 | fast_drop / MII-only Fast Link Drop | 4 / COMPLETE | 34 (SOFTWARE) | 34 | fld_reset_defaults, fld_threshold_recipe |
-| link_recovery / Hardware link-loss recovery | 5 / COMPLETE | 18 (SOFTWARE) | 18, 34 | None named |
+| link_recovery / Hardware link-loss recovery | 5 / COMPLETE | 34 (SOFTWARE) | 34 | None named |
 | led / LED sources, blink, stretch and drive | 5 / COMPLETE | 32 (SOFTWARE) | 32 | pin_fields |
 | pin_mux / Per-pin GPIO, wake, IRQ and clock mux | 5 / COMPLETE | 32 (SOFTWARE) | 32, 33 | pin_fields |
-| interrupts / Global IRQ and all event enables/service | 4 / COMPLETE | 20 (SOFTWARE) | 20, 27 | rxfs_sfd_reference |
+| interrupts / Global IRQ and all event enables/service | 4 / COMPLETE | 27 (SOFTWARE) | 20, 27 | rxfs_sfd_reference |
 | counters / Single collector for status and destructive counters | 4 / COMPLETE | 20 (SOFTWARE) | 20, 21 | recr_width, rmii_rc, rxfs_sfd_reference, forced_physts |
 | quality / Raw MSE and supported quality interpretation | 4 / COMPLETE | 34 (SOFTWARE) | 34 | mse_address |
 | compliance / Finite compliance stimulus procedures | 5 / COMPLETE | 35 (SOFTWARE) | 35, 51, 73 | compt_reserved |
 | analog / Analog amplitude, termination and MAC output | 5 / COMPLETE | 35 (SOFTWARE) | 35 | ioctrl_example, analog_rx_gain |
 | compatibility / IPG and compatibility controls | 5 / COMPLETE | 33 (SOFTWARE) | 33, 35 | None named |
-| calibration / Resistor calibration contingency | 4 / COMPLETE | 15 (SOFTWARE) | 15, 16, 25, 35 | hard_reset_straps |
+| calibration / Resistor calibration contingency | 4 / COMPLETE | 35 (SOFTWARE) | 16, 25, 35 | hard_reset_straps |
 | straps / POR/pin straps and sampled configuration | 3 / COMPLETE | 14 (HARDWARE_ONLY) | 14, 16, 33 | hard_reset_straps |
 | outside_phy / MAC/DMA, stack, board power and scheduling | 3 / COMPLETE | 6 (OUTSIDE_PHY) | 6, 37, 40, 41, 42 | None named |
 | absent / Unsupported exact-part interfaces and features | 3 / COMPLETE | 14 (ABSENT) | 14 | None named |

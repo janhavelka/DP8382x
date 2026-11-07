@@ -1,6 +1,7 @@
 # Official reference archive
 
-Collected from Texas Instruments on **2026-10-24**: **25 PDFs and two ZIPs**,
+Collected from Texas Instruments on **2026-10-24**, with two PDFs added on
+**2026-11-07**: **27 PDFs and two ZIPs**,
 covering the primary DP83826I and documented DP83822, DP83825I and DP83826A
 relatives. All vendor payloads are unmodified. This is a technical reference
 collection for the planned PHY component, not a statement of implemented support.
@@ -46,6 +47,7 @@ and their hashes remain unchanged; source catalogues remain comparison inputs.
 
 | Local document | Revision / date | Applicability and use | Official download |
 | --- | --- | --- | --- |
+| [DP83TG720R-Q1 1000BASE-T1 Automotive Ethernet PHY](source/TI-DP83TG720R-Q1-SNLS603D.pdf) | SNLS603D; April 2025 | Different part: page 47 supplies an MMD notation analogy only; it does not prove DP83826 wire addresses | [TI](https://www.ti.com/lit/ds/symlink/dp83tg720r-q1.pdf) |
 | [DP83822 Robust, Low Power 10/100 Mbps Ethernet Physical Layer Transceiver](source/TI-DP83822-SNLS505H.pdf) | SNLS505H; July 2026 | DP83822 family. Family comparison and register map | [TI](https://www.ti.com/lit/gpn/DP83822I) |
 | [DP83825I Low-Power 10/100-Mbps Ethernet Physical Layer Transceiver](source/TI-DP83825I-SNLS638C.pdf) | SNLS638C; April 2026 | DP83825I. Family comparison and register map | [TI](https://www.ti.com/lit/gpn/DP83825I) |
 | [DP83826Ax Low-Latency, Low-Power, 10/100 Mbps, Industrial Ethernet PHY](source/TI-DP83826AI-AE-SNLS783A.pdf) | SNLS783A; October 2025 | DP83826AI / DP83826AE. A-generation comparison; not assumed software-identical | [TI](https://www.ti.com/lit/ds/symlink/dp83826ai.pdf) |
@@ -55,6 +57,7 @@ and their hashes remain unchanged; source catalogues remain comparison inputs.
 
 | Local document | Revision / date | Applicability and use | Official download |
 | --- | --- | --- | --- |
+| [Time Domain Reflectometry with DP83826](source/TI-DP83826-TDR-SNLA428.pdf) | SNLA428; June 2023 | Exact-part TDR segment recipes and algorithm; preserve differences from SNLS647I and distinguish physical qualification | [TI](https://www.ti.com/lit/pdf/snla428) |
 | [DP83822 Evaluation Module User Guide](source/TI-DP83822EVM-SNLU179.pdf) | SNLU179; August 2016 | DP83822 family. Family reference hardware | [TI](https://www.ti.com/lit/pdf/SNLU179) |
 | [DP83825 Evaluation Module](source/TI-DP83825EVM-SNLU239A.pdf) | SNLU239A; December 2023 | DP83825I. Family reference hardware and RMII setup | [TI](https://www.ti.com/lit/pdf/SNLU239) |
 | [DP83826AEVM User Guide](source/TI-DP83826AEVM-SNLU357.pdf) | SNLU357; April 2025 | DP83826AI / DP83826AE. A-generation reference hardware | [TI](https://www.ti.com/lit/pdf/SNLU357) |
