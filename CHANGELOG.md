@@ -4,6 +4,12 @@
 
 ### 2026-11-07
 
+- Implemented prompt 14's exact-address two-frame identity acquisition, partial/
+  rejected snapshots and bus-silent foundational capabilities. Revision-1 admission
+  distinguishes BASIC/ENHANCED without guessing I/E suffix. Failed probes block
+  maintenance mutations; changed identity invalidates old device observations.
+  Added five independent Release suites and a linked probe example.
+
 - Implemented prompt 13: complete named register/mask catalog, explicit destructive
   acquisition with retained partial samples/history-loss evidence, atomic MISR
   enable updates and source-specific WoL W0C composition. Added nine independent

@@ -9335,7 +9335,7 @@
       "restoration": "No settings mutated; reread full identity after recovery/external changes.",
       "gates": [],
       "owner": {
-        "api": "Identity / Variant",
+        "api": "readIdentity / identitySnapshot / capabilities",
         "cli": "owner-routed Identity / Variant (prompts 44-46)",
         "test": "Independent literals and boundary failures for Identity / Variant; prompts 14, 53-55",
         "implementationStage": 14
@@ -11839,7 +11839,7 @@
         "identify"
       ],
       "owner": {
-        "api": "Identity / Variant",
+        "api": "readIdentity / identitySnapshot / capabilities",
         "cli": "owner-routed Identity / Variant (prompts 44-46)",
         "test": "Independent literals and boundary failures for Identity / Variant; prompts 14, 53-55",
         "implementationStage": 14
@@ -11847,13 +11847,13 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities."
+      "notes": "Prompt 14 implements exact-address two-frame identity, per-word partial evidence, exact-part revision-1 admission and passive foundational capabilities. Shared models do not detect ordering suffix. Known failed/rejected probes block maintenance mutations; raw changes and external invalidation withdraw capability validity. SDK/physical evidence remain NOT_RUN; typed features and initialization are separate. See docs/identity.md and test/identity.cpp."
     },
     {
       "id": "access",

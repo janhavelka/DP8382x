@@ -11,6 +11,8 @@ restricted bounded Clause 22 and atomic MMD read/write, stable `modifyMmd`,
 copied transport diagnostics, destructive acquisition, retained evidence, local
 invalidation and safe interrupt/WoL updates. See the
 [side-effect guide](../../docs/side-effect-access.md).
+The facade also implements readIdentity, identitySnapshot and capabilities; see
+[identity admission](../../docs/identity.md) for revision policy and partial output.
 See the [direct-access guide](../../docs/direct-access.md) for exact access policy
 and backend obligations. No cooperative operation stubs are shipped.
 See [architecture](../../docs/architecture.md) and the accepted
@@ -47,7 +49,7 @@ teardown/quiescence. Prompt 9 checks the shipped header comments with Doxygen;
 later methods must add their own documentation when they work.
 
 Implement methods only at their owning stage: transport accounting begins at 11,
-identity at 14, settings/link at 17–19 and managed health at 21. Do not publish
+identity is complete at 14, settings/link at 17–19 and managed health at 21. Do not publish
 working-looking health methods that return fixed UNINIT/READY before then.
 Drivers and operation owners are neither copyable nor movable. Direct reads stage
 ordinary output, while the collector retains consumed partial evidence. A valid

@@ -41,6 +41,12 @@ so a bare read is not an accepted standalone procedure. Selectors are private
 steps of the complete MMD operation. Explicit destructive acquisition and mixed maintenance use the
 [side-effect access guide](side-effect-access.md), preserving the same policy.
 
+Identity acceptance is now available through [readIdentity](identity.md), separate
+from raw word reads. Existing maintenance exceptions remain owner-attested; a
+failed/rejected probe blocks all maintenance mutations before callbacks until
+accepted reprobe or explicit rebind. Selectors used by ordinary MMD reads do not
+count as semantic mutation or bypass this policy.
+
 ## Callback and budget contract
 
 Each direct call passes one frame, MMD read/write four and MMD RMW five, always

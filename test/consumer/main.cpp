@@ -5,6 +5,7 @@
 #include "../../examples/portable/DirectRead.h"
 #include "../../examples/portable/MmdAccess.h"
 #include "../../examples/portable/EvidenceAccess.h"
+#include "../../examples/portable/IdentityProbe.h"
 
 #ifdef _MSVC_LANG
 static_assert(_MSVC_LANG >= 201703L, "DP8382x must propagate C++17");
@@ -75,14 +76,16 @@ static DP8382x::BatchResult execute(void*, const DP8382x::MdioBatch& batch,
   DP8382x::BatchResult result;
   result.releaseStatus = DP8382x::Status::Ok();
   result.controllerReusable = true;
-  if (batch.phyAddress != 31U || batch.frameCount != 1U ||
-      batch.frames[0].kind != DP8382x::FrameKind::READ ||
-      batch.frames[0].registerAddress != 2U) { return result; }
+  if (batch.phyAddress != 31U || (batch.frameCount != 1U && batch.frameCount != 2U)) { return result; }
+  for (uint8_t i = 0; i < batch.frameCount; ++i) {
+    if (batch.frames[i].kind != DP8382x::FrameKind::READ ||
+        batch.frames[i].registerAddress != 2U + i) { return result; }
+    result.frames[i].attempted = true;
+    result.frames[i].completed = true;
+    result.frames[i].valueValid = true;
+    result.frames[i].value = i == 0U ? uint16_t{0x2000} : uint16_t{0xA131};
+  }
   result.status = DP8382x::Status::Ok();
-  result.frames[0].attempted = true;
-  result.frames[0].completed = true;
-  result.frames[0].valueValid = true;
-  result.frames[0].value = 0x2000;
   return result;
 }
 
@@ -98,6 +101,12 @@ int main() {
   uint16_t word = 0xCAFE;
   const auto read = readIdentityWord(config, {100, 1}, word);
   if (!status.ok() || !read.ok() || word != 0x2000U) { return 1; }
+  DP8382x::DeviceIdentity identity;
+  DP8382x::Capabilities capabilities;
+  const auto probe = probeExactAddress(config, {100, 2}, identity, capabilities);
+  if (!probe.ok()) { return 1; }
+  if (!identity.decodedValid || identity.mode != DP8382x::OperatingMode::ENHANCED ||
+      !capabilities.valid || capabilities.linkModeMask != 0x0FU || capabilities.interfaceMask != 3U) { return 1; }
   SimulatedPhy simulated;
   config.transport = {&simulated, executeMmd, nowUs, {1, 1, 1}};
   DP8382x::DP8382x phy;

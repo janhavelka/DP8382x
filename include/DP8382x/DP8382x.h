@@ -7,6 +7,44 @@
 /// @brief Portable PHY driver and copied transport observations.
 namespace DP8382x {
 
+/// @brief Assessment of complete identity words under the exact-part policy.
+enum class IdentityAcceptance : uint8_t {
+  UNASSESSED, ///< No complete successful acquisition has been assessed.
+  ACCEPTED,   ///< Historical assessment accepted; stale still forbids capabilities.
+  REJECTED    ///< Complete successful reads failed identity admission.
+};
+
+/// @brief Latest identity acquisition; partial words never establish usable identity.
+struct DeviceIdentity {
+  Variant declaredVariant{Variant::UNKNOWN}; ///< Application declaration, never decoded suffix.
+  uint16_t id1{0}; ///< Raw PHYIDR1; meaningful only when id1Valid.
+  uint16_t id2{0}; ///< Raw PHYIDR2; meaningful only when id2Valid.
+  bool id1Valid{false}; ///< This acquisition returned a trusted first word.
+  bool id2Valid{false}; ///< This acquisition returned both words in order.
+  uint32_t oui{0}; ///< 22-bit OUI; meaningful only when decodedValid.
+  uint8_t model{0}; ///< Six-bit model; meaningful only when decodedValid.
+  uint8_t revision{0}; ///< Raw revision nibble; not an acceptance claim.
+  OperatingMode mode{OperatingMode::UNKNOWN}; ///< Recognized model's mode, not MAC wiring.
+  bool decodedValid{false}; ///< Both raw words decoded, even if admission failed.
+  IdentityAcceptance acceptance{IdentityAcceptance::UNASSESSED}; ///< Latest complete assessment.
+  Status admissionStatus{Err::NOT_INITIALIZED, 0, "No accepted identity"}; ///< Acquisition/admission outcome.
+  uint64_t observedAtUs{0}; ///< Conservative complete-acquisition timestamp, microseconds.
+  bool timeValid{false}; ///< Timestamp is usable independently of admission.
+  bool stale{true}; ///< Invalidation retains historical words but withdraws capabilities.
+};
+
+/// @brief Foundational silicon capabilities of a freshly accepted declared part.
+/// @note Invalid means unknown, not absent. These fields do not claim that typed
+/// features, the SDK or physical fixtures have been implemented or qualified.
+struct Capabilities {
+  bool valid{false}; ///< All remaining fields require this flag.
+  uint8_t linkModeMask{0}; ///< LINK_* source-supported technology bits.
+  uint8_t interfaceMask{0}; ///< INTERFACE_* source-supported MAC interface bits.
+  bool copper{false}; ///< Copper medium documented for the accepted part.
+  bool fiber{false}; ///< Fiber medium documented for the accepted part.
+  bool gigabit{false}; ///< Gigabit speed documented for the accepted part.
+};
+
 /// @brief First detected inconsistency in the last backend report.
 enum class TransportViolation : uint8_t {
   NONE,             ///< Report meets the terminal contract.
@@ -90,7 +128,11 @@ enum class InvalidationReason : uint8_t {
 /// @brief Noncopyable, application-serialized DP83826I direct-access binding.
 /// @pre Serialize every call, including cached access. The borrowed context and
 /// callbacks outlive calls. No callback may retain buffers or re-enter this object.
-/// @note No allocation, SDK, retry, identity acceptance or hardware initialization.
+/// @note No allocation, SDK, automatic retry or hardware initialization.
+/// Maintenance writes return a cached failed/rejected readIdentity status before
+/// any callback. Successful reprobe or explicit rebind clears that restriction.
+/// Existing owner-attested maintenance before the first probe remains allowed;
+/// stale successful identity withdraws capabilities but permits that maintenance.
 class DP8382x {
 public:
   /// @brief Construct an unbound object without callbacks.
@@ -124,6 +166,25 @@ public:
   /// @return True for a valid declaration, not proof of identity or bus readiness.
   bool isBound() const noexcept { return _bound; }
 
+  /// @brief Acquire and accept identity at the bound address in one two-read batch.
+  /// @param[out] identity Assigned only after complete in-budget transport and identity acceptance.
+  /// @param[in] budget Aggregate microsecond deadline and at least two frames.
+  /// @return Transport/admission errors unchanged; DEVICE_NOT_FOUND for either
+  /// required word zero/all-ones; DEVICE_MISMATCH for OUI/model/revision/mode,
+  /// checked in that order. No error implies physical absence or an MDIO ACK.
+  /// @note SNLS647I tables 8-21/22: declared DP83826I, OUI 080028, model 11/13,
+  /// revision 1. Shared IDs cannot identify I/E suffix. Partial/rejected evidence
+  /// stays in identitySnapshot; never combine words from different calls.
+  /// @pre Bound, serialized owner with clock/power/reset readiness established.
+  /// Uses the ordinary raw-read guard; no reset, scan, write or retry is performed.
+  Status readIdentity(DeviceIdentity& identity, const IoBudget& budget) noexcept;
+  /// @brief Copy latest identity evidence without MDIO or clock access.
+  /// @return Historical/partial fields with explicit validity, admission and staleness.
+  DeviceIdentity identitySnapshot() const noexcept { return _identity; }
+  /// @brief Query accepted source capabilities without MDIO or clock access.
+  /// @return Invalid until a fresh identity is accepted; no link/settings/qualification claim.
+  Capabilities capabilities() const noexcept;
+
   /// @brief Read one nonconsuming Clause 22 word using one terminal owned batch.
   /// @param[in] registerAddress Five-bit address, validated before narrowing.
   /// @param[out] value Assigned only on complete valid in-budget success.
@@ -141,8 +202,8 @@ public:
   /// @param[in] budget Original exclusive microsecond deadline and frame allowance.
   /// @pre Application establishes exact part/address and safe LED0 electrical use,
   /// and serializes maintenance. Binding alone does not verify those facts.
-  /// @return Same terminal errors as readClause22; OK is frame completion, not
-  /// verified pin state. A failed/late write may have applied; never auto-retried.
+  /// @return Direct-access errors or the retained failed identity status; OK is
+  /// frame completion, not verified pin state. Failed/late writes may have applied.
   /// @note SNLS647I table 8-42: blink, polarity, drive enable/value; reserved zero.
   /// No cached setting is claimed. Copy transportSnapshot before another batch.
   /// Replaces all four fields: unset bits select 20 Hz blink and active-low
@@ -238,16 +299,18 @@ private:
   Config _config{};
   TransportSnapshot _transport{};
   EvidenceSnapshot _evidence{};
+  DeviceIdentity _identity{};
   bool _bound{false};
   bool _active{false};
   bool _stopped{false};
   bool _timeValid{false};
   uint64_t _lastTimeUs{0};
   Status _sampleTime(uint64_t& raw, uint64_t& upper) noexcept;
-  Status _execute(MdioBatch batch, const IoBudget& budget) noexcept;
+  Status _execute(MdioBatch batch, const IoBudget& budget, bool* called = nullptr) noexcept;
   void _retainEvidence(const MdioBatch& batch, const BatchResult& result,
                        bool clockValid, uint64_t before, uint64_t upper) noexcept;
   void _invalidateEvidence() noexcept;
+  Status _checkMutation() const noexcept;
 };
 
 } // namespace DP8382x

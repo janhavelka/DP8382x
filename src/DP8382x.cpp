@@ -31,6 +31,34 @@ void increment(uint32_t& value) noexcept {
   if (value != std::numeric_limits<uint32_t>::max()) { ++value; }
 }
 
+// Exact-part revision admission, not a family-wide or caller-configurable filter.
+// SNLS647I tables 8-21/22 and TI dp83826.c revision filter; new revisions need review.
+struct AcceptedRevision { Variant variant; uint8_t revision; };
+constexpr AcceptedRevision ACCEPTED_REVISIONS[] = {{Variant::DP83826I, 1}};
+
+Status assessIdentity(const DeviceIdentity& identity, OperatingMode required) noexcept {
+  auto reject = [](Err code, IdentityDetail detail) noexcept {
+    return Status::Error(code, "Identity not accepted", static_cast<int32_t>(detail));
+  };
+  if (identity.id1 == 0U || identity.id2 == 0U) {
+    return reject(Err::DEVICE_NOT_FOUND, IdentityDetail::ZERO_ID);
+  }
+  if (identity.id1 == 0xFFFFU || identity.id2 == 0xFFFFU) {
+    return reject(Err::DEVICE_NOT_FOUND, IdentityDetail::ONES_ID);
+  }
+  if (identity.oui != 0x080028U) { return reject(Err::DEVICE_MISMATCH, IdentityDetail::WRONG_OUI); }
+  if (identity.mode == OperatingMode::UNKNOWN) { return reject(Err::DEVICE_MISMATCH, IdentityDetail::WRONG_MODEL); }
+  bool revisionAccepted = false;
+  for (const auto& row : ACCEPTED_REVISIONS) {
+    if (row.variant == identity.declaredVariant && row.revision == identity.revision) { revisionAccepted = true; }
+  }
+  if (!revisionAccepted) { return reject(Err::DEVICE_MISMATCH, IdentityDetail::REVISION_NOT_ACCEPTED); }
+  if (required != OperatingMode::UNKNOWN && required != identity.mode) {
+    return reject(Err::DEVICE_MISMATCH, IdentityDetail::MODE_MISMATCH);
+  }
+  return Status::Ok();
+}
+
 bool isDefault(const FrameResult& frame) noexcept {
   return !frame.attempted && !frame.completed && !frame.valueValid &&
          frame.value == 0U && !frame.effectPossible && frame.completedAtUs == 0U &&
@@ -330,6 +358,8 @@ Status DP8382x::bind(const Config& config) noexcept {
   _config = config;
   _transport = {};
   _evidence = {};
+  _identity = {};
+  _identity.declaredVariant = config.variant;
   _timeValid = false;
   _lastTimeUs = 0;
   _stopped = false;
@@ -342,6 +372,7 @@ Status DP8382x::end() noexcept {
   _config = {};
   _transport = {};
   _evidence = {};
+  _identity = {};
   _timeValid = false;
   _lastTimeUs = 0;
   _stopped = false;
@@ -359,6 +390,72 @@ Status DP8382x::readClause22(uint32_t registerAddress, uint16_t& value,
   return status;
 }
 
+Status DP8382x::readIdentity(DeviceIdentity& identity, const IoBudget& budget) noexcept {
+  auto batch = directBatch(cmd::REG_PHYIDR1, FrameKind::READ);
+  batch.frameCount = 2;
+  batch.frames[1] = {FrameKind::READ, cmd::REG_PHYIDR2, 0, 0, NO_READ_INDEX};
+  bool called = false;
+  Status status = _execute(batch, budget, &called);
+  if (!called) { return status; } // Local admission never reuses an old receipt.
+  const auto& result = _transport.lastBatch;
+  if ((status.code == Err::BUSY || status.code == Err::OPERATION_TIMEOUT) &&
+      _transport.violation == TransportViolation::NONE &&
+      result.releaseStatus.ok() &&
+      !result.frames[0].attempted) { return status; }
+
+  DeviceIdentity observed;
+  observed.declaredVariant = _config.variant;
+  const auto& first = result.frames[0];
+  const auto& second = result.frames[1];
+  observed.id1Valid = first.attempted && first.completed && first.valueValid;
+  observed.id2Valid = observed.id1Valid && second.attempted && second.completed && second.valueValid;
+  if (observed.id1Valid) { observed.id1 = first.value; }
+  if (observed.id2Valid) { observed.id2 = second.value; }
+  if (observed.id2Valid) {
+    // Numeric namespaces from SNLS647I tables 8-21/22; suffix is never decoded.
+    observed.oui = (uint32_t{observed.id1} << 6U) | ((observed.id2 & 0xFC00U) >> 10U);
+    observed.model = static_cast<uint8_t>((observed.id2 & 0x03F0U) >> 4U);
+    observed.revision = static_cast<uint8_t>(observed.id2 & 0x000FU);
+    observed.mode = observed.model == 0x11U ? OperatingMode::BASIC :
+                    observed.model == 0x13U ? OperatingMode::ENHANCED : OperatingMode::UNKNOWN;
+    observed.decodedValid = true;
+    if (!_transport.clockInvalid && _transport.violation == TransportViolation::NONE) {
+      observed.observedAtUs = _lastTimeUs + _config.transport.bounds.clockLagUs;
+      observed.timeValid = true;
+    }
+  }
+  if (status.ok()) {
+    status = assessIdentity(observed, _config.requiredMode);
+    observed.acceptance = status.ok() ? IdentityAcceptance::ACCEPTED : IdentityAcceptance::REJECTED;
+    observed.stale = false;
+  }
+  observed.admissionStatus = status;
+  if (!status.ok() || (_identity.decodedValid && observed.decodedValid &&
+      (_identity.id1 != observed.id1 || _identity.id2 != observed.id2))) {
+    _invalidateEvidence(); // Old device-state observations cannot describe a different identity.
+  }
+  _identity = observed;
+  if (status.ok()) { identity = observed; }
+  return status;
+}
+
+Capabilities DP8382x::capabilities() const noexcept {
+  if (!_bound || _identity.stale || _identity.acceptance != IdentityAcceptance::ACCEPTED) { return {}; }
+  // SNLS647I table 4-3 and 8.4.1: both identity modes support MII and RMII.
+  // No fixture availability or incomplete typed-feature implementation is inferred.
+  return {true, LINK_TECHNOLOGY_MASK, INTERFACE_MII | INTERFACE_RMII, true, false, false};
+}
+
+Status DP8382x::_checkMutation() const noexcept {
+  if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
+  if (_active) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  // Existing maintenance exceptions allow owner-attested use before probing.
+  // They must not override a failed/rejected probe. Stale successful identity
+  // still permits maintenance, but never supplies usable typed capabilities.
+  const auto status = _identity.admissionStatus;
+  return status.code == Err::NOT_INITIALIZED ? Status::Ok() : status;
+}
+
 Status DP8382x::writeClause22(uint32_t registerAddress, uint32_t value,
                              const IoBudget& budget) noexcept {
   if (registerAddress > 31U) { return paramError(ParamDetail::ADDRESS_RANGE); }
@@ -367,6 +464,8 @@ Status DP8382x::writeClause22(uint32_t registerAddress, uint32_t value,
   if (allowed == 0U || (value & ~uint32_t{allowed}) != 0U) {
     return paramError(ParamDetail::ACCESS_POLICY);
   }
+  const auto admission = _checkMutation();
+  if (!admission.ok()) { return admission; }
   const auto batch = directBatch(static_cast<uint8_t>(registerAddress), FrameKind::WRITE,
                                  static_cast<uint16_t>(value));
   return _execute(batch, budget);
@@ -392,6 +491,8 @@ Status DP8382x::writeMmd(uint32_t devad, uint32_t registerAddress, uint32_t valu
   if (!addressStatus.ok()) { return addressStatus; }
   const auto allowed = devad == cmd::DEVAD_VENDOR ? writableMask(registerAddress) : uint16_t{0};
   if (allowed == 0U || (value & ~uint32_t{allowed}) != 0U) { return paramError(ParamDetail::ACCESS_POLICY); }
+  const auto admission = _checkMutation();
+  if (!admission.ok()) { return admission; }
   return _execute(mmdBatch(static_cast<uint16_t>(registerAddress), FrameKind::WRITE,
                            static_cast<uint16_t>(value)), budget);
 }
@@ -403,6 +504,8 @@ Status DP8382x::modifyMmd(uint32_t devad, uint32_t registerAddress, uint32_t mas
   const auto allowed = devad == cmd::DEVAD_VENDOR ? writableMask(registerAddress) : uint16_t{0};
   if (!readable(registerAddress) || mask == 0U || (mask & ~uint32_t{allowed}) != 0U ||
       (value & ~mask) != 0U) { return paramError(ParamDetail::ACCESS_POLICY); }
+  const auto admission = _checkMutation();
+  if (!admission.ok()) { return admission; }
   MdioBatch batch = mmdBatch(static_cast<uint16_t>(registerAddress), FrameKind::READ, 0);
   batch.frameCount = 5;
   // Five frames inferred from 8.3.11.1 state retention; physical check pending.
@@ -414,6 +517,7 @@ Status DP8382x::modifyMmd(uint32_t devad, uint32_t registerAddress, uint32_t mas
 
 void DP8382x::_invalidateEvidence() noexcept {
   _evidence.configurationDirty = true;
+  _identity.stale = true;
   for (auto& sample : _evidence.samples) { sample.stale = true; }
 }
 
@@ -472,6 +576,8 @@ Status DP8382x::modifyInterruptEnables(uint32_t address, uint32_t mask, uint32_t
   if (mask == 0U || (mask & ~uint32_t{0x00FF}) != 0U || (value & ~mask) != 0U) {
     return paramError(ParamDetail::ACCESS_POLICY);
   }
+  const auto admission = _checkMutation();
+  if (!admission.ok()) { return admission; }
   auto batch = directBatch(static_cast<uint8_t>(address), FrameKind::READ);
   batch.frameCount = 2;
   batch.frames[1] = {FrameKind::WRITE, static_cast<uint8_t>(address), static_cast<uint16_t>(value),
@@ -490,8 +596,8 @@ Status DP8382x::modifyWakeControl(uint32_t mask, uint32_t value, bool acknowledg
   }
   // No-change skipping needs a stable comparison; the semantic owner excludes
   // external configuration writers through the whole call. Actual RMW is atomic.
-  if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
-  if (_active) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  const auto admission = _checkMutation();
+  if (!admission.ok()) { return admission; }
   if (budget.maxFrames < 14U) { return timeout(TimeoutDetail::FRAME_BUDGET); }
   uint16_t sampled = 0;
   auto status = readMmd(31, 0x04A0, sampled, budget);
@@ -580,7 +686,8 @@ Status DP8382x::_sampleTime(uint64_t& raw, uint64_t& upper) noexcept {
   return Status::Ok();
 }
 
-Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget) noexcept {
+Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called) noexcept {
+  if (called != nullptr) { *called = false; }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (_active) { return busy(BusyDetail::OPERATION_ACTIVE); }
   if (_transport.clockInvalid) { return configError(ConfigDetail::CLOCK_CONTRACT); }
@@ -598,6 +705,7 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget) noexcept {
 
   batch.phyAddress = static_cast<uint8_t>(_config.phyAddress);
   increment(_transport.totalBatches);
+  if (called != nullptr) { *called = true; }
   const BatchResult result = _config.transport.executeBatch(_config.transport.context, batch, budget);
   _transport.lastBatch = result;
   _transport.violation = TransportViolation::NONE;

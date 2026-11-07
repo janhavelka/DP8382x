@@ -79,6 +79,11 @@ uncertainty without I/O and retains samples. No transport success clears dirty
 configuration evidence. Future typed verification owns that transition. Binding
 or local end resets local history; the owner copies needed evidence first.
 
+A failed/rejected identity probe now blocks mixed maintenance before any I/O,
+including WoL preharvest. Reprobe or explicit rebind is required to clear that
+negative evidence; invalidation alone cannot. [Identity admission](identity.md)
+describes the retained owner-attested exception before the first probe.
+
 ## Mixed-register maintenance
 
 `modifyInterruptEnables` accepts only MISR1/2 low-byte masks. One two-frame owned

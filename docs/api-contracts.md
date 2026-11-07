@@ -24,45 +24,11 @@ detail is introduced. A 64-bit object-lifetime token needs no exhaustion branch.
 ## Identity, capabilities and link intent
 
 [Config.h](../include/DP8382x/Config.h) defines shipped variant/interface/link
-values, masks and pure validation. Add future identity values with stage 14:
-
-```cpp contract
-namespace DP8382x {
-/// @brief Acceptance of complete raw identity under the selected source policy.
-enum class IdentityAcceptance : uint8_t { UNASSESSED, ACCEPTED, REJECTED };
-
-/// @brief Copied identity evidence; partial raw words never establish acceptance.
-struct DeviceIdentity {
-    Variant declaredVariant{Variant::UNKNOWN};
-    uint16_t id1{0};                         ///< Meaningful only when id1Valid.
-    uint16_t id2{0};                         ///< Meaningful only when id2Valid.
-    bool id1Valid{false};
-    bool id2Valid{false};
-    uint32_t oui{0};                         ///< 22-bit OUI; requires decodedValid.
-    uint8_t model{0};                        ///< 6-bit model; requires decodedValid.
-    uint8_t revision{0};                     ///< Raw revision 0..15, not acceptance.
-    OperatingMode mode{OperatingMode::UNKNOWN};
-    bool decodedValid{false};                ///< Both raw reads decoded successfully.
-    IdentityAcceptance acceptance{IdentityAcceptance::UNASSESSED};
-    Status admissionStatus{Err::NOT_INITIALIZED, 0, "No accepted identity"};
-    uint64_t observedAtUs{0};                ///< Completion of complete acquisition.
-    bool timeValid{false};
-    bool stale{true};                        ///< Invalidation retains historical bytes.
-};
-
-/// @brief Foundational source-derived capabilities after accepted identity.
-/// @note valid=false makes all following capability values unknown, not absent.
-struct Capabilities {
-    bool valid{false};
-    uint8_t linkModeMask{0};                  ///< LINK_* subset; DP83826I is 0x0F.
-    uint8_t interfaceMask{0};                 ///< INTERFACE_*; DP83826I is 0x03.
-    bool copper{false};
-    bool fiber{false};
-    bool gigabit{false};
-};
-
-}
-```
+values and pure validation. [DP8382x.h](../include/DP8382x/DP8382x.h) now ships
+IdentityAcceptance, DeviceIdentity, Capabilities, readIdentity, identitySnapshot
+and capabilities. The [identity guide](identity.md) documents current acquisition,
+partial evidence, negative-evidence maintenance admission and invalidation.
+These declarations are maintained in the header, not duplicated as future APIs.
 
 `isValidVariant` accepts only `DP83826I`; `UNKNOWN` and other numeric casts are
 invalid. Later documented parts are **not** prematurely exposed enum values
@@ -426,9 +392,6 @@ The following are planned class-member signatures, introduced with their owning
 working stages; the enclosing class is omitted from this declaration excerpt:
 
 ```cpp interface
-Status readIdentity(DeviceIdentity& identity, const IoBudget& budget) noexcept;
-DeviceIdentity identitySnapshot() const noexcept;
-Capabilities capabilities() const noexcept;
 Status readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) noexcept;
 DriverState driverState() const noexcept;
 HealthSnapshot healthSnapshot() const noexcept;

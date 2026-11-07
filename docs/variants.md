@@ -1,7 +1,7 @@
 # Device coverage
 
 Core evidence and side-effect access re-audited on 2026-11-07.
-**DP83826I has a host-tested bounded direct/indirect access subset; no variant has a complete
+**DP83826I has host-tested identity/capability selection and a bounded direct/indirect access subset; no variant has a complete
 or hardware-qualified driver.** The following describes documentation coverage
 and intended development order.
 
@@ -27,6 +27,10 @@ gates. Later variants must qualify these independently.
 The DP8382x name follows the family grouping used in TI's
 [compliance/debug guide](reference/source/TI-DP8382x-Compliance-SNLA266B.pdf).
 It does not imply compatibility with every chip whose name starts with DP8382.
+
+The [implemented variant decision table](identity.md) separates declared part,
+observed ID/mode, implemented admission and hardware qualification. Both modes
+admit MII and RMII, without claiming the observed interface strap matches wiring.
 
 ## Identifiers appearing in software
 

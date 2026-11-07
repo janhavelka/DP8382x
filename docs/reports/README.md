@@ -1,5 +1,9 @@
 # Planning audits and later implementation evidence
 
+The [prompt 14 report](implementation/14-identity-capabilities.md) records exact
+identity/capability implementation, current TI/peer review, independent failure
+tests and the compiling probe example.
+
 The [prompt 13 report](implementation/13-side-effect-register-access.md) records
 the current named catalog, collector and mixed-register implementation, independent
 PDF/failure review and COMMON's WP0–WP7 prerequisite corrections. It supersedes
