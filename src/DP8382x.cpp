@@ -741,8 +741,9 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
       if (address == 0x001FU && frame.value == 0x4000U) {
         // Table8-48 circuitry restart keeps registers, identity and initialized state.
         for (auto& sample : _evidence.samples) { sample.stale = true; }
-      } else if (_configuring && (address == 0U || address == 4U || address == 7U)) {
-        // Owned AN changes do not reset the device or undo mandatory VOD setup.
+      } else if (_configuring && (address == cmd::REG_BMCR || address == cmd::REG_ANAR || address == cmd::REG_ANNPTR ||
+          address == cmd::REG_CR1 || address == cmd::REG_PHYCR || address == cmd::REG_CR3 || address == cmd::REG_CR2)) {
+        // Owned profile changes do not reset the device or undo mandatory VOD setup.
         _evidence.configurationDirty = true;
         _settings.trust = ConfigurationTrust::DIRTY;
         _settings.observedStale = true;
@@ -865,11 +866,11 @@ Status DP8382x::_checkToken(OperationToken token) const noexcept {
   return Status::Ok();
 }
 
-Status DP8382x::_finishOperation(Status status) noexcept {
+Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept {
   // Once a verification mismatch is observed, later timeout/cancellation cannot
   // erase it. The later failed callback still has its own BatchSummary evidence.
   if (_configuring && _result.mismatch.valid && !status.ok()) {
-    status = Status::Error(Err::CONFIG_MISMATCH, "Negotiated settings verification failed");
+    status = Status::Error(Err::CONFIG_MISMATCH, "Link profile verification failed");
   }
   _operation.state = OperationState::RESULT_PENDING;
   _operation.phase = OperationPhase::COMPLETE;
@@ -886,7 +887,7 @@ Status DP8382x::_finishOperation(Status status) noexcept {
     _settings.lastVerificationStatus = status;
     if (!status.ok()) {
       _settings.trust = ConfigurationTrust::DIRTY;
-      _settings.observedStale = true;
+      if (!freshObservation) { _settings.observedStale = true; }
     }
   }
   _configuring = false;

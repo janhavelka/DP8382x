@@ -9649,12 +9649,28 @@
         {
           "register": "BMCR",
           "mask": "0x3300"
+        },
+        {
+          "register": "CR1",
+          "mask": "0x0020"
+        },
+        {
+          "register": "PHYCR",
+          "mask": "0xC000"
+        },
+        {
+          "register": "CR3",
+          "mask": "0x0060"
+        },
+        {
+          "register": "CR2",
+          "mask": "0x0020"
         }
       ],
       "prerequisites": "Application owner serializes all instance calls/snapshots. Controller transaction lock covers every bus participant; active-operation admission is separate. Declared exact variant, legal values and valid clock/power history checked before mutation.",
       "steps": [
         "Validate nonempty subset of four 10/100 half/full abilities and all four pause combinations. Force selector1 and RF0; preserve read-only/reserved bits. Pause has no negotiated effect on half-duplex resolution. Validate all intent before I/O.",
-        "Require completed initialization including unconditional initialize_10base VOD setup for every profile. Do not repeat VOD here. Until prompt18 reject nondefault crossover and extended duplex; forced configuration belongs to prompt18.",
+        "Require completed initialization including unconditional initialize_10base VOD setup for every profile. Do not repeat VOD here. Apply and verify all coupled CR1/PHYCR/CR3/CR2 routing, mirror and extension settings through the shared profile procedure; preserve forced-mode robust requirement until AN activation.",
         "Save touched stable words; atomically replace the complete ANAR owned advertisement/selector fields while preserving reserved/read-only bits and RF0. The optional next_page_exchange owns transient NP and post-restart register7 loading.",
         "Enable BMCR AN, compose reset0, issue restart1 only after configuration writes succeed; speed/duplex selections ignored during AN. Verify stable desired bits without comparing self-clearing command.",
         "Verify stable advertisement and BMCR fields; restart-clear proves initiation only. An explicitly requested finite wait observes BMSR AN-complete; full link resolution remains prompt19. Down/pending is not an MDIO error.",
@@ -9708,11 +9724,11 @@
       ],
       "prerequisites": "Application owner serializes all instance calls/snapshots. Controller transaction lock covers every bus participant; active-operation admission is separate. Declared exact variant, legal values and valid clock/power history checked before mutation.",
       "steps": [
-        "Validate10/100 and half/full, desired automatic/robust/manual crossover plus port-mirror choice and traffic disruption. For10 complete mandatory VOD recipe first.",
+        "Validate 10/100 and half/full, robust enabled for every forced route, legal automatic/MDI/MDIX and coupled port mirror. Reject every AN advertisement/pause/page/wait intent; no ANAR access. Require initialization including mandatory VOD before applying any profile; configure adds no VOD write.",
         "Enable CR1 robust bit5 for forced operation per exact table; for auto set PHYCR15 and preserve manual bit; for manual clear PHYCR15 and select PHYCR14 (0MDI/1MDIX). Robust enable is retained per table even for forced manual pair policy.",
-        "Apply independent CR3 pair/polarity swap only when requested; port mirror requires both5/6. Do not confuse these with PHYCR automatic/manual routing.",
-        "Write BMCR AN disabled and selected speed/duplex, neutral reset/restart commands; verify stable owned settings. Report configured mode separately from link resolution.",
-        "Acquire current link and coherent BMCR through collector/owner; apply the D4 forced-mode rule below, preserving raw PHYSTS without interpreting its forced bits.",
+        "Apply CR3 port mirror only as coupled0060 or0000, preserving all other bits. Reject independent pair/polarity corrections. Apply requested CR2 extension under extended_link_configure before mode activation.",
+        "Write BMCR AN disabled and selected speed/duplex, neutral reset/restart commands; verify stable owned settings without waiting on AN restart (ignored when AN disabled). Report configured mode separately from link resolution.",
+        "Current link/PHYSTS observation belongs to prompt19; configuration does not infer current link or partner duplex.",
         "D4: coherent AN-disabled BMCR plus current linkUP establishes speed frombit13 and duplex frombit8; PHYSTS2:1 remain raw only. Forced100half with CR2[5] not known0 yields speed100, duplexUNKNOWN, mode invalid. Pause is never valid in forced mode."
       ],
       "waits": [],
@@ -11188,20 +11204,21 @@
       "steps": [
         "Extended duplex is a requested CR2[5] control with no peer-capability preflight. Reject forced10M plus extended; the adapter rejects forced100half plus extended. Configuration success does not prove peer agreement.",
         "Apply CR1[5] robust auto-MDIX as required in forced mode; configure PHYCR[15:14] automatic/manual crossover through existing configure_forced contract. CR2[6] remains reserved; no0020 field is widened to0060.",
+        "When changing to AN with robust disabled, keep robust enabled until BMCR AN activation, then clear CR1[5]. All other coupled controls precede activation. This preserves the Force Mode requirement during transitions.",
         "Verify stable configuration and retain its provenance; use selected D4 and AN parallel-detection rules for resolution. Restore persistent selection after reset; application owns MAC admission.",
         "D4: coherent AN-disabled BMCR plus current linkUP establishes speed frombit13 and duplex frombit8; PHYSTS2:1 remain raw only. Forced100half with CR2[5] not known0 yields speed100, duplexUNKNOWN, mode invalid. Pause is never valid in forced mode.",
         "No peer-capability preflight for extendedFullDuplex: compose CR2 mask0020 preserving all others. Reject forced10M plus extended; adapter rejects forced100half plus extended. Parallel detection ANER0 with CR2enabled andPHYSTSfull may resolve100/full but pause remains invalid. Port mirroring requires both CR3 bits0060, not independent selection."
       ],
       "waits": [],
-      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Per touched C22 register: save1 + atomic RMW2 + verify1 frames. Current forced profile20 frames; negotiated24 before optional waits/pages. One aggregate OperationBudget covers every lock/callback; short slices yield before entire batches. Restoration receives a separate operation budget; frozen clocks remain bounded.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
+      "cleanup": "Cancellation/failure stops immediately. Accepted or uncertain semantic effects retain cleanupOwed and the original result. A later separately admitted initialization, or eligible CONFIGURE retry, restores and verifies the complete desired profile with its own token/budget/result. No automatic rollback or retry.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [
         "forced_physts"
       ],
       "owner": {
-        "api": "extended_link_configure",
+        "api": "LinkSettings / startConfigure",
         "cli": "Owner-routed extended_link_configure with typed preflight and bounded result (44-46).",
         "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: Forced100/full and half partners, AN partner, straight/cross cables and configured/readback versus resolved-link traces.",
         "implementationStage": 18
@@ -11981,7 +11998,9 @@
         "ALNPAR",
         "ANER",
         "PHYCR",
-        "CR2"
+        "CR2",
+        "CR1",
+        "CR3"
       ],
       "procedures": [
         "configure_an"
@@ -12072,15 +12091,15 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "forced_physts"
       ],
-      "notes": "Source inventory researched, including named source gates. Implementation, host/SDK and hardware evidence remain pending; board wiring does not remove software scope."
+      "notes": "Prompt18 implements configure_forced and extended_link_configure through the existing complete-profile operation and reset replay. All forced/negotiated routing, robust, coupled mirror and extension combinations have independent host tests. Live link resolution remains prompt19; Q11 physical routing/mirror/PHYSTS behavior and SDK evidence remain NOT_RUN."
     },
     {
       "id": "link",

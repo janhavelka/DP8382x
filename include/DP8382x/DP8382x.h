@@ -135,7 +135,7 @@ constexpr OperationToken INVALID_OPERATION_TOKEN{};
 enum class OperationKind : uint8_t {
   NONE, ///< Empty slot.
   INITIALIZE, ///< Identity, optional reset and owned configuration replay.
-  CONFIGURE ///< Negotiated profile and optional finite next-page exchange.
+  CONFIGURE ///< Complete forced/negotiated profile and optional finite next-page exchange.
 };
 /// @brief One retained operation slot.
 enum class OperationState : uint8_t {
@@ -197,7 +197,7 @@ enum class ConfigurationTrust : uint8_t {
   VERIFIED, ///< Complete currently owned stable settings verified.
   DIRTY ///< Admitted desired change or uncertainty needs verification/restoration.
 };
-/// @brief Passive settings. VERIFIED covers ANAR, BMCR and mandatory VOD_CFG3 only.
+/// @brief Passive profile evidence. VERIFIED covers active advertisement/mode, routing, extension and mandatory VOD.
 struct SettingsSnapshot {
   LinkSettings desired{}; ///< Authoritative intent copied at successful start admission.
   bool desiredValid{false}; ///< Desired intent exists; cancellation does not erase it.
@@ -208,10 +208,18 @@ struct SettingsSnapshot {
   uint64_t observedAtUs{0}; ///< Conservative complete readback time, microseconds.
   bool timeValid{false}; ///< Timestamp is usable.
   Status lastVerificationStatus{Err::NOT_INITIALIZED, 0, "No settings verification"}; ///< Latest verification outcome.
-  uint16_t rawAnar{0}; ///< Latest independently returned advertisement word.
+  uint16_t rawAnar{0}; ///< Latest advertisement word; historical and inactive during forced mode.
   uint16_t rawBmcr{0}; ///< Latest independently returned control word.
-  bool anarValid{false}; ///< Raw advertisement has been captured.
+  bool anarValid{false}; ///< A raw advertisement was captured; forced operation does not refresh it.
   bool bmcrValid{false}; ///< Raw control has been captured.
+  uint16_t rawCr1{0}; ///< Latest robust-routing control readback.
+  uint16_t rawPhycr{0}; ///< Latest automatic/manual-routing readback.
+  uint16_t rawCr3{0}; ///< Latest coupled-mirror readback.
+  uint16_t rawCr2{0}; ///< Latest extended-duplex readback.
+  bool cr1Valid{false}; ///< Raw CR1 has been captured.
+  bool phycrValid{false}; ///< Raw PHYCR has been captured.
+  bool cr3Valid{false}; ///< Raw CR3 has been captured.
+  bool cr2Valid{false}; ///< Raw CR2 has been captured.
 };
 /// @brief Independently consumed partner page, retained even if later work fails.
 struct PageEvidence {
@@ -293,6 +301,14 @@ struct OperationResult {
   uint16_t savedBmcr{0}; ///< Pre-mutation control, never a rollback instruction.
   bool savedAnarValid{false}; ///< Pre-mutation advertisement was captured.
   bool savedBmcrValid{false}; ///< Pre-mutation control was captured.
+  uint16_t savedCr1{0}; ///< Pre-mutation CR1; never an implicit rollback request.
+  uint16_t savedPhycr{0}; ///< Pre-mutation routing word.
+  uint16_t savedCr3{0}; ///< Pre-mutation mirror word.
+  uint16_t savedCr2{0}; ///< Pre-mutation extension word.
+  bool savedCr1Valid{false}; ///< Pre-mutation CR1 was captured.
+  bool savedPhycrValid{false}; ///< Pre-mutation PHYCR was captured.
+  bool savedCr3Valid{false}; ///< Pre-mutation CR3 was captured.
+  bool savedCr2Valid{false}; ///< Pre-mutation CR2 was captured.
 };
 /// @brief Bus/clock-silent operation progress, without a copy of the retained result.
 struct OperationSnapshot {
@@ -396,14 +412,17 @@ public:
   /// @return True only after identity/reset/mandatory VOD verification; never a link claim.
   bool isInitialized() const noexcept { return _initialized; }
 
-  /// @brief Admit a complete negotiated profile without MDIO or clock callbacks.
-  /// @param[in] settings Nonempty documented 10/100 technologies, pause and default crossover.
+  /// @brief Admit a complete negotiated or forced profile without MDIO or clock callbacks.
+  /// @param[in] settings AN advertisement or forced10/100 half/full, coupled routing/mirror and extension.
   /// @param[in] options Optional bounded Clause 28 exchange/completion wait.
   /// @param[in] budget Exclusive aggregate deadline, frame and stall allowances.
   /// @param[out] token Assigned only on admission; result must be taken before reuse.
   /// @return IN_PROGRESS on admission; invalid intent, unavailable feature, binding,
   /// operation/barrier, initialization or budget errors otherwise, with no changes.
-  /// @note SNLS647I 8.3.1, tables 8-19/23..27; IEEE 802.3 Clause 28.
+  /// @note SNLS647I 8.3.1/.2, tables 8-19/23..30/43; IEEE 802.3 Clause 28.
+  /// Forced requires robust routing, no AN intent/options, and never accesses
+  /// ANAR. Automatic routing preserves PHYCR14; mirror sets both CR3 bits0060.
+  /// Extension owns CR2 bit0020 only, rejects forced10 and proves no partner agreement.
   /// Admission copies desired intent and marks trust DIRTY. NP belongs only to
   /// this exchange. Failure/cancel stops without cleanup writes; restoration is
   /// a new initialization or eligible configuration operation. No VOD write here.
@@ -562,7 +581,9 @@ private:
   SettingsSnapshot _settings{};
   ConfigureOptions _configureOptions{};
   enum class ConfigStep : uint8_t {
-    DRAIN, READ_ANAR, READ_BMCR, APPLY_ANAR, RESTART, VERIFY_ANAR, VERIFY_BMCR,
+    DRAIN, READ_ANAR, READ_BMCR, READ_CR1, READ_PHYCR, READ_CR3, READ_CR2,
+    APPLY_CR1, APPLY_PHYCR, APPLY_CR3, APPLY_CR2, APPLY_ANAR, APPLY_BMCR,
+    VERIFY_ANAR, VERIFY_CR1, VERIFY_PHYCR, VERIFY_CR3, VERIFY_CR2, VERIFY_BMCR,
     WAIT_BASE, READ_BASE, LOAD_PAGE, WAIT_PAGE, READ_PAGE, WAIT_COMPLETE, CLEAR_NP, VERIFY_CLEAR
   };
   ConfigStep _configStep{ConfigStep::DRAIN};
@@ -603,7 +624,7 @@ private:
   void _invalidateEvidence() noexcept;
   Status _checkMutation() noexcept;
   Status _checkToken(OperationToken token) const noexcept;
-  Status _finishOperation(Status status) noexcept;
+  Status _finishOperation(Status status, bool freshObservation = false) noexcept;
   Status _yieldOperation(uint64_t raw) noexcept;
   void _setInitStep(InitStep step) noexcept;
   Status _waitOperation() noexcept;
@@ -616,6 +637,7 @@ private:
   Status _advanceConfiguration(Status status, bool called, const MdioBatch& batch) noexcept;
   void _beginConfiguration(bool exchange) noexcept;
   void _setConfigStep(ConfigStep step) noexcept;
+  void _observeConfiguration() noexcept;
   void _retainPageEvidence(const MdioBatch& batch, const BatchResult& receipt,
                            uint8_t completed, bool clockValid, uint64_t upper) noexcept;
 };

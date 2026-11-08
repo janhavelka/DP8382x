@@ -89,8 +89,8 @@ struct ForcedLinkSettings {
 struct CrossoverSettings {
   PairSelection pairSelection{PairSelection::AUTOMATIC}; ///< Routing policy.
   bool robust{true};       ///< Required for every forced mode.
-  bool swapPair{false};    ///< CR3 pair swap, separate from PHYCR routing.
-  bool swapPolarity{false};///< Polarity swap; mirroring requests both swaps.
+  bool swapPair{false};    ///< Coupled CR3 port mirror; must equal swapPolarity.
+  bool swapPolarity{false};///< Both true select table 8-30 mirror0060; single-bit requests reject.
 };
 
 /// @brief Persistent desired link settings, not verified hardware state.
@@ -99,7 +99,7 @@ struct LinkSettings {
   Advertisement advertisement{};        ///< Active only for AN.
   ForcedLinkSettings forced{};           ///< Active only for forced mode.
   CrossoverSettings crossover{};         ///< Coupled routing intent.
-  bool extendedFullDuplex{false};        ///< Later partner-coordinated opt-in.
+  bool extendedFullDuplex{false};        ///< CR2[5] opt-in; incompatible with forced10, no partner preflight.
 };
 
 /// @brief Check exact supported part membership without I/O or a clock.
@@ -141,9 +141,14 @@ inline constexpr Status validateLinkSettings(const LinkSettings& settings) noexc
     return Status::Error(Err::INVALID_CONFIG, "Invalid technology mask",
                          static_cast<int32_t>(ConfigDetail::LINK_COMBINATION));
   }
+  if (settings.crossover.swapPair != settings.crossover.swapPolarity) {
+    return Status::Error(Err::INVALID_CONFIG, "Port mirror requires both CR3 controls",
+                         static_cast<int32_t>(ConfigDetail::LINK_COMBINATION));
+  }
   if (settings.mode == LinkMode::AUTONEGOTIATED) {
-    if (settings.advertisement.technologyMask == 0U) {
-      return Status::Error(Err::INVALID_CONFIG, "Empty AN technology mask",
+    if (settings.advertisement.technologyMask == 0U || settings.forced.speed != LinkSpeed::UNKNOWN ||
+        settings.forced.duplex != Duplex::UNKNOWN) {
+      return Status::Error(Err::INVALID_CONFIG, "Invalid AN intent",
                            static_cast<int32_t>(ConfigDetail::LINK_COMBINATION));
     }
     return Status::Ok();

@@ -99,4 +99,6 @@ owns one token/result slot, aggregate admission, transport accounting and the
 single destructive collector. Initialization calls the same profile procedure
 for replay. There is no second transaction owner, page registry or job engine.
 [Negotiation](negotiation.md) documents the currently implemented scope; SDK
-projection, resolved link, forced settings and MAC flow control have later owners.
+projection, resolved link and MAC flow control have later owners. Stage 18 extends
+the same profile phases for forced modes and coupled routing/extension, including
+shared restoration; no separate Force Mode implementation exists.

@@ -159,3 +159,9 @@ apply and stable readback path. It always restores NP=0 and restarts AN; transie
 page progress and pages are never replayed. Initialization can finish with cable
 down and does not implicitly wait for negotiation. Only complete owned replay
 clears the restoration barrier. See [configuration](negotiation.md).
+
+Stage 18 expands that replay to all owned robust/routing/mirror/extension fields
+and forced mode. Forced desired intent never accesses ANAR; it preserves any
+inactive advertisement and neutralizes AN commands in BMCR. Every reset kind
+restores the complete admitted profile after mandatory VOD, with fresh readback.
+No forced profile is invented when the caller has never admitted one.

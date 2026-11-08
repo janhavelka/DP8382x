@@ -74,7 +74,7 @@ void testStatus() {
 void testLink() {
   CHECK(!validateLinkSettings(LinkSettings{}).ok());
   // Every possible mask is checked against literal protocol-independent API bits.
-  // Every pause/swap/extended intent remains representable for AN.
+  // Every pause/mirror/extended intent remains representable for AN; mirror is coupled.
   for (unsigned mask = 0; mask < 256U; ++mask) {
     for (unsigned flags = 0; flags < 32U; ++flags) {
       LinkSettings settings;
@@ -84,7 +84,7 @@ void testLink() {
       settings.crossover.swapPair = (flags & 4U) != 0U;
       settings.crossover.swapPolarity = (flags & 8U) != 0U;
       settings.extendedFullDuplex = (flags & 16U) != 0U;
-      expectLink(settings, mask >= 1U && mask <= 15U ? Err::OK : Err::INVALID_CONFIG);
+      expectLink(settings, mask >= 1U && mask <= 15U && ((flags & 4U) != 0U) == ((flags & 8U) != 0U) ? Err::OK : Err::INVALID_CONFIG);
     }
   }
   // Cover all known enum values and forced cross-field constraints independently.
@@ -105,12 +105,12 @@ void testLink() {
           settings.crossover.swapPolarity = (flags & 32U) != 0U;
           settings.extendedFullDuplex = (flags & 64U) != 0U;
           const bool valid = speed != 0U && duplex != 0U && (flags & 15U) == 1U &&
-              !(speed == 1U && (flags & 64U) != 0U);
+              !(speed == 1U && (flags & 64U) != 0U) && ((flags & 16U) != 0U) == ((flags & 32U) != 0U);
           expectLink(settings, valid ? Err::OK : Err::INVALID_CONFIG);
-          // Known inactive forced values and either robust policy are legal in AN.
+          // AN requires no contradictory inactive forced intent; robust remains optional.
           settings.mode = LinkMode::AUTONEGOTIATED;
           settings.advertisement.technologyMask = 8U;
-          expectLink(settings, Err::OK);
+          expectLink(settings, speed == 0U && duplex == 0U && ((flags & 16U) != 0U) == ((flags & 32U) != 0U) ? Err::OK : Err::INVALID_CONFIG);
         }
       }
     }

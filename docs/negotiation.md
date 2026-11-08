@@ -3,9 +3,8 @@
 Prompt 17 implements DP83826I autonegotiated profiles through `startConfigure`
 and the existing caller-driven operation slot. It supports every nonempty subset
 of documented 10/100 half/full technologies and all four symmetric/asymmetric
-pause combinations. MAC flow-control policy remains application-owned. Forced
-settings, crossover overrides and extended full duplex belong to prompt 18;
-non-default requests for those controls are rejected before I/O.
+pause combinations. MAC flow-control policy remains application-owned. Stage 18 also implements [forced settings and coupled routing](forced-settings.md),
+including legal robust/manual/mirror and extension choices.
 
 The [public header](../include/DP8382x/DP8382x.h) owns the shipped declarations.
 The [ledger](registers/dp83826i.json),
@@ -48,8 +47,8 @@ configuration never enables EEE, WoL or next pages.
 
 `settingsSnapshot()` is bus/clock silent and separates desired intent, complete
 observed settings, staleness, trust and the last verification status. At this
-stage verification covers ANAR, BMCR and mandatory initialization VOD only;
-default-valued future fields are not claims to have configured those controls.
+stage verification covers ANAR, BMCR, CR1/PHYCR/CR3/CR2 and mandatory
+initialization VOD; these are the current owned profile fields.
 An earlier mismatch remains evidence even if a later readback fails. Matching
 ordinary observations do not silently become new desired intent.
 

@@ -268,8 +268,9 @@ gigabit bit 6) and values 10/half=`0`, 10/full=`0x0100`, 100/half=`0x2000`,
 100/full=`0x2100`. It does not itself disable AN. For this PHY, use the proved
 speed/duplex fields, explicitly disable AN within the owned procedure, neutralize
 commands and handle crossover policy. CR1 robust Auto-MDIX `0x0020` is required
-when using Auto-MDIX in forced mode (table 8-28); manual MDI/MDIX and pair/polarity
-swap remain distinct controls. Test a failure after each accepted write.
+for every forced route, including manual MDI/MDIX (table 8-28). PHYCR routing
+and coupled CR3 port mirror0060 are separate controls; single swap requests
+are not independently justified. Test a failure after each accepted write.
 
 C 395-450 reads PHYSTS `0x10` once, returns invalid link if bit 0 clear, otherwise
 decodes speed mask `0x0002` and duplex `0x0004`. Its debug path can use uninitialized
@@ -416,3 +417,7 @@ silence floor is conservative software policy; source table reset-to-SMI2ms and
 POR-to-SMI50ms are MAX readiness windows, RESET_N25us is MIN and FLP1500ms NOM.
 Eligible hard-reset strap resampling remains possible, not unconditionally proved;
 Q5 must establish exact physical behavior. Vendor payloads/hashes are unchanged.
+
+Prompt 18 re-audited these exact tables and current TI implementations. The
+[source review](../reports/implementation/18-source-review.md) records pins,
+licenses, independent vectors and the forced-to-AN robust-disable order.

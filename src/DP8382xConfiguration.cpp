@@ -1,5 +1,5 @@
 /// @file DP8382xConfiguration.cpp
-/// @brief Negotiated settings and finite Clause 28 next-page service.
+/// @brief Coupled link profiles and finite Clause 28 next-page service.
 #include <DP8382x/DP8382x.h>
 #include <DP8382x/CommandTable.h>
 
@@ -14,6 +14,9 @@ constexpr uint16_t ANAR_VERIFY = 0xADFF;
 constexpr uint16_t BMCR_PRESERVE = 0x4CFF;
 constexpr uint16_t BMCR_VERIFY = 0x3100;
 constexpr uint16_t ANNPTR_PRESERVE = 0x4800;
+// Tables 8-28/29/30/43: only these stable owned fields change. PHYCR14
+// is inactive in automatic routing and must be preserved rather than cleared.
+constexpr uint16_t MIRROR_MASK = cmd::MASK_CR3_PAIR_SWAP | cmd::MASK_CR3_POLARITY_SWAP;
 constexpr uint16_t BASE_CAPABILITIES = cmd::MASK_ANER_LOCAL_NEXT | cmd::MASK_ANER_PARTNER_NEXT |
                                      cmd::MASK_ANER_PARTNER_AN;
 
@@ -35,6 +38,22 @@ uint16_t advertisementWord(const LinkSettings& settings) noexcept {
   return static_cast<uint16_t>(0x0001U | (uint16_t{settings.advertisement.technologyMask} << 5U) |
       (settings.advertisement.symmetricPause ? cmd::MASK_ANAR_SYMMETRIC_PAUSE : 0U) |
       (settings.advertisement.asymmetricPause ? cmd::MASK_ANAR_ASYM_PAUSE : 0U));
+}
+
+uint16_t modeWord(const LinkSettings& settings) noexcept {
+  if (settings.mode == LinkMode::AUTONEGOTIATED) { return cmd::MASK_BMCR_AN_ENABLE; }
+  return static_cast<uint16_t>((settings.forced.speed == LinkSpeed::MBPS_100 ? cmd::MASK_BMCR_SPEED : 0U) |
+      (settings.forced.duplex == Duplex::FULL ? cmd::MASK_BMCR_DUPLEX : 0U));
+}
+
+uint16_t routingMask(const LinkSettings& settings) noexcept {
+  return settings.crossover.pairSelection == PairSelection::AUTOMATIC ? cmd::MASK_PHYCR_AUTO_MDIX :
+      static_cast<uint16_t>(cmd::MASK_PHYCR_AUTO_MDIX | cmd::MASK_PHYCR_FORCE_MDIX);
+}
+
+uint16_t routingWord(const LinkSettings& settings) noexcept {
+  return settings.crossover.pairSelection == PairSelection::AUTOMATIC ? cmd::MASK_PHYCR_AUTO_MDIX :
+      (settings.crossover.pairSelection == PairSelection::MDIX ? cmd::MASK_PHYCR_FORCE_MDIX : uint16_t{0});
 }
 
 Status validatePages(const NextPageExchange& exchange) noexcept {
@@ -91,7 +110,7 @@ MdioBatch updateRegister(uint8_t address, uint16_t preserve, uint16_t value) noe
 }
 
 Status mismatchStatus() noexcept {
-  return Status::Error(Err::CONFIG_MISMATCH, "Negotiated settings verification failed");
+  return Status::Error(Err::CONFIG_MISMATCH, "Link profile verification failed");
 }
 } // namespace
 
@@ -101,11 +120,9 @@ Status DP8382x::startConfigure(const LinkSettings& settings, const ConfigureOpti
   if (!status.ok()) { return status; }
   status = validatePages(options.nextPages);
   if (!status.ok()) { return status; }
-  if (settings.mode != LinkMode::AUTONEGOTIATED || settings.extendedFullDuplex ||
-      settings.crossover.pairSelection != PairSelection::AUTOMATIC || !settings.crossover.robust ||
-      settings.crossover.swapPair || settings.crossover.swapPolarity ||
-      settings.forced.speed != LinkSpeed::UNKNOWN || settings.forced.duplex != Duplex::UNKNOWN) {
-    return invalidSettings("Configuration requires the admitted negotiated profile");
+  if (settings.mode == LinkMode::FORCED &&
+      (options.waitForCompletion || options.nextPages.pageCount != 0U)) {
+    return invalidSettings("Forced mode has no negotiation wait or next pages");
   }
   if (budget.pollIntervalUs == 0U || budget.maxStalledPolls == 0U) {
     return Status::Error(Err::INVALID_PARAM, "Invalid polling budget",
@@ -135,7 +152,7 @@ Status DP8382x::startConfigure(const LinkSettings& settings, const ConfigureOpti
   _operation.token = {++_tokenCounter};
   _operation.kind = OperationKind::CONFIGURE;
   _operation.state = OperationState::RUNNING;
-  _operation.status = Status::Error(Err::IN_PROGRESS, "Negotiated configuration pending");
+  _operation.status = Status::Error(Err::IN_PROGRESS, "Link configuration pending");
   _operation.remaining = budget.io;
   _operationBudget = budget;
   _result = {};
@@ -146,7 +163,6 @@ Status DP8382x::startConfigure(const LinkSettings& settings, const ConfigureOpti
   _settings.desiredValid = true;
   _settings.trust = ConfigurationTrust::DIRTY;
   _settings.observedStale = true;
-  _settings.timeValid = false;
   _configureOptions = options;
   _pollTimeValid = false;
   _beginConfiguration(options.nextPages.pageCount != 0U);
@@ -164,7 +180,8 @@ void DP8382x::_beginConfiguration(bool exchange) noexcept {
   _pageEventPending = false;
   _pageEventRaw = 0;
   _result.nextPage.requested = exchange;
-  _setConfigStep(exchange ? ConfigStep::DRAIN : ConfigStep::READ_ANAR);
+  _setConfigStep(exchange ? ConfigStep::DRAIN :
+      (_settings.desired.mode == LinkMode::FORCED ? ConfigStep::READ_BMCR : ConfigStep::READ_ANAR));
 }
 
 void DP8382x::_setConfigStep(ConfigStep step) noexcept {
@@ -172,14 +189,17 @@ void DP8382x::_setConfigStep(ConfigStep step) noexcept {
   _operation.nextPollValid = false;
   switch (step) {
     case ConfigStep::DRAIN: case ConfigStep::READ_ANAR: case ConfigStep::READ_BMCR:
+    case ConfigStep::READ_CR1: case ConfigStep::READ_PHYCR: case ConfigStep::READ_CR3: case ConfigStep::READ_CR2:
       _operation.phase = OperationPhase::PREFLIGHT; break;
     case ConfigStep::VERIFY_ANAR: case ConfigStep::VERIFY_BMCR: case ConfigStep::VERIFY_CLEAR:
+    case ConfigStep::VERIFY_CR1: case ConfigStep::VERIFY_PHYCR: case ConfigStep::VERIFY_CR3: case ConfigStep::VERIFY_CR2:
       _operation.phase = OperationPhase::VERIFY; break;
     case ConfigStep::WAIT_BASE: case ConfigStep::READ_BASE: case ConfigStep::WAIT_PAGE:
     case ConfigStep::READ_PAGE: case ConfigStep::WAIT_COMPLETE:
       _operation.phase = OperationPhase::WAIT; break;
-    case ConfigStep::RESTART: _operation.phase = OperationPhase::COMMAND; break;
+    case ConfigStep::APPLY_BMCR: _operation.phase = OperationPhase::COMMAND; break;
     case ConfigStep::APPLY_ANAR: case ConfigStep::LOAD_PAGE: case ConfigStep::CLEAR_NP:
+    case ConfigStep::APPLY_CR1: case ConfigStep::APPLY_PHYCR: case ConfigStep::APPLY_CR3: case ConfigStep::APPLY_CR2:
       _operation.phase = OperationPhase::RESTORE; break;
   }
 }
@@ -191,12 +211,28 @@ MdioBatch DP8382x::_configurationBatch() const noexcept {
     case ConfigStep::DRAIN: case ConfigStep::WAIT_BASE: case ConfigStep::WAIT_PAGE: return readRegister(cmd::REG_ANER);
     case ConfigStep::READ_ANAR: case ConfigStep::VERIFY_ANAR: case ConfigStep::VERIFY_CLEAR: return readRegister(cmd::REG_ANAR);
     case ConfigStep::READ_BMCR: case ConfigStep::VERIFY_BMCR: return readRegister(cmd::REG_BMCR);
+    case ConfigStep::READ_CR1: case ConfigStep::VERIFY_CR1: return readRegister(cmd::REG_CR1);
+    case ConfigStep::READ_PHYCR: case ConfigStep::VERIFY_PHYCR: return readRegister(cmd::REG_PHYCR);
+    case ConfigStep::READ_CR3: case ConfigStep::VERIFY_CR3: return readRegister(cmd::REG_CR3);
+    case ConfigStep::READ_CR2: case ConfigStep::VERIFY_CR2: return readRegister(cmd::REG_CR2);
+    case ConfigStep::APPLY_CR1:
+      return updateRegister(cmd::REG_CR1, static_cast<uint16_t>(~cmd::MASK_CR1_ROBUST_MDIX),
+          _settings.desired.crossover.robust ? cmd::MASK_CR1_ROBUST_MDIX : 0);
+    case ConfigStep::APPLY_PHYCR:
+      return updateRegister(cmd::REG_PHYCR, static_cast<uint16_t>(~routingMask(_settings.desired)), routingWord(_settings.desired));
+    case ConfigStep::APPLY_CR3:
+      return updateRegister(cmd::REG_CR3, static_cast<uint16_t>(~MIRROR_MASK), _settings.desired.crossover.swapPair ? MIRROR_MASK : 0);
+    case ConfigStep::APPLY_CR2:
+      return updateRegister(cmd::REG_CR2, static_cast<uint16_t>(~cmd::MASK_CR2_EXTENDED_DUPLEX),
+          _settings.desired.extendedFullDuplex ? cmd::MASK_CR2_EXTENDED_DUPLEX : 0);
     case ConfigStep::APPLY_ANAR:
       return updateRegister(cmd::REG_ANAR, ANAR_PRESERVE, static_cast<uint16_t>(advertisementWord(_settings.desired) |
           (_result.nextPage.requested ? cmd::MASK_ANAR_NEXT_PAGE : 0U)));
-    case ConfigStep::RESTART:
-      // BMCR reset is neutral, AN is enabled, and only this step requests restart.
-      return updateRegister(cmd::REG_BMCR, BMCR_PRESERVE, cmd::MASK_BMCR_AN_ENABLE | cmd::MASK_BMCR_AN_RESTART);
+    case ConfigStep::APPLY_BMCR:
+      // Activate only after all coupled controls. Forced mode neutralizes both
+      // commands; AN alone requests restart. Neither branch touches VOD.
+      return updateRegister(cmd::REG_BMCR, BMCR_PRESERVE, static_cast<uint16_t>(modeWord(_settings.desired) |
+          (_settings.desired.mode == LinkMode::AUTONEGOTIATED ? cmd::MASK_BMCR_AN_RESTART : 0U)));
     case ConfigStep::READ_BASE: return readRegister(cmd::REG_ALNPAR);
     case ConfigStep::READ_PAGE: return readRegister(cmd::REG_ANLNPTR);
     case ConfigStep::WAIT_COMPLETE: return readRegister(cmd::REG_BMSR);
@@ -254,6 +290,39 @@ void DP8382x::_retainPageEvidence(const MdioBatch& batch, const BatchResult& rec
   }
 }
 
+void DP8382x::_observeConfiguration() noexcept {
+  // Called only after the complete stable readback pass. Decode hardware,
+  // never copy intent over a valid mismatch. A forced request did not acquire
+  // ANAR, so an unexpectedly enabled AN mode cannot form a complete AN tuple.
+  LinkSettings observed;
+  observed.mode = (_settings.rawBmcr & cmd::MASK_BMCR_AN_ENABLE) != 0U ? LinkMode::AUTONEGOTIATED : LinkMode::FORCED;
+  if (observed.mode == LinkMode::AUTONEGOTIATED) {
+    if (_settings.desired.mode == LinkMode::FORCED || (_settings.rawAnar & cmd::MASK_ANAR_SELECTOR) != 1U) {
+      // Without a fresh IEEE-selector advertisement, retain any older tuple
+      // and timestamp as history; raw current words still diagnose the mismatch.
+      _settings.observedStale = true;
+      return;
+    }
+    observed.advertisement.technologyMask = static_cast<uint8_t>((_settings.rawAnar & cmd::MASK_ANAR_TECHNOLOGY) >> 5U);
+    observed.advertisement.symmetricPause = (_settings.rawAnar & cmd::MASK_ANAR_SYMMETRIC_PAUSE) != 0U;
+    observed.advertisement.asymmetricPause = (_settings.rawAnar & cmd::MASK_ANAR_ASYM_PAUSE) != 0U;
+  } else {
+    observed.forced.speed = (_settings.rawBmcr & cmd::MASK_BMCR_SPEED) != 0U ? LinkSpeed::MBPS_100 : LinkSpeed::MBPS_10;
+    observed.forced.duplex = (_settings.rawBmcr & cmd::MASK_BMCR_DUPLEX) != 0U ? Duplex::FULL : Duplex::HALF;
+  }
+  observed.crossover.robust = (_settings.rawCr1 & cmd::MASK_CR1_ROBUST_MDIX) != 0U;
+  observed.crossover.pairSelection = (_settings.rawPhycr & cmd::MASK_PHYCR_AUTO_MDIX) != 0U ? PairSelection::AUTOMATIC :
+      ((_settings.rawPhycr & cmd::MASK_PHYCR_FORCE_MDIX) != 0U ? PairSelection::MDIX : PairSelection::MDI);
+  observed.crossover.swapPair = (_settings.rawCr3 & cmd::MASK_CR3_PAIR_SWAP) != 0U;
+  observed.crossover.swapPolarity = (_settings.rawCr3 & cmd::MASK_CR3_POLARITY_SWAP) != 0U;
+  observed.extendedFullDuplex = (_settings.rawCr2 & cmd::MASK_CR2_EXTENDED_DUPLEX) != 0U;
+  _settings.observed = observed;
+  _settings.observedValid = true;
+  _settings.observedStale = false;
+  _settings.observedAtUs = _lastTimeUs + _config.transport.bounds.clockLagUs;
+  _settings.timeValid = true;
+}
+
 Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatch& batch) noexcept {
   const auto completedStep = _configStep;
   const auto& receipt = _transport.lastBatch;
@@ -269,6 +338,32 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
   if (readValid) {
     if (_configStep == ConfigStep::READ_ANAR) { _result.savedAnar = value; _result.savedAnarValid = true; }
     if (_configStep == ConfigStep::READ_BMCR) { _result.savedBmcr = value; _result.savedBmcrValid = true; }
+    if (_configStep == ConfigStep::READ_CR1) { _result.savedCr1 = value; _result.savedCr1Valid = true; }
+    if (_configStep == ConfigStep::READ_PHYCR) { _result.savedPhycr = value; _result.savedPhycrValid = true; }
+    if (_configStep == ConfigStep::READ_CR3) { _result.savedCr3 = value; _result.savedCr3Valid = true; }
+    if (_configStep == ConfigStep::READ_CR2) { _result.savedCr2 = value; _result.savedCr2Valid = true; }
+    const auto compare = [&](uint16_t address, uint16_t mask, uint16_t expected,
+                             uint16_t& observed, bool& valid) noexcept {
+      observed = value;
+      valid = true;
+      if ((value & mask) != expected && !_result.mismatch.valid) {
+        _result.mismatch = {true, false, 0, address, mask, expected, value};
+      }
+    };
+    if (_configStep == ConfigStep::VERIFY_CR1) {
+      compare(cmd::REG_CR1, cmd::MASK_CR1_ROBUST_MDIX,
+          _settings.desired.crossover.robust ? cmd::MASK_CR1_ROBUST_MDIX : 0, _settings.rawCr1, _settings.cr1Valid);
+    }
+    if (_configStep == ConfigStep::VERIFY_PHYCR) {
+      compare(cmd::REG_PHYCR, routingMask(_settings.desired), routingWord(_settings.desired), _settings.rawPhycr, _settings.phycrValid);
+    }
+    if (_configStep == ConfigStep::VERIFY_CR3) {
+      compare(cmd::REG_CR3, MIRROR_MASK, _settings.desired.crossover.swapPair ? MIRROR_MASK : 0, _settings.rawCr3, _settings.cr3Valid);
+    }
+    if (_configStep == ConfigStep::VERIFY_CR2) {
+      compare(cmd::REG_CR2, cmd::MASK_CR2_EXTENDED_DUPLEX,
+          _settings.desired.extendedFullDuplex ? cmd::MASK_CR2_EXTENDED_DUPLEX : 0, _settings.rawCr2, _settings.cr2Valid);
+    }
     if (_configStep == ConfigStep::VERIFY_ANAR || _configStep == ConfigStep::VERIFY_CLEAR) {
       _settings.rawAnar = value;
       _settings.anarValid = true;
@@ -281,8 +376,8 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
     if (_configStep == ConfigStep::VERIFY_BMCR) {
       _settings.rawBmcr = value;
       _settings.bmcrValid = true;
-      if ((value & BMCR_VERIFY) != cmd::MASK_BMCR_AN_ENABLE && !_result.mismatch.valid) {
-        _result.mismatch = {true, false, 0, cmd::REG_BMCR, BMCR_VERIFY, cmd::MASK_BMCR_AN_ENABLE, value};
+      if ((value & BMCR_VERIFY) != modeWord(_settings.desired) && !_result.mismatch.valid) {
+        _result.mismatch = {true, false, 0, cmd::REG_BMCR, BMCR_VERIFY, modeWord(_settings.desired), value};
       }
     }
   }
@@ -293,19 +388,41 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
   switch (_configStep) {
     case ConfigStep::DRAIN: _setConfigStep(ConfigStep::READ_ANAR); break;
     case ConfigStep::READ_ANAR: _setConfigStep(ConfigStep::READ_BMCR); break;
-    case ConfigStep::READ_BMCR: _setConfigStep(ConfigStep::APPLY_ANAR); break;
+    case ConfigStep::READ_BMCR: _setConfigStep(ConfigStep::READ_CR1); break;
+    case ConfigStep::READ_CR1: _setConfigStep(ConfigStep::READ_PHYCR); break;
+    case ConfigStep::READ_PHYCR: _setConfigStep(ConfigStep::READ_CR3); break;
+    case ConfigStep::READ_CR3: _setConfigStep(ConfigStep::READ_CR2); break;
+    case ConfigStep::READ_CR2:
+      // A previous forced profile requires robust routing until AN is enabled.
+      // Defer disabling it regardless of the saved hardware image's trust.
+      _setConfigStep(_settings.desired.crossover.robust ? ConfigStep::APPLY_CR1 : ConfigStep::APPLY_PHYCR); break;
+    case ConfigStep::APPLY_CR1:
+      _setConfigStep(_settings.desired.crossover.robust ? ConfigStep::APPLY_PHYCR : ConfigStep::VERIFY_ANAR); break;
+    case ConfigStep::APPLY_PHYCR: _setConfigStep(ConfigStep::APPLY_CR3); break;
+    case ConfigStep::APPLY_CR3: _setConfigStep(ConfigStep::APPLY_CR2); break;
+    case ConfigStep::APPLY_CR2:
+      _setConfigStep(_settings.desired.mode == LinkMode::AUTONEGOTIATED ? ConfigStep::APPLY_ANAR : ConfigStep::APPLY_BMCR); break;
     case ConfigStep::APPLY_ANAR:
       _result.nextPage.npMayRemainSet = _result.nextPage.requested;
-      _setConfigStep(ConfigStep::RESTART); break;
-    case ConfigStep::RESTART: _setConfigStep(ConfigStep::VERIFY_ANAR); break;
-    case ConfigStep::VERIFY_ANAR: _setConfigStep(ConfigStep::VERIFY_BMCR); break;
+      _setConfigStep(ConfigStep::APPLY_BMCR); break;
+    case ConfigStep::APPLY_BMCR:
+      _setConfigStep(_settings.desired.mode == LinkMode::FORCED ? ConfigStep::VERIFY_CR1 :
+          (_settings.desired.crossover.robust ? ConfigStep::VERIFY_ANAR : ConfigStep::APPLY_CR1)); break;
+    case ConfigStep::VERIFY_ANAR: _setConfigStep(ConfigStep::VERIFY_CR1); break;
+    case ConfigStep::VERIFY_CR1: _setConfigStep(ConfigStep::VERIFY_PHYCR); break;
+    case ConfigStep::VERIFY_PHYCR: _setConfigStep(ConfigStep::VERIFY_CR3); break;
+    case ConfigStep::VERIFY_CR3: _setConfigStep(ConfigStep::VERIFY_CR2); break;
+    case ConfigStep::VERIFY_CR2: _setConfigStep(ConfigStep::VERIFY_BMCR); break;
     case ConfigStep::VERIFY_BMCR:
+      _observeConfiguration();
       if (_result.mismatch.valid) {
         _settings.lastVerificationStatus = mismatchStatus();
-        return _finishOperation(mismatchStatus());
+        return _finishOperation(mismatchStatus(), !_settings.observedStale);
       }
-      if ((value & cmd::MASK_BMCR_AN_RESTART) != 0U) { return _waitOperation(); }
-      _result.protocolComplete = true;
+      if (_settings.desired.mode == LinkMode::AUTONEGOTIATED) {
+        if ((value & cmd::MASK_BMCR_AN_RESTART) != 0U) { return _waitOperation(); }
+        _result.protocolComplete = true;
+      }
       if (_result.nextPage.requested) { _setConfigStep(ConfigStep::WAIT_BASE); break; }
       if (_configureOptions.waitForCompletion) { _setConfigStep(ConfigStep::WAIT_COMPLETE); break; }
       break;
@@ -357,25 +474,22 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
       break;
     case ConfigStep::CLEAR_NP: _setConfigStep(ConfigStep::VERIFY_CLEAR); break;
     case ConfigStep::VERIFY_CLEAR:
+      _observeConfiguration();
       if (_result.mismatch.valid) {
         _settings.lastVerificationStatus = mismatchStatus();
-        return _finishOperation(mismatchStatus());
+        return _finishOperation(mismatchStatus(), !_settings.observedStale);
       }
       _result.nextPage.npMayRemainSet = false;
       break;
   }
   const bool finished = (completedStep == ConfigStep::VERIFY_BMCR && !_result.nextPage.requested &&
-                         !_configureOptions.waitForCompletion && (value & cmd::MASK_BMCR_AN_RESTART) == 0U) ||
+                         !_configureOptions.waitForCompletion && (_settings.desired.mode == LinkMode::FORCED ||
+                         (value & cmd::MASK_BMCR_AN_RESTART) == 0U)) ||
       (completedStep == ConfigStep::WAIT_COMPLETE && !_result.nextPage.requested && (value & cmd::MASK_BMSR_AN_COMPLETE) != 0U) ||
       (completedStep == ConfigStep::VERIFY_CLEAR && batch.frames[0].registerAddress == cmd::REG_ANAR &&
        batch.frameCount == 1U && !_result.nextPage.npMayRemainSet);
   if (!finished) { return _operation.status; }
-  _settings.observed = _settings.desired;
-  _settings.observedValid = true;
-  _settings.observedStale = false;
   _settings.trust = ConfigurationTrust::VERIFIED;
-  _settings.observedAtUs = _lastTimeUs + _config.transport.bounds.clockLagUs;
-  _settings.timeValid = true;
   _settings.lastVerificationStatus = Status::Ok();
   _result.persistentRestored = true;
   _initialized = true;
