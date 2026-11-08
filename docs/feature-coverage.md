@@ -15,7 +15,8 @@ Prompt 14 completes [identity admission and foundational capabilities](identity.
 with independent host tests. Prompt 15 completes [NONE/PCS initialization](initialization.md),
 mandatory VOD verification and retained restoration. Prompt 16 completes HARD/RESTART, persistent quiet floors and external-reset/POR
 reconciliation. Prompt 17 completes [negotiated profiles and typed next pages](negotiation.md),
-with shared replay and partial-evidence tests. Other feature procedures are PENDING; SDK builds and hardware qualification
+with shared replay and partial-evidence tests. Prompt 18 completes [forced and coupled controls](forced-settings.md) through
+the same configuration/replay path. Other feature procedures are PENDING; SDK builds and hardware qualification
 are NOT RUN. Ledger tests establish their own research layer.
 
 Prompt 6 completes the [portable/native ownership design](design-decisions.md)

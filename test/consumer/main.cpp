@@ -8,6 +8,7 @@
 #include "../../examples/portable/IdentityProbe.h"
 #include "../../examples/portable/Initialize.h"
 #include "../../examples/portable/Configure.h"
+#include "../../examples/portable/Forced.h"
 
 #ifdef _MSVC_LANG
 static_assert(_MSVC_LANG >= 201703L, "DP8382x must propagate C++17");
@@ -97,6 +98,7 @@ struct InitializationController {
   uint64_t timeUs{0};
   uint16_t selector{0}, address{0}, vod{0x8400};
   uint16_t anar{0x01E1}, bmcr{0x3100};
+  uint16_t cr1{0}, phycr{0x8000}, cr3{0}, cr2{0};
   bool failVodWrite{false};
   bool failHardWrite{false};
   uint32_t resetWrites{0}, hardWrites{0}, restartWrites{0}, vodWrites{0}, frames{0};
@@ -127,6 +129,10 @@ struct InitializationController {
         else if (frame.registerAddress == 3) { receipt.value = 0xA131; }
         else if (frame.registerAddress == 0) { receipt.value = controller.bmcr; }
         else if (frame.registerAddress == 4) { receipt.value = controller.anar; }
+        else if (frame.registerAddress == 9) { receipt.value = controller.cr1; }
+        else if (frame.registerAddress == 25) { receipt.value = controller.phycr; }
+        else if (frame.registerAddress == 11) { receipt.value = controller.cr3; }
+        else if (frame.registerAddress == 10) { receipt.value = controller.cr2; }
         else if (frame.registerAddress == 0x1F) { receipt.value = 0; }
         else if (frame.registerAddress == 0x0E && controller.selector == 0x401F) {
           if (controller.address == 0x030E) { receipt.value = controller.vod; }
@@ -140,6 +146,10 @@ struct InitializationController {
         controller.bmcr = static_cast<uint16_t>(written & 0xFDFFU);
       } else if (frame.registerAddress == 4) {
         controller.anar = written;
+      } else if (frame.registerAddress == 9) { controller.cr1 = written;
+      } else if (frame.registerAddress == 25) { controller.phycr = written;
+      } else if (frame.registerAddress == 11) { controller.cr3 = written;
+      } else if (frame.registerAddress == 10) { controller.cr2 = written;
       } else if (frame.registerAddress == 0x1F && frame.value == 0x8000) {
         ++controller.hardWrites;
         controller.vod = 0x8400;
@@ -311,7 +321,17 @@ static bool configurationExamples() noexcept {
     if (!attempt.resultAvailable || !attempt.result.status.ok() ||
         phy.settingsSnapshot().trust != DP8382x::ConfigurationTrust::VERIFIED || controller.vodWrites != 1) return false;
   }
-  return controller.anar == 0x0101 && controller.bmcr == 0x1000 && phy.end().ok();
+  if (controller.anar != 0x0101 || controller.bmcr != 0x1000) return false;
+  ConfigureAttempt forced;
+  if (!beginForced100Full(phy, {{100000, 64}, 1000, 20}, forced).inProgress()) return false;
+  for (unsigned turn = 0; turn < 32 && !forced.resultAvailable; ++turn) {
+    const auto status = pollConfiguration(phy, forced);
+    if (!status.inProgress() && !status.ok()) return false;
+    ++controller.timeUs;
+  }
+  return forced.resultAvailable && forced.result.status.ok() &&
+      controller.anar == 0x0101 && controller.bmcr == 0x2100 &&
+      controller.cr1 == 0x0020 && controller.phycr == 0 && controller.vodWrites == 1 && phy.end().ok();
 }
 
 int main() {

@@ -21,6 +21,7 @@ struct Controller {
     uint16_t bmcr{0x3100}, phyrcr{0}, anar{0x01E1};
     uint16_t selector{0}, address{0}, vod{0x8400}, page{0x0800};
     uint16_t aner{0x0004}, partnerBase{0}, partnerPage{0}, bmsr{0};
+    uint16_t cr1{0}, phycr{0x8001}, cr3{0}, cr2{0x0100};
   };
   std::array<Phy, 32> phys{};
   std::array<Wire, 2048> trace{};
@@ -78,6 +79,10 @@ struct Controller {
       }
       return value;
     }
+    case 0x09: return phy.cr1;
+    case 0x19: return phy.phycr;
+    case 0x0B: return phy.cr3;
+    case 0x0A: return phy.cr2;
     case 0x1F: phy.phyrcr = 0; return 0;
     case 0x0E:
       if (phy.selector == 0x401F) {
@@ -109,6 +114,10 @@ struct Controller {
         phy.vod = 0x8400;
       }
     } else if (reg == 0x04) phy.anar = value;
+    else if (reg == 0x09) phy.cr1 = value;
+    else if (reg == 0x19) phy.phycr = value;
+    else if (reg == 0x0B) phy.cr3 = value;
+    else if (reg == 0x0A) phy.cr2 = value;
     else if (reg == 0x07) {
       // Toggle is hardware-owned: transmitting code must preserve its sample.
       CHECK((value & 0x0800U) == (phy.page & 0x0800U));
@@ -265,7 +274,7 @@ void vectors() {
       CHECK((phy.bmcr & 0x1000U) != 0 && (phy.bmcr & 0x007FU) == 0x007FU);
       CHECK(bus.vodWrites == 1 && phy.vod == 0x4A40);
       CHECK(bus.restarts == 1 && bus.pageLoads == 0);
-      CHECK(bus.frames - first == 8); // Two saves, two atomic RMWs, two readbacks.
+      CHECK(bus.frames - first == 24); // Six saves, six atomic RMWs, six readbacks.
       CHECK(bus.locks == bus.releases);
       const auto snapshot = driver.settingsSnapshot();
       CHECK(snapshot.trust == ConfigurationTrust::VERIFIED);
@@ -278,13 +287,14 @@ void vectors() {
       for (auto index = first; index < bus.frames; ++index) {
         const auto& frame = bus.trace[index];
         if (frame.kind != FrameKind::WRITE) continue;
-        CHECK(frame.reg == 0x04 || frame.reg == 0x00);
+        CHECK(frame.reg == 0x04 || frame.reg == 0x00 || frame.reg == 0x09 ||
+              frame.reg == 0x19 || frame.reg == 0x0B || frame.reg == 0x0A);
         if (frame.reg == 0x04) {
           ++anarWrites;
           CHECK((frame.value & 0xA000U) == 0); // Neither RF nor persistent NP.
           CHECK((frame.value & 0x001FU) == 1);
           CHECK(restartWrites == 0);
-        } else {
+        } else if (frame.reg == 0x00) {
           CHECK(anarWrites == 1);
           CHECK(frame.value == 0x127F); // AN enable/restart; stable speed/duplex cleared.
           ++restartWrites;
@@ -310,17 +320,19 @@ void admission() {
     if (index == 0) invalid.advertisement.technologyMask = 0;
     if (index == 1) invalid.advertisement.technologyMask = 0x10;
     if (index == 2) invalid.advertisement.technologyMask = 0xFF;
-    if (index == 3) invalid.crossover.pairSelection = PairSelection::MDI;
-    if (index == 4) invalid.crossover.robust = false;
+    if (index == 3) invalid.crossover.pairSelection = static_cast<PairSelection>(0xFF);
+    if (index == 4) invalid.forced.speed = LinkSpeed::MBPS_100;
     if (index == 5) invalid.crossover.swapPair = true;
     if (index == 6) invalid.crossover.swapPolarity = true;
-    if (index == 7) invalid.extendedFullDuplex = true;
+    if (index == 7) invalid.forced.duplex = Duplex::FULL;
     if (index == 8) {
       invalid.mode = LinkMode::FORCED;
       invalid.advertisement = {};
       invalid.forced = {LinkSpeed::MBPS_100, Duplex::FULL};
+      invalid.crossover.robust = false; // Force Mode requires this even with manual routing.
     }
-    CHECK(!driver.startConfigure(invalid, {}, budget(), token).ok());
+    const auto rejected = driver.startConfigure(invalid, {}, budget(), token);
+    CHECK(!rejected.ok() && !rejected.inProgress());
     CHECK(token.value == 0xDEAD);
     CHECK(bus.calls == calls && bus.clocks == clocks);
     CHECK(!driver.settingsSnapshot().desiredValid);
@@ -422,7 +434,7 @@ void failures() {
   initialize(driver, bus);
   token = configure(driver);
   unsigned writeCount = 0;
-  while (writeCount < 2) {
+  while (writeCount < 6) {
     const auto before = bus.frames;
     CHECK(driver.pollOperation(token).is(Err::IN_PROGRESS));
     for (auto index = before; index < bus.frames; ++index)
@@ -522,7 +534,7 @@ void pages() {
     CHECK(result.nextPage.pages[duplicate ? 2 : 1].raw == 0x2001);
     CHECK(bus.phys[1].anar == 0x0101 && bus.restarts == 1);
     CHECK(bus.vodWrites == 1 && bus.pageLoads == 2);
-    CHECK(bus.frames - startFrame == (duplicate ? 25U : 23U));
+    CHECK(bus.frames - startFrame == (duplicate ? 41U : 39U));
     bool sawRestart = false, sawBase = false;
     unsigned pageWrites = 0, advertisementWrites = 0;
     for (auto index = startFrame; index < bus.frames; ++index) {
@@ -787,7 +799,7 @@ void completion() {
 }
 
 void timing() {
-  // A short slice yields before an indivisible ANAR RMW; the next full slice
+  // A short slice yields before an indivisible CR1 RMW; the next full slice
   // still reads the hardware value immediately before its owned update.
   {
     Controller bus;
@@ -795,7 +807,7 @@ void timing() {
     CHECK(driver.bind(bus.config()).ok());
     initialize(driver, bus);
     const auto token = exchange(driver);
-    for (unsigned index = 0; index < 3; ++index) CHECK(driver.pollOperation(token, 1).is(Err::IN_PROGRESS));
+    for (unsigned index = 0; index < 7; ++index) CHECK(driver.pollOperation(token, 1).is(Err::IN_PROGRESS));
     const auto frames = bus.frames;
     CHECK(driver.pollOperation(token, 0).is(Err::IN_PROGRESS));
     CHECK(driver.pollOperation(token, 1).is(Err::IN_PROGRESS));
@@ -843,7 +855,7 @@ void timing() {
     Driver driver;
     CHECK(driver.bind(bus.config()).ok());
     initialize(driver, bus);
-    bus.lateBatch = static_cast<int>(bus.calls + 2); // Accepted ANAR write then deadline.
+    bus.lateBatch = static_cast<int>(bus.calls + 10); // Accepted ANAR write then deadline.
     const auto token = configure(driver);
     CHECK(drain(driver, bus, token).is(Err::OPERATION_TIMEOUT));
     const auto result = take(driver, token);

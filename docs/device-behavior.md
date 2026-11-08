@@ -131,9 +131,9 @@ full-duplex compatibility opt-in and coordinated with the partner; it can change
 the ordinary IEEE result with a forced 100M partner.
 
 Forced 10/100 half/full configuration uses BMCR with AN disabled. CR1 requires
-robust crossover in forced operation. PHYCR chooses automatic versus manual
-pair selection; CR3 pair and polarity swap are separate controls, with both used
-for port mirroring. Apply the complete coupled settings under operation admission,
+robust crossover for every forced route. PHYCR chooses automatic versus manual
+pair selection; CR3 port mirror is the coupled pair/polarity setting, with both
+bits selected together. Apply the complete coupled settings under operation admission,
 verify stable masks and retain partial effects if any write fails.
 
 Coherent AN-disabled BMCR and current link-up establish the configured line mode
@@ -412,3 +412,10 @@ on failure/cancel; a new restoration operation owns those effects. Supported
 local message semantics are null, remote fault, OUI and PHY identifier with their
 ordered unformatted pages. Other technology/extended-only/reserved message codes
 are rejected, and received raw codes never activate features implicitly.
+
+Stage 18 executes [complete forced and coupled profiles](forced-settings.md)
+through the same operation/replay path. AN robust-disable follows AN activation
+so a prior forced interval remains robust. CR2 extension is explicit owner intent
+without a peer-evidence preflight; forced10 rejects it. Forced mode does not
+access ANAR, wait for ignored AN-restart, or establish negotiated pause. Q11 remains
+physical evidence for manual robust routing, port mirror and forced observations.

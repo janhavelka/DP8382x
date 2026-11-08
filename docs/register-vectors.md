@@ -480,3 +480,33 @@ consumed evidence and possible NP without an extra write. Independent literal
 controller tests prove software traces, not physical Clause28 handshake or wire
 timing. [The source review](reports/implementation/17-source-review.md) records
 original evidence and Q10 qualification boundaries.
+
+## Stage 18 independent forced/crossover vectors
+
+Original SNLS647I tables8-19/28/29/30/43 yield forced BMCR owned3100 values
+0000/0100/2000/2100 for10half/10full/100half/100full. Preserve4CFF, neutralize
+reset/restart8200, and compare only3100. The ignored AN-restart readback bit does
+not impose a forced completion wait. No forced frame targets ANAR04.
+
+CR1 robust0020 is required for all forced routes. Automatic PHYCR changes8000
+only (preserve7FFF); manual changesC000 to0000/4000 (preserve3FFF). From40E5,
+automatic yieldsC0E5, MDI00E5 and MDIX40E5. CR3 mirror owns0060 (preserveFF9F),
+not separate arbitrary corrections. CR2 extension owns0020 (preserveFFDF), never
+0060; A5DF becomesA5FF on enable and preserves reserved0040. Both mirror flags
+must agree; forced10 plus extension and forced with any AN intent reject.
+
+A forced profile has five saved reads, five two-frame atomic RMWs and five
+stable readbacks:20frames. Ordinary AN has six of each:24frames. Save order is
+BMCR/CR1/PHYCR/CR3/CR2, with ANAR first only forAN. Apply routing/mirror/extension
+before activation. If AN requests robust=false, defer the CR1 clear until after
+BMCR enables AN; no write may clear robust during the previous forced interval.
+Verify ANAR when active, thenCR1/PHYCR/CR3/CR2/BMCR. Stable mismatch evidence is
+retained even when a later field read fails. These counts exclude optional AN
+waits/pages and the separate initialization/VOD procedure.
+
+`test/forced.cpp` independently checks36 forced and24 AN routing profiles,
+transitions, every-frame faults/cancellation, reset replay, actual observed
+mismatches and owner exclusion. Existing next-page vectors remain unchanged;
+additional owned controls increase the two-page trace from23 to39frames and the
+duplicate-page trace from25 to41. Physical robust-manual/mirror interaction and
+partner compatibility remain Q11 NOT RUN; loopback restore tests arrive at23.

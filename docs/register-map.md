@@ -88,3 +88,8 @@ numeric evidence; neither structural acceptance nor source review proves a PHY.
 [stage-17 consumers](negotiation.md). Their shared replay restores persistent
 advertisement with transient NP disabled. Q10 remains physical qualification,
 not an implementation prerequisite under the selected Clause 28 interpretation.
+
+`configure_forced` and `extended_link_configure` now execute through the shared
+[complete-profile path](forced-settings.md), including reset replay and partial
+readback evidence. Source-known control completion is separate from Q11 physical
+routing/mirror qualification and later resolved-link observation.

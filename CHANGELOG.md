@@ -4,6 +4,12 @@
 
 ### 2026-11-08
 
+- Implemented prompt 18 forced 10/100 half/full and complete coupled crossover,
+  robust/manual routing, mirror and extended-duplex configuration/replay. Added
+  seven Release suites and a linked forced owner example. Fixed robust-disable
+  ordering on forced-to-AN transitions, ignored AN command handling in forced
+  readback, and actual observed-tuple publication on complete mismatches.
+
 - Implemented prompt 17 negotiated advertisement/pause, verified desired/observed
   settings and shared initialization replay. Added finite typed Clause 28 page
   exchange, consumed-page evidence, transient NP restoration and eleven focused

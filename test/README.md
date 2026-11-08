@@ -272,3 +272,26 @@ python tools/check_doxygen.py
 
 Host traces do not qualify physical Q10, MDC timing or SDK integration. See the
 [stage17 report](../docs/reports/implementation/17-negotiated-link-settings.md).
+
+## Forced and coupled profile verification
+
+`forced.cpp` registers matrix, admission, transitions, failures, replay, ownership
+and timing suites plus an active Release failure probe. Current total:67 CTests.
+Independent literals cover all36 forced and24 negotiated routing combinations,
+20/24-frame traces, every-frame failure/cancel boundaries, all reset kinds,
+late accepted writes, small indivisible poll slices and two-PHY exclusion.
+Observed tuples are decoded from actual readbacks on complete mismatch; partial
+failure preserves older tuple/time as stale. The negotiated tests retain all
+next-page/pause assertions with the additional coupled controls.
+
+```sh
+cmake -S . -B build/forced18-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON
+cmake --build build/forced18-release
+ctest --test-dir build/forced18-release --output-on-failure --no-tests=error
+cmake -S test/consumer -B build/forced18-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF
+cmake --build build/forced18-consumer
+ctest --test-dir build/forced18-consumer --output-on-failure --no-tests=error
+```
+
+The consumer executes [Forced.h](../examples/portable/Forced.h) against the real
+core. Host success does not qualify hardware partner compatibility or Q11.

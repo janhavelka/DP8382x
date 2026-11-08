@@ -1,9 +1,9 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–17 are complete: source research, shared contracts, portable
+execution. Prompts 1–18 are complete: source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 59 registered Release CTests, 102 Python tests,
+Current local checks include 67 registered Release CTests, 102 Python tests,
 the linked tests-OFF consumer, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -15,9 +15,16 @@ explicit unresolved gates. Research completion does not claim driver completion.
 
 Prompt 15 adds [caller-driven initialization](initialization.md), cancellation,
 retained results and separately admitted restoration. Prompt 17 adds negotiated
-profile replay; managed health and forced profiles retain their later stages.
+profile replay; prompt18 adds forced modes and coupled routing/extension.
+Managed health and resolved-link observation retain their later stages.
 
 ## Execution record
+
+Prompt 17 final synchronized checkpoint / prompt 18 entry:
+`57a06cb12140b8f2666e1b1a46c64ffe80f8035c`.
+Prompt 18 implements complete forced/coupled profiles and shared reset replay;
+see [report](reports/implementation/18-forced-crossover-settings.md). Final SHA
+and upstream equality are recorded in the handoff, avoiding self-reference.
 
 Prompt 16 final synchronized checkpoint / prompt 17 entry:
 `1e0cec9067c498ac5bc7f2c03607395af73e8c2a`.
@@ -194,7 +201,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [15 Implement initialization and complete PCS reset operations](prompts/15-initialize-pcs-reset.md) | COMPLETE | [Report](reports/implementation/15-initialize-pcs-reset.md); 40 Release CTests, linked consumer, 102 Python tests, Doxygen/reference/ledger checks; SDK/physical NOT RUN |
 | [16 Implement hard reset, restart and external-reset reconciliation](prompts/16-hard-reset-restart.md) | COMPLETE | [Report](reports/implementation/16-hard-reset-restart.md); 47 Release CTests, linked consumer, 102 Python tests and documentation/reference checks; Q5/SDK/physical NOT RUN |
 | [17 Implement negotiated link settings and verified application](prompts/17-negotiated-link-settings.md) | COMPLETE | [Report](reports/implementation/17-negotiated-link-settings.md); host/consumer PASS, physical Q10 NOT RUN |
-| [18 Implement forced modes and coupled crossover settings](prompts/18-forced-crossover-settings.md) | NOT STARTED | None |
+| [18 Implement forced modes and coupled crossover settings](prompts/18-forced-crossover-settings.md) | COMPLETE | [Report](reports/implementation/18-forced-crossover-settings.md); host/consumer PASS, Q11 NOT RUN |
 | [19 Implement live and cached link observations](prompts/19-link-observation.md) | NOT STARTED | None |
 | [20 Implement complete event and counter acquisition](prompts/20-event-counter-acquisition.md) | NOT STARTED | None |
 | [21 Implement passive driver health and exact accounting](prompts/21-passive-health.md) | NOT STARTED | None |

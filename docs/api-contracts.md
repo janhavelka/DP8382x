@@ -69,17 +69,17 @@ for unknown enums, otherwise `INVALID_CONFIG/LINK_COMBINATION` for inconsistent
 intent. In AN mode, any nonempty subset of the four technology bits is legal;
 all four symmetric/asymmetric pause combinations remain representable. Pause
 advertisement is allowed with half-only technologies but cannot resolve pause
-without a full-duplex result. Selector 1 and local remote-fault/T4/reserved bits
-zero are enforced by encoding; they are not user-settable fields. Inactive
-forced fields may be UNKNOWN; valid known values are retained but ignored.
+without a full-duplex result. Encoding forces selector 1 and local remote-fault
+zero while preserving read-only T4 and reserved bits; these are not user-settable fields. Inactive
+forced fields must be UNKNOWN; contradictory inactive intent rejects before admission.
 
 Forced mode requires one of 10/100 × half/full, robust crossover true for both
 automatic and manual pair policy, and an inactive advertisement of mask zero,
 pause false/false. This canonical inactive form prevents
-accidental interpretation as negotiated policy. Each swap Boolean is legal;
-port mirroring specifically sets both. Extended full duplex is representable
-but source prerequisites require explicit coordinated partner evidence at the
-operation owner; no Config Boolean proves the partner. Next-page NP=1 belongs only to one admitted exchange epoch; it is not a persistent Advertisement field. Source-gated operations reject before mutation.
+accidental interpretation as negotiated policy. The swap Booleans must match: both
+true select coupled CR3 port mirror, both false disable it. Extended full duplex
+is an owner opt-in with no partner-evidence preflight; forced10 plus extension
+rejects. No Config Boolean proves the partner. Next-page NP=1 belongs only to one admitted exchange epoch; it is not a persistent Advertisement field. Source-gated operations reject before mutation.
 Every startInitialize writes and verifies VOD_CFG3=0x4A40 for every ResetKind, including NONE; binding does not apply it.
 
 ## Borrowed transport and direct-call budgets
@@ -465,7 +465,7 @@ and compiling [owner example](../examples/portable/Initialize.h).
 INITIALIZE with NONE/PCS/HARD/RESTART and the retained
 busQuietUntilUs/busQuietValid floor are implemented through stage 16. Stage 17
 implements CONFIGURE and SettingsSnapshot for negotiated ANAR/BMCR plus mandatory
-VOD; forced/crossover settings extend them in stage 18. VERIFY arrives with 22. No unimplemented
+VOD; stage 18 adds forced modes and all owned CR1/PHYCR/CR3/CR2 controls. VERIFY arrives with 22. No unimplemented
 kind or desired-link-settings snapshot is exposed. EXTERNAL_POWER_ON is
 already a local invalidation attestation, not a hard-reset operation. Future
 startConfigure/startVerify use the same slot and OperationBudget; their behavior
@@ -787,8 +787,8 @@ are software evidence and do not qualify ESP-IDF or physical timings.
 The shipped [configuration API and guide](negotiation.md) define `ConfigureOptions`,
 `NextPageExchange`, `NextPage`, `SettingsSnapshot` and `NextPageResult`. Fixed page
 storage is copied on admission. All legal nonempty technology subsets and pause
-combinations are admitted; forced and nondefault crossover/extended duplex reject
-before desired-state mutation until stage 18. Initialization replays admitted
+combinations are admitted. Stage 18 adds the complete forced/crossover/extension
+profile with the same admission and replay contract. Initialization replays admitted
 persistent intent only after mandatory VOD setup, using the same procedure.
 
 Raw safe reads remain available between configuration polls. During a typed
@@ -800,3 +800,20 @@ AN completion have separate evidence. `negotiationComplete` means observed BMSR
 completion; restart-clear in `protocolComplete` does not imply it. An earlier
 verification mismatch survives a later read/deadline failure in the primary result;
 `failingBatch` retains the separate later transport evidence.
+
+### Complete coupled profiles (stage 18)
+
+[Forced settings](forced-settings.md) documents the matrix. Both AN and forced
+profiles save/apply/verify CR1 robust routing, PHYCR pair selection, CR3 coupled
+mirror and CR2 extension. Forced profiles never read/write/verify ANAR and reject
+AN completion/page options. Active observed settings are decoded from successful
+readbacks, not copied from desired intent. A complete mismatch publishes actual
+fields with DIRTY trust; partial failure keeps the older tuple/time stale. If a
+forced request observes AN unexpectedly enabled, no fresh ANAR exists; preserve
+any prior tuple/time as stale history, never reuse historical ANAR to complete it.
+A non-IEEE ANAR selector likewise cannot establish decoded IEEE technologies.
+
+All controls normally precede BMCR activation. Disabling robust routing for AN
+is deferred until after enabling AN, preserving robust routing throughout any
+previous forced interval. Forced readback ignores AN-restart because it has no
+meaning with AN disabled. No physical partner or pause resolution is inferred.

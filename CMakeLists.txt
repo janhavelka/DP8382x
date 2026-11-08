@@ -37,6 +37,9 @@ if(DP8382X_BUILD_TESTS)
   add_executable(dp8382x_negotiation_tests test/negotiation.cpp)
   target_link_libraries(dp8382x_negotiation_tests PRIVATE DP8382x)
 
+  add_executable(dp8382x_forced_tests test/forced.cpp)
+  target_link_libraries(dp8382x_forced_tests PRIVATE DP8382x)
+
   # Separate translation units catch accidental transitive include requirements.
   add_library(dp8382x_header_checks OBJECT
     test/header_status.cpp
@@ -46,7 +49,7 @@ if(DP8382X_BUILD_TESTS)
     test/header_version.cpp)
   target_link_libraries(dp8382x_header_checks PRIVATE DP8382x)
 
-  foreach(target IN ITEMS DP8382x dp8382x_foundation_tests dp8382x_transport_tests dp8382x_mmd_tests dp8382x_access_tests dp8382x_identity_tests dp8382x_operation_tests dp8382x_reset_tests dp8382x_negotiation_tests dp8382x_header_checks)
+  foreach(target IN ITEMS DP8382x dp8382x_foundation_tests dp8382x_transport_tests dp8382x_mmd_tests dp8382x_access_tests dp8382x_identity_tests dp8382x_operation_tests dp8382x_reset_tests dp8382x_negotiation_tests dp8382x_forced_tests dp8382x_header_checks)
     set_target_properties(${target} PROPERTIES CXX_EXTENSIONS OFF)
     if(MSVC)
       target_compile_options(${target} PRIVATE /W4 /WX /permissive-)
@@ -56,7 +59,7 @@ if(DP8382X_BUILD_TESTS)
     endif()
   endforeach()
 
-  foreach(target IN ITEMS dp8382x_foundation_tests dp8382x_transport_tests dp8382x_mmd_tests dp8382x_access_tests dp8382x_identity_tests dp8382x_operation_tests dp8382x_reset_tests dp8382x_negotiation_tests)
+  foreach(target IN ITEMS dp8382x_foundation_tests dp8382x_transport_tests dp8382x_mmd_tests dp8382x_access_tests dp8382x_identity_tests dp8382x_operation_tests dp8382x_reset_tests dp8382x_negotiation_tests dp8382x_forced_tests)
     add_test(NAME ${target}_failure_path COMMAND ${target} --verify-failure-path)
     set_tests_properties(${target}_failure_path PROPERTIES WILL_FAIL TRUE TIMEOUT 30)
   endforeach()
@@ -92,5 +95,9 @@ if(DP8382X_BUILD_TESTS)
   foreach(suite IN ITEMS vectors admission replay failures ownership pages page_failures page_admission completion page_boundaries timing)
     add_test(NAME negotiation_${suite} COMMAND dp8382x_negotiation_tests ${suite})
     set_tests_properties(negotiation_${suite} PROPERTIES TIMEOUT 30)
+  endforeach()
+  foreach(suite IN ITEMS matrix admission transitions failures replay ownership timing)
+    add_test(NAME forced_${suite} COMMAND dp8382x_forced_tests ${suite})
+    set_tests_properties(forced_${suite} PROPERTIES TIMEOUT 30)
   endforeach()
 endif()
