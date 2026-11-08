@@ -89,11 +89,10 @@ does. A stale previously accepted identity still allows this narrow maintenance
 exception, while capabilities remain invalid. It cannot authorize future typed
 feature writes that require fresh identity and initialization.
 
-Identity uses the same `_execute` admission path as raw reads. Reset operations
-do not exist at stage 14: the application currently owns readiness and bus silence.
-Stage 15 must add OP-14 reset-wait/hard-reset-floor admission and its tests at this
-shared boundary when it introduces real reset operations. No unused reset-state
-scaffolding or claim of enforced future operation states is supplied here.
+Identity uses the same `_execute` admission path as raw reads. OP-14 rejects it
+during a reset wait or a pending hard-reset quiet floor, including after a failed
+or cancelled reset. The application owns external readiness and shared-bus silence;
+the core enforces these operation guards at its transaction boundary.
 
 Prompt16 extends the same admission guard with a persistent hard-reset floor.
 HARD withdraws mode-derived permissions and reaccepts identity after completion;

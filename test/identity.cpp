@@ -226,7 +226,7 @@ void testPolicy() {
     for (uint16_t revision = 0; revision < 16U; ++revision) {
       Controller bus;
       Driver driver;
-      bus.second[1] = static_cast<uint16_t>(0xA000U | (model << 4U) | revision);
+      bus.second[1] = static_cast<uint16_t>(0xA000U | (uint32_t{model} << 4U) | revision);
       CHECK(driver.bind(bus.config()).ok());
       auto output = sentinel();
       const auto status = driver.readIdentity(output, BUDGET);

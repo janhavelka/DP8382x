@@ -32,9 +32,12 @@ struct Controller {
   std::array<uint16_t, 16> partnerPages{};
   unsigned partnerCount{0}, partnerIndex{0};
   bool automaticPartner{false}, partnerRefuses{false}, completePartner{true};
+  uint16_t partnerAdvertisement{0x8101};
   bool duplicateSecond{false}, pendingRealPage{false};
   uint16_t deferredPage{0};
   int failFrame{-1}, lateBatch{-1}, badAnar{-1}, badBmcr{-1};
+  int failReleaseBatch{-1};
+  int missingReceiptBatch{-1};
   bool failedEffect{true}, locked{false};
   Driver* competitor{nullptr};
   unsigned exclusions{0};
@@ -101,7 +104,7 @@ struct Controller {
         ++restarts;
         if (automaticPartner) {
           phy.aner = partnerRefuses ? 0x0007 : 0x000F;
-          phy.partnerBase = partnerRefuses ? 0x0101 : 0x8101;
+          phy.partnerBase = partnerRefuses ? 0x0101 : partnerAdvertisement;
           if (partnerRefuses && completePartner) phy.bmsr = 0x0020;
         }
       }
@@ -190,6 +193,11 @@ struct Controller {
       receipt.valueValid = frame.kind == FrameKind::READ;
     }
     if (static_cast<int>(call) == bus.lateBatch) bus.now = allowance.deadlineUs;
+    if (static_cast<int>(call) == bus.failReleaseBatch) {
+      result.releaseStatus = {Err::MDIO_ERROR, -17018, "Injected release failure"};
+      result.controllerReusable = false;
+    }
+    if (static_cast<int>(call) == bus.missingReceiptBatch) result.frames = {};
     bus.locked = false;
     ++bus.releases;
     return result;
@@ -221,7 +229,11 @@ void initialize(Driver& driver, Controller& bus, ResetKind reset = ResetKind::NO
   OperationToken token;
   CHECK(driver.startInitialize({reset}, budget(), token).is(Err::IN_PROGRESS));
   CHECK(drain(driver, bus, token).ok());
-  CHECK(take(driver, token).persistentRestored);
+  const auto result = take(driver, token);
+  CHECK(result.persistentRestored);
+  CHECK(result.commandRequired == (reset != ResetKind::NONE));
+  CHECK(result.commandAccepted == result.commandRequired);
+  CHECK(result.protocolComplete == result.commandRequired);
   CHECK(driver.isInitialized());
 }
 
@@ -269,6 +281,7 @@ void vectors() {
       CHECK(drain(driver, bus, token).ok());
       const auto result = take(driver, token);
       CHECK(result.persistentRestored && !result.cleanupOwed);
+      CHECK(!result.commandRequired && !result.commandAccepted && !result.protocolComplete);
       CHECK(!result.negotiationComplete); // Register application alone is sufficient here.
       CHECK(phy.anar == static_cast<uint16_t>(0x5200U | advertisement(technologies, pause)));
       CHECK((phy.bmcr & 0x1000U) != 0 && (phy.bmcr & 0x007FU) == 0x007FU);
@@ -443,8 +456,9 @@ void failures() {
   bus.badAnar = 0x0001;
   CHECK(driver.pollOperation(token).is(Err::IN_PROGRESS));
   bus.failFrame = static_cast<int>(bus.frames);
-  CHECK(drain(driver, bus, token).is(Err::CONFIG_MISMATCH));
+  CHECK(drain(driver, bus, token).is(Err::MDIO_TIMEOUT));
   const auto mismatch = take(driver, token);
+  CHECK(mismatch.status.detail == -17017);
   CHECK(mismatch.mismatch.valid && mismatch.mismatch.registerAddress == 0x04);
   CHECK(mismatch.mismatch.expected == 0x0101 && mismatch.mismatch.observed == 0x0001);
   CHECK(mismatch.cleanupOwed);
@@ -510,6 +524,97 @@ void advanceUntilLoaded(Driver& driver, Controller& bus, OperationToken token) {
 }
 
 void pages() {
+  // IEEE 802.3-2012 Annex 28C.6/7: both tags require four immediately
+  // following eleven-bit UPs. The caller owns the OUI/PHY-ID payload encoding.
+  for (const uint16_t message : {uint16_t{5}, uint16_t{6}}) {
+    Controller taggedBus;
+    Driver taggedDriver;
+    CHECK(taggedDriver.bind(taggedBus.config()).ok());
+    initialize(taggedDriver, taggedBus);
+    taggedBus.automaticPartner = true;
+    taggedBus.partnerCount = 5;
+    taggedBus.partnerPages = {0x2801, 0x2001, 0x2801, 0x2001, 0x2801};
+    ConfigureOptions tagged;
+    tagged.nextPages.pageCount = 5;
+    tagged.nextPages.pages[0] = {message, true, false};
+    tagged.nextPages.pages[1] = {0x0000, false, false};
+    tagged.nextPages.pages[2] = {0x07FF, false, false};
+    tagged.nextPages.pages[3] = {0x0155, false, false};
+    tagged.nextPages.pages[4] = {0x06AA, false, false};
+    const auto first = taggedBus.frames;
+    const auto taggedToken = exchange(taggedDriver, tagged);
+    CHECK(drain(taggedDriver, taggedBus, taggedToken).ok());
+    const auto result = take(taggedDriver, taggedToken);
+    CHECK(result.nextPage.complete && result.negotiationComplete);
+    CHECK(result.nextPage.transmittedPages == 5 && result.nextPage.receivedPages == 5);
+    CHECK(result.nextPage.duplicatePages == 0 && !result.nextPage.npMayRemainSet);
+    const std::array<uint16_t, 5> expected = {
+      message == 5 ? uint16_t{0xA805} : uint16_t{0xA806}, 0x8800, 0x8FFF, 0x8955, 0x0EAA
+    };
+    unsigned written = 0;
+    for (unsigned i = first; i < taggedBus.frames; ++i) {
+      const auto& frame = taggedBus.trace[i];
+      if (frame.reg != 7 || frame.kind != FrameKind::WRITE) continue;
+      CHECK(written < expected.size());
+      if (written < expected.size()) CHECK(frame.value == expected[written]);
+      ++written;
+    }
+    CHECK(written == expected.size());
+  }
+  // Exactly sixteen local and received pages fit both fixed capacities. The
+  // partner has no payload left and services all remaining local pages with nulls.
+  {
+    Controller fullBus;
+    Driver fullDriver;
+    CHECK(fullDriver.bind(fullBus.config()).ok());
+    initialize(fullDriver, fullBus);
+    fullBus.automaticPartner = true;
+    fullBus.partnerCount = 16;
+    ConfigureOptions full;
+    full.nextPages.pageCount = 16;
+    full.nextPages.maxPartnerPages = 16;
+    for (unsigned group = 0; group < 3; ++group) {
+      const unsigned first = group * 5U;
+      full.nextPages.pages[first] = {5, true, false};
+      full.nextPages.pages[first + 1U] = {0x0000, false, false};
+      full.nextPages.pages[first + 2U] = {0x07FF, false, false};
+      full.nextPages.pages[first + 3U] = {0x0155, false, false};
+      full.nextPages.pages[first + 4U] = {0x06AA, false, false};
+    }
+    full.nextPages.pages[15] = {1, true, false};
+    for (unsigned i = 0; i < 16; ++i) fullBus.partnerPages[i] = i % 2U == 0U ? 0x2801 : 0x2001;
+    const auto fullToken = exchange(fullDriver, full);
+    CHECK(drain(fullDriver, fullBus, fullToken).ok());
+    const auto result = take(fullDriver, fullToken);
+    CHECK(result.nextPage.complete && result.negotiationComplete && !result.cleanupOwed);
+    CHECK(result.nextPage.transmittedPages == 16 && result.nextPage.receivedPages == 16);
+    CHECK(result.nextPage.duplicatePages == 0 && fullBus.pageLoads == 16);
+    CHECK(!result.nextPage.npMayRemainSet && fullBus.phys[1].anar == 0x0101);
+    for (unsigned i = 0; i < 16; ++i) {
+      CHECK(result.nextPage.pages[i].valid);
+      CHECK(result.nextPage.pages[i].raw == (i % 2U == 0U ? 0x2801 : 0x2001));
+    }
+  }
+  // Clause 28.2.3.4.7 inverts base bit 11 for the first partner toggle.
+  // A partner advertising asymmetric pause therefore begins with toggle zero.
+  {
+    Controller toggledBus;
+    Driver toggledDriver;
+    CHECK(toggledDriver.bind(toggledBus.config()).ok());
+    initialize(toggledDriver, toggledBus);
+    preparePartner(toggledBus);
+    toggledBus.partnerAdvertisement = 0x8901;
+    toggledBus.partnerPages[0] = 0xA001;
+    toggledBus.partnerPages[1] = 0x2801;
+    const auto toggledToken = exchange(toggledDriver);
+    CHECK(drain(toggledDriver, toggledBus, toggledToken).ok());
+    const auto result = take(toggledDriver, toggledToken);
+    CHECK(result.nextPage.basePageValid && result.nextPage.basePage == 0x8901);
+    CHECK(result.nextPage.complete && result.nextPage.duplicatePages == 0);
+    CHECK(result.nextPage.receivedPages == 2 && result.nextPage.transmittedPages == 2);
+    CHECK(result.nextPage.pages[0].valid && result.nextPage.pages[0].raw == 0xA001);
+    CHECK(result.nextPage.pages[1].valid && result.nextPage.pages[1].raw == 0x2801);
+  }
   for (const bool duplicate : {false, true}) {
     Controller bus;
     Driver driver;
@@ -669,6 +774,44 @@ void pageFailures() {
 }
 
 void pageBoundaries() {
+  // Losing the entire consumed ANER receipt leaves page history uncertain,
+  // even when no frame flag survives to describe its hardware effect.
+  {
+    Controller bus; Driver driver;
+    CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus); preparePartner(bus);
+    const auto token = exchange(driver);
+    advanceUntilLoaded(driver, bus, token);
+    bus.missingReceiptBatch = static_cast<int>(bus.calls);
+    CHECK(driver.pollOperation(token).is(Err::MDIO_ERROR));
+    const auto result = take(driver, token);
+    CHECK(result.nextPage.pagePayloadMissing && result.nextPage.receivedPages == 0);
+    CHECK(result.nextPage.transmittedPages == 1 && result.nextPage.npMayRemainSet);
+    CHECK(result.cleanupOwed && !result.nextPage.complete);
+    CHECK(driver.evidenceSnapshot().samples[2].historyLost); // Literal ANER source index.
+    CHECK(driver.transportSnapshot().stopped);
+  }
+  // A completed ANNPTR write remains loaded even if release fails or the raw
+  // post-callback clock reaches the deadline before publication.
+  for (const bool releaseFailure : {false, true}) {
+    Controller lateBus;
+    Driver lateDriver;
+    CHECK(lateDriver.bind(lateBus.config()).ok());
+    initialize(lateDriver, lateBus);
+    preparePartner(lateBus);
+    const auto lateToken = exchange(lateDriver);
+    advanceUntilLoaded(lateDriver, lateBus, lateToken);
+    // First consume the event and payload; the following batch loads page two.
+    if (releaseFailure) lateBus.failReleaseBatch = static_cast<int>(lateBus.calls + 2U);
+    else lateBus.lateBatch = static_cast<int>(lateBus.calls + 2U);
+    CHECK(drain(lateDriver, lateBus, lateToken).is(releaseFailure ? Err::MDIO_ERROR : Err::OPERATION_TIMEOUT));
+    const auto result = take(lateDriver, lateToken);
+    CHECK(result.late == !releaseFailure && result.mutationCompleted && result.cleanupOwed);
+    if (releaseFailure) CHECK(result.status.detail == -17018 && result.failingBatch.release.detail == -17018);
+    CHECK(result.failingBatch.completedFrames == 2);
+    CHECK(lateBus.pageLoads == 2 && result.nextPage.transmittedPages == 2);
+    CHECK(result.nextPage.receivedPages == 1 && result.nextPage.pages[0].valid);
+    CHECK(result.nextPage.npMayRemainSet && !result.negotiationComplete);
+  }
   Controller referenceBus;
   Driver reference;
   CHECK(reference.bind(referenceBus.config()).ok());
@@ -731,6 +874,27 @@ void pageAdmission() {
   CHECK(driver.bind(bus.config()).ok());
   initialize(driver, bus);
   const auto calls = bus.calls, clocks = bus.clocks;
+  for (const uint16_t message : {uint16_t{5}, uint16_t{6}}) {
+    for (unsigned invalid = 0; invalid < 9; ++invalid) {
+      ConfigureOptions tagged;
+      tagged.nextPages.pageCount = 5;
+      tagged.nextPages.pages[0] = {message, true, false};
+      tagged.nextPages.pages[1] = {0x0000, false, false};
+      tagged.nextPages.pages[2] = {0x07FF, false, false};
+      tagged.nextPages.pages[3] = {0x0155, false, false};
+      tagged.nextPages.pages[4] = {0x06AA, false, false};
+      if (invalid < 4) tagged.nextPages.pageCount = static_cast<uint8_t>(invalid + 1U);
+      else if (invalid < 8) tagged.nextPages.pages[invalid - 3U] = {1, true, false};
+      else {
+        tagged.nextPages.pageCount = 6;
+        tagged.nextPages.pages[5] = {0, false, false}; // No message defines a fifth UP.
+      }
+      OperationToken token{0xDEAD};
+      CHECK(driver.startConfigure(settings(), tagged, budget(), token).is(Err::INVALID_CONFIG));
+      CHECK(token.value == 0xDEAD && bus.calls == calls && bus.clocks == clocks);
+      CHECK(!driver.settingsSnapshot().desiredValid);
+    }
+  }
   for (unsigned index = 0; index < 10; ++index) {
     auto options = exchangeOptions();
     if (index == 0) options.nextPages.pages[0].data = 0x0800;

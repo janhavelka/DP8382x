@@ -19,6 +19,11 @@ with shared replay and partial-evidence tests. Prompt 18 completes [forced and c
 the same configuration/replay path. Other feature procedures are PENDING; SDK builds and hardware qualification
 are NOT RUN. Ledger tests establish their own research layer.
 
+The [prompts 13-18 audit](reports/implementation/13-18-independent-audit.md)
+rechecks these completed routes and adds interrupted-verification, malformed
+receipt and complete next-page grammar/capacity coverage. No later feature or
+physical gate is closed by this software audit.
+
 Prompt 6 completes the [portable/native ownership design](design-decisions.md)
 for all these entry families. It introduces no feature support claim. The selected public native lifecycle route remains prompt-37 implementation
 work; source limitations and physical gates remain separate. Full pause evidence, SDK projection, raw access and the

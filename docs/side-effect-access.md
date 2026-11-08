@@ -16,9 +16,9 @@ selector, recipe-only and mandatory-follow-up entries. No register-manager layer
 or caller-supplied transaction is exposed.
 
 The application's serialized owner establishes the exact part/address, readiness,
-maintenance admission and safe board wiring. Initialization, IRQ pin setup,
-complete WoL configuration and diagnostic sessions remain their later typed
-procedures. All participants share controller ownership and quarantine. Actual
+maintenance admission and safe board wiring. Initialization uses its implemented
+typed operation; IRQ pin setup, complete WoL configuration and diagnostic sessions
+remain later procedures. All participants share controller ownership and quarantine. Actual
 MDIO timing and silicon behavior remain physically unqualified.
 
 ## Safe dumps and explicit acquisition
@@ -75,11 +75,14 @@ Data validity and time validity are separate. A valid supplied frame timestamp i
 used; otherwise the conservative post-callback upper bound is used. Invalid timing
 metadata or a broken clock prevents a new valid timestamp without discarding a
 separately valid word. A failed read with possible consumption, or an untrusted
-completed read, sets sticky `historyLost`. A proven no-effect failed read only
-marks the previous sample stale. Missing data never becomes zero events.
+completed read, sets sticky `historyLost`. A malformed receipt cannot prove that
+an unreported destructive read never ran: unreturned requested samples also
+record possible loss, while independently valid prefix words survive. A sound
+no-effect denial does not invent lost history. Missing data never becomes zero events.
 
 Cached readers perform no MDIO or clock callbacks. Raw semantic writes mark
-`configurationDirty` and observations stale, even if the write later fails;
+`configurationDirty` and observations stale, even if the write later fails or
+a malformed receipt omits its effect flags;
 selector setup alone does not. `invalidateDeviceState` records external/raw
 uncertainty without I/O and retains samples. No transport success clears dirty
 configuration evidence. Future typed verification owns that transition. Binding

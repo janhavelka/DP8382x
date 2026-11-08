@@ -163,3 +163,6 @@ against the portable core; AN application, completion and link remain distinct.
 [Forced and coupled routing](docs/forced-settings.md) supports all documented
 10/100 half/full settings, robust/manual crossover, coupled mirror and extension.
 Host tests do not establish partner compatibility or electrical qualification.
+
+The [independent prompts 13-18 audit](docs/reports/implementation/13-18-independent-audit.md)
+corrects failure/effect reporting and extends next-page boundary coverage.

@@ -4,6 +4,12 @@
 
 ### 2026-11-08
 
+- Audited prompts 13-18 independently. Preserved interrupted-verification errors
+  alongside mismatch evidence, separated reset completion from AN replay, retained
+  possible destructive-read/write effects from malformed receipts, and counted
+  completed next-page loads even when later transport/deadline checks fail.
+  Expanded verification, page-grammar and partial-evidence regressions.
+
 - Implemented prompt 18 forced 10/100 half/full and complete coupled crossover,
   robust/manual routing, mirror and extended-duplex configuration/replay. Added
   seven Release suites and a linked forced owner example. Fixed robust-disable

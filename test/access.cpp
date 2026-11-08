@@ -21,7 +21,7 @@ constexpr std::array<uint16_t, 11> SOURCE_WORDS{
 // This model deliberately retains reserved poison bits, clears only sourced
 // read effects, and models W0C rather than importing a family write-one recipe.
 // It proves host behavior, never hardware latch polarity or physical timing.
-enum class ReportFault { NONE, MISSING_VALUE, EXTRA_FRAME, BAD_TIME, ILLEGAL_STATUS, MISSING_ATTEMPT };
+enum class ReportFault { NONE, MISSING_VALUE, EXTRA_FRAME, BAD_TIME, ILLEGAL_STATUS, MISSING_ATTEMPT, MISSING_SUFFIX };
 struct WireFrame {
   FrameKind kind{FrameKind::READ};
   uint8_t reg{0};
@@ -51,6 +51,7 @@ struct Controller {
   unsigned faultCall{1};
   uint8_t faultIndex{0};
   ReportFault fault{ReportFault::NONE};
+  Status noFrameStatus{};
   bool effectPossible{true};
   bool completedTime{true};
   bool locked{false};
@@ -150,6 +151,10 @@ struct Controller {
     BatchResult result;
     result.releaseStatus = Status::Ok();
     result.controllerReusable = true;
+    if (!self.noFrameStatus.ok()) {
+      result.status = self.noFrameStatus;
+      return result;
+    }
     if (self.locked) {
       result.status = {Err::BUSY, static_cast<int32_t>(BusyDetail::OWNER_ADMISSION), "Shared controller busy"};
       return result;
@@ -211,6 +216,9 @@ struct Controller {
         case ReportFault::MISSING_ATTEMPT:
           result.frames[self.faultIndex].attempted = false;
           result.frames[self.faultIndex].effectPossible = false;
+          break;
+        case ReportFault::MISSING_SUFFIX:
+          for (uint8_t i = self.faultIndex; i < batch.frameCount; ++i) { result.frames[i] = {}; }
           break;
         case ReportFault::EXTRA_FRAME: result.frames[batch.frameCount].attempted = true; break;
         case ReportFault::BAD_TIME: result.frames[self.faultIndex].completedAtUs = 99; result.frames[self.faultIndex].timeValid = true; break;
@@ -421,6 +429,85 @@ void failures() {
 }
 
 void reports() {
+  // A successful callback with missing receipts cannot prove that the hardware
+  // did not consume the requested sources. Keep any independently valid prefix.
+  for (bool prefix : {false, true}) {
+    BoundDriver fixture;
+    fixture.bus.fault = ReportFault::MISSING_SUFFIX;
+    fixture.bus.faultIndex = prefix ? 1U : 0U;
+    auto output = sentinel();
+    CHECK(fixture.driver.acquireEvidence(prefix ? 0x0019U : 0x0008U, output, BUDGET).is(Err::MDIO_ERROR));
+    checkSentinel(output);
+    CHECK(fixture.bus.words[0x000F] == 0U);
+    const auto evidence = fixture.driver.evidenceSnapshot();
+    const auto& fld = sample(evidence, EvidenceSource::FLDS);
+    CHECK(!fld.valid && fld.stale && fld.historyLost && fld.samples == 0U);
+    const auto& physts = sample(evidence, EvidenceSource::PHYSTS);
+    CHECK(physts.valid == prefix && !physts.historyLost);
+    if (prefix) {
+      CHECK(physts.raw == 0x3FE7U && physts.samples == 1U);
+      const auto& misr = sample(evidence, EvidenceSource::MISR1);
+      CHECK(!misr.valid && misr.historyLost && misr.stale);
+      CHECK(fixture.bus.words[0x0012] == 0x005AU);
+    }
+    CHECK(!sample(evidence, EvidenceSource::RXFS).historyLost);
+    CHECK(!evidence.configurationDirty);
+    const auto report = fixture.driver.transportSnapshot();
+    CHECK(report.violation == TransportViolation::FRAME_REPORT && report.stopped);
+    CHECK(fixture.bus.calls == 1U && fixture.bus.launched == (prefix ? 3U : 1U));
+    CHECK(fixture.bus.acquired == fixture.bus.released && !fixture.bus.locked);
+  }
+  // Resolve indirect consumption from the submitted complete selection even
+  // when the entire receipt, or just its data frame, disappears.
+  for (uint8_t missing : {uint8_t{0}, uint8_t{3}}) {
+    BoundDriver fixture;
+    fixture.bus.fault = ReportFault::MISSING_SUFFIX;
+    fixture.bus.faultIndex = missing;
+    auto output = sentinel();
+    CHECK(fixture.driver.acquireEvidence(0x0400U, output, BUDGET).is(Err::MDIO_ERROR));
+    checkSentinel(output);
+    CHECK(fixture.bus.words[0x04A1] == 0x1000U);
+    const auto evidence = fixture.driver.evidenceSnapshot();
+    const auto& rxfs = sample(evidence, EvidenceSource::RXFS);
+    CHECK(!rxfs.valid && rxfs.historyLost && rxfs.stale && rxfs.samples == 0U);
+    CHECK(!evidence.configurationDirty); // Missing selector receipts are not semantic writes.
+    CHECK(!sample(evidence, EvidenceSource::FLDS).historyLost);
+    CHECK(fixture.bus.calls == 1U && fixture.bus.launched == 4U);
+    CHECK(fixture.bus.acquired == fixture.bus.released && !fixture.bus.locked);
+  }
+  // Sound pre-frame denials are different: nothing was consumed or written.
+  for (const auto denial : {
+      Status{Err::BUSY, static_cast<int32_t>(BusyDetail::OWNER_ADMISSION), "Owner busy"},
+      Status{Err::OPERATION_TIMEOUT, static_cast<int32_t>(TimeoutDetail::DEADLINE), "Deadline"}}) {
+    BoundDriver fixture;
+    fixture.bus.noFrameStatus = denial;
+    auto output = sentinel();
+    const auto status = fixture.driver.acquireEvidence(0x0408U, output, BUDGET);
+    CHECK(status.code == denial.code && status.detail == denial.detail);
+    checkSentinel(output);
+    const auto evidence = fixture.driver.evidenceSnapshot();
+    CHECK(!sample(evidence, EvidenceSource::FLDS).historyLost);
+    CHECK(!sample(evidence, EvidenceSource::RXFS).historyLost);
+    CHECK(!evidence.configurationDirty);
+    CHECK(fixture.bus.words[0x000F] == 0x01F0U && fixture.bus.words[0x04A1] == 0x10FFU);
+    CHECK(!fixture.driver.transportSnapshot().stopped);
+    CHECK(fixture.driver.writeClause22(0x18, 0x0012, BUDGET).code == denial.code);
+    CHECK(!fixture.driver.evidenceSnapshot().configurationDirty);
+    CHECK(fixture.bus.calls == 2U && fixture.bus.launched == 0U);
+    CHECK(fixture.bus.acquired == 0U && fixture.bus.released == 0U);
+  }
+  // Missing every flag also cannot prove that a submitted semantic write had
+  // no effect, even though the frame is excluded from the trusted prefix.
+  {
+    BoundDriver fixture;
+    fixture.bus.fault = ReportFault::MISSING_SUFFIX;
+    CHECK(fixture.driver.writeClause22(0x18, 0x0012, BUDGET).is(Err::MDIO_ERROR));
+    CHECK(fixture.bus.words[0x0018] == 0x0012U);
+    CHECK(fixture.driver.evidenceSnapshot().configurationDirty);
+    CHECK(fixture.driver.transportSnapshot().stopped);
+    CHECK(fixture.bus.calls == 1U && fixture.bus.launched == 1U);
+    CHECK(fixture.bus.acquired == fixture.bus.released && !fixture.bus.locked);
+  }
   // A corrupt attempt flag cannot turn a completed destructive effect into
   // proof of no consumption. Reject its value but retain possible history loss.
   {
