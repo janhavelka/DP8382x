@@ -276,7 +276,7 @@ Host traces do not qualify physical Q10, MDC timing or SDK integration. See the
 ## Forced and coupled profile verification
 
 `forced.cpp` registers matrix, admission, transitions, failures, replay, ownership
-and timing suites plus an active Release failure probe. Current total:67 CTests.
+and timing suites plus an active Release failure probe. Stage 18 checkpoint:67 CTests.
 Independent literals cover all36 forced and24 negotiated routing combinations,
 20/24-frame traces, every-frame failure/cancel boundaries, all reset kinds,
 late accepted writes, small indivisible poll slices and two-PHY exclusion.
@@ -295,3 +295,25 @@ ctest --test-dir build/forced18-consumer --output-on-failure --no-tests=error
 
 The consumer executes [Forced.h](../examples/portable/Forced.h) against the real
 core. Host success does not qualify hardware partner compatibility or Q11.
+
+## Independent prompts 13-18 audit
+
+Current total: 68 CTests. `forced_verification_outcomes` interrupts an already
+mismatched verification pass with transport error, cancellation, clock fault,
+deadline, invalidation or frame exhaustion, both in CONFIGURE and initialization
+replay. The original mismatch survives separately from the terminal status.
+Existing access suites now reject missing whole/suffix receipts while preserving
+valid prefix samples and possible history loss; sound zero-frame denials remain
+effect-free. Negotiation tests cover NONE reset flags, message5/6 grammar,
+16-page limits, inverted initial toggle, and completed loads before late/release
+failures. The [audit report](../docs/reports/implementation/13-18-independent-audit.md)
+records source review and final checks.
+
+The Release command above also runs in `build/audit13-18-release`. For Windows
+UBSan trap coverage, configure a separate directory with:
+
+```sh
+cmake -S . -B build/audit13-18-ubsan -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON "-DCMAKE_CXX_FLAGS=-fsanitize=undefined -fsanitize-undefined-trap-on-error"
+cmake --build build/audit13-18-ubsan
+ctest --test-dir build/audit13-18-ubsan --output-on-failure --no-tests=error
+```

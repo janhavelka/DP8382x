@@ -49,12 +49,16 @@ configuration never enables EEE, WoL or next pages.
 observed settings, staleness, trust and the last verification status. At this
 stage verification covers ANAR, BMCR, CR1/PHYCR/CR3/CR2 and mandatory
 initialization VOD; these are the current owned profile fields.
-An earlier mismatch remains evidence even if a later readback fails. Matching
-ordinary observations do not silently become new desired intent.
+An earlier mismatch remains evidence even if a later readback fails. An interrupted
+verification returns that interruption's status and backend detail; CONFIG_MISMATCH
+is terminal only after the complete readback pass. Matching ordinary observations
+do not silently become new desired intent.
 
 `waitForCompletion=true` requests a bounded AN-completion wait. The result's
 `negotiationComplete` is true only after observing BMSR AN-complete. Successful
 application without that option can return while negotiation remains pending.
+The reset-scoped `commandRequired`, `commandAccepted` and `protocolComplete`
+flags remain false for CONFIGURE and initialization NONE, including AN replay.
 Neither outcome alone proves link-up, resolved pause policy, usable network
 traffic or electrical qualification. Current link publication belongs to later
 link-observation work.
@@ -89,8 +93,9 @@ base-page event receipt, partner refusal, completion and possible remaining NP
 flags. `baseReceived` records the consumed event; `basePageValid` separately
 records a returned base-page payload. `receivedPages` counts consumed next-page
 events, including duplicates and missing payloads; each retained page has its
-own validity/time. `transmittedPages` counts successfully loaded local/generated
-pages, and `duplicatePages` counts repeated-toggle payloads. A failed later read does not erase earlier
+own validity/time. `transmittedPages` counts completed local/generated page-load
+writes, even if release or the post-callback deadline later fails. It does not
+prove partner acceptance. `duplicatePages` counts repeated-toggle payloads. A failed later read does not erase earlier
 consumed pages. Ambiguous destructive reads may have lost history and are not
 reported as zero received events. Missing/duplicate page evidence cannot be
 invented into a completed exchange.

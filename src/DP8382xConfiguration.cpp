@@ -261,7 +261,8 @@ void DP8382x::_retainPageEvidence(const MdioBatch& batch, const BatchResult& rec
     if (i >= completed) {
       if ((address == cmd::REG_ANER || (_pageEventPending &&
           (address == cmd::REG_ALNPAR || address == cmd::REG_ANLNPTR))) &&
-          (frame.attempted || frame.effectPossible || frame.completed || frame.valueValid)) {
+          (frame.attempted || frame.effectPossible || frame.completed || frame.valueValid ||
+           _transport.violation != TransportViolation::NONE)) {
         next.pagePayloadMissing = true;
       }
       continue;
@@ -328,6 +329,10 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
   const auto& receipt = _transport.lastBatch;
   const uint16_t value = receipt.frames[0].value;
   const bool readValid = called && _result.failingBatch.completedFrames != 0U;
+  // A completed page load remains evidence if release or the deadline fails.
+  if (called && _configStep == ConfigStep::LOAD_PAGE && _result.failingBatch.completedFrames == 2U) {
+    ++_result.nextPage.transmittedPages;
+  }
   if (called && _configStep == ConfigStep::APPLY_ANAR && _result.nextPage.requested &&
       (receipt.frames[1].attempted || receipt.frames[1].effectPossible || receipt.frames[1].completed ||
        receipt.frames[1].valueValid || _transport.violation != TransportViolation::NONE)) {
@@ -382,8 +387,7 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
     }
   }
   if (!status.ok()) {
-    _settings.lastVerificationStatus = _result.mismatch.valid ? mismatchStatus() : status;
-    return _finishOperation(_settings.lastVerificationStatus);
+    return _finishOperation(status);
   }
   switch (_configStep) {
     case ConfigStep::DRAIN: _setConfigStep(ConfigStep::READ_ANAR); break;
@@ -421,7 +425,6 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
       }
       if (_settings.desired.mode == LinkMode::AUTONEGOTIATED) {
         if ((value & cmd::MASK_BMCR_AN_RESTART) != 0U) { return _waitOperation(); }
-        _result.protocolComplete = true;
       }
       if (_result.nextPage.requested) { _setConfigStep(ConfigStep::WAIT_BASE); break; }
       if (_configureOptions.waitForCompletion) { _setConfigStep(ConfigStep::WAIT_COMPLETE); break; }
@@ -438,7 +441,6 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
       } else { _setConfigStep(ConfigStep::LOAD_PAGE); }
       break;
     case ConfigStep::LOAD_PAGE:
-      ++_result.nextPage.transmittedPages;
       _localMore = _pageIndex + 1U < _configureOptions.nextPages.pageCount;
       _setConfigStep(ConfigStep::WAIT_PAGE); break;
     case ConfigStep::WAIT_PAGE:

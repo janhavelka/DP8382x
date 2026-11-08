@@ -3,7 +3,7 @@
 The [80-prompt implementation plan](prompts/README.md) is in its first
 execution. Prompts 1–18 are complete: source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 67 registered Release CTests, 102 Python tests,
+Current local checks include 68 registered Release CTests, 102 Python tests,
 the linked tests-OFF consumer, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -19,6 +19,13 @@ profile replay; prompt18 adds forced modes and coupled routing/extension.
 Managed health and resolved-link observation retain their later stages.
 
 ## Execution record
+
+Fresh prompts 13-18 audit entry: `507dff3424668f7404760dca905070b4a4ad1e6f`,
+clean and equal to upstream. The [independent audit](reports/implementation/13-18-independent-audit.md)
+fixes interrupted-verification status, reset-result flags, missing-receipt
+uncertainty and completed page-load retention. Release and UBSan trap builds
+each pass all 68 CTests. The same execution branch/base is retained; final
+commit and verified upstream equality are recorded in the handoff.
 
 Prompt 17 final synchronized checkpoint / prompt 18 entry:
 `57a06cb12140b8f2666e1b1a46c64ffe80f8035c`.

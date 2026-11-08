@@ -522,10 +522,69 @@ void failures() {
   bus.mismatchReg = 9; bus.mismatchXor = 0x0020;
   const auto token = start(driver, forced());
   bus.failFrame = static_cast<int>(first + 16U); // PHYCR verify follows CR1 verify.
-  CHECK(drain(driver, bus, token).is(Err::CONFIG_MISMATCH));
+  CHECK(drain(driver, bus, token).is(Err::MDIO_TIMEOUT));
   const auto result = take(driver, token);
+  CHECK(result.status.detail == -18018);
   CHECK(result.mismatch.registerAddress == 9 && result.failingBatch.normalized.is(Err::MDIO_TIMEOUT));
   CHECK(result.failingBatch.normalized.detail == -18018 && result.cleanupOwed);
+}
+
+void verificationOutcomes() {
+  // A mismatch is retained data until the complete pass can freeze its result.
+  // Check both direct configuration and the identical initialization replay.
+  for (const bool restoring : {false, true}) {
+    for (unsigned interruption = 0; interruption < 6; ++interruption) {
+      Controller bus; Driver driver;
+      CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus);
+      if (restoring) {
+        const auto initial = start(driver, forced());
+        CHECK(drain(driver, bus, initial).ok()); take(driver, initial);
+      }
+      const auto first = bus.frames;
+      // NONE initialization has twenty frames before its owned profile replay.
+      const unsigned untilMismatch = (restoring ? 20U : 0U) + 16U;
+      auto allowance = budget(interruption == 5U ? untilMismatch : 512U);
+      OperationToken token;
+      CHECK((restoring ? driver.startInitialize({ResetKind::NONE}, allowance, token) :
+          driver.startConfigure(forced(), allowance, token)).inProgress());
+      bus.mismatchReg = 9; bus.mismatchXor = 0x0020;
+      for (unsigned poll = 0; poll < 32U && bus.frames < first + untilMismatch; ++poll) {
+        CHECK(driver.pollOperation(token).inProgress());
+      }
+      CHECK(bus.frames == first + untilMismatch);
+      const auto calls = bus.calls;
+      Err expected = Err::MDIO_TIMEOUT;
+      int32_t detail = -18018;
+      if (interruption == 0U) bus.failFrame = static_cast<int>(bus.frames);
+      if (interruption == 1U) {
+        CHECK(driver.cancel(token).ok()); expected = Err::CANCELLED; detail = 0;
+      }
+      if (interruption == 2U) {
+        --bus.now; expected = Err::INVALID_CONFIG; detail = static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT);
+      }
+      if (interruption == 3U) {
+        bus.now = allowance.io.deadlineUs; expected = Err::OPERATION_TIMEOUT;
+        detail = static_cast<int32_t>(TimeoutDetail::DEADLINE);
+      }
+      if (interruption == 4U) {
+        CHECK(driver.invalidateDeviceState(InvalidationReason::EXTERNAL_MUTATION).ok());
+        expected = Err::INVALID_CONFIG; detail = static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED);
+      }
+      if (interruption == 5U) {
+        expected = Err::OPERATION_TIMEOUT; detail = static_cast<int32_t>(TimeoutDetail::FRAME_BUDGET);
+      }
+      CHECK(driver.pollOperation(token).is(expected));
+      CHECK(bus.calls == calls + (interruption == 0U ? 1U : 0U));
+      const auto result = take(driver, token);
+      CHECK(result.status.is(expected) && result.status.detail == detail);
+      CHECK(result.mismatch.valid && result.mismatch.registerAddress == 9);
+      CHECK(result.mismatch.mask == 0x0020 && result.mismatch.expected == 0x0020);
+      CHECK(result.cleanupOwed && !result.persistentRestored);
+      CHECK(driver.settingsSnapshot().lastVerificationStatus.is(expected));
+      CHECK(driver.settingsSnapshot().trust == ConfigurationTrust::DIRTY);
+      CHECK(driver.settingsSnapshot().observedStale);
+    }
+  }
 }
 
 void replay() {
@@ -619,7 +678,8 @@ void timing() {
 int main(int argc, char** argv) {
   const test::Suite suites[] = {
     {"matrix", matrix}, {"admission", admission}, {"transitions", transitions},
-    {"failures", failures}, {"replay", replay}, {"ownership", ownership}, {"timing", timing}
+    {"failures", failures}, {"verification_outcomes", verificationOutcomes},
+    {"replay", replay}, {"ownership", ownership}, {"timing", timing}
   };
   return test::runSuites(argc, argv, suites);
 }

@@ -729,14 +729,19 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
         sample.stale = false;
         sample.timeValid = stampValid;
         sample.observedAtUs = stampValid ? stamp : 0;
-      } else if (receipt.attempted || receipt.completed || receipt.valueValid || receipt.effectPossible) {
-        if (receipt.effectPossible || receipt.completed || receipt.valueValid) { sample.historyLost = true; }
+      } else if (receipt.attempted || receipt.completed || receipt.valueValid || receipt.effectPossible ||
+                 _transport.violation != TransportViolation::NONE) {
+        // An unsound receipt cannot establish that a missing read never ran.
+        // A sound no-attempt denial still leaves history intact.
+        if (receipt.effectPossible || receipt.completed || receipt.valueValid ||
+            _transport.violation != TransportViolation::NONE) { sample.historyLost = true; }
         sample.stale = true;
       }
     }
     // A raw target write cannot establish configuration trust, even on success.
     if (target && frame.kind == FrameKind::WRITE &&
-        (receipt.attempted || receipt.completed || receipt.valueValid || receipt.effectPossible)) {
+        (receipt.attempted || receipt.completed || receipt.valueValid || receipt.effectPossible ||
+         _transport.violation != TransportViolation::NONE)) {
       const bool initialized = _initialized;
       if (address == 0x001FU && frame.value == 0x4000U) {
         // Table8-48 circuitry restart keeps registers, identity and initialized state.
@@ -750,7 +755,8 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
         for (auto& sample : _evidence.samples) { sample.stale = true; }
       } else { _invalidateEvidence(); }
       // OP-13 preserves readiness on a proved effect-free non-reset failure.
-      if (address != 0U && !receipt.completed && !receipt.valueValid && !receipt.effectPossible) {
+      if (address != 0U && !receipt.completed && !receipt.valueValid && !receipt.effectPossible &&
+          _transport.violation == TransportViolation::NONE) {
         _initialized = initialized;
       }
     }
@@ -804,13 +810,13 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called, 
   const Status clockStatus = _sampleTime(after, upper);
   if (clockStatus.ok()) { _transport.late = after >= budget.deadlineUs; }
 
-  _retainEvidence(batch, result, clockStatus.ok(), before, upper);
   const auto frames = auditFrames(batch, result, clockStatus.ok(), before, upper);
+  const auto report = classifyReport(result, frames);
+  _transport.violation = report.violation;
+  _retainEvidence(batch, result, clockStatus.ok(), before, upper);
   _retainPageEvidence(batch, result, frames.completed, clockStatus.ok(), upper);
   for (uint8_t i = 0; i < frames.attempted; ++i) { increment(_transport.attemptedFrames); }
   for (uint8_t i = 0; i < frames.completed; ++i) { increment(_transport.completedFrames); }
-  const auto report = classifyReport(result, frames);
-  _transport.violation = report.violation;
   if (report.violation != TransportViolation::NONE && report.violation != TransportViolation::CONTROLLER_STATE) { _stopped = true; }
   _transport.stopped = _stopped;
   _transport.controllerReusable = result.controllerReusable && report.release.ok() && !_stopped;
@@ -867,11 +873,8 @@ Status DP8382x::_checkToken(OperationToken token) const noexcept {
 }
 
 Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept {
-  // Once a verification mismatch is observed, later timeout/cancellation cannot
-  // erase it. The later failed callback still has its own BatchSummary evidence.
-  if (_configuring && _result.mismatch.valid && !status.ok()) {
-    status = Status::Error(Err::CONFIG_MISMATCH, "Link profile verification failed");
-  }
+  // A partial verification keeps its mismatch evidence separately. The error
+  // that interrupts the pass remains the terminal outcome, including its detail.
   _operation.state = OperationState::RESULT_PENDING;
   _operation.phase = OperationPhase::COMPLETE;
   _operation.nextPollValid = false;

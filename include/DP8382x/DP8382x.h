@@ -233,11 +233,11 @@ struct NextPageResult {
   bool requested{false}; ///< An exchange epoch was requested.
   bool baseReceived{false}; ///< Fresh base-page event consumed; payload validity is separate.
   bool basePageValid{false}; ///< Base payload was returned after the event.
-  bool pagePayloadMissing{false}; ///< Consumed event lacks a trusted payload; history is incomplete.
+  bool pagePayloadMissing{false}; ///< Consumed or possibly consumed event lacks a trusted payload.
   bool partnerRefused{false}; ///< Partner did not advertise next-page capability.
   bool complete{false}; ///< Page service and AN-complete were observed.
   bool npMayRemainSet{false}; ///< Failed/cancelled epoch may still oblige page service.
-  uint8_t transmittedPages{0}; ///< Successfully loaded pages, including generated null pages.
+  uint8_t transmittedPages{0}; ///< Completed page-load writes, including null pages and later release/deadline failures.
   uint8_t receivedPages{0}; ///< Consumed next-page events, including duplicate/missing payload slots.
   uint32_t duplicatePages{0}; ///< Repeated toggle evidence; never advances local page index.
   uint16_t basePage{0}; ///< Raw base page from ANLPAR, not ANLNPTR.
@@ -253,7 +253,7 @@ struct StrapEvidence {
   bool timeValid{false}; ///< Complete-capture timestamp is usable.
   bool stale{true}; ///< Reset or partial recapture can mix historical/current words.
 };
-/// @brief First failed stable-bit comparison in a complete verification pass.
+/// @brief First failed stable-bit comparison, retained even if the pass is interrupted.
 struct ConfigurationMismatch {
   bool valid{false}; ///< Remaining fields describe an actual comparison.
   bool mmd{false}; ///< True for an indirect target.
@@ -285,7 +285,7 @@ struct OperationResult {
   bool mutationPossible{false}; ///< Semantic effect may have occurred.
   bool commandRequired{false}; ///< This operation requests a reset command.
   bool commandAccepted{false}; ///< Reset frame completed; does not prove reset completion.
-  bool protocolComplete{false}; ///< Requested command subsequently observed clear on time.
+  bool protocolComplete{false}; ///< Requested reset subsequently observed clear on time; not AN completion.
   bool negotiationComplete{false}; ///< BMSR AN-complete observed by an explicitly requested wait.
   bool temporaryMayBeActive{false}; ///< Initialization alone never starts a temporary stimulus.
   bool persistentRestored{false}; ///< All currently owned persistent state verified.
@@ -294,7 +294,7 @@ struct OperationResult {
   bool late{false}; ///< A batch returned at/after the deadline.
   DeviceIdentity identity{}; ///< Latest operation-owned identity evidence.
   StrapEvidence straps{}; ///< Captured raw straps with historical validity.
-  ConfigurationMismatch mismatch{}; ///< First stable mismatch, if any.
+  ConfigurationMismatch mismatch{}; ///< First mismatch; an interrupted pass retains its terminal error separately.
   BatchSummary failingBatch{}; ///< First failure, otherwise latest batch.
   NextPageResult nextPage{}; ///< Exchange evidence, including partial consumption.
   uint16_t savedAnar{0}; ///< Pre-mutation advertisement, never a rollback instruction.

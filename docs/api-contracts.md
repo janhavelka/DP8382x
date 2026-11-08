@@ -468,8 +468,8 @@ implements CONFIGURE and SettingsSnapshot for negotiated ANAR/BMCR plus mandator
 VOD; stage 18 adds forced modes and all owned CR1/PHYCR/CR3/CR2 controls. VERIFY arrives with 22. No unimplemented
 kind or desired-link-settings snapshot is exposed. EXTERNAL_POWER_ON is
 already a local invalidation attestation, not a hard-reset operation. Future
-startConfigure/startVerify use the same slot and OperationBudget; their behavior
-is specified below but no successful placeholder call exists.
+startVerify will use the same slot and OperationBudget; startConfigure already
+uses them. No successful placeholder call exists.
 
 StrapEvidence retains raw partial/historical words, with independent validity
 and staleness. A trustworthy completed read survives a later release/deadline
