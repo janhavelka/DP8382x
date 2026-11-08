@@ -9653,11 +9653,11 @@
       ],
       "prerequisites": "Application owner serializes all instance calls/snapshots. Controller transaction lock covers every bus participant; active-operation admission is separate. Declared exact variant, legal values and valid clock/power history checked before mutation.",
       "steps": [
-        "Validate nonempty subset of four10/100 half/full abilities, selector exactly1, RF0, T4/reserved0, pause/asymmetric only meaningful full duplex, and explicit next-page intent. Reject prohibited bit13 before I/O.",
-        "If any10 ability enabled, complete initialize_10base. Validate crossover policy. Extended full-duplex CR2[5] belongs to extended_link_configure (prompt18); delegate explicit coordinated opt-in to that owner before negotiation, never write reserved CR2[6].",
-        "Under admitted configuration sequence write ANAR stable permitted fields; keep reserved/read-only bits unchanged and RF0. Stage desired local next-page payload locally; the gated next_page_exchange owns post-restart register7 loading.",
+        "Validate nonempty subset of four 10/100 half/full abilities and all four pause combinations. Force selector1 and RF0; preserve read-only/reserved bits. Pause has no negotiated effect on half-duplex resolution. Validate all intent before I/O.",
+        "Require completed initialization including unconditional initialize_10base VOD setup for every profile. Do not repeat VOD here. Until prompt18 reject nondefault crossover and extended duplex; forced configuration belongs to prompt18.",
+        "Save touched stable words; atomically replace the complete ANAR owned advertisement/selector fields while preserving reserved/read-only bits and RF0. The optional next_page_exchange owns transient NP and post-restart register7 loading.",
         "Enable BMCR AN, compose reset0, issue restart1 only after configuration writes succeed; speed/duplex selections ignored during AN. Verify stable desired bits without comparing self-clearing command.",
-        "Poll AN state boundedly. Restart command clear proves initiation only; full link resolution requires current link, AN complete and partner ability. Link-down/pending is not an MDIO error.",
+        "Verify stable advertisement and BMCR fields; restart-clear proves initiation only. An explicitly requested finite wait observes BMSR AN-complete; full link resolution remains prompt19. Down/pending is not an MDIO error.",
         "Ordinary advertisement always clears next-page8000; host next-page ownership alone enables it transiently."
       ],
       "waits": [
@@ -9761,7 +9761,7 @@
           "mask": "0xB7FF"
         }
       ],
-      "prerequisites": "Application owner serializes all instance calls/snapshots. Controller transaction lock covers every bus participant; active-operation admission is separate. Declared exact variant, legal values and valid clock/power history checked before mutation. Exact DP83826I handshake gate next_page_handshake must close before enabling custom exchange; the sequence below is the selected IEEE comparison contract, not measured silicon behavior.",
+      "prerequisites": "Application owner serializes all instance calls/snapshots and complete controller transactions across all PHYs. Exact DP83826I initialized with admitted negotiated settings; finite local/partner page count and aggregate frame/time budgets. D8 selects IEEE Clause28 software semantics; next_page_handshake is physical Q10, not a software admission gate.",
       "steps": [
         "Validate11-bit payload, next/message/ACK2 booleans, assigned message codes (never transmit reserved message codes), application semantics, finite page count including null pages, and aggregate deadline. Preserve prior consumed events and establish a fresh negotiation epoch. Each series of unformatted pages must be preceded by a message page defining its use; the referenced unformatted pages must immediately follow in the defined order (IEEE Annex 28B.4 and 28.2.3.4.13g).",
         "Prepare desired payload locally, set ANAR next-page intent and restart AN. A pre-restart ANNPTR write is not a proved load trigger: IEEE transmit-disable clears mr_next_page_loaded. Do not write hardware toggle or partner ACK.",
@@ -9778,14 +9778,14 @@
       "timeout": "Application aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Finite frame/poll limit even if clock freezes. Zero work budget performs no I/O. No nominal silicon number is a software timeout.",
       "partialEffects": "Peer may have received partial sequence; consumed page cannot be reconstructed by retry. Keep successful pages and uncertainty.",
       "cleanup": "Release controller lock on every exit before any hardware wait or output. Preserve primary error and finite cleanup outcome separately; no automatic retry/reset. Accepted or uncertain writes invalidate affected trust. Cancellation retains hardware effects; owner may admit bounded reconciliation.",
-      "restoration": "Persistent next-page intent replay belongs to negotiated settings; transient exchange progress is never replayed after reset.",
+      "restoration": "Transient NP is never persistent intent. Successful exchange observes AN-complete then clears and verifies NP0 without restart. Failure/cancel issues no extra write and retains possible NP plus cleanupOwed; a separately admitted initialization or eligible CONFIGURE retry replays persistent NP0 and restarts AN.",
       "gates": [
         "next_page_handshake"
       ],
       "owner": {
-        "api": "NextPage / exchangeNextPage",
-        "cli": "owner-routed NextPage / exchangeNextPage (prompts 44-46)",
-        "test": "Independent literals and boundary failures for NextPage / exchangeNextPage; prompts 17, 53-55; reject unformatted series without a defining message and out-of-order referenced pages",
+        "api": "ConfigureOptions::nextPages / startConfigure",
+        "cli": "owner-routed ConfigureOptions::nextPages / startConfigure (prompts44-46)",
+        "test": "test/negotiation.cpp independent Clause28 vectors, partial evidence, every-frame faults, finite budgets; physical Q10 remains NOT_RUN",
         "implementationStage": 17
       }
     },
@@ -11995,13 +11995,13 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities."
+      "notes": "Prompt17 implements bounded verified negotiated profiles and optional typed Clause28 exchange through the existing operation slot. Independent Release tests and portable consumer pass; resolved-link observation, SDK projection and physical Q10 remain separately owned future evidence."
     },
     {
       "id": "next_page",
@@ -12024,23 +12024,23 @@
         "next_page_exchange"
       ],
       "owner": {
-        "api": "NextPage / exchangeNextPage",
-        "cli": "owner-routed NextPage / exchangeNextPage (prompts 44-46)",
-        "test": "Independent literals and boundary failures for NextPage / exchangeNextPage; prompts 17, 53-55",
+        "api": "ConfigureOptions::nextPages / startConfigure",
+        "cli": "owner-routed ConfigureOptions::nextPages / startConfigure (prompts 44-46)",
+        "test": "Independent literals and boundary failures in test/negotiation.cpp; prompts 17, 53-55",
         "implementationStage": 17
       },
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "next_page_handshake"
       ],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities."
+      "notes": "Prompt17 implements bounded verified negotiated profiles and optional typed Clause28 exchange through the existing operation slot. Independent Release tests and portable consumer pass; resolved-link observation, SDK projection and physical Q10 remain separately owned future evidence."
     },
     {
       "id": "crossover",
@@ -13339,7 +13339,7 @@
       "id": "next_page_handshake",
       "conflict": "TI field tables expose next-page controls/events but do not completely specify management load/event ordering. IEEE restart clears page-loaded state and initial page event is BASE, so pre-restart loading plus treating every event as NEXT is not justified.",
       "decision": "D8 selects referenced IEEE Clause28 exchange semantics; ANAR8000 is a transient epoch property, never persistent desired state. Physical Q10 remains open.",
-      "nextEvidence": "Prompt17: exact DP83826I TI clarification or identified traces proving fresh base-event distinction, post-restart ANNPTR loading, receive-before-advance retention, ACK2 association and bilateral/null-page termination.",
+      "nextEvidence": "Physical Q10: identified exact-DP83826I traces proving fresh BASE distinction, post-restart ANNPTR loading, receive-before-advance retention, ACK2 association and bilateral/null-page termination. Software uses the source-backed D8 Clause28 selection; no physical pass is claimed.",
       "ownerStage": 17,
       "sources": [
         {

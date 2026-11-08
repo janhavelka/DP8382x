@@ -463,8 +463,9 @@ operationSnapshot and isInitialized. See the [initialization guide](initializati
 and compiling [owner example](../examples/portable/Initialize.h).
 
 INITIALIZE with NONE/PCS/HARD/RESTART and the retained
-busQuietUntilUs/busQuietValid floor are implemented through stage 16; CONFIGURE and verified
-SettingsSnapshot arrive with stages 17–18; VERIFY arrives with 22. No unimplemented
+busQuietUntilUs/busQuietValid floor are implemented through stage 16. Stage 17
+implements CONFIGURE and SettingsSnapshot for negotiated ANAR/BMCR plus mandatory
+VOD; forced/crossover settings extend them in stage 18. VERIFY arrives with 22. No unimplemented
 kind or desired-link-settings snapshot is exposed. EXTERNAL_POWER_ON is
 already a local invalidation attestation, not a hard-reset operation. Future
 startConfigure/startVerify use the same slot and OperationBudget; their behavior
@@ -780,3 +781,22 @@ A short maxFrames slice postpones work without terminating it. After failure,
 deliver the result; if cleanupOwed remains, separately admit restoration, or
 establish external disposition and abandon before end. Synthetic timing tests
 are software evidence and do not qualify ESP-IDF or physical timings.
+
+### Implemented negotiated operation and page contract (stage 17)
+
+The shipped [configuration API and guide](negotiation.md) define `ConfigureOptions`,
+`NextPageExchange`, `NextPage`, `SettingsSnapshot` and `NextPageResult`. Fixed page
+storage is copied on admission. All legal nonempty technology subsets and pause
+combinations are admitted; forced and nondefault crossover/extended duplex reject
+before desired-state mutation until stage 18. Initialization replays admitted
+persistent intent only after mandatory VOD setup, using the same procedure.
+
+Raw safe reads remain available between configuration polls. During a typed
+exchange, public acquisition of ANER rejects BUSY/OPERATION_ACTIVE to protect the
+single page-event consumer; the owning operation uses the existing private
+collector. Reset WAIT and persistent hard-reset floors retain their OP-14 guard.
+A base event, returned base payload, each consumed next event, returned page and
+AN completion have separate evidence. `negotiationComplete` means observed BMSR
+completion; restart-clear in `protocolComplete` does not imply it. An earlier
+verification mismatch survives a later read/deadline failure in the primary result;
+`failingBatch` retains the separate later transport evidence.

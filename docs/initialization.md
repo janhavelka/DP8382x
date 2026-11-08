@@ -150,3 +150,12 @@ restoration and explicit abandon. The [portable consumer](../test/consumer/main.
 executes it with a clearly simulated controller. The [test guide](../test/README.md)
 records local commands. Backend/SDK timing and physical reset/link behavior remain
 NOT RUN until the later adapter and admitted fixture campaigns.
+
+## Negotiated replay after stage 17
+
+When an admitted desired negotiated profile exists, every initialization kind
+continues from mandatory VOD verification into the shared advertisement/BMCR
+apply and stable readback path. It always restores NP=0 and restarts AN; transient
+page progress and pages are never replayed. Initialization can finish with cable
+down and does not implicitly wait for negotiation. Only complete owned replay
+clears the restoration barrier. See [configuration](negotiation.md).

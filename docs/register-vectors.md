@@ -447,3 +447,36 @@ Faulty reports cannot convert an unreported command into proof of no effects.
 A success receipt missing its command frame retains possible reset and the quiet
 floor. A valid zero-attempt BUSY/error remains effect-free. These are transport
 contract regressions, not physical reset measurements. Q5 remains NOT RUN.
+
+## Stage 17 independent negotiation and page vectors
+
+Original SNLS647I tables 8-19/23 independently map the four API choices to
+wire 0020/0040/0080/0100. Selector is always0001. For 100/full alone the four
+pause cases are0101/0501/0901/0D01; all four technologies without pause are01E1.
+Prior ANAR F21F becomes5301 for100/full: preserve5200, replace selector, clear
+prohibited2000 and transient8000. BMCR prior217F becomes127F on restart, then
+stable readback107F; owned3100 compares1000, commands8200 are not sampled/replayed.
+The tests independently enumerate all15 nonempty subsets times4 pause choices.
+
+Mandatory initialization remains the literal sequence
+`W(0D,001F) W(0E,030E) W(0D,401F) W(0E,4A40)`, verified underFFC0.
+Configure issues no such sequence. Initialization replay adds the same negotiated
+procedure after mandatory setup for NONE/PCS/HARD/RESTART, always with NP0.
+
+IEEE802.3-2012 Figure28-18 and original tables8-25..27 distinguish the first
+fresh ANER event (read partner BASE at05) from subsequent NEXT events (read08).
+With BASE toggle0, first accepted NEXT toggle is1. For a remote-fault message4
+followed by unformatted3 with ACK2, local register7 words are B804 then1803 when
+hardware toggle is0800 then0. Writes preserve4800 and ownB7FF. Generated null
+is2001 plus hardware-owned toggle. A duplicate toggle consumes a retained event
+slot but cannot advance the local page. MP5/OUI and MP6/PHYID require four ordered
+unformatted pages. Null followed by substantive information is rejected as a
+semantic inference from Clause28's end-of-information meaning.
+
+Bilateral last pages still require BMSR0020 before epoch success; then ANAR8101
+becomes0101 without another BMCR restart. Refusal retains its own flag and waits
+for ordinary AN completion. Timeout/cancel/read-after-effect failure retains
+consumed evidence and possible NP without an extra write. Independent literal
+controller tests prove software traces, not physical Clause28 handshake or wire
+timing. [The source review](reports/implementation/17-source-review.md) records
+original evidence and Q10 qualification boundaries.

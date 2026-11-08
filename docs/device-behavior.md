@@ -156,7 +156,7 @@ raw code must not silently turn it into a supported operation. EEE page/address
 research retains explicit wire/control gates. IEEE's restart state clears the next-page
 loaded flag: prepare desired data locally before restart, but load ANNPTR after
 fresh base-page receipt. Distinguish BASE and NEXT events, retain received payload
-before advancing, and finish only when both sides are done. The selected IEEE sequence remains physically unqualified under Q10. Next-page
+before advancing, and finish only when both sides are done and BMSR reports AN-complete. The selected IEEE sequence remains physically unqualified under Q10. Next-page
 intent belongs only to the exchange epoch: success clears it without restart;
 failure/cancel retains cleanupOwed, and separately admitted initialization restores
 ordinary advertisement with next-page clear and restarts. A peer declining next pages is not a transport failure.
@@ -404,3 +404,11 @@ has no writable route. ENHANCED LED1 also depends on CLKOUT selection. Conflicti
 TX_ER pin codes and PHYCR LED-configuration semantics remain Q12 gates. Fast Link
 Drop allows disabling all causes on RMII, but no nonzero cause policy; printed
 response maxima for modes 2/3/5 require RX-error or energy-loss detection enabled.
+
+Stage 17 executes [these negotiated procedures](negotiation.md) with finite
+caller budgets. Pending negotiation is explicit, including a new AN cycle with
+NP enabled and no page loaded. No page-loading retry or hidden NP cleanup occurs
+on failure/cancel; a new restoration operation owns those effects. Supported
+local message semantics are null, remote fault, OUI and PHY identifier with their
+ordered unformatted pages. Other technology/extended-only/reserved message codes
+are rejected, and received raw codes never activate features implicitly.

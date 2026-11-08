@@ -134,7 +134,8 @@ constexpr OperationToken INVALID_OPERATION_TOKEN{};
 /// @brief Implemented cooperative operation kinds.
 enum class OperationKind : uint8_t {
   NONE, ///< Empty slot.
-  INITIALIZE ///< Identity, optional PCS reset and mandatory VOD verification.
+  INITIALIZE, ///< Identity, optional reset and owned configuration replay.
+  CONFIGURE ///< Negotiated profile and optional finite next-page exchange.
 };
 /// @brief One retained operation slot.
 enum class OperationState : uint8_t {
@@ -155,8 +156,8 @@ enum class OperationPhase : uint8_t {
   PREFLIGHT, ///< Local request admission.
   IDENTIFY, ///< Identity and raw strap capture.
   QUIESCE, ///< Check for an already active reset.
-  COMMAND, ///< Issue the literal PCS reset frame.
-  WAIT, ///< Scheduled reset-completion observation.
+  COMMAND, ///< Issue a reset command or the owned AN restart.
+  WAIT, ///< Scheduled reset, negotiation or page observation.
   RESTORE, ///< Apply implemented persistent settings.
   VERIFY, ///< Read back stable owned settings.
   COMPLETE ///< Frozen terminal result.
@@ -170,6 +171,69 @@ struct OperationBudget {
 /// @brief Copied initialization request; NONE still writes/verifies mandatory VOD.
 struct InitializeOptions {
   ResetKind reset{ResetKind::PCS}; ///< Selected reset.
+};
+/// @brief Fixed maximum number of local or retained partner next pages.
+constexpr uint8_t MAX_NEXT_PAGES = 16;
+/// @brief Clause 28 page content; NP and the read-only toggle are driver/hardware owned.
+struct NextPage {
+  uint16_t data{0}; ///< Eleven-bit message code or unformatted payload.
+  bool message{false}; ///< True for a message page; false for its unformatted data.
+  bool acknowledge2{false}; ///< Can/will comply with the partner message, not receipt acknowledgement.
+};
+/// @brief Copied finite exchange. Supported messages: null, remote fault, OUI and PHY ID.
+struct NextPageExchange {
+  std::array<NextPage, MAX_NEXT_PAGES> pages{}; ///< Ordered message and associated unformatted pages.
+  uint8_t pageCount{0}; ///< Zero disables exchange. Nonzero includes every unformatted page.
+  uint8_t maxPartnerPages{MAX_NEXT_PAGES}; ///< Positive bound, at most MAX_NEXT_PAGES; includes null pages.
+};
+/// @brief Profile application policy; all waits share the operation's finite budget.
+struct ConfigureOptions {
+  bool waitForCompletion{false}; ///< Observe BMSR AN-complete, independently of register verification.
+  NextPageExchange nextPages{}; ///< Nonempty exchange always waits for AN-complete.
+};
+/// @brief Current foundational configuration evidence, separate from desired intent.
+enum class ConfigurationTrust : uint8_t {
+  UNKNOWN, ///< No established configuration evidence.
+  VERIFIED, ///< Complete currently owned stable settings verified.
+  DIRTY ///< Admitted desired change or uncertainty needs verification/restoration.
+};
+/// @brief Passive settings. VERIFIED covers ANAR, BMCR and mandatory VOD_CFG3 only.
+struct SettingsSnapshot {
+  LinkSettings desired{}; ///< Authoritative intent copied at successful start admission.
+  bool desiredValid{false}; ///< Desired intent exists; cancellation does not erase it.
+  LinkSettings observed{}; ///< Latest complete stable setting tuple.
+  bool observedValid{false}; ///< Complete tuple was observed.
+  bool observedStale{true}; ///< Invalidation or incomplete verification makes history stale.
+  ConfigurationTrust trust{ConfigurationTrust::UNKNOWN}; ///< Never implies link or MAC readiness.
+  uint64_t observedAtUs{0}; ///< Conservative complete readback time, microseconds.
+  bool timeValid{false}; ///< Timestamp is usable.
+  Status lastVerificationStatus{Err::NOT_INITIALIZED, 0, "No settings verification"}; ///< Latest verification outcome.
+  uint16_t rawAnar{0}; ///< Latest independently returned advertisement word.
+  uint16_t rawBmcr{0}; ///< Latest independently returned control word.
+  bool anarValid{false}; ///< Raw advertisement has been captured.
+  bool bmcrValid{false}; ///< Raw control has been captured.
+};
+/// @brief Independently consumed partner page, retained even if later work fails.
+struct PageEvidence {
+  uint16_t raw{0}; ///< Raw partner next-page word, including ACK and toggle.
+  bool valid{false}; ///< Valid data returned by the controller.
+  uint64_t observedAtUs{0}; ///< Conservative completion timestamp, microseconds.
+  bool timeValid{false}; ///< Timestamp is usable.
+};
+/// @brief Finite exchange evidence; successful application alone is not AN completion.
+struct NextPageResult {
+  bool requested{false}; ///< An exchange epoch was requested.
+  bool baseReceived{false}; ///< Fresh base-page event consumed; payload validity is separate.
+  bool basePageValid{false}; ///< Base payload was returned after the event.
+  bool pagePayloadMissing{false}; ///< Consumed event lacks a trusted payload; history is incomplete.
+  bool partnerRefused{false}; ///< Partner did not advertise next-page capability.
+  bool complete{false}; ///< Page service and AN-complete were observed.
+  bool npMayRemainSet{false}; ///< Failed/cancelled epoch may still oblige page service.
+  uint8_t transmittedPages{0}; ///< Successfully loaded pages, including generated null pages.
+  uint8_t receivedPages{0}; ///< Consumed next-page events, including duplicate/missing payload slots.
+  uint32_t duplicatePages{0}; ///< Repeated toggle evidence; never advances local page index.
+  uint16_t basePage{0}; ///< Raw base page from ANLPAR, not ANLNPTR.
+  std::array<PageEvidence, MAX_NEXT_PAGES> pages{}; ///< Consumed event slots; invalid payloads remain explicit.
 };
 /// @brief Raw captured straps, never assumed pin levels or decoded BASIC/ENHANCED defaults.
 struct StrapEvidence {
@@ -214,6 +278,7 @@ struct OperationResult {
   bool commandRequired{false}; ///< This operation requests a reset command.
   bool commandAccepted{false}; ///< Reset frame completed; does not prove reset completion.
   bool protocolComplete{false}; ///< Requested command subsequently observed clear on time.
+  bool negotiationComplete{false}; ///< BMSR AN-complete observed by an explicitly requested wait.
   bool temporaryMayBeActive{false}; ///< Initialization alone never starts a temporary stimulus.
   bool persistentRestored{false}; ///< All currently owned persistent state verified.
   bool cleanupOwed{false}; ///< Barrier at termination; current state is in operationSnapshot.
@@ -223,6 +288,11 @@ struct OperationResult {
   StrapEvidence straps{}; ///< Captured raw straps with historical validity.
   ConfigurationMismatch mismatch{}; ///< First stable mismatch, if any.
   BatchSummary failingBatch{}; ///< First failure, otherwise latest batch.
+  NextPageResult nextPage{}; ///< Exchange evidence, including partial consumption.
+  uint16_t savedAnar{0}; ///< Pre-mutation advertisement, never a rollback instruction.
+  uint16_t savedBmcr{0}; ///< Pre-mutation control, never a rollback instruction.
+  bool savedAnarValid{false}; ///< Pre-mutation advertisement was captured.
+  bool savedBmcrValid{false}; ///< Pre-mutation control was captured.
 };
 /// @brief Bus/clock-silent operation progress, without a copy of the retained result.
 struct OperationSnapshot {
@@ -232,8 +302,8 @@ struct OperationSnapshot {
   OperationPhase phase{OperationPhase::NONE}; ///< Current phase or COMPLETE.
   Status status{Err::RESULT_NOT_AVAILABLE, 0, "No operation"}; ///< Progress/frozen status.
   bool cleanupOwed{false}; ///< Current restoration barrier, even with an empty slot.
-  bool temporaryMayBeActive{false}; ///< False for the implemented initialization operation.
-  uint64_t nextPollAtUs{0}; ///< Earliest legal next reset read.
+  bool temporaryMayBeActive{false}; ///< No retained diagnostic stimulus is implemented yet.
+  uint64_t nextPollAtUs{0}; ///< Earliest legal next scheduled observation.
   bool nextPollValid{false}; ///< A valid scheduled wait exists.
   uint64_t busQuietUntilUs{0}; ///< Hard-reset silence floor; shared owner holds every PHY quiet.
   bool busQuietValid{false}; ///< Valid floor anchor; cached until a timed call observes expiry.
@@ -325,6 +395,32 @@ public:
   /// @brief Query implemented initialization readiness without MDIO or clock access.
   /// @return True only after identity/reset/mandatory VOD verification; never a link claim.
   bool isInitialized() const noexcept { return _initialized; }
+
+  /// @brief Admit a complete negotiated profile without MDIO or clock callbacks.
+  /// @param[in] settings Nonempty documented 10/100 technologies, pause and default crossover.
+  /// @param[in] options Optional bounded Clause 28 exchange/completion wait.
+  /// @param[in] budget Exclusive aggregate deadline, frame and stall allowances.
+  /// @param[out] token Assigned only on admission; result must be taken before reuse.
+  /// @return IN_PROGRESS on admission; invalid intent, unavailable feature, binding,
+  /// operation/barrier, initialization or budget errors otherwise, with no changes.
+  /// @note SNLS647I 8.3.1, tables 8-19/23..27; IEEE 802.3 Clause 28.
+  /// Admission copies desired intent and marks trust DIRTY. NP belongs only to
+  /// this exchange. Failure/cancel stops without cleanup writes; restoration is
+  /// a new initialization or eligible configuration operation. No VOD write here.
+  Status startConfigure(const LinkSettings& settings, const ConfigureOptions& options,
+                        const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Apply registers without waiting for negotiation or exchanging next pages.
+  /// @param[in] settings Validated negotiated intent.
+  /// @param[in] budget Finite operation budget.
+  /// @param[out] token Admitted operation identity.
+  /// @return Same admission contract as the options overload.
+  Status startConfigure(const LinkSettings& settings, const OperationBudget& budget,
+                        OperationToken& token) noexcept {
+    return startConfigure(settings, ConfigureOptions{}, budget, token);
+  }
+  /// @brief Copy desired/observed/trust evidence without bus or clock callbacks.
+  /// @return Historical fields retain explicit validity and staleness.
+  SettingsSnapshot settingsSnapshot() const noexcept { return _settings; }
 
   /// @brief Acquire and accept identity at the bound address in one two-read batch.
   /// @param[out] identity Assigned only after complete in-budget transport and identity acceptance.
@@ -463,6 +559,21 @@ private:
   TransportSnapshot _transport{};
   EvidenceSnapshot _evidence{};
   DeviceIdentity _identity{};
+  SettingsSnapshot _settings{};
+  ConfigureOptions _configureOptions{};
+  enum class ConfigStep : uint8_t {
+    DRAIN, READ_ANAR, READ_BMCR, APPLY_ANAR, RESTART, VERIFY_ANAR, VERIFY_BMCR,
+    WAIT_BASE, READ_BASE, LOAD_PAGE, WAIT_PAGE, READ_PAGE, WAIT_COMPLETE, CLEAR_NP, VERIFY_CLEAR
+  };
+  ConfigStep _configStep{ConfigStep::DRAIN};
+  bool _configuring{false};
+  OperationKind _cleanupOwner{OperationKind::NONE};
+  uint8_t _pageIndex{0};
+  bool _partnerToggle{false};
+  bool _localMore{false};
+  bool _partnerMore{false};
+  bool _pageEventPending{false};
+  uint16_t _pageEventRaw{0};
   enum class InitStep : uint8_t {
     IDENTIFY, SOR1, SOR2, CHECK_RESET, CHECK_PHYRCR, COMMAND, WAIT_EXISTING, WAIT_PHYRCR, WAIT_COMMAND,
     REIDENTIFY, RESOR1, RESOR2, APPLY, VERIFY
@@ -501,6 +612,12 @@ private:
   Status _anchorQuiet() noexcept;
   uint32_t _commandWaitUs() const noexcept;
   void _invalidateResetEvidence(bool configurationLost) noexcept;
+  MdioBatch _configurationBatch() const noexcept;
+  Status _advanceConfiguration(Status status, bool called, const MdioBatch& batch) noexcept;
+  void _beginConfiguration(bool exchange) noexcept;
+  void _setConfigStep(ConfigStep step) noexcept;
+  void _retainPageEvidence(const MdioBatch& batch, const BatchResult& receipt,
+                           uint8_t completed, bool clockValid, uint64_t upper) noexcept;
 };
 
 } // namespace DP8382x
