@@ -13,8 +13,8 @@ Software implementation is PARTIAL: prompts 11–13 provide the
 host tests. Raw access and low-level capture do not complete typed features.
 Prompt 14 completes [identity admission and foundational capabilities](identity.md)
 with independent host tests. Prompt 15 completes [NONE/PCS initialization](initialization.md),
-mandatory VOD verification and retained restoration. HARD/RESTART and remaining
-feature procedures are PENDING; SDK builds and hardware qualification
+mandatory VOD verification and retained restoration. Prompt 16 completes HARD/RESTART, persistent quiet floors and external-reset/POR
+reconciliation. Remaining feature procedures are PENDING; SDK builds and hardware qualification
 are NOT RUN. Ledger tests establish their own research layer.
 
 Prompt 6 completes the [portable/native ownership design](design-decisions.md)
@@ -43,7 +43,7 @@ silicon gates remain explicit. No feature's implementation status changes here.
 | --- | --- | --- | --- | --- | --- | --- |
 | identity / Exact identity and capabilities | 3 / COMPLETE | 14 (SOFTWARE COMPLETE; HOST PASS) | 14; SDK/physical NOT RUN | None named | readIdentity / identitySnapshot / capabilities; raw/decoded IDs and partial/admission evidence | identify |
 | access / Clause 22 and complete indirect access | 3 / COMPLETE | 11 (SOFTWARE) | 11, 12, 13 | eee_wire | C22/MMD direct access and internal side-effect-aware update; Value or retained frame/effect report | direct_access, mmd_access |
-| reset / PCS, hard reset, restart and reconciliation | 3 / COMPLETE | 15 (PCS COMPLETE; HOST PASS), 16 (PENDING) | 15, 16 | hard_reset_straps, pcs_reset_extent | PCS/hard/circuitry reset and external-reset reconciliation; Completion, lost trust, accepted effects, cleanup | pcs_reset, hard_reset, restart, external_reset |
+| reset / PCS, hard reset, restart and reconciliation | 3 / COMPLETE | 15-16 (SOFTWARE COMPLETE; HOST PASS) | 15, 16 | hard_reset_straps, pcs_reset_extent | PCS/hard/circuitry reset and external-reset reconciliation; Completion, lost trust, accepted effects, cleanup | pcs_reset, hard_reset, restart, external_reset |
 | initialization / Required 10BASE-Te initialization | 3 / COMPLETE | 15 (SOFTWARE COMPLETE; HOST PASS) | 15, 17, 18 | None named | Mandatory 10BASE-Te preparation; Verified initialization evidence | initialize_10base |
 | negotiation / Advertisement, forced-compatible negotiation and pause | 3 / COMPLETE | 17 (SOFTWARE) | 17, 19, 37, 38, 39 | None named | LinkSettings, advertisement and AN controls; Desired/observed/trust, negotiation and directional pause | configure_an |
 | next_page / Complete next-page exchange | 3 / COMPLETE | 17 (SOFTWARE) | 17, 19, 20, 29, 34 | next_page_handshake | Typed local pages and bounded exchange; Partner pages, partial handshake and completion | next_page_exchange |

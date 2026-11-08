@@ -133,3 +133,8 @@ prerequisites and gates; no generic access is granted by their presence in the m
 `lastRequested` describes the latest admitted acquisition. `lastStatus` is the
 latest acquisition or admitted mixed-update outcome, not per-sample validity;
 a comparison-only WoL exit leaves it unchanged. Consult each sample explicitly.
+
+Prompt 16 applies the persistent HARD quiet floor to every frame, including raw
+reads, the collector and later operations. A timed call can sample the clock to
+reject or expire the floor before MDIO. Cached access remains clock-silent; the
+shared owner must also exclude other PHY addresses. See [initialization](initialization.md).

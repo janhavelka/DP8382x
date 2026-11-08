@@ -406,3 +406,13 @@ SNLS647I bytes match the preserved archive. Independent mask/readback and
 100 Hz budget vectors now execute against the portable operation implementation.
 TI's generic PCS RMW remains a comparison; the core uses its literal reset
 procedure. Physical timing/reset-domain gates remain open.
+
+## Prompt 16 current reset and timing review
+
+The [stage16 report](../reports/implementation/16-hard-reset-restart.md) records
+fresh TI source/PDF identities, per-file licenses and original table checks.
+HARD/RESTART share the implemented initialization path. The 2ms hard-command
+silence floor is conservative software policy; source table reset-to-SMI2ms and
+POR-to-SMI50ms are MAX readiness windows, RESET_N25us is MIN and FLP1500ms NOM.
+Eligible hard-reset strap resampling remains possible, not unconditionally proved;
+Q5 must establish exact physical behavior. Vendor payloads/hashes are unchanged.

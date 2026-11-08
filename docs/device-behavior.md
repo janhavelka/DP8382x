@@ -1,7 +1,7 @@
 # DP83826I core silicon behavior
 
-Stage 15 executes the [initialization/reset procedure](initialization.md) with
-NONE/PCS, raw strap capture and unconditional mandatory VOD verification. Its
+Stages 15–16 execute the [initialization/reset procedure](initialization.md) with
+NONE/PCS/HARD/RESTART, raw strap capture and unconditional mandatory VOD verification. Its
 retained effects and separate restoration result do not establish link or physical
 reset timing. Neither RCSR replay nor CDCR rescal is silently included.
 
@@ -63,13 +63,13 @@ remote-fault observations remain legitimate.
 
 ## Reset domains and readiness
 
-| Operation | Established effect | Strap treatment | Persistent state to reconcile |
-| --- | --- | --- | --- |
-| BMCR PCS reset | PCS registers reset; vendor-specific registers retained | Software-reset prose reloads captured values, not a new pin sample | Revalidate/replay owned standard control, advertisement and next-page state. Exact full PCS domain remains `pcs_reset_extent`. |
-| PHYRCR hard reset | Full reset, described as equivalent to reset pin | `hard_reset_straps`: software-reset prose versus pin-equivalence wording leaves external resampling ambiguous | Invalidate all managed configuration; re-identify/read straps and replay persistent state, including 10BASE-Te initialization. |
-| PHYRCR circuitry restart | All circuitry except registers reset | No new physical resampling established; do not claim a strap change | Retain desired register state, invalidate live link/diagnostic observations, reverify if uncertain. |
-| External RESET_N | Application drives the pin; eligible straps resampled | ENHANCED Strap1 and Strap6 are explicitly POR-only | Re-identify/address-check, read straps and replay persistent state. |
-| POR | Application owns power and clock sequencing | Loads hardware mode and all applicable straps | Full initialization and replay after documented SMI readiness. |
+| Trigger / source terminology | Wait / completion evidence | Settings | Identity and mode evidence | Strap resampling | Restore owner |
+| --- | --- | --- | --- | --- | --- |
+| `startInitialize({PCS})`, BMCR PCS reset (table 8-19) | Caller interval, no fixed silicon maximum; BMCR reset bit clear | PCS reset; vendor retained. Exact full domain remains `pcs_reset_extent`. | Withdraw old permissions, reacquire IDs at configured address | Reload stored strap values | Core verifies mandatory VOD now; future owned PCS profiles extend same path |
+| `startInitialize({HARD})`, PHYRCR hard reset, pin-equivalent wording (table 8-48) | Persistent frame-free floor: completion upper + max(2000 us, interval); PHYRCR hard bit and other command clear | All configuration may be lost, including VOD; old observations invalid | Withdraw permissions; reacquire IDs/address reachability and captured straps, without scanning | Eligible straps **possibly** resample; software-reset wording remains arguable (`hard_reset_straps`, Q5). ENHANCED Strap1/6 exceptions retained. | Same core path: identity/readiness, mandatory VOD, then future validated desired profiles |
+| `startInitialize({RESTART})`, PHYRCR circuitry restart (table 8-48) | Caller interval; no HARD floor or fixed maximum; PHYRCR restart bit and other command clear | Registers retained; live link/counter epoch stale; temporary vendor stimuli not proved stopped | Preserve initialized/identity until later verification or VOD mutation requires invalidation; refresh IDs before publication | No new physical resampling established | Same mandatory initialization/reverification path; no transient commands or temporary settings replayed |
+| Application RESET_N + `invalidateDeviceState(EXTERNAL_RESET)` | Low at least 25 us without debounce capacitors; wait 2 ms after actual release; application establishes readiness | Configuration lost; notification makes observations historical, clears current cleanup by attestation | Withdraw initialized/capabilities; reacquire at declared address after readiness | Eligible straps; ENHANCED Strap1/6 are not re-latched | Application owns GPIO/readiness; later explicit initialization owns restoration |
+| Application POR + `invalidateDeviceState(EXTERNAL_POWER_ON)` | Wait 50 ms from final supplies; delayed-clock rule below; application establishes readiness | Configuration lost; no implicit recovery or additional reset | Withdraw initialized/capabilities; declared ordering suffix remains a declaration | All straps, including ENHANCED Strap1/6 | Application owns supplies/clock; later explicit initialization owns restoration |
 
 Do not generalize ENHANCED POR-only exceptions into an unsupported BASIC reset
 claim. BASIC speed/isolation straps have their own tables. The BASIC/ENHANCED
@@ -98,8 +98,17 @@ The [prompt-6 ownership design](design-decisions.md) assigns external power-up
 and hardware-reset SMI silence to the board/controller coordinator across the
 entire shared bus, including other PHY addresses. Close admission before the
 transition and drain active frames; release the mutex during the readiness wait
-while logical admission remains closed. This does not transpose external-reset
-timing onto MDIO-issued reset/power commands with different ledger procedures.
+while logical admission remains closed. HARD also enforces the conservative
+OP-14 floor described above. Its expiry is not proof of the internal reset-release
+time or completion; Q5 must measure those separately. PCS/RESTART do not inherit
+that floor. RESET_N/POR table values are 2 ms/50 ms MAX readiness limits used as
+waiting windows, whereas 25 us is a MIN pulse and FLP 1500 ms is NOM.
+
+If clock arrives after the ramp, Figure 7-1 recommends holding RESET_N low and
+releasing at least 100 us after clock stabilization. Alternatively §7.6 footnote2
+requires an additional reset after POR, initiated at least 100 us after both
+clock stabilization and POR completion. Apply the 2 ms release-to-SMI wait too.
+Notification has zero callbacks and cannot establish these physical conditions.
 
 ## Initialization and link configuration
 

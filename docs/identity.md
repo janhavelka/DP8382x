@@ -94,3 +94,10 @@ do not exist at stage 14: the application currently owns readiness and bus silen
 Stage 15 must add OP-14 reset-wait/hard-reset-floor admission and its tests at this
 shared boundary when it introduces real reset operations. No unused reset-state
 scaffolding or claim of enforced future operation states is supplied here.
+
+Prompt16 extends the same admission guard with a persistent hard-reset floor.
+HARD withdraws mode-derived permissions and reaccepts identity after completion;
+RESTART retains register identity while refreshing live observations. An observed
+already-active configuration reset also requires refreshed identity before the
+requested reset command. Reconciliation stays at the configured PHY address;
+changed reachability returns its actual failure without implicit scanning.

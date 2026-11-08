@@ -2,8 +2,8 @@
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
 execution. Prompts 1–15 are complete: source research, shared contracts, portable
-values/version tooling, direct/indirect and side-effect access, exact identity and NONE/PCS initialization.
-Current local checks include 40 registered Release CTests, 102 Python tests,
+values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
+Current local checks include 47 registered Release CTests, 102 Python tests,
 the linked tests-OFF consumer, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -18,6 +18,12 @@ retained results and separately admitted restoration; managed health and link
 profiles remain with their feature stages.
 
 ## Execution record
+
+Prompt 15 final synchronized checkpoint / prompt 16 entry:
+`5f05f97a24b929ad5ded85eb08112a4514208bdf`.
+Prompt 16 implements HARD/RESTART and external-reset/POR reconciliation with
+persistent silence across failures and teardown. See its report; final synced
+SHA is in the handoff, avoiding a self-referencing commit.
 
 Prompt 14 final synchronized checkpoint / prompt 15 entry:
 `f7165130b8f584aaf43fee997e4887aa4c3bc064`.
@@ -180,7 +186,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [13 Implement side-effect-aware register access](prompts/13-side-effect-register-access.md) | COMPLETE | [Report](reports/implementation/13-side-effect-register-access.md), [access guide](side-effect-access.md); complete named catalog, collector, MISR/WoL updates, partial-evidence/invalidation tests and linked portable example. Local Release/consumer/Doxygen/Python/ledger/reference/diff checks PASS; physical/SDK qualification NOT RUN. |
 | [14 Implement exact identity and capability selection](prompts/14-identity-capabilities.md) | COMPLETE | [Report](reports/implementation/14-identity-capabilities.md), [identity guide](identity.md); exact-address two-frame acquisition, partial/rejected evidence, passive capabilities, negative-evidence admission, independent Release suites and linked probe. Local host/consumer/Doxygen/Python/ledger/reference checks PASS; SDK/physical NOT RUN. |
 | [15 Implement initialization and complete PCS reset operations](prompts/15-initialize-pcs-reset.md) | COMPLETE | [Report](reports/implementation/15-initialize-pcs-reset.md); 40 Release CTests, linked consumer, 102 Python tests, Doxygen/reference/ledger checks; SDK/physical NOT RUN |
-| [16 Implement hard reset, restart and external-reset reconciliation](prompts/16-hard-reset-restart.md) | NOT STARTED | None |
+| [16 Implement hard reset, restart and external-reset reconciliation](prompts/16-hard-reset-restart.md) | COMPLETE | [Report](reports/implementation/16-hard-reset-restart.md); 47 Release CTests, linked consumer, 102 Python tests and documentation/reference checks; Q5/SDK/physical NOT RUN |
 | [17 Implement negotiated link settings and verified application](prompts/17-negotiated-link-settings.md) | NOT STARTED | None |
 | [18 Implement forced modes and coupled crossover settings](prompts/18-forced-crossover-settings.md) | NOT STARTED | None |
 | [19 Implement live and cached link observations](prompts/19-link-observation.md) | NOT STARTED | None |

@@ -142,10 +142,12 @@ enum class OperationState : uint8_t {
   RUNNING, ///< Caller polling advances work.
   RESULT_PENDING ///< Frozen result awaits delivery.
 };
-/// @brief Implemented initialization reset choices; hard reset/restart arrive separately.
+/// @brief Distinct source-backed initialization reset choices.
 enum class ResetKind : uint8_t {
   NONE, ///< Apply mandatory initialization without issuing reset.
-  PCS ///< Reset PCS registers, retaining vendor registers.
+  PCS, ///< Reset PCS registers, retaining vendor registers.
+  HARD, ///< Reset all registers; eligible straps may resample (Q5 open).
+  RESTART ///< Restart PHY circuitry, retaining register configuration.
 };
 /// @brief Observable procedure phase; waits never retain a controller lock.
 enum class OperationPhase : uint8_t {
@@ -233,6 +235,8 @@ struct OperationSnapshot {
   bool temporaryMayBeActive{false}; ///< False for the implemented initialization operation.
   uint64_t nextPollAtUs{0}; ///< Earliest legal next reset read.
   bool nextPollValid{false}; ///< A valid scheduled wait exists.
+  uint64_t busQuietUntilUs{0}; ///< Hard-reset silence floor; shared owner holds every PHY quiet.
+  bool busQuietValid{false}; ///< Valid floor anchor; cached until a timed call observes expiry.
   IoBudget remaining{}; ///< Original deadline and remaining physical frames.
   uint32_t stalledPolls{0}; ///< Consecutive polls without work or clock advance.
 };
@@ -266,12 +270,16 @@ public:
   /// @return OK, INVALID_CONFIG, UNSUPPORTED for RGMII, or BUSY for live work, a pending result or cleanup.
   /// @note Failure preserves the old binding/evidence. Success clears local
   /// receipts, never the application's shared controller quarantine.
+  /// A discarded hard-reset floor remains the owner's responsibility: wait at least
+  /// 2000 us after the last possible PHYRCR hard-reset write before new frames.
   /// Repair a clock/report-contract fault and stop affected controller users
   /// before using a fresh binding to resume I/O.
   Status bind(const Config& config) noexcept;
   /// @brief Detach locally and clear receipts; no release/reset/power callback.
   /// @pre Owner has copied required evidence and retains responsibility for
   /// controller faults; repair is required before a new binding resumes I/O.
+  /// Copy any hard-reset floor into shared owner state before end; after discarding
+  /// it, the owner waits at least 2000 us after the last possible hard-reset write.
   /// @return OK (also unbound), or BUSY for live work, a pending result or cleanup.
   Status end() noexcept;
   /// @brief Inspect local binding without I/O or clock access.
@@ -279,7 +287,7 @@ public:
   bool isBound() const noexcept { return _bound; }
 
   /// @brief Admit initialization without MDIO or clock access; copy inputs into one slot.
-  /// @param[in] options NONE or PCS; every initialization writes/verifies VOD_CFG3.
+  /// @param[in] options NONE, PCS, HARD or RESTART; each writes/verifies VOD_CFG3.
   /// @param[in] budget Positive interval/stall limit, absolute deadline and total frames.
   /// @param[out] token Assigned only when IN_PROGRESS is returned; instance lifetime scope.
   /// @return IN_PROGRESS or local syntax/binding/slot/clock/budget rejection.
@@ -292,6 +300,9 @@ public:
   /// @return IN_PROGRESS or frozen terminal status; token/lifetime errors perform no I/O.
   /// @note SNLS647I table8-19 PCS uses literal 00=8000; completion polls that bit clear.
   /// Every initialization writes 31:030E=4A40 and verifies FFC0 (table8-81).
+  /// HARD/RESTART use literal 1F=8000/4000 (table8-48), never sampled-word RMW.
+  /// Any attempted HARD write publishes a persistent max(2000, interval) us floor
+  /// anchored after callback return; the bus owner also excludes other PHYs.
   /// Waits use conservative post-callback time; no controller lock spans polls.
   Status pollOperation(OperationToken token, uint32_t maxFrames = MAX_BATCH_FRAMES) noexcept;
   /// @brief Copy current progress/barrier without MDIO or clock access.
@@ -453,7 +464,7 @@ private:
   EvidenceSnapshot _evidence{};
   DeviceIdentity _identity{};
   enum class InitStep : uint8_t {
-    IDENTIFY, SOR1, SOR2, CHECK_RESET, COMMAND, WAIT_EXISTING, WAIT_COMMAND,
+    IDENTIFY, SOR1, SOR2, CHECK_RESET, CHECK_PHYRCR, COMMAND, WAIT_EXISTING, WAIT_PHYRCR, WAIT_COMMAND,
     REIDENTIFY, RESOR1, RESOR2, APPLY, VERIFY
   };
   OperationSnapshot _operation{};
@@ -465,6 +476,7 @@ private:
   bool _pollTimeValid{false};
   bool _polling{false};
   bool _initialized{false};
+  bool _quietPending{false};
   bool _bound{false};
   bool _active{false};
   bool _stopped{false};
@@ -478,12 +490,17 @@ private:
   void _retainEvidence(const MdioBatch& batch, const BatchResult& result,
                        bool clockValid, uint64_t before, uint64_t upper) noexcept;
   void _invalidateEvidence() noexcept;
-  Status _checkMutation() const noexcept;
+  Status _checkMutation() noexcept;
   Status _checkToken(OperationToken token) const noexcept;
   Status _finishOperation(Status status) noexcept;
   Status _yieldOperation(uint64_t raw) noexcept;
   void _setInitStep(InitStep step) noexcept;
   Status _waitOperation() noexcept;
+  bool _quietAt(uint64_t raw) noexcept;
+  Status _checkQuiet() noexcept;
+  Status _anchorQuiet() noexcept;
+  uint32_t _commandWaitUs() const noexcept;
+  void _invalidateResetEvidence(bool configurationLost) noexcept;
 };
 
 } // namespace DP8382x

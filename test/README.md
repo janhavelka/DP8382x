@@ -188,7 +188,7 @@ separate; register mocks do not prove a linked firmware image or physical link.
 
 `operations.cpp` executes six registered suites: initialization, admission,
 timing, failures, lifecycle and ownership. Its independent controller model
-checks literal NONE/PCS traces (19/31 frames), all 50 successful-trace frame
+checks literal NONE/PCS traces (20/32 frames), all 52 successful-trace frame
 failure positions, every release phase, retained strap words and malformed
 release reports. It checks exact frame counts, initialized preservation on a
 proved effect-free failure, cancellation at each poll/effect boundary, separate
@@ -197,7 +197,7 @@ restoration tokens/results, stale tokens and bus-silent cleanup/teardown.
 Timing cases include strict OP-6 equality at 100 Hz, re-admission at the actual
 pre-callback sample, post-return wait anchors, uint64 overflow, regression latch,
 raw expiry, frozen-clock stalls, zero/short slices and unsplit MMD. Contention
-covers every batch frame and two PHY addresses. The six suites execute 13,056
+covers every batch frame and two PHY addresses. The six suites execute 14,338
 active checks; their negative probe demonstrates Release checks remain enabled.
 
 ```sh
@@ -210,9 +210,41 @@ ctest --test-dir build/init15-consumer --output-on-failure --no-tests=error
 python tools/check_doxygen.py
 ```
 
-The complete host registration is 40 tests, including six intentional failure
-probes. [Initialize.h](../examples/portable/Initialize.h) is linked and executed
+The stage15 checkpoint registered 40 tests; stage16 extends this to 47,
+including seven intentional failure probes. [Initialize.h](../examples/portable/Initialize.h) is linked and executed
 by the tests-OFF consumer for NONE/PCS and separate failed restoration/abandon.
 Doxygen requires the public operation/evidence pages and rejects undocumented
 negative fixtures. These results prove portable software behavior; physical
 bus/reset timing, SDK link and package export remain separate evidence layers.
+
+## HARD/RESTART and external reset (prompt 16)
+
+`reset.cpp` adds registered traces, floor, failures, timing, external and ownership
+suites, plus its Release failure probe. Current total is 47 CTests. The independent
+PHY model checks all 64 HARD/RESTART successful-trace frame failure positions,
+all 24 batch-release positions, malformed semantic receipts, raw sentinel outputs,
+actual attempt/completion counts and no retries. Reset, restore and readback are
+separate observations. A successful callback with a missing command receipt
+cannot erase possible mutation or the shared-bus floor.
+
+The universal PHYRCR precheck updates earlier operation traces to NONE20 and
+PCS32 frames; HARD/RESTART use32 each. Existing operation coverage remains active.
+Reset tests cover 1000us polling with a 2000us floor, strict100Hz OP-6 arithmetic,
+clock regression, unrepresentable floor, late accepted command, sticky/overlapping
+commands, zero budgets, every cancellation boundary, mode/strap changes, stale
+results, two PHYs and full transaction exclusion. External reset/POR notifications
+have zero callbacks. Host models do not resolve the physical hard-reset strap gate.
+
+```sh
+cmake -S . -B build/reset16-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON
+cmake --build build/reset16-release
+ctest --test-dir build/reset16-release --output-on-failure --no-tests=error
+cmake -S test/consumer -B build/reset16-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build/reset16-consumer
+ctest --test-dir build/reset16-consumer --output-on-failure --no-tests=error
+```
+
+The linked owner consumer executes all four kinds and carries SharedMdioQuiet
+outside driver lifetime. It holds other PHYs through failed/cancelled HARD,
+take/abandon/end and exact floor expiry. SDK link, exported package and Q5 physical
+qualification remain NOT RUN; no fixture action or remote CI was invoked.
