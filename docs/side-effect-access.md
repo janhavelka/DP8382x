@@ -1,5 +1,11 @@
 # Side-effect-aware register access
 
+Stage 15 applies OP-14 at the same transaction boundary: raw writes reject
+running work, retained results and cleanup barriers; raw reads/collector reject
+reset WAIT. The historical `configurationDirty` latch is independent of the
+current `isInitialized` result and is not cleared by verifying mandatory VOD.
+See [initialization](initialization.md) for invalidation and restoration.
+
 Stage 13 provides explicit destructive acquisition and narrow mixed-register
 maintenance on the bounded transport. The [ledger](registers/dp83826i.json) remains
 the complete field/access/encoding/reset catalogue. Named addresses and masks in

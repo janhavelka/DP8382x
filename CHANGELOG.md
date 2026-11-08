@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### 2026-11-08
+
+- Implemented prompt 15 initialization with NONE/PCS, literal reset and mandatory
+  VOD write/verification, one caller-driven operation slot and lifetime tokens.
+  Added finite poll/deadline handling, partial strap/identity evidence, immediate
+  cancellation, retained results and a separate restoration barrier/operation.
+  Added six Release suites and linked owner/restoration examples. SDK timing,
+  link profiles, managed health and physical qualification remain separate work.
+
 ### 2026-11-07
 
 - Implemented prompt 14's exact-address two-frame identity acquisition, partial/

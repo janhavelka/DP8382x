@@ -1,5 +1,12 @@
 # Exact identity and foundational capabilities
 
+During a running initialization, identity reads use OP-14 admission: reset WAIT
+rejects them locally; other between-poll reads remain admitted. A failed or
+changed live identity freezes that initialization before another mutation.
+Reset/invalidation withdraws old permissions. Initialization refreshes identity
+after PCS and only publishes readiness after mandatory verification. See
+[initialization](initialization.md).
+
 `readIdentity(output, budget)` reads PHYIDR1 then PHYIDR2 at the bound address
 in one owned two-frame Clause 22 batch. It requires binding, an aggregate budget
 of at least two frames and application-established clock/power/reset readiness.

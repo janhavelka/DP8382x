@@ -1,5 +1,10 @@
 # Device coverage
 
+Stage 15 initialization supports only the declared DP83826I, in accepted BASIC
+or ENHANCED mode. NONE/PCS success adds initialized procedure evidence; it does
+not broaden the variant table or establish link, actual strap wiring, managed
+health or hardware qualification. See [initialization](initialization.md).
+
 Core evidence and side-effect access re-audited on 2026-11-07.
 **DP83826I has host-tested identity/capability selection and a bounded direct/indirect access subset; no variant has a complete
 or hardware-qualified driver.** The following describes documentation coverage

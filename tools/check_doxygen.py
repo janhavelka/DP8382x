@@ -25,7 +25,9 @@ REQUIRED_TYPES = {"DP8382x::Status", "DP8382x::Config", "DP8382x::LinkSettings",
                   "DP8382x::MdioFrame", "DP8382x::MdioBatch", "DP8382x::BatchResult",
                   "DP8382x::Transport", "DP8382x::DP8382x",
                   "DP8382x::TransportSnapshot", "DP8382x::DeviceIdentity",
-                  "DP8382x::Capabilities"}
+                  "DP8382x::Capabilities", "DP8382x::OperationToken",
+                  "DP8382x::OperationBudget", "DP8382x::OperationResult",
+                  "DP8382x::OperationSnapshot", "DP8382x::StrapEvidence"}
 
 
 class HtmlPage(HTMLParser):

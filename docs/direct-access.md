@@ -1,5 +1,11 @@
 # Bounded portable Clause 22 and indirect MMD access
 
+Initialization uses these same terminal batches under [OP-14](api-contracts.md#one-cooperative-operation-and-retained-result).
+All raw writes reject an occupied operation slot or cleanup barrier. Safe reads
+remain admitted between polls and with retained results, except reset WAIT.
+Each operation poll executes at most one unsplit batch and releases before waits.
+See [initialization and the owner example](initialization.md).
+
 Prompts 11–12 ship `DP8382x::DP8382x` in
 [`DP8382x.h`](../include/DP8382x/DP8382x.h), backed by one compiled portable source.
 Link `DP8382x::DP8382x` through CMake. The

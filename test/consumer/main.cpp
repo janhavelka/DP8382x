@@ -6,6 +6,7 @@
 #include "../../examples/portable/MmdAccess.h"
 #include "../../examples/portable/EvidenceAccess.h"
 #include "../../examples/portable/IdentityProbe.h"
+#include "../../examples/portable/Initialize.h"
 
 #ifdef _MSVC_LANG
 static_assert(_MSVC_LANG >= 201703L, "DP8382x must propagate C++17");
@@ -89,6 +90,122 @@ static DP8382x::BatchResult execute(void*, const DP8382x::MdioBatch& batch,
   return result;
 }
 
+// Independent host model for the public owner-loop example. No physical bus,
+// supply readiness, reset duration, electrical behavior or SDK support is proved.
+struct InitializationController {
+  uint64_t timeUs{0};
+  uint16_t selector{0}, address{0}, vod{0x8400};
+  bool failVodWrite{false};
+  uint32_t resetWrites{0}, vodWrites{0}, frames{0};
+
+  static uint64_t now(void* context) noexcept {
+    return static_cast<InitializationController*>(context)->timeUs;
+  }
+  static DP8382x::BatchResult execute(void* context, const DP8382x::MdioBatch& batch,
+                                     const DP8382x::IoBudget&) noexcept {
+    auto& controller = *static_cast<InitializationController*>(context);
+    DP8382x::BatchResult result;
+    result.releaseStatus = DP8382x::Status::Ok();
+    result.controllerReusable = true;
+    for (uint8_t i = 0; i < batch.frameCount; ++i) {
+      const auto& frame = batch.frames[i];
+      auto& receipt = result.frames[i];
+      receipt.attempted = true;
+      receipt.completed = true;
+      ++controller.frames;
+      if (frame.kind == DP8382x::FrameKind::READ) {
+        receipt.valueValid = true;
+        if (frame.registerAddress == 2) { receipt.value = 0x2000; }
+        else if (frame.registerAddress == 3) { receipt.value = 0xA131; }
+        else if (frame.registerAddress == 0) { receipt.value = 0x3100; }
+        else if (frame.registerAddress == 0x0E && controller.selector == 0x401F) {
+          if (controller.address == 0x030E) { receipt.value = controller.vod; }
+          else if (controller.address == 0x0467) { receipt.value = 0x0123; }
+          else if (controller.address == 0x0468) { receipt.value = 0x0456; }
+        }
+      } else if (frame.registerAddress == 0 && frame.value == 0x8000) {
+        ++controller.resetWrites; // This model is complete by the next scheduled read.
+      } else if (frame.registerAddress == 0x0D) { controller.selector = frame.value; }
+      else if (frame.registerAddress == 0x0E && controller.selector == 0x001F) {
+        controller.address = frame.value;
+      } else if (frame.registerAddress == 0x0E && controller.selector == 0x401F && controller.address == 0x030E) {
+        controller.vod = frame.value;
+        ++controller.vodWrites;
+        if (controller.failVodWrite) {
+          receipt.effectPossible = true; // Accepted target write, followed by an error.
+          result.status = DP8382x::Status::Error(DP8382x::Err::MDIO_TIMEOUT,
+                                                "Simulated accepted write failure", -15);
+          return result;
+        }
+      }
+    }
+    result.status = DP8382x::Status::Ok();
+    return result;
+  }
+};
+
+// Finite host scheduler only. A real application's event loop calls the same
+// single-poll helper and arranges its next turn through its own timer/scheduler.
+static DP8382x::Status runInitialization(DP8382x::DP8382x& phy,
+                                         InitializationController& controller,
+                                         InitializeAttempt& attempt) noexcept {
+  for (unsigned turn = 0; turn < 64; ++turn) {
+    const auto status = pollInitialization(phy, attempt);
+    if (!status.is(DP8382x::Err::IN_PROGRESS)) { return status; }
+    const auto snapshot = phy.operationSnapshot();
+    ++controller.timeUs;
+    if (snapshot.nextPollValid && snapshot.nextPollAtUs > controller.timeUs) {
+      controller.timeUs = snapshot.nextPollAtUs;
+    }
+  }
+  return DP8382x::Status::Error(DP8382x::Err::OPERATION_TIMEOUT, "Host scheduling limit");
+}
+
+static bool initializationExamples() noexcept {
+  InitializationController controller;
+  DP8382x::Config config;
+  config.variant = DP8382x::Variant::DP83826I;
+  config.interface = DP8382x::MacInterface::RMII;
+  config.phyAddress = 1;
+  config.transport = {&controller, InitializationController::execute, InitializationController::now, {1, 1, 1}};
+  DP8382x::DP8382x phy;
+  if (!phy.bind(config).ok()) { return false; }
+  for (const auto reset : {DP8382x::ResetKind::NONE, DP8382x::ResetKind::PCS}) {
+    InitializeAttempt attempt;
+    const DP8382x::OperationBudget budget{{controller.timeUs + 100000, 64}, 1000, 20};
+    if (!beginInitialization(phy, reset, budget, attempt).is(DP8382x::Err::IN_PROGRESS) ||
+        !runInitialization(phy, controller, attempt).ok()) { return false; }
+    if (!attempt.resultAvailable || !attempt.result.persistentRestored ||
+        attempt.result.commandRequired != (reset == DP8382x::ResetKind::PCS) ||
+        !phy.isInitialized() || controller.vod != 0x4A40) { return false; }
+    const auto frames = controller.frames;
+    if (!pollInitialization(phy, attempt).ok() || controller.frames != frames) { return false; }
+  }
+  if (controller.resetWrites != 1 || controller.vodWrites != 2 || controller.frames != 50) { return false; }
+
+  controller.failVodWrite = true;
+  InitializeAttempt primary;
+  auto budget = DP8382x::OperationBudget{{controller.timeUs + 100000, 64}, 1000, 20};
+  if (!beginInitialization(phy, DP8382x::ResetKind::NONE, budget, primary).is(DP8382x::Err::IN_PROGRESS) ||
+      !runInitialization(phy, controller, primary).is(DP8382x::Err::MDIO_TIMEOUT)) { return false; }
+  if (!primary.result.cleanupOwed || !primary.result.mutationCompleted || phy.end().ok()) { return false; }
+
+  // Restoration is a NEW operation with its own budget/token/result. Neither
+  // this failed attempt nor later abandonment overwrites the primary failure.
+  InitializeAttempt restoration;
+  budget.io.deadlineUs = controller.timeUs + 100000;
+  if (!beginInitialization(phy, DP8382x::ResetKind::NONE, budget, restoration).is(DP8382x::Err::IN_PROGRESS) ||
+      !runInitialization(phy, controller, restoration).is(DP8382x::Err::MDIO_TIMEOUT)) { return false; }
+  if (!restoration.result.cleanupOwed || restoration.token.value == primary.token.value ||
+      abandonInitialization(phy, false).ok() || !phy.operationSnapshot().cleanupOwed) { return false; }
+  // The host owner has closed simulated admission; no real fixture is operated.
+  const auto frames = controller.frames;
+  return abandonInitialization(phy, true).ok() && !phy.isBound() &&
+         controller.frames == frames && primary.result.status.detail == -15 &&
+         restoration.result.status.detail == -15 && primary.result.cleanupOwed &&
+         restoration.result.cleanupOwed;
+}
+
 int main() {
   DP8382x::LinkSettings settings;
   settings.advertisement.technologyMask = DP8382x::LINK_100_FULL;
@@ -127,5 +244,5 @@ int main() {
   const auto cached = phy.evidenceSnapshot();
   const auto& interrupt = cached.samples[static_cast<uint8_t>(DP8382x::EvidenceSource::MISR1)];
   return interrupt.valid && interrupt.raw == 0xA55AU && simulated.misr == 0x005EU &&
-         cached.configurationDirty && phy.end().ok() ? 0 : 1;
+         cached.configurationDirty && phy.end().ok() && initializationExamples() ? 0 : 1;
 }
