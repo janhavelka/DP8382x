@@ -248,3 +248,27 @@ The linked owner consumer executes all four kinds and carries SharedMdioQuiet
 outside driver lifetime. It holds other PHYs through failed/cancelled HARD,
 take/abandon/end and exact floor expiry. SDK link, exported package and Q5 physical
 qualification remain NOT RUN; no fixture action or remote CI was invoked.
+
+## Negotiated configuration and Clause 28 exchange
+
+`negotiation.cpp` adds registered Release suites for all60 technology/pause
+vectors, admission, replay, faults, ownership, pages, page faults/grammar,
+completion, every-page-frame/cancel boundaries and timing. Independent literals
+exercise selector replacement, RF prohibition, reserved preservation, no extra
+VOD, every reset replay, first-error retention, partial read-clear evidence,
+BASE/NEXT distinction, toggle, null continuation, refusal and finite budgets.
+No production masks generate expected wire values. Failure probes remain active
+in Release. The tests-OFF linked consumer runs both generic and100/full examples.
+
+```sh
+cmake -S . -B build/an17-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON
+cmake --build build/an17-release
+ctest --test-dir build/an17-release --output-on-failure
+cmake -S test/consumer -B build/an17-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF
+cmake --build build/an17-consumer
+ctest --test-dir build/an17-consumer --output-on-failure
+python tools/check_doxygen.py
+```
+
+Host traces do not qualify physical Q10, MDC timing or SDK integration. See the
+[stage17 report](../docs/reports/implementation/17-negotiated-link-settings.md).

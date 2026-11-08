@@ -1,9 +1,9 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–15 are complete: source research, shared contracts, portable
+execution. Prompts 1–17 are complete: source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 47 registered Release CTests, 102 Python tests,
+Current local checks include 59 registered Release CTests, 102 Python tests,
 the linked tests-OFF consumer, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -14,10 +14,16 @@ qualification remain future work. Prompt 5 closes primary-part source dispositio
 explicit unresolved gates. Research completion does not claim driver completion.
 
 Prompt 15 adds [caller-driven initialization](initialization.md), cancellation,
-retained results and separately admitted restoration; managed health and link
-profiles remain with their feature stages.
+retained results and separately admitted restoration. Prompt 17 adds negotiated
+profile replay; managed health and forced profiles retain their later stages.
 
 ## Execution record
+
+Prompt 16 final synchronized checkpoint / prompt 17 entry:
+`1e0cec9067c498ac5bc7f2c03607395af73e8c2a`.
+Prompt 17 implements verified negotiated profiles and finite typed next-page
+exchange; see [report](reports/implementation/17-negotiated-link-settings.md).
+The final commit/upstream equality is in the handoff, avoiding self-reference.
 
 Prompt 15 final synchronized checkpoint / prompt 16 entry:
 `5f05f97a24b929ad5ded85eb08112a4514208bdf`.
@@ -187,7 +193,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [14 Implement exact identity and capability selection](prompts/14-identity-capabilities.md) | COMPLETE | [Report](reports/implementation/14-identity-capabilities.md), [identity guide](identity.md); exact-address two-frame acquisition, partial/rejected evidence, passive capabilities, negative-evidence admission, independent Release suites and linked probe. Local host/consumer/Doxygen/Python/ledger/reference checks PASS; SDK/physical NOT RUN. |
 | [15 Implement initialization and complete PCS reset operations](prompts/15-initialize-pcs-reset.md) | COMPLETE | [Report](reports/implementation/15-initialize-pcs-reset.md); 40 Release CTests, linked consumer, 102 Python tests, Doxygen/reference/ledger checks; SDK/physical NOT RUN |
 | [16 Implement hard reset, restart and external-reset reconciliation](prompts/16-hard-reset-restart.md) | COMPLETE | [Report](reports/implementation/16-hard-reset-restart.md); 47 Release CTests, linked consumer, 102 Python tests and documentation/reference checks; Q5/SDK/physical NOT RUN |
-| [17 Implement negotiated link settings and verified application](prompts/17-negotiated-link-settings.md) | NOT STARTED | None |
+| [17 Implement negotiated link settings and verified application](prompts/17-negotiated-link-settings.md) | COMPLETE | [Report](reports/implementation/17-negotiated-link-settings.md); host/consumer PASS, physical Q10 NOT RUN |
 | [18 Implement forced modes and coupled crossover settings](prompts/18-forced-crossover-settings.md) | NOT STARTED | None |
 | [19 Implement live and cached link observations](prompts/19-link-observation.md) | NOT STARTED | None |
 | [20 Implement complete event and counter acquisition](prompts/20-event-counter-acquisition.md) | NOT STARTED | None |

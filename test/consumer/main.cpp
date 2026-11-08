@@ -7,6 +7,7 @@
 #include "../../examples/portable/EvidenceAccess.h"
 #include "../../examples/portable/IdentityProbe.h"
 #include "../../examples/portable/Initialize.h"
+#include "../../examples/portable/Configure.h"
 
 #ifdef _MSVC_LANG
 static_assert(_MSVC_LANG >= 201703L, "DP8382x must propagate C++17");
@@ -95,6 +96,7 @@ static DP8382x::BatchResult execute(void*, const DP8382x::MdioBatch& batch,
 struct InitializationController {
   uint64_t timeUs{0};
   uint16_t selector{0}, address{0}, vod{0x8400};
+  uint16_t anar{0x01E1}, bmcr{0x3100};
   bool failVodWrite{false};
   bool failHardWrite{false};
   uint32_t resetWrites{0}, hardWrites{0}, restartWrites{0}, vodWrites{0}, frames{0};
@@ -113,6 +115,8 @@ struct InitializationController {
     if (controller.timeUs < controller.hardwareQuietUntilUs) controller.quietViolated = true;
     for (uint8_t i = 0; i < batch.frameCount; ++i) {
       const auto& frame = batch.frames[i];
+      const uint16_t written = frame.readIndex == DP8382x::NO_READ_INDEX ? frame.value :
+          static_cast<uint16_t>((result.frames[frame.readIndex].value & frame.preserveMask) | frame.value);
       auto& receipt = result.frames[i];
       receipt.attempted = true;
       receipt.completed = true;
@@ -121,7 +125,8 @@ struct InitializationController {
         receipt.valueValid = true;
         if (frame.registerAddress == 2) { receipt.value = 0x2000; }
         else if (frame.registerAddress == 3) { receipt.value = 0xA131; }
-        else if (frame.registerAddress == 0) { receipt.value = 0x3100; }
+        else if (frame.registerAddress == 0) { receipt.value = controller.bmcr; }
+        else if (frame.registerAddress == 4) { receipt.value = controller.anar; }
         else if (frame.registerAddress == 0x1F) { receipt.value = 0; }
         else if (frame.registerAddress == 0x0E && controller.selector == 0x401F) {
           if (controller.address == 0x030E) { receipt.value = controller.vod; }
@@ -130,6 +135,11 @@ struct InitializationController {
         }
       } else if (frame.registerAddress == 0 && frame.value == 0x8000) {
         ++controller.resetWrites; // This model is complete by the next scheduled read.
+        controller.bmcr = 0x3100;
+      } else if (frame.registerAddress == 0) {
+        controller.bmcr = static_cast<uint16_t>(written & 0xFDFFU);
+      } else if (frame.registerAddress == 4) {
+        controller.anar = written;
       } else if (frame.registerAddress == 0x1F && frame.value == 0x8000) {
         ++controller.hardWrites;
         controller.vod = 0x8400;
@@ -275,6 +285,35 @@ static bool hardQuietOwnerExamples() noexcept {
   return true;
 }
 
+static bool configurationExamples() noexcept {
+  InitializationController controller;
+  SharedMdioQuiet quiet;
+  DP8382x::Config config;
+  config.variant = DP8382x::Variant::DP83826I;
+  config.interface = DP8382x::MacInterface::RMII;
+  config.phyAddress = 1;
+  config.transport = {&controller, InitializationController::execute, InitializationController::now, {1, 1, 1}};
+  DP8382x::DP8382x phy;
+  InitializeAttempt initialization;
+  if (!phy.bind(config).ok() ||
+      !beginInitialization(phy, DP8382x::ResetKind::NONE, {{100000, 64}, 1000, 20}, initialization).inProgress() ||
+      !runInitialization(phy, controller, quiet, initialization).ok()) return false;
+  for (const auto& profile : {allNegotiatedTechnologies(), application100Full()}) {
+    ConfigureAttempt attempt;
+    if (!beginConfiguration(phy, profile, {}, {{100000, 64}, 1000, 20}, attempt).inProgress()) return false;
+    for (unsigned turn = 0; turn < 32 && !attempt.resultAvailable; ++turn) {
+      const auto status = pollConfiguration(phy, attempt);
+      if (!status.inProgress() && !status.ok()) return false;
+      ++controller.timeUs;
+      const auto snapshot = phy.operationSnapshot();
+      if (snapshot.nextPollValid && snapshot.nextPollAtUs > controller.timeUs) controller.timeUs = snapshot.nextPollAtUs;
+    }
+    if (!attempt.resultAvailable || !attempt.result.status.ok() ||
+        phy.settingsSnapshot().trust != DP8382x::ConfigurationTrust::VERIFIED || controller.vodWrites != 1) return false;
+  }
+  return controller.anar == 0x0101 && controller.bmcr == 0x1000 && phy.end().ok();
+}
+
 int main() {
   DP8382x::LinkSettings settings;
   settings.advertisement.technologyMask = DP8382x::LINK_100_FULL;
@@ -313,5 +352,5 @@ int main() {
   const auto cached = phy.evidenceSnapshot();
   const auto& interrupt = cached.samples[static_cast<uint8_t>(DP8382x::EvidenceSource::MISR1)];
   return interrupt.valid && interrupt.raw == 0xA55AU && simulated.misr == 0x005EU &&
-         cached.configurationDirty && phy.end().ok() && initializationExamples() && hardQuietOwnerExamples() ? 0 : 1;
+         cached.configurationDirty && phy.end().ok() && initializationExamples() && hardQuietOwnerExamples() && configurationExamples() ? 0 : 1;
 }

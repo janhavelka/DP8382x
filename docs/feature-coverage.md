@@ -14,7 +14,8 @@ host tests. Raw access and low-level capture do not complete typed features.
 Prompt 14 completes [identity admission and foundational capabilities](identity.md)
 with independent host tests. Prompt 15 completes [NONE/PCS initialization](initialization.md),
 mandatory VOD verification and retained restoration. Prompt 16 completes HARD/RESTART, persistent quiet floors and external-reset/POR
-reconciliation. Remaining feature procedures are PENDING; SDK builds and hardware qualification
+reconciliation. Prompt 17 completes [negotiated profiles and typed next pages](negotiation.md),
+with shared replay and partial-evidence tests. Other feature procedures are PENDING; SDK builds and hardware qualification
 are NOT RUN. Ledger tests establish their own research layer.
 
 Prompt 6 completes the [portable/native ownership design](design-decisions.md)

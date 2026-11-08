@@ -4,6 +4,12 @@
 
 ### 2026-11-08
 
+- Implemented prompt 17 negotiated advertisement/pause, verified desired/observed
+  settings and shared initialization replay. Added finite typed Clause 28 page
+  exchange, consumed-page evidence, transient NP restoration and eleven focused
+  Release suites. Generic and 100/full owner examples execute in the portable
+  consumer. Physical handshake Q10 and SDK support remain NOT RUN.
+
 - Implemented prompt 16 HARD/RESTART through the existing initialization slot,
   with persistent shared-bus quiet floors, literal PHYRCR commands, complete
   restoration and external-reset/POR reconciliation. Malformed command receipts

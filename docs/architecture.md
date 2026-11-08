@@ -90,3 +90,13 @@ Ordinary consumers use committed generated version metadata and build without
 Git/Python/Doxygen or sibling paths. Keep vendor archives outside firmware and
 packages. Use [verification](../test/README.md) and COMMON for host, package,
 SDK-link, remote CI and physical evidence; first-execution remote CI belongs to 71.
+
+## Current negotiated configuration responsibility
+
+`src/DP8382xConfiguration.cpp` owns validated negotiated profile composition,
+stable verification and finite Clause 28 page service. The existing driver still
+owns one token/result slot, aggregate admission, transport accounting and the
+single destructive collector. Initialization calls the same profile procedure
+for replay. There is no second transaction owner, page registry or job engine.
+[Negotiation](negotiation.md) documents the currently implemented scope; SDK
+projection, resolved link, forced settings and MAC flow control have later owners.

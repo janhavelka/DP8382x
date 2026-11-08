@@ -371,6 +371,9 @@ Status DP8382x::bind(const Config& config) noexcept {
   _transport = {};
   _evidence = {};
   _identity = {};
+  _settings = {};
+  _configuring = false;
+  _cleanupOwner = OperationKind::NONE;
   _identity.declaredVariant = config.variant;
   _timeValid = false;
   _lastTimeUs = 0;
@@ -391,6 +394,9 @@ Status DP8382x::end() noexcept {
   _transport = {};
   _evidence = {};
   _identity = {};
+  _settings = {};
+  _configuring = false;
+  _cleanupOwner = OperationKind::NONE;
   _timeValid = false;
   _lastTimeUs = 0;
   _stopped = false;
@@ -556,6 +562,8 @@ void DP8382x::_invalidateEvidence() noexcept {
   _initialized = false;
   _evidence.configurationDirty = true;
   _identity.stale = true;
+  _settings.trust = ConfigurationTrust::DIRTY;
+  _settings.observedStale = true;
   for (auto& sample : _evidence.samples) { sample.stale = true; }
 }
 
@@ -582,8 +590,14 @@ Status DP8382x::acquireEvidence(uint32_t sourceMask, EvidenceSnapshot& evidence,
                                const IoBudget& budget) noexcept {
   if (sourceMask == 0U || (sourceMask & ~ALL_EVIDENCE) != 0U) { return paramError(ParamDetail::ACCESS_POLICY); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
-  if (_active || _polling || (_operation.state == OperationState::RUNNING &&
+  if (_active || _polling || (_operation.state == OperationState::RUNNING && !_configuring &&
       _operation.phase == OperationPhase::WAIT)) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  if (_operation.state == OperationState::RUNNING && _result.nextPage.requested &&
+      (sourceMask & evidenceBit(EvidenceSource::ANER)) != 0U) {
+    // One consumer owns page events for this epoch; a second reader could steal
+    // the event before its corresponding payload has been retained.
+    return busy(BusyDetail::OPERATION_ACTIVE);
+  }
   uint32_t required = 0;
   for (uint8_t i = 0; i < static_cast<uint8_t>(EvidenceSource::COUNT); ++i) {
     if ((sourceMask & (uint32_t{1} << i)) != 0U) { required += EVIDENCE_ADDRESSES[i] > 31U ? 4U : 1U; }
@@ -727,6 +741,12 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
       if (address == 0x001FU && frame.value == 0x4000U) {
         // Table8-48 circuitry restart keeps registers, identity and initialized state.
         for (auto& sample : _evidence.samples) { sample.stale = true; }
+      } else if (_configuring && (address == 0U || address == 4U || address == 7U)) {
+        // Owned AN changes do not reset the device or undo mandatory VOD setup.
+        _evidence.configurationDirty = true;
+        _settings.trust = ConfigurationTrust::DIRTY;
+        _settings.observedStale = true;
+        for (auto& sample : _evidence.samples) { sample.stale = true; }
       } else { _invalidateEvidence(); }
       // OP-13 preserves readiness on a proved effect-free non-reset failure.
       if (address != 0U && !receipt.completed && !receipt.valueValid && !receipt.effectPossible) {
@@ -753,7 +773,7 @@ Status DP8382x::_sampleTime(uint64_t& raw, uint64_t& upper) noexcept {
 Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called, bool operation) noexcept {
   if (called != nullptr) { *called = false; }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
-  if (_active || (!operation && (_polling || (_operation.state == OperationState::RUNNING &&
+  if (_active || (!operation && (_polling || (_operation.state == OperationState::RUNNING && !_configuring &&
       _operation.phase == OperationPhase::WAIT)))) { return busy(BusyDetail::OPERATION_ACTIVE); }
   if (_transport.clockInvalid) { return configError(ConfigDetail::CLOCK_CONTRACT); }
   if (_stopped) { return busy(BusyDetail::CONTROLLER_QUARANTINED); }
@@ -765,7 +785,7 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called, 
   if (status.ok()) {
     status = admitBudget(budget, _config.transport.bounds, batch.frameCount, before, upper);
   }
-  if (status.ok() && operation && _initStep == InitStep::COMMAND) {
+  if (status.ok() && operation && !_configuring && _initStep == InitStep::COMMAND) {
     status = admitReset(budget, _config.transport.bounds, before, _commandWaitUs());
   }
   if (!status.ok()) {
@@ -785,6 +805,7 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called, 
 
   _retainEvidence(batch, result, clockStatus.ok(), before, upper);
   const auto frames = auditFrames(batch, result, clockStatus.ok(), before, upper);
+  _retainPageEvidence(batch, result, frames.completed, clockStatus.ok(), upper);
   for (uint8_t i = 0; i < frames.attempted; ++i) { increment(_transport.attemptedFrames); }
   for (uint8_t i = 0; i < frames.completed; ++i) { increment(_transport.completedFrames); }
   const auto report = classifyReport(result, frames);
@@ -828,6 +849,7 @@ Status DP8382x::startInitialize(const InitializeOptions& options, const Operatio
   _result.kind = _operation.kind;
   _result.reset = options.reset;
   _result.commandRequired = options.reset != ResetKind::NONE;
+  _configuring = false;
   _pollTimeValid = false;
   _setInitStep(InitStep::IDENTIFY);
   token = _operation.token;
@@ -844,12 +866,30 @@ Status DP8382x::_checkToken(OperationToken token) const noexcept {
 }
 
 Status DP8382x::_finishOperation(Status status) noexcept {
+  // Once a verification mismatch is observed, later timeout/cancellation cannot
+  // erase it. The later failed callback still has its own BatchSummary evidence.
+  if (_configuring && _result.mismatch.valid && !status.ok()) {
+    status = Status::Error(Err::CONFIG_MISMATCH, "Negotiated settings verification failed");
+  }
   _operation.state = OperationState::RESULT_PENDING;
   _operation.phase = OperationPhase::COMPLETE;
   _operation.nextPollValid = false;
   _operation.status = status;
-  if (_result.persistentRestored) { _operation.cleanupOwed = false; }
-  else if (_result.mutationCompleted || _result.mutationPossible) { _operation.cleanupOwed = true; }
+  if (_result.persistentRestored) {
+    _operation.cleanupOwed = false;
+    _cleanupOwner = OperationKind::NONE;
+  } else if (_result.mutationCompleted || _result.mutationPossible) {
+    _operation.cleanupOwed = true;
+    _cleanupOwner = _operation.kind;
+  }
+  if (_configuring || _operation.kind == OperationKind::CONFIGURE) {
+    _settings.lastVerificationStatus = status;
+    if (!status.ok()) {
+      _settings.trust = ConfigurationTrust::DIRTY;
+      _settings.observedStale = true;
+    }
+  }
+  _configuring = false;
   _result.status = status;
   _result.cleanupOwed = _operation.cleanupOwed;
   _result.clockInvalid = _transport.clockInvalid;
@@ -964,7 +1004,8 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
   if (_operation.nextPollValid && raw < _operation.nextPollAtUs) { return _yieldOperation(raw); }
 
   MdioBatch batch;
-  switch (_initStep) {
+  if (_configuring) { batch = _configurationBatch(); }
+  else switch (_initStep) {
     case InitStep::IDENTIFY: case InitStep::REIDENTIFY:
       batch = directBatch(2, FrameKind::READ);
       batch.frameCount = 2;
@@ -986,12 +1027,12 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
   status = admitBudget(_operation.remaining, _config.transport.bounds, batch.frameCount, raw, upper);
   if (!status.ok()) { return _finishOperation(status); }
   if (batch.frameCount > maxFrames) { return _yieldOperation(raw); }
-  if (_initStep == InitStep::COMMAND) {
+  if (!_configuring && _initStep == InitStep::COMMAND) {
     status = admitReset(_operation.remaining, _config.transport.bounds, raw, _commandWaitUs());
     if (!status.ok()) { return _finishOperation(status); }
   }
   bool called = false;
-  if (_initStep == InitStep::IDENTIFY || _initStep == InitStep::REIDENTIFY) {
+  if (!_configuring && (_initStep == InitStep::IDENTIFY || _initStep == InitStep::REIDENTIFY)) {
     DeviceIdentity accepted;
     status = _readIdentity(accepted, _operation.remaining, true, &called);
     if (called) { _result.identity = _identity; }
@@ -1008,7 +1049,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
     _result.failingBatch = {_operation.phase, frames.attempted, frames.completed, effect,
                            status, classifyReport(receipt, frames).release, _transport.violation, _transport.late};
     _result.late = _result.late || _transport.late;
-    if ((_initStep == InitStep::SOR1 || _initStep == InitStep::SOR2 ||
+    if (!_configuring && (_initStep == InitStep::SOR1 || _initStep == InitStep::SOR2 ||
          _initStep == InitStep::RESOR1 || _initStep == InitStep::RESOR2) && frames.completed == 4U) {
       if (_initStep == InitStep::SOR1 || _initStep == InitStep::RESOR1) {
         _result.straps.sor1 = receipt.frames[3].value;
@@ -1020,7 +1061,21 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
       _result.straps.stale = true;
       _result.straps.timeValid = false;
     }
-    if (_initStep == InitStep::COMMAND || _initStep == InitStep::APPLY) {
+    if (_configuring) {
+      for (uint8_t i = 0; i < batch.frameCount; ++i) {
+        if (batch.frames[i].kind != FrameKind::WRITE) { continue; }
+        const auto& target = receipt.frames[i];
+        const bool uncertain = _transport.violation != TransportViolation::NONE;
+        _result.mutationAttempted = _result.mutationAttempted || target.attempted;
+        _result.mutationCompleted = _result.mutationCompleted || frames.completed > i;
+        _result.mutationPossible = _result.mutationPossible || uncertain || target.effectPossible || target.completed || target.valueValid;
+        if (uncertain) {
+          _settings.trust = ConfigurationTrust::DIRTY;
+          _settings.observedStale = true;
+        }
+        _result.failingBatch.effectPossible = _result.failingBatch.effectPossible || uncertain;
+      }
+    } else if (_initStep == InitStep::COMMAND || _initStep == InitStep::APPLY) {
       const uint8_t index = _initStep == InitStep::COMMAND ? uint8_t{0} : uint8_t{3};
       const auto& target = receipt.frames[index];
       // A contradictory callback cannot prove that an omitted target was never
@@ -1044,6 +1099,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
       }
     }
   }
+  if (_configuring) { return _advanceConfiguration(status, called, batch); }
   if (!status.ok()) { return _finishOperation(status); }
   const uint16_t value = _transport.lastBatch.frames[batch.frameCount - 1U].value;
   switch (_initStep) {
@@ -1094,8 +1150,12 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
         _result.mismatch = {true, true, 31, 0x030E, 0xFFC0, 0x4A40, value};
         return _finishOperation(Status::Error(Err::CONFIG_MISMATCH, "VOD_CFG3 verification failed"));
       }
-      _result.persistentRestored = true;
       _identity = _result.identity; // VOD programming cannot alter the accepted identity.
+      if (_settings.desiredValid) {
+        _beginConfiguration(false);
+        break;
+      }
+      _result.persistentRestored = true;
       _initialized = true;
       return _finishOperation(Status::Ok());
   }

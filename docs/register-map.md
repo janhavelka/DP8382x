@@ -83,3 +83,8 @@ unknown reset bits promoted into values, invalid sources and missing ownership.
 Its fixed inventory prevents accidental row deletion from masquerading as full
 coverage. [Literal vectors](register-vectors.md) and independent PDF review supply
 numeric evidence; neither structural acceptance nor source review proves a PHY.
+
+`configure_an` and `next_page_exchange` now have executing
+[stage-17 consumers](negotiation.md). Their shared replay restores persistent
+advertisement with transient NP disabled. Q10 remains physical qualification,
+not an implementation prerequisite under the selected Clause 28 interpretation.

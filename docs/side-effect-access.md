@@ -138,3 +138,8 @@ Prompt 16 applies the persistent HARD quiet floor to every frame, including raw
 reads, the collector and later operations. A timed call can sample the clock to
 reject or expire the floor before MDIO. Cached access remains clock-silent; the
 shared owner must also exclude other PHY addresses. See [initialization](initialization.md).
+
+Stage 17's [typed exchange](negotiation.md) is another consumer of this collector.
+It retains ANER events immediately and associates base/next payload validity
+separately. Public ANER acquisition is excluded during an owning exchange so it
+cannot steal a protocol event. Other admitted raw reads remain serialized.
