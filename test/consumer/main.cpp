@@ -96,7 +96,10 @@ struct InitializationController {
   uint64_t timeUs{0};
   uint16_t selector{0}, address{0}, vod{0x8400};
   bool failVodWrite{false};
-  uint32_t resetWrites{0}, vodWrites{0}, frames{0};
+  bool failHardWrite{false};
+  uint32_t resetWrites{0}, hardWrites{0}, restartWrites{0}, vodWrites{0}, frames{0};
+  uint64_t hardwareQuietUntilUs{0};
+  bool quietViolated{false};
 
   static uint64_t now(void* context) noexcept {
     return static_cast<InitializationController*>(context)->timeUs;
@@ -107,6 +110,7 @@ struct InitializationController {
     DP8382x::BatchResult result;
     result.releaseStatus = DP8382x::Status::Ok();
     result.controllerReusable = true;
+    if (controller.timeUs < controller.hardwareQuietUntilUs) controller.quietViolated = true;
     for (uint8_t i = 0; i < batch.frameCount; ++i) {
       const auto& frame = batch.frames[i];
       auto& receipt = result.frames[i];
@@ -118,6 +122,7 @@ struct InitializationController {
         if (frame.registerAddress == 2) { receipt.value = 0x2000; }
         else if (frame.registerAddress == 3) { receipt.value = 0xA131; }
         else if (frame.registerAddress == 0) { receipt.value = 0x3100; }
+        else if (frame.registerAddress == 0x1F) { receipt.value = 0; }
         else if (frame.registerAddress == 0x0E && controller.selector == 0x401F) {
           if (controller.address == 0x030E) { receipt.value = controller.vod; }
           else if (controller.address == 0x0467) { receipt.value = 0x0123; }
@@ -125,6 +130,17 @@ struct InitializationController {
         }
       } else if (frame.registerAddress == 0 && frame.value == 0x8000) {
         ++controller.resetWrites; // This model is complete by the next scheduled read.
+      } else if (frame.registerAddress == 0x1F && frame.value == 0x8000) {
+        ++controller.hardWrites;
+        controller.vod = 0x8400;
+        controller.hardwareQuietUntilUs = controller.timeUs + 2001; // Post-sample lag plus 2 ms.
+        if (controller.failHardWrite) {
+          receipt.effectPossible = true;
+          result.status = DP8382x::Status::Error(DP8382x::Err::MDIO_TIMEOUT, "Simulated accepted hard reset", -16);
+          return result;
+        }
+      } else if (frame.registerAddress == 0x1F && frame.value == 0x4000) {
+        ++controller.restartWrites;
       } else if (frame.registerAddress == 0x0D) { controller.selector = frame.value; }
       else if (frame.registerAddress == 0x0E && controller.selector == 0x001F) {
         controller.address = frame.value;
@@ -148,9 +164,14 @@ struct InitializationController {
 // single-poll helper and arranges its next turn through its own timer/scheduler.
 static DP8382x::Status runInitialization(DP8382x::DP8382x& phy,
                                          InitializationController& controller,
+                                         SharedMdioQuiet& sharedQuiet,
                                          InitializeAttempt& attempt) noexcept {
   for (unsigned turn = 0; turn < 64; ++turn) {
-    const auto status = pollInitialization(phy, attempt);
+    if (!sharedQuiet.canIssue(controller.timeUs)) {
+      if (sharedQuiet.unanchored) return DP8382x::Status::Error(DP8382x::Err::INVALID_CONFIG, "Owner timing recovery required");
+      controller.timeUs = sharedQuiet.untilUs; // Host scheduling, not a production delay loop.
+    }
+    const auto status = pollInitialization(phy, attempt, sharedQuiet);
     if (!status.is(DP8382x::Err::IN_PROGRESS)) { return status; }
     const auto snapshot = phy.operationSnapshot();
     ++controller.timeUs;
@@ -163,6 +184,7 @@ static DP8382x::Status runInitialization(DP8382x::DP8382x& phy,
 
 static bool initializationExamples() noexcept {
   InitializationController controller;
+  SharedMdioQuiet sharedQuiet;
   DP8382x::Config config;
   config.variant = DP8382x::Variant::DP83826I;
   config.interface = DP8382x::MacInterface::RMII;
@@ -170,24 +192,26 @@ static bool initializationExamples() noexcept {
   config.transport = {&controller, InitializationController::execute, InitializationController::now, {1, 1, 1}};
   DP8382x::DP8382x phy;
   if (!phy.bind(config).ok()) { return false; }
-  for (const auto reset : {DP8382x::ResetKind::NONE, DP8382x::ResetKind::PCS}) {
+  for (const auto reset : {DP8382x::ResetKind::NONE, DP8382x::ResetKind::PCS,
+                           DP8382x::ResetKind::HARD, DP8382x::ResetKind::RESTART}) {
     InitializeAttempt attempt;
     const DP8382x::OperationBudget budget{{controller.timeUs + 100000, 64}, 1000, 20};
     if (!beginInitialization(phy, reset, budget, attempt).is(DP8382x::Err::IN_PROGRESS) ||
-        !runInitialization(phy, controller, attempt).ok()) { return false; }
+        !runInitialization(phy, controller, sharedQuiet, attempt).ok()) { return false; }
     if (!attempt.resultAvailable || !attempt.result.persistentRestored ||
-        attempt.result.commandRequired != (reset == DP8382x::ResetKind::PCS) ||
+        attempt.result.commandRequired != (reset != DP8382x::ResetKind::NONE) ||
         !phy.isInitialized() || controller.vod != 0x4A40) { return false; }
     const auto frames = controller.frames;
-    if (!pollInitialization(phy, attempt).ok() || controller.frames != frames) { return false; }
+    if (!pollInitialization(phy, attempt, sharedQuiet).ok() || controller.frames != frames) { return false; }
   }
-  if (controller.resetWrites != 1 || controller.vodWrites != 2 || controller.frames != 50) { return false; }
+  if (controller.resetWrites != 1 || controller.hardWrites != 1 || controller.restartWrites != 1 ||
+      controller.vodWrites != 4 || controller.frames != 116 || controller.quietViolated) { return false; }
 
   controller.failVodWrite = true;
   InitializeAttempt primary;
   auto budget = DP8382x::OperationBudget{{controller.timeUs + 100000, 64}, 1000, 20};
   if (!beginInitialization(phy, DP8382x::ResetKind::NONE, budget, primary).is(DP8382x::Err::IN_PROGRESS) ||
-      !runInitialization(phy, controller, primary).is(DP8382x::Err::MDIO_TIMEOUT)) { return false; }
+      !runInitialization(phy, controller, sharedQuiet, primary).is(DP8382x::Err::MDIO_TIMEOUT)) { return false; }
   if (!primary.result.cleanupOwed || !primary.result.mutationCompleted || phy.end().ok()) { return false; }
 
   // Restoration is a NEW operation with its own budget/token/result. Neither
@@ -195,7 +219,7 @@ static bool initializationExamples() noexcept {
   InitializeAttempt restoration;
   budget.io.deadlineUs = controller.timeUs + 100000;
   if (!beginInitialization(phy, DP8382x::ResetKind::NONE, budget, restoration).is(DP8382x::Err::IN_PROGRESS) ||
-      !runInitialization(phy, controller, restoration).is(DP8382x::Err::MDIO_TIMEOUT)) { return false; }
+      !runInitialization(phy, controller, sharedQuiet, restoration).is(DP8382x::Err::MDIO_TIMEOUT)) { return false; }
   if (!restoration.result.cleanupOwed || restoration.token.value == primary.token.value ||
       abandonInitialization(phy, false).ok() || !phy.operationSnapshot().cleanupOwed) { return false; }
   // The host owner has closed simulated admission; no real fixture is operated.
@@ -204,6 +228,51 @@ static bool initializationExamples() noexcept {
          controller.frames == frames && primary.result.status.detail == -15 &&
          restoration.result.status.detail == -15 && primary.result.cleanupOwed &&
          restoration.result.cleanupOwed;
+}
+
+static bool hardQuietOwnerExamples() noexcept {
+  for (const bool failCommand : {false, true}) {
+    InitializationController controller;
+    controller.failHardWrite = failCommand;
+    SharedMdioQuiet sharedQuiet;
+    DP8382x::Config config;
+    config.variant = DP8382x::Variant::DP83826I;
+    config.interface = DP8382x::MacInterface::RMII;
+    config.phyAddress = 1;
+    config.transport = {&controller, InitializationController::execute, InitializationController::now, {1, 1, 1}};
+    DP8382x::DP8382x phy, otherPhy;
+    if (!phy.bind(config).ok()) return false;
+    config.phyAddress = 2;
+    if (!otherPhy.bind(config).ok()) return false;
+    InitializeAttempt attempt;
+    if (!beginInitialization(phy, DP8382x::ResetKind::HARD,
+                             {{100000, 64}, 1000, 20}, attempt).inProgress()) return false;
+    // Finite host turns stop immediately after the hard command. The real
+    // owner excludes other participants from before this poll until the floor.
+    for (unsigned turn = 0; turn < 16 && controller.hardWrites == 0; ++turn) {
+      const auto status = pollInitialization(phy, attempt, sharedQuiet);
+      if (!status.inProgress() && !status.is(DP8382x::Err::MDIO_TIMEOUT)) return false;
+    }
+    if (controller.hardWrites != 1 || sharedQuiet.canIssue(controller.timeUs) || sharedQuiet.unanchored) return false;
+    const auto floor = sharedQuiet.untilUs;
+    const auto frames = controller.frames;
+    if (!failCommand) {
+      if (!phy.cancel(attempt.token).ok() ||
+          !pollInitialization(phy, attempt, sharedQuiet).is(DP8382x::Err::CANCELLED)) return false;
+    }
+    if (!attempt.resultAvailable || !attempt.result.cleanupOwed || !phy.operationSnapshot().busQuietValid) return false;
+    if (!abandonInitialization(phy, true).ok() || phy.isBound() || sharedQuiet.untilUs != floor) return false;
+    // Both bindings share this admission decision. Teardown cannot erase the
+    // owner-held floor, and the second PHY must not issue an early frame.
+    uint16_t word = 0xCAFE;
+    if (sharedQuiet.canIssue(floor - 1)) return false;
+    if (controller.frames != frames) return false;
+    controller.timeUs = floor;
+    if (!sharedQuiet.canIssue(controller.timeUs) ||
+        !otherPhy.readClause22(2, word, {100000, 1}).ok() || word != 0x2000 || controller.quietViolated) return false;
+    if (!otherPhy.end().ok()) return false;
+  }
+  return true;
 }
 
 int main() {
@@ -244,5 +313,5 @@ int main() {
   const auto cached = phy.evidenceSnapshot();
   const auto& interrupt = cached.samples[static_cast<uint8_t>(DP8382x::EvidenceSource::MISR1)];
   return interrupt.valid && interrupt.raw == 0xA55AU && simulated.misr == 0x005EU &&
-         cached.configurationDirty && phy.end().ok() && initializationExamples() ? 0 : 1;
+         cached.configurationDirty && phy.end().ok() && initializationExamples() && hardQuietOwnerExamples() ? 0 : 1;
 }

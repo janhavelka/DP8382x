@@ -4,6 +4,12 @@
 
 ### 2026-11-08
 
+- Implemented prompt 16 HARD/RESTART through the existing initialization slot,
+  with persistent shared-bus quiet floors, literal PHYRCR commands, complete
+  restoration and external-reset/POR reconciliation. Malformed command receipts
+  retain possible effects and silence obligations. Added six reset suites and
+  a linked owner example that carries silence across cancellation and teardown.
+
 - Implemented prompt 15 initialization with NONE/PCS, literal reset and mandatory
   VOD write/verification, one caller-driven operation slot and lifetime tokens.
   Added finite poll/deadline handling, partial strap/identity evidence, immediate

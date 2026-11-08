@@ -1,7 +1,7 @@
 # Device coverage
 
-Stage 15 initialization supports only the declared DP83826I, in accepted BASIC
-or ENHANCED mode. NONE/PCS success adds initialized procedure evidence; it does
+Stages 15-16 initialization supports only the declared DP83826I, in accepted BASIC
+or ENHANCED mode. NONE/PCS/HARD/RESTART success adds initialized procedure evidence; it does
 not broaden the variant table or establish link, actual strap wiring, managed
 health or hardware qualification. See [initialization](initialization.md).
 

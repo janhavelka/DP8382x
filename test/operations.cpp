@@ -67,6 +67,7 @@ struct Controller {
       }
       return phy.bmcr;
     }
+    if (reg == 0x1F) return 0; // No external PHYRCR command in this PCS fixture.
     if (reg == 0x02) return phy.id1;
     if (reg == 0x03) return phy.id2;
     if (reg == 0x18) return phy.led;
@@ -234,23 +235,24 @@ void initialization() {
     CHECK(!driver.isInitialized());
     CHECK(drain(driver, bus, token).ok());
     CHECK(driver.isInitialized());
-    CHECK(bus.frames == (reset == ResetKind::NONE ? 19U : 31U));
-    CHECK(bus.calls == (reset == ResetKind::NONE ? 6U : 11U));
+    CHECK(bus.frames == (reset == ResetKind::NONE ? 20U : 32U));
+    CHECK(bus.calls == (reset == ResetKind::NONE ? 7U : 12U));
     CHECK(bus.acquisitions == bus.releases);
     wire(bus, 0, FrameKind::READ, 0x02);
     wire(bus, 1, FrameKind::READ, 0x03);
     indirect(bus, 2, 0x0467, false);
     indirect(bus, 6, 0x0468, false);
     wire(bus, 10, FrameKind::READ, 0x00);
-    unsigned vod = 11;
+    wire(bus, 11, FrameKind::READ, 0x1F);
+    unsigned vod = 12;
     if (reset == ResetKind::PCS) {
-      wire(bus, 11, FrameKind::WRITE, 0x00, 0x8000);
-      wire(bus, 12, FrameKind::READ, 0x00);
-      wire(bus, 13, FrameKind::READ, 0x02);
-      wire(bus, 14, FrameKind::READ, 0x03);
-      indirect(bus, 15, 0x0467, false);
-      indirect(bus, 19, 0x0468, false);
-      vod = 23;
+      wire(bus, 12, FrameKind::WRITE, 0x00, 0x8000);
+      wire(bus, 13, FrameKind::READ, 0x00);
+      wire(bus, 14, FrameKind::READ, 0x02);
+      wire(bus, 15, FrameKind::READ, 0x03);
+      indirect(bus, 16, 0x0467, false);
+      indirect(bus, 20, 0x0468, false);
+      vod = 24;
     }
     indirect(bus, vod, 0x030E, true, 0x4A40);
     indirect(bus, vod + 4, 0x030E, false);
@@ -300,7 +302,7 @@ void initialization() {
   CHECK(driver.bind(bus.config()).ok());
   const auto token = start(driver);
   CHECK(drain(driver, bus, token).ok());
-  CHECK(bus.frames == 30);
+  CHECK(bus.frames == 31);
   const auto result = take(driver, token);
   CHECK(!result.commandAccepted && !result.protocolComplete);
   for (unsigned i = 0; i < bus.frames; ++i)
@@ -389,17 +391,17 @@ void timing() {
     auto allowance = budget(128, deadline);
     allowance.pollIntervalUs = 1000;
     const auto token = start(driver, ResetKind::PCS, allowance);
-    advanceBatches(driver, bus, token, 4);
+    advanceBatches(driver, bus, token, 5);
     const auto status = driver.pollOperation(token);
     if (deadline == 41300) {
       CHECK(status.is(Err::OPERATION_TIMEOUT));
       CHECK(status.detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
-      CHECK(bus.frames == 11);
+      CHECK(bus.frames == 12);
       const auto result = take(driver, token);
       CHECK(!result.mutationAttempted && !result.cleanupOwed);
     } else {
       CHECK(status.is(Err::IN_PROGRESS));
-      CHECK(bus.frames == 12);
+      CHECK(bus.frames == 13);
       CHECK(driver.operationSnapshot().nextPollAtUs == 11000);
       const unsigned calls = bus.calls;
       bus.now = 10000;
@@ -407,17 +409,17 @@ void timing() {
       CHECK(bus.calls == calls);
       bus.now = 20000;
       CHECK(driver.pollOperation(token).is(Err::IN_PROGRESS));
-      CHECK(bus.calls == calls + 1 && bus.frames == 13);
+      CHECK(bus.calls == calls + 1 && bus.frames == 14);
     }
   }
   // Only one remaining command frame is insufficient even though its own bound fits.
   Controller frameLimited;
   Driver frameDriver;
   CHECK(frameDriver.bind(frameLimited.config()).ok());
-  const auto frameToken = start(frameDriver, ResetKind::PCS, budget(12));
-  advanceBatches(frameDriver, frameLimited, frameToken, 4);
+  const auto frameToken = start(frameDriver, ResetKind::PCS, budget(13));
+  advanceBatches(frameDriver, frameLimited, frameToken, 5);
   CHECK(frameDriver.pollOperation(frameToken).detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
-  CHECK(frameLimited.frames == 11);
+  CHECK(frameLimited.frames == 12);
 
   Controller overflowing;
   overflowing.frameTime = 0;
@@ -426,9 +428,9 @@ void timing() {
   CHECK(overflowDriver.bind(overflowing.config()).ok());
   const auto overflowToken = start(overflowDriver, ResetKind::PCS,
       budget(128, std::numeric_limits<uint64_t>::max()));
-  advanceBatches(overflowDriver, overflowing, overflowToken, 4);
+  advanceBatches(overflowDriver, overflowing, overflowToken, 5);
   CHECK(overflowDriver.pollOperation(overflowToken).detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
-  CHECK(overflowing.frames == 11);
+  CHECK(overflowing.frames == 12);
   CHECK(!take(overflowDriver, overflowToken).mutationAttempted);
 
   // Scheduling between the poll sample and callback admission cannot bypass
@@ -437,11 +439,11 @@ void timing() {
   Driver preemptedDriver;
   CHECK(preemptedDriver.bind(preempted.config()).ok());
   const auto preemptedToken = start(preemptedDriver, ResetKind::PCS);
-  advanceBatches(preemptedDriver, preempted, preemptedToken, 4);
+  advanceBatches(preemptedDriver, preempted, preemptedToken, 5);
   preempted.jumpClockCall = preempted.clocks + 2;
   preempted.jumpClockTo = 99980;
   CHECK(preemptedDriver.pollOperation(preemptedToken).detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
-  CHECK(preempted.frames == 11 && preempted.calls == 4);
+  CHECK(preempted.frames == 12 && preempted.calls == 5);
   CHECK(!take(preemptedDriver, preemptedToken).mutationAttempted);
 
   // Completion-based anchor: actual callback consumes time before the interval starts.
@@ -449,7 +451,7 @@ void timing() {
   Driver driver;
   CHECK(driver.bind(bus.config()).ok());
   const auto token = start(driver, ResetKind::PCS);
-  advanceBatches(driver, bus, token, 4);
+  advanceBatches(driver, bus, token, 5);
   const auto before = bus.now;
   CHECK(driver.pollOperation(token).is(Err::IN_PROGRESS));
   const auto due = driver.operationSnapshot().nextPollAtUs;
@@ -468,12 +470,12 @@ void timing() {
   auto finite = budget();
   finite.maxStalledPolls = 3;
   const auto frozenToken = start(stopped, ResetKind::PCS, finite);
-  advanceBatches(stopped, frozen, frozenToken, 5);
+  advanceBatches(stopped, frozen, frozenToken, 6);
   CHECK(stopped.pollOperation(frozenToken).is(Err::IN_PROGRESS));
   CHECK(stopped.operationSnapshot().stalledPolls == 1);
   CHECK(stopped.pollOperation(frozenToken).is(Err::IN_PROGRESS));
   CHECK(stopped.pollOperation(frozenToken).detail == static_cast<int32_t>(TimeoutDetail::POLL_BUDGET));
-  CHECK(frozen.frames == 12 && !frozen.locked);
+  CHECK(frozen.frames == 13 && !frozen.locked);
   CHECK(take(stopped, frozenToken).cleanupOwed);
 
   Controller slices;
@@ -533,8 +535,8 @@ void timing() {
 
 void failures() {
   for (const auto reset : {ResetKind::NONE, ResetKind::PCS}) {
-    const int total = reset == ResetKind::NONE ? 19 : 31;
-    const int target = reset == ResetKind::NONE ? 14 : 26;
+    const int total = reset == ResetKind::NONE ? 20 : 32;
+    const int target = reset == ResetKind::NONE ? 15 : 27;
     for (int failed = 0; failed < total; ++failed) {
       Controller bus;
       bus.failFrame = failed;
@@ -551,12 +553,12 @@ void failures() {
       CHECK(result.status.is(Err::MDIO_TIMEOUT) && result.status.detail == -1701);
       CHECK(result.failingBatch.normalized.is(Err::MDIO_TIMEOUT));
       CHECK(!result.persistentRestored && !driver.isInitialized());
-      const bool semantic = failed >= target || (reset == ResetKind::PCS && failed >= 11);
+      const bool semantic = failed >= target || (reset == ResetKind::PCS && failed >= 12);
       CHECK(result.cleanupOwed == semantic);
       CHECK(result.mutationAttempted == semantic);
-      if (failed == target || (reset == ResetKind::PCS && failed == 11)) CHECK(result.mutationPossible);
+      if (failed == target || (reset == ResetKind::PCS && failed == 12)) CHECK(result.mutationPossible);
       if (failed == 1) CHECK(result.identity.id1Valid && !result.identity.id2Valid && result.identity.id1 == 0x2000);
-      if (reset == ResetKind::PCS && failed >= 12 && failed < 23) {
+      if (reset == ResetKind::PCS && failed >= 13 && failed < 24) {
         CHECK(result.straps.sor1Valid && result.straps.sor2Valid && result.straps.stale);
       }
       // Selector failures do not authorize a target effect or automatic recovery.
@@ -568,7 +570,7 @@ void failures() {
   }
   // Explicit proof that an unaccepted, effect-free failed command owes no replay.
   Controller noEffect;
-  noEffect.failFrame = 11;
+  noEffect.failFrame = 12;
   noEffect.acceptedFailure = false;
   noEffect.failedEffectPossible = false;
   Driver clean;
@@ -579,7 +581,7 @@ void failures() {
   CHECK(cleanResult.mutationAttempted && !cleanResult.mutationCompleted && !cleanResult.mutationPossible && !cleanResult.cleanupOwed);
 
   for (const auto reset : {ResetKind::NONE, ResetKind::PCS}) {
-    for (int batch = 0; batch < (reset == ResetKind::NONE ? 6 : 11); ++batch) {
+    for (int batch = 0; batch < (reset == ResetKind::NONE ? 7 : 12); ++batch) {
       Controller bus;
       bus.releaseBatch = batch;
       Driver driver;
@@ -589,10 +591,10 @@ void failures() {
       const auto result = take(driver, token);
       CHECK(result.failingBatch.release.detail == -901);
       CHECK(bus.acquisitions == static_cast<unsigned>(batch + 1) && bus.releases == static_cast<unsigned>(batch));
-      CHECK(result.cleanupOwed == (batch >= 4));
-      if (batch == 1 || batch == 2 || (reset == ResetKind::PCS && (batch == 7 || batch == 8))) {
+      CHECK(result.cleanupOwed == (batch >= 5));
+      if (batch == 1 || batch == 2 || (reset == ResetKind::PCS && (batch == 8 || batch == 9))) {
         CHECK(result.straps.sor1Valid && result.straps.sor1 == 0x1234);
-        if (batch == 2 || batch >= 7) CHECK(result.straps.sor2Valid && result.straps.sor2 == 0x5678);
+        if (batch == 2 || batch >= 8) CHECK(result.straps.sor2Valid && result.straps.sor2 == 0x5678);
         CHECK(result.straps.stale && !result.straps.timeValid);
       }
       uint16_t output = 0xCAFE;
@@ -611,8 +613,8 @@ void failures() {
   CHECK(stoppedResult.failingBatch.violation == TransportViolation::CONTROLLER_STATE);
   // A primary frame error survives a separate failed release.
   Controller both;
-  both.failFrame = 14;
-  both.releaseBatch = 4;
+  both.failFrame = 15;
+  both.releaseBatch = 5;
   Driver driver;
   CHECK(driver.bind(both.config()).ok());
   const auto token = start(driver);
@@ -622,7 +624,7 @@ void failures() {
 
   for (const auto fault : {Fault::NONTERMINAL, Fault::SHORT, Fault::MISSING_VALUE}) {
     Controller bus;
-    bus.faultyBatch = 5;
+    bus.faultyBatch = 6;
     bus.fault = fault;
     Driver subject;
     CHECK(subject.bind(bus.config()).ok());
@@ -632,9 +634,9 @@ void failures() {
     CHECK(badResult.cleanupOwed && !badResult.persistentRestored);
     CHECK(badResult.failingBatch.violation != TransportViolation::NONE);
     if (fault == Fault::NONTERMINAL) CHECK(badResult.status.detail == -2147483647);
-    CHECK(bus.frames == 19);
+    CHECK(bus.frames == 20);
   }
-  for (int late : {4, 5}) {
+  for (int late : {5, 6}) {
     Controller bus;
     bus.lateBatch = late;
     Driver subject;
@@ -646,7 +648,7 @@ void failures() {
     CHECK(lateResult.mutationCompleted);
   }
   Controller regressed;
-  regressed.regressBatch = 4;
+  regressed.regressBatch = 5;
   Driver clockDriver;
   CHECK(clockDriver.bind(regressed.config()).ok());
   const auto clockToken = start(clockDriver);
@@ -657,7 +659,7 @@ void failures() {
 void lifecycle() {
   // Cancellation at every externally reachable batch boundary is silent and frozen.
   for (const auto reset : {ResetKind::NONE, ResetKind::PCS}) {
-    const unsigned batches = reset == ResetKind::NONE ? 6 : 11;
+    const unsigned batches = reset == ResetKind::NONE ? 7 : 12;
     for (unsigned completed = 0; completed < batches; ++completed) {
       Controller bus;
       Driver driver;
@@ -673,7 +675,7 @@ void lifecycle() {
       CHECK(bus.calls == calls && bus.clocks == clocks);
       const auto result = take(driver, token);
       CHECK(result.status.is(Err::CANCELLED));
-      const bool effects = completed >= 5;
+      const bool effects = completed >= 6;
       CHECK(result.cleanupOwed == effects);
       CHECK(!result.temporaryMayBeActive);
       if (effects) {
@@ -699,13 +701,13 @@ void lifecycle() {
   Driver driver;
   CHECK(driver.bind(bus.config()).ok());
   const auto original = start(driver, ResetKind::PCS);
-  advanceBatches(driver, bus, original, 5);
+  advanceBatches(driver, bus, original, 6);
   CHECK(driver.cancel(original).ok());
   const auto cancelled = take(driver, original);
   CHECK(cancelled.cleanupOwed && cancelled.commandAccepted && !cancelled.protocolComplete);
   bus.phys[1].bmcr = 0x3100;
   const auto failed = start(driver);
-  bus.failFrame = static_cast<int>(bus.frames + 14);
+  bus.failFrame = static_cast<int>(bus.frames + 15);
   CHECK(drain(driver, bus, failed).is(Err::MDIO_TIMEOUT));
   const auto failedResult = take(driver, failed);
   CHECK(failedResult.cleanupOwed && failedResult.status.is(Err::MDIO_TIMEOUT));
@@ -721,7 +723,7 @@ void lifecycle() {
   // Reapply NONE keeps initialized until mandatory mutation is unverified.
   const auto reapply = start(driver);
   CHECK(driver.isInitialized());
-  advanceBatches(driver, bus, reapply, 4);
+  advanceBatches(driver, bus, reapply, 5);
   CHECK(driver.isInitialized());
   advanceBatches(driver, bus, reapply, 1);
   CHECK(!driver.isInitialized());
@@ -730,7 +732,7 @@ void lifecycle() {
   take(driver, reapply);
 
   const auto unchanged = start(driver);
-  bus.failFrame = static_cast<int>(bus.frames + 14);
+  bus.failFrame = static_cast<int>(bus.frames + 15);
   bus.acceptedFailure = false;
   bus.failedEffectPossible = false;
   CHECK(drain(driver, bus, unchanged).is(Err::MDIO_TIMEOUT));
@@ -755,7 +757,7 @@ void lifecycle() {
   // A pending terminal copy remains historical after external reset clears the
   // current barrier. It is not rewritten to look like successful restoration.
   const auto pending = start(driver, ResetKind::PCS);
-  advanceBatches(driver, bus, pending, 5);
+  advanceBatches(driver, bus, pending, 6);
   CHECK(driver.cancel(pending).ok());
   CHECK(driver.operationSnapshot().cleanupOwed);
   CHECK(driver.invalidateDeviceState(InvalidationReason::EXTERNAL_RESET).ok());
@@ -766,7 +768,7 @@ void lifecycle() {
 
   for (const auto reason : {InvalidationReason::EXTERNAL_MUTATION, InvalidationReason::EXTERNAL_RESET, InvalidationReason::EXTERNAL_POWER_ON}) {
     const auto invalidated = start(driver, ResetKind::PCS);
-    advanceBatches(driver, bus, invalidated, 5);
+    advanceBatches(driver, bus, invalidated, 6);
     const auto calls = bus.calls, clocks = bus.clocks;
     CHECK(driver.invalidateDeviceState(reason).ok());
     CHECK(bus.calls == calls && bus.clocks == clocks && !driver.isInitialized());
@@ -810,7 +812,7 @@ void ownership() {
   bus.activeToken = token;
   bus.exerciseReentry = true;
   CHECK(drain(driver, bus, token).ok());
-  CHECK(bus.excluded == 31 && bus.acquisitions == 11 && bus.releases == 11);
+  CHECK(bus.excluded == 32 && bus.acquisitions == 12 && bus.releases == 12);
   CHECK(bus.phys[1].vod == 0x4A40 && bus.phys[2].vod == 0x8400);
   CHECK(!other.isInitialized());
   bus.exerciseReentry = false;
@@ -827,7 +829,7 @@ void ownership() {
   uint16_t output = 0xCAFE;
   CHECK(subject.readClause22(2, output, {100000, 1}).ok() && output == 0x2000);
   CHECK(subject.writeClause22(0x18, 0, {100000, 1}).detail == static_cast<int32_t>(BusyDetail::OPERATION_ACTIVE));
-  advanceBatches(subject, interleaved, running, 5);
+  advanceBatches(subject, interleaved, running, 6);
   const auto calls = interleaved.calls, clocks = interleaved.clocks;
   output = 0xCAFE;
   CHECK(subject.readClause22(2, output, {100000, 1}).is(Err::BUSY));

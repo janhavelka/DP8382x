@@ -1,7 +1,7 @@
 # Scope and architecture
 
-Stage 15 implements one initialization phase switch in the existing facade and
-transport implementation. [Initialization](initialization.md) documents NONE/PCS,
+Stages 15-16 implement one initialization phase switch in the existing facade and
+transport implementation. [Initialization](initialization.md) documents NONE/PCS/HARD/RESTART,
 retained operation evidence and separately admitted restoration. There is no
 generic job engine or desired profile inferred from raw maintenance writes.
 

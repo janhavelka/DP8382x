@@ -9494,7 +9494,7 @@
         "After every attempted PHYRCR8000 write, including error/ambiguous completion, enforce bus-wide frame-free silence until completion upper bound plus max(2000us,pollInterval). No participant or other PHY address may issue a frame during this window. Release callback bound is required; Q5 remains physical NOT RUN. BMCR8000 and PHYRCR4000 do not inherit this floor."
       ],
       "waits": [
-        "Post-command timing is application policy until software-command settling clarified; external reset2ms not claimed as specified hard-reset deadline."
+        "Mandatory conservative software floor after any attempted or untrustworthily reported command: completion upper bound plus max(2000us,pollInterval). No exact software-command maximum or internal release time proved; Q5 remains NOT_RUN."
       ],
       "timeout": "Application aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Finite frame/poll limit even if clock freezes. Zero work budget performs no I/O. No nominal silicon number is a software timeout.",
       "partialEffects": "All register settings may be lost; partial replay remains untrusted. Clear command alone does not prove restored configuration or link.",
@@ -9504,9 +9504,9 @@
         "hard_reset_straps"
       ],
       "owner": {
-        "api": "startReset / startRecover",
-        "cli": "owner-routed startReset / startRecover (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startReset / startRecover; prompts 16, 53-55",
+        "api": "startInitialize({HARD})",
+        "cli": "owner-routed lifecycle (prompts 44-46)",
+        "test": "test/reset.cpp literal traces, effects, quiet floor and notification; prompts 16, 53-55",
         "implementationStage": 16
       }
     },
@@ -9544,9 +9544,9 @@
       "restoration": "Restore only persistent desired owned masks in finite dependency order, verify stable bits and publish trust only after complete success. Never replay command bits, read-clear samples or temporary diagnostic profiles.",
       "gates": [],
       "owner": {
-        "api": "startReset / startRecover",
-        "cli": "owner-routed startReset / startRecover (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startReset / startRecover; prompts 16, 53-55",
+        "api": "startInitialize({RESTART})",
+        "cli": "owner-routed lifecycle (prompts 44-46)",
+        "test": "test/reset.cpp literal traces, effects, quiet floor and notification; prompts 16, 53-55",
         "implementationStage": 16
       }
     },
@@ -9567,7 +9567,7 @@
       "prerequisites": "Application owner serializes all instance calls/snapshots. Controller transaction lock covers every bus participant; active-operation admission is separate. Declared exact variant, legal values and valid clock/power history checked before mutation.",
       "steps": [
         "Application supplies authorized GPIO/power action and actual timestamps; core performs no GPIO/power control.",
-        "For POR keep management inactive at least50ms after power-up. With delayed clock, reset after POR completion and at least100us stable clock.",
+        "For POR keep management inactive at least50ms after both supplies reach final level. Delayed clock: Figure7-1 recommends hold RESET_N low then release at least100us after stable clock, or 7.6footnote2 requires additional reset after POR initiated at least100us after both clock stabilization and POR completion. Apply release-to-SMI wait too.",
         "For pin reset assert RESET_N at least25us (without debounce capacitors), then management inactive at least2ms after deassertion.",
         "POR loads all mode/strap choices. Pin reset samples eligible straps; ENHANCED Strap1/6 retain POR values. BASIC/ENHANCED pinout is hardware-selected, not a runtime writable variant switch.",
         "Invalidate all managed trust; reacquire identity/address/straps and perform finite persistent replay as hard_reset. If device unreachable preserve declaration and report transport failure."
@@ -9583,9 +9583,9 @@
         "hard_reset_straps"
       ],
       "owner": {
-        "api": "startReset / startRecover",
-        "cli": "owner-routed startReset / startRecover (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startReset / startRecover; prompts 16, 53-55",
+        "api": "invalidateDeviceState(EXTERNAL_RESET / EXTERNAL_POWER_ON); later startInitialize",
+        "cli": "owner-routed lifecycle (prompts 44-46)",
+        "test": "test/reset.cpp literal traces, effects, quiet floor and notification; prompts 16, 53-55",
         "implementationStage": 16
       }
     },
@@ -11914,14 +11914,14 @@
       "owner": {
         "api": "startInitialize / invalidateDeviceState",
         "cli": "owner-routed initialization/reset (prompts 44-46)",
-        "test": "test/operations.cpp PCS traces/effects; hard reset and restart prompt 16",
+        "test": "test/operations.cpp and test/reset.cpp; literal commands, timing, retained results, restoration and external invalidation",
         "implementationStage": 15
       },
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PARTIAL",
-        "hostTested": "PARTIAL",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
@@ -11929,7 +11929,7 @@
         "hard_reset_straps",
         "pcs_reset_extent"
       ],
-      "notes": "Prompt 15 implements PCS initialization, retained effects, external invalidation and bounded restoration. Hard reset/restart remain prompt 16; physical reset-domain gates remain open."
+      "notes": "Prompts 15-16 implement PCS/HARD/RESTART initialization and bus-silent external-reset/POR notification. Persistent HARD quiet floor survives failure/cancel/take/invalidation/later operations; shared owner holds all PHYs silent. Hard strap resampling remains possible under Q5/source gate, physical NOT_RUN."
     },
     {
       "id": "initialization",

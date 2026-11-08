@@ -1,16 +1,20 @@
-# Initialization and PCS reset
+# Initialization and reset operations
 
-Stage 15 implements exact-address DP83826I initialization with `ResetKind::NONE`
-or `PCS`. Both paths accept identity, capture raw straps, check for an already
-active BMCR reset, then write and verify mandatory VOD settings. Initialization
+Stages 15–16 implement exact-address DP83826I initialization with `ResetKind::NONE`,
+`PCS`, `HARD` or `RESTART`. Every path accepts identity, captures raw straps,
+checks BMCR and PHYRCR for active commands, then writes and verifies mandatory
+VOD settings. Initialization
 can succeed with cable down. It proves this implemented procedure completed;
 link-profile application arrives in stages 17–18, managed health in 21, and
-hardware qualification requires measured fixtures. HARD/RESTART arrive in 16.
+hardware qualification requires measured fixtures. The
+[reset-effects table](device-behavior.md#reset-domains-and-readiness) distinguishes
+the settings, identity and strap domains of every trigger.
 
 The [public header](../include/DP8382x/DP8382x.h) owns declarations and Doxygen;
 [OP-1 through OP-17](api-contracts.md#one-cooperative-operation-and-retained-result)
 own admission/lifetime rules. The [ledger](registers/dp83826i.json) procedures
-`pcs_reset` and `initialize_10base` own numeric/source facts. The
+`pcs_reset`, `hard_reset`, `restart`, `external_reset` and `initialize_10base`
+own numeric/source facts. The
 [independent vectors](register-vectors.md) and [executing tests](../test/operations.cpp)
 check the procedure without deriving expected traces from production constants.
 
@@ -39,21 +43,27 @@ the caller token and state unchanged. Each `pollOperation` runs at most one batc
 
 1. Read both identity words in one batch and accept the declared exact part.
 2. Capture SOR1 and SOR2 in separate complete indirect batches.
-3. Read BMCR separately. If reset is already active, invalidate old knowledge
-   and wait for a clear bit; NONE also refreshes identity/straps after that reset.
-4. For PCS, issue the single literal `W(00,8000)`, then schedule completion reads.
-   There is no BMCR RMW. After clear, refresh identity and straps.
+3. Read BMCR and PHYRCR separately. Wait out any active command, withdrawing
+   identity/configuration knowledge when its reset domain requires it. NONE also
+   refreshes identity/straps after an observed configuration reset. This prevents
+   a restoration from proceeding while an earlier failed HARD is still active.
+4. Issue the selected single literal command: PCS `W(00,8000)`, HARD
+   `W(1F,8000)` or RESTART `W(1F,4000)`. There is no sampled-word RMW.
+   After the appropriate wait, PCS polls BMCR bit8000; HARD/RESTART poll PHYRCR
+   bitsC000 so neither PHYRCR command may remain active. Refresh identity and
+   straps at the configured address. An already-active configuration reset also
+   requires fresh identity acceptance before issuing the requested command.
 5. Always issue the complete mandatory VOD write and separate verification read.
    PCS retains vendor registers; it cannot substitute for this write. Readback
    must match every owned stable bit. A mismatch retains expected, mask and raw
    observed value in `ConfigurationMismatch`.
 
-With clear initial BMCR and first completion read clear, NONE uses 19 frames;
-PCS uses 31. No RCSR mutation or CDCR read is admitted. Only mandatory VOD is
+With clear initial commands and first completion read clear, NONE uses 20 frames;
+PCS/HARD/RESTART use 32. No RCSR mutation or CDCR read is admitted. Only mandatory VOD is
 currently persistent owned state: raw LED/IRQ/WoL maintenance does not create
 a desired profile. Later feature procedures extend this same finite replay path.
 
-An accepted or uncertain reset invalidates initialized, identity and configuration
+An accepted or uncertain PCS or HARD reset invalidates initialized, identity and configuration
 knowledge even when a later read fails. `commandAccepted` records command frame
 completion; `protocolComplete` requires the later in-budget clear observation.
 Selectors do not count as target mutation. A failed/late target write remains
@@ -99,9 +109,36 @@ prove hardware restoration. Tokens do not restart on end/bind.
 
 ## Direct access and examples
 
+HARD adds a shared-bus silence floor at the post-callback upper timestamp plus
+`max(2000, pollIntervalUs)` us. This applies to any attempted or untrustworthily
+reported command, even on failure. `busQuietUntilUs`/`busQuietValid` survive
+cancel, take, abandon, invalidation and later operation starts. Cached snapshots
+do not expire them; a timed call does so only after observing the endpoint.
+`nextPollAtUs` never advertises an earlier legal reset read. The owner closes
+admission to all PHY addresses before the command and copies the floor immediately
+after the poll, without retaining the transaction lock during silence.
+
+If the post-callback clock regresses or the mandatory floor cannot fit the
+nonwrapping timeline, the anchor is invalid and timed work is latched off. Preserve
+the primary transport error; otherwise floor-addition overflow returns
+BOUND_ADMISSION. Owner disposition and a trustworthy external time source are
+required before rebinding; no zero/invalid anchor proves an elapsed wait.
+End/bind may discard the local floor under OP-12, so the application carries
+the physical responsibility across driver lifetimes. PCS/RESTART do not create
+this floor, but cannot bypass one still owed by an earlier HARD.
+
+RESTART preserves register/identity and initialized knowledge while invalidating
+live event/link observations. Its initialization still refreshes identity/straps
+and applies mandatory VOD; a failed VOD mutation cannot preserve readiness.
+External reset and POR notifications are distinct owner attestations, already
+represented by `InvalidationReason`: both perform zero callbacks and make old
+knowledge historical. POR also samples ENHANCED Strap1/6, which pin reset retains.
+Neither notification clears
+a previously recorded hard-reset floor or performs implicit reinitialization.
+
 Raw writes reject running work, pending results and cleanup barriers. Safe raw
 reads and the collector remain available between polls and with pending results
-or cleanup, except during reset WAIT. External invalidation freezes a running
+or cleanup, except during reset WAIT or a persistent hard-reset floor. External invalidation freezes a running
 operation; explicit external reset/power-on clears current cleanup by owner
 attestation. Already frozen results remain historical and immutable. An admitted
 live identity read that fails or contradicts the operation invalidates that

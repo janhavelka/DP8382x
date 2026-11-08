@@ -462,10 +462,10 @@ pollOperation, takeResult, cancel, abandonCleanup, invalidateDeviceState,
 operationSnapshot and isInitialized. See the [initialization guide](initialization.md)
 and compiling [owner example](../examples/portable/Initialize.h).
 
-Only INITIALIZE and NONE/PCS are exposed now. HARD/RESTART and the retained
-busQuietUntilUs/busQuietValid floor arrive with stage 16; CONFIGURE and verified
+INITIALIZE with NONE/PCS/HARD/RESTART and the retained
+busQuietUntilUs/busQuietValid floor are implemented through stage 16; CONFIGURE and verified
 SettingsSnapshot arrive with stages 17–18; VERIFY arrives with 22. No unimplemented
-kind, floor or desired-link-settings snapshot is exposed. EXTERNAL_POWER_ON is
+kind or desired-link-settings snapshot is exposed. EXTERNAL_POWER_ON is
 already a local invalidation attestation, not a hard-reset operation. Future
 startConfigure/startVerify use the same slot and OperationBudget; their behavior
 is specified below but no successful placeholder call exists.
@@ -584,6 +584,16 @@ retains normalized release evidence independently of the operation status.
   the post-callback upper bound plus `max(2000, pollIntervalUs)`. It survives cancel, take, abandon and invalidation. Publish it as
   `busQuietUntilUs`. A shared-bus owner holds other PHYs from before the poll that can issue PHYRCR[15] until that time. If the post-callback sample regressed, no anchor exists: `busQuietValid` is false, timed I/O is already refused, and the owner applies OP-12's 2000 us.
 
+  A malformed submitted HARD receipt cannot prove no write: it also retains possible
+  effects and the floor, even if attempt flags are missing. Valid zero-attempt
+  denials remain effect-free. Overflow forming this mandatory floor leaves its
+  anchor invalid and latches CLOCK_CONTRACT because the nonwrapping timeline
+  cannot prove the required wait; preserve an existing primary error, otherwise
+  terminate BOUND_ADMISSION. Ordinary nonfloor due overflow does not add this latch.
+  Cached floors expire only when a timed call observes their endpoint. Safe raw
+  reads can sample the clock to reject/expire a floor before any MDIO; snapshots,
+  notifications, cancellation and result delivery remain clock-silent.
+
   **Link evidence during writes.** If a RUNNING operation has attempted a semantic write, or `temporaryMayBeActive` is set,
   `readLinkStatus` publishes the link bit only, with `resolvedModeValid=false` and `pauseValid=false`, and copies
   `temporaryMayBeActive` into `LinkSnapshot`. Otherwise a reader could combine new ANAR with old ALNPAR, or report an internal loopback
@@ -650,8 +660,9 @@ command once: BMCR=0x8000 for PCS, PHYRCR=0x8000 for HARD or 0x4000 for RESTART.
 Never compose reset commands from sampled command bits or poll address 0x8000.
 After required identity/readiness, every startInitialize writes and verifies
 VOD_CFG3=0x4A40 for every ResetKind. Unknown identity forbids configuration writes.
-Hard reset is source-defined to resample applicable straps, with the documented
-POR-only exceptions; identified strap-change measurement remains Q5, NOT RUN.
+The best reading permits hard reset to resample eligible straps, but software-reset
+wording remains arguable: retain `hard_reset_straps` and Q5, NOT RUN. ENHANCED
+Strap1/6 are not re-latched by reset; no POR-only BASIC restriction is inferred.
 
 ### Desired state, invalidation and acyclic restoration
 

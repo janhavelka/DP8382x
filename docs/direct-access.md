@@ -194,3 +194,8 @@ measured traces. SDK link, physical timing and hardware qualification are NOT RU
 The [direct-access report](reports/implementation/11-clause22-transport.md),
 [MMD report](reports/implementation/12-atomic-mmd.md) and
 [test guide](../test/README.md) record commands, scope and evidence.
+
+Prompt 16 applies the persistent HARD quiet floor to every frame, including raw
+reads, the collector and later operations. A timed call can sample the clock to
+reject or expire the floor before MDIO. Cached access remains clock-silent; the
+shared owner must also exclude other PHY addresses. See [initialization](initialization.md).

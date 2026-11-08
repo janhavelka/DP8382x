@@ -399,7 +399,8 @@ copied as implementation. Q7 fixtures must compare recipes and physical distance
 
 Original SNLS647I table 8-19 (pp54–55), 8.3.13 (p40), table 8-81 (p86) and
 8-87/88 (pp89–90) were independently reopened for prompt 15. These literal
-expectations are in `test/operations.cpp`, not generated from driver masks:
+expectations originated in `test/operations.cpp`, not generated from driver masks;
+stage16 adds the PHYRCR precheck described below:
 
 - PCS command is exactly `W(00,8000)` after a separate BMCR check. Completion
   requires a later `R(00)` with bit `8000` clear. Sticky `8000` ends by caller
@@ -425,3 +426,24 @@ sample to prove reset look-ahead is rechecked at actual submission.
 No arithmetic vector establishes controller timing or physical reset domains.
 The source/implementation review and qualification limits are in the
 [stage report](reports/implementation/15-initialize-pcs-reset.md).
+
+## Stage 16 independent reset vectors
+
+Original SNLS647I table 8-48 (p73) independently gives HARD `W(1F,8000)` and
+RESTART `W(1F,4000)`, reserved13:0 neutral zero. Read `1F`, never address8000;
+requested bit clear with the other command set is not readiness. C22 address8000
+still rejects before callbacks. Full current no-wait traces are NONE20 and
+PCS/HARD/RESTART32 frames: stage16 adds one PHYRCR precheck to stage15's historical
+19/31 counts above. `test/reset.cpp` compares actual literals and all failure positions.
+
+For fixed50us/frame100us/lag10000us with requested polling1000us, HARD OP-6
+reservation is `40000+150+2000+150=42300us`; equality rejects, one us more admits.
+RESTART retains the PCS41300us arithmetic and has no HARD floor. For HARD
+completion raw10000 and lag10000, the floor is22000; raw21000 cannot issue any
+frame, even after cancel/take/abandon or through another owner-routed PHY. A clock
+regression or unrepresentable floor retains uncertainty and closes timed access.
+
+Faulty reports cannot convert an unreported command into proof of no effects.
+A success receipt missing its command frame retains possible reset and the quiet
+floor. A valid zero-attempt BUSY/error remains effect-free. These are transport
+contract regressions, not physical reset measurements. Q5 remains NOT RUN.

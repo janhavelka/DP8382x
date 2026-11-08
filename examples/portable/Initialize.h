@@ -9,6 +9,21 @@ struct InitializeAttempt {
   DP8382x::OperationToken token{};
   DP8382x::OperationResult result{};
   bool resultAvailable{false};
+  DP8382x::ResetKind reset{DP8382x::ResetKind::NONE};
+  bool hardFloorCaptured{false};
+};
+
+// This belongs to the shared controller owner, not to one PHY. It outlives
+// cancel/take/abandon/end/rebind. Every bus participant consults the same value.
+// A missing anchor requires trusted external timing/disposition before the
+// owner explicitly replaces this state; elapsed time on a broken clock is no proof.
+struct SharedMdioQuiet {
+  uint64_t untilUs{0};
+  bool unanchored{false};
+
+  bool canIssue(uint64_t trustedNowUs) const noexcept {
+    return !unanchored && trustedNowUs >= untilUs;
+  }
 };
 
 // Before calling, the application establishes supply/clock/RESET_N readiness,
@@ -22,6 +37,7 @@ inline DP8382x::Status beginInitialization(DP8382x::DP8382x& phy,
   if (status.is(DP8382x::Err::IN_PROGRESS)) {
     attempt = {};
     attempt.token = token;
+    attempt.reset = reset;
   }
   return status;
 }
@@ -32,9 +48,20 @@ inline DP8382x::Status beginInitialization(DP8382x::DP8382x& phy,
 // maxFrames is a slice: the driver yields before any batch that cannot fit.
 inline DP8382x::Status pollInitialization(DP8382x::DP8382x& phy,
                                           InitializeAttempt& attempt,
+                                          SharedMdioQuiet& sharedQuiet,
                                           uint32_t maxFrames = DP8382x::MAX_BATCH_FRAMES) noexcept {
   if (attempt.resultAvailable) { return attempt.result.status; }
+  if (attempt.reset == DP8382x::ResetKind::HARD &&
+      phy.operationSnapshot().phase == DP8382x::OperationPhase::COMMAND) {
+    attempt.hardFloorCaptured = false; // A new command needs its own completion anchor.
+  }
   const auto status = phy.pollOperation(attempt.token, maxFrames);
+  const auto snapshot = phy.operationSnapshot();
+  if (snapshot.busQuietValid) {
+    if (snapshot.busQuietUntilUs > sharedQuiet.untilUs) sharedQuiet.untilUs = snapshot.busQuietUntilUs;
+    if (snapshot.phase == DP8382x::OperationPhase::WAIT) attempt.hardFloorCaptured = true;
+  }
+  if (phy.transportSnapshot().clockInvalid) sharedQuiet.unanchored = true;
   if (status.is(DP8382x::Err::IN_PROGRESS)) { return status; }
   // A token/lifetime rejection must not be presented as this operation's result.
   DP8382x::OperationResult result;
@@ -42,6 +69,11 @@ inline DP8382x::Status pollInitialization(DP8382x::DP8382x& phy,
   if (!taken.ok()) { return taken; }
   attempt.result = result;
   attempt.resultAvailable = true;
+  if (result.reset == DP8382x::ResetKind::HARD &&
+      (result.mutationAttempted || result.mutationPossible)) {
+    if (snapshot.busQuietValid) attempt.hardFloorCaptured = true;
+    if (!attempt.hardFloorCaptured) sharedQuiet.unanchored = true;
+  }
   return result.status;
 }
 
@@ -49,6 +81,9 @@ inline DP8382x::Status pollInitialization(DP8382x::DP8382x& phy,
 // admission, drains users, and establishes external reset, isolation, power
 // removal or transfer to another owner BEFORE passing true. This bool records
 // that external decision; it neither performs nor proves a physical action.
+// Keep SharedMdioQuiet after this call. end() discards the core floor, but the
+// shared owner still holds all PHYs until its retained floor or trusted external
+// recovery requirement is satisfied. Never clear it merely because teardown succeeded.
 inline DP8382x::Status abandonInitialization(DP8382x::DP8382x& phy,
                                              bool externalDispositionEstablished) noexcept {
   if (!externalDispositionEstablished) {
