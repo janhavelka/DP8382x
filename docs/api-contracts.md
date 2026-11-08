@@ -454,85 +454,26 @@ and mechanically checked, with destructive status owned by one collector.
 
 ## Cooperative values
 
-```cpp contract
-namespace DP8382x {
-enum class OperationKind : uint8_t { NONE, INITIALIZE, CONFIGURE, VERIFY };  // Add kinds with their implementing feature.
-enum class OperationState : uint8_t { IDLE, RUNNING, RESULT_PENDING };
-enum class ResetKind : uint8_t { NONE, PCS, HARD, RESTART };
+[DP8382x.h](../include/DP8382x/DP8382x.h) owns the shipped operation declarations:
+OperationToken, OperationKind/State/Phase, ResetKind, OperationBudget,
+InitializeOptions, StrapEvidence, ConfigurationMismatch, BatchSummary,
+OperationResult and OperationSnapshot. Stage 15 implements startInitialize,
+pollOperation, takeResult, cancel, abandonCleanup, invalidateDeviceState,
+operationSnapshot and isInitialized. See the [initialization guide](initialization.md)
+and compiling [owner example](../examples/portable/Initialize.h).
 
-struct OperationBudget {
-  IoBudget io{};                   // Absolute deadline and total frames for this operation.
-  uint32_t pollIntervalUs{1000};   // Positive owner policy between completion reads, not silicon timing.
-  uint32_t maxStalledPolls{100000};  // Positive; consecutive polls with no batch and no clock advance.
-};
-struct InitializeOptions { ResetKind reset{ResetKind::PCS}; };
+Only INITIALIZE and NONE/PCS are exposed now. HARD/RESTART and the retained
+busQuietUntilUs/busQuietValid floor arrive with stage 16; CONFIGURE and verified
+SettingsSnapshot arrive with stages 17–18; VERIFY arrives with 22. No unimplemented
+kind, floor or desired-link-settings snapshot is exposed. EXTERNAL_POWER_ON is
+already a local invalidation attestation, not a hard-reset operation. Future
+startConfigure/startVerify use the same slot and OperationBudget; their behavior
+is specified below but no successful placeholder call exists.
 
-struct BatchSummary {
-  OperationPhase phase{OperationPhase::NONE};
-  uint8_t attemptedFrames{0};
-  uint8_t completedFrames{0};
-  bool effectPossible{false};
-  Status normalized{Err::RESULT_NOT_AVAILABLE, 0, "No batch"};
-  Status release{Err::RESULT_NOT_AVAILABLE, 0, "No batch"};
-  TransportViolation violation{TransportViolation::NONE};
-  bool late{false};
-};
-struct OperationResult {
-  OperationToken token{};
-  OperationKind kind{OperationKind::NONE};
-  ResetKind reset{ResetKind::NONE};
-  Status status{Err::RESULT_NOT_AVAILABLE, 0, "No operation"};
-  bool mutationAttempted{false};     // Historical semantic-target effects; selector writes are excluded.
-  bool mutationCompleted{false};
-  bool mutationPossible{false};
-  bool commandRequired{false};
-  bool commandAccepted{false};
-  bool protocolComplete{false};
-  bool temporaryMayBeActive{false};
-  bool persistentRestored{false};
-  bool cleanupOwed{false};           // Barrier state when this operation ended.
-  bool clockInvalid{false};
-  bool late{false};
-  DeviceIdentity identity{};
-  StrapEvidence straps{};
-  SettingsSnapshot settings{};
-  ConfigurationMismatch mismatch{};
-  BatchSummary failingBatch{};       // First failing batch, otherwise the last batch.
-};
-struct OperationSnapshot {           // Bus and clock silent. Holds no result copy.
-  OperationToken token{};
-  OperationState state{OperationState::IDLE};
-  OperationKind kind{OperationKind::NONE};
-  OperationPhase phase{OperationPhase::NONE};
-  Status status{Err::RESULT_NOT_AVAILABLE, 0, "No operation"};
-  bool cleanupOwed{false};
-  bool temporaryMayBeActive{false};
-  uint64_t nextPollAtUs{0};
-  bool nextPollValid{false};
-  uint64_t busQuietUntilUs{0};       // Hard-reset floor end; other PHYs on this bus stay silent until then.
-  bool busQuietValid{false};         // True in every state while the floor is pending.
-  IoBudget remaining{};
-  uint32_t stalledPolls{0};
-};
-
-}
-```
-
-The following signatures are DP8382x class-member declarations:
-
-```cpp interface
-Status startInitialize(const InitializeOptions& options, const OperationBudget& budget, OperationToken& token) noexcept;
-Status startConfigure(const LinkSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept;
-Status startVerify(const OperationBudget& budget, OperationToken& token) noexcept;
-Status pollOperation(OperationToken token, uint32_t maxFrames = MAX_BATCH_FRAMES) noexcept;
-OperationSnapshot operationSnapshot() const noexcept;
-Status takeResult(OperationToken token, OperationResult& result) noexcept;
-Status cancel(OperationToken token) noexcept;
-Status abandonCleanup() noexcept;
-```
-
-NONE/PCS ship with stage 15; HARD/RESTART and EXTERNAL_POWER_ON with 16;
-CONFIGURE with 17-18; VERIFY with 22. Features add kinds alongside their behavior.
+StrapEvidence retains raw partial/historical words, with independent validity
+and staleness. A trustworthy completed read survives a later release/deadline
+failure; it does not establish a complete current strap capture. BatchSummary
+retains normalized release evidence independently of the operation status.
 
 ## One cooperative operation and retained result
 

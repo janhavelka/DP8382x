@@ -1,5 +1,10 @@
 # DP83826I core silicon behavior
 
+Stage 15 executes the [initialization/reset procedure](initialization.md) with
+NONE/PCS, raw strap capture and unconditional mandatory VOD verification. Its
+retained effects and separate restoration result do not establish link or physical
+reset timing. Neither RCSR replay nor CDCR rescal is silently included.
+
 This is the prompt-3 research contract for **DP83826I / SNLS647I**, including
 DP83826IRHBR. No driver is implemented or physically qualified. The
 [ledger](registers/dp83826i.json) owns numeric definitions, ordered procedures,

@@ -394,3 +394,34 @@ Table2-4 gives5.35ns/m Cat5/5e,5 Cat6,4.6 Cat7. No peak is NO_PEAK, not zero
 metres or good cable. This derives only transmit-A; raw B/cross capture is separate.
 The note's MATLAB indexing, undefined temporary and5.2/5.35 discrepancy are not
 copied as implementation. Q7 fixtures must compare recipes and physical distance.
+
+## Stage 15 independent initialization regressions
+
+Original SNLS647I table 8-19 (pp54–55), 8.3.13 (p40), table 8-81 (p86) and
+8-87/88 (pp89–90) were independently reopened for prompt 15. These literal
+expectations are in `test/operations.cpp`, not generated from driver masks:
+
+- PCS command is exactly `W(00,8000)` after a separate BMCR check. Completion
+  requires a later `R(00)` with bit `8000` clear. Sticky `8000` ends by caller
+  limits; `3100` is a clear example, not an identity oracle.
+- Mandatory vendor write: `W(0D,001F) W(0E,030E) W(0D,401F) W(0E,4A40)`.
+  Verification reselects completely and reads `0E`. Table 8-81's four stable
+  fields independently sum to mask `F000|0800|0780|0040=FFC0` and configured
+  word `4000+0800+0200+0040=4A40`. Readback `4A7F` passes; `8400` and `4A00` fail.
+- Capture uses complete vendor reads of `0467` and `0468`, retaining both raw
+  words without interpreting BASIC mode through ENHANCED strap labels.
+- NONE with no active reset takes `2+4+4+1+4+4=19` frames. PCS clear on its first
+  completion observation adds command/read and renewed ID/straps:
+  `2+4+4+1+1+1+2+4+4+4+4=31` frames. Selector failure cannot imply target effect.
+
+Independent OP-6 policy arithmetic is separate from silicon facts. With fixed
+50 us, per-frame 100 us, lag 10000 us and poll interval 1000 us, one-frame bound
+is 150 us and reset reservation is `40000+150+1000+150=41300` us. Deadline equal
+to raw+41300 rejects; one us more admits. After command return at raw10000,
+completion upper bound is20000 and next due21000: raw20000 cannot poll,
+raw30000 can. Tests also advance the pre-callback clock after the earlier poll
+sample to prove reset look-ahead is rechecked at actual submission.
+
+No arithmetic vector establishes controller timing or physical reset domains.
+The source/implementation review and qualification limits are in the
+[stage report](reports/implementation/15-initialize-pcs-reset.md).

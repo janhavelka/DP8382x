@@ -113,7 +113,7 @@ struct EvidenceSnapshot {
   std::array<EvidenceSample, static_cast<uint8_t>(EvidenceSource::COUNT)> samples{}; ///< Indexed by EvidenceSource.
   uint32_t lastRequested{0}; ///< Sources requested by the latest admitted acquisition.
   Status lastStatus{Err::RESULT_NOT_AVAILABLE, 0, "No evidence acquisition"}; ///< Latest acquisition or admitted mixed update result; comparison-only wake exit leaves it unchanged.
-  bool configurationDirty{false}; ///< Semantic raw/external mutation; no verification is implied.
+  bool configurationDirty{false}; ///< Historical mutation/uncertainty latch; not the initialized-state flag.
 };
 
 /// @brief Owner notification of lost device trust; no action is taken on the PHY.
@@ -125,10 +125,122 @@ enum class InvalidationReason : uint8_t {
   AMBIGUOUS_MUTATION ///< A write may have applied without valid completion.
 };
 
-/// @brief Noncopyable, application-serialized DP83826I direct-access binding.
+/// @brief Instance-scoped lifetime operation identity; zero is invalid.
+struct OperationToken {
+  uint64_t value{0}; ///< Value is never reset by bind/end.
+};
+/// @brief No operation token.
+constexpr OperationToken INVALID_OPERATION_TOKEN{};
+/// @brief Implemented cooperative operation kinds.
+enum class OperationKind : uint8_t {
+  NONE, ///< Empty slot.
+  INITIALIZE ///< Identity, optional PCS reset and mandatory VOD verification.
+};
+/// @brief One retained operation slot.
+enum class OperationState : uint8_t {
+  IDLE, ///< No retained operation.
+  RUNNING, ///< Caller polling advances work.
+  RESULT_PENDING ///< Frozen result awaits delivery.
+};
+/// @brief Implemented initialization reset choices; hard reset/restart arrive separately.
+enum class ResetKind : uint8_t {
+  NONE, ///< Apply mandatory initialization without issuing reset.
+  PCS ///< Reset PCS registers, retaining vendor registers.
+};
+/// @brief Observable procedure phase; waits never retain a controller lock.
+enum class OperationPhase : uint8_t {
+  NONE, ///< Empty slot.
+  PREFLIGHT, ///< Local request admission.
+  IDENTIFY, ///< Identity and raw strap capture.
+  QUIESCE, ///< Check for an already active reset.
+  COMMAND, ///< Issue the literal PCS reset frame.
+  WAIT, ///< Scheduled reset-completion observation.
+  RESTORE, ///< Apply implemented persistent settings.
+  VERIFY, ///< Read back stable owned settings.
+  COMPLETE ///< Frozen terminal result.
+};
+/// @brief Finite aggregate work and polling policy; no guessed silicon deadlines.
+struct OperationBudget {
+  IoBudget io{}; ///< Absolute deadline and total physical-frame allowance.
+  uint32_t pollIntervalUs{1000}; ///< Positive policy interval after reset/completion reads.
+  uint32_t maxStalledPolls{100000}; ///< Positive consecutive no-work/no-clock-advance limit.
+};
+/// @brief Copied initialization request; NONE still writes/verifies mandatory VOD.
+struct InitializeOptions {
+  ResetKind reset{ResetKind::PCS}; ///< Selected reset.
+};
+/// @brief Raw captured straps, never assumed pin levels or decoded BASIC/ENHANCED defaults.
+struct StrapEvidence {
+  uint16_t sor1{0}; ///< Latest returned SOR1 word, subject to sor1Valid.
+  uint16_t sor2{0}; ///< Latest returned SOR2 word, subject to sor2Valid.
+  bool sor1Valid{false}; ///< A valid SOR1 word has been captured.
+  bool sor2Valid{false}; ///< A valid SOR2 word has been captured.
+  uint64_t observedAtUs{0}; ///< Conservative stamp after complete current capture.
+  bool timeValid{false}; ///< Complete-capture timestamp is usable.
+  bool stale{true}; ///< Reset or partial recapture can mix historical/current words.
+};
+/// @brief First failed stable-bit comparison in a complete verification pass.
+struct ConfigurationMismatch {
+  bool valid{false}; ///< Remaining fields describe an actual comparison.
+  bool mmd{false}; ///< True for an indirect target.
+  uint8_t devad{0}; ///< MMD selector when mmd is true.
+  uint16_t registerAddress{0}; ///< C22 register or MMD wire offset.
+  uint16_t mask{0}; ///< Verified stable bits only.
+  uint16_t expected{0}; ///< Expected masked value.
+  uint16_t observed{0}; ///< Actual returned word, including non-owned bits.
+};
+/// @brief Last operation batch, or its first failing batch; raw receipt stays in transportSnapshot.
+struct BatchSummary {
+  OperationPhase phase{OperationPhase::NONE}; ///< Phase that submitted the batch.
+  uint8_t attemptedFrames{0}; ///< Valid attempted prefix count.
+  uint8_t completedFrames{0}; ///< Independently completed prefix count.
+  bool effectPossible{false}; ///< At least one frame may have affected hardware.
+  Status normalized{Err::RESULT_NOT_AVAILABLE, 0, "No batch"}; ///< Primary operation-call outcome.
+  Status release{Err::RESULT_NOT_AVAILABLE, 0, "No batch"}; ///< Normalized release outcome.
+  TransportViolation violation{TransportViolation::NONE}; ///< Callback contract violation.
+  bool late{false}; ///< Raw post-return clock reached the exclusive deadline.
+};
+/// @brief Frozen evidence delivered once; restoration uses a separate token/result.
+struct OperationResult {
+  OperationToken token{}; ///< Owning instance's lifetime token.
+  OperationKind kind{OperationKind::NONE}; ///< Operation that produced this result.
+  ResetKind reset{ResetKind::NONE}; ///< Requested reset, separate from external observations.
+  Status status{Err::RESULT_NOT_AVAILABLE, 0, "No operation"}; ///< Immutable terminal outcome.
+  bool mutationAttempted{false}; ///< Semantic target write attempted; excludes selectors.
+  bool mutationCompleted{false}; ///< Semantic target completed, even if later failure occurred.
+  bool mutationPossible{false}; ///< Semantic effect may have occurred.
+  bool commandRequired{false}; ///< This operation requests a reset command.
+  bool commandAccepted{false}; ///< Reset frame completed; does not prove reset completion.
+  bool protocolComplete{false}; ///< Requested command subsequently observed clear on time.
+  bool temporaryMayBeActive{false}; ///< Initialization alone never starts a temporary stimulus.
+  bool persistentRestored{false}; ///< All currently owned persistent state verified.
+  bool cleanupOwed{false}; ///< Barrier at termination; current state is in operationSnapshot.
+  bool clockInvalid{false}; ///< Clock contract failed during the operation.
+  bool late{false}; ///< A batch returned at/after the deadline.
+  DeviceIdentity identity{}; ///< Latest operation-owned identity evidence.
+  StrapEvidence straps{}; ///< Captured raw straps with historical validity.
+  ConfigurationMismatch mismatch{}; ///< First stable mismatch, if any.
+  BatchSummary failingBatch{}; ///< First failure, otherwise latest batch.
+};
+/// @brief Bus/clock-silent operation progress, without a copy of the retained result.
+struct OperationSnapshot {
+  OperationToken token{}; ///< Occupied slot token, zero when idle.
+  OperationState state{OperationState::IDLE}; ///< Slot state.
+  OperationKind kind{OperationKind::NONE}; ///< Occupied operation kind.
+  OperationPhase phase{OperationPhase::NONE}; ///< Current phase or COMPLETE.
+  Status status{Err::RESULT_NOT_AVAILABLE, 0, "No operation"}; ///< Progress/frozen status.
+  bool cleanupOwed{false}; ///< Current restoration barrier, even with an empty slot.
+  bool temporaryMayBeActive{false}; ///< False for the implemented initialization operation.
+  uint64_t nextPollAtUs{0}; ///< Earliest legal next reset read.
+  bool nextPollValid{false}; ///< A valid scheduled wait exists.
+  IoBudget remaining{}; ///< Original deadline and remaining physical frames.
+  uint32_t stalledPolls{0}; ///< Consecutive polls without work or clock advance.
+};
+
+/// @brief Noncopyable, application-serialized DP83826I driver.
 /// @pre Serialize every call, including cached access. The borrowed context and
 /// callbacks outlive calls. No callback may retain buffers or re-enter this object.
-/// @note No allocation, SDK, automatic retry or hardware initialization.
+/// @note No allocation, SDK, hidden retries or work without caller polling.
 /// Maintenance writes return a cached failed/rejected readIdentity status before
 /// any callback. Successful reprobe or explicit rebind clears that restriction.
 /// Existing owner-attested maintenance before the first probe remains allowed;
@@ -151,7 +263,7 @@ public:
 
   /// @brief Validate/copy a quiescent binding without clock or MDIO callbacks.
   /// @param[in] config Exact part, board interface, address and borrowed transport.
-  /// @return OK, INVALID_CONFIG, UNSUPPORTED for RGMII, or BUSY during a call.
+  /// @return OK, INVALID_CONFIG, UNSUPPORTED for RGMII, or BUSY for live work, a pending result or cleanup.
   /// @note Failure preserves the old binding/evidence. Success clears local
   /// receipts, never the application's shared controller quarantine.
   /// Repair a clock/report-contract fault and stop affected controller users
@@ -160,11 +272,48 @@ public:
   /// @brief Detach locally and clear receipts; no release/reset/power callback.
   /// @pre Owner has copied required evidence and retains responsibility for
   /// controller faults; repair is required before a new binding resumes I/O.
-  /// @return OK (also unbound), or BUSY when a synchronous call is live.
+  /// @return OK (also unbound), or BUSY for live work, a pending result or cleanup.
   Status end() noexcept;
   /// @brief Inspect local binding without I/O or clock access.
   /// @return True for a valid declaration, not proof of identity or bus readiness.
   bool isBound() const noexcept { return _bound; }
+
+  /// @brief Admit initialization without MDIO or clock access; copy inputs into one slot.
+  /// @param[in] options NONE or PCS; every initialization writes/verifies VOD_CFG3.
+  /// @param[in] budget Positive interval/stall limit, absolute deadline and total frames.
+  /// @param[out] token Assigned only when IN_PROGRESS is returned; instance lifetime scope.
+  /// @return IN_PROGRESS or local syntax/binding/slot/clock/budget rejection.
+  /// @pre Owner has established supplies/clock/reset readiness and admitted disruption.
+  Status startInitialize(const InitializeOptions& options, const OperationBudget& budget,
+                         OperationToken& token) noexcept;
+  /// @brief Advance at most one complete owned batch; return while waiting or short of slice.
+  /// @param[in] token Exact occupied token; stale/foreign tokens cannot access new results.
+  /// @param[in] maxFrames Per-poll allowance; zero/short slices yield without splitting a batch.
+  /// @return IN_PROGRESS or frozen terminal status; token/lifetime errors perform no I/O.
+  /// @note SNLS647I table8-19 PCS uses literal 00=8000; completion polls that bit clear.
+  /// Every initialization writes 31:030E=4A40 and verifies FFC0 (table8-81).
+  /// Waits use conservative post-callback time; no controller lock spans polls.
+  Status pollOperation(OperationToken token, uint32_t maxFrames = MAX_BATCH_FRAMES) noexcept;
+  /// @brief Copy current progress/barrier without MDIO or clock access.
+  /// @return Slot state and remaining allowance; not a completion or link promise.
+  OperationSnapshot operationSnapshot() const noexcept { return _operation; }
+  /// @brief Deliver one frozen result locally, leaving any restoration barrier intact.
+  /// @param[in] token Exact pending token.
+  /// @param[out] result Assigned once on OK; unchanged on rejection.
+  /// @return OK, RESULT_NOT_AVAILABLE, TOKEN_MISMATCH or BUSY during a callback.
+  Status takeResult(OperationToken token, OperationResult& result) noexcept;
+  /// @brief Cancel locally and freeze evidence; never perform restoration I/O.
+  /// @param[in] token Exact occupied token; repeated cancel of pending result is OK.
+  /// @return OK or token/lifetime error; terminal outcome is retained separately.
+  Status cancel(OperationToken token) noexcept;
+  /// @brief Transfer restoration responsibility to the application without callbacks.
+  /// @pre Owner established external reset/isolation/power removal or safe responsibility transfer.
+  /// @return BUSY while running/in callback; otherwise OK, retaining all historical evidence.
+  /// @note Does not release controller quarantine or prove hardware restoration.
+  Status abandonCleanup() noexcept;
+  /// @brief Query implemented initialization readiness without MDIO or clock access.
+  /// @return True only after identity/reset/mandatory VOD verification; never a link claim.
+  bool isInitialized() const noexcept { return _initialized; }
 
   /// @brief Acquire and accept identity at the bound address in one two-read batch.
   /// @param[out] identity Assigned only after complete in-budget transport and identity acceptance.
@@ -290,6 +439,9 @@ public:
   /// @brief Invalidate configuration and mark observations historical without I/O.
   /// @param[in] reason Known external/raw uncertainty; invalid enum is rejected.
   /// @return OK or INVALID_PARAM; BUSY during a callback; samples are never erased.
+  /// @note RUNNING freezes DEVICE_INVALIDATED; a pending historical result stays immutable.
+  /// EXTERNAL_RESET/EXTERNAL_POWER_ON clear current cleanup by owner attestation.
+  /// Every reason withdraws initialized state and current identity capabilities.
   Status invalidateDeviceState(InvalidationReason reason) noexcept;
   /// @brief Copy retained raw/normalized evidence without clock or MDIO callbacks.
   /// @return Copied report; raw invalid timestamps/statuses must not be trusted.
@@ -300,17 +452,38 @@ private:
   TransportSnapshot _transport{};
   EvidenceSnapshot _evidence{};
   DeviceIdentity _identity{};
+  enum class InitStep : uint8_t {
+    IDENTIFY, SOR1, SOR2, CHECK_RESET, COMMAND, WAIT_EXISTING, WAIT_COMMAND,
+    REIDENTIFY, RESOR1, RESOR2, APPLY, VERIFY
+  };
+  OperationSnapshot _operation{};
+  OperationResult _result{};
+  OperationBudget _operationBudget{};
+  InitStep _initStep{InitStep::IDENTIFY};
+  uint64_t _tokenCounter{0};
+  uint64_t _pollTimeUs{0};
+  bool _pollTimeValid{false};
+  bool _polling{false};
+  bool _initialized{false};
   bool _bound{false};
   bool _active{false};
   bool _stopped{false};
   bool _timeValid{false};
   uint64_t _lastTimeUs{0};
   Status _sampleTime(uint64_t& raw, uint64_t& upper) noexcept;
-  Status _execute(MdioBatch batch, const IoBudget& budget, bool* called = nullptr) noexcept;
+  Status _execute(MdioBatch batch, const IoBudget& budget, bool* called = nullptr,
+                  bool operation = false) noexcept;
+  Status _readIdentity(DeviceIdentity& identity, const IoBudget& budget, bool operation,
+                       bool* called = nullptr) noexcept;
   void _retainEvidence(const MdioBatch& batch, const BatchResult& result,
                        bool clockValid, uint64_t before, uint64_t upper) noexcept;
   void _invalidateEvidence() noexcept;
   Status _checkMutation() const noexcept;
+  Status _checkToken(OperationToken token) const noexcept;
+  Status _finishOperation(Status status) noexcept;
+  Status _yieldOperation(uint64_t raw) noexcept;
+  void _setInitStep(InitStep step) noexcept;
+  Status _waitOperation() noexcept;
 };
 
 } // namespace DP8382x

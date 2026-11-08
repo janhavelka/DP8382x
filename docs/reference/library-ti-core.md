@@ -396,3 +396,13 @@ status/counter rows are source-implied collector routes under Q1; the three stab
 capability/advertisement words permit safe reads only. Generic mutation cannot
 bypass their feature owner. No destructive read or later write failure erases an
 already consumed valid sample; ambiguous consumption records possible history loss.
+
+## Prompt 15 current reset and initialization recheck
+
+The [2026-11-08 source/implementation review](../reports/implementation/15-initialize-pcs-reset.md)
+reopened the original BMCR, VOD and strap tables, visually checked the timing
+footnote, and compared current TI RTOS sources and per-file licenses. Current
+SNLS647I bytes match the preserved archive. Independent mask/readback and
+100 Hz budget vectors now execute against the portable operation implementation.
+TI's generic PCS RMW remains a comparison; the core uses its literal reset
+procedure. Physical timing/reset-domain gates remain open.

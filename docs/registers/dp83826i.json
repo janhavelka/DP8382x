@@ -9459,9 +9459,9 @@
         "pcs_reset_extent"
       ],
       "owner": {
-        "api": "startReset / startRecover",
-        "cli": "owner-routed startReset / startRecover (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startReset / startRecover; prompts 15, 53-55",
+        "api": "startInitialize({PCS})",
+        "cli": "owner-routed startInitialize (prompts 44-46)",
+        "test": "test/operations.cpp literal reset, phase failure and lifecycle suites; prompts 15, 53-55",
         "implementationStage": 15
       }
     },
@@ -11912,16 +11912,16 @@
         "external_reset"
       ],
       "owner": {
-        "api": "startReset / startRecover",
-        "cli": "owner-routed startReset / startRecover (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startReset / startRecover; prompts 15, 53-55",
+        "api": "startInitialize / invalidateDeviceState",
+        "cli": "owner-routed initialization/reset (prompts 44-46)",
+        "test": "test/operations.cpp PCS traces/effects; hard reset and restart prompt 16",
         "implementationStage": 15
       },
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "PARTIAL",
+        "hostTested": "PARTIAL",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
@@ -11929,7 +11929,7 @@
         "hard_reset_straps",
         "pcs_reset_extent"
       ],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities."
+      "notes": "Prompt 15 implements PCS initialization, retained effects, external invalidation and bounded restoration. Hard reset/restart remain prompt 16; physical reset-domain gates remain open."
     },
     {
       "id": "initialization",
@@ -11955,13 +11955,13 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities."
+      "notes": "Prompt 15 implements identity/raw straps, NONE/PCS and unconditional VOD write/FFC0 verification, cancellation and separate restoration. test/operations.cpp and linked portable consumer pass. Link profiles extend initialization in prompts 17-18; SDK/physical evidence remains NOT_RUN."
     },
     {
       "id": "negotiation",

@@ -1,5 +1,10 @@
 # DP83826I register map guide
 
+The `pcs_reset` and `initialize_10base` procedures now have executing
+[stage-15 consumers](initialization.md). Reset-domain uncertainty remains a source
+gate; the implementation re-identifies and conservatively restores only currently
+owned settings. Remaining typed procedures retain their later owners.
+
 The authoritative numeric map is [dp83826i.json](registers/dp83826i.json), with
 [schema](registers/README.md). This guide explains its use without maintaining a
 second numeric register table. The [reference inventory](reference/dp83826i-feature-inventory.md)

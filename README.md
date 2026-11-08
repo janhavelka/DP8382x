@@ -4,7 +4,7 @@ General microcontroller library workspace for Texas Instruments DP8382x Ethernet
 PHYs, starting with **DP83826IRHBR (DP83826I)**. The C++17 core is
 framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet MAC.
 
-**Status: prompts 1–14 complete. Bounded direct/indirect access, destructive-evidence acquisition and safe mixed-register updates are implemented; initialization, SDK support and hardware qualification remain future work.**
+**Status: prompts 1–15 complete. Direct/indirect access, destructive-evidence acquisition, identity and bounded NONE/PCS initialization are implemented; SDK support and hardware qualification remain future work.**
 Official references and the 80-prompt implementation plan are available. The
 [current source and tooling comparison](docs/library-comparison.md) records
 the first two execution results. The [primary silicon ledger](docs/register-map.md)
@@ -18,7 +18,10 @@ covers the complete named catalog, safe dump limits, retained partial samples,
 interrupt enables and WoL W0C acknowledgement. Linked portable examples exercise
 direct/indirect transactions, explicit evidence acquisition and
 [exact-address identity probing](docs/identity.md). Identity acceptance is separate
-from initialized settings, link-up and physical qualification. Initialization, typed features,
+from initialized settings, link-up and physical qualification.
+[Initialization](docs/initialization.md) now provides caller-driven NONE/PCS reset,
+mandatory VOD verification, retained results and explicit bounded restoration.
+Further typed features,
 SDK integration, CLI, runners and hardware qualification remain future work.
 
 Prompt 6 selects one shared C++17 chip implementation, a terminal batch MDIO
@@ -33,7 +36,7 @@ snapshot validity and direct calls. Prompt 8 completes cooperative operations,
 finite primary/cleanup budgets, retained results, lifetime tokens and explicit
 owner-assisted teardown. Executable timing design probes complement the
 ledger and source-policy tests. Prompt 9 ships the passive subset in `include/DP8382x/`;
-device and operation declarations remain contracts, not working stubs.
+later feature declarations remain contracts; stage 15 ships the initialization operation.
 
 The [fresh prompts 4–5 audit](docs/reports/implementation/4-5-silicon-ledger-audit.md)
 records independent PDF review, corrected split-field transition ordering and

@@ -183,3 +183,36 @@ the planning-stage documentation checks.
 
 Use datasheet behavior as the test oracle. Keep the evidence for each layer
 separate; register mocks do not prove a linked firmware image or physical link.
+
+## Initialization and PCS reset (prompt 15)
+
+`operations.cpp` executes six registered suites: initialization, admission,
+timing, failures, lifecycle and ownership. Its independent controller model
+checks literal NONE/PCS traces (19/31 frames), all 50 successful-trace frame
+failure positions, every release phase, retained strap words and malformed
+release reports. It checks exact frame counts, initialized preservation on a
+proved effect-free failure, cancellation at each poll/effect boundary, separate
+restoration tokens/results, stale tokens and bus-silent cleanup/teardown.
+
+Timing cases include strict OP-6 equality at 100 Hz, re-admission at the actual
+pre-callback sample, post-return wait anchors, uint64 overflow, regression latch,
+raw expiry, frozen-clock stalls, zero/short slices and unsplit MMD. Contention
+covers every batch frame and two PHY addresses. The six suites execute 13,056
+active checks; their negative probe demonstrates Release checks remain enabled.
+
+```sh
+cmake -S . -B build/init15-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON
+cmake --build build/init15-release
+ctest --test-dir build/init15-release --output-on-failure --no-tests=error
+cmake -S test/consumer -B build/init15-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build/init15-consumer
+ctest --test-dir build/init15-consumer --output-on-failure --no-tests=error
+python tools/check_doxygen.py
+```
+
+The complete host registration is 40 tests, including six intentional failure
+probes. [Initialize.h](../examples/portable/Initialize.h) is linked and executed
+by the tests-OFF consumer for NONE/PCS and separate failed restoration/abandon.
+Doxygen requires the public operation/evidence pages and rejects undocumented
+negative fixtures. These results prove portable software behavior; physical
+bus/reset timing, SDK link and package export remain separate evidence layers.

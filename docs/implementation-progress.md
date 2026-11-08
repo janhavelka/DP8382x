@@ -1,19 +1,28 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–14 are complete: source research, shared contracts, portable
-values/version tooling, direct/indirect and side-effect access, and exact identity.
-Current local checks include 33 registered Release CTests, 102 Python tests,
+execution. Prompts 1–15 are complete: source research, shared contracts, portable
+values/version tooling, direct/indirect and side-effect access, exact identity and NONE/PCS initialization.
+Current local checks include 40 registered Release CTests, 102 Python tests,
 the linked tests-OFF consumer, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
 The driver now provides the restricted Clause 22/MMD subset, stable-field RMW
 and compiling portable examples. Prompt 13 adds explicit destructive acquisition,
-retained partial evidence and safe MISR/WoL updates. Initialization, typed features, SDK, CLI, runner and hardware
+retained partial evidence and safe MISR/WoL updates. Further typed features, SDK, CLI, runner and hardware
 qualification remain future work. Prompt 5 closes primary-part source dispositions, including
 explicit unresolved gates. Research completion does not claim driver completion.
 
+Prompt 15 adds [caller-driven initialization](initialization.md), cancellation,
+retained results and separately admitted restoration; managed health and link
+profiles remain with their feature stages.
+
 ## Execution record
+
+Prompt 14 final synchronized checkpoint / prompt 15 entry:
+`f7165130b8f584aaf43fee997e4887aa4c3bc064`.
+Prompt 15 report records source and independent review, local checks and retained
+scope gates. Its final commit/sync SHA is in the handoff to avoid a self-reference.
 
 Execution branch: `promptset/dp8382x-implementation-20261028`.
 Base: `main` / `origin/main` at `5e148fffde074b85fadc15d8ff66fe2c77111036`
@@ -170,7 +179,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [12 Implement complete atomic MMD transactions](prompts/12-atomic-mmd.md) | COMPLETE | [Transport guide](direct-access.md), [report](reports/implementation/12-atomic-mmd.md); atomic four-frame read/write and five-frame stable RMW, canonical aliases, phase-failure/exclusion tests and linked portable examples PASS. Local Release, Doxygen, ledger, reference, Python and diff checks PASS; EEE, side-effect-aware access and SDK/physical gates remain explicit. |
 | [13 Implement side-effect-aware register access](prompts/13-side-effect-register-access.md) | COMPLETE | [Report](reports/implementation/13-side-effect-register-access.md), [access guide](side-effect-access.md); complete named catalog, collector, MISR/WoL updates, partial-evidence/invalidation tests and linked portable example. Local Release/consumer/Doxygen/Python/ledger/reference/diff checks PASS; physical/SDK qualification NOT RUN. |
 | [14 Implement exact identity and capability selection](prompts/14-identity-capabilities.md) | COMPLETE | [Report](reports/implementation/14-identity-capabilities.md), [identity guide](identity.md); exact-address two-frame acquisition, partial/rejected evidence, passive capabilities, negative-evidence admission, independent Release suites and linked probe. Local host/consumer/Doxygen/Python/ledger/reference checks PASS; SDK/physical NOT RUN. |
-| [15 Implement initialization and complete PCS reset operations](prompts/15-initialize-pcs-reset.md) | NOT STARTED | None |
+| [15 Implement initialization and complete PCS reset operations](prompts/15-initialize-pcs-reset.md) | COMPLETE | [Report](reports/implementation/15-initialize-pcs-reset.md); 40 Release CTests, linked consumer, 102 Python tests, Doxygen/reference/ledger checks; SDK/physical NOT RUN |
 | [16 Implement hard reset, restart and external-reset reconciliation](prompts/16-hard-reset-restart.md) | NOT STARTED | None |
 | [17 Implement negotiated link settings and verified application](prompts/17-negotiated-link-settings.md) | NOT STARTED | None |
 | [18 Implement forced modes and coupled crossover settings](prompts/18-forced-crossover-settings.md) | NOT STARTED | None |

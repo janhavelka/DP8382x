@@ -1,5 +1,10 @@
 # Scope and architecture
 
+Stage 15 implements one initialization phase switch in the existing facade and
+transport implementation. [Initialization](initialization.md) documents NONE/PCS,
+retained operation evidence and separately admitted restoration. There is no
+generic job engine or desired profile inferred from raw maintenance writes.
+
 The framework-independent C++17 DP8382x core begins with exact DP83826I and is
 shared by portable applications and a native ESP-IDF adapter. Shipped behavior
 is recorded in [implementation progress](implementation-progress.md); design

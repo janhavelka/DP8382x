@@ -14,7 +14,7 @@ Status configError(ConfigDetail detail) noexcept {
 }
 
 Status paramError(ParamDetail detail) noexcept {
-  return Status::Error(Err::INVALID_PARAM, "Invalid direct access",
+  return Status::Error(Err::INVALID_PARAM, "Invalid call argument",
                        static_cast<int32_t>(detail));
 }
 
@@ -313,6 +313,16 @@ Status admitBudget(const IoBudget& budget, const TransportBounds& bounds,
   return Status::Ok();
 }
 
+// OP-6: reserve both bounded transfers, quantization and one scheduled wait.
+Status admitReset(const IoBudget& budget, const TransportBounds& bounds,
+                  uint64_t raw, uint32_t interval) noexcept {
+  const uint64_t reserve = uint64_t{4} * bounds.clockLagUs +
+      uint64_t{2} * (uint64_t{bounds.fixedUs} + bounds.frameUs) + interval;
+  if (budget.maxFrames < 2U || raw >= budget.deadlineUs ||
+      reserve >= budget.deadlineUs - raw) { return timeout(TimeoutDetail::BOUND_ADMISSION); }
+  return Status::Ok();
+}
+
 // Acquisition order captures PHYSTS mirrors before their clearing sources.
 constexpr uint16_t EVIDENCE_ADDRESSES[] = {
   0x0010, 0x0001, 0x0006, 0x000F, 0x0012, 0x0013,
@@ -354,7 +364,9 @@ Status DP8382x::bind(const Config& config) noexcept {
     return Status::Error(Err::UNSUPPORTED, "DP83826I has no RGMII",
                          static_cast<int32_t>(UnsupportedDetail::INTERFACE));
   }
-  if (_active) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  if (_active || _polling || _operation.state == OperationState::RUNNING) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  if (_operation.state == OperationState::RESULT_PENDING) { return busy(BusyDetail::RESULT_PENDING); }
+  if (_operation.cleanupOwed) { return busy(BusyDetail::CLEANUP_REQUIRED); }
   _config = config;
   _transport = {};
   _evidence = {};
@@ -364,11 +376,14 @@ Status DP8382x::bind(const Config& config) noexcept {
   _lastTimeUs = 0;
   _stopped = false;
   _bound = true;
+  _initialized = false;
   return Status::Ok();
 }
 
 Status DP8382x::end() noexcept {
-  if (_active) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  if (_active || _polling || _operation.state == OperationState::RUNNING) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  if (_operation.state == OperationState::RESULT_PENDING) { return busy(BusyDetail::RESULT_PENDING); }
+  if (_operation.cleanupOwed) { return busy(BusyDetail::CLEANUP_REQUIRED); }
   _config = {};
   _transport = {};
   _evidence = {};
@@ -377,6 +392,7 @@ Status DP8382x::end() noexcept {
   _lastTimeUs = 0;
   _stopped = false;
   _bound = false;
+  _initialized = false;
   return Status::Ok();
 }
 
@@ -391,11 +407,16 @@ Status DP8382x::readClause22(uint32_t registerAddress, uint16_t& value,
 }
 
 Status DP8382x::readIdentity(DeviceIdentity& identity, const IoBudget& budget) noexcept {
+  return _readIdentity(identity, budget, false);
+}
+
+Status DP8382x::_readIdentity(DeviceIdentity& identity, const IoBudget& budget, bool operation, bool* invoked) noexcept {
   auto batch = directBatch(cmd::REG_PHYIDR1, FrameKind::READ);
   batch.frameCount = 2;
   batch.frames[1] = {FrameKind::READ, cmd::REG_PHYIDR2, 0, 0, NO_READ_INDEX};
   bool called = false;
-  Status status = _execute(batch, budget, &called);
+  Status status = _execute(batch, budget, &called, operation);
+  if (invoked != nullptr) { *invoked = called; }
   if (!called) { return status; } // Local admission never reuses an old receipt.
   const auto& result = _transport.lastBatch;
   if ((status.code == Err::BUSY || status.code == Err::OPERATION_TIMEOUT) &&
@@ -435,6 +456,12 @@ Status DP8382x::readIdentity(DeviceIdentity& identity, const IoBudget& budget) n
     _invalidateEvidence(); // Old device-state observations cannot describe a different identity.
   }
   _identity = observed;
+  if (!operation && _operation.state == OperationState::RUNNING &&
+      (!status.ok() || (_result.identity.decodedValid &&
+       (_result.identity.id1 != observed.id1 || _result.identity.id2 != observed.id2)))) {
+    _result.identity.stale = true;
+    _finishOperation(configError(ConfigDetail::DEVICE_INVALIDATED));
+  }
   if (status.ok()) { identity = observed; }
   return status;
 }
@@ -448,7 +475,9 @@ Capabilities DP8382x::capabilities() const noexcept {
 
 Status DP8382x::_checkMutation() const noexcept {
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
-  if (_active) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  if (_active || _polling || _operation.state == OperationState::RUNNING) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  if (_operation.state == OperationState::RESULT_PENDING) { return busy(BusyDetail::RESULT_PENDING); }
+  if (_operation.cleanupOwed) { return busy(BusyDetail::CLEANUP_REQUIRED); }
   // Existing maintenance exceptions allow owner-attested use before probing.
   // They must not override a failed/rejected probe. Stale successful identity
   // still permits maintenance, but never supplies usable typed capabilities.
@@ -516,6 +545,7 @@ Status DP8382x::modifyMmd(uint32_t devad, uint32_t registerAddress, uint32_t mas
 }
 
 void DP8382x::_invalidateEvidence() noexcept {
+  _initialized = false;
   _evidence.configurationDirty = true;
   _identity.stale = true;
   for (auto& sample : _evidence.samples) { sample.stale = true; }
@@ -523,8 +553,20 @@ void DP8382x::_invalidateEvidence() noexcept {
 
 Status DP8382x::invalidateDeviceState(InvalidationReason reason) noexcept {
   if (reason > InvalidationReason::AMBIGUOUS_MUTATION) { return paramError(ParamDetail::ENUM_VALUE); }
-  if (_active) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  if (_active || _polling) { return busy(BusyDetail::OPERATION_ACTIVE); }
   _invalidateEvidence();
+  if (_operation.state == OperationState::RUNNING) {
+    _result.identity.stale = true;
+    _result.straps.stale = true;
+    _result.straps.timeValid = false;
+    _finishOperation(configError(ConfigDetail::DEVICE_INVALIDATED));
+    if (reason == InvalidationReason::EXTERNAL_RESET || reason == InvalidationReason::EXTERNAL_POWER_ON) {
+      _operation.cleanupOwed = false;
+      _result.cleanupOwed = false;
+    }
+  } else if (reason == InvalidationReason::EXTERNAL_RESET || reason == InvalidationReason::EXTERNAL_POWER_ON) {
+    _operation.cleanupOwed = false;
+  }
   return Status::Ok();
 }
 
@@ -532,7 +574,8 @@ Status DP8382x::acquireEvidence(uint32_t sourceMask, EvidenceSnapshot& evidence,
                                const IoBudget& budget) noexcept {
   if (sourceMask == 0U || (sourceMask & ~ALL_EVIDENCE) != 0U) { return paramError(ParamDetail::ACCESS_POLICY); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
-  if (_active) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  if (_active || _polling || (_operation.state == OperationState::RUNNING &&
+      _operation.phase == OperationPhase::WAIT)) { return busy(BusyDetail::OPERATION_ACTIVE); }
   uint32_t required = 0;
   for (uint8_t i = 0; i < static_cast<uint8_t>(EvidenceSource::COUNT); ++i) {
     if ((sourceMask & (uint32_t{1} << i)) != 0U) { required += EVIDENCE_ADDRESSES[i] > 31U ? 4U : 1U; }
@@ -668,7 +711,14 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
     }
     // A raw target write cannot establish configuration trust, even on success.
     if (target && frame.kind == FrameKind::WRITE &&
-        (receipt.attempted || receipt.completed || receipt.valueValid || receipt.effectPossible)) { _invalidateEvidence(); }
+        (receipt.attempted || receipt.completed || receipt.valueValid || receipt.effectPossible)) {
+      const bool initialized = _initialized;
+      _invalidateEvidence();
+      // OP-13 preserves readiness on a proved effect-free non-reset failure.
+      if (address != 0U && !receipt.completed && !receipt.valueValid && !receipt.effectPossible) {
+        _initialized = initialized;
+      }
+    }
     if (!completed) { prefix = false; }
   }
 }
@@ -686,10 +736,11 @@ Status DP8382x::_sampleTime(uint64_t& raw, uint64_t& upper) noexcept {
   return Status::Ok();
 }
 
-Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called) noexcept {
+Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called, bool operation) noexcept {
   if (called != nullptr) { *called = false; }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
-  if (_active) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  if (_active || (!operation && (_polling || (_operation.state == OperationState::RUNNING &&
+      _operation.phase == OperationPhase::WAIT)))) { return busy(BusyDetail::OPERATION_ACTIVE); }
   if (_transport.clockInvalid) { return configError(ConfigDetail::CLOCK_CONTRACT); }
   if (_stopped) { return busy(BusyDetail::CONTROLLER_QUARANTINED); }
   CallGuard guard(_active);
@@ -698,6 +749,9 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called) 
   Status status = _sampleTime(before, upper);
   if (status.ok()) {
     status = admitBudget(budget, _config.transport.bounds, batch.frameCount, before, upper);
+  }
+  if (status.ok() && operation && _initStep == InitStep::COMMAND) {
+    status = admitReset(budget, _config.transport.bounds, before, _operationBudget.pollIntervalUs);
   }
   if (!status.ok()) {
     return status;
@@ -729,6 +783,251 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called) 
     if (_transport.late) { status = timeout(TimeoutDetail::DEADLINE); }
   }
   return status;
+}
+
+Status DP8382x::startInitialize(const InitializeOptions& options, const OperationBudget& budget,
+                                OperationToken& token) noexcept {
+  if (options.reset != ResetKind::NONE && options.reset != ResetKind::PCS) { return paramError(ParamDetail::ENUM_VALUE); }
+  if (budget.pollIntervalUs == 0U || budget.maxStalledPolls == 0U) { return paramError(ParamDetail::BUDGET_RANGE); }
+  if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
+  if (_active || _polling || _operation.state == OperationState::RUNNING) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  if (_operation.state == OperationState::RESULT_PENDING) { return busy(BusyDetail::RESULT_PENDING); }
+  if (_transport.clockInvalid) { return configError(ConfigDetail::CLOCK_CONTRACT); }
+  if (budget.io.maxFrames == 0U) { return timeout(TimeoutDetail::FRAME_BUDGET); }
+  if (budget.io.deadlineUs == 0U) { return timeout(TimeoutDetail::DEADLINE); }
+  const bool owed = _operation.cleanupOwed;
+  _operation = {};
+  _operation.cleanupOwed = owed;
+  _operation.token = {++_tokenCounter};
+  _operation.state = OperationState::RUNNING;
+  _operation.kind = OperationKind::INITIALIZE;
+  _operation.status = Status::Error(Err::IN_PROGRESS, "Initialization pending");
+  _operation.remaining = budget.io;
+  _operationBudget = budget;
+  _result = {};
+  _result.token = _operation.token;
+  _result.kind = _operation.kind;
+  _result.reset = options.reset;
+  _result.commandRequired = options.reset == ResetKind::PCS;
+  _pollTimeValid = false;
+  _setInitStep(InitStep::IDENTIFY);
+  token = _operation.token;
+  return _operation.status;
+}
+
+Status DP8382x::_checkToken(OperationToken token) const noexcept {
+  if (token.value == 0U || token.value > _tokenCounter ||
+      (_operation.state != OperationState::IDLE && token.value != _operation.token.value)) {
+    return Status::Error(Err::TOKEN_MISMATCH, "Wrong operation token");
+  }
+  if (_operation.state == OperationState::IDLE) { return Status::Error(Err::RESULT_NOT_AVAILABLE, "Empty operation slot"); }
+  return Status::Ok();
+}
+
+Status DP8382x::_finishOperation(Status status) noexcept {
+  _operation.state = OperationState::RESULT_PENDING;
+  _operation.phase = OperationPhase::COMPLETE;
+  _operation.nextPollValid = false;
+  _operation.status = status;
+  if (_result.persistentRestored) { _operation.cleanupOwed = false; }
+  else if (_result.mutationCompleted || _result.mutationPossible) { _operation.cleanupOwed = true; }
+  _result.status = status;
+  _result.cleanupOwed = _operation.cleanupOwed;
+  _result.clockInvalid = _transport.clockInvalid;
+  return status;
+}
+
+void DP8382x::_setInitStep(InitStep step) noexcept {
+  _initStep = step;
+  _operation.nextPollValid = false;
+  switch (step) {
+    case InitStep::IDENTIFY: case InitStep::SOR1: case InitStep::SOR2:
+    case InitStep::REIDENTIFY: case InitStep::RESOR1: case InitStep::RESOR2:
+      _operation.phase = OperationPhase::IDENTIFY; break;
+    case InitStep::CHECK_RESET: _operation.phase = OperationPhase::QUIESCE; break;
+    case InitStep::COMMAND: _operation.phase = OperationPhase::COMMAND; break;
+    case InitStep::WAIT_EXISTING: case InitStep::WAIT_COMMAND:
+      _operation.phase = OperationPhase::WAIT; break;
+    case InitStep::APPLY: _operation.phase = OperationPhase::RESTORE; break;
+    case InitStep::VERIFY: _operation.phase = OperationPhase::VERIFY; break;
+  }
+}
+
+Status DP8382x::_waitOperation() noexcept {
+  // The latest post-callback raw sample plus lag bounds physical completion.
+  const uint64_t upper = _lastTimeUs + _config.transport.bounds.clockLagUs;
+  if (_operationBudget.pollIntervalUs > std::numeric_limits<uint64_t>::max() - upper) {
+    return _finishOperation(timeout(TimeoutDetail::BOUND_ADMISSION));
+  }
+  _operation.nextPollAtUs = upper + _operationBudget.pollIntervalUs;
+  _operation.nextPollValid = true;
+  return _operation.status;
+}
+
+Status DP8382x::_yieldOperation(uint64_t raw) noexcept {
+  if (_pollTimeValid && raw == _pollTimeUs) { increment(_operation.stalledPolls); }
+  else { _operation.stalledPolls = 0; }
+  _pollTimeUs = raw;
+  _pollTimeValid = true;
+  if (_operation.stalledPolls >= _operationBudget.maxStalledPolls) {
+    return _finishOperation(timeout(TimeoutDetail::POLL_BUDGET));
+  }
+  return _operation.status;
+}
+
+Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept {
+  if (_active || _polling) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  const auto valid = _checkToken(token);
+  if (!valid.ok()) { return valid; }
+  if (_operation.state == OperationState::RESULT_PENDING) { return _operation.status; }
+  CallGuard guard(_polling);
+  if (_transport.clockInvalid) { return _finishOperation(configError(ConfigDetail::CLOCK_CONTRACT)); }
+  uint64_t raw = 0, upper = 0;
+  auto status = _sampleTime(raw, upper);
+  if (!status.ok()) { return _finishOperation(status); }
+  if (raw >= _operation.remaining.deadlineUs) { return _finishOperation(timeout(TimeoutDetail::DEADLINE)); }
+  if (_operation.nextPollValid && raw < _operation.nextPollAtUs) { return _yieldOperation(raw); }
+
+  MdioBatch batch;
+  switch (_initStep) {
+    case InitStep::IDENTIFY: case InitStep::REIDENTIFY:
+      batch = directBatch(2, FrameKind::READ);
+      batch.frameCount = 2;
+      batch.frames[1] = {FrameKind::READ, 3, 0, 0, NO_READ_INDEX}; break;
+    case InitStep::SOR1: case InitStep::RESOR1: batch = mmdBatch(0x0467, FrameKind::READ, 0); break;
+    case InitStep::SOR2: case InitStep::RESOR2: batch = mmdBatch(0x0468, FrameKind::READ, 0); break;
+    case InitStep::CHECK_RESET: case InitStep::WAIT_EXISTING: case InitStep::WAIT_COMMAND:
+      batch = directBatch(0, FrameKind::READ); break;
+    case InitStep::COMMAND: batch = directBatch(0, FrameKind::WRITE, 0x8000); break;
+    case InitStep::APPLY: batch = mmdBatch(0x030E, FrameKind::WRITE, 0x4A40); break;
+    case InitStep::VERIFY: batch = mmdBatch(0x030E, FrameKind::READ, 0); break;
+  }
+  status = admitBudget(_operation.remaining, _config.transport.bounds, batch.frameCount, raw, upper);
+  if (!status.ok()) { return _finishOperation(status); }
+  if (batch.frameCount > maxFrames) { return _yieldOperation(raw); }
+  if (_initStep == InitStep::COMMAND) {
+    status = admitReset(_operation.remaining, _config.transport.bounds, raw, _operationBudget.pollIntervalUs);
+    if (!status.ok()) { return _finishOperation(status); }
+  }
+  bool called = false;
+  if (_initStep == InitStep::IDENTIFY || _initStep == InitStep::REIDENTIFY) {
+    DeviceIdentity accepted;
+    status = _readIdentity(accepted, _operation.remaining, true, &called);
+    if (called) { _result.identity = _identity; }
+  } else { status = _execute(batch, _operation.remaining, &called, true); }
+  _pollTimeUs = _lastTimeUs;
+  _pollTimeValid = true;
+  if (called) {
+    _operation.stalledPolls = 0;
+    const auto& receipt = _transport.lastBatch;
+    const auto frames = auditFrames(batch, receipt, false, 0, 0);
+    _operation.remaining.maxFrames -= frames.attempted;
+    bool effect = false;
+    for (const auto& frame : receipt.frames) { effect = effect || frame.effectPossible; }
+    _result.failingBatch = {_operation.phase, frames.attempted, frames.completed, effect,
+                           status, classifyReport(receipt, frames).release, _transport.violation, _transport.late};
+    _result.late = _result.late || _transport.late;
+    if ((_initStep == InitStep::SOR1 || _initStep == InitStep::SOR2 ||
+         _initStep == InitStep::RESOR1 || _initStep == InitStep::RESOR2) && frames.completed == 4U) {
+      if (_initStep == InitStep::SOR1 || _initStep == InitStep::RESOR1) {
+        _result.straps.sor1 = receipt.frames[3].value;
+        _result.straps.sor1Valid = true;
+      } else {
+        _result.straps.sor2 = receipt.frames[3].value;
+        _result.straps.sor2Valid = true;
+      }
+      _result.straps.stale = true;
+      _result.straps.timeValid = false;
+    }
+    if (_initStep == InitStep::COMMAND || _initStep == InitStep::APPLY) {
+      const uint8_t index = _initStep == InitStep::COMMAND ? uint8_t{0} : uint8_t{3};
+      const auto& target = receipt.frames[index];
+      _result.mutationAttempted = _result.mutationAttempted || target.attempted;
+      _result.mutationCompleted = _result.mutationCompleted || frames.completed > index;
+      _result.mutationPossible = _result.mutationPossible || target.effectPossible || target.completed || target.valueValid;
+      if (_initStep == InitStep::COMMAND) {
+        _result.commandAccepted = frames.completed > index;
+        if (target.attempted || target.effectPossible || target.completed || target.valueValid) {
+          _invalidateEvidence();
+          _result.straps.stale = true;
+          _result.straps.timeValid = false;
+          _result.identity.stale = true;
+        }
+      }
+    }
+  }
+  if (!status.ok()) { return _finishOperation(status); }
+  const uint16_t value = _transport.lastBatch.frames[batch.frameCount - 1U].value;
+  switch (_initStep) {
+    case InitStep::IDENTIFY: _setInitStep(InitStep::SOR1); break;
+    case InitStep::REIDENTIFY: _setInitStep(InitStep::RESOR1); break;
+    case InitStep::SOR1: case InitStep::RESOR1:
+      _setInitStep(_initStep == InitStep::SOR1 ? InitStep::SOR2 : InitStep::RESOR2); break;
+    case InitStep::SOR2: case InitStep::RESOR2:
+      _result.straps.stale = false;
+      _result.straps.timeValid = true;
+      _result.straps.observedAtUs = _lastTimeUs + _config.transport.bounds.clockLagUs;
+      _setInitStep(_initStep == InitStep::SOR2 ? InitStep::CHECK_RESET : InitStep::APPLY); break;
+    case InitStep::CHECK_RESET:
+      if ((value & 0x8000U) != 0U) {
+        _invalidateEvidence();
+        _result.identity.stale = true;
+        _result.straps.stale = true;
+        _result.straps.timeValid = false;
+        _setInitStep(InitStep::WAIT_EXISTING);
+        return _waitOperation();
+      }
+      _setInitStep(_result.commandRequired ? InitStep::COMMAND : InitStep::APPLY); break;
+    case InitStep::COMMAND:
+      _setInitStep(InitStep::WAIT_COMMAND);
+      return _waitOperation();
+    case InitStep::WAIT_EXISTING: case InitStep::WAIT_COMMAND:
+      if ((value & 0x8000U) != 0U) { return _waitOperation(); }
+      if (_initStep == InitStep::WAIT_COMMAND) { _result.protocolComplete = true; }
+      _setInitStep(_initStep == InitStep::WAIT_EXISTING && _result.commandRequired ?
+                   InitStep::COMMAND : InitStep::REIDENTIFY); break;
+    case InitStep::APPLY: _setInitStep(InitStep::VERIFY); break;
+    case InitStep::VERIFY:
+      if ((value & 0xFFC0U) != 0x4A40U) {
+        _initialized = false;
+        _result.mismatch = {true, true, 31, 0x030E, 0xFFC0, 0x4A40, value};
+        return _finishOperation(Status::Error(Err::CONFIG_MISMATCH, "VOD_CFG3 verification failed"));
+      }
+      _result.persistentRestored = true;
+      _identity = _result.identity; // VOD programming cannot alter the accepted identity.
+      _initialized = true;
+      return _finishOperation(Status::Ok());
+  }
+  return _operation.status;
+}
+
+Status DP8382x::takeResult(OperationToken token, OperationResult& result) noexcept {
+  if (_active || _polling) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  const auto valid = _checkToken(token);
+  if (!valid.ok()) { return valid; }
+  if (_operation.state != OperationState::RESULT_PENDING) { return Status::Error(Err::RESULT_NOT_AVAILABLE, "Operation running"); }
+  result = _result;
+  const bool owed = _operation.cleanupOwed;
+  _operation = {};
+  _operation.cleanupOwed = owed;
+  return Status::Ok();
+}
+
+Status DP8382x::cancel(OperationToken token) noexcept {
+  if (_active || _polling) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  const auto valid = _checkToken(token);
+  if (!valid.ok()) { return valid; }
+  if (_operation.state == OperationState::RUNNING) { _finishOperation(Status::Error(Err::CANCELLED, "Owner cancelled")); }
+  return Status::Ok();
+}
+
+Status DP8382x::abandonCleanup() noexcept {
+  if (_active || _polling || _operation.state == OperationState::RUNNING) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  if (_operation.cleanupOwed) {
+    _operation.cleanupOwed = false;
+    _invalidateEvidence();
+  }
+  return Status::Ok();
 }
 
 } // namespace DP8382x
