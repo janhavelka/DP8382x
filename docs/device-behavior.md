@@ -419,3 +419,13 @@ so a prior forced interval remains robust. CR2 extension is explicit owner inten
 without a peer-evidence preflight; forced10 rejects it. Forced mode does not
 access ANAR, wait for ignored AN-restart, or establish negotiated pause. Q11 remains
 physical evidence for manual robust routing, port mirror and forced observations.
+
+Stage 19 executes [bounded live/cached link observation](link-observation.md).
+The first BMSR sample retains latch-low history; current and final bookends
+qualify the published link bit. All consumed words use the original collector.
+Forced mode uses BMCR with the verified-CR2 exception; negotiated pause needs
+the highest-common full-duplex technology, IEEE selectors and a PHYCR cross-check.
+An inconsistent pass returns uncertainty without retry. Historical values/time
+survive failed refresh; copied snapshots and retained changes perform no I/O.
+No host observation establishes simultaneous sampling, partner duplex in forced
+mode, physical timing or application readiness.

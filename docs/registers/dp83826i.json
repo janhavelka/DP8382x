@@ -9815,25 +9815,23 @@
       "sources": [
         {
           "source": "snls647i",
-          "location": "Tables8-20,8-24/25,8-34,8-43"
+          "location": "Tables8-19/20/23/24/25/29/34/43; IEEE802.3 Table28B-3 independently reviewed in docs/reports/implementation/19-source-review.md"
         }
       ],
       "ownedMasks": [],
-      "prerequisites": "Application owner serializes all instance calls/snapshots. Controller transaction lock covers every bus participant; active-operation admission is separate. Declared exact variant, legal values and valid clock/power history checked before mutation.",
+      "prerequisites": "Initialized accepted exact identity; application serializes all instance calls and every bus participant. OP14 reset WAIT and hard-reset floor prohibit access. Active typed next-page exchange owns ANER and rejects this acquisition. Reserve ten frames and both callback bounds under one aggregate deadline.",
       "steps": [
-        "Collector performs BMSR first read retaining latched link/fault evidence immediately; second read can update current link while preserving first sample. Do not turn two reads into an atomic historical claim.",
-        "Read PHYSTS through same collector: bits10/9 RC; bits13/12/11/8/7/6 clear via other named registers, not blanket PHYSTS reads. Preserve acquisition order and individual validity/time.",
-        "Read partner base page/ANER/PHYCR as needed for negotiated resolution and pause. Stage aggregate until complete consistent acquisition; if link/AN changes during acquisition publish stale/incomplete and boundedly reacquire, never mix epochs as resolved.",
-        "For valid AN-complete full-duplex link resolve pause from ANAR/ALNPAR and cross-check PHYCR13:12; mismatch invalidates pause. Forced, half-duplex or incomplete AN has no negotiated pause.",
-        "For AN-disabled linkUP apply the D4 rule below using coherent BMCR and CR2 trust; do not use PHYSTS2:1 for forced resolution.",
-        "Publish copied cached snapshot under application synchronization with no I/O for readers. Cable down and policy mismatch remain distinct from transport failure and application readiness.",
-        "D4: coherent AN-disabled BMCR plus current linkUP establishes speed frombit13 and duplex frombit8; PHYSTS2:1 remain raw only. Forced100half with CR2[5] not known0 yields speed100, duplexUNKNOWN, mode invalid. Pause is never valid in forced mode.",
-        "For completed AN full duplex resolve pause from ANAR/ALNPAR IEEE28B.3; PHYCR13:12 is a cross-check. Mismatch invalidates pause rather than guessing."
+        "First terminal batch reads BMSR(first), BMSR(current), PHYSTS(first), BMCR, ANAR, ALNPAR, ANER, PHYCR. Second batch reads BMSR(final), PHYSTS(final). Every validated destructive prefix is retained immediately through the existing collector, including on later failure.",
+        "First BMSR retains latch-low history; current/final BMSR and first/final PHYSTS agree on link and AN completion, with cross-register agreement at both bookends. Compare PHYSTS mode only when used for qualified AN resolution. Detected change returns BUSY/OBSERVATION_CHANGED without aggregate publication or retry; no simultaneous hardware sample is claimed.",
+        "D4: coherent AN-disabled BMCR plus current linkUP establishes speed from bit13 and duplex from bit8; PHYSTS2:1 remain raw only. Forced100half with CR2[5] not known0 (whole-profile trust not VERIFIED or extension desired) yields speed100, duplexUNKNOWN, mode invalid. Pause is never valid in forced mode.",
+        "Completed AN uses coherent PHYSTS unless ANER reports parallel-detection fault. ANER partner-AN0 with PHYSTS full requires verified CR2 extension and speed100; pause stays invalid. Running semantic mutation or temporary settings suppress mode and pause resolution.",
+        "For normal AN require IEEE selectors, an AN partner and highest-common full-duplex technology matching speed before resolving pause with IEEE Table28B-3. PHYCR13:12 cross-check disagreement invalidates pause while preserving raw words and independently valid mode.",
+        "Publish one copied snapshot with acquisition start lower/completion upper time bounds and first/changed/repeated/stale/regained evidence. Failed refresh retains old aggregate/time as stale; clock faults anywhere invalidate use. Cached readers have no callbacks. Cable down and application policy mismatch are not transport errors."
       ],
       "waits": [],
-      "timeout": "Application aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Finite frame/poll limit even if clock freezes. Zero work budget performs no I/O. No nominal silicon number is a software timeout.",
+      "timeout": "Exactly ten frames in 8+2 terminal callbacks on success. Reserve 2*fixedUs+10*frameUs with clock-lag-aware strict aggregate admission; each batch rechecks the same deadline. Zero/short work budget performs no MDIO and marks an admitted refresh failed. No retry or resample.",
       "partialEffects": "If later read fails, retain all consumed samples and previous aggregate as stale; ambiguous failed destructive reads flag possible history loss.",
-      "cleanup": "Release controller lock on every exit before any hardware wait or output. Preserve primary error and finite cleanup outcome separately; no automatic retry/reset. Accepted or uncertain writes invalidate affected trust. Cancellation retains hardware effects; owner may admit bounded reconciliation.",
+      "cleanup": "Read-only operation; each terminal callback releases controller ownership. Preserve primary and release errors and all consumed sample/history-loss evidence. No automatic reset/retry or cleanup mutation.",
       "restoration": "No configuration mutation; reset/external writes invalidate prior epochs and require reacquisition.",
       "gates": [
         "forced_physts"
@@ -9841,7 +9839,7 @@
       "owner": {
         "api": "readLinkStatus / LinkSnapshot",
         "cli": "owner-routed readLinkStatus / LinkSnapshot (prompts 44-46)",
-        "test": "Independent literals and boundary failures for readLinkStatus / LinkSnapshot; prompts 19, 53-55",
+        "test": "test/link.cpp: independent literal ten-read plan, every-frame failures/changes, forced gates, all16 pause vectors, clocks/age, reset invalidation and two-PHY ownership. Q11 physical forced/partner qualification remains NOT_RUN.",
         "implementationStage": 19
       }
     },
@@ -12111,9 +12109,12 @@
       "registers": [
         "BMSR",
         "PHYSTS",
-        "PHYCR",
+        "BMCR",
+        "ANAR",
         "ALNPAR",
-        "ANER"
+        "ANER",
+        "PHYCR",
+        "CR2"
       ],
       "procedures": [
         "observe_link"
@@ -12121,21 +12122,21 @@
       "owner": {
         "api": "readLinkStatus / LinkSnapshot",
         "cli": "owner-routed readLinkStatus / LinkSnapshot (prompts 44-46)",
-        "test": "Independent literals and boundary failures for readLinkStatus / LinkSnapshot; prompts 19, 53-55",
+        "test": "test/link.cpp: independent literal ten-read plan, every-frame failures/changes, forced gates, all16 pause vectors, clocks/age, reset invalidation and two-PHY ownership. Q11 physical forced/partner qualification remains NOT_RUN.",
         "implementationStage": 19
       },
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "forced_physts"
       ],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities."
+      "notes": "Prompt19 implements observe_link through the single collector and two terminal batches with no retry. Passive LinkSnapshot retains time/validity/change evidence. Host protocol and portable consumer pass; SDK notifications and physical Q11/partner/timing remain NOT_RUN."
     },
     {
       "id": "eee",

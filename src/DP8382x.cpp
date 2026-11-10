@@ -372,6 +372,7 @@ Status DP8382x::bind(const Config& config) noexcept {
   _evidence = {};
   _identity = {};
   _settings = {};
+  _link = {};
   _configuring = false;
   _cleanupOwner = OperationKind::NONE;
   _identity.declaredVariant = config.variant;
@@ -395,6 +396,7 @@ Status DP8382x::end() noexcept {
   _evidence = {};
   _identity = {};
   _settings = {};
+  _link = {};
   _configuring = false;
   _cleanupOwner = OperationKind::NONE;
   _timeValid = false;
@@ -559,6 +561,7 @@ Status DP8382x::modifyMmd(uint32_t devad, uint32_t registerAddress, uint32_t mas
 }
 
 void DP8382x::_invalidateEvidence() noexcept {
+  _invalidateLink();
   _initialized = false;
   _evidence.configurationDirty = true;
   _identity.stale = true;
@@ -742,6 +745,7 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
     if (target && frame.kind == FrameKind::WRITE &&
         (receipt.attempted || receipt.completed || receipt.valueValid || receipt.effectPossible ||
          _transport.violation != TransportViolation::NONE)) {
+      _invalidateLink();
       const bool initialized = _initialized;
       if (address == 0x001FU && frame.value == 0x4000U) {
         // Table8-48 circuitry restart keeps registers, identity and initialized state.
@@ -769,6 +773,8 @@ Status DP8382x::_sampleTime(uint64_t& raw, uint64_t& upper) noexcept {
   const auto lag = _config.transport.bounds.clockLagUs;
   if ((_timeValid && raw < _lastTimeUs) || raw > std::numeric_limits<uint64_t>::max() - lag) {
     _transport.clockInvalid = true;
+    _invalidateLink();
+    _link.lastRefreshStatus = configError(ConfigDetail::CLOCK_CONTRACT);
     return configError(ConfigDetail::CLOCK_CONTRACT);
   }
   _timeValid = true;
@@ -972,6 +978,7 @@ Status DP8382x::_anchorQuiet() noexcept {
 }
 
 void DP8382x::_invalidateResetEvidence(bool configurationLost) noexcept {
+  _invalidateLink();
   if (configurationLost) {
     _invalidateEvidence();
     _result.identity.stale = true;

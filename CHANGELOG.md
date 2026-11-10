@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### 2026-11-10
+
+- Implemented prompt 19 bounded live link observation, passive snapshots and
+  retained change evidence through the existing destructive collector. Added
+  forced-mode gates, IEEE pause resolution/cross-checks, coherent ten-read
+  acquisition, historical failure timestamps and conservative cached-age bounds.
+  Added nine Release suites and a linked cached-status example. SDK notifications,
+  managed health and physical qualification remain separate work.
+
 ### 2026-11-08
 
 - Audited prompts 13-18 independently. Preserved interrupted-verification errors
