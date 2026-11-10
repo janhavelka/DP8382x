@@ -795,7 +795,7 @@ void counters() {
   CHECK(sample(output, EvidenceSource::FCSCR).raw == 0xCD02U);
   CHECK(sample(output, EvidenceSource::FCSCR).sampledSum == 5U);
   CHECK(sample(output, EvidenceSource::RECR).raw == 0x1234U);
-  CHECK(sample(output, EvidenceSource::RECR).sampledSum == 0x9234U);
+  CHECK(sample(output, EvidenceSource::RECR).sampledSum == 0U); // Source-gated arithmetic.
   CHECK(!sample(output, EvidenceSource::FCSCR).sumSaturated);
   CHECK(!sample(output, EvidenceSource::RECR).sumSaturated);
   CHECK(sample(output, EvidenceSource::FCSCR).samples == 2U);
@@ -803,7 +803,8 @@ void counters() {
   fixture.bus.words[0x14] = 0x00FF;
   CHECK(fixture.driver.acquireEvidence(0x0040, output, BUDGET).ok());
   CHECK(sample(output, EvidenceSource::FCSCR).sampledSum == 260U);
-  // This is retained arithmetic, not an assertion of RECR width or qualified totals.
+  CHECK(sample(output, EvidenceSource::FCSCR).counterSaturated);
+  CHECK(sample(output, EvidenceSource::FCSCR).counterLowerBound);
 }
 
 void ownership() {

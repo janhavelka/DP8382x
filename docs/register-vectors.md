@@ -201,6 +201,38 @@ bound, not the completion upper bound; unchanged cached reads consume nothing.
 
 ## Read effects and failure vectors
 
+### Prompt 20 event and counter vectors
+
+Independently reviewed original SNLS647I tables8-33/34/36..39/41/44/91 are
+identified in the [stage20 review](reports/implementation/20-source-review.md).
+The literal default trace is `R(10), R(0F), R(12), R(13), R(14), R(15)` in one
+six-frame transaction. No source is read again to prove an empty interrupt bank.
+
+- Each MISR high bit `8000,4000,2000,1000,0800,0400,0200,0100` is an independent
+  raw event; low `00FF` enables do not enter its retained event union. MISR2
+  `0200` has no polarity/WoL label without owned selector-epoch evidence.
+- FLDS causes are `0010,0020,0040,0080,0100`. ANER `0002`, 10BTSCR `0010` and
+  RXFS status `0080,0040,0020,0001` retain occurrence through the same collector;
+  RXFS `1000` selection does not enter its event union. RCSR `000C` remains raw.
+- FCSCR samples `0000,0001,007F,0080,00FE,00FF` are literal boundary cases.
+  `0080` first exceeds the half-full threshold; `00FF` is saturation and a lower
+  bound. Samples `0003` then `0002` sum to5; after `00FF`, the sum is260 with
+  sticky hardware-saturation/lower-bound evidence, not wraparound.
+- RECR `0080,0100,8123,FFFF` can be retained raw without asserting effective
+  width. Its host arithmetic field stays0 as an explicit gate, not zero errors.
+- Host sum `FFFFFFFFFFFFFFFE` plus1 reaches the exact limit without overflow;
+  another1 saturates with the overflow flag. Zero cannot erase that flag.
+  Sample count `FFFFFFFE` advances to `FFFFFFFF`; another sample leaves the
+  count saturated and explicitly sets `samplesSaturated`.
+- MISR1 `4000` followed by a MISR2 after-effect timeout retains MISR1's new
+  sample and old aggregate, marks aggregate stale and MISR2 possible history loss.
+  A following zero cannot prove that no event was lost. An event arriving after
+  the MISR1 read is available on the next pass, without an unlimited drain loop.
+
+These literals execute in `test/events.cpp` and the retained `access_counters`
+suite. Clock/metadata failure, reset discontinuity, host-history discard and
+shared MMD contention are software evidence, not physical event qualification.
+
 Table8-34 independently names clearing relationships: PHYSTS receive error to
 RECR, polarity to10BTSCR, false carrier toFCSCR, page toANER, interrupt toMISR,
 remote fault toBMSR. Its jabber and current-link mirrors explicitly do not clear

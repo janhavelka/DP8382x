@@ -429,3 +429,10 @@ An inconsistent pass returns uncertainty without retry. Historical values/time
 survive failed refresh; copied snapshots and retained changes perform no I/O.
 No host observation establishes simultaneous sampling, partner duplex in forced
 mode, physical timing or application readiness.
+
+Stage20 executes [typed event/counter capture](event-counters.md) once through the
+single collector. FCSCR saturation, host overflow and unknown loss are distinct;
+RECR and RMII RC conflicts remain raw-only. Reset retains earlier host history
+with discontinuity/staleness rather than assigning it to a new exact interval.
+Local history discard never clears hardware. Future IRQ and diagnostic sessions
+extend this same owner and retention path.

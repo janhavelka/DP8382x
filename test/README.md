@@ -344,3 +344,28 @@ real core and proves cached policy has no MDIO/clock callbacks. Use the same
 UBSan trap flags above in a separate `build/link19-ubsan` directory. Host protocol
 and linked consumer checks do not establish SDK or physical partner/timing
 qualification. See the [stage report](../docs/reports/implementation/19-link-observation.md).
+
+## Typed events and counters
+
+`events.cpp` adds five suites (`vectors`, `failures`, `history`, `ownership`,
+`clocks`) plus its active Release failure probe. Current total:84 CTests.
+Literal vectors cover every MISR/FLDS bit, ANER/10BTSCR/RXFS projections, raw RCSR,
+FCS hardware boundaries and raw-only RECR. The private accumulator used by
+production is directly tested at UINT32/UINT64 limits without changing driver
+state or executing billions of frames. Other tests inject every read failure,
+possible consumption, release/primary errors, new events between reads, invalid
+timestamps, reset history, two cached readers, local discard and MMD contention.
+
+```sh
+cmake -S . -B build/events20-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON
+cmake --build build/events20-release
+ctest --test-dir build/events20-release --output-on-failure --no-tests=error
+cmake -S test/consumer -B build/events20-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF
+cmake --build build/events20-consumer
+ctest --test-dir build/events20-consumer --output-on-failure --no-tests=error
+```
+
+Repeat with the existing UBSan trap flags in `build/events20-ubsan`. The consumer
+executes [Events.h](../examples/portable/Events.h): acquire once, format two cached
+views without MDIO or clock callbacks. The [stage report](../docs/reports/implementation/20-event-counter-acquisition.md)
+separates executing software evidence from unmeasured physical counter/error rates.

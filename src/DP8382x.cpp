@@ -2,6 +2,7 @@
 /// @brief Local binding and complete terminal direct/indirect transactions.
 #include <DP8382x/DP8382x.h>
 #include <DP8382x/CommandTable.h>
+#include "DP8382xEvidence.h"
 
 #include <limits>
 
@@ -335,6 +336,19 @@ int evidenceIndex(uint16_t address) noexcept {
   return -1;
 }
 
+// Sourced occurrence bits only. Ambiguous current/RC words remain raw evidence.
+uint16_t eventMask(uint16_t address) noexcept {
+  switch (address) {
+    case cmd::REG_MISR1: case cmd::REG_MISR2: return 0xFF00; // Tables8-36/37; exclude enables.
+    case cmd::REG_FLDS: return cmd::MASK_FLDS_CAUSES;
+    case cmd::REG_ANER: return cmd::MASK_ANER_PAGE;
+    case cmd::REG_10BTSCR: return cmd::MASK_10BTSCR_POLARITY; // Table8-44; clears mirrored history.
+    case cmd::REG_RXFS: return cmd::MASK_RXFS_SFD_ERROR | cmd::MASK_RXFS_BAD_CRC |
+        cmd::MASK_RXFS_SECURE_ON_ERROR | cmd::MASK_RXFS_MAGIC_PACKET;
+    default: return 0;
+  }
+}
+
 // Guards defensive reentry through either callback, including local teardown.
 // It is not a mutex: the application must serialize all real concurrent callers.
 struct CallGuard {
@@ -370,6 +384,7 @@ Status DP8382x::bind(const Config& config) noexcept {
   _config = config;
   _transport = {};
   _evidence = {};
+  _counters = {};
   _identity = {};
   _settings = {};
   _link = {};
@@ -394,6 +409,7 @@ Status DP8382x::end() noexcept {
   _config = {};
   _transport = {};
   _evidence = {};
+  _counters = {};
   _identity = {};
   _settings = {};
   _link = {};
@@ -567,7 +583,17 @@ void DP8382x::_invalidateEvidence() noexcept {
   _identity.stale = true;
   _settings.trust = ConfigurationTrust::DIRTY;
   _settings.observedStale = true;
-  for (auto& sample : _evidence.samples) { sample.stale = true; }
+  _markEvidenceDiscontinuous();
+}
+
+void DP8382x::_markEvidenceDiscontinuous() noexcept {
+  for (auto& sample : _evidence.samples) {
+    sample.stale = true;
+    sample.discontinuous = true;
+  }
+  _evidence.samples[static_cast<uint8_t>(EvidenceSource::FCSCR)].counterLowerBound = true;
+  _counters.stale = true;
+  _counters.lastStatus = configError(ConfigDetail::DEVICE_INVALIDATED);
 }
 
 Status DP8382x::invalidateDeviceState(InvalidationReason reason) noexcept {
@@ -638,6 +664,55 @@ Status DP8382x::acquireEvidence(uint32_t sourceMask, EvidenceSnapshot& evidence,
   _evidence.lastStatus = status;
   if (status.ok()) { evidence = _evidence; }
   return status;
+}
+
+Status DP8382x::collectEvents(CounterSnapshot& snapshot, const IoBudget& budget) noexcept {
+  constexpr uint32_t sources = evidenceBit(EvidenceSource::PHYSTS) | evidenceBit(EvidenceSource::FLDS) |
+      evidenceBit(EvidenceSource::MISR1) | evidenceBit(EvidenceSource::MISR2) |
+      evidenceBit(EvidenceSource::FCSCR) | evidenceBit(EvidenceSource::RECR);
+  // Reuse the only acquisition/retention implementation, including OP14 admission.
+  // Keep local owner rejection bus-silent and prevent reentry from changing a live aggregate.
+  if (_active || _polling) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  EvidenceSnapshot acquired;
+  const auto status = acquireEvidence(sources, acquired, budget);
+  if (!status.ok()) {
+    _counters.stale = true;
+    _counters.lastStatus = status;
+    return status;
+  }
+  const auto raw = [&](EvidenceSource source) noexcept { return acquired.samples[static_cast<uint8_t>(source)].raw; };
+  const auto& fcs = acquired.samples[static_cast<uint8_t>(EvidenceSource::FCSCR)];
+  CounterSnapshot next;
+  next.valid = true;
+  next.stale = false;
+  next.timeValid = true;
+  next.observedAtUs = _lastTimeUs + _config.transport.bounds.clockLagUs;
+  next.lastStatus = Status::Ok();
+  next.rawPhysts = raw(EvidenceSource::PHYSTS);
+  next.rawFlds = raw(EvidenceSource::FLDS);
+  next.rawMisr1 = raw(EvidenceSource::MISR1);
+  next.rawMisr2 = raw(EvidenceSource::MISR2);
+  next.rawFcscr = fcs.raw;
+  next.rawRecr = raw(EvidenceSource::RECR);
+  next.misr1Events = next.rawMisr1 & 0xFF00U;
+  next.misr2Events = next.rawMisr2 & 0xFF00U;
+  next.fldCauses = next.rawFlds & cmd::MASK_FLDS_CAUSES;
+  next.falseCarrierTotal = fcs.sampledSum;
+  next.falseCarrierLowerBound = fcs.counterLowerBound;
+  next.falseCarrierOverflow = fcs.sumSaturated;
+  _counters = next;
+  snapshot = next;
+  return Status::Ok();
+}
+
+Status DP8382x::clearEvidence() noexcept {
+  if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
+  if (_active || _polling || _operation.state == OperationState::RUNNING) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  const bool dirty = _evidence.configurationDirty;
+  _evidence = {};
+  _evidence.configurationDirty = dirty;
+  _counters = {};
+  return Status::Ok();
 }
 
 Status DP8382x::modifyInterruptEnables(uint32_t address, uint32_t mask, uint32_t value,
@@ -716,17 +791,19 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
     const int index = target ? evidenceIndex(address) : -1;
     if (frame.kind == FrameKind::READ && index >= 0) {
       auto& sample = _evidence.samples[static_cast<unsigned>(index)];
+      // Any later collector acquisition makes the previous complete aggregate historical.
+      _counters.stale = true;
+      _counters.lastStatus = _transport.clockInvalid ? configError(ConfigDetail::CLOCK_CONTRACT) :
+          Status::Error(Err::RESULT_NOT_AVAILABLE, "New partial collector evidence");
       if (completed) {
         sample.raw = receipt.value;
         sample.observedOnes |= receipt.value;
         sample.observedZeros |= static_cast<uint16_t>(~receipt.value);
-        increment(sample.samples);
-        if (address == 0x0014U || address == 0x0015U) {
-          const uint64_t count = address == 0x0014U ? receipt.value & 0x00FFU : receipt.value;
-          if (count > std::numeric_limits<uint64_t>::max() - sample.sampledSum) {
-            sample.sampledSum = std::numeric_limits<uint64_t>::max();
-            sample.sumSaturated = true;
-          } else { sample.sampledSum += count; }
+        detail::retainSampleCount(sample);
+        sample.eventBits |= static_cast<uint16_t>(receipt.value & eventMask(address));
+        sample.coalesced = sample.coalesced || sample.eventBits != 0U;
+        if (address == cmd::REG_FCSCR) {
+          detail::retainFalseCarriers(sample, static_cast<uint8_t>(receipt.value & 0x00FFU));
         }
         sample.valid = true;
         sample.stale = false;
@@ -737,7 +814,10 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
         // An unsound receipt cannot establish that a missing read never ran.
         // A sound no-attempt denial still leaves history intact.
         if (receipt.effectPossible || receipt.completed || receipt.valueValid ||
-            _transport.violation != TransportViolation::NONE) { sample.historyLost = true; }
+            _transport.violation != TransportViolation::NONE) {
+          sample.historyLost = true;
+          if (address == cmd::REG_FCSCR) { sample.counterLowerBound = true; }
+        }
         sample.stale = true;
       }
     }
@@ -749,14 +829,14 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
       const bool initialized = _initialized;
       if (address == 0x001FU && frame.value == 0x4000U) {
         // Table8-48 circuitry restart keeps registers, identity and initialized state.
-        for (auto& sample : _evidence.samples) { sample.stale = true; }
+        _markEvidenceDiscontinuous();
       } else if (_configuring && (address == cmd::REG_BMCR || address == cmd::REG_ANAR || address == cmd::REG_ANNPTR ||
           address == cmd::REG_CR1 || address == cmd::REG_PHYCR || address == cmd::REG_CR3 || address == cmd::REG_CR2)) {
         // Owned profile changes do not reset the device or undo mandatory VOD setup.
         _evidence.configurationDirty = true;
         _settings.trust = ConfigurationTrust::DIRTY;
         _settings.observedStale = true;
-        for (auto& sample : _evidence.samples) { sample.stale = true; }
+        _markEvidenceDiscontinuous();
       } else { _invalidateEvidence(); }
       // OP-13 preserves readiness on a proved effect-free non-reset failure.
       if (address != 0U && !receipt.completed && !receipt.valueValid && !receipt.effectPossible &&
@@ -775,6 +855,8 @@ Status DP8382x::_sampleTime(uint64_t& raw, uint64_t& upper) noexcept {
     _transport.clockInvalid = true;
     _invalidateLink();
     _link.lastRefreshStatus = configError(ConfigDetail::CLOCK_CONTRACT);
+    _counters.stale = true;
+    _counters.lastStatus = configError(ConfigDetail::CLOCK_CONTRACT);
     return configError(ConfigDetail::CLOCK_CONTRACT);
   }
   _timeValid = true;
@@ -985,7 +1067,7 @@ void DP8382x::_invalidateResetEvidence(bool configurationLost) noexcept {
     _result.straps.stale = true;
     _result.straps.timeValid = false;
   } else {
-    for (auto& sample : _evidence.samples) { sample.stale = true; }
+    _markEvidenceDiscontinuous();
   }
 }
 

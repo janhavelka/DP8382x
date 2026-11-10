@@ -10,6 +10,8 @@
 #include "../../examples/portable/Configure.h"
 #include "../../examples/portable/Forced.h"
 #include "../../examples/portable/LinkStatus.h"
+#include "../../examples/portable/Events.h"
+#include <cstring>
 
 #ifdef _MSVC_LANG
 static_assert(_MSVC_LANG >= 201703L, "DP8382x must propagate C++17");
@@ -24,6 +26,7 @@ static uint64_t nowUs(void*) noexcept { return 0; }
 struct SimulatedPhy {
   uint16_t led{0};
   uint16_t misr{0xA55A};
+  uint32_t evidenceFrames{0};
 };
 static DP8382x::BatchResult executeEvidence(void* context, const DP8382x::MdioBatch& batch,
                                           const DP8382x::IoBudget&) noexcept {
@@ -33,6 +36,7 @@ static DP8382x::BatchResult executeEvidence(void* context, const DP8382x::MdioBa
   result.controllerReusable = true;
   for (uint8_t i = 0; i < batch.frameCount; ++i) {
     const auto& frame = batch.frames[i];
+    ++phy.evidenceFrames;
     auto& receipt = result.frames[i];
     receipt.attempted = true;
     receipt.completed = true;
@@ -380,6 +384,18 @@ int main() {
   if (!phy.modifyInterruptEnables(0x12, 0x0024, 0x0004, {100, 2}).ok()) { return 1; }
   const auto cached = phy.evidenceSnapshot();
   const auto& interrupt = cached.samples[static_cast<uint8_t>(DP8382x::EvidenceSource::MISR1)];
+  DP8382x::CounterSnapshot counters;
+  const auto framesBefore = simulated.evidenceFrames;
+  if (!sampleEvents(phy, {100, 6}, counters).ok() ||
+      simulated.evidenceFrames != framesBefore + 6U || counters.falseCarrierTotal != 4U ||
+      counters.rawRecr != 4U) return 1;
+  // Two UI/report consumers render one copied acquisition outside the owner.
+  const auto firstView = phy.counterSnapshot();
+  const auto secondView = phy.counterSnapshot();
+  char firstText[256]{}, secondText[256]{};
+  if (!formatCachedEvents(firstView, firstText, sizeof(firstText)) ||
+      !formatCachedEvents(secondView, secondText, sizeof(secondText)) ||
+      std::strcmp(firstText, secondText) != 0 || simulated.evidenceFrames != framesBefore + 6U) return 1;
   return interrupt.valid && interrupt.raw == 0xA55AU && simulated.misr == 0x005EU &&
          cached.configurationDirty && phy.end().ok() && initializationExamples() && hardQuietOwnerExamples() && configurationExamples() ? 0 : 1;
 }

@@ -64,12 +64,13 @@ success. On error use the cached snapshot and its per-source validity/staleness;
 `lastRequested` identifies the acquisition, not which sources succeeded.
 
 Each source retains the latest exact word, sample count and unions of observed
-ones and zeros. The zero union preserves latched-low history. FCSCR's low byte and
-RECR's full raw words additionally contribute to `sampledSum`, with explicit
-arithmetic saturation. These are sums of returned samples, not guaranteed physical
-event totals: silicon saturation, missed history and RECR's unresolved effective
-width remain visible limitations. In particular, repeated RECR reads do not create
-a qualified counter width or modulo-delta algorithm.
+ones and zeros. The zero union preserves latched-low history. Stage20 adds sourced
+event unions/coalescing and explicit sample-count overflow. Only FCSCR's low byte
+contributes to `sampledSum`, with separate hardware saturation, host overflow and
+lower-bound flags. RECR remains raw-only with a zero arithmetic field; repeated
+reads do not establish its width or modulo-delta behavior. The
+[event/counter guide](event-counters.md) defines the complete typed aggregate,
+partial validity, mixed history across resets and bus-silent host-history clear.
 
 Data validity and time validity are separate. A valid supplied frame timestamp is
 used; otherwise the conservative post-callback upper bound is used. Invalid timing

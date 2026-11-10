@@ -147,8 +147,14 @@ struct EvidenceSample {
   uint16_t observedOnes{0}; ///< Union of raw ones; no implied physical event decoding.
   uint16_t observedZeros{0}; ///< Union of raw zeros, retaining latched-low observations.
   uint32_t samples{0}; ///< Successful consumed words, saturating; not an event count.
-  uint64_t sampledSum{0}; ///< FCSCR low-byte or RECR raw-word arithmetic sum; not a qualified physical total.
+  bool samplesSaturated{false}; ///< Sticky: the retained sample count could no longer advance.
+  uint16_t eventBits{0}; ///< Sticky sourced event bits, separate from current raw controls/status.
+  bool coalesced{false}; ///< Event occurrence seen; hardware latches cannot prove multiplicity.
+  uint64_t sampledSum{0}; ///< FCSCR low-byte sum only; RECR arithmetic is source-gated and remains zero.
   bool sumSaturated{false}; ///< Sticky arithmetic overflow; sampledSum is then a lower bound.
+  bool counterSaturated{false}; ///< Sticky FCSCR FF sample: hardware stopped counting at saturation.
+  bool counterLowerBound{false}; ///< FCSCR sum has saturation, lost-history or discontinuity evidence.
+  bool discontinuous{false}; ///< Reset/external or configuration uncertainty crossed retained history.
   uint64_t observedAtUs{0}; ///< Conservative completion bound in the binding clock domain.
   bool valid{false}; ///< At least one independently valid word has been retained.
   bool timeValid{false}; ///< Timestamp is usable; zero is a valid timestamp.
@@ -162,6 +168,29 @@ struct EvidenceSnapshot {
   uint32_t lastRequested{0}; ///< Sources requested by the latest admitted acquisition.
   Status lastStatus{Err::RESULT_NOT_AVAILABLE, 0, "No evidence acquisition"}; ///< Latest acquisition or admitted mixed update result; comparison-only wake exit leaves it unchanged.
   bool configurationDirty{false}; ///< Historical mutation/uncertainty latch; not the initialized-state flag.
+};
+
+/// @brief Complete six-source acquisition, separate from immediately retained partial evidence.
+/// @note SNLS647I tables8-33..39. No atomic silicon snapshot, event multiplicity,
+/// RECR count or physical error rate is inferred. History survives reset as stale.
+struct CounterSnapshot {
+  bool valid{false}; ///< A complete successful acquisition exists.
+  bool stale{true}; ///< Failure, another consuming read or invalidation made this historical.
+  bool timeValid{false}; ///< Stored timestamp valid in its original clock domain.
+  uint64_t observedAtUs{0}; ///< Complete acquisition upper time bound, microseconds.
+  Status lastStatus{Err::RESULT_NOT_AVAILABLE, 0, "No event acquisition"}; ///< Last aggregate outcome/invalidation.
+  uint16_t rawPhysts{0}; ///< Mirror/status word captured before dependent clearers; not resolved link.
+  uint16_t rawFlds{0}; ///< Full fast-link-drop cause word.
+  uint16_t rawMisr1{0}; ///< Current returned events plus enables, not lifetime OR.
+  uint16_t rawMisr2{0}; ///< Current events/enables; bit0200 remains polarity-or-WoL.
+  uint16_t rawFcscr{0}; ///< Full returned false-carrier word including reserved bits.
+  uint16_t rawRecr{0}; ///< Raw receive-error word; width/saturation conflict forbids arithmetic.
+  uint16_t misr1Events{0}; ///< This pass's high-byte MISR1 events, with named cmd masks.
+  uint16_t misr2Events{0}; ///< This pass's high-byte MISR2 events; shared source is unclassified.
+  uint16_t fldCauses{0}; ///< This pass's FLDS causes under mask01F0.
+  uint64_t falseCarrierTotal{0}; ///< Sum of returned FCSCR low bytes in the retained host window.
+  bool falseCarrierLowerBound{false}; ///< Saturation, lost read or discontinuity prevents an exact total.
+  bool falseCarrierOverflow{false}; ///< Host arithmetic saturated at UINT64_MAX.
 };
 
 /// @brief Owner notification of lost device trust; no action is taken on the PHY.
@@ -630,6 +659,23 @@ public:
   /// @brief Read retained samples without MDIO or clock callbacks.
   /// @return Copied history; valid/timeValid/stale/historyLost are independent.
   EvidenceSnapshot evidenceSnapshot() const noexcept { return _evidence; }
+  /// @brief Collect PHYSTS, FLDS, MISR1, MISR2, FCSCR and RECR once in one six-read batch.
+  /// @param[out] snapshot Assigned only on complete in-budget success; unchanged on error.
+  /// @param[in] budget Exclusive aggregate deadline and at least six frames.
+  /// @return Same admission/errors as acquireEvidence; partial receipts remain immediately cached.
+  /// @pre Serialized exact-part diagnostic owner, including all other controller users.
+  /// @note Tables8-33..39. No implicit RXFS read, drain, retry or counter reset.
+  /// FCSCR FF is a lower bound; RECR remains raw under Q16. No MDIO-health accounting claim.
+  Status collectEvents(CounterSnapshot& snapshot, const IoBudget& budget) noexcept;
+  /// @brief Copy last complete event/counter aggregate without bus/clock callbacks.
+  /// @return Historical values with explicit validity/staleness; partials are in evidenceSnapshot.
+  CounterSnapshot counterSnapshot() const noexcept { return _counters; }
+  /// @brief Discard retained host collector history without reading or clearing hardware.
+  /// @return OK, NOT_BOUND, or BUSY during callbacks/polling/a running operation.
+  /// @note Owner copies any needed evidence first. Clears all sample sums/flags and
+  /// counter aggregate; preserves link, trust, transport, identity and operation results.
+  /// The next hardware sample can include events predating this local history clear.
+  Status clearEvidence() noexcept;
   /// @brief Invalidate configuration and mark observations historical without I/O.
   /// @param[in] reason Known external/raw uncertainty; invalid enum is rejected.
   /// @return OK or INVALID_PARAM; BUSY during a callback; samples are never erased.
@@ -645,6 +691,7 @@ private:
   Config _config{};
   TransportSnapshot _transport{};
   EvidenceSnapshot _evidence{};
+  CounterSnapshot _counters{};
   DeviceIdentity _identity{};
   SettingsSnapshot _settings{};
   LinkSnapshot _link{};
@@ -691,6 +738,7 @@ private:
   void _retainEvidence(const MdioBatch& batch, const BatchResult& result,
                        bool clockValid, uint64_t before, uint64_t upper) noexcept;
   void _invalidateEvidence() noexcept;
+  void _markEvidenceDiscontinuous() noexcept;
   void _invalidateLink() noexcept;
   Status _checkMutation() noexcept;
   Status _checkToken(OperationToken token) const noexcept;

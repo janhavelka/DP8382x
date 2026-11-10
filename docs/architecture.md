@@ -108,3 +108,10 @@ semantic change evidence. It reuses the same transport, collector and invalidati
 hooks; cached access has no callbacks. [Link observation](link-observation.md)
 keeps current link, consumed history, mode/pause validity and application age
 policy distinct. There is no core notification scheduler or second collector.
+
+Stage20 extends that same collector in `DP8382x.cpp`: `collectEvents` publishes
+one six-source aggregate, while per-source evidence survives partial failure.
+`DP8382xEvidence.h` is a private arithmetic helper used by the collector and
+independent limit tests; it owns no transport or storage. Explicit host-history
+discard is bus-silent. [Event/counter semantics](event-counters.md) separate
+current words, coalesced history, FCS lower bounds and source-gated raw RECR/RCSR.
