@@ -45,6 +45,54 @@ struct Capabilities {
   bool gigabit{false}; ///< Gigabit speed documented for the accepted part.
 };
 
+/// @brief Current negotiation evidence, separate from link and transport success.
+enum class NegotiationState : uint8_t {
+  UNKNOWN, ///< No usable observation.
+  DISABLED, ///< BMCR disables autonegotiation.
+  IN_PROGRESS, ///< AN enabled without current completion evidence.
+  COMPLETE ///< AN enabled with coherent completion evidence.
+};
+/// @brief Latest publication or stale transition; cached readers never consume it.
+enum class LinkChange : uint8_t {
+  NONE, ///< No coherent observation yet.
+  FIRST_VALID, ///< First coherent observation in this binding.
+  CHANGED, ///< A semantic link/mode/pause tuple changed.
+  REPEATED, ///< Same semantic tuple in another coherent pass.
+  STALE, ///< Prior observation became historical after failure or mutation.
+  REGAINED ///< Coherent observation restored after staleness.
+};
+/// @brief Copied link evidence from a bounded consistency check, not simultaneous sampling.
+struct LinkSnapshot {
+  bool valid{false}; ///< A complete coherent pass exists; stale may make it historical.
+  bool stale{true}; ///< Failure or mutation withdrew current use; old values/time survive.
+  bool linkUp{false}; ///< Current link only when valid and not stale.
+  NegotiationState negotiation{NegotiationState::UNKNOWN}; ///< BMCR and current BMSR evidence.
+  LinkSpeed speed{LinkSpeed::UNKNOWN}; ///< Local speed, usable only with resolvedModeValid.
+  Duplex duplex{Duplex::UNKNOWN}; ///< Local duplex, never proof of partner duplex in forced mode.
+  bool resolvedModeValid{false}; ///< Both speed and duplex have applicable source evidence.
+  bool temporaryMayBeActive{false}; ///< A temporary profile may explain link; normal resolution withheld.
+  bool pauseRx{false}; ///< Receive pause from IEEE 28B-3 when pauseValid.
+  bool pauseTx{false}; ///< Transmit pause from IEEE 28B-3 when pauseValid.
+  bool pauseValid{false}; ///< Highest common full-duplex mode and PHYCR qualify computed pause.
+  uint64_t observedSinceUs{0}; ///< Acquisition start lower bound in microseconds; use for maximum age.
+  uint64_t observedAtUs{0}; ///< Conservative acquisition completion upper bound, microseconds.
+  bool timeValid{false}; ///< Timestamp usable; zero itself never means invalid.
+  Status lastRefreshStatus{Err::NOT_INITIALIZED, 0, "No link observation"}; ///< Latest acquisition or invalidation outcome.
+  LinkChange change{LinkChange::NONE}; ///< Latest sampling/stale outcome; not an event queue.
+  uint32_t observations{0}; ///< Coherent publications, saturating at UINT32_MAX.
+  uint32_t changes{0}; ///< First valid, tuple changes and fresh/stale transitions, saturating.
+  uint16_t rawBmsrFirst{0}; ///< First latch-low sample, historical loss may be present.
+  uint16_t rawBmsrCurrent{0}; ///< Second BMSR sample, used for current link.
+  uint16_t rawPhystsFirst{0}; ///< First PHYSTS, including mirrors before ANER clears them.
+  uint16_t rawBmcr{0}; ///< Mode and local forced speed/duplex.
+  uint16_t rawAnar{0}; ///< Local advertisement, including selector and pause.
+  uint16_t rawAnlpar{0}; ///< Partner base-page advertisement.
+  uint16_t rawAner{0}; ///< Consumed page/capability/parallel-detection evidence.
+  uint16_t rawPhycr{0}; ///< Independent RX/TX pause cross-check, not the pause algorithm.
+  uint16_t rawBmsrFinal{0}; ///< Final consistency sample; latch-low detects intervening loss.
+  uint16_t rawPhystsFinal{0}; ///< Final link/AN/applicable-mode consistency sample.
+};
+
 /// @brief First detected inconsistency in the last backend report.
 enum class TransportViolation : uint8_t {
   NONE,             ///< Report meets the terminal contract.
@@ -441,6 +489,26 @@ public:
   /// @return Historical fields retain explicit validity and staleness.
   SettingsSnapshot settingsSnapshot() const noexcept { return _settings; }
 
+  /// @brief Acquire current link in exactly ten reads, as one eight- and one two-frame batch.
+  /// @param[out] snapshot Assigned only on complete coherent success; unchanged on every error.
+  /// @param[in] budget Exclusive deadline and at least ten frames; both batch bounds reserved upfront.
+  /// @return OK also for cable down, BUSY/OBSERVATION_CHANGED for inconsistent bookends,
+  /// or binding, initialization, owner, clock, budget or exact transport error/detail.
+  /// @pre Serialize all instance access and all bus participants; initialized accepted identity required.
+  /// @note SNLS647I tables8-19/20/23..25/29/34/43 and IEEE802.3 Table28B-3.
+  /// Reads BMSR twice, PHYSTS, BMCR, ANAR, ALNPAR, ANER, PHYCR, BMSR, PHYSTS.
+  /// Destructive words belong to the existing collector, even on partial failure.
+  /// No retry or implicit configuration. OP-14 reset waits/quiet floors and an
+  /// active next-page consumer deny this read; semantic writes in a running
+  /// operation suppress resolved mode/pause. Raw forced PHYSTS remains unqualified.
+  /// Failed refresh, including zero-I/O budget rejection, retains old values/time
+  /// as stale with the returned error. Local owner/lifecycle rejection is not a refresh.
+  /// Use observedSinceUs and an owner-supplied current upper time for maximum age.
+  Status readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) noexcept;
+  /// @brief Copy link, change counters and historical freshness without bus/clock I/O.
+  /// @return Last observation and refresh status; caller policy decides acceptable age/mode.
+  LinkSnapshot linkSnapshot() const noexcept { return _link; }
+
   /// @brief Acquire and accept identity at the bound address in one two-read batch.
   /// @param[out] identity Assigned only after complete in-budget transport and identity acceptance.
   /// @param[in] budget Aggregate microsecond deadline and at least two frames.
@@ -579,6 +647,7 @@ private:
   EvidenceSnapshot _evidence{};
   DeviceIdentity _identity{};
   SettingsSnapshot _settings{};
+  LinkSnapshot _link{};
   ConfigureOptions _configureOptions{};
   enum class ConfigStep : uint8_t {
     DRAIN, READ_ANAR, READ_BMCR, READ_CR1, READ_PHYCR, READ_CR3, READ_CR2,
@@ -622,6 +691,7 @@ private:
   void _retainEvidence(const MdioBatch& batch, const BatchResult& result,
                        bool clockValid, uint64_t before, uint64_t upper) noexcept;
   void _invalidateEvidence() noexcept;
+  void _invalidateLink() noexcept;
   Status _checkMutation() noexcept;
   Status _checkToken(OperationToken token) const noexcept;
   Status _finishOperation(Status status, bool freshObservation = false) noexcept;

@@ -317,3 +317,30 @@ cmake -S . -B build/audit13-18-ubsan -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP838
 cmake --build build/audit13-18-ubsan
 ctest --test-dir build/audit13-18-ubsan --output-on-failure --no-tests=error
 ```
+
+## Live/cached link observation
+
+`link.cpp` adds nine registered suites (`read_plan`, `transitions`, `coherence`,
+`pause`, `forced`, `failures`, `budgets`, `clocks`, `ownership`) and an active
+Release failure probe. The current total is 78 CTests. Independent literals cover
+the exact ten reads in 8+2 batches, both-direction changes at each read boundary,
+every failed frame, partial destructive history/loss, all 16 pause combinations,
+highest-common technology, forced/parallel-extension gates and cached changes.
+Clock zero, missing per-frame stamps, conservative age, quantization, overflow,
+regression through link and other APIs, resets and complete budget admission
+remain separate cases. No production mask supplies the expected result.
+
+```sh
+cmake -S . -B build/link19-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON
+cmake --build build/link19-release
+ctest --test-dir build/link19-release --output-on-failure --no-tests=error
+cmake -S test/consumer -B build/link19-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF
+cmake --build build/link19-consumer
+ctest --test-dir build/link19-consumer --output-on-failure --no-tests=error
+```
+
+The consumer executes [LinkStatus.h](../examples/portable/LinkStatus.h) with the
+real core and proves cached policy has no MDIO/clock callbacks. Use the same
+UBSan trap flags above in a separate `build/link19-ubsan` directory. Host protocol
+and linked consumer checks do not establish SDK or physical partner/timing
+qualification. See the [stage report](../docs/reports/implementation/19-link-observation.md).

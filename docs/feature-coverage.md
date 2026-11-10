@@ -16,7 +16,9 @@ with independent host tests. Prompt 15 completes [NONE/PCS initialization](initi
 mandatory VOD verification and retained restoration. Prompt 16 completes HARD/RESTART, persistent quiet floors and external-reset/POR
 reconciliation. Prompt 17 completes [negotiated profiles and typed next pages](negotiation.md),
 with shared replay and partial-evidence tests. Prompt 18 completes [forced and coupled controls](forced-settings.md) through
-the same configuration/replay path. Other feature procedures are PENDING; SDK builds and hardware qualification
+the same configuration/replay path. Prompt 19 completes [live/cached link observation](link-observation.md)
+with ten-read consistency, forced/pause qualification and retained change evidence.
+Other feature procedures are PENDING; SDK builds and hardware qualification
 are NOT RUN. Ledger tests establish their own research layer.
 
 The [prompts 13-18 audit](reports/implementation/13-18-independent-audit.md)
@@ -55,7 +57,7 @@ silicon gates remain explicit. No feature's implementation status changes here.
 | negotiation / Advertisement, forced-compatible negotiation and pause | 3 / COMPLETE | 17 (SOFTWARE) | 17, 19, 37, 38, 39 | None named | LinkSettings, advertisement and AN controls; Desired/observed/trust, negotiation and directional pause | configure_an |
 | next_page / Complete next-page exchange | 3 / COMPLETE | 17 (SOFTWARE) | 17, 19, 20, 29, 34 | next_page_handshake | Typed local pages and bounded exchange; Partner pages, partial handshake and completion | next_page_exchange |
 | crossover / Automatic, robust and manual crossover / port mirror | 3 / COMPLETE | 18 (SOFTWARE) | 18, 19, 34 | forced_physts | ForcedLinkSettings, crossover/mirror/extended duplex; Configured mode versus observed routing/link | configure_forced, extended_link_configure |
-| link / Live and retained link observations | 3 / COMPLETE | 19 (SOFTWARE) | 19 | forced_physts | readLinkStatus and cached LinkSnapshot; Link/current-history validity, age and resolution | observe_link |
+| link / Live and retained link observations | 3 / COMPLETE | 19 COMPLETE (SOFTWARE; host PASS) | 19 | forced_physts (physical Q11) | readLinkStatus and cached LinkSnapshot; current/history validity, conservative age, forced/AN pause and change evidence; test/link.cpp | observe_link |
 | eee / EEE capability, initialization and negotiation | 5 / COMPLETE | 29 (SOFTWARE) | 29, 37, 38, 39 | eee_wire, eee_control_semantics, pin_fields | EEE initialization/settings/status; Local/partner capability, request and negotiated state | eee_initialize, eee_negotiation_status |
 | lpi / Legacy MAC LPI sessions | 5 / COMPLETE | 30 (SOFTWARE) | 30, 37, 38, 39, 68 | eee_wire, eee_control_semantics | Finite legacy-MAC LPI session; Accepted/maybe-active state, wake/exit readiness | legacy_lpi |
 | wol / Magic Packet and Secure-ON wake | 5 / COMPLETE | 31 (SOFTWARE) | 31 | wol_bit_mask, wol_live_reconfigure, rxfs_sfd_reference | Wake MAC/password, pulse/level/CRC and acknowledgement; Verified settings and retained wake/error evidence | wol_configure, wol_acknowledge |

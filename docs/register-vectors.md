@@ -163,6 +163,42 @@ pause/asymmetric fields; columns are partner fields.
 Forced, half-duplex, incomplete or stale AN does not have a negotiated-pause
 result; do not replace invalidity with a claimed successful zero resolution.
 
+## Prompt 19 link observation vectors
+
+Independent original-source review: SNLS647I tables8-19/20/23/24/25/29/34/43 and
+IEEE Table28B-3, recorded in the [review](reports/implementation/19-source-review.md).
+The production ten-read plan executes these literal addresses in two callbacks:
+`R(01), R(01), R(10), R(00), R(04), R(05), R(06), R(19)`;
+then `R(01), R(10)`. No production constant derives the test oracle.
+
+- Current/final BMSR comparison is `0024`; first/final PHYSTS comparison is
+  `0011`. Cross-register link is BMSR `0004` versus PHYSTS `0001`; AN complete
+  is BMSR `0020` versus PHYSTS `0010`. Resolved AN mode compares PHYSTS `0006`.
+- First BMSR `0020`, second/final `0024`, PHYSTS `0015` means historical low
+  followed by coherent current100/full. First `0024`, second `0020` is a current
+  low; it is publishable DOWN only when final BMSR/PHYSTS also agree on low.
+  A current/final mismatch rejects publication; all consumed history survives.
+- With AN enabled and complete, PHYSTS low words `0001/0005/0003/0007` mean
+  100/half,100/full,10/half,10/full. Completion evidence is separate from these
+  low words. ANER `0010` invalidates mode through parallel-detection fault.
+- BMCR `2000` plus raw PHYSTS `0007` still means forced100/half when verified
+  CR2 `0020` is clear. Otherwise duplex is UNKNOWN. BMCR `2100`, `0000`, `0100`
+  establish local forced100/full,10/half,10/full respectively. Pause is invalid.
+- ANER partner-AN `0001` is absent on parallel detection. Verified CR2 `0020`
+  and coherent AN-complete PHYSTS `0015` qualify extended100/full; `0017` does
+  not qualify a 10/full extension. Both parallel paths have invalid pause.
+- The 16 pause cells above apply only after IEEE selectors `0001` and a
+  matching highest-common full-duplex technology. Common `0100` outranks `0080`,
+  which outranks `0040`. Local/partner `0141/0041` at10/full qualify; `00C1/00C1`
+  at10/full do not because common100/half has priority. Local/partner `0141/0141`
+  observed at10/full also do not qualify pause. Mode remains independently raw/
+  qualified; no invented pause result repairs inconsistent advertisements.
+
+Clock regression and `raw+lag` overflow retain the old aggregate interval as
+stale CLOCK_CONTRACT history, even when detected by another public read. A clock
+value of zero is legal with explicit validity. Maximum age uses the start lower
+bound, not the completion upper bound; unchanged cached reads consume nothing.
+
 ## Read effects and failure vectors
 
 Table8-34 independently names clearing relationships: PHYSTS receive error to

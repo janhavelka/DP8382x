@@ -9,6 +9,7 @@
 #include "../../examples/portable/Initialize.h"
 #include "../../examples/portable/Configure.h"
 #include "../../examples/portable/Forced.h"
+#include "../../examples/portable/LinkStatus.h"
 
 #ifdef _MSVC_LANG
 static_assert(_MSVC_LANG >= 201703L, "DP8382x must propagate C++17");
@@ -329,6 +330,14 @@ static bool configurationExamples() noexcept {
     if (!status.inProgress() && !status.ok()) return false;
     ++controller.timeUs;
   }
+  DP8382x::LinkSnapshot link;
+  const auto framesBefore = controller.frames;
+  if (!sampleLink(phy, {100000, 10}, link).ok() ||
+      !link.valid || link.stale || link.linkUp || link.resolvedModeValid ||
+      controller.frames != framesBefore + 10) return false;
+  const auto cached = phy.linkSnapshot();
+  if (cached100FullUsable(cached, controller.timeUs + 1, 1000) ||
+      controller.frames != framesBefore + 10) return false;
   return forced.resultAvailable && forced.result.status.ok() &&
       controller.anar == 0x0101 && controller.bmcr == 0x2100 &&
       controller.cr1 == 0x0020 && controller.phycr == 0 && controller.vodWrites == 1 && phy.end().ok();

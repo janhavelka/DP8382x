@@ -40,8 +40,8 @@ distinct from passive transport health and from an operation's cleanup barrier.
 The collector retains every validated consumed sample and possible history loss;
 ordinary aggregates publish only complete observations. Safe raw dumps exclude
 destructive addresses and show cached evidence. Explicit acquisition and narrow
-mixed-register maintenance are stage 13 consumers, later reused by link, IRQ and
-diagnostics. Unknown register semantics remain named gates, not guessed permissions.
+mixed-register maintenance are stage 13 consumers; stage 19 link acquisition uses
+the same path, extended later by IRQ and diagnostics. Unknown register semantics remain named gates, not guessed permissions.
 
 Stage 14 adds one exact-address two-read identity batch. Partial/rejected raw
 words remain diagnostic evidence; only fresh accepted identity supplies
@@ -99,6 +99,12 @@ owns one token/result slot, aggregate admission, transport accounting and the
 single destructive collector. Initialization calls the same profile procedure
 for replay. There is no second transaction owner, page registry or job engine.
 [Negotiation](negotiation.md) documents the currently implemented scope; SDK
-projection, resolved link and MAC flow control have later owners. Stage 18 extends
+projection and MAC flow control have later owners. Stage 18 extends
 the same profile phases for forced modes and coupled routing/extension, including
 shared restoration; no separate Force Mode implementation exists.
+
+`src/DP8382xLink.cpp` owns the fixed two-batch link consistency pass and retained
+semantic change evidence. It reuses the same transport, collector and invalidation
+hooks; cached access has no callbacks. [Link observation](link-observation.md)
+keeps current link, consumed history, mode/pause validity and application age
+policy distinct. There is no core notification scheduler or second collector.

@@ -421,3 +421,13 @@ Q5 must establish exact physical behavior. Vendor payloads/hashes are unchanged.
 Prompt 18 re-audited these exact tables and current TI implementations. The
 [source review](../reports/implementation/18-source-review.md) records pins,
 licenses, independent vectors and the forced-to-AN robust-disable order.
+
+## Prompt 19 current link observation review
+
+The [independent original-source review](../reports/implementation/19-source-review.md)
+rechecks unchanged SNLS647I bytes, current TI RTOS helpers and original IEEE
+Table 28B-3. The driver uses the exact two-batch plan and collector described in
+[link observation](../link-observation.md), retaining first-low history while
+still reading current link. Generic first-low success without assigning output
+and unqualified forced PHYSTS decoding are rejected. PHYCR is a pause cross-check,
+not the algorithm. Physical Q11 and measured MDIO/partner behavior remain NOT RUN.

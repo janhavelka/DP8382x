@@ -1,9 +1,9 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–18 are complete: source research, shared contracts, portable
+execution. Prompts 1–19 are complete: source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 68 registered Release CTests, 102 Python tests,
+Current local checks include 78 registered Release CTests, 102 Python tests,
 the linked tests-OFF consumer, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -16,9 +16,16 @@ explicit unresolved gates. Research completion does not claim driver completion.
 Prompt 15 adds [caller-driven initialization](initialization.md), cancellation,
 retained results and separately admitted restoration. Prompt 17 adds negotiated
 profile replay; prompt18 adds forced modes and coupled routing/extension.
-Managed health and resolved-link observation retain their later stages.
+Prompt 19 adds [live/cached link observations](link-observation.md), qualified
+mode/pause and retained change evidence. Managed health retains prompt 21.
 
 ## Execution record
+
+Prompt 19 entry / completed prompts 13-18 audit checkpoint:
+`8ee2efd77c27eb03dce069e1a0c98bd7fcb1440c`, fetched and equal to upstream.
+The existing execution branch/base is retained. [Prompt 19 report](reports/implementation/19-link-observation.md)
+records the bounded observation, independent reviews, tests and explicit physical
+limits. Final commit and verified upstream equality are recorded in the handoff.
 
 Fresh prompts 13-18 audit entry: `507dff3424668f7404760dca905070b4a4ad1e6f`,
 clean and equal to upstream. The [independent audit](reports/implementation/13-18-independent-audit.md)
@@ -209,7 +216,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [16 Implement hard reset, restart and external-reset reconciliation](prompts/16-hard-reset-restart.md) | COMPLETE | [Report](reports/implementation/16-hard-reset-restart.md); 47 Release CTests, linked consumer, 102 Python tests and documentation/reference checks; Q5/SDK/physical NOT RUN |
 | [17 Implement negotiated link settings and verified application](prompts/17-negotiated-link-settings.md) | COMPLETE | [Report](reports/implementation/17-negotiated-link-settings.md); host/consumer PASS, physical Q10 NOT RUN |
 | [18 Implement forced modes and coupled crossover settings](prompts/18-forced-crossover-settings.md) | COMPLETE | [Report](reports/implementation/18-forced-crossover-settings.md); host/consumer PASS, Q11 NOT RUN |
-| [19 Implement live and cached link observations](prompts/19-link-observation.md) | NOT STARTED | None |
+| [19 Implement live and cached link observations](prompts/19-link-observation.md) | COMPLETE | [Report](reports/implementation/19-link-observation.md); Release/UBSan host, tests-OFF consumer and documentation checks PASS; SDK/physical NOT RUN |
 | [20 Implement complete event and counter acquisition](prompts/20-event-counter-acquisition.md) | NOT STARTED | None |
 | [21 Implement passive driver health and exact accounting](prompts/21-passive-health.md) | NOT STARTED | None |
 | [22 Implement explicit reconciliation and bounded recovery](prompts/22-reconcile-recover.md) | NOT STARTED | None |

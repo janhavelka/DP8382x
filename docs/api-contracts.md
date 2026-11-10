@@ -169,24 +169,7 @@ struct HealthSnapshot {
     bool lastErrorTimeValid{false};
     Status lastError{Err::OK, 0, "No managed transport failure"};
 };
-enum class NegotiationState : uint8_t { UNKNOWN, DISABLED, IN_PROGRESS, COMPLETE };
-/// @brief A coherent observation, with optional independently qualified resolution.
-struct LinkSnapshot {
-    bool valid{false};                      ///< Valid link-up/down observation exists.
-    bool stale{true};                       ///< Invalidated/failed refresh; history retained.
-    bool linkUp{false};                     ///< Ignore unless valid and not stale.
-    NegotiationState negotiation{NegotiationState::UNKNOWN};
-    LinkSpeed speed{LinkSpeed::UNKNOWN};
-    Duplex duplex{Duplex::UNKNOWN};
-    bool resolvedModeValid{false};          ///< Both speed and duplex independently resolved.
-    bool temporaryMayBeActive{false};       ///< Temporary profile may affect observed link.
-    bool pauseRx{false};
-    bool pauseTx{false};
-    bool pauseValid{false};                 ///< Full-duplex AN resolution only.
-    uint64_t observedAtUs{0};               ///< Completed coherent acquisition, microseconds.
-    bool timeValid{false};
-    Status lastRefreshStatus{Err::NOT_INITIALIZED, 0, "No link observation"};
-};
+// LinkSnapshot, NegotiationState and LinkChange are shipped in DP8382x.h.
 enum class ConfigurationTrust : uint8_t { UNKNOWN, VERIFIED, DIRTY };
 /// @brief Foundational link settings view; no claim to verify future feature fields.
 struct SettingsSnapshot {
@@ -284,7 +267,13 @@ or accepts a zero timestamp as "not observed". `stale` records known invalidatio
 or failed refresh, not application age policy. A prior valid snapshot can remain
 `valid=true, stale=true` as history. A never-observed snapshot has valid=false.
 On a successful refresh, stale=false and lastRefreshStatus=OK even for link-down.
-On failed live refresh, preserve prior values/observedAtUs/timeValid as historical
+LinkSnapshot retains the acquisition interval: observedSinceUs is the start
+lower bound and observedAtUs the completion upper bound. A conservative maximum
+age subtracts observedSinceUs from the owner-supplied current upper time, with
+explicit order/overflow checks. LinkChange and saturating observations/changes
+retain first, changed, repeated, stale and regained evidence without consumption.
+On failed live refresh (including frame/deadline/bound admission), preserve prior
+values/observedSinceUs/observedAtUs/timeValid as historical
 evidence, set stale=true and lastRefreshStatus to the returned error. An ordinary
 caller output remains unchanged. A clock fault additionally prevents comparing
 that history to the now-invalid time domain; it never manufactures a fresh stamp.
@@ -388,8 +377,9 @@ updates preserve the W0C indication and bit6, and explicit acknowledge uses zero
 Both maintenance routes require the owner's exact-part/address and safe-use
 admission even before typed initialization; raw access remains restricted.
 
-The following are planned class-member signatures, introduced with their owning
-working stages; the enclosing class is omitted from this declaration excerpt:
+The following class-member signatures are shipped for settings/lifecycle and,
+from prompt 19, link observation. Health remains planned for prompt 21; the
+enclosing class is omitted from this declaration excerpt:
 
 ```cpp interface
 Status readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) noexcept;
@@ -404,7 +394,10 @@ Status invalidateDeviceState(InvalidationReason reason) noexcept;
 ### Live link result and failure examples
 
 `readLinkStatus` requires initialized identity and owner admission, but not
-verified desired configuration merely to observe. It always collects two BMSR
+verified desired configuration merely to observe. Local lifecycle/owner rejection
+is not an acquisition and does not change a snapshot; ordinary acquisition-budget
+failure does mark prior history stale. An active typed next-page exchange rejects
+link acquisition to preserve its sole ANER consumer. It always collects two BMSR
 samples in order through the collector, including when the first link bit is
 low. Do not copy TI `GenericPhy_isLinkUp`'s first-low success with untouched
 output. A successful query assigns all fields from a staged snapshot; a valid
@@ -422,8 +415,8 @@ consistency check, not an atomic hardware snapshot. ANAR/ALNPAR/PHYCR pause
 evidence is usable only with a coherent full-duplex AN result and the ledger's
 exact interpretation. A detected change returns BUSY/OBSERVATION_CHANGED,
 keeps ordinary output unchanged and marks cached history stale; there is **no
-automatic retry**. The owner may request a new bounded observation. Prompt 19
-implements the detailed masks and source gates; new evidence changing this order
+automatic retry**. The owner may request a new bounded observation. The [implemented guide](link-observation.md)
+defines the detailed masks and source gates; new evidence changing this order
 or cap requires a coordinated contract/caller update, not a silent extra loop.
 
 Valid UP with pending negotiation may have unresolved mode/pause. With AN disabled, use observed BMCR bits 13/8 for forced speed/duplex; retain
@@ -431,7 +424,10 @@ PHYSTS low bits raw. Forced 100/half with extended full duplex requested or
 unverified remains unresolved because the result depends on its partner.
 Complete AN resolution requires current link, AN complete and sufficient coherent
 source evidence. Pause RX/TX are independently resolved only for full-duplex AN;
-half duplex, forced mode and pending AN leave pauseValid=false. The SDK cannot
+half duplex, forced mode and pending AN leave pauseValid=false. Pause also
+requires IEEE selectors, an AN-capable partner, highest-common full-duplex
+technology matching observed speed and agreement with PHYCR. A mismatch retains
+raw advertisements and independently valid mode, while withdrawing pause. The SDK cannot
 project UP without the required resolved tuple; that restriction does not force
 the portable query to invent one or label valid link-down a failure.
 
