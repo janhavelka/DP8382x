@@ -4,6 +4,13 @@
 
 ### 2026-11-10
 
+- Implemented prompt20 typed event/counter acquisition through the existing
+  collector, with complete and partial cached views, explicit coalescing,
+  FCSCR saturation/overflow/lower bounds and bus-silent host-history discard.
+  Removed unqualified RECR summation; raw acquisition remains available.
+  Added five host suites, arithmetic boundary tests and a linked cached renderer.
+  Physical counter/RMII interpretation and SDK evidence remain separate gates.
+
 - Implemented prompt 19 bounded live link observation, passive snapshots and
   retained change evidence through the existing destructive collector. Added
   forced-mode gates, IEEE pause resolution/cross-checks, coherent ten-read

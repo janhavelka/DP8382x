@@ -431,3 +431,13 @@ Table 28B-3. The driver uses the exact two-batch plan and collector described in
 still reading current link. Generic first-low success without assigning output
 and unqualified forced PHYSTS decoding are rejected. PHYCR is a pause cross-check,
 not the algorithm. Physical Q11 and measured MDIO/partner behavior remain NOT RUN.
+
+## Prompt20 current destructive-source review
+
+[Original-table review](../reports/implementation/20-source-review.md) confirms
+unchanged SNLS647I and current TI RTOS sources, with exact field literals and
+per-file licenses. MISR/FLDS event retention and FCSCR saturation are implemented
+through the sole collector. RECR numeric accumulation is withdrawn: its raw
+word remains available, but the printed width/saturation conflict is not resolved
+by vendor masks. RCSR decoding and RXFS source/configuration ambiguities retain
+their gates. Physical Q16/Q17 measurements are NOT RUN.

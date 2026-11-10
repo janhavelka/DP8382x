@@ -1,9 +1,9 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–19 are complete: source research, shared contracts, portable
+execution. Prompts 1–20 are complete: source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 78 registered Release CTests, 102 Python tests,
+Current local checks include 84 registered Release CTests, 102 Python tests,
 the linked tests-OFF consumer, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -17,9 +17,16 @@ Prompt 15 adds [caller-driven initialization](initialization.md), cancellation,
 retained results and separately admitted restoration. Prompt 17 adds negotiated
 profile replay; prompt18 adds forced modes and coupled routing/extension.
 Prompt 19 adds [live/cached link observations](link-observation.md), qualified
-mode/pause and retained change evidence. Managed health retains prompt 21.
+mode/pause and retained change evidence. Prompt20 adds [typed event/counter acquisition](event-counters.md)
+and explicit retained-history semantics. Managed health retains prompt 21.
 
 ## Execution record
+
+Prompt20 entry / synchronized prompt19 checkpoint:
+`0d176b555c7fb35c1836041d9b7499ac5e9d5304`. The same execution branch/base is
+retained. [Stage20 report](reports/implementation/20-event-counter-acquisition.md)
+records source/peer audits, collector completion and local verification. Final
+commit/upstream equality is recorded in the handoff rather than self-reference.
 
 Prompt 19 entry / completed prompts 13-18 audit checkpoint:
 `8ee2efd77c27eb03dce069e1a0c98bd7fcb1440c`, fetched and equal to upstream.
@@ -217,7 +224,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [17 Implement negotiated link settings and verified application](prompts/17-negotiated-link-settings.md) | COMPLETE | [Report](reports/implementation/17-negotiated-link-settings.md); host/consumer PASS, physical Q10 NOT RUN |
 | [18 Implement forced modes and coupled crossover settings](prompts/18-forced-crossover-settings.md) | COMPLETE | [Report](reports/implementation/18-forced-crossover-settings.md); host/consumer PASS, Q11 NOT RUN |
 | [19 Implement live and cached link observations](prompts/19-link-observation.md) | COMPLETE | [Report](reports/implementation/19-link-observation.md); Release/UBSan host, tests-OFF consumer and documentation checks PASS; SDK/physical NOT RUN |
-| [20 Implement complete event and counter acquisition](prompts/20-event-counter-acquisition.md) | NOT STARTED | None |
+| [20 Implement complete event and counter acquisition](prompts/20-event-counter-acquisition.md) | COMPLETE | [Report](reports/implementation/20-event-counter-acquisition.md); host/UBSan, consumer, docs and reference checks PASS; RECR/RMII derived semantics and physical Q16/Q17 remain gated |
 | [21 Implement passive driver health and exact accounting](prompts/21-passive-health.md) | NOT STARTED | None |
 | [22 Implement explicit reconciliation and bounded recovery](prompts/22-reconcile-recover.md) | NOT STARTED | None |
 | [23 Implement all supported loopback modes](prompts/23-loopback-modes.md) | NOT STARTED | None |

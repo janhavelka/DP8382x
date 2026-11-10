@@ -18,7 +18,9 @@ reconciliation. Prompt 17 completes [negotiated profiles and typed next pages](n
 with shared replay and partial-evidence tests. Prompt 18 completes [forced and coupled controls](forced-settings.md) through
 the same configuration/replay path. Prompt 19 completes [live/cached link observation](link-observation.md)
 with ten-read consistency, forced/pause qualification and retained change evidence.
-Other feature procedures are PENDING; SDK builds and hardware qualification
+Prompt20 completes [typed events/counters](event-counters.md), per-source partial
+history and source-qualified FCSCR accumulation. RECR/RMII derived interpretations
+remain gated. Other feature procedures are PENDING; SDK builds and hardware qualification
 are NOT RUN. Ledger tests establish their own research layer.
 
 The [prompts 13-18 audit](reports/implementation/13-18-independent-audit.md)
@@ -76,7 +78,7 @@ silicon gates remain explicit. No feature's implementation status changes here.
 | led / LED sources, blink, stretch and drive | 5 / COMPLETE | 32 (SOFTWARE) | 32 | pin_fields | Per-pin sources/polarity/blink/stretch/manual drive; Verified per-pin values | led_configure |
 | pin_mux / Per-pin GPIO, wake, IRQ and clock mux | 5 / COMPLETE | 32 (SOFTWARE) | 32, 33 | pin_fields | Exact per-pin mux and conflicts; Valid roles and read-only observations | pin_configure |
 | interrupts / Global IRQ and all event enables/service | 4 / COMPLETE | 27 (SOFTWARE) | 20, 27 | rxfs_sfd_reference | Global routing/polarity/enables/test/service; Verified masks, retained causes | interrupt_configuration, interrupt_test |
-| counters / Single collector for status and destructive counters | 4 / COMPLETE | 20 (SOFTWARE) | 20, 21 | recr_width, rmii_rc, rxfs_sfd_reference, forced_physts | Single destructive acquisition owner; Per-sample time/validity, partial counts/history loss | collect_event_counters |
+| counters / Single collector for status and destructive counters | 4 / COMPLETE | 20 COMPLETE (source-qualified SOFTWARE; host PASS) | 20, 21 | recr_width, rmii_rc, rxfs_sfd_reference, forced_physts | collectEvents/counterSnapshot, partial evidence, source-qualified FCSCR sums and host-history clear; test/events.cpp | collect_event_counters |
 | quality / Raw MSE and supported quality interpretation | 4 / COMPLETE | 34 (SOFTWARE) | 34 | mse_address | Raw MSE and source-proved interpretation; Raw value/validity, no invented SNR | signal_quality_sample |
 | compliance / Finite compliance stimulus procedures | 5 / COMPLETE | 35 (SOFTWARE) | 35, 51, 73 | compt_reserved | Collision test and finite admitted stimulus; Applied/maybe-emitting state, stop/cleanup | collision_test, compliance_session |
 | analog / Analog amplitude, termination and MAC output | 5 / COMPLETE | 35 (SOFTWARE) | 35 | ioctrl_example, analog_rx_gain | Amplitude/termination/slew/output profile; Verified settings and legal intermediate restoration | analog_configure |

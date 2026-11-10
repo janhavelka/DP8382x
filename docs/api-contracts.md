@@ -377,6 +377,24 @@ updates preserve the W0C indication and bit6, and explicit acknowledge uses zero
 Both maintenance routes require the owner's exact-part/address and safe-use
 admission even before typed initialization; raw access remains restricted.
 
+Stage20 ships `collectEvents(CounterSnapshot&, const IoBudget&)`, passive
+`counterSnapshot()` and bus-silent `clearEvidence()`. Public headers own the
+value declarations; the [event/counter guide](event-counters.md) owns their
+partial-history and reset/discard contract. Collection reuses `acquireEvidence`
+for one PHYSTS/FLDS/MISR1/MISR2/FCSCR/RECR batch. Ordinary output is unchanged
+on failure, separately retained valid prefixes survive, and any subsequent
+collector read invalidates the earlier complete aggregate. No RXFS read is
+added to decode MISR2's ambiguous shared event.
+
+Host history spans binding or explicit discard, with sticky discontinuity
+across reset/external/configuration changes; latest samples can become fresh
+without assigning retained event unions to a reset epoch. Event masks coalesce
+occurrences. Sample count and host arithmetic overflow are explicit. Only FCSCR
+is accumulated, with hardware saturation/lost history flagged as lower bounds;
+RECR remains raw and its arithmetic field stays zero. Discard does not access
+hardware, clear transport/managed-health counters, alter configuration trust,
+or consume a retained operation result. Running work/callbacks refuse discard.
+
 The following class-member signatures are shipped for settings/lifecycle and,
 from prompt 19, link observation. Health remains planned for prompt 21; the
 enclosing class is omitted from this declaration excerpt:

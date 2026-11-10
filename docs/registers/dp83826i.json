@@ -10428,22 +10428,21 @@
         }
       ],
       "ownedMasks": [],
-      "prerequisites": "Bound/identified exact part; serialized driver owner and one collector across SDK/raw/CLI participants; declared finite register set, primary deadline and per-poll transfer budget. No concurrent reset, diagnostic snapshot command, source-mux change or read-clear accessor.",
+      "prerequisites": "Bound exact DP83826I with application-attested address/readiness and diagnostic admission; all instance calls and bus participants serialized. OP14 reset WAIT/hard-reset floor deny acquisition. Active next-page service owns ANER. No concurrent external writer or source-mux change.",
       "steps": [
-        "Create acquisition token and history/reset/source epochs; cached views perform no I/O. Retain each raw word with register, timestamp, validity and consume sequence before another read; no all-or-nothing temporary aggregate.",
-        "Read PHYSTS first when requested to preserve its mirrors before their clearing sources; Signal/Descrambler RC fields remain raw history. Do not use forced-mode speed/duplex as universal resolved link. Retain BMSR first and second samples separately for historical/current link; capture ANER page evidence through its established negotiation owner.",
-        "Read MISR1 and MISR2 once each, retaining status plus enables; collect FCSCR and full16-bit RECR, FLDS, RMII-only RCSR,10BASE-Te polarity10BTSCR, and RXFS only as requested and admitted. Capture RXFS source with event epoch; if not known stable during pending events retain ambiguous shared-source label. No fabricated atomic simultaneity across frames.",
-        "For BICSR1 use the BIST owner freeze/capture procedure, never a generic destructive-register sweep; PRBS and diagnostic results retain their own session identity. Incidental reads during all configuration RMW/readback use this same retention path.",
-        "On cancellation/deadline stop scheduling new primary reads. Preserve completed prefix and late-success consumed words; mark overall result cancelled/timed-out even if all words eventually arrived. Ambiguous failed terminal target read marks history gap; selector-stage failure before target read does not itself consume target history.",
-        "Publish cached latest observations separately from accumulated historical flags, saturating software totals and history-gap evidence. ORed event flags prove occurrence only, never count multiplicity. FCSCR FF is lower bound; RECR numeric aggregation/saturation remains gated. Mark omitted/failed samples stale without deleting retained prior evidence.",
-        "D4: coherent AN-disabled BMCR plus current linkUP establishes speed frombit13 and duplex frombit8; PHYSTS2:1 remain raw only. Forced100half with CR2[5] not known0 yields speed100, duplexUNKNOWN, mode invalid. Pause is never valid in forced mode.",
-        "Read PHYSTS before dependent clearers if mirrored history is required. Collector includes ANER,10BTSCR001A polarity0010 (clearsPHYSTS12), RXFS and source-implied EEE latched/RC rows. Retain each successful consumed word immediately; ambiguous read loses possible history, never reports zero."
+        "collectEvents performs PHYSTS, FLDS, MISR1, MISR2, FCSCR, RECR once in one six-frame batch. PHYSTS precedes its dependent clearers. acquireEvidence additionally selects BMSR, ANER, RCSR,10BTSCR and RXFS through the same collector; no second polling path.",
+        "Retain every validated consumed prefix immediately when its terminal callback returns, before another batch or caller return. Per-source raw/ones/zeros/event union, validity, completion timestamp and sample count are independent of whole-call success. Complete CounterSnapshot publication occurs only after whole-call success; no simultaneous-silicon claim.",
+        "MISR event unions exclude low enables; FLDS uses cause mask. ANER page,10BTSCR polarity and RXFS raw status join the same retention path. RCSR remains raw under rmii_rc. MISR2 shared polarity/WoL stays unclassified without owned stable selector evidence; do not read RXFS just to label it. Prompt27 owns selector writes.",
+        "Accumulate only FCSCR low bytes with distinct sticky hardware saturation, host sum overflow, possible loss and discontinuity. FF is a lower bound; RECR raw acquisition remains supported but its arithmetic stays zero/gated. No modulo deltas or physical error rate is inferred.",
+        "One fixed host-history window survives reset/restart/external/configuration uncertainty with sticky discontinuous and stale flags. Fresh latest samples can coexist with mixed historical unions/sums; no per-reset attribution or epoch archive is claimed. Coalesced event bits prove occurrence, never multiplicity. Sample-count overflow is explicit.",
+        "counterSnapshot/evidenceSnapshot are passive copies. Any new collector read invalidates the previous complete counter aggregate. clearEvidence discards local collector history only, without MDIO/clock callbacks; rejects running work and callbacks, preserves trust/link/identity/transport/operation results. The next silicon read can contain events predating this discard.",
+        "BICSR1 remains the BIST freeze/capture owner, not this generic sweep. Source-implied EEE counters retain prompt29; raw library access cannot bypass their ownership. No additional reset, drain or cleanup read occurs."
       ],
       "waits": [],
-      "timeout": "Finite aggregate primary deadline includes admission, locking and every callback; bounded per-poll transfer count. No silicon completion wait or interrupt-drain-until-empty loop. Any selector cleanup gets a distinct finite cleanup deadline and frame count. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "timeout": "One finite six-frame terminal callback for collectEvents, or the explicitly requested bounded batches for acquireEvidence, all under the original aggregate deadline. Callback bound includes lock/execution/release; zero/short allowance performs no MDIO. No waits, cancellation engine, retry or drain loop.",
       "partialEffects": "Already consumed latches/counters cannot be restored. New hardware events can occur between frames. Ambiguous callback completion may consume evidence without delivering it; mark loss, never convert a retry to proof of zero errors. Reset/restart interrupts observation epoch and invalidates currentness; retained host history survives reset/restart until explicitly consumed or acknowledged.",
-      "cleanup": "Release controller lock at every completed transaction and at terminal outcome. No counter-clear, reset or extra read to tidy up. If a transport/selector contract requires cleanup, report its status separately; cleanup cannot repair lost event evidence.",
-      "restoration": "No configuration mutation and no restoration of consumed hardware state. Preserve retained partial results until owner consumes/acknowledges. Reset replay uses persistent desired enables/source policy, never transient test interrupt or old event bits.",
+      "cleanup": "No cleanup mutation can restore consumed evidence. Stop after failure; retain primary and release statuses separately and controller quarantine as required. Cache valid prefixes and ambiguous history loss even when aggregate output remains unchanged.",
+      "restoration": "No hardware restoration. Reset/restart preserves host history with stale/discontinuous flags; explicit clearEvidence or binding/end starts a new local history. Later reset replay restores persistent enables/selection, never prior event bits.",
       "gates": [
         "recr_width",
         "rmii_rc",
@@ -10451,9 +10450,9 @@
         "rxfs_sfd_reference"
       ],
       "owner": {
-        "api": "collectEvents / CounterSnapshot",
+        "api": "collectEvents / CounterSnapshot / evidenceSnapshot / clearEvidence",
         "cli": "owner-routed collectEvents / CounterSnapshot (prompts 44-46)",
-        "test": "Independent literals and boundary failures for collectEvents / CounterSnapshot; prompts 20, 53-55",
+        "test": "test/events.cpp and access.cpp: independent event bits/counter bounds, actual accumulator overflow, every read failure, partial/lost/timestamp evidence, new inter-read events, passive readers/clear and MMD contention. Q16/Q17 physical evidence remains NOT_RUN.",
         "implementationStage": 20
       }
     },
@@ -12057,7 +12056,7 @@
       "gates": [
         "next_page_handshake"
       ],
-      "notes": "Prompt17 implements bounded verified negotiated profiles and optional typed Clause28 exchange through the existing operation slot. Independent Release tests and portable consumer pass; resolved-link observation, SDK projection and physical Q10 remain separately owned future evidence."
+      "notes": "Prompt17 implements bounded typed Clause28 exchange; prompts19/20 coordinate live link/event capture through its sole ANER consumer. Physical Q10 and SDK projection remain separately qualified; event evidence alone does not complete negotiation."
     },
     {
       "id": "crossover",
@@ -12844,7 +12843,7 @@
       "gates": [
         "rxfs_sfd_reference"
       ],
-      "notes": "Prompt4 source coverage complete with named unresolved behavior gates; no implementation, host driver test, SDK build or hardware qualification follows. See event_source_audit. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations. Prompt 13 supplies low-level destructive acquisition and MISR/WoL mixed updates, with retained partial evidence and independent fault tests; complete typed feature behavior remains at its declared implementation stage. SDK and physical evidence remain NOT_RUN."
+      "notes": "Prompts13/20 implement shared consuming capture, retained event history, complete aggregate and MISR enable maintenance. Global routing, output policy/test and IRQ service remain prompt27; selection ambiguity and SDK/physical gates remain open."
     },
     {
       "id": "counters",
@@ -12872,16 +12871,16 @@
         "collect_event_counters"
       ],
       "owner": {
-        "api": "collectEvents / CounterSnapshot",
+        "api": "collectEvents / CounterSnapshot / evidenceSnapshot / clearEvidence",
         "cli": "owner-routed collectEvents / CounterSnapshot (prompts 44-46)",
-        "test": "Independent literals and boundary failures for collectEvents / CounterSnapshot; prompts 20, 53-55",
+        "test": "test/events.cpp and access.cpp: independent event bits/counter bounds, actual accumulator overflow, every read failure, partial/lost/timestamp evidence, new inter-read events, passive readers/clear and MMD contention. Q16/Q17 physical evidence remains NOT_RUN.",
         "implementationStage": 20
       },
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PARTIAL",
-        "hostTested": "PARTIAL",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
@@ -12891,7 +12890,7 @@
         "rxfs_sfd_reference",
         "forced_physts"
       ],
-      "notes": "Prompt4 source coverage complete with named unresolved behavior gates; no implementation, host driver test, SDK build or hardware qualification follows. See event_source_audit. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations. Prompt 13 supplies low-level destructive acquisition and MISR/WoL mixed updates, with retained partial evidence and independent fault tests; complete typed feature behavior remains at its declared implementation stage. SDK and physical evidence remain NOT_RUN."
+      "notes": "Prompt20 completes source-qualified collect_event_counters through the single collector. RECR arithmetic and RMII RC decoding remain visibly source-blocked; raw acquisition is implemented. BIST/EEE feature-owned captures retain their own procedures. Managed MDIO health is prompt21, distinct from chip samples. SDK/physical Q16/Q17 remain NOT_RUN."
     },
     {
       "id": "quality",
