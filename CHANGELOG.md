@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### 2026-11-11
+
+- Fast-forwarded the prompts 1-20 execution branch into `main`. Until version 0
+  is finished, all work happens directly on `main` with no new branches.
+
 ### 2026-11-10
 
 - Implemented prompt20 typed event/counter acquisition through the existing
