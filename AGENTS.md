@@ -12,7 +12,7 @@ relevant shared contracts. Re-audit current relevant sibling I2C headers, source
 examples/CLI, tests, Python runners and agent rules. Record paths, revisions and
 selected conventions. Siblings and FieldCore-node are read-only references.
 
-## Git: one branch per execution
+## Git: work on main until version 0
 
 Routine commits and synchronization are authorized for this repository's prompt
 execution and complete planning/maintenance changes.
@@ -20,13 +20,12 @@ execution and complete planning/maintenance changes.
 - Inspect status, staged changes, branch and upstream before edits. Fetch the
   configured remote and compare histories. Fast-forward only when safe and
   preserve local/concurrent work.
-- Start every new promptset execution on a new descriptive branch from the
-  synchronized intended base. Honor a requested name/base, otherwise use a unique
-  name such as `promptset/dp8382x-implementation-YYYYMMDD`. Record branch/base in
-  `docs/implementation-progress.md` and establish its same-name upstream.
-- Keep that branch through every stage, agent and resumed session. Resume its
-  recorded progress. Prompt maintenance alone stays on the working maintenance
-  branch; it does not start implementation.
+- Until version 0 is finished, all work happens directly on `main`: every stage,
+  agent, resumed session and planning change. Create no new branch, including
+  for a new promptset execution, unless the user asks for one. The earlier
+  `promptset/dp8382x-implementation-20261028` branch was fast-forwarded into
+  `main` on 2026-11-11; do not resume work on it. Resume recorded progress on
+  `main`. Prompt maintenance does not start implementation.
 - Commit and sync each completed prompt before reporting completion or starting
   the next. Checkpoint coherent verified intermediate units with their tests/docs
   as they become ready. A no-change review needs no empty commit.

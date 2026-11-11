@@ -64,8 +64,12 @@ Prompt 14 final synchronized checkpoint / prompt 15 entry:
 Prompt 15 report records source and independent review, local checks and retained
 scope gates. Its final commit/sync SHA is in the handoff to avoid a self-reference.
 
-Execution branch: `promptset/dp8382x-implementation-20261028`.
-Base: `main` / `origin/main` at `5e148fffde074b85fadc15d8ff66fe2c77111036`
+Execution branch: `main`, from 2026-11-11. The owner asked that no new branch be
+created until version 0 is finished. Prompts 1-20 ran on
+`promptset/dp8382x-implementation-20261028`, which was fast-forwarded into `main`
+at `7f80fd807942b13ca979b26fd61e2edf538416a4` on 2026-11-11 after the local checks
+passed there.
+Original branch base: `main` / `origin/main` at `5e148fffde074b85fadc15d8ff66fe2c77111036`
 (fetched, clean and equal before branch creation on 2026-10-28).
 Prompt 1 verified commit/sync checkpoint: `77e839810fe8338223a2c1fef89f0af5f48a6f3e`.
 Prompt 2 comparison checkpoint: `05d69f585e8d8984b90645a8ec931802b071ecb1`
@@ -193,10 +197,9 @@ The [stage report](reports/implementation/14-identity-capabilities.md) records
 source/peer review, accepted identity policy, failure/invalidation behavior and
 actual local verification. Final commit/upstream equality is in the handoff.
 
-Before prompt 1 of a new execution, create a new branch from the synchronized
-intended base and record its name/base here. Keep that branch for every prompt
-and resumed session. Record stage outcomes, actual checks, remaining dependencies
-and completed checkpoints under [COMMON](prompts/COMMON.md). Planning maintenance
+Until version 0 is finished, every prompt and resumed session works on `main`;
+create no new branch (root AGENTS). Record stage outcomes, actual checks,
+remaining dependencies and completed checkpoints under [COMMON](prompts/COMMON.md). Planning maintenance
 leaves implementation status unchanged.
 
 Commit and sync each completed prompt and coherent verified intermediate unit.

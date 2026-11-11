@@ -13,10 +13,9 @@ convention, and its DP8382x destination. Keep implementation claims planned.
 Prompt 2 owns tooling and the broader inventory; this task closes the API,
 state and ownership comparison without waiting for that independent work.
 
-Before a new execution starts, create a new descriptive branch from the
-synchronized intended base and record branch/base in implementation progress.
-Resume an existing execution on its recorded branch. Never execute a new set
-on main or create a different branch for each prompt or subagent.
+Until version 0 is finished, execute on `main` as root AGENTS requires. Create
+no branch for the execution, a prompt or a subagent. Resume an existing
+execution from its recorded progress.
 
 ## Work and source evidence
 

@@ -29,11 +29,10 @@ terminal callback and retains its separate release status.
 
 1. Inspect branch, upstream, staged/working changes, predecessor outputs and
    applicable agent rules. Fetch and compare the configured upstream; preserve
-   concurrent work. At the start of a new promptset execution, create a new
-   descriptive branch from the synchronized intended base and record branch/base
-   in [implementation progress](../implementation-progress.md). Keep that branch
-   through all prompts and resumed sessions. Resume an existing execution on its
-   recorded branch. Editing the plan alone is repository maintenance.
+   concurrent work. Until version 0 is finished, work directly on `main` and
+   create no new branch (root AGENTS). Resume recorded
+   [implementation progress](../implementation-progress.md) there. Editing the
+   plan alone is repository maintenance.
 2. Re-audit current relevant sibling I2C declarations, implementation, examples,
    CLI, tests, Python runners and agent guidance. Inspect workflow definitions
    initially and when affected. Record revision/dirty state, exact paths and the

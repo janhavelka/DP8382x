@@ -28,9 +28,8 @@ Change the filename for each subsequent stage. For the whole set:
 
 ```text
 Execute prompts 1 through 80 in docs/prompts/README.md, following COMMON and root
-AGENTS. For a new execution, create a new branch from the synchronized intended
-base and record its name/base. For a resumed execution, use its recorded branch
-and progress. Keep that branch through the entire set.
+AGENTS. Until version 0 is finished, work directly on main and create no new
+branch. For a resumed execution, continue from its recorded progress.
 Before each stage verify its actual dependencies, re-audit relevant current
 sibling libraries and primary chip/SDK sources, and state the applicable rules
 briefly. Implement the complete scoped behavior with tests and documentation.
