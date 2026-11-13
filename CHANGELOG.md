@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### 2026-11-13
+
+- Unified author, copyright and contact metadata: THYMOS Solution s.r.o.,
+  Jan Havelka, info@thymos.cz. `library.json` gains the owner `authors`, which
+  `scripts/generate_version.py` now requires exactly.
+
 ### 2026-11-11
 
 - Fast-forwarded the prompts 1-20 execution branch into `main`. Until version 0
