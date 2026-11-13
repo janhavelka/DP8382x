@@ -5,9 +5,10 @@ Usage: python scripts/generate_version.py sync|check
 
 Version syntax is MAJOR.MINOR.PATCH, with ASCII decimal components 0..65535,
 no leading zero except 0, and no prerelease/build suffix. The JSON root must
-contain exactly name, version, description, license and repository. Duplicate
-keys, wrong types and nonfinite JSON numbers are errors. The tool writes UTF-8
-with LF line endings. Importing this module never changes the checkout.
+contain exactly name, version, description, license, repository and authors;
+authors must equal the owner entries in AUTHORS. Duplicate keys, wrong types
+and nonfinite JSON numbers are errors. The tool writes UTF-8 with LF line
+endings. Importing this module never changes the checkout.
 """
 
 from __future__ import annotations
@@ -22,7 +23,13 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 HEADER = Path("include/DP8382x/Version.h")
-FIELDS = ("name", "version", "description", "license", "repository")
+STRING_FIELDS = ("name", "version", "description", "license", "repository")
+FIELDS = (*STRING_FIELDS, "authors")
+# Owner identity shared by all of the owner's libraries.
+AUTHORS = (
+    {"name": "THYMOS Solution s.r.o.", "email": "info@thymos.cz", "url": "https://www.thymos.cz"},
+    {"name": "Jan Havelka", "email": "info@thymos.cz", "url": "https://www.thymos.cz", "maintainer": True},
+)
 VERSION_PATTERN = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", re.ASCII)
 
 
@@ -47,8 +54,11 @@ def read_version(path: Path) -> tuple[int, int, int, str]:
                       object_pairs_hook=unique_object,
                       parse_constant=reject_constant)
     if not isinstance(data, dict) or set(data) != set(FIELDS):
-        raise ValueError("library.json needs exactly name, version, description, license, repository")
-    for field in FIELDS:
+        raise ValueError("library.json needs exactly name, version, description, license, repository, authors")
+    # Serialize with sorted keys so key order is free but JSON types stay exact (1 is not true).
+    if json.dumps(data["authors"], sort_keys=True) != json.dumps(list(AUTHORS), sort_keys=True):
+        raise ValueError("authors must be THYMOS Solution s.r.o. and maintainer Jan Havelka, both info@thymos.cz")
+    for field in STRING_FIELDS:
         if type(data[field]) is not str or not data[field].strip():
             raise ValueError(f"{field} must be a nonblank string")
     if data["name"] != "DP8382x":

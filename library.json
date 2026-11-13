@@ -2,6 +2,19 @@
   "name": "DP8382x",
   "version": "0.1.0",
   "description": "Portable C++17 DP8382x values and validation foundation.",
+  "authors": [
+    {
+      "name": "THYMOS Solution s.r.o.",
+      "email": "info@thymos.cz",
+      "url": "https://www.thymos.cz"
+    },
+    {
+      "name": "Jan Havelka",
+      "email": "info@thymos.cz",
+      "url": "https://www.thymos.cz",
+      "maintainer": true
+    }
+  ],
   "license": "MIT",
   "repository": "https://github.com/janhavelka/DP8382x.git"
 }

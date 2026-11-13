@@ -33,6 +33,11 @@ class VersionToolTests(unittest.TestCase):
             "description": "Portable PHY driver.",
             "license": "MIT",
             "repository": "https://example.invalid/DP8382x.git",
+            "authors": [
+                {"name": "THYMOS Solution s.r.o.", "email": "info@thymos.cz", "url": "https://www.thymos.cz"},
+                {"name": "Jan Havelka", "email": "info@thymos.cz", "url": "https://www.thymos.cz",
+                 "maintainer": True},
+            ],
         }
         self.write_metadata(self.metadata)
 
@@ -119,6 +124,29 @@ inline constexpr char VERSION_STRING[] = "0.1.0";
             for command in ("sync", "check"):
                 with self.subTest(metadata=metadata, command=command):
                     self.write_metadata(metadata)
+                    with self.assertRaises(ValueError):
+                        self.run_tool(command)
+                    self.assertEqual(self.header.read_bytes(), original)
+
+    def test_authors_must_match_owner_identity(self):
+        original = self.seed_header()
+        company, person = self.metadata["authors"]
+        self.write_metadata(dict(self.metadata, authors=[
+            {key: company[key] for key in reversed(list(company))}, person]))
+        self.assertEqual(self.run_tool("check"), 0)  # Key order inside an entry is free.
+        for authors in (
+            [person, company],
+            [company],
+            [company, person, person],
+            [dict(company, name="Thymos Solution s.r.o"), person],
+            [company, dict(person, email="jan@havelka.dev")],
+            [company, dict(person, maintainer=1)],
+            [company, {key: value for key, value in person.items() if key != "maintainer"}],
+            [company, dict(person, extra="unknown")],
+        ):
+            for command in ("sync", "check"):
+                with self.subTest(authors=authors, command=command):
+                    self.write_metadata(dict(self.metadata, authors=authors))
                     with self.assertRaises(ValueError):
                         self.run_tool(command)
                     self.assertEqual(self.header.read_bytes(), original)
