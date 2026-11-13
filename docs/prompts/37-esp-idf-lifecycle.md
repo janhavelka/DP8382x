@@ -122,8 +122,10 @@ can leak at most one frame. These are SDK limits, not claims a host fake proves
 safe concurrency. When the selected baseline includes d2ed96d2, drop the timer
 fence and re-audit the blocking-stop behavior.
 
-If ESP-IDF is absent, clone tag v6.1 / commit fff9895c outside the repository with
-submodules, run install.ps1 esp32p4, and export.ps1 in each build shell. Record
+ESP-IDF tag v6.1 / commit fff9895c is installed side by side in C:\esp\v6.1. Run
+idf.py only through `scripts\idf.cmd`, which checks the pinned commit; if it is
+absent, run `C:\esp\install-idf.ps1 6.1`. Never install ESP-IDF globally or set
+IDF_PATH/IDF_TOOLS_PATH: PlatformIO in C:\pio uses its own ESP-IDF 5.5. Record
 path, commit and tool versions; later stages reuse it. Installation failure
 makes SDK evidence BLOCKED, never replaced by a header shim.
 

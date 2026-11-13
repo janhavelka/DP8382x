@@ -17,8 +17,10 @@ without metadata changes leaves bytes and modification time unchanged. `check`
 only reads and returns nonzero for stale, missing or invalid output. Both return
 nonzero on input or I/O errors. Do not edit `Version.h` by hand.
 
-The JSON root must contain exactly `name`, `version`, `description`, `license`
-and `repository`, each a nonblank string. `name` is `DP8382x`; duplicate keys,
+The JSON root must contain exactly `name`, `version`, `description`, `license`,
+`repository` and `authors`. The first five are nonblank strings; `authors` must
+equal the owner entries in the script (THYMOS Solution s.r.o. and maintainer
+Jan Havelka, both `info@thymos.cz`). `name` is `DP8382x`; duplicate keys,
 unknown/missing keys, malformed UTF-8/JSON and wrong types fail. Version syntax
 is `MAJOR.MINOR.PATCH`: each ASCII decimal component is 0 through 65535 and has
 no leading zero except `0`. Prerelease/build suffixes and `v` prefixes are not
@@ -34,3 +36,23 @@ configuration, compilation and runtime must remain independent of Git, Python,
 Doxygen and sibling paths. Add future SDK/package version outputs to this one
 generator only when those build paths exist; prepare all output before changing
 any generated file.
+
+## ESP-IDF builds
+
+`scripts\idf.cmd` (which runs `scripts/idf.ps1`) runs `idf.py` with the pinned
+ESP-IDF tag v6.1 (commit `fff9895c`). It uses the side-by-side installation in
+`C:\esp\v6.1` through `C:\esp\idf.ps1`, which works in a child process and
+changes no user or machine setting, so PlatformIO's own ESP-IDF 5.5 in `C:\pio`
+stays untouched. The script refuses to run if the checkout is not at the pinned
+commit. All arguments go to `idf.py`; use a short build folder, because deep
+paths exceed the Windows 260-character limit:
+
+```bat
+scripts\idf.cmd -C <example dir> -B C:\esp\build\dp8382x set-target esp32p4 build
+```
+
+The `.cmd` launcher works from `cmd`, PowerShell and Git Bash and applies
+`-ExecutionPolicy Bypass` to its own PowerShell process only.
+
+If the installation is missing, run `C:\esp\install-idf.ps1 6.1`. Never install
+ESP-IDF globally or set `IDF_PATH`/`IDF_TOOLS_PATH` in Windows settings.
