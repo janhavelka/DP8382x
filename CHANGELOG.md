@@ -4,6 +4,9 @@
 
 ### 2026-11-13
 
+- Added `scripts\idf.cmd` and `scripts/idf.ps1`, which run `idf.py` with the pinned ESP-IDF v6.1
+  installed side by side in `C:\esp\v6.1`, isolated from PlatformIO's ESP-IDF
+  5.5. Prompt 37, finding G10-1 and AGENTS now point to it.
 - Unified author, copyright and contact metadata: THYMOS Solution s.r.o.,
   Jan Havelka, info@thymos.cz. `library.json` gains the owner `authors`, which
   `scripts/generate_version.py` now requires exactly.

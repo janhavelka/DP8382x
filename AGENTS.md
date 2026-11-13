@@ -57,6 +57,12 @@ Build `test/consumer` separately with tests OFF and run its registered CTest.
 Also run `python tools/check_doxygen.py` and
 `python scripts/generate_version.py check`.
 
+ESP-IDF v6.1 (commit fff9895c) is installed side by side in `C:\esp\v6.1`. Run
+`idf.py` only through `scripts\idf.cmd` (see `scripts/README.md`), with a short
+build folder such as `C:\esp\build\<name>`. Never install ESP-IDF globally, run
+Espressif's GUI installer or set `IDF_PATH`/`IDF_TOOLS_PATH` in Windows
+settings: PlatformIO in `C:\pio` uses its own ESP-IDF 5.5 and has broken before.
+
 For the **first implementation execution**, remote CI dispatch, run-status
 checking and waiting belong to **prompt 71 only**. Prompts 1-70 and 72-80 use
 focused local verification, including applicable SDK/package builds. This is the
