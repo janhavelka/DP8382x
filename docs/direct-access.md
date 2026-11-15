@@ -199,3 +199,7 @@ Prompt 16 applies the persistent HARD quiet floor to every frame, including raw
 reads, the collector and later operations. A timed call can sample the clock to
 reject or expire the floor before MDIO. Cached access remains clock-silent; the
 shared owner must also exclude other PHY addresses. See [initialization](initialization.md).
+
+Stage29's [EEE owner](eee.md) executes the exact recipe and masked controls;
+this does not broaden raw write permissions. Latched status and wake errors
+are named collector sources with DEVAD-qualified identity.

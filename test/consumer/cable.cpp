@@ -1,3 +1,4 @@
+#include "../../examples/portable/Eee.h"
 #include "../../examples/portable/CableCapture.h"
 #include "../../examples/portable/CableAutorun.h"
 #include "../../examples/portable/Interrupts.h"
@@ -225,5 +226,13 @@ int main() {
   const auto powerOne=phy.powerSnapshot(),powerTwo=phy.powerSnapshot();
   if (powerOne.observedStale || powerTwo.requestedPowerDown || bus.callbacks!=powerCalls || bus.clockCalls!=powerClocks ||
       (bus.words[17]&0x000FU)!=0x000BU) return 34;
+  // Explicit disable compiles and executes the same HARD/owned replay contract.
+  EeeSettings eee; eee.maintenanceAdmitted=true;
+  EeeAttempt eeeOff;
+  if (!beginEeePolicy(phy,eee,budget(),eeeOff).inProgress() || !finish(phy,bus,eeeOff,quiet)) return 37;
+  if (phy.eeeSnapshot().trust!=ConfigurationTrust::VERIFIED || negotiatedEee(phy.eeeSnapshot())) return 38;
+  EeeSnapshot eeeView;
+  const auto eeeStatus=acquireEeeView(phy,eeeView,{1000000,31});
+  if (!eeeStatus.ok() || negotiatedEee(eeeView)) return 39;
   return phy.end().ok() ? 0 : 12;
 }

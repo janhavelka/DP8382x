@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added exact opt-in DP83826I EEE setup/disable, two whole-word source checks,
+  one HARD reset and shared owned-state replay. Explicit EEE ownership upgrades
+  initialization to HARD; forced LPI remains a separate later session.
+- Added bounded EEE capability/local/partner/status acquisition, DEVAD-qualified
+  collector retention, passive snapshots, coherent negotiation validity and
+  independent recipe/failure/replay tests. Wire/control Q1 remains unqualified.
+
 - Fixed interrupt/power operations accepting obsolete identity, selector or control
   evidence after observations between polls. Preserve contradictory RMW prefixes
   beside transport failures and require other owned policies to remain verified.

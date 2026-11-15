@@ -164,3 +164,8 @@ Stage 28 adds `DP8382xPower.cpp` for [power policy and observations](power.md),
 feeding the same slot/transport/collector. One software power intent is shared
 by every BMCR writer; live pre-reset PLL preparation and final power replay
 extend initialization. There is no second power engine, scheduler or clock owner.
+
+Stage29 adds `DP8382xEee.cpp` for [EEE](eee.md). Its exact recipe is a once-only
+prefix to shared initialization; it never re-enters reset from a replay tail.
+The existing collector gains DEVAD-qualified EEE history, with no second event
+owner. Ordinary profile/VERIFY tails compare EEE stable controls without reset.

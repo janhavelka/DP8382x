@@ -67,7 +67,7 @@ silicon gates remain explicit. No feature's implementation status changes here.
 | next_page / Complete next-page exchange | 3 / COMPLETE | 17 (SOFTWARE) | 17, 19, 20, 29, 34 | next_page_handshake | Typed local pages and bounded exchange; Partner pages, partial handshake and completion | next_page_exchange |
 | crossover / Automatic, robust and manual crossover / port mirror | 3 / COMPLETE | 18 (SOFTWARE) | 18, 19, 34 | forced_physts | ForcedLinkSettings, crossover/mirror/extended duplex; Configured mode versus observed routing/link | configure_forced, extended_link_configure |
 | link / Live and retained link observations | 3 / COMPLETE | 19 COMPLETE (SOFTWARE; host PASS) | 19 | forced_physts (physical Q11) | readLinkStatus and cached LinkSnapshot; current/history validity, conservative age, forced/AN pause and change evidence; test/link.cpp | observe_link |
-| eee / EEE capability, initialization and negotiation | 5 / COMPLETE | 29 (SOFTWARE) | 29, 37, 38, 39 | eee_wire, eee_control_semantics, pin_fields | EEE initialization/settings/status; Local/partner capability, request and negotiated state | eee_initialize, eee_negotiation_status |
+| eee / EEE capability, initialization and negotiation | 5 / COMPLETE | 29 (SOFTWARE) | 29, 37, 38, 39 | eee_wire, eee_control_semantics | EEE initialization/settings/status; Local/partner capability, request and negotiated state | eee_initialize, eee_negotiation_status |
 | lpi / Legacy MAC LPI sessions | 5 / COMPLETE | 30 (SOFTWARE) | 30, 37, 38, 39, 68 | eee_wire, eee_control_semantics | Bounded legacy-MAC LPI start/stop, application-owned dwell; requested/uncertain state and masked control readback, no invented readiness event | legacy_lpi |
 | wol / Magic Packet and Secure-ON wake | 5 / COMPLETE | 31 (SOFTWARE) | 31 | wol_bit_mask, wol_live_reconfigure, rxfs_sfd_reference | Wake MAC/password, pulse/level/CRC and acknowledgement; Verified settings and retained wake/error evidence | wol_configure, wol_acknowledge |
 | power / Active-sleep policy, IEEE/deep power-down, PLL | 5 / COMPLETE | 28 (SOFTWARE) | 28, 37, 38, 39 | deep_power_exit | IEEE power, active-sleep, PLL and deep-power policy; Desired policy, observed power and exit/trust | power_ieee, power_active_sleep, power_pll_control, power_deep |
@@ -159,3 +159,8 @@ restoration. `power_deep` has a tested zero-I/O rejection; entry/exit remain
 BLOCKED by `deep_power_exit`. Thus the whole power feature remains PARTIAL in the
 ledger, despite completion of its independently supported procedures. Host tests
 and portable examples do not close Q6 or establish SDK support.
+
+Stage29 implements `eee_initialize` and `eee_negotiation_status` through the
+[EEE guide](eee.md), exact eighteen-row recipe, shared restoration and single
+DEVAD-qualified collector. Host coverage is in `test/eee.cpp`; Q1 physical wire,
+control and interoperability qualification remains pending. LPI stays stage30.

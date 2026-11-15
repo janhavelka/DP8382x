@@ -217,3 +217,8 @@ policy, non-HARD initialization reads live BMCR/PHYSCR and clears/verifies PLL
 disable before resetting retained vendor state; HARD reloads it itself. Mandatory
 VOD and other persistent owners run before final power replay. Power failure
 retains earlier initialization effects and OP-9 debt; no retry or silent wake.
+
+With explicitly owned [EEE policy](eee.md), initialization selects one effective
+HARD even for NONE/PCS/RESTART requests. The result reports HARD. This source-backed
+reset/reapply prefix precedes VOD/profile and ordinary replay, and cannot recurse.
+Without owned EEE, all earlier reset-kind semantics remain unchanged.

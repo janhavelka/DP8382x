@@ -124,3 +124,8 @@ do not capture/reset the live counter; only the owning BIST procedure issues the
 command/read pair. A possible clear without returned data retains history loss.
 No FCSCR accumulation rules transfer to BIST. Cached [BIST views](bist.md) and
 formatting never reread counters.
+
+EEE status and wake errors extend this collector in stage29. The wake-error word
+is retained raw; saturation or history loss cannot become an exact accumulated
+physical rate. Reset marks prior host evidence discontinuous. [EEE](eee.md)
+provides the separate complete aggregate and bounded acquisition contract.

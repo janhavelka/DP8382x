@@ -57,6 +57,10 @@ Status DP8382x::startConfigurePower(const PowerSettings& settings,const Operatio
   }
   if (!_initialized || !capabilities().valid) { return Status::Error(Err::NOT_INITIALIZED,"Initialize before power configuration"); }
   const auto valid=_validatePower(settings); if (!valid.ok()) { return valid; }
+  if (_eee.desiredValid && _eee.desired.enabled &&
+      (settings.request != PowerRequest::NORMAL || settings.disablePll || settings.activeSleep)) {
+    return powerError("Disable EEE before independent low-power policy");
+  }
   if (!_otherControlsVerified(OperationKind::POWER_CONFIGURE)) { return powerError("Verify other owned controls first"); }
   if (budget.io.maxFrames==0U || budget.io.deadlineUs==0U) {
     return Status::Error(Err::OPERATION_TIMEOUT,"Empty power budget",static_cast<int32_t>(

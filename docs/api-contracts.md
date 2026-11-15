@@ -969,3 +969,15 @@ control. BMCR isolation remains independent. The [power guide](power.md) defines
 finite sequences, live reset/partial invalidation, profile interactions and
 non-HARD PLL preparation. DPD is explicitly rejected under `deep_power_exit`;
 control readback never proves physical wake or generated-clock readiness.
+
+## Implemented EEE policy (stage29)
+
+`startConfigureEee`, `readEeeStatus` and passive `eeeSnapshot` use the existing
+slot, finite transport and single collector. [EEE](eee.md) specifies admission,
+source-implied fields and partial publication. EEE ownership is explicit; no
+ordinary initialization enables it. Enable/disable and owned EEE restoration
+select one effective HARD. This is the documented exception to NONE/PCS/RESTART
+initialization intent: `OperationResult.reset` records HARD, and the persistent
+shared-bus floor applies. The recipe precedes VOD/profile and other owned replay;
+read-only VERIFY cannot prove opaque state or discharge an interrupted recipe.
+Host next-page and hardware EEE ownership are exclusive. No TX LPI is requested.

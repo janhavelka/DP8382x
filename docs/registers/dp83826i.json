@@ -104,14 +104,14 @@
     {
       "id": "snls638c",
       "path": "docs/reference/source/TI-DP83825I-SNLS638C.pdf",
-      "revision": "SNLS638C",
+      "revision": "SNLS638C, April2026",
       "authority": "TI source comparison; applicability explicitly identified at each citation",
       "license": "TI document copyright; original bytes and notices retained"
     },
     {
       "id": "snls505h",
       "path": "docs/reference/source/TI-DP83822-SNLS505H.pdf",
-      "revision": "SNLS505H",
+      "revision": "SNLS505H, July2026",
       "authority": "TI source comparison; applicability explicitly identified at each citation",
       "license": "TI document copyright; original bytes and notices retained"
     },
@@ -8539,10 +8539,10 @@
       "aliases": [],
       "resetValue": null,
       "resetKnownMask": null,
-      "resetNotes": "No detailed field/reset table. Printed recipe value is not a reset value; no general read, RMW or saved-word restore permission.",
+      "resetNotes": "No detailed complete field/reset table. Recipe008B is not a reset value. Exact-part prose authorizes only masked control/readback of bits0/3/12; no generic raw read/write or saved opaque-word restore.",
       "reservedMask": null,
       "access": "RECIPE_ONLY",
-      "readEffects": "Unspecified; reads and arbitrary writes remain source-gated.",
+      "readEffects": "Exact-part8.3.3.2/8.3.4 supports masked readback0009/1000 in the EEE/LPI owner; other bits remain opaque. Prompt29 verifies1009=0009 and never asserts TX LPI.",
       "sources": [
         {
           "source": "snls647i",
@@ -9136,10 +9136,11 @@
       ],
       "feature": "eee",
       "status": "SOURCE_IMPLIED",
-      "disposition": "Selected D2 cross-part inference, Q1 physical check NOT RUN. Exact tuple only; no digit-stripping rule or DEVAD31 alias. Printed high-prefix addresses are rejected.",
+      "disposition": "Selected D2 cross-part inference, re-audited original PDFs in prompt29; Q1 physical check NOT RUN. Exact tuple only; no digit-stripping rule or DEVAD31 alias. Printed high-prefix addresses are rejected.",
       "controls": [
-        "Latched TX/RX LPI received bits11/10; current TX/RX LPI bits9/8.",
-        "Source-implied fields, not an exact-part detailed field table. Physical Q1 remains open."
+        "Mask0x0800 TX_LPI_RECEIVED and0x0400 RX_LPI_RECEIVED are latched-high historical status; mask0x0200 TX_LPI_INDICATION and0x0100 RX_LPI_INDICATION are current status. SNLA328 table4 p11 supplies LH semantics omitted by SNLS638C table7-99 p80.",
+        "Collector EEE_STATUS owns all reads. Keep historical received flags separate from current indications and retain each successfully consumed word immediately on partial acquisition. A failed read after effect records possible history loss, not zero LPI.",
+        "Source-implied fields, not an exact-part detailed field table. Physical Q1 remains open; no inferred clock-stoppable permission from cross-part bit6."
       ],
       "wireAddress": "0x0001",
       "readRoute": "COLLECTOR"
@@ -9176,10 +9177,11 @@
       ],
       "feature": "eee",
       "status": "SOURCE_IMPLIED",
-      "disposition": "Selected D2 cross-part inference, Q1 physical check NOT RUN. Exact tuple only; no digit-stripping rule or DEVAD31 alias. Printed high-prefix addresses are rejected.",
+      "disposition": "Selected D2 cross-part inference, re-audited original PDFs in prompt29; Q1 physical check NOT RUN. Exact tuple only; no digit-stripping rule or DEVAD31 alias. Printed high-prefix addresses are rejected.",
       "controls": [
-        "Capability bit1; require whole word0002 before EEE initialization.",
-        "Source-implied fields, not an exact-part detailed field table. Physical Q1 remains open."
+        "Mask0x0002:1 means100BASE-TX EEE capable,0 means not capable. No supported1Gbps or10Mbps advertisement bit is inferred. SNLS638C table7-100 p80.",
+        "Before any EEE recipe target write, read whole word and require exactly0x0002. Values0x0000/0xFFFF/0x0006 reject even when a convenient bit test would pass. Indirect selector writes are access primitives, not recipe mutation.",
+        "Raw read allowed only at DEVAD3/wire0014; no raw write. Physical Q1 remains open."
       ],
       "wireAddress": "0x0014",
       "readRoute": "SAFE_READ"
@@ -9216,10 +9218,11 @@
       ],
       "feature": "eee",
       "status": "SOURCE_IMPLIED",
-      "disposition": "Selected D2 cross-part inference, Q1 physical check NOT RUN. Exact tuple only; no digit-stripping rule or DEVAD31 alias. Printed high-prefix addresses are rejected.",
+      "disposition": "Selected D2 cross-part inference, re-audited original PDFs in prompt29; Q1 physical check NOT RUN. Exact tuple only; no digit-stripping rule or DEVAD31 alias. Printed high-prefix addresses are rejected.",
       "controls": [
-        "16-bit read-clear wake-error counter; saturation all ones is source-implied.",
-        "Source-implied fields, not an exact-part detailed field table. Physical Q1 remains open."
+        "Mask0xFFFF is the source-implied16-bit EEE wake-error counter; read clears, overflow holds0xFFFF, so a saturated sample is a lower bound. SNLS638C table7-101 p80 and SNLA3282.3.3 pp11-12.",
+        "Collector EEE_ERRORS retains successful raw samples and uncertain loss independently of complete status publication. PCS-reset clearing is cross-part source-implied; retain earlier host history with its old epoch/discontinuity, not as a current count.",
+        "Physical Q1 wake-fault injection remains NOT_RUN; no physical error-rate or wake-latency claim."
       ],
       "wireAddress": "0x0016",
       "readRoute": "COLLECTOR"
@@ -9256,10 +9259,11 @@
       ],
       "feature": "eee",
       "status": "SOURCE_IMPLIED",
-      "disposition": "Selected D2 cross-part inference, Q1 physical check NOT RUN. Exact tuple only; no digit-stripping rule or DEVAD31 alias. Printed high-prefix addresses are rejected.",
+      "disposition": "Selected D2 cross-part inference, re-audited original PDFs in prompt29; Q1 physical check NOT RUN. Exact tuple only; no digit-stripping rule or DEVAD31 alias. Printed high-prefix addresses are rejected.",
       "controls": [
-        "Advertisement bit1; writes only through the EEE owner, whole-word0002 readback.",
-        "Source-implied fields, not an exact-part detailed field table. Physical Q1 remains open."
+        "Mask0x0002 is100BASE-TX EEE advertisement; legal field encodings0/0x0002. SNLS638C table7-102 p81. Raw access is read-only; all writes belong to the complete EEE owner.",
+        "Recipe row2 writes whole word0x0002 after HARD and its persistent floor; require whole-word0x0002 readback before remaining16rows. No high-prefix203C on wire and no vendor31 alias.",
+        "Disabling requested EEE uses HARD plus bounded persistent replay, not a fabricated opaque inverse. Advertisement alone does not prove completed negotiation or partner support."
       ],
       "wireAddress": "0x003C",
       "readRoute": "SAFE_READ"
@@ -9296,10 +9300,10 @@
       ],
       "feature": "eee",
       "status": "SOURCE_IMPLIED",
-      "disposition": "Selected D2 cross-part inference, Q1 physical check NOT RUN. Exact tuple only; no digit-stripping rule or DEVAD31 alias. Printed high-prefix addresses are rejected.",
+      "disposition": "Selected D2 cross-part inference, re-audited original PDFs in prompt29; Q1 physical check NOT RUN. Exact tuple only; no digit-stripping rule or DEVAD31 alias. Printed high-prefix addresses are rejected.",
       "controls": [
-        "Partner advertisement bit1; no inferred gigabit capability.",
-        "Source-implied fields, not an exact-part detailed field table. Physical Q1 remains open."
+        "Mask0x0002:1 means partner advertises100BASE-TX EEE,0 means it does not. SNLS638C table7-103 p81. No inferred gigabit capability.",
+        "Raw read allowed only at DEVAD7/wire003D. A valid raw partner word remains distinct from current/coherent link and completed negotiation. Physical Q1 remains open."
       ],
       "wireAddress": "0x003D",
       "readRoute": "SAFE_READ"
@@ -11604,6 +11608,14 @@
         {
           "source": "power_source_audit",
           "location": "Whole procedures, independent literal oracles and fixture plans"
+        },
+        {
+          "source": "snls638c",
+          "location": "Table7-92 p77 low-offset prose;tables7-99..103 pp80-81 source-implied fields"
+        },
+        {
+          "source": "snla328",
+          "location": "Tables4-6 pp11-12 source-implied LH/RC;section2.1 p10 opposite25 bypass polarity rejected"
         }
       ],
       "ownedMasks": [
@@ -11616,12 +11628,12 @@
           "mask": "0x7F80"
         }
       ],
-      "prerequisites": "Application serializes all instance/snapshot access and all participants share complete indirect/RMW transaction exclusion. Exact part, legal settings, clock/power history, operation ownership and finite primary/cleanup budgets validated before mutation; any live precondition reads are explicit bounded work. ",
+      "prerequisites": "Application serializes all instance/snapshot access and all participants share complete indirect/RMW transaction exclusion. Exact part, initialized identity, complete legal desired settings, maintenance/clock/power permissions and finite aggregate budget validated before mutation. No host-controlled next-page exchange, temporary loopback/BIST/cable session or conflicting owned clock/LED route. Selected D2 source inference permits bounded software work while Q1 physical checks remain pending.",
       "steps": [
-        "Preflight identity, complete recipe budget and no owner holding a clock/LED route affected by0308; reject conflicts before I/O. Read source-implied MMD3:0014 and require whole-word0002 before any write. Exclude loopback0123, next-page and incompatible power profiles.",
+        "Preflight identity, complete recipe budget and no owner holding a clock/LED route affected by0308; reject conflicts before I/O. Read source-implied MMD3:0014 and require whole-word0002 before any recipe target write. Selector/address writes needed for this read are not target mutation. Exclude loopback0123, host next-page and incompatible power profiles.",
         "Execute001F=8000 and the shared hard-reset2ms frame-free completion rule. Write MMD7:003C=0002 and require whole-word0002 readback before remaining16rows; mismatch/failure stops with the reset effect retained. Then execute exact DEVAD31 opaque actions in writeActions order, followed by BMCR3300. Never send printed203C on the wire.",
         "Use shared hard-reset completion owner after first step; capture generation invalidation. Final literal BMCR3300 changes all stable writable BMCR controls under7D80 and issues AN restart0200: it enables AN and100/full, clears loopback/power-down/isolation/collision test, and keeps reset8000 neutral0. Record/reconcile the whole affected policy and restore those saved persistent controls after recipe-based initialization.",
-        "Verify only documented or explicitly source-implied stable fields; publish their source status. Replay persistent state acyclically without recursive EEE resets.",
+        "Verify exact-part EEECFG3 known mask1009 against0009: bypass-disabling bits0/3 set, forcedTX-LPIbit12 clear. Never verify undocumented opaque bits as configuration proof. Replay persistent settings acyclically after the single reset-bearing recipe, including mandatory VOD and owned link/autorun/IRQ/power state; no recursive EEE reset.",
         "Disable/restore only through source-backed complete exit or admitted reset/reapply; opaque words cannot be restored by fabricated inverse or arbitrary snapshot."
       ],
       "waits": [
@@ -11630,15 +11642,15 @@
       "timeout": "Finite aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Require independent finite logical-transaction and physical-frame/poll limits for primary and cleanup, including delegated work; frozen clock cannot extend count. Zero work budget performs no I/O. No nominal silicon value is a timeout. The selected source-implied18 targets consist of2 direct and16 indirect writes:74 C22 frames floor including8 capability/readback frames, of which66 are recipe frames, not whole-operation bound. Reset polls, status, restore and callback admission all consume additional finite aggregate budget.",
       "partialEffects": "Record each accepted or uncertain write, reset/configuration epoch and consumed event immediately; late callback success cannot erase deadline/cancellation. Invalidate affected configuration trust without discarding desired policy or retained raw evidence. First hard reset invalidates prior configuration;0123 conflicts with loopback and0308 changes clock/profile. Preserve every accepted prefix.",
       "cleanup": "Release controller lock after every indivisible transaction and before waits/output. Cancellation schedules no new primary work; owner-admitted cleanup has a separate finite deadline/count. Retain primary and cleanup outcomes independently; no implicit retry/reset/power cycle. ",
-      "restoration": "Disable or recover by separately admitted hard reset plus one finite persistent initialization/reapply. Opaque inverse or saved-word replay is not established. Never recursively restore EEE by repeating a failed recipe; accepted prefixes and cleanupOwed remain explicit.",
+      "restoration": "Disable or recover by separately admitted HARD plus one finite persistent initialization/reapply. Requested disabled EEE does not run the enable recipe; requested enabled EEE runs it once and continues through shared restoration without recursive reset. Opaque inverse or saved-word replay is not established. Accepted prefixes and cleanupOwed remain explicit; a later result cannot replace the failed primary result.",
       "gates": [
         "eee_wire",
         "eee_control_semantics"
       ],
       "owner": {
-        "api": "EeeSettings / EeeStatus",
-        "cli": "owner-routed EeeSettings / EeeStatus (prompts 44-46)",
-        "test": "Independent literals and boundary failures for EeeSettings / EeeStatus; prompts 29, 53-55; literal vectors and per-step failure/cancel/cleanup matrix in power source review; no physical evidence claimed",
+        "api": "startConfigureEee / readEeeStatus / eeeSnapshot",
+        "cli": "Owner-routed EEE settings/status; prompts44-46",
+        "test": "test/eee.cpp independent original-PDF literals, complete recipe/readback/reset/restoration failures, cancellation and source-implied capability/partner/status matrix; Q1 physical fixture separately",
         "implementationStage": 29
       },
       "writeActions": [
@@ -11674,6 +11686,14 @@
         {
           "source": "power_source_audit",
           "location": "Whole procedures, independent literal oracles and fixture plans"
+        },
+        {
+          "source": "snls638c",
+          "location": "Table7-92 p77 low-offset prose;tables7-99..103 pp80-81 source-implied fields"
+        },
+        {
+          "source": "snla328",
+          "location": "Tables4-6 pp11-12 source-implied LH/RC;section2.1 p10 opposite25 bypass polarity rejected"
         }
       ],
       "ownedMasks": [
@@ -11682,7 +11702,7 @@
           "mask": "0x0200"
         }
       ],
-      "prerequisites": "Application serializes all instance/snapshot access and all participants share complete indirect/RMW transaction exclusion. Exact part, legal settings, clock/power history, operation ownership and finite primary/cleanup budgets validated before mutation; any live precondition reads are explicit bounded work. ",
+      "prerequisites": "Application serializes all instance/snapshot access and all participants share complete indirect/RMW transaction exclusion. Exact part, initialized identity, complete legal desired settings, maintenance/clock/power permissions and finite aggregate budget validated before mutation. No host-controlled next-page exchange, temporary loopback/BIST/cable session or conflicting owned clock/LED route. Selected D2 source inference permits bounded software work while Q1 physical checks remain pending.",
       "steps": [
         "Use only the five selected source-implied EEE tuples; keep capability, desired advertisement, partner and negotiated evidence separate. Reject printed high-prefix offsets.",
         "Set exact-part EEECFG3 bits0/3 using approved masked action and readback; exact26 polarity is1, unlike SNLA328 DP83825 example.",
@@ -11693,18 +11713,18 @@
       "waits": [
         "Partner/AN outcome may remain incomplete until application deadline; no guaranteed link/partner completion time."
       ],
-      "timeout": "Finite aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Require independent finite logical-transaction and physical-frame/poll limits for primary and cleanup, including delegated work; frozen clock cannot extend count. Zero work budget performs no I/O. No nominal silicon value is a timeout. Fixed finite set of capability/advertisement/partner/status targets after clarification; finite poll count and no counter-drain loop.",
+      "timeout": "Finite aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Require independent finite logical-transaction and physical-frame/poll limits for primary and cleanup, including delegated work; frozen clock cannot extend count. Zero work budget performs no I/O. No nominal silicon value is a timeout. Fixed finite set of capability/advertisement/partner/status targets under selected source-implied access; finite poll count and no counter-drain loop.",
       "partialEffects": "Record each accepted or uncertain write, reset/configuration epoch and consumed event immediately; late callback success cannot erase deadline/cancellation. Invalidate affected configuration trust without discarding desired policy or retained raw evidence. ",
       "cleanup": "Release controller lock after every indivisible transaction and before waits/output. Cancellation schedules no new primary work; owner-admitted cleanup has a separate finite deadline/count. Retain primary and cleanup outcomes independently; no implicit retry/reset/power cycle. Do not re-read destructive status merely to tidy up; preserve partial history and ambiguity.",
-      "restoration": "Restore only persistent owned settings in dependency order, with source-defined stable readback. Never replay transient commands or stale observations. Hard reset invalidates prior observations and requires acyclic identity/clock/interface/configuration replay; do not infer PCS reset or digital restart has identical retention. PCS-reset wake-counter behavior from DP83825 is comparison-only until exact26 confirms it.",
+      "restoration": "Restore only persistent owned settings in dependency order with known-field readback. Never replay transient LPI commands or stale observations. Reset and link/power changes invalidate negotiation evidence; source-implied PCS reset clears wake-error silicon count while retained host history remains explicitly discontinuous. EEE replay uses the one acyclic initialization path, with HARD required when opaque setup must be re-established or removed.",
       "gates": [
         "eee_wire",
         "eee_control_semantics"
       ],
       "owner": {
-        "api": "EeeSettings / EeeStatus",
-        "cli": "owner-routed EeeSettings / EeeStatus (prompts 44-46)",
-        "test": "Independent literals and boundary failures for EeeSettings / EeeStatus; prompts 29, 53-55; literal vectors and per-step failure/cancel/cleanup matrix in power source review; no physical evidence claimed",
+        "api": "startConfigureEee / readEeeStatus / eeeSnapshot",
+        "cli": "Owner-routed EEE settings/status; prompts44-46",
+        "test": "test/eee.cpp independent original-PDF literals, complete recipe/readback/reset/restoration failures, cancellation and source-implied capability/partner/status matrix; Q1 physical fixture separately",
         "implementationStage": 29
       },
       "writeActions": [
@@ -12212,25 +12232,24 @@
         "eee_negotiation_status"
       ],
       "owner": {
-        "api": "EeeSettings / EeeStatus",
+        "api": "startConfigureEee / readEeeStatus / eeeSnapshot",
         "cli": "owner-routed EeeSettings / EeeStatus (prompts 44-46)",
-        "test": "Independent literals and boundary failures for EeeSettings / EeeStatus; prompts 29, 53-55",
+        "test": "test/eee.cpp; literal recipe/self-check/status/failure/replay matrix; Q1 physical tests separately",
         "implementationStage": 29
       },
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "eee_wire",
-        "eee_control_semantics",
-        "pin_fields"
+        "eee_control_semantics"
       ],
-      "notes": "Research disposition complete, including explicit essential source gates; no implementation or hardware qualification claimed. See power source review for independent literal oracles, finite procedures and fixture matrix."
+      "notes": "Prompt29 source-implied exact-tuple configuration/status uses one reset-bearing recipe, fail-closed whole-word self-checks, masked04D1 proof, shared persistent restoration and collector EEE_STATUS/EEE_ERRORS. Physical Q1 and SDK evidence remain NOT_RUN. The exact0308=0000 recipe row is not blocked by generic pin_fields; conflicting owned routes reject before I/O. Source-supported10BASE-Te reduced amplitude is distinct from100BASE-TX EEE advertisement/LPI negotiation. Executing Release recipe/status/failure/replay suites pass; full stage evidence is docs/reports/implementation/29-eee-negotiation.md."
     },
     {
       "id": "lpi",
@@ -13246,13 +13265,25 @@
     {
       "id": "eee_wire",
       "conflict": "MMD3 printed1001/1014/1016 and MMD7 printed203C/203D do not establish wire offsets; recipe extends beyond REGCR prose04D1 ceiling.",
-      "decision": "D2 selects only MMD3:0001/0014/0016 and MMD7:003C/003D as source-implied tuples. Raw reads only0014/003C/003D; latched0001 and RC0016 use the collector. Reject printed high-prefix offsets and DEVAD31 aliases. Require whole-word capability0002 before any write, then advertisement0002 readback after hard reset and its2ms silence. Q1 remains physical NOT RUN.",
+      "decision": "D2 selects only MMD3:0001/0014/0016 and MMD7:003C/003D as source-implied tuples. Raw reads only0014/003C/003D; latched0001 and RC0016 use the collector. Reject printed high-prefix offsets and DEVAD31 aliases. Require whole-word capability0002 before any write, then advertisement0002 readback after hard reset and its2ms silence. Q1 remains physical NOT RUN. Prompt29 source review rechecked all six official PDFs unchanged; this is PHYSICAL_CHECK_PENDING, not an essential software block. Whole-word self-checks remain mandatory.",
       "nextEvidence": "Q1 identified exact-part low/high-offset trace, whole-word capability and advertisement checks; partner LPI and induced wake fault separately qualify status/counter.",
       "ownerStage": 29,
       "sources": [
         {
           "source": "snls647i",
           "location": "8.3.3.1-2;8.3.11.1;table8-31"
+        },
+        {
+          "source": "snls638c",
+          "location": "Table7-92 p77 low-offset prose"
+        },
+        {
+          "source": "snls505h",
+          "location": "7.4.2.9 p37 literal003D trace"
+        },
+        {
+          "source": "snls603d",
+          "location": "Table7-14 p47 other-part nibble notation analogy"
         }
       ]
     },
@@ -13499,13 +13530,21 @@
     {
       "id": "eee_control_semantics",
       "conflict": "EEECFG3 has recipe/prose bits but no complete read/access/reset map; exact26 status fields and safe disable/restore remain undocumented. SNLA328 supplies DP83825 status and opposite bypass polarity.",
-      "decision": "D2 adopts cross-part bits3.1[11:8],3.20[1],7.60[1],7.61[1] and3.22 read-clear counter as source-implied underQ1. Exact-part04D1 only bits0,3,12 permit masked control/readback. Recipe runs printed opaque whole words. Disable is hard reset plus reapply; no invented inverse.",
+      "decision": "D2 adopts cross-part bits3.1[11:8],3.20[1],7.60[1],7.61[1] and3.22 read-clear counter as source-implied underQ1. Exact-part04D1 only bits0,3,12 permit masked control/readback. Recipe runs printed opaque whole words. Disable is hard reset plus reapply; no invented inverse. PHYSICAL_CHECK_PENDING: masks0800/0400 are received-history;0200/0100 are currentLPI. Wake countFFFF saturation is a source-implied lower bound. Successful host sequence tests do not close this gate.",
       "nextEvidence": "Q1/Q2 exact-part capability, advertisement, partner and LPI observations; wake-error injection for counter semantics.",
       "ownerStage": 29,
       "sources": [
         {
           "source": "snls647i",
           "location": "8.3.3-4 pp26-27;SNLA3282.1-2.3 comparison"
+        },
+        {
+          "source": "snls638c",
+          "location": "Tables7-99..103 pp80-81;comparison only"
+        },
+        {
+          "source": "snla328",
+          "location": "Tables4-6 pp11-12;LH/RC comparison;full-address counter-reading"
         }
       ]
     },
@@ -13771,7 +13810,7 @@
       "value": "0x008B",
       "neutral": null,
       "effect": "Exact whole-word step in ordered18-pair EEE initialization only. Printed recipe value is not reset/default or general writable permission. Hard-reset/profile/clock effects require complete coordinated restoration.",
-      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
+      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; selected D2 source-implied mapping and both fail-closed capability/advertisement checks; Q1 physical qualification remains pending; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
       "sources": [
         {
           "source": "snls647i",
@@ -13791,7 +13830,7 @@
       "value": "0x4F12",
       "neutral": null,
       "effect": "Exact whole-word step in ordered18-pair EEE initialization only. Printed recipe value is not reset/default or general writable permission. Hard-reset/profile/clock effects require complete coordinated restoration.",
-      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
+      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; selected D2 source-implied mapping and both fail-closed capability/advertisement checks; Q1 physical qualification remains pending; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
       "sources": [
         {
           "source": "snls647i",
@@ -13811,7 +13850,7 @@
       "value": "0x0180",
       "neutral": null,
       "effect": "Exact whole-word step in ordered18-pair EEE initialization only. Printed recipe value is not reset/default or general writable permission. Hard-reset/profile/clock effects require complete coordinated restoration.",
-      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
+      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; selected D2 source-implied mapping and both fail-closed capability/advertisement checks; Q1 physical qualification remains pending; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
       "sources": [
         {
           "source": "snls647i",
@@ -13831,7 +13870,7 @@
       "value": "0xA681",
       "neutral": null,
       "effect": "Exact whole-word step in ordered18-pair EEE initialization only. Printed recipe value is not reset/default or general writable permission. Hard-reset/profile/clock effects require complete coordinated restoration.",
-      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
+      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; selected D2 source-implied mapping and both fail-closed capability/advertisement checks; Q1 physical qualification remains pending; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
       "sources": [
         {
           "source": "snls647i",
@@ -13851,7 +13890,7 @@
       "value": "0x0003",
       "neutral": null,
       "effect": "Exact whole-word step in ordered18-pair EEE initialization only. Printed recipe value is not reset/default or general writable permission. Hard-reset/profile/clock effects require complete coordinated restoration.",
-      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
+      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; selected D2 source-implied mapping and both fail-closed capability/advertisement checks; Q1 physical qualification remains pending; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
       "sources": [
         {
           "source": "snls647i",
@@ -13871,7 +13910,7 @@
       "value": "0x0800",
       "neutral": null,
       "effect": "Exact whole-word step in ordered18-pair EEE initialization only. Printed recipe value is not reset/default or general writable permission. Hard-reset/profile/clock effects require complete coordinated restoration.",
-      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
+      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; selected D2 source-implied mapping and both fail-closed capability/advertisement checks; Q1 physical qualification remains pending; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
       "sources": [
         {
           "source": "snls647i",
@@ -13891,7 +13930,7 @@
       "value": "0x8848",
       "neutral": null,
       "effect": "Exact whole-word step in ordered18-pair EEE initialization only. Printed recipe value is not reset/default or general writable permission. Hard-reset/profile/clock effects require complete coordinated restoration.",
-      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
+      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; selected D2 source-implied mapping and both fail-closed capability/advertisement checks; Q1 physical qualification remains pending; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
       "sources": [
         {
           "source": "snls647i",
@@ -13911,7 +13950,7 @@
       "value": "0xFE00",
       "neutral": null,
       "effect": "Exact whole-word step in ordered18-pair EEE initialization only. Printed recipe value is not reset/default or general writable permission. Hard-reset/profile/clock effects require complete coordinated restoration.",
-      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
+      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; selected D2 source-implied mapping and both fail-closed capability/advertisement checks; Q1 physical qualification remains pending; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
       "sources": [
         {
           "source": "snls647i",
@@ -13931,7 +13970,7 @@
       "value": "0x261D",
       "neutral": null,
       "effect": "Exact whole-word step in ordered18-pair EEE initialization only. Printed recipe value is not reset/default or general writable permission. Hard-reset/profile/clock effects require complete coordinated restoration.",
-      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
+      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; selected D2 source-implied mapping and both fail-closed capability/advertisement checks; Q1 physical qualification remains pending; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
       "sources": [
         {
           "source": "snls647i",
@@ -13951,7 +13990,7 @@
       "value": "0x1F30",
       "neutral": null,
       "effect": "Exact whole-word step in ordered18-pair EEE initialization only. Printed recipe value is not reset/default or general writable permission. Hard-reset/profile/clock effects require complete coordinated restoration.",
-      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
+      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; selected D2 source-implied mapping and both fail-closed capability/advertisement checks; Q1 physical qualification remains pending; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
       "sources": [
         {
           "source": "snls647i",
@@ -13971,7 +14010,7 @@
       "value": "0x2864",
       "neutral": null,
       "effect": "Exact whole-word step in ordered18-pair EEE initialization only. Printed recipe value is not reset/default or general writable permission. Hard-reset/profile/clock effects require complete coordinated restoration.",
-      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
+      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; selected D2 source-implied mapping and both fail-closed capability/advertisement checks; Q1 physical qualification remains pending; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
       "sources": [
         {
           "source": "snls647i",
@@ -13991,7 +14030,7 @@
       "value": "0xFFF2",
       "neutral": null,
       "effect": "Exact whole-word step in ordered18-pair EEE initialization only. Printed recipe value is not reset/default or general writable permission. Hard-reset/profile/clock effects require complete coordinated restoration.",
-      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
+      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; selected D2 source-implied mapping and both fail-closed capability/advertisement checks; Q1 physical qualification remains pending; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
       "sources": [
         {
           "source": "snls647i",
@@ -14011,7 +14050,7 @@
       "value": "0xFE36",
       "neutral": null,
       "effect": "Exact whole-word step in ordered18-pair EEE initialization only. Printed recipe value is not reset/default or general writable permission. Hard-reset/profile/clock effects require complete coordinated restoration.",
-      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
+      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; selected D2 source-implied mapping and both fail-closed capability/advertisement checks; Q1 physical qualification remains pending; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
       "sources": [
         {
           "source": "snls647i",
@@ -14031,7 +14070,7 @@
       "value": "0x0000",
       "neutral": null,
       "effect": "Exact whole-word step in ordered18-pair EEE initialization only. Printed recipe value is not reset/default or general writable permission. Hard-reset/profile/clock effects require complete coordinated restoration.",
-      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW. Reject conflicting clock/LED ownership before I/O.",
+      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; selected D2 source-implied mapping and both fail-closed capability/advertisement checks; Q1 physical qualification remains pending; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW. Reject conflicting clock/LED ownership before I/O.",
       "sources": [
         {
           "source": "snls647i",
@@ -14051,7 +14090,7 @@
       "value": "0x0800",
       "neutral": null,
       "effect": "Exact whole-word step in ordered18-pair EEE initialization only. Printed recipe value is not reset/default or general writable permission. Hard-reset/profile/clock effects require complete coordinated restoration.",
-      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
+      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; selected D2 source-implied mapping and both fail-closed capability/advertisement checks; Q1 physical qualification remains pending; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
       "sources": [
         {
           "source": "snls647i",
@@ -14071,7 +14110,7 @@
       "value": "0x0009",
       "neutral": null,
       "effect": "Exact26 bits0/3=1 disable bypass and use MMD3/MMD7. Only mask0009 RMW/readback is authorized; DP83825 opposite polarity is not imported.",
-      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; source gates closed before any mutation; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
+      "prerequisites": "Exact DP83826I identified; one owner excludes all overlapping feature/raw/SDK accesses; selected D2 source-implied mapping and both fail-closed capability/advertisement checks; Q1 physical qualification remains pending; finite primary and cleanup budgets. No undocumented readable snapshot or arbitrary RMW.",
       "sources": [
         {
           "source": "snls647i",

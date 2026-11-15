@@ -112,6 +112,7 @@ Status DP8382x::startCableTest(const CableSettings& settings, const OperationBud
   if (!_settings.desiredValid || _settings.trust != ConfigurationTrust::VERIFIED) { return invalid("Verified persistent profile required"); }
   if (_cableCalibration) { return invalid("Known calibration requires clear-then-HARD recovery"); }
   const auto budgetStatus = nonzeroBudget(budget); if (!budgetStatus.ok()) { return budgetStatus; }
+  if (_eee.desiredValid && _eee.desired.enabled) { return invalid("Disable EEE before manual cable isolation"); }
   _beginOperation(OperationKind::CABLE_START, budget);
   _cable = {}; _cable.settings = settings; _cable.settingsValid = true;
   _cable.result.session = _operation.token;

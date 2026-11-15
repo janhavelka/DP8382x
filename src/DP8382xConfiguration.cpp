@@ -142,6 +142,10 @@ Status DP8382x::startConfigure(const LinkSettings& settings, const ConfigureOpti
   if (!capabilities().valid) {
     return Status::Error(Err::NOT_INITIALIZED, "Fresh accepted identity is required");
   }
+  if (_eee.desiredValid && _eee.desired.enabled &&
+      (settings.mode != LinkMode::AUTONEGOTIATED || options.nextPages.pageCount != 0U)) {
+    return invalidSettings("Disable EEE before forced mode or host next pages");
+  }
   if (budget.io.maxFrames == 0U) { return configTimeout(TimeoutDetail::FRAME_BUDGET); }
   if (budget.io.deadlineUs == 0U) { return configTimeout(TimeoutDetail::DEADLINE); }
 

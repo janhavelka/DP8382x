@@ -479,3 +479,9 @@ active-sleep indication. A blocked clear terminates after one write. PLL control
 is separate from DPD and ordered under IEEE down. Non-HARD initialization prepares
 PLL using live reads before reset, then replays power last. DPD exit remains
 source-blocked, and all physical power/clock claims remain NOT RUN.
+
+Stage29 implements the [exact EEE procedure](eee.md) with two whole-word checks,
+one HARD and acyclic persistent restoration. Requested bypass controls keep
+opaque bits intact and TX LPI clear. Owned EEE initialization reports effective
+HARD for every requested reset kind; unowned defaults never activate EEE.
+The ledger's wire/control Q1 gates remain physical-check pending.

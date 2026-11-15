@@ -1,9 +1,9 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–28 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
+execution. Prompts 1–29 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 161 registered Release CTests, 103 Python tests,
+Current local checks include 171 registered Release CTests, 103 Python tests,
 two linked tests-OFF consumers, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -26,6 +26,15 @@ Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
 operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+Prompt29 began on clean, fetched and synchronized `main` at
+`ce3df832c334c68e23a824333c9e5c86908b5ab8`. The
+[stage report](reports/implementation/29-eee-negotiation.md) records complete
+explicit EEE recipe/disable, fail-closed mapping checks, one effective HARD,
+shared replay and bounded collector-based observations. All local checks pass;
+Q1 wire/control/interoperability qualification remains NOT RUN. EEE ownership
+explicitly upgrades initialization reset requests to HARD. Source/SDK/physical
+boundaries stay separate; final commit and upstream equality are in the handoff.
 
 The [independent prompts 27-28 audit](reports/implementation/27-28-independent-audit.md)
 began on clean, fetched and synchronized `main` at

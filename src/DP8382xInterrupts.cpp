@@ -38,6 +38,9 @@ Status serviceBudgetError() noexcept {
 
 Status DP8382x::_validateInterruptSettings(const InterruptSettings& s) const noexcept {
   const auto syntax=interruptSyntax(s); if (!syntax.ok()) { return syntax; }
+  if (_eee.desiredValid && _eee.desired.enabled && s.pin != InterruptPin::INTR_PWRDN) {
+    return invalidIrq("Disable EEE before conflicting LED interrupt routing");
+  }
   if (!s.maintenanceAdmitted || !s.pinAvailable) { return invalidIrq("Interrupt pin maintenance not admitted"); }
   if (_identity.mode==OperatingMode::BASIC) {
     if (s.pin==InterruptPin::LED2) { return Status::Error(Err::UNSUPPORTED,"BASIC has no LED2 output"); }

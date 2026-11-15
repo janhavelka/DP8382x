@@ -496,3 +496,11 @@ Release-check rejection probe. `test/power.cpp` uses independent literal tables,
 all transition/readback failure phases, accepted effects, partial/reset invalidation,
 pin OR races, PLL preparation, cancellation, clocks and reset replay. The tests-OFF
 consumer executes `examples/portable/Power.h`. Q6 clock/power tests remain NOT RUN.
+
+Stage29 registers `eee_raw`, `eee_recipe`, `eee_settings`, `eee_admission`,
+`eee_status`, `eee_failures`, `eee_acquisition_failures`, `eee_replay` and
+`eee_ownership_timing`, plus the active Release failure-path check. Independent
+literal tests use separate DEVAD banks, exact recipe and self-check words,
+per-frame accepted/error injection, all reset/disable replay, status contradictions,
+latched/RC partials, owner contention and persistent HARD floors. They qualify
+host protocol behavior, not physical EEE interoperability or power savings.

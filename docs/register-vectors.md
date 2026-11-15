@@ -686,3 +686,91 @@ is blocked/unconfirmed, not an instruction to write again. PLL exit orders
 PHYSCR bit15 clear/readback before BMCR bit11 clear/readback. `test/power.cpp`
 checks independent literal frames, pin assertion during RMW and accepted-write
 failure before separate PCS preparation. No DPD inverse vector is invented.
+
+
+## Prompt29 independent EEE oracles
+
+Re-derived from original SNLS647I pp26-27 and35, with the source-implied
+field comparisons identified below. These literals are independent of production
+constants and the JSON ledger. They do not qualify Q1 silicon behavior.
+
+The five selected tuples form an explicit allowlist, not an address translation
+algorithm. SNLS638C table7-92 p77 names low offsets in prose; SNLS505H7.4.2.9
+p37 demonstrates MMD7/003D on the wire. SNLS603D p47 is notation analogy on a
+different part. SNLS647I and SNLS783A still print full prefixed addresses, and
+SNLA328 tables4-6 print MMD03 beside1001/1014/1016. Those counter-readings remain
+recorded under `eee_wire`; host checks cannot resolve physical ambiguity.
+
+| Printed address | Selected DEVAD/wire offset | Literal read selector/address/data-mode | Route and source-implied meaning |
+| --- | --- | --- | --- |
+| 1001 | 3/0001 | W(0D,0003), W(0E,0001), W(0D,4003), R(0E) | Collector; received-history0800/0400, current0200/0100 |
+| 1014 | 3/0014 | W(0D,0003), W(0E,0014), W(0D,4003), R(0E) | Safe raw read;100BASE-TX capability0002 |
+| 1016 | 3/0016 | W(0D,0003), W(0E,0016), W(0D,4003), R(0E) | Collector;16-bit RC wake-error word |
+| 203C | 7/003C | W(0D,0007), W(0E,003C), W(0D,4007), R(0E) | Safe raw read;100BASE-TX advertisement0002 |
+| 203D | 7/003D | W(0D,0007), W(0E,003D), W(0D,4007), R(0E) | Safe raw read;100BASE-TX partner advertisement0002 |
+
+Reject raw writes at every tuple; reject raw reads of latched0001/RC0016,
+all other3/7 offsets, full prefixed offsets and DEVAD31 aliases. Capability
+preflight accepts whole word0002 only:0000,0001,0003,0006 andFFFF all reject
+before the HARD target write. Selector/address writes used to read capability
+are access primitives, not EEE target mutations.
+
+All18 rows below come directly from SNLS647I8.3.3.1 p26. Each W/R refers to a
+Clause22 frame; indirect rows remain one indivisible four-frame transaction.
+
+| Row | Independent literal wire write |
+| --- | --- |
+| 1 | W(1F,8000) |
+| 2 | W(0D,0007), W(0E,003C), W(0D,4007), W(0E,0002) |
+| 3 | W(0D,001F), W(0E,04D1), W(0D,401F), W(0E,008B) |
+| 4 | W(0D,001F), W(0E,04D3), W(0D,401F), W(0E,4F12) |
+| 5 | W(0D,001F), W(0E,04DF), W(0D,401F), W(0E,0180) |
+| 6 | W(0D,001F), W(0E,033E), W(0D,401F), W(0E,A681) |
+| 7 | W(0D,001F), W(0E,033F), W(0D,401F), W(0E,0003) |
+| 8 | W(0D,001F), W(0E,0123), W(0D,401F), W(0E,0800) |
+| 9 | W(0D,001F), W(0E,031B), W(0D,401F), W(0E,8848) |
+| 10 | W(0D,001F), W(0E,0466), W(0D,401F), W(0E,FE00) |
+| 11 | W(0D,001F), W(0E,04CF), W(0D,401F), W(0E,261D) |
+| 12 | W(0D,001F), W(0E,0416), W(0D,401F), W(0E,1F30) |
+| 13 | W(0D,001F), W(0E,04F5), W(0D,401F), W(0E,2864) |
+| 14 | W(0D,001F), W(0E,04E0), W(0D,401F), W(0E,FFF2) |
+| 15 | W(0D,001F), W(0E,031F), W(0D,401F), W(0E,FE36) |
+| 16 | W(0D,001F), W(0E,0308), W(0D,401F), W(0E,0000) |
+| 17 | W(0D,001F), W(0E,04F4), W(0D,401F), W(0E,0800) |
+| 18 | W(00,3300) |
+
+After any attempted row1, apply the shared persistent HARD floor before every
+next frame, then poll1F/8000 clear. After row2, repeat its selector/address/
+data-mode writes then R(0E), accepting whole word0002 only. Failure prevents
+row3 onward and retains the hard-reset/advertisement effects. Arithmetic:
+2direct +16*4indirect =66recipe frames; capability/readback adds8 =74before
+reset polling, identity, masked verification and persistent restoration. A slice
+below4frames cannot split an indirect row. No nominal EEE timing is a deadline.
+
+Exact-part04D1 verification is mask1009/value0009 after recipe008B. Thus008B
+passes,108B fails forcedLPI-clear,0083 fails bit3,008A fails bit0. Changes to
+opaque bits are not evidence that documented controls mismatch. Only documented
+bits0/3/12 permit typed masked composition; no generic recipe snapshot/restore.
+The preserve mask is EFF6, the complement of1009. Starting from008B, the
+bit0/bit3 bypass combinations produce008B,008A,0083,0082; opaque bit1 remains
+one in all four words. EFF4 would unjustifiably clear that bit. These are
+capability-bypass controls, not independently sourced TX/RX direction switches.
+SNLA328's DP83825 bits0/3=0 polarity is rejected. Disable has one HARD plus
+persistent replay and never a synthesized inverse of these15 opaque vendor rows.
+
+SNLS638C tables7-99..103 pp80-81 and SNLA328 tables4-6 pp11-12 supply the
+source-implied observations. Status0800 and0400 are distinct historical TX/RX
+received indications;0200 and0100 are distinct current TX/RX indications.
+FFFF wake-error is saturated/lower-bound, not an exact overflowing interval;
+FFFE remains an unsaturated raw count. Successful samples survive a later
+failure; an uncertain destructive read means possible history loss. PCS clears
+the silicon counter by the cross-part inference, while retained host history
+stays explicitly discontinuous. No timing/rate result is inferred.
+
+Capability/advertisement/partner bit1 tuples000/001/010/011/100/101/110 do not
+establish eligible100BASE-TX EEE. Tuple111 still needs current applicable full
+link, completed AN, verified bypass controls and coherent source evidence;
+incomplete/stale/transport-failed acquisition cannot publish negotiated success.
+10BASE-Te reduced amplitude from exact-part p26 is a different fact, not an
+invented10Mbps EEE advertisement bit. Current link and prior LPI history also
+remain different evidence. All physical Q1/Q2 checks remain NOT RUN.

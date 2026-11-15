@@ -107,6 +107,9 @@ Status DP8382x::_startLoopback(const LoopbackOptions& options, const OperationBu
   if (_operation.cleanupOwed || _operation.temporaryMayBeActive) { return busyLoop(BusyDetail::CLEANUP_REQUIRED); }
   if (!_initialized || !capabilities().valid) { return Status::Error(Err::NOT_INITIALIZED, "Initialize before loopback"); }
   if (!_settings.desiredValid || _settings.trust != ConfigurationTrust::VERIFIED) { return rejected("Verified persistent profile required"); }
+  if (_eee.desiredValid && _eee.desired.enabled) {
+    return rejected("Disable EEE before diagnostic overrides of its recipe");
+  }
   const auto profile = validateLinkSettings(_settings.desired); if (!profile.ok()) { return profile; }
   if (!nearEnd(options.mode) && _settings.desired.mode == LinkMode::FORCED && _settings.desired.forced.speed != options.speed) {
     return rejected("Fixture speed differs from forced profile");

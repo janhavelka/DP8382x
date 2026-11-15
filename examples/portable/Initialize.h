@@ -38,7 +38,7 @@ inline DP8382x::Status beginInitialization(DP8382x::DP8382x& phy,
   if (status.is(DP8382x::Err::IN_PROGRESS)) {
     attempt = {};
     attempt.token = token;
-    attempt.reset = reset;
+    attempt.reset = phy.eeeSnapshot().desiredValid ? DP8382x::ResetKind::HARD : reset;
   }
   return status;
 }

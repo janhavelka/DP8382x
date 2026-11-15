@@ -170,6 +170,8 @@ enum class EvidenceSource : uint8_t {
   RXFS, ///< WoL/filter history and routing; table 8-91.
   BISCR, ///< BIST current activity/lock and hardware-controlled sync-loss; table 8-40.
   BICSR1, ///< BIST captured error byte and IPG; capture/clear is owner-only, table 8-45.
+  EEE_STATUS, ///< MMD3.1 current and latched LPI evidence; source-implied Q1.
+  EEE_ERRORS, ///< MMD3.22 read-clear wake-error word; source-implied Q1.
   COUNT ///< Number of supported sources, not a readable source.
 };
 
@@ -280,7 +282,8 @@ enum class OperationKind : uint8_t {
   INTERRUPT_CONFIGURE, ///< Apply and verify explicitly owned interrupt policy.
   INTERRUPT_TEST_START, ///< Establish a retained software interrupt stimulus.
   INTERRUPT_TEST_STOP, ///< Clear and verify the owned software interrupt stimulus.
-  POWER_CONFIGURE ///< Apply owned active-sleep, IEEE power intent and PLL control.
+  POWER_CONFIGURE, ///< Apply owned active-sleep, IEEE power intent and PLL control.
+  EEE_CONFIGURE ///< Reset-bearing exact EEE recipe and shared owned-state replay.
 };
 /// @brief One retained operation slot.
 enum class OperationState : uint8_t {
@@ -765,6 +768,40 @@ struct BatchSummary {
   TransportViolation violation{TransportViolation::NONE}; ///< Callback contract violation.
   bool late{false}; ///< Raw post-return clock reached the exclusive deadline.
 };
+/// @brief Explicit EEE intent; defaults do not activate the feature.
+struct EeeSettings {
+  bool enabled{false}; ///< Enable the exact eighteen-row recipe; disable uses HARD/replay.
+  uint16_t advertisement{0x0002}; ///< Only 0 or 2 (100BASE-TX EEE); no other technologies.
+  bool bypassBit0{false}; ///< Capability bypass control at EEECFG3 bit0; true encodes zero.
+  bool bypassBit3{false}; ///< Capability bypass control at EEECFG3 bit3; true encodes zero.
+  bool maintenanceAdmitted{false}; ///< Application admits link disruption and shared-bus silence.
+};
+/// @brief EEE policy and bounded observation; source-implied fields await physical Q1.
+struct EeeSnapshot {
+  EeeSettings desired{}; ///< Explicit application intent, separate from hardware evidence.
+  bool desiredValid{false}; ///< This binding owns the policy only after an admitted start.
+  ConfigurationTrust trust{ConfigurationTrust::UNKNOWN}; ///< Stable controls, never opaque-word readback proof.
+  bool stale{true}; ///< Aggregate observation unavailable or invalidated.
+  bool valid{false}; ///< Complete ordered observation exists, not simultaneous silicon sampling.
+  bool timeValid{false}; ///< observedAtUs may legitimately be zero.
+  uint64_t observedAtUs{0}; ///< Microseconds at last complete observation.
+  uint16_t capability{0}; ///< Raw MMD3.20.
+  uint16_t advertisement{0}; ///< Raw MMD7.60.
+  uint16_t partner{0}; ///< Raw MMD7.61.
+  uint16_t status{0}; ///< Raw MMD3.1; bits11:10 latched, 9:8 current (source-implied).
+  uint16_t wakeErrors{0}; ///< Raw saturating RC MMD3.22; FFFF is a lower bound.
+  uint16_t control{0}; ///< Vendor04D1; only mask1009 has admitted field meaning.
+  bool capabilityValid{false}; ///< Latest capability word returned successfully.
+  bool advertisementValid{false}; ///< Latest local word returned successfully.
+  bool partnerValid{false}; ///< Latest partner word returned successfully.
+  bool statusValid{false}; ///< Latest status word returned successfully; collector owns history.
+  bool wakeErrorsValid{false}; ///< Latest counter word returned successfully.
+  bool controlValid{false}; ///< Latest admitted masked-control read returned successfully.
+  bool negotiatedValid{false}; ///< Complete coherent AN100/full observation and known controls.
+  bool negotiated{false}; ///< Local/partner EEE100 advertised; does not prove current LPI.
+  Status lastStatus{}; ///< Latest operation or acquisition outcome.
+};
+
 /// @brief Frozen evidence delivered once; restoration uses a separate token/result.
 struct OperationResult {
   OperationToken token{}; ///< Owning instance's lifetime token.
@@ -792,6 +829,7 @@ struct OperationResult {
   BistResult bist{}; ///< Current diagnostic evidence, separate from primary/stop outcomes.
   CableResult cable{}; ///< Non-destructive cable words; primary and restoration results remain separate.
   CableAutorunSnapshot cableAutorun{}; ///< Retained policy evidence; success never proves engine quiescence.
+  EeeSnapshot eee{}; ///< Retained EEE intent and partial acquisition evidence.
   PowerSnapshot power{}; ///< Retained power intent, partial observations and transition outcome.
   InterruptSnapshot interrupts{}; ///< Retained policy and transient test effects, independent of restoration result.
   uint16_t savedAnar{0}; ///< Pre-mutation advertisement, never a rollback instruction.
@@ -877,6 +915,8 @@ public:
   /// @pre Owner has established supplies/clock/reset readiness and admitted disruption.
   /// @note SNLS647I tables 8-19/48: valid active-reset readback invalidates its
   /// reset domain even if release or timing then fails; that error remains primary.
+  /// Explicitly owned EEE upgrades any requested kind to one effective HARD;
+  /// result.reset reports it and the shared-bus silence floor applies.
   Status startInitialize(const InitializeOptions& options, const OperationBudget& budget,
                          OperationToken& token) noexcept;
   /// @brief Advance at most one complete owned batch; return while waiting or short of slice.
@@ -1023,6 +1063,23 @@ public:
   /// @brief Copy owned autorun intent/readback/trust without MDIO or clock I/O.
   /// @return Policy evidence only; disabled does not imply engine idle.
   CableAutorunSnapshot cableAutorunSnapshot() const noexcept { return _autorun; }
+
+  /// @brief Admit exact EEE enable/disable; start is bus/clock silent.
+  /// @param settings Copied legal policy and maintenance approval; enabling requires an owned AN profile.
+  /// @param budget Aggregate reset/recipe/replay bound; short poll slices yield whole batches.
+  /// @param[out] token Changed only on admission.
+  /// @return IN_PROGRESS or local error; accepted effects retain OP-9 debt on failure.
+  /// @note SNLS647I8.3.3.1 eighteen rows and Q1 self-checks. Disable uses HARD;
+  /// all owned EEE restoration selects HARD once, then shared VOD/profile replay.
+  Status startConfigureEee(const EeeSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Acquire EEE words and coherent AN bookends; destructive words use the collector.
+  /// @param[out] snapshot Unchanged on failure; eeeSnapshot/evidenceSnapshot retain partials.
+  /// @param budget Finite frame/deadline allowance; no negotiation wait or retry.
+  /// @return Acquisition status, separate from negotiated success and physical qualification.
+  Status readEeeStatus(EeeSnapshot& snapshot, const IoBudget& budget) noexcept;
+  /// @brief Copy EEE intent/evidence without bus or clock I/O.
+  /// @return Historical/current validity and trust; serialize with the application owner.
+  EeeSnapshot eeeSnapshot() const noexcept { return _eee; }
 
   /// @brief Start one bounded power-policy/transition operation; bus and clock silent.
   /// @param settings Copied complete intent. Maintenance and management clock admission required;
@@ -1303,6 +1360,22 @@ public:
   TransportSnapshot transportSnapshot() const noexcept { return _transport; }
 
 private:
+  enum class EeeStep : uint8_t { CAPABILITY, RECIPE, ADVERTISEMENT_CHECK, SET_ADVERTISEMENT,
+    SET_CONTROL, VERIFY_ADVERTISEMENT, VERIFY_CONTROL };
+  EeeSnapshot _eee{};
+  EeeStep _eeeStep{EeeStep::CAPABILITY};
+  uint8_t _eeeRow{1};
+  bool _eeeWorking{false};
+  bool _eeeRecipePending{false};
+  bool _eeeCapabilityChecked{false};
+  bool _eeeTailPending{false};
+  bool _eeeResumeInit{false};
+  bool _eeeOpaqueValid{false};
+  Status _validateEee(const EeeSettings& settings) const noexcept;
+  void _setEeeStep(EeeStep step) noexcept;
+  MdioBatch _eeeBatch() const noexcept;
+  Status _advanceEee(Status status, bool called, const MdioBatch& batch) noexcept;
+  uint16_t _eeeControl() const noexcept;
   enum class PowerStep : uint8_t { READ_BMCR, READ_PHYSCR, CLEAR_PLL, VERIFY_CLEAR_PLL,
     POLICY, VERIFY_POLICY, BMCR, VERIFY_BMCR, PLL, VERIFY_PLL, BISCR };
   PowerStep _powerStep{PowerStep::READ_BMCR};

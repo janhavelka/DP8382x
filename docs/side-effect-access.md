@@ -157,3 +157,8 @@ BISCR/BICSR1 now have single-collector raw sources. BICSR1 high-bit samples are
 never replayed into writes: capture uses a literal command plus owned IPG.
 Public acquisition cannot interleave those sources with an executing BIST
 operation; cached evidence remains available. See [BIST](bist.md).
+
+Stage29 adds `EEE_STATUS` and `EEE_ERRORS` to the same collector. Their MMD3
+namespace is distinct from vendor aliases; safe dumps must not consume them.
+See [EEE acquisition](eee.md) for current/latched/RC interpretation, retained
+partial words, possible history loss and source-implied Q1 qualification.
