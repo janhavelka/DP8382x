@@ -17,7 +17,11 @@ is recorded through 22 there.
 
 The [prompt 23 report](implementation/23-loopback-modes.md) records all loopback
 session modes, verified stop/restoration, independent literal tests and retained
-source/physical gates. Current execution is complete through 23.
+source/physical gates.
+
+The [prompt 24 report](implementation/24-bist-generator-checker.md) records all
+BIST controls, bounded raw acquisition and full restoration with retained
+source/physical gates. Current execution is complete through 24.
 
 The [fresh prompts 21-22 audit](implementation/21-22-independent-audit.md)
 checks actual source, tests and source evidence independently, fixes reset

@@ -2,6 +2,7 @@
 /// @brief Exact loopback sessions using the existing operation and restoration owner.
 #include <DP8382x/DP8382x.h>
 #include <DP8382x/CommandTable.h>
+#include <limits>
 
 namespace DP8382x {
 namespace {
@@ -56,11 +57,12 @@ Status nonzeroBudget(const OperationBudget& budget) noexcept {
 } // namespace
 
 DP8382x::Traffic DP8382x::_operationTraffic() const noexcept {
-  return _operation.kind == OperationKind::LOOPBACK_START || _operation.kind == OperationKind::LOOPBACK_STOP ?
+  return _operation.kind == OperationKind::LOOPBACK_START || _operation.kind == OperationKind::LOOPBACK_STOP ||
+      _operation.kind == OperationKind::BIST_START || _operation.kind == OperationKind::BIST_ACQUIRE || _operation.kind == OperationKind::BIST_STOP ?
       Traffic::RAW : Traffic::MANAGED;
 }
 const LinkSettings& DP8382x::_configurationTarget() const noexcept {
-  return _operation.kind == OperationKind::LOOPBACK_START ? _loopProfile : _settings.desired;
+  return _startingLoopback() ? _loopProfile : _settings.desired;
 }
 LoopbackSnapshot DP8382x::loopbackSnapshot() const noexcept {
   auto snapshot = _loopback;
@@ -68,8 +70,15 @@ LoopbackSnapshot DP8382x::loopbackSnapshot() const noexcept {
   return snapshot;
 }
 
+bool DP8382x::_startingLoopback() const noexcept {
+  return _operation.kind == OperationKind::LOOPBACK_START || _operation.kind == OperationKind::BIST_START;
+}
 Status DP8382x::startLoopback(const LoopbackOptions& options, const OperationBudget& budget,
                              OperationToken& token) noexcept {
+  return _startLoopback(options, budget, token, false);
+}
+Status DP8382x::_startLoopback(const LoopbackOptions& options, const OperationBudget& budget,
+                              OperationToken& token, bool lineBist) noexcept {
   if (options.mode > LoopbackMode::EXTERNAL ||
       (options.speed != LinkSpeed::MBPS_10 && options.speed != LinkSpeed::MBPS_100)) {
     return Status::Error(Err::INVALID_PARAM, "Invalid loopback enum", static_cast<int32_t>(ParamDetail::ENUM_VALUE));
@@ -81,7 +90,7 @@ Status DP8382x::startLoopback(const LoopbackOptions& options, const OperationBud
       (options.mode == LoopbackMode::DIGITAL && (options.speed != LinkSpeed::MBPS_100 || !options.allowHardResetExit)) ||
       (options.mode == LoopbackMode::ANALOG && !options.termination100Ohm) ||
       (options.mode == LoopbackMode::REVERSE && !options.partnerReady) ||
-      (options.mode == LoopbackMode::EXTERNAL && !options.externalFixture) ||
+      (options.mode == LoopbackMode::EXTERNAL && !options.externalFixture && !lineBist) ||
       (options.transmitOnLine && (options.mode != LoopbackMode::MII || options.speed != LinkSpeed::MBPS_100))) {
     return rejected("Loopback speed, maintenance or fixture prerequisite missing");
   }
@@ -125,6 +134,7 @@ Status DP8382x::stopLoopback(const OperationBudget& budget, OperationToken& toke
   if (_active || _polling || _operation.state == OperationState::RUNNING) { return busyLoop(BusyDetail::OPERATION_ACTIVE); }
   if (_operation.state == OperationState::RESULT_PENDING) { return busyLoop(BusyDetail::RESULT_PENDING); }
   if (_transport.clockInvalid) { return Status::Error(Err::INVALID_CONFIG, "Clock contract failed", static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT)); }
+  if (_bistSession) { return busyLoop(BusyDetail::CLEANUP_REQUIRED); }
   if (!_loopSession || !_operation.temporaryMayBeActive) { return rejected("No retained loopback to stop"); }
   const auto nonzero = nonzeroBudget(budget); if (!nonzero.ok()) { return nonzero; }
   _beginOperation(OperationKind::LOOPBACK_STOP, budget);
@@ -215,7 +225,7 @@ Status DP8382x::_advanceLoopback(Status status, bool called, const MdioBatch& ba
       _result.mutationAttempted = _result.mutationAttempted || target.attempted;
       _result.mutationCompleted = _result.mutationCompleted || completed > i;
       _result.mutationPossible = _result.mutationPossible || completed > i || target.effectPossible || uncertain;
-      if (attempted && _operation.kind == OperationKind::LOOPBACK_START && _loopStep != LoopStep::RESTART) {
+      if (attempted && _startingLoopback() && _loopStep != LoopStep::RESTART) {
         _operation.temporaryMayBeActive = true;
         _operation.cleanupOwed = true;
         _cleanupOwner = OperationKind::LOOPBACK_START;
@@ -276,7 +286,7 @@ Status DP8382x::_advanceLoopback(Status status, bool called, const MdioBatch& ba
       if ((value & 0xC000U) != 0U) { return _finishOperation(rejected("Reset already active")); }
       _setLoopStep(LoopStep::READ_BISCR); break;
     case LoopStep::READ_BISCR:
-      if ((value & 0x305FU) != 0U) { return _finishOperation(rejected("BIST or loopback already active")); }
+      if ((value & 0x325FU) != 0U) { return _finishOperation(rejected("BIST or loopback already active")); }
       _setLoopStep(LoopStep::READ_PHYSCR); break;
     case LoopStep::READ_PHYSCR:
       _setLoopStep(options.mode == LoopbackMode::REVERSE ? LoopStep::CHECK_LINK : LoopStep::CLEAR_BMCR); break;
@@ -340,6 +350,226 @@ Status DP8382x::_advanceLoopback(Status status, bool called, const MdioBatch& ba
       _result.persistentRestored = true;
       _settings.trust = ConfigurationTrust::VERIFIED;
       _initialized = true;
+      return _finishOperation(Status::Ok());
+  }
+  return _operation.status;
+}
+
+BistSnapshot DP8382x::bistSnapshot() const noexcept {
+  auto snapshot = _bist;
+  snapshot.temporaryMayBeActive = _bistSession && _operation.temporaryMayBeActive;
+  return snapshot;
+}
+Status DP8382x::startBist(const BistOptions& options, const OperationBudget& budget,
+                         OperationToken& token) noexcept {
+  if (options.mode > BistMode::GENERATOR_CHECKER || options.counterMode > BistCounterMode::WRAP ||
+      options.loopback.mode > LoopbackMode::EXTERNAL) {
+    return Status::Error(Err::INVALID_PARAM, "Invalid BIST mode", static_cast<int32_t>(ParamDetail::ENUM_VALUE));
+  }
+  if (options.packetBytes > 2047U || options.interPacketGapBytes > 1020U ||
+      (options.interPacketGapBytes % 4U) != 0U || options.observationUs == 0U) {
+    return rejected("BIST packet, gap or observation interval invalid");
+  }
+  if (options.useLoopback && options.loopback.mode != LoopbackMode::DIGITAL &&
+      options.loopback.mode != LoopbackMode::ANALOG && options.loopback.mode != LoopbackMode::EXTERNAL) {
+    return rejected("BIST loopback interaction lacks exact-part evidence");
+  }
+  auto path = options.loopback;
+  if (!options.useLoopback) { path.mode = LoopbackMode::EXTERNAL; }
+  const auto status = _startLoopback(path, budget, token, !options.useLoopback);
+  if (!status.inProgress()) { return status; }
+  _operation.kind = _result.kind = OperationKind::BIST_START;
+  _bist = {};
+  _bist.options = options;
+  _bist.token = token;
+  _bistSession = _bistRestoreTail = true;
+  _bistWorking = _bistSavedIpgValid = _bistSavedPacketValid = false;
+  _bistActivity = _bistLoss = _bistCapturePending = false;
+  _result.bist.session = token;
+  _result.bist.mode = options.mode;
+  // Save before any companion mutation: even a failed digital setup needs HARD,
+  // which reloads packet/IPG defaults. Its owning exit must retain these values.
+  _setBistStep(BistStep::SAVE_IPG);
+  return status;
+}
+Status DP8382x::_admitBistOperation(const OperationBudget& budget, bool stop) const noexcept {
+  const auto polling = validBudget(budget); if (!polling.ok()) { return polling; }
+  if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
+  if (_active || _polling || _operation.state == OperationState::RUNNING) { return busyLoop(BusyDetail::OPERATION_ACTIVE); }
+  if (_operation.state == OperationState::RESULT_PENDING) { return busyLoop(BusyDetail::RESULT_PENDING); }
+  if (_transport.clockInvalid) { return Status::Error(Err::INVALID_CONFIG, "Clock contract failed", static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT)); }
+  if (!_bistSession || !_operation.temporaryMayBeActive) { return rejected("No retained BIST session"); }
+  if (!stop && (!_initialized || !capabilities().valid)) { return Status::Error(Err::NOT_INITIALIZED, "Fresh initialized BIST required"); }
+  if (!stop && !_bist.active) { return rejected("BIST setup was not verified"); }
+  return nonzeroBudget(budget);
+}
+Status DP8382x::startBistAcquire(const BistObservation& observation, const OperationBudget& budget,
+                                OperationToken& token) noexcept {
+  const auto status = _admitBistOperation(budget, false); if (!status.ok()) { return status; }
+  _beginOperation(OperationKind::BIST_ACQUIRE, budget);
+  _bistObservation = observation;
+  _result.bist.session = _bist.token;
+  _result.bist.mode = _bist.options.mode;
+  _result.bist.historyLost = _bist.measurement.historyLost;
+  _bist.stale = true;
+  _setBistStep(BistStep::BEFORE);
+  _operation.nextPollAtUs = _bistDueUs;
+  _operation.nextPollValid = true;
+  token = _operation.token;
+  return _operation.status;
+}
+Status DP8382x::stopBist(const OperationBudget& budget, OperationToken& token) noexcept {
+  const auto status = _admitBistOperation(budget, true); if (!status.ok()) { return status; }
+  _beginOperation(OperationKind::BIST_STOP, budget);
+  _result.bist = _bist.measurement;
+  _result.bist.session = _bist.token;
+  _result.bist.mode = _bist.options.mode;
+  _result.loopback = {_loopback.options.mode, _loopback.options.speed, false, false,
+                     _loopback.options.mode == LoopbackMode::DIGITAL, 0, false};
+  _bist.active = _loopback.controlsVerified = false;
+  _bist.stale = true;
+  _loopRestoreTail = _bistRestoreTail = true;
+  _setBistStep(BistStep::DISABLE);
+  token = _operation.token;
+  return _operation.status;
+}
+void DP8382x::_setBistStep(BistStep step) noexcept {
+  _bistWorking = true;
+  _loopWorking = _configuring = false;
+  _bistStep = step;
+  _operation.nextPollValid = false;
+  _operation.phase = step >= BistStep::DISABLE ? OperationPhase::RESTORE : OperationPhase::VERIFY;
+}
+MdioBatch DP8382x::_bistBatch() const noexcept {
+  const auto ipg = static_cast<uint16_t>(_bist.options.interPacketGapBytes / 4U);
+  const auto controls = static_cast<uint16_t>((static_cast<uint32_t>(_bist.options.mode) << 12U) |
+      (_bist.options.counterMode == BistCounterMode::WRAP ? 0x4000U : 0U));
+  switch (_bistStep) {
+    case BistStep::SAVE_IPG: case BistStep::VERIFY_IPG: case BistStep::VERIFY_RESTORE_IPG: return readWord(0x1B);
+    case BistStep::SAVE_PACKET: case BistStep::VERIFY_PACKET: case BistStep::VERIFY_RESTORE_PACKET: return readWord(0x1C);
+    case BistStep::APPLY_IPG: return writeWord(0x1B, ipg); // High bits neutral; never echo counter MSB as command.
+    case BistStep::APPLY_PACKET: return updateWord(0x1C, 0xF800, _bist.options.packetBytes);
+    case BistStep::BASELINE: case BistStep::CAPTURE: {
+      // Table8-45 capture/clear + successive read, indivisible under the bus owner.
+      auto batch = writeWord(0x1B, static_cast<uint16_t>(0x8000U | ipg));
+      batch.frameCount = 2; batch.frames[1] = {FrameKind::READ, 0x1B, 0, 0, NO_READ_INDEX}; return batch;
+    }
+    case BistStep::LINK: return readWord(0x10);
+    case BistStep::ENABLE: return updateWord(0x16, 0x8FFF, controls);
+    case BistStep::VERIFY_ENABLE: case BistStep::BEFORE: case BistStep::AFTER: case BistStep::VERIFY_DISABLE: return readWord(0x16);
+    case BistStep::DISABLE: return updateWord(0x16, 0x8FFF, 0);
+    case BistStep::RESTORE_IPG: return writeWord(0x1B, _bistSavedIpg);
+    case BistStep::RESTORE_PACKET: return updateWord(0x1C, 0xF800, _bistSavedPacket);
+  }
+  return {};
+}
+Status DP8382x::_advanceBist(Status status, bool called, const MdioBatch& batch) noexcept {
+  auto& measured = _result.bist;
+  const auto& receipt = _transport.lastBatch;
+  const auto completed = _result.failingBatch.completedFrames;
+  if (called) {
+    for (uint8_t i = 0; i < batch.frameCount; ++i) {
+      if (batch.frames[i].kind != FrameKind::WRITE) { continue; }
+      const auto& frame = receipt.frames[i];
+      const bool uncertain = _transport.violation != TransportViolation::NONE;
+      const bool attempted = frame.attempted || frame.completed || frame.effectPossible || frame.valueValid || uncertain;
+      _result.mutationAttempted = _result.mutationAttempted || frame.attempted;
+      _result.mutationCompleted = _result.mutationCompleted || completed > i;
+      _result.mutationPossible = _result.mutationPossible || frame.effectPossible || completed > i || uncertain;
+      if (attempted) { _operation.cleanupOwed = _operation.temporaryMayBeActive = true; _cleanupOwner = OperationKind::BIST_START; }
+    }
+    if (_bistCapturePending) { measured.historyLost = true; }
+    for (uint8_t i = 0; i < completed; ++i) {
+      if (batch.frames[i].kind != FrameKind::READ) { continue; }
+      const auto value = receipt.frames[i].value;
+      if (_bistStep == BistStep::SAVE_IPG) { _bistSavedIpg = value & 0x00FFU; _bistSavedIpgValid = true; }
+      if (_bistStep == BistStep::SAVE_PACKET) { _bistSavedPacket = value & 0x07FFU; _bistSavedPacketValid = true; }
+      if (batch.frames[i].registerAddress == 0x16 && _bistStep != BistStep::DISABLE && _bistStep != BistStep::VERIFY_DISABLE) {
+        _bistActivity = _bistActivity || (value & 0x0200U) != 0U;
+        _bistLoss = _bistLoss || (value & 0x0400U) != 0U;
+      }
+      if (_bistStep == BistStep::BEFORE) { measured.rawBefore = value; measured.beforeValid = true; }
+      if (_bistStep == BistStep::AFTER) { measured.rawAfter = value; measured.afterValid = true; }
+      if (_bistStep == BistStep::CAPTURE && i == 1U) {
+        measured.rawCounter = value; measured.counterValid = true;
+        measured.errorBytes = static_cast<uint8_t>(value >> 8U);
+        const auto& sample = _evidence.samples[static_cast<unsigned>(EvidenceSource::BICSR1)];
+        measured.timeValid = sample.timeValid; measured.observedAtUs = sample.observedAtUs;
+        measured.wrapPossible = _bist.options.counterMode == BistCounterMode::WRAP;
+        measured.saturated = !measured.wrapPossible && measured.errorBytes == 0xFFU;
+      }
+      uint16_t mask = 0, expected = 0;
+      switch (_bistStep) {
+        case BistStep::VERIFY_IPG: mask = 0x00FF; expected = static_cast<uint16_t>(_bist.options.interPacketGapBytes / 4U); break;
+        case BistStep::VERIFY_PACKET: mask = 0x07FF; expected = _bist.options.packetBytes; break;
+        case BistStep::VERIFY_ENABLE: case BistStep::BEFORE: case BistStep::AFTER:
+          mask = 0x7000; expected = static_cast<uint16_t>((static_cast<uint32_t>(_bist.options.mode) << 12U) |
+              (_bist.options.counterMode == BistCounterMode::WRAP ? 0x4000U : 0U)); break;
+        case BistStep::VERIFY_DISABLE: mask = 0x7000; break;
+        case BistStep::VERIFY_RESTORE_IPG: mask = 0x00FF; expected = _bistSavedIpg; break;
+        case BistStep::VERIFY_RESTORE_PACKET: mask = 0x07FF; expected = _bistSavedPacket; break;
+        default: break;
+      }
+      if (mask != 0U && (value & mask) != expected && !_result.mismatch.valid) {
+        _result.mismatch = {true, false, 0, batch.frames[i].registerAddress, mask, expected, value};
+      }
+    }
+  }
+  if (!status.ok()) { return _finishOperation(status); }
+  if (_result.mismatch.valid) { return _finishOperation(Status::Error(Err::CONFIG_MISMATCH, "BIST readback mismatch")); }
+  switch (_bistStep) {
+    case BistStep::SAVE_IPG: _setBistStep(BistStep::SAVE_PACKET); break;
+    case BistStep::SAVE_PACKET:
+      _bistWorking = false; _setLoopStep(LoopStep::READ_BMCR); break;
+    case BistStep::APPLY_IPG: _setBistStep(BistStep::APPLY_PACKET); break;
+    case BistStep::APPLY_PACKET: _setBistStep(BistStep::VERIFY_IPG); break;
+    case BistStep::VERIFY_IPG: _setBistStep(BistStep::VERIFY_PACKET); break;
+    case BistStep::VERIFY_PACKET: _setBistStep(BistStep::BASELINE); break;
+    case BistStep::BASELINE: _setBistStep(BistStep::LINK); break;
+    case BistStep::LINK:
+      _result.loopback.rawPhysts = receipt.frames[0].value; _result.loopback.phystsValid = true;
+      if (_bist.options.useLoopback && _loopback.options.mode != LoopbackMode::EXTERNAL &&
+          (receipt.frames[0].value & 1U) == 0U) { return _waitOperation(); }
+      _setBistStep(BistStep::ENABLE); break;
+    case BistStep::ENABLE: _setBistStep(BistStep::VERIFY_ENABLE); break;
+    case BistStep::VERIFY_ENABLE: case BistStep::AFTER: {
+      const auto anchor = _lastTimeUs + _config.transport.bounds.clockLagUs;
+      if (_bist.options.observationUs > std::numeric_limits<uint64_t>::max() - anchor) {
+        return _finishOperation(Status::Error(Err::OPERATION_TIMEOUT, "BIST observation time overflow", static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION)));
+      }
+      _bistDueUs = anchor + _bist.options.observationUs;
+      if (_bistStep == BistStep::VERIFY_ENABLE) { _bist.active = true; return _finishOperation(Status::Ok()); }
+      measured.measurementValid = true;
+      measured.activityObserved = _bistActivity;
+      measured.lockObserved = (measured.rawBefore & measured.rawAfter & 0x0800U) != 0U;
+      measured.syncLossObserved = _bistLoss;
+      // RH does not prove an uninterrupted lock window. Repeat-latch semantics
+      // remain gated: zero never becomes PASS, even with apparently good traffic.
+      if (_bist.options.mode == BistMode::OFF) { measured.outcome = BistOutcome::DISABLED; }
+      else if (_bist.options.mode == BistMode::SINGLE_PACKET) {
+        if (_bistObservation.singlePacketObserved) { measured.outcome = BistOutcome::SINGLE_PACKET_OBSERVED; }
+      } else if (measured.lockObserved && !measured.syncLossObserved && measured.errorBytes != 0U &&
+          (_bist.options.mode == BistMode::CHECKER ? _bistObservation.externalStimulusObserved : measured.activityObserved)) {
+        measured.outcome = BistOutcome::ERRORS_OBSERVED;
+      }
+      return _finishOperation(Status::Ok());
+    }
+    case BistStep::BEFORE: _setBistStep(BistStep::CAPTURE); break;
+    case BistStep::CAPTURE: _setBistStep(BistStep::AFTER); break;
+    case BistStep::DISABLE: _setBistStep(BistStep::VERIFY_DISABLE); break;
+    case BistStep::VERIFY_DISABLE:
+      if ((receipt.frames[0].value & 0x0200U) != 0U) { return _waitOperation(); }
+      _bistWorking = false; _setLoopStep(LoopStep::IDENTIFY_STOP); break;
+    case BistStep::RESTORE_IPG:
+      _setBistStep(_bistSavedPacketValid ? BistStep::RESTORE_PACKET : BistStep::VERIFY_RESTORE_IPG); break;
+    case BistStep::RESTORE_PACKET:
+      _setBistStep(_bistSavedIpgValid ? BistStep::VERIFY_RESTORE_IPG : BistStep::VERIFY_RESTORE_PACKET); break;
+    case BistStep::VERIFY_RESTORE_IPG:
+      if (_bistSavedPacketValid) { _setBistStep(BistStep::VERIFY_RESTORE_PACKET); break; }
+      [[fallthrough]];
+    case BistStep::VERIFY_RESTORE_PACKET:
+      _bistRestoreTail = false;
+      _result.persistentRestored = true; _settings.trust = ConfigurationTrust::VERIFIED; _initialized = true;
       return _finishOperation(Status::Ok());
   }
   return _operation.status;

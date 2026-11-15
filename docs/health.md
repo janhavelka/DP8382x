@@ -103,3 +103,6 @@ controller timing and physical fault rates remain NOT RUN.
 Stage 23 classifies loopback start and stop, including stop's initialization
 and desired-profile replay, as RAW. The separate explicit `startInitialize(HARD)`
 escape remains managed. Temporary-state barriers never follow health state.
+
+BIST start/acquire/stop are RAW, including shared stop replay. Counter errors
+and inconclusive test outcomes are distinct from MDIO and managed health.

@@ -168,6 +168,8 @@ enum class EvidenceSource : uint8_t {
   RCSR, ///< Raw RMII RC state; polarity/rearm gate remains; table 8-41.
   BTSCR, ///< 10BTSCR polarity history clears despite R type; table 8-44.
   RXFS, ///< WoL/filter history and routing; table 8-91.
+  BISCR, ///< BIST current activity/lock and hardware-controlled sync-loss; table 8-40.
+  BICSR1, ///< BIST captured error byte and IPG; capture/clear is owner-only, table 8-45.
   COUNT ///< Number of supported sources, not a readable source.
 };
 
@@ -254,7 +256,10 @@ enum class OperationKind : uint8_t {
   CONFIGURE, ///< Complete forced/negotiated profile and optional finite next-page exchange.
   VERIFY, ///< Read identity and currently owned stable settings without semantic writes.
   LOOPBACK_START, ///< Establish a temporary path; dwell belongs to the application.
-  LOOPBACK_STOP ///< Stop the path and verify restoration in a separate operation.
+  LOOPBACK_STOP, ///< Stop the path and verify restoration in a separate operation.
+  BIST_START, ///< Establish a BIST session using the shared loopback procedure.
+  BIST_ACQUIRE, ///< Capture one bounded current-session BIST observation.
+  BIST_STOP ///< Disable BIST and verify restoration under a new budget.
 };
 /// @brief One retained operation slot.
 enum class OperationState : uint8_t {
@@ -329,6 +334,72 @@ struct LoopbackSnapshot {
   OperationToken token{}; ///< Start token, distinct from each later stop token.
   bool controlsVerified{false}; ///< Activation completed; invalidation clears this evidence.
   bool temporaryMayBeActive{false}; ///< Hardware may remain overridden; stop/HARD required.
+};
+/// @brief All table8-40 PRBS encodings; counter wrapping is independent.
+enum class BistMode : uint8_t {
+  OFF, ///< Generator and checker disabled; no traffic result.
+  SINGLE_PACKET, ///< One constant-data packet; no checker.
+  CHECKER, ///< Checker only, with application-provided stimulus.
+  GENERATOR_CHECKER ///< Continuous pseudo-random generator and checker.
+};
+/// @brief Table8-40 error-byte counter policy, not generator selection.
+enum class BistCounterMode : uint8_t {
+  SATURATE, ///< Counter stops at FF; the sample is then a lower bound.
+  WRAP ///< Counter restarts at zero; any sample has possible unobserved wraps.
+};
+/// @brief Copied diagnostic settings; no implicit hardware fixture action.
+struct BistOptions {
+  BistMode mode{BistMode::GENERATOR_CHECKER}; ///< Exact hardware encoding.
+  BistCounterMode counterMode{BistCounterMode::SATURATE}; ///< FF saturation or modulo wrapping.
+  uint16_t packetBytes{1518}; ///< Table8-46 raw field 0..2047; no minimum Ethernet-frame claim.
+  uint16_t interPacketGapBytes{500}; ///< Table8-45: multiples of four, 0..1020 bytes.
+  uint64_t observationUs{1000}; ///< Nonzero owner-selected minimum interval, never silicon completion bound.
+  bool useLoopback{false}; ///< Otherwise normal line operation, without claiming an external-loop fixture.
+  LoopbackOptions loopback{}; ///< Maintenance/speed admission; optional DIGITAL, ANALOG or EXTERNAL only.
+};
+/// @brief Correlated external observations for this acquisition, not fixture availability.
+struct BistObservation {
+  bool singlePacketObserved{false}; ///< Owner actually observed this epoch's single transmitted packet.
+  bool externalStimulusObserved{false}; ///< Owner actually supplied/correlated checker stimulus in this epoch.
+};
+/// @brief Evidence verdict; no enum claims signal integrity or application delivery.
+enum class BistOutcome : uint8_t {
+  INCONCLUSIVE, ///< Missing evidence or unresolved bist_result_semantics prevents a pass claim.
+  ERRORS_OBSERVED, ///< Valid captured nonzero error byte, with required traffic/lock evidence.
+  SINGLE_PACKET_OBSERVED, ///< Owner-correlated single packet; checker is disabled.
+  DISABLED ///< Selected OFF; no test performed.
+};
+/// @brief Retained BIST capture; partial raw words survive aggregate failure.
+struct BistResult {
+  OperationToken session{}; ///< Start token; previous epochs cannot satisfy this result.
+  BistMode mode{BistMode::OFF}; ///< Selected generator/checker behavior.
+  BistOutcome outcome{BistOutcome::INCONCLUSIVE}; ///< Separate from operation transport status.
+  uint16_t rawBefore{0}; ///< BISCR before snapshot command.
+  uint16_t rawCounter{0}; ///< Full BICSR1 word after snapshot, including IPG.
+  uint16_t rawAfter{0}; ///< BISCR after counter acquisition.
+  bool beforeValid{false}; ///< Independent valid pre-capture status.
+  bool counterValid{false}; ///< Independent valid post-command raw word.
+  bool afterValid{false}; ///< Independent valid post-capture status.
+  bool measurementValid{false}; ///< Complete current acquisition, not an exact interval or PASS.
+  bool activityObserved{false}; ///< At least one current-session generator-active observation.
+  bool lockObserved{false}; ///< Both acquisition bookends show checker lock.
+  bool syncLossObserved{false}; ///< Hardware-controlled loss bit observed; not an invented RC interval.
+  uint8_t errorBytes{0}; ///< Eight-bit captured sample; meaningful only with counterValid.
+  bool saturated{false}; ///< SATURATE mode and FF: count is a lower bound.
+  bool wrapPossible{false}; ///< WRAP mode cannot prove an exact total, even for zero.
+  bool intervalUncertain{true}; ///< Repeat-latch/lock-history source gate remains open.
+  bool historyLost{false}; ///< Capture/clear may have happened without a valid returned sample.
+  bool timeValid{false}; ///< Capture upper timestamp valid; zero is permitted.
+  uint64_t observedAtUs{0}; ///< Capture completion upper bound, microseconds.
+};
+/// @brief Passive session and latest complete-or-partial acquisition evidence.
+struct BistSnapshot {
+  BistOptions options{}; ///< Copied start options.
+  OperationToken token{}; ///< Session epoch, retained after stop for historical rendering.
+  BistResult measurement{}; ///< Most recent acquisition; partial validity is explicit.
+  bool active{false}; ///< Typed activation succeeded and has not been stopped/invalidated.
+  bool stale{true}; ///< Measurement is historical or incomplete.
+  bool temporaryMayBeActive{false}; ///< Hardware may need the owning stop or HARD restoration.
 };
 /// @brief Fixed maximum number of local or retained partner next pages.
 constexpr uint8_t MAX_NEXT_PAGES = 16;
@@ -458,6 +529,7 @@ struct OperationResult {
   BatchSummary failingBatch{}; ///< First failure, otherwise latest batch.
   NextPageResult nextPage{}; ///< Exchange evidence, including partial consumption.
   LoopbackResult loopback{}; ///< Selected path and activation/stop evidence, never packet proof.
+  BistResult bist{}; ///< Current diagnostic evidence, separate from primary/stop outcomes.
   uint16_t savedAnar{0}; ///< Pre-mutation advertisement, never a rollback instruction.
   uint16_t savedBmcr{0}; ///< Pre-mutation control, never a rollback instruction.
   bool savedAnarValid{false}; ///< Pre-mutation advertisement was captured.
@@ -615,6 +687,30 @@ public:
   /// @brief Copy session evidence without bus/clock activity.
   /// @return Current temporary flag and retained start identity/options; no packet proof.
   LoopbackSnapshot loopbackSnapshot() const noexcept;
+
+  /// @brief Admit BIST setup with no bus/clock calls; tables8-40/45/46 and section8.3.15.
+  /// @param[in] options Legal fields, maintenance and optional source-backed loopback prerequisites.
+  /// @param[in] budget Finite setup deadline/frame/poll allowance.
+  /// @param[out] token Assigned only on admission; consume result before acquisition.
+  /// @return IN_PROGRESS or local validation/lifecycle error; requires verified initialized profile.
+  /// @note Baseline capture clears old errors. Dwell is owner-driven; no PASS is inferred.
+  Status startBist(const BistOptions& options, const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Admit one observation after the configured minimum interval; no automatic resampling.
+  /// @param[in] observation Current-epoch externally correlated traffic, never fixture attestation alone.
+  /// @param[in] budget Independent finite acquisition allowance.
+  /// @param[out] token New token on admission; result.bist retains partial samples on failure.
+  /// @return IN_PROGRESS or local error; requires active initialized session.
+  /// @note Uses one atomic snapshot-write/read batch and the single collector. Zero errors
+  /// remain inconclusive under bist_result_semantics; bit15-zero unlatch is never invented.
+  Status startBistAcquire(const BistObservation& observation, const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Admit PRBS disable and full shared restoration, even after failed start/acquire.
+  /// @param[in] budget New finite stop allowance; no hidden retry or automatic cleanup.
+  /// @param[out] token New token assigned on admission.
+  /// @return IN_PROGRESS or local error; failed stop retains temporary state and earlier measurement.
+  Status stopBist(const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Copy current/historical BIST evidence without I/O or consuming a result.
+  /// @return Retained options, samples and explicit validity/staleness.
+  BistSnapshot bistSnapshot() const noexcept;
 
   /// @brief Project passive health without bus/clock access or changing admission.
   /// @return UNINIT when not initialized; otherwise READY at zero failures,
@@ -838,6 +934,19 @@ public:
   TransportSnapshot transportSnapshot() const noexcept { return _transport; }
 
 private:
+  enum class BistStep : uint8_t {
+    SAVE_IPG, SAVE_PACKET, APPLY_IPG, APPLY_PACKET, VERIFY_IPG, VERIFY_PACKET,
+    BASELINE, LINK, ENABLE, VERIFY_ENABLE, BEFORE, CAPTURE, AFTER,
+    DISABLE, VERIFY_DISABLE, RESTORE_IPG, RESTORE_PACKET, VERIFY_RESTORE_IPG, VERIFY_RESTORE_PACKET
+  };
+  BistStep _bistStep{BistStep::SAVE_IPG};
+  BistSnapshot _bist{};
+  BistObservation _bistObservation{};
+  uint16_t _bistSavedIpg{0}, _bistSavedPacket{0};
+  uint64_t _bistDueUs{0};
+  bool _bistSession{false}, _bistWorking{false}, _bistRestoreTail{false};
+  bool _bistSavedIpgValid{false}, _bistSavedPacketValid{false};
+  bool _bistActivity{false}, _bistLoss{false}, _bistCapturePending{false};
   enum class LoopStep : uint8_t {
     IDENTIFY_STOP, READ_BMCR, READ_PHYRCR, READ_BISCR, READ_PHYSCR, CHECK_LINK,
     CLEAR_BMCR, CLEAR_BISCR, SET_FIFO, DIGITAL_BMCR, SET_BISCR, SET_MII,
@@ -925,6 +1034,12 @@ private:
   Status _advanceConfiguration(Status status, bool called, const MdioBatch& batch) noexcept;
   void _beginConfiguration(bool exchange) noexcept;
   const LinkSettings& _configurationTarget() const noexcept;
+  bool _startingLoopback() const noexcept;
+  Status _startLoopback(const LoopbackOptions& options, const OperationBudget& budget, OperationToken& token, bool lineBist) noexcept;
+  void _setBistStep(BistStep step) noexcept;
+  MdioBatch _bistBatch() const noexcept;
+  Status _advanceBist(Status status, bool called, const MdioBatch& batch) noexcept;
+  Status _admitBistOperation(const OperationBudget& budget, bool stop) const noexcept;
   MdioBatch _loopbackBatch() const noexcept;
   Status _advanceLoopback(Status status, bool called, const MdioBatch& batch) noexcept;
   void _setLoopStep(LoopStep step) noexcept;

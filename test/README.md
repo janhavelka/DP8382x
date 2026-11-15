@@ -432,3 +432,13 @@ The tests-OFF consumer links [Loopback.h](../examples/portable/Loopback.h), with
 an unchanged desired profile, failed stop and explicitly admitted retry.
 See [loopback evidence limits](../docs/loopback.md); no MAC/peer/electrical
 qualification follows from simulated register receipts.
+
+## BIST sessions (prompt 24)
+
+`test/bist.cpp` registers matrix, fields, measurements, acquire_failures,
+operation_failures, cancellation, lifecycle and timing_ownership, plus the
+Release failure probe. Run `ctest --test-dir build/host -R "bist_" --output-on-failure --no-tests=error`.
+Literals, all callback failure/cancel boundaries, saved fields, atomic capture,
+partial validity, generator-off waits and source-gated outcomes are checked.
+The tests-OFF consumer links [Bist.h](../examples/portable/Bist.h), acquires once
+and copies two cached views before separate stop. Physical results remain NOT RUN.

@@ -443,3 +443,9 @@ opaque companion sequence and HARD exit. Reverse/analog use the selected note's
 restart; MII/PCS do not. Reverse saves/restores the FIFO and checks relink speed.
 The existing `loopback_recipe` conflict and Q8 remain unresolved physical/source
 evidence, not permission for the rejected analog gain or reserved reverse word.
+
+Stage 24 implements [BIST control and raw captures](bist.md). Counter wrapping
+is independent of generator mode. RH sync loss is hardware-controlled, not RC.
+The repeat-latch/lock-history gate remains open, so zero cannot imply PASS.
+Analog status uses the actual analog selector; SNLA423A status/address typos and
+the rejected gain recipe do not change the datasheet-selected implementation.

@@ -70,3 +70,7 @@ public Doxygen and executing tests at that stage.
 Loopback start/stop sessions now use the same slot and temporary-state barrier.
 See [loopback ownership and fixtures](../../docs/loopback.md); activation is not
 packet validation and digital's opaque companion recipe requires a HARD exit.
+
+[BIST sessions](../../docs/bist.md) now share that owner and collector. Raw
+measurement validity, activity/lock evidence, source gates and restoration are
+separate; no simulated counter establishes PASS or physical signal integrity.

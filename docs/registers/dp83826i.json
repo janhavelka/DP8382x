@@ -10176,26 +10176,27 @@
       ],
       "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. ",
       "steps": [
-        "Admit a previously configured internal digital/analog loopback or external partner/fixture and its legal speed. Save IPG,packet size,counter mode; clear PRBS mode before reconfiguration.",
+        "Before any loopback mutation save IPG/packet controls; require verified desired profile and inactive generator/PRBS/loopback. Reuse the single digital/analog/external loopback owner when requested, or normal line operation without claiming a loopback fixture. Other internal BIST interactions lack exact-part authority and reject.",
         "Write desired IPG code with high counter byte zero and packet-length field; IPG byte code*4 and length bytes. Select saturation for bounded no-wrap evidence or continuous mode with explicit possible-wrap reporting.",
         "BISCR13:12=1 sends one constant-data packet with checker disabled;2 runs checker without generator;3 runs continuous generator+checker;0 stops both. Do not equate BISCR14 counter mode with packet count.",
         "Establish fresh baseline through explicit BICSR1 capture/clear and retain it, then collect finite interval checker lock/sync-loss/generator evidence and final captured error count. Single-packet mode is traffic generation evidence, not self-verified BIST PASS.",
-        "Stop PRBS mode0, verify generator off and preserve result before restoring settings. Finite raw result states loss/unknown history, wrap/saturation and capture/read failures separately; no zero-after-wrap or activity-only pass."
+        "Stop PRBS mode0, verify generator off and preserve result before restoring settings. Finite raw result states loss/unknown history, wrap/saturation and capture/read failures separately; no zero-after-wrap or activity-only pass.",
+        "After digital/analog restart acquire PHYSTS link through the single collector and wait within the operation budget before PRBS enable. No analog030B3380 write. All modes including OFF are typed; packet codes0..2047 and IPG bytes0..1020 in multiples4 expose the documented fields without minimum Ethernet-frame claims."
       ],
       "waits": [
         "Observation duration is application-selected policy; no maximum silicon lock time established. SNLA423A one-second suggestion is not a guaranteed completion bound."
       ],
       "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
-      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
-      "cleanup": "Stop diagnostic generation before restoring settings; keep controller lock only across indivisible MDIO/RMW transaction, never across waits. Verify stop/readback with finite cleanup budget; retain cleanup-required on failure.",
+      "partialEffects": "Retain accepted/possible writes, every independently captured raw word and possible history loss. Failure/cancellation freezes immediately without cleanup I/O. A later owning stop or explicit HARD restoration has its own finite budget, token and result; it cannot replace the primary result.",
+      "cleanup": "Owning stop disables PRBS and waits boundedly for generator-active to clear before shared loopback stop/initialization/profile replay; then restores and verifies saved IPG and packet length. Digital uses HARD. No automatic retry. A failed stop retains temporary state and untrusted configuration.",
       "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
       "gates": [
         "bist_result_semantics"
       ],
       "owner": {
-        "api": "startBist / stopBist / BistSample",
-        "cli": "owner-routed startBist / stopBist / BistSample (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startBist / stopBist / BistSample; prompts 24, 53-55",
+        "api": "startBist / startBistAcquire / stopBist / bistSnapshot",
+        "cli": "owner-routed BIST session and cached rendering (prompts 44-46)",
+        "test": "test/bist.cpp: literal modes/fields, saturation/wrap/raw uncertainty, every callback/cancel boundary, saved-state restoration and ownership; BIST physical qualification NOT RUN",
         "implementationStage": 24
       }
     },
@@ -10223,20 +10224,21 @@
         "Single owner captures counter and IPG context; reject a competing destructive capture while sample pending.",
         "Compose 8000 OR desired_IPG_byte; bits14:8 zero. Explicit write15 freezes readable counter and clears live counter. Do not read-modify-write the high counter byte; read15 is counterMSB, not write-action state.",
         "After confirmed command completion read BICSR1 once and retain raw high byte plus lower byte and status window. On command uncertainty or read failure retain possible lost/overwritten evidence; never blindly issue another capture to recover the first.",
-        "Publish captured count as bounded-window evidence only with known baseline/history/counter mode. Releasing frozen latch and repeat-capture lifecycle remain source-gated."
+        "Publish captured count as bounded-window evidence only with known baseline/history/counter mode. Releasing frozen latch and repeat-capture lifecycle remain source-gated.",
+        "Prompt24 implements BISCR-before, indivisible BICSR1 capture/write+read, BISCR-after. Repeat captures are explicit raw observations, not a proven release protocol. Keep intervalUncertain; zero errors remain INCONCLUSIVE under the source gate. Single packet observation requires actual owner correlation; checker-only needs external stimulus evidence, not generator-active."
       ],
       "waits": [],
       "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
-      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
+      "partialEffects": "Retain accepted/possible writes, every independently captured raw word and possible history loss. Failure/cancellation freezes immediately without cleanup I/O. A later owning stop or explicit HARD restoration has its own finite budget, token and result; it cannot replace the primary result.",
       "cleanup": "No compensating write can undo counter clearing. Preserve raw sample and history-loss uncertainty. Restore IPG only through safe low-byte composition; no retry of capture without explicit new generation.",
       "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
       "gates": [
         "bist_result_semantics"
       ],
       "owner": {
-        "api": "startBist / stopBist / BistSample",
-        "cli": "owner-routed startBist / stopBist / BistSample (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startBist / stopBist / BistSample; prompts 24, 53-55",
+        "api": "startBist / startBistAcquire / stopBist / bistSnapshot",
+        "cli": "owner-routed BIST session and cached rendering (prompts 44-46)",
+        "test": "test/bist.cpp: literal modes/fields, saturation/wrap/raw uncertainty, every callback/cancel boundary, saved-state restoration and ownership; BIST physical qualification NOT RUN",
         "implementationStage": 24
       },
       "writeActions": [
@@ -12631,23 +12633,23 @@
         "bist_capture"
       ],
       "owner": {
-        "api": "startBist / stopBist / BistSample",
-        "cli": "owner-routed startBist / stopBist / BistSample (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startBist / stopBist / BistSample; prompts 24, 53-55",
+        "api": "startBist / startBistAcquire / stopBist / bistSnapshot",
+        "cli": "owner-routed BIST sessions and cached views (prompts 44-46)",
+        "test": "test/bist.cpp mode/field/failure/restoration matrix; physical BIST qualification NOT RUN",
         "implementationStage": 24
       },
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "bist_result_semantics"
       ],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations."
+      "notes": "Prompt24 implements all documented mode/control encodings, bounded setup/acquire/stop, raw partial evidence and shared restoration. bist_result_semantics still gates PASS, exact counter intervals and rates; physical BIST qualification NOT RUN. No SDK or fixture support follows from host completion."
     },
     {
       "id": "cable",
@@ -13429,7 +13431,7 @@
     {
       "id": "bist_result_semantics",
       "conflict": "BICSR1 read15:8 overlaps explicit write15 capture/clear. No complete capture-latch release/overwrite protocol, checker sync-loss clear/retention interval, accepted minimum packet size or deterministic live-wrap history guarantee is documented.",
-      "decision": "Represent read counter independently from explicit write action. Preserve per-capture ownership/uncertainty and finite window. Activity/lock alone or zero after possible wrap cannot be PASS. Expose raw finite result until pass policy is established.",
+      "decision": "Represent read counter independently from explicit write action. Preserve per-capture ownership/uncertainty and finite window. Activity/lock alone or zero after possible wrap cannot be PASS. Expose raw finite result until pass policy is established. Prompt24 ships bounded setup/acquire/stop and raw measurement validity, not PASS or exact interval totals. RH means hardware set/clear, not RC; sampled lock cannot prove continuous lock. Independent analog status is3B08, not SNLA423A3B04.",
       "nextEvidence": "Exact-part TI latch lifecycle and sync-history clarification; identified traces for capture->read->capture, uncertain write/read, 255 saturation/wrap, minimum packet and checker-only modes.",
       "ownerStage": 24,
       "sources": [

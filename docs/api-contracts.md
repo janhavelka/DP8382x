@@ -879,3 +879,13 @@ Digital uses HARD for opaque companions; no arbitrary opaque snapshots are
 replayed. Failed stop leaves the session available for a new explicit attempt.
 Each result retains mode/speed, verified-control/stop flags and any acquired
 raw PHYSTS evidence; no packet result is implied.
+
+### Shipped BIST sessions (stage 24)
+
+`startBist`, `startBistAcquire`, `stopBist` and passive `bistSnapshot` extend
+the same OP-9 owner. All three operations are RAW traffic. Each uses a new token
+and budget; start/acquire require initialized, owning stop does not. Saved packet/
+IPG precede loopback mutation; stop/HARD reuse shared restoration. The single
+collector retains BISCR/BICSR1 partial words and capture-loss uncertainty.
+See [BIST](bist.md) for the typed mode matrix, exact bounds, per-field validity,
+external observation contract and source-gated INCONCLUSIVE outcome.

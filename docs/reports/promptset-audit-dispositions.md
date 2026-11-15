@@ -134,7 +134,7 @@ it to measured silicon behavior.
 | --- | --- |
 | G3-1 | Planned25, source records corrected: SNLA428 table2-1 six runs/gains, channel A, exceptional GENCFG and HARD/replay; ledger tdrRecipe. |
 | G3-2 | Planned25: matching-run threshold/formula, whole-word sign, NO_PEAK and MATLAB conflicts. Corrected section2.2 citation here; tables2-4/5. |
-| G3-3 | Planned23/24: script-only reverse/analog restart retained as conflict; 030B3380 unadopted outside table8-79 range; SNLA423A pp18/20. |
+| G3-3 | Implemented23/24 (physical Q8 NOT RUN): script-only reverse/analog restart retained as conflict; 030B3380 unadopted outside table8-79 range; SNLA423A pp18/20. |
 | G3-4 | Planned27 engineering inference: both MISRs, bounded morePossiblyPending, no dependence on a new edge; Q9 unmeasured. |
 | G3-5 | Planned25/26: CDCR and result words0180/0185/018A are non-destructive; tables8-47/61/66/71. |
 | G3-6 | Planned26: autorun disable/readback is policy, not quiescence; one autorun cannot stand in for six-run interpretation. |

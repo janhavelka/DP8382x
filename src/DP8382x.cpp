@@ -328,7 +328,7 @@ Status admitReset(const IoBudget& budget, const TransportBounds& bounds,
 // Acquisition order captures PHYSTS mirrors before their clearing sources.
 constexpr uint16_t EVIDENCE_ADDRESSES[] = {
   0x0010, 0x0001, 0x0006, 0x000F, 0x0012, 0x0013,
-  0x0014, 0x0015, 0x0017, 0x001A, 0x04A1
+  0x0014, 0x0015, 0x0017, 0x001A, 0x04A1, 0x0016, 0x001B
 };
 int evidenceIndex(uint16_t address) noexcept {
   for (uint8_t i = 0; i < static_cast<uint8_t>(EvidenceSource::COUNT); ++i) {
@@ -398,6 +398,8 @@ Status DP8382x::bind(const Config& config) noexcept {
   _cleanupOwner = OperationKind::NONE;
   _identity.declaredVariant = config.variant;
   _loopback = {};
+  _bist = {};
+  _bistSession = _bistWorking = _bistRestoreTail = _bistCapturePending = false;
   _loopSession = _loopWorking = _loopRestoreTail = false;
   _operation.temporaryMayBeActive = false;
   _timeValid = false;
@@ -426,6 +428,8 @@ Status DP8382x::end() noexcept {
   _configuring = false;
   _cleanupOwner = OperationKind::NONE;
   _loopback = {};
+  _bist = {};
+  _bistSession = _bistWorking = _bistRestoreTail = _bistCapturePending = false;
   _loopSession = _loopWorking = _loopRestoreTail = false;
   _operation.temporaryMayBeActive = false;
   _timeValid = false;
@@ -595,6 +599,8 @@ void DP8382x::_invalidateEvidence() noexcept {
   _evidence.configurationDirty = true;
   _identity.stale = true;
   _loopback.controlsVerified = false;
+  _bist.active = false;
+  _bist.stale = true;
   _settings.trust = ConfigurationTrust::DIRTY;
   _settings.observedStale = true;
   _markEvidenceDiscontinuous();
@@ -630,6 +636,7 @@ Status DP8382x::invalidateDeviceState(InvalidationReason reason) noexcept {
   if (reason == InvalidationReason::EXTERNAL_RESET || reason == InvalidationReason::EXTERNAL_POWER_ON) {
     _operation.temporaryMayBeActive = false;
     _loopSession = _loopWorking = _loopRestoreTail = false;
+    _bistSession = _bistWorking = _bistRestoreTail = _bistCapturePending = false;
   }
   return Status::Ok();
 }
@@ -644,6 +651,10 @@ Status DP8382x::acquireEvidence(uint32_t sourceMask, EvidenceSnapshot& evidence,
       (sourceMask & evidenceBit(EvidenceSource::ANER)) != 0U) {
     // One consumer owns page events for this epoch; a second reader could steal
     // the event before its corresponding payload has been retained.
+    return busy(BusyDetail::OPERATION_ACTIVE);
+  }
+  if (_bistSession && _operation.state == OperationState::RUNNING &&
+      (sourceMask & (evidenceBit(EvidenceSource::BISCR) | evidenceBit(EvidenceSource::BICSR1))) != 0U) {
     return busy(BusyDetail::OPERATION_ACTIVE);
   }
   uint32_t required = 0;
@@ -810,6 +821,7 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
     const int index = target ? evidenceIndex(address) : -1;
     if (frame.kind == FrameKind::READ && index >= 0) {
       auto& sample = _evidence.samples[static_cast<unsigned>(index)];
+      if (address == 0x0016U || address == 0x001BU) { _bist.stale = true; }
       // Any later collector acquisition makes the previous complete aggregate historical.
       _counters.stale = true;
       _counters.lastStatus = _transport.clockInvalid ? configError(ConfigDetail::CLOCK_CONTRACT) :
@@ -840,6 +852,11 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
         sample.stale = true;
       }
     }
+    if (target && address == 0x001BU && frame.kind == FrameKind::WRITE && (frame.value & 0x8000U) != 0U &&
+        (receipt.attempted || receipt.completed || receipt.effectPossible || _transport.violation != TransportViolation::NONE)) {
+      _bistCapturePending = true;
+    }
+    if (target && address == 0x001BU && frame.kind == FrameKind::READ && completed) { _bistCapturePending = false; }
     // A raw target write cannot establish configuration trust, even on success.
     if (target && frame.kind == FrameKind::WRITE &&
         (receipt.attempted || receipt.completed || receipt.valueValid || receipt.effectPossible ||
@@ -849,7 +866,7 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
       if (address == 0x001FU && frame.value == 0x4000U) {
         // Table8-48 circuitry restart keeps registers, identity and initialized state.
         _markEvidenceDiscontinuous();
-      } else if ((_loopWorking && address != cmd::REG_PHYRCR) || (_configuring && (address == cmd::REG_BMCR || address == cmd::REG_ANAR || address == cmd::REG_ANNPTR ||
+      } else if (((_loopWorking || _bistWorking) && address != cmd::REG_PHYRCR) || (_configuring && (address == cmd::REG_BMCR || address == cmd::REG_ANAR || address == cmd::REG_ANNPTR ||
           address == cmd::REG_CR1 || address == cmd::REG_PHYCR || address == cmd::REG_CR3 || address == cmd::REG_CR2))) {
         // Owned profile changes do not reset the device or undo mandatory VOD setup.
         _evidence.configurationDirty = true;
@@ -864,6 +881,11 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
       }
     }
     if (!completed) { prefix = false; }
+  }
+  if (_bistCapturePending) {
+    auto& sample = _evidence.samples[static_cast<unsigned>(EvidenceSource::BICSR1)];
+    sample.historyLost = true;
+    sample.stale = true;
   }
 }
 
@@ -919,7 +941,7 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
     status = admitBudget(budget, _config.transport.bounds, batch.frameCount, before, upper);
   }
   if (status.ok() && operation && !_configuring &&
-      ((!_loopWorking && _initStep == InitStep::COMMAND) || (_loopWorking && _loopStep == LoopStep::RESTART))) {
+      ((!_loopWorking && !_bistWorking && _initStep == InitStep::COMMAND) || (_loopWorking && _loopStep == LoopStep::RESTART))) {
     status = admitReset(budget, _config.transport.bounds, before, _commandWaitUs());
   }
   if (!status.ok()) {
@@ -992,6 +1014,7 @@ Status DP8382x::startInitialize(const InitializeOptions& options, const Operatio
     const auto& saved = _loopback.options;
     _result.loopback = {saved.mode, saved.speed, false, false, saved.mode == LoopbackMode::DIGITAL, 0, false};
   }
+  if (_bistSession) { _result.bist = _bist.measurement; }
   _setInitStep(InitStep::IDENTIFY);
   token = _operation.token;
   return _operation.status;
@@ -1020,6 +1043,7 @@ void DP8382x::_beginOperation(OperationKind kind, const OperationBudget& budget)
   if (kind == OperationKind::CONFIGURE) { _result.identity = _identity; }
   _configuring = false;
   _loopWorking = false;
+  _bistWorking = false;
   _pollTimeValid = false;
 }
 
@@ -1033,16 +1057,32 @@ Status DP8382x::_checkToken(OperationToken token) const noexcept {
 }
 
 Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept {
+  if (status.ok() && _operation.kind == OperationKind::BIST_START && !_bistWorking) {
+    _loopWorking = false;
+    _setBistStep(BistStep::APPLY_IPG);
+    return _operation.status;
+  }
   // Both owning stop and an explicitly requested HARD use the same restore
   // tail. Initialization/profile proof alone cannot discharge saved overrides.
   if (status.ok() && _result.persistentRestored && _loopSession && _loopRestoreTail &&
-      (_operation.kind == OperationKind::LOOPBACK_STOP ||
+      (_operation.kind == OperationKind::LOOPBACK_STOP || _operation.kind == OperationKind::BIST_STOP ||
        (_operation.kind == OperationKind::INITIALIZE && _result.reset == ResetKind::HARD))) {
     _configuring = false;
     _result.persistentRestored = false;
     _settings.trust = ConfigurationTrust::DIRTY;
     if (_result.reset == ResetKind::HARD) { _initialized = false; }
     _setLoopStep(_result.reset == ResetKind::HARD ? LoopStep::RESTORE_BMCR : LoopStep::RESTORE_BISCR);
+    return _operation.status;
+  }
+  if (status.ok() && _result.persistentRestored && _bistSession && _bistRestoreTail &&
+      (_bistSavedIpgValid || _bistSavedPacketValid) &&
+      (_operation.kind == OperationKind::BIST_STOP ||
+       (_operation.kind == OperationKind::INITIALIZE && _result.reset == ResetKind::HARD))) {
+    _loopWorking = _configuring = false;
+    _result.persistentRestored = false;
+    _settings.trust = ConfigurationTrust::DIRTY;
+    if (_result.reset == ResetKind::HARD) { _initialized = false; }
+    _setBistStep(BistStep::RESTORE_IPG);
     return _operation.status;
   }
   // A partial verification keeps its mismatch evidence separately. The error
@@ -1054,10 +1094,13 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
   if (_result.persistentRestored && _operation.kind != OperationKind::VERIFY) {
     _operation.cleanupOwed = false;
     _cleanupOwner = OperationKind::NONE;
-    if (_operation.kind == OperationKind::LOOPBACK_STOP ||
+    if (_operation.kind == OperationKind::LOOPBACK_STOP || _operation.kind == OperationKind::BIST_STOP ||
         (_operation.kind == OperationKind::INITIALIZE && _result.reset == ResetKind::HARD)) {
       _operation.temporaryMayBeActive = false;
       _loopSession = false;
+      _bistSession = _bistCapturePending = false;
+      _bist.active = false;
+      _bist.stale = true;
       _loopback.controlsVerified = false;
       if (_operation.kind == OperationKind::LOOPBACK_STOP || _result.loopback.speed != LinkSpeed::UNKNOWN) {
         _result.loopback.stopped = true;
@@ -1076,7 +1119,13 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
   }
   _configuring = false;
   _loopWorking = false;
-  if (_operation.kind == OperationKind::LOOPBACK_START && !_operation.temporaryMayBeActive) { _loopSession = false; }
+  if (_startingLoopback() && !_operation.temporaryMayBeActive) { _loopSession = _bistSession = false; }
+  if (_operation.kind == OperationKind::BIST_ACQUIRE) {
+    _bist.measurement = _result.bist;
+    _bist.stale = !status.ok();
+  }
+  if (!status.ok() && _bistSession) { _bist.stale = true; }
+  _bistWorking = false;
   if (!status.ok() && _loopSession) {
     _loopback.controlsVerified = false;
     _settings.trust = ConfigurationTrust::DIRTY;
@@ -1198,7 +1247,8 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
   if (_operation.nextPollValid && raw < _operation.nextPollAtUs) { return _yieldOperation(raw); }
 
   MdioBatch batch;
-  if (_loopWorking) { batch = _loopbackBatch(); }
+  if (_bistWorking) { batch = _bistBatch(); }
+  else if (_loopWorking) { batch = _loopbackBatch(); }
   else if (_configuring) { batch = _configurationBatch(); }
   else switch (_initStep) {
     case InitStep::IDENTIFY: case InitStep::REIDENTIFY:
@@ -1222,13 +1272,13 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
   status = admitBudget(_operation.remaining, _config.transport.bounds, batch.frameCount, raw, upper);
   if (!status.ok()) { return _finishOperation(status); }
   if (batch.frameCount > maxFrames) { return _yieldOperation(raw); }
-  if (!_configuring && ((!_loopWorking && _initStep == InitStep::COMMAND) ||
+  if (!_configuring && ((!_loopWorking && !_bistWorking && _initStep == InitStep::COMMAND) ||
       (_loopWorking && _loopStep == LoopStep::RESTART))) {
     status = admitReset(_operation.remaining, _config.transport.bounds, raw, _commandWaitUs());
     if (!status.ok()) { return _finishOperation(status); }
   }
   bool called = false;
-  if ((!_configuring && !_loopWorking && (_initStep == InitStep::IDENTIFY || _initStep == InitStep::REIDENTIFY)) ||
+  if ((!_configuring && !_loopWorking && !_bistWorking && (_initStep == InitStep::IDENTIFY || _initStep == InitStep::REIDENTIFY)) ||
       (_loopWorking && _loopStep == LoopStep::IDENTIFY_STOP)) {
     DeviceIdentity accepted;
     status = _readIdentity(accepted, _operation.remaining, true, &called);
@@ -1246,7 +1296,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
     _result.failingBatch = {_operation.phase, frames.attempted, frames.completed, effect,
                            status, classifyReport(receipt, frames).release, _transport.violation, _transport.late};
     _result.late = _result.late || _transport.late;
-    if (!_configuring && !_loopWorking && (_initStep == InitStep::SOR1 || _initStep == InitStep::SOR2 ||
+    if (!_configuring && !_loopWorking && !_bistWorking && (_initStep == InitStep::SOR1 || _initStep == InitStep::SOR2 ||
          _initStep == InitStep::RESOR1 || _initStep == InitStep::RESOR2) && frames.completed == 4U) {
       if (_initStep == InitStep::SOR1 || _initStep == InitStep::RESOR1) {
         _result.straps.sor1 = receipt.frames[3].value;
@@ -1263,7 +1313,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
         if (batch.frames[i].kind != FrameKind::WRITE) { continue; }
         const auto& target = receipt.frames[i];
         const bool uncertain = _transport.violation != TransportViolation::NONE;
-        if (_operation.kind == OperationKind::LOOPBACK_START &&
+        if (_startingLoopback() &&
             (uncertain || target.attempted || target.effectPossible || target.completed || target.valueValid)) {
           _operation.temporaryMayBeActive = true;
           _operation.cleanupOwed = true;
@@ -1278,7 +1328,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
         }
         _result.failingBatch.effectPossible = _result.failingBatch.effectPossible || uncertain;
       }
-    } else if (!_loopWorking && (_initStep == InitStep::COMMAND || _initStep == InitStep::APPLY)) {
+    } else if (!_loopWorking && !_bistWorking && (_initStep == InitStep::COMMAND || _initStep == InitStep::APPLY)) {
       const uint8_t index = _initStep == InitStep::COMMAND ? uint8_t{0} : uint8_t{3};
       const auto& target = receipt.frames[index];
       // A contradictory callback cannot prove that an omitted target was never
@@ -1302,6 +1352,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
       }
     }
   }
+  if (_bistWorking) { return _advanceBist(status, called, batch); }
   if (_loopWorking) { return _advanceLoopback(status, called, batch); }
   if (_configuring) { return _advanceConfiguration(status, called, batch); }
   // A valid reset indication remains evidence even when release or timing

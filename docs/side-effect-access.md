@@ -152,3 +152,8 @@ cannot steal a protocol event. Other admitted raw reads remain serialized.
 Loopback PHYSTS prerequisite/relink reads also pass through this collector.
 Session writes remain owner-routed: raw access cannot select opaque digital
 companions or clear the temporary barrier. See [loopback](loopback.md).
+
+BISCR/BICSR1 now have single-collector raw sources. BICSR1 high-bit samples are
+never replayed into writes: capture uses a literal command plus owned IPG.
+Public acquisition cannot interleave those sources with an executing BIST
+operation; cached evidence remains available. See [BIST](bist.md).

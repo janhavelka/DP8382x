@@ -603,3 +603,15 @@ mode/speed/interface, plus exact bounded frame/callback plans and every injected
 frame/release/cancel boundary. It checks manual MDIX and robust/mirror profile
 restoration, FIFO variants, physical-effect uncertainty and separate results.
 These are host protocol vectors; Q8/Q5/Q11 measured traces remain NOT RUN.
+
+## Executing BIST vectors (stage 24)
+
+SNLS647I tables8-40/45/46 independently give modes0000/1000/2000/3000;
+wrap4000 is separate. IPG7D means500bytes, capture807D preserves it, and
+rawFF7D means255errorbytes with the same IPG. Packet05EE means1518bytes;
+field limits are07FF and gapFF*4=1020bytes. No Ethernet minimum is inferred.
+Analog control3108 with lock0800/active0200 reads3B08, not the note typo3B04;
+loss0400 gives3F08. RH is hardware set/clear, not RC. Counter80 in807D is
+read data, never a pending command. Zero/wrap and unproved repeat-latch intervals
+remain inconclusive. `test/bist.cpp` uses independent literals for every mode,
+field boundary, indivisible capture, fault and restoration.

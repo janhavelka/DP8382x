@@ -182,3 +182,8 @@ consumption. Only owning stop or HARD initialization is admitted while it is set
 PCS/NONE/RESTART cannot promise vendor stimulus removal. HARD reuses the saved
 ordinary-field restore tail and clears temporary knowledge only after full
 verification, including isolation that BASIC straps may reload.
+
+Stage 24 extends this same HARD-restoration tail with saved BIST packet/IPG.
+Those values are captured before any loopback companion mutation. A failed BIST
+start/acquire requires owning stop or HARD; no earlier measurement is erased or
+converted into a restoration success. See [BIST](bist.md).

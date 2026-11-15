@@ -272,7 +272,7 @@ void compositions() {
   CHECK(cmd::composeWakeControl(0xFFFF, 0x1000, 0, true) == 0xE7FFU);
   CHECK(evidenceBit(static_cast<EvidenceSource>(255)) == 0U);
   CHECK(evidenceBit(EvidenceSource::COUNT) == 0U);
-  CHECK(ALL_EVIDENCE == 0x07FFU);
+  CHECK(ALL_EVIDENCE == 0x1FFFU); // Prompt24 adds BISCR/BICSR1 raw evidence.
 
   // Re-derived from rendered SNLS647I table 8-49 p74, table 8-85 pp87-88,
   // and table 8-89 pp90-91. These literals do not use the ledger as an oracle.
@@ -735,7 +735,7 @@ void wake() {
 void admission() {
   BoundDriver fixture;
   auto output = sentinel();
-  for (uint32_t mask : {0U, 0x0800U, 0x80000000U, 0xFFFFFFFFU}) {
+  for (uint32_t mask : {0U, 0x2000U, 0x80000000U, 0xFFFFFFFFU}) {
     CHECK(fixture.driver.acquireEvidence(mask, output, BUDGET).is(Err::INVALID_PARAM));
   }
   CHECK(fixture.driver.acquireEvidence(0x07FF, output, {10000, 13}).is(Err::OPERATION_TIMEOUT));

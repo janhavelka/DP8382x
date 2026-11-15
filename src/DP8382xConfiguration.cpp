@@ -312,7 +312,7 @@ void DP8382x::_retainPageEvidence(const MdioBatch& batch, const BatchResult& rec
 }
 
 void DP8382x::_observeConfiguration() noexcept {
-  if (_operation.kind == OperationKind::LOOPBACK_START) { return; }
+  if (_startingLoopback()) { return; }
   // Called only after the complete stable readback pass. Decode hardware,
   // never copy intent over a valid mismatch. A forced request did not acquire
   // ANAR, so an unexpectedly enabled AN mode cannot form a complete AN tuple.
@@ -526,7 +526,7 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
       (completedStep == ConfigStep::VERIFY_CLEAR && batch.frames[0].registerAddress == cmd::REG_ANAR &&
        batch.frameCount == 1U && !_result.nextPage.npMayRemainSet);
   if (!finished) { return _operation.status; }
-  if (_operation.kind == OperationKind::LOOPBACK_START) {
+  if (_startingLoopback()) {
     _configuring = false;
     _beginLoopbackActivation();
     return _operation.status;

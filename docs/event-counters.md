@@ -111,3 +111,9 @@ See [independent literals](register-vectors.md#prompt-20-event-and-counter-vecto
 [source audit](reports/implementation/20-source-review.md) and
 [implementation verification](reports/implementation/20-event-counter-acquisition.md).
 Physical event/counter, Q16 and Q17 measurements remain NOT RUN.
+
+Stage 24 adds BISCR and BICSR1 to the same raw collector. BICSR1 reads alone
+do not capture/reset the live counter; only the owning BIST procedure issues the
+command/read pair. A possible clear without returned data retains history loss.
+No FCSCR accumulation rules transfer to BIST. Cached [BIST views](bist.md) and
+formatting never reread counters.

@@ -125,3 +125,8 @@ next-page ownership are selected research policies. Their physical questions
 remain Q1/Q7/Q11/Q19/Q10 respectively; full feature implementation stays with its
 assigned later prompt. The current prompt13 collector has real destructive-read
 and mixed-mutation consumers; it is not deferred by this research update.
+
+Prompt 24 completes `bist_run` and `bist_capture` control/raw-acquisition scope
+through [bounded BIST sessions](bist.md), with independent host/consumer tests.
+The `bist_result_semantics` gate still blocks PASS/exact-interval claims; SDK
+and physical BIST qualification remain NOT RUN.

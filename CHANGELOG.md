@@ -4,6 +4,11 @@
 
 ### 2026-11-15
 
+- Implemented prompt 24 bounded BIST start/acquire/stop, all documented mode and
+  packet/IPG controls, single-collector partial counter evidence and shared
+  verified restoration. Added independent failure/encoding tests and portable
+  owner example. Exact interval/PASS and physical evidence remain source-gated.
+
 - Implemented prompt 23 loopback start/stop sessions for every documented path
   and legal MII/RMII speed, with explicit maintenance/fixture admission, bounded
   restart/relink, retained temporary-state barriers and shared verified restoration.

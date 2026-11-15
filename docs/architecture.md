@@ -133,3 +133,8 @@ Its explicit phase switch feeds the existing poll/transport/result machinery.
 Temporary profile targeting reuses configuration without replacing desired intent;
 stop/HARD reuse initialization and one saved-field verification tail. There is
 no second collector, reset engine, background dwell or automatic cleanup owner.
+
+Stage 24 extends the same diagnostics source and operation slot for BIST. It
+chains the existing loopback/configuration/reset procedures and saved-field exit;
+BISCR/BICSR1 retention extends the existing collector. No test framework, second
+collector or automatic cleanup engine is added. See [BIST](bist.md).

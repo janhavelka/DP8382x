@@ -14,6 +14,7 @@
 #include "../../examples/portable/Health.h"
 #include "../../examples/portable/Reconcile.h"
 #include "../../examples/portable/Loopback.h"
+#include "../../examples/portable/Bist.h"
 #include <cstring>
 
 #ifdef _MSVC_LANG
@@ -108,6 +109,7 @@ struct InitializationController {
   uint16_t anar{0x01E1}, bmcr{0x3100};
   uint16_t cr1{0}, phycr{0x8000}, cr3{0}, cr2{0};
   uint16_t biscr{0x0100}, physcr{0x0555};
+  uint16_t bicsr1{0x007D}, bicsr2{0x05EE};
   bool failVodWrite{false};
   bool failHardWrite{false};
   uint32_t resetWrites{0}, hardWrites{0}, restartWrites{0}, vodWrites{0}, frames{0};
@@ -144,6 +146,8 @@ struct InitializationController {
         else if (frame.registerAddress == 10) { receipt.value = controller.cr2; }
         else if (frame.registerAddress == 0x16) { receipt.value = controller.biscr; }
         else if (frame.registerAddress == 0x11) { receipt.value = controller.physcr; }
+        else if (frame.registerAddress == 0x1B) { receipt.value = controller.bicsr1; }
+        else if (frame.registerAddress == 0x1C) { receipt.value = controller.bicsr2; }
         else if (frame.registerAddress == 0x1F) { receipt.value = 0; }
         else if (frame.registerAddress == 0x0E && controller.selector == 0x401F) {
           if (controller.address == 0x030E) { receipt.value = controller.vod; }
@@ -163,6 +167,8 @@ struct InitializationController {
       } else if (frame.registerAddress == 10) { controller.cr2 = written;
       } else if (frame.registerAddress == 0x16) { controller.biscr = static_cast<uint16_t>((controller.biscr & 0x8FA0U) | (written & 0x705FU));
       } else if (frame.registerAddress == 0x11) { controller.physcr = written;
+      } else if (frame.registerAddress == 0x1B) { controller.bicsr1 = static_cast<uint16_t>(written & 0x00FFU);
+      } else if (frame.registerAddress == 0x1C) { controller.bicsr2 = written;
       } else if (frame.registerAddress == 0x1F && frame.value == 0x8000) {
         ++controller.hardWrites;
         controller.vod = 0x8400;
@@ -419,9 +425,25 @@ static bool configurationExamples() noexcept {
       !runLoop(stopRetry) || !stopRetry.result.status.ok() || !stopRetry.result.loopback.stopped ||
       !failedStop.result.status.is(DP8382x::Err::MDIO_TIMEOUT) ||
       phy.operationSnapshot().temporaryMayBeActive || phy.operationSnapshot().cleanupOwed) return false;
+  DP8382x::BistOptions bistOptions;
+  bistOptions.loopback.maintenanceAdmitted = true;
+  BistAttempt bistStart, acquisition, bistStop;
+  if (!beginBist(phy, bistOptions, {{100000, 128}, 1000, 20}, bistStart).inProgress() ||
+      !runLoop(bistStart) || !bistStart.result.status.ok()) return false;
+  if (!acquireBist(phy, {}, {{100000, 16}, 1000, 20}, acquisition).inProgress() ||
+      !runLoop(acquisition) || !acquisition.result.status.ok() || !acquisition.result.bist.measurementValid ||
+      acquisition.result.bist.outcome != DP8382x::BistOutcome::INCONCLUSIVE) return false;
+  // Two independent rendering consumers copy the same acquisition without I/O.
+  const auto framesBeforeViews = controller.frames;
+  const auto firstBistView = phy.bistSnapshot(), secondBistView = phy.bistSnapshot();
+  if (firstBistView.measurement.rawCounter != secondBistView.measurement.rawCounter ||
+      firstBistView.stale || controller.frames != framesBeforeViews) return false;
+  if (!endBist(phy, {{100000, 128}, 1000, 20}, bistStop).inProgress() ||
+      !runLoop(bistStop) || !bistStop.result.status.ok() || !bistStop.result.persistentRestored ||
+      !acquisition.result.bist.measurementValid || !phy.bistSnapshot().stale) return false;
   return forced.resultAvailable && forced.result.status.ok() &&
       controller.anar == 0x0101 && controller.bmcr == 0x2100 &&
-      controller.cr1 == 0x0020 && controller.phycr == 0 && controller.vodWrites == 5 &&
+      controller.cr1 == 0x0020 && controller.phycr == 0 && controller.vodWrites == 6 &&
       controller.biscr == 0x0100 && controller.physcr == 0x0555 &&
       controller.resetWrites == 0 && controller.hardWrites == 0 && controller.restartWrites == 0 && phy.end().ok();
 }

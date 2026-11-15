@@ -125,3 +125,8 @@ the documented range. Lack of later BIST lock will be inconclusive, not grounds
 to invent a gain value. The `loopback_recipe` conflict and Q8 remain open for
 exact-part clarification or measured traces. Source/host coverage proves no
 termination, MAC, peer, packet delivery or electrical quality.
+
+Stage 24 now composes BIST with these same digital/analog/external paths; other
+BIST interactions remain source-gated. Its owning stop additionally disables and
+checks generator activity and restores saved packet/IPG. Plain stopLoopback
+cannot bypass that owner. See [BIST sessions](bist.md).

@@ -1,9 +1,9 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–23 are complete: source research, shared contracts, portable
+execution. Prompts 1–24 are complete: source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 118 registered Release CTests, 103 Python tests,
+Current local checks include 127 registered Release CTests, 103 Python tests,
 the linked tests-OFF consumer, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -26,6 +26,13 @@ Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
 operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+Prompt 24 began on clean, synchronized `main` at
+`d58a7da95b0f3e96c0a908b70eb2ecaa439b1377`. The
+[stage report](reports/implementation/24-bist-generator-checker.md) records the
+source/peer audit, independent reviews, all BIST controls and bounded raw
+acquisition/stop. PASS/exact intervals remain gated; BIST physical qualification NOT RUN.
+Final commit/upstream equality are recorded in the handoff.
 
 Prompt 23 began on clean, synchronized `main` at
 `9dee869f7e43beeea9f3c1837bf111029e29a74b`. The
@@ -275,7 +282,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [21 Implement passive driver health and exact accounting](prompts/21-passive-health.md) | COMPLETE | [Report](reports/implementation/21-passive-health.md); managed callback counts, cached state/error evidence, 11 focused health suites and portable example; physical NOT RUN |
 | [22 Implement explicit reconciliation and bounded recovery](prompts/22-reconcile-recover.md) | COMPLETE | [Report](reports/implementation/22-reconcile-recover.md); bounded stable-field verification, retained mismatch/cleanup evidence, shared initialization recovery, ten focused suites and portable example; physical NOT RUN |
 | [23 Implement all supported loopback modes](prompts/23-loopback-modes.md) | COMPLETE | [Report](reports/implementation/23-loopback-modes.md); all documented mode/speed/interface paths, separate start/stop, retained temporary state, shared restore and independent host/consumer tests; Q8 physical NOT RUN |
-| [24 Implement complete BIST generator and checker sessions](prompts/24-bist-generator-checker.md) | NOT STARTED | None |
+| [24 Implement complete BIST generator and checker sessions](prompts/24-bist-generator-checker.md) | COMPLETE | [Report](reports/implementation/24-bist-generator-checker.md); all controls, bounded raw capture, partial evidence and verified stop; host/consumer PASS, exact-interval/PASS and physical BIST remain gated |
 | [25 Implement complete manual cable capture](prompts/25-cable-manual.md) | NOT STARTED | None |
 | [26 Implement cable autorun and shared result acquisition](prompts/26-cable-autorun.md) | NOT STARTED | None |
 | [27 Implement bounded interrupt configuration and service](prompts/27-interrupt-service.md) | NOT STARTED | None |
