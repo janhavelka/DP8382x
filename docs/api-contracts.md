@@ -439,7 +439,8 @@ Status startVerify(const OperationBudget& budget, OperationToken& token) noexcep
 `readLinkStatus` requires initialized identity and owner admission, but not
 verified desired configuration merely to observe. Local lifecycle/owner rejection
 is not an acquisition and does not change a snapshot; ordinary acquisition-budget
-failure does mark prior history stale. An active typed next-page exchange rejects
+failure or controller-quarantine rejection does mark prior history stale, retaining
+the old sample/time and exact error without I/O on quarantine. An active typed next-page exchange rejects
 link acquisition to preserve its sole ANER consumer. It always collects two BMSR
 samples in order through the collector, including when the first link bit is
 low. Do not copy TI `GenericPhy_isLinkUp`'s first-low success with untouched
@@ -1087,3 +1088,11 @@ identity/readiness/configuration; RESTART retains configuration and invalidates
 link/history continuity. An interleaved operation freezes; owned reset polling
 continues through its existing bounded phases. RESULT_PENDING remains historical,
 including its identity/strap fields, after a later raw observation.
+Configuration also stops on reset consumed by its own preflight, BMCR RMW or
+readback, before later phases can restore trust. A primary callback/clock error
+takes precedence; otherwise CONFIGURE returns INVALID_CONFIG/DEVICE_INVALIDATED
+and VERIFY retains BUSY/OPERATION_ACTIVE. Writes already accepted within the
+indivisible RMW remain effects with their restoration obligation.
+Collision entry/exit uses the same reset-observation rule for its BMCR RMW;
+neutralizing reset in the following write cannot erase consumed evidence or
+establish verified collision control.

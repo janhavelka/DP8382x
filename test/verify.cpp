@@ -19,6 +19,7 @@ struct Controller {
   uint64_t now{100}, frameTime{2};
   unsigned calls{0}, frames{0}, clocks{0}, releases{0}, semanticWrites{0}, vodWrites{0}, resets{0};
   int failFrame{-1}, releaseCall{-1}, lateCall{-1}, regressCall{-1}, overflowCall{-1};
+  int resetCall{-1};
   bool locked{false}, holdRestart{false}, holdReset{false}, holdPhyrcr{false}, failAfterEffect{true};
   Driver* competitor{nullptr};
   unsigned exclusions{0};
@@ -73,6 +74,7 @@ struct Controller {
       result.status = {Err::BUSY, static_cast<int32_t>(BusyDetail::OWNER_ADMISSION), "Other bus owner"}; return result;
     }
     const auto call = bus.calls++;
+    if (static_cast<int>(call) == bus.resetCall) { bus.words[0] |= 0x8000; bus.holdReset = true; }
     CHECK(call < bus.sizes.size()); bus.sizes[call] = batch.frameCount;
     CHECK(batch.frameCount <= budget.maxFrames);
     bus.locked = true;
@@ -536,6 +538,53 @@ void rawResetObservation() {
   }
 }
 
+void configurationResetObservation() {
+  // Table 8-19: reset-in-progress cannot validate a profile. Inject on each
+  // BMCR read (preflight, atomic RMW, readback), not just between owner polls.
+  for (bool forced : {false, true}) {
+    Controller reference; Driver baseline; initialize(baseline, reference);
+    const auto firstCall = reference.calls, firstFrame = reference.frames;
+    configure(baseline, reference, profile(forced));
+    unsigned frame = firstFrame, readCount = 0;
+    for (unsigned call = firstCall; call < reference.calls; ++call) {
+      const auto size = reference.sizes[call];
+      const bool bmcr = reference.trace[frame].reg == 0 && reference.trace[frame].kind == FrameKind::READ;
+      frame += size;
+      if (!bmcr) continue;
+      ++readCount;
+      for (unsigned fault = 0; fault < (size == 2 ? 5U : 4U); ++fault) {
+        Controller bus; Driver driver; initialize(driver, bus);
+        const auto startCalls = bus.calls;
+        bus.resetCall = static_cast<int>(startCalls + call - firstCall);
+        if (fault == 1) bus.releaseCall = bus.resetCall;
+        if (fault == 2) bus.lateCall = bus.resetCall;
+        if (fault == 3) bus.regressCall = bus.resetCall;
+        if (fault == 4) bus.failFrame = static_cast<int>(frame - size + 1);
+        OperationToken token;
+        CHECK(driver.startConfigure(profile(forced), allowance(), token).inProgress());
+        const auto status = drain(driver, bus, token);
+        CHECK(status.is(fault == 1 ? Err::MDIO_ERROR : fault == 2 ? Err::OPERATION_TIMEOUT :
+                        fault == 4 ? Err::MDIO_TIMEOUT : Err::INVALID_CONFIG));
+        if (fault == 0) CHECK(status.detail == static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED));
+        if (fault == 1) CHECK(status.detail == -37);
+        if (fault == 4) CHECK(status.detail == -22022);
+        CHECK(bus.calls == static_cast<unsigned>(bus.resetCall) + 1U);
+        CHECK(bus.frames == frame && bus.releases == bus.calls && !bus.locked);
+        CHECK(!driver.isInitialized() && !driver.capabilities().valid && driver.identitySnapshot().stale);
+        CHECK(driver.settingsSnapshot().trust != ConfigurationTrust::VERIFIED);
+        const auto result = take(driver, token);
+        CHECK(!result.persistentRestored && result.status.code == status.code && result.status.detail == status.detail);
+        CHECK(result.mutationPossible == (readCount != 1U));
+        CHECK(result.cleanupOwed == result.mutationPossible);
+        CHECK(result.failingBatch.completedFrames == (fault == 4 ? 1U : size));
+        const auto callsAfter = bus.calls;
+        CHECK(!driver.pollOperation(token).inProgress() && bus.calls == callsAfter);
+      }
+    }
+    CHECK(readCount == 3U);
+  }
+}
+
 void retainedBarrier() {
   Controller bus; Driver driver; initialize(driver, bus); configure(driver, bus, profile());
   OperationToken apply; CHECK(driver.startConfigure(profile(), allowance(), apply).inProgress());
@@ -607,6 +656,7 @@ int main(int argc, char** argv) {
   const test::Suite suites[] = {{"traces", traces}, {"comparisons", comparisons}, {"failures", failures},
     {"admission", admission}, {"lifecycle", lifecycle}, {"recovery", recovery}, {"ownership", ownership}, {"timing", timing},
     {"interrupted_replay", interruptedReplay}, {"reset_observation_errors", resetObservationErrors},
-    {"raw_reset_observation", rawResetObservation}, {"barrier", retainedBarrier}};
+    {"raw_reset_observation", rawResetObservation}, {"configuration_reset_observation", configurationResetObservation},
+    {"barrier", retainedBarrier}};
   return test::runSuites(argc, argv, suites);
 }

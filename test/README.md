@@ -580,3 +580,12 @@ deadline and regressing-clock failure. `quality_ownership` checks the same share
 path while an IRQ operation is running; no dependent writes may follow.
 `eee_acquisition_failures` checks stale retained EEE evidence after quarantine.
 These extend existing fixtures and registered Release suites.
+
+The independent prompt36 audit adds `verify_configuration_reset_observation`:
+literal BMCR reset during negotiated/forced preflight, atomic RMW and final
+readback, including release/deadline/clock failure and accepted-write timeout.
+`link_failures` now checks controller quarantine after a valid sample, repeated
+stale publication, unchanged caller output/time and zero I/O/health accounting.
+`electrical_collision` injects reset into both entry/exit RMW reads with success,
+release/deadline/clock failure and accepted-write timeout; it asserts immediate
+termination, exact bounds and retained temporary-state debt.

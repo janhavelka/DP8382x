@@ -50,7 +50,7 @@ Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) n
   if (!quiet.ok()) { return _transport.clockInvalid ? fail(quiet) : quiet; }
   if (!_initialized || !capabilities().valid) { return Status::Error(Err::NOT_INITIALIZED, "Initialize before observing link"); }
   if (_stopped) {
-    return Status::Error(Err::BUSY, "Controller report fault", static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED));
+    return fail(Status::Error(Err::BUSY, "Controller report fault", static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED)));
   }
   if (budget.maxFrames < 10U) { return fail(linkTimeout(TimeoutDetail::FRAME_BUDGET)); }
   // Reserve the sum of both callback bounds before consuming the first latch.

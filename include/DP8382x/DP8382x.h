@@ -1530,12 +1530,15 @@ public:
   /// @return IN_PROGRESS on admission; later startInitialize replays persistent state.
   Status stopCompliance(const OperationBudget& budget, OperationToken& token) noexcept;
   /// @brief Start MII collision-test session; SNLS647I table8-19, external TX_EN required.
+  /// @note Reset observed during the BMCR RMW stops with DEVICE_INVALIDATED
+  /// unless a primary failure already occurred; possible stimulus retains debt.
   /// @param[in] options Expected speed and board/traffic admission.
   /// @param[in] budget Independent bounded start allowance.
   /// @param[out] token New retained start token.
   /// @return IN_PROGRESS or local failure; register state does not prove COL timing.
   Status startCollisionTest(const CollisionOptions& options, const OperationBudget& budget, OperationToken& token) noexcept;
   /// @brief Clear and verify owned collision stimulus with neutral commands.
+  /// @note A reset observation in the RMW cannot prove successful stop/restoration.
   /// @param[in] budget Independent bounded stop allowance.
   /// @param[out] token New retained stop token.
   /// @return IN_PROGRESS or local failure; uncertain exit retains OP-9 debt.
@@ -1729,6 +1732,9 @@ public:
   /// Admission copies desired intent and marks trust DIRTY. NP belongs only to
   /// this exchange. Failure/cancel stops without cleanup writes; restoration is
   /// a new initialization or eligible configuration operation. No VOD write here.
+  /// A valid BMCR reset indication during preflight, RMW or verification stops
+  /// the operation with INVALID_CONFIG/DEVICE_INVALIDATED unless transport
+  /// already failed. Accepted/possible writes retain their cleanup obligation.
   /// @note Without owned power intent, live preflight rejects BMCR power-down with INVALID_CONFIG/POWER_STATE
   /// before profile writes. Table 8-19 combines software request and pin state;
   /// later pin assertion is never echoed into the software request. This does
@@ -1760,7 +1766,7 @@ public:
   /// No retry or implicit configuration. OP-14 reset waits/quiet floors and an
   /// active next-page consumer deny this read; semantic writes in a running
   /// operation suppress resolved mode/pause. Raw forced PHYSTS remains unqualified.
-  /// Failed refresh, including zero-I/O budget rejection, retains old values/time
+  /// Failed refresh, including zero-I/O budget or controller-quarantine rejection, retains old values/time
   /// as stale with the returned error. Local owner/lifecycle rejection is not a refresh.
   /// Use observedSinceUs and an owner-supplied current upper time for maximum age.
   Status readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) noexcept;

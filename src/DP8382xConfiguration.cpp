@@ -418,17 +418,23 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
     if (_configStep == ConfigStep::VERIFY_BMCR) {
       _settings.rawBmcr = value;
       _settings.bmcrValid = true;
-      if (_operation.kind == OperationKind::VERIFY && (value & cmd::MASK_BMCR_RESET) != 0U) {
-        // A valid consumed reset indication invalidates context even when
-        // release/timing subsequently fails. Keep that primary error below.
-        _invalidateResetEvidence(true);
-      } else if ((value & BMCR_VERIFY) != modeWord(_configurationTarget()) && !_result.mismatch.valid) {
+      if ((value & cmd::MASK_BMCR_RESET) == 0U &&
+          (value & BMCR_VERIFY) != modeWord(_configurationTarget()) && !_result.mismatch.valid) {
         _result.mismatch = {true, false, 0, cmd::REG_BMCR, BMCR_VERIFY, modeWord(_configurationTarget()), value};
       }
     }
   }
   if (!status.ok()) {
     return _finishOperation(status);
+  }
+  // Shared retention already invalidated identity/configuration. Stop before
+  // advancing or re-establishing trust, including a reset consumed by the RMW
+  // read whose following write may already have taken effect in this batch.
+  if (readValid && batch.frames[0].registerAddress == cmd::REG_BMCR &&
+      (value & cmd::MASK_BMCR_RESET) != 0U) {
+    return _finishOperation(_operation.kind == OperationKind::VERIFY ?
+        configBusy(BusyDetail::OPERATION_ACTIVE) : Status::Error(Err::INVALID_CONFIG,
+            "Reset invalidated configuration", static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED)));
   }
   switch (_configStep) {
     case ConfigStep::DRAIN: _setConfigStep(ConfigStep::READ_ANAR); break;
@@ -465,9 +471,6 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
     case ConfigStep::VERIFY_CR3: _setConfigStep(ConfigStep::VERIFY_CR2); break;
     case ConfigStep::VERIFY_CR2: _setConfigStep(ConfigStep::VERIFY_BMCR); break;
     case ConfigStep::VERIFY_BMCR:
-      if (_operation.kind == OperationKind::VERIFY && (value & cmd::MASK_BMCR_RESET) != 0U) {
-        return _finishOperation(configBusy(BusyDetail::OPERATION_ACTIVE));
-      }
       _observeConfiguration();
       if (_result.mismatch.valid) {
         _settings.lastVerificationStatus = mismatchStatus();

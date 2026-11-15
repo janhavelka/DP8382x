@@ -6,6 +6,10 @@ closure remains BLOCKED** by required source-gated branches, particularly
 row closure. The maintained [feature matrix](../../feature-coverage.md) remains
 the single implementation matrix; no new feature catalogue was created.
 
+The later [independent audit](36-independent-audit.md) records additional
+quarantined-link and own-batch reset corrections against this delivered stage.
+The verification below remains the original stage checkpoint's evidence.
+
 ## Entry, ownership and method
 
 Started from clean, fetched `main` at

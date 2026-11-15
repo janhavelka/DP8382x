@@ -84,8 +84,11 @@ the owner's current upper time minus `observedSinceUs`, after checking order and
 overflow. Subtracting the completion upper bound could understate sample age.
 The example accepts a supplied current upper time and does no clock reads.
 
-An admitted failed refresh, including insufficient frames or aggregate time,
+An admitted failed refresh, including insufficient frames, aggregate time or
+controller quarantine,
 preserves old values and interval, sets stale and retains its exact error.
+Quarantine rejection performs no bus/clock callbacks or managed-health accounting;
+repeated rejection does not duplicate the retained STALE transition.
 Local owner/lifecycle admission rejection does not manufacture an acquisition.
 A clock regression/overflow detected anywhere in the driver invalidates cached
 link use with CLOCK_CONTRACT; old time remains historical and cannot be compared

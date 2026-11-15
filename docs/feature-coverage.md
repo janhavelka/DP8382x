@@ -218,6 +218,8 @@ the existing rows rather than creating another catalogue. It corrects common
 reset observation (`access`, `reset`, `interrupts`) and stale refresh evidence
 (`eee`), with registered direct/alias, retained-result and interleaving tests.
 Admitted procedures and their physical gates remain distinct.
+The [independent audit](reports/implementation/36-independent-audit.md) additionally
+checks quarantined link freshness and reset observations inside profile/collision batches.
 
 **Primary closure is BLOCKED**, even though this bounded review and its fixes
 are delivered. `power_deep` remains incomplete under owner 28: safe shared-0428

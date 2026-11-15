@@ -1975,18 +1975,6 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
   if (_bistWorking) { return _advanceBist(status, called, batch); }
   if (_loopWorking) { return _advanceLoopback(status, called, batch); }
   if (_configuring) { return _advanceConfiguration(status, called, batch); }
-  // A valid reset indication remains evidence even when release or timing
-  // fails afterward. These direct reads are the initialization reset checks
-  // and waits; RESTART retains configuration while PCS/HARD invalidate it.
-  if (called && _result.failingBatch.completedFrames != 0U && batch.frames[0].kind == FrameKind::READ) {
-    const auto address = batch.frames[0].registerAddress;
-    const auto reset = _transport.lastBatch.frames[0].value;
-    if (address == cmd::REG_BMCR && (reset & 0x8000U) != 0U) {
-      _invalidateResetEvidence(true);
-    } else if (address == cmd::REG_PHYRCR && (reset & 0xC000U) != 0U) {
-      _invalidateResetEvidence((reset & 0x8000U) != 0U);
-    }
-  }
   // Keep independently returned mandatory-state evidence before a release,
   // deadline or later read can interrupt the verification pass.
   if (_initStep == InitStep::VERIFY && called && _result.failingBatch.completedFrames == 4U) {

@@ -49,6 +49,12 @@ failure. An invalid current code may require explicitly admitted HARD recovery.
 
 ## Compliance and collision ownership
 
+If collision entry/exit consumes an active reset during its BMCR RMW, it stops
+with INVALID_CONFIG/DEVICE_INVALIDATED unless a primary callback/clock failure
+already occurred. The same batch may have accepted the write before returning;
+temporary uncertainty and restoration debt remain, with no successful readback
+or implicit retry claimed.
+
 | Session | Admitted behavior | Stop and evidence |
 | --- | --- | --- |
 | TX100 | SNLA266B table5-1, shared forced100/full and selected manual pair, then restart | HARD stop; later initialization restores persistent ownership |

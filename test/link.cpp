@@ -21,7 +21,7 @@ struct Controller {
   uint16_t finalStatusXor{0}, finalBasicXor{0};
   uint64_t now{100}, frameTime{2};
   unsigned frames{0}, calls{0}, clocks{0}, sampleIndex{0}, exclusions{0}, writes{0};
-  int failFrame{-1}, lateCall{-1}, regressCall{-1}, releaseFailCall{-1};
+  int failFrame{-1}, lateCall{-1}, regressCall{-1}, releaseFailCall{-1}, malformedCall{-1};
   int changeAt{-1};
   bool sampling{false}, firstLow{false}, down{false}, locked{false}, stamps{false};
   Driver* competitor{nullptr};
@@ -115,6 +115,7 @@ struct Controller {
       receipt.timeValid = bus.stamps;
       receipt.completedAtUs = bus.stamps ? bus.now : 0;
     }
+    if (static_cast<int>(call) == bus.malformedCall) result.frames[0].attempted = false;
     if (static_cast<int>(call) == bus.lateCall) bus.now = budget.deadlineUs;
     if (static_cast<int>(call) == bus.regressCall) bus.now = 0;
     if (static_cast<int>(call) == bus.releaseFailCall) {
@@ -388,6 +389,28 @@ void forced() {
 }
 
 void failures() {
+  {
+    Controller bus; Driver driver; initialize(driver,bus); up(bus);
+    LinkSnapshot output; CHECK(refresh(driver,bus,output).ok());
+    const auto saved=driver.linkSnapshot();
+    bus.malformedCall=static_cast<int>(bus.calls);
+    uint16_t id=0xCAFE; CHECK(!driver.readClause22(2,id,{1000000,1}).ok());
+    CHECK(driver.transportSnapshot().stopped && id==0xCAFE);
+    const auto frames=bus.frames,calls=bus.calls,clocks=bus.clocks;
+    const auto health=driver.healthSnapshot();
+    for (unsigned attempt=0;attempt<2;++attempt) {
+      output.rawBmcr=0xCAFE;
+      const auto status=driver.readLinkStatus(output,{1000000,10});
+      CHECK(status.is(Err::BUSY) && status.detail==static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED));
+      const auto cached=driver.linkSnapshot();
+      CHECK(output.rawBmcr==0xCAFE && cached.valid && cached.stale && cached.change==LinkChange::STALE);
+      CHECK(cached.rawBmcr==saved.rawBmcr && cached.observedAtUs==saved.observedAtUs && cached.timeValid==saved.timeValid);
+      CHECK(cached.observations==saved.observations && cached.changes==saved.changes+1U);
+      CHECK(cached.lastRefreshStatus.code==status.code && cached.lastRefreshStatus.detail==status.detail);
+      CHECK(bus.frames==frames && bus.calls==calls && bus.clocks==clocks);
+      CHECK(driver.healthSnapshot().totalFailures==health.totalFailures && driver.healthSnapshot().totalSuccess==health.totalSuccess);
+    }
+  }
   constexpr uint8_t sourceAt[] = {1,1,16,0,4,5,6,25,1,16};
   for (unsigned failure = 0; failure < 10; ++failure) {
     Controller bus; Driver driver; initialize(driver, bus); up(bus);

@@ -3,7 +3,7 @@
 The [80-prompt implementation plan](prompts/README.md) is in its first
 execution. Prompts 1–35 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 230 registered Release CTests, 103 Python tests,
+Current local checks include 231 registered Release CTests, 103 Python tests,
 two linked tests-OFF consumers, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -26,6 +26,12 @@ Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
 operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+The [independent prompt36 audit](reports/implementation/36-independent-audit.md)
+starts from clean synchronized `main` at `67e5e97cee016f57177d0496f1c47a51bd77821b`.
+It corrects quarantined link freshness and reset handling inside configuration
+and collision batches. Required source gates and BLOCKED primary closure remain unchanged;
+the audit report records fresh focused checks separately from historical totals.
 
 Prompt36 began on clean synchronized `main` at
 `2f64d3018179e86a11e9e747eecb1d13e75989aa`. Its bounded review and focused fixes

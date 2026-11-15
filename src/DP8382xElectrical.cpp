@@ -202,6 +202,14 @@ Status DP8382x::_advanceElectrical(Status status,bool called,const MdioBatch& ba
     _cableCalibration=_electrical.recoveryNeeded;
   }
   if (!status.ok()) { return _finishOperation(status); }
+  // The shared collector invalidates reset evidence before this phase runs.
+  // Do not let the RMW's neutral write hide that observation on later readback;
+  // its accepted/possible effect still owns temporary-state restoration debt.
+  if (_electricalStep==ElectricalStep::COLLISION_WRITE && called &&
+      _result.failingBatch.completedFrames>0U && (receipt.frames[0].value&0x8000U)!=0U) {
+    return _finishOperation(Status::Error(Err::INVALID_CONFIG,"Reset invalidated collision control",
+        static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED)));
+  }
   if (_result.mismatch.valid) { return _finishOperation(Status::Error(Err::CONFIG_MISMATCH,"Owned mode changed during electrical work")); }
   switch (_electricalStep) {
     case ElectricalStep::PREFLIGHT:

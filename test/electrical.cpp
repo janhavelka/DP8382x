@@ -350,6 +350,35 @@ void externalResetReconciliation() {
   }
 }
 void collision() {
+  for(bool stop:{false,true}) for(unsigned fault=0;fault<5U;++fault) {
+    Controller b; Driver d; ready(d,b); OperationToken token;
+    if(stop) {
+      CHECK(d.startCollisionTest({LinkSpeed::MBPS_100,true,true,true,true},budget(),token).inProgress());
+      complete(d,b,token);
+    }
+    const auto first=b.frames,calls=b.calls;
+    // Table8-19: an active reset returned by the RMW read cannot authorize
+    // verified collision control even when the following write neutralizes it.
+    const unsigned prefix=stop?0U:8U;
+    b.corruptFrame=static_cast<int>(first+prefix); b.corruptMask=0x8000;
+    const auto mutateCall=static_cast<int>(calls+(stop?0U:1U));
+    if(fault==1U)b.releaseCall=mutateCall;
+    if(fault==2U)b.lateCall=mutateCall;
+    if(fault==3U)b.regressCall=mutateCall;
+    if(fault==4U)b.failFrame=static_cast<int>(first+prefix+1U);
+    CHECK((stop?d.stopCollisionTest(budget(),token):
+        d.startCollisionTest({LinkSpeed::MBPS_100,true,true,true,true},budget(),token)).inProgress());
+    const auto status=drain(d,b,token);
+    CHECK(status.is(fault==1U?Err::MDIO_ERROR:fault==2U?Err::OPERATION_TIMEOUT:
+                    fault==4U?Err::MDIO_TIMEOUT:Err::INVALID_CONFIG));
+    if(fault==0U)CHECK(status.detail==static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED));
+    CHECK(b.frames==first+prefix+2U && b.calls==static_cast<unsigned>(mutateCall)+1U);
+    CHECK(b.releases==b.calls && !b.locked && !d.isInitialized() && !d.capabilities().valid);
+    const auto result=take(d,token);
+    CHECK(!result.electrical.controlsVerified && !result.persistentRestored);
+    CHECK(result.mutationPossible && result.cleanupOwed && result.temporaryMayBeActive);
+    CHECK(result.status.code==status.code && result.status.detail==status.detail);
+  }
   for(const auto speed:{LinkSpeed::MBPS_10,LinkSpeed::MBPS_100})for(bool an:{false,true})for(const uint16_t mux:std::array<uint16_t,3>{{3,5,6}}) {
     Controller b;Driver d;ready(d,b);b.ext[0x305]=static_cast<uint16_t>(8U|mux);
     LinkSettings profile;
