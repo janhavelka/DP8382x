@@ -93,3 +93,8 @@ not an implementation prerequisite under the selected Clause 28 interpretation.
 [complete-profile path](forced-settings.md), including reset replay and partial
 readback evidence. Source-known control completion is separate from Q11 physical
 routing/mirror qualification and later resolved-link observation.
+
+`led_configure` and `pin_configure` now share the typed [pin profile](led-gpio.md)
+and the same bounded application/reset/verify pass. `pin_fields` gates preserve
+the unresolved per-mode polarity, clock and mux interpretations; no reserved
+field becomes writable through the typed API.

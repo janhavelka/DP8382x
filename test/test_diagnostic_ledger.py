@@ -269,7 +269,8 @@ class DiagnosticLedgerTests(unittest.TestCase):
             'cable_autorun': {('CR1', 0x0100)}, 'cable_capture': set(),
             'collect_event_counters': set(), 'signal_quality_sample': set(),
             'interrupt_configuration': {('PHYSCR', 0x000B), ('MISR1', 0x00FF),
-                                         ('MISR2', 0x00FF), ('RXFS', 0x1000)},
+                                         ('MISR2', 0x00FF), ('RXFS', 0x1000),
+                                         ('LED1_GPIO_CFG', 0x0007), ('LED2_GPIO_CFG', 0x0007)},
             'interrupt_test': {('PHYSCR', 0x0004)},
             'calibration_recovery': {('CDCR', 0x4000), ('PHYRCR', 0x8000)},
         }

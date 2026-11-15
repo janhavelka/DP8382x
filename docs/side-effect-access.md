@@ -167,3 +167,11 @@ Stage31 uses the same RXFCFG1 W0C composer for typed [WoL procedures](wake-on-la
 and raw maintenance. Every control write harvests RXFS/MISR2 first. Raw changes
 withdraw typed trust; unchanged stable settings skip writes, explicit acknowledgement
 does not. The bit6 name remains no permission for custom pattern matching.
+
+
+[Pin profiles](led-gpio.md) reuse the stable-field transaction path and exclude
+reserved LEDCFG2 fields and PHYCR[5]. Raw/external mutations withdraw pin proof;
+ordinary pin reads are non-destructive and do not imply new event acquisition.
+The single collector's BMSR read clears LINK_LOST indication. BICSR1's documented
+capture/clear command affects the PRBS_ERROR indication; an ordinary BICSR1 read
+is not that command. No LED-owned destructive reader is introduced.

@@ -346,7 +346,7 @@ class RemainingLedgerTests(unittest.TestCase):
             'wol_acknowledge': {'RXFCFG1': 0x0800},
             'led_configure': {'LEDCR': 0x0692, 'MLEDCR': 0x0279, 'LEDCFG': 0xFFF0,
                               'LEDCFG2': 0x0077, 'PHYCR': 0x0080},
-            'pin_configure': {'LED1_GPIO_CFG': 7, 'LED2_GPIO_CFG': 7},
+            'pin_configure': {'LED1_GPIO_CFG': 7, 'LED2_GPIO_CFG': 7, 'IO_CFG1': 0x0040},
             'clock_configure': {'IO_CFG1': 0x0040, 'LED0_GPIO_CFG': 0x0038,
                                 'LED1_GPIO_CFG': 0x0038},
             'mii_configure': {'RCSR': 0x0020, 'CR1': 2, 'CR2': 2, 'PHYSCR': 0x0010},

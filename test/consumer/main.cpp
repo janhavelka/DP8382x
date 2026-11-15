@@ -1,4 +1,5 @@
 #include "../../examples/portable/Wake.h"
+#include "../../examples/portable/Pins.h"
 #include "../../examples/portable/Lpi.h"
 #include <DP8382x/CommandTable.h>
 #include <DP8382x/Config.h>
@@ -451,6 +452,11 @@ static bool configurationExamples() noexcept {
 }
 
 int main() {
+  DP8382x::DP8382x pinsUnbound;
+  DP8382x::PinResult pinResult;
+  if (!applyLinkLed(pinsUnbound,pinResult,{10000,128}).is(DP8382x::Err::NOT_BOUND) ||
+      !tryLed2(pinsUnbound,pinResult,{10000,128}).is(DP8382x::Err::NOT_BOUND) ||
+      pinsUnbound.pinsSnapshot().desiredValid) return 92;
   DP8382x::DP8382x wakeUnbound;
   DP8382x::WakeSettings wakePolicy;
   wakePolicy.maintenanceAdmitted=wakePolicy.receiveTrafficQuiesced=true;

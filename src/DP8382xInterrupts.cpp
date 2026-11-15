@@ -38,6 +38,18 @@ Status serviceBudgetError() noexcept {
 
 Status DP8382x::_validateInterruptSettings(const InterruptSettings& s) const noexcept {
   const auto syntax=interruptSyntax(s); if (!syntax.ok()) { return syntax; }
+  const uint8_t pin=s.pin==InterruptPin::LED1?1U:s.pin==InterruptPin::LED2?2U:0U;
+  if (_pins.desiredValid) {
+    for (uint8_t i=1;i<=2U;++i) {
+      if (_pins.desired.pins[i].function==PinFunction::INTERRUPT && pin!=i) {
+        return invalidIrq("Release the dependent pin profile before moving the interrupt route");
+      }
+    }
+  }
+  if (pin!=0U && _pins.desiredValid && _pins.desired.pins[pin].function!=PinFunction::UNOWNED &&
+      _pins.desired.pins[pin].function!=PinFunction::INTERRUPT) {
+    return invalidIrq("Interrupt route conflicts with the owned pin profile");
+  }
   if (_wake.desiredValid) {
     // Disabling the detector does not release its separately selected route.
     if ((_wake.desired.enabled || _wake.desired.route == WakeRoute::INTERRUPT) &&
@@ -123,6 +135,7 @@ uint16_t DP8382x::_interruptControlValue() const noexcept {
       (_identity.mode!=OperatingMode::BASIC && s.outputEnable?1U:0U));
 }
 void DP8382x::_setInterruptStep(InterruptStep step) noexcept {
+  _pinsWorking=false;
   _wakeWorking=false;
   _interruptWorking=true; _cableWorking=_bistWorking=_loopWorking=_configuring=false;
   _interruptStep=step; _operation.nextPollValid=false;
@@ -247,11 +260,12 @@ Status DP8382x::_advanceInterrupt(Status status,bool called,const MdioBatch& bat
       _setInterruptStep(InterruptStep::PIN_MUX); break;
     case InterruptStep::PIN_MUX:
       if ((value&7U)!=4U) {
-        if (!_wake.desiredValid || _interruptVerifyOnly || testing || _operation.kind==OperationKind::INTERRUPT_CONFIGURE) {
+        if (_interruptVerifyOnly || testing) {
           return _finishOperation(invalidIrq("Pin owner has not selected interrupt mux"));
         }
-        // Shared WoL restoration also restores the separately owned IRQ LED route.
-        // Global delivery is disabled before changing this source-backed low field.
+        // The IRQ source owner configures and restores its narrow mux field.
+        // Global delivery is disabled before changing the route; the pin profile
+        // records a dependency and never writes the same field independently.
         _interruptPinRestore=true;
       }
       nextAfterPin(); break;

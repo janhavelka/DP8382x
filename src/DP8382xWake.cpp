@@ -46,7 +46,21 @@ Status DP8382x::_validateWake(const WakeSettings& settings) const noexcept {
   if (settings.enabled && _interrupts.desiredValid && _interrupts.desired.sharedSource!=InterruptSharedSource::WAKE) {
     return wakeConfig("Enabled WoL conflicts with the owned polarity interrupt source");
   }
+  if (_pins.desiredValid) {
+    for (uint8_t i=1;i<=2U;++i) {
+      if (_pins.desired.pins[i].function==PinFunction::WAKE &&
+          settings.route!=(i==1U?WakeRoute::LED1:WakeRoute::LED2)) {
+        return wakeConfig("Release the dependent pin profile before moving the wake route");
+      }
+    }
+  }
   if (settings.route==WakeRoute::STATUS_ONLY) { return Status::Ok(); }
+  const uint8_t directPin=settings.route==WakeRoute::LED1?1U:settings.route==WakeRoute::LED2?2U:0U;
+  if (directPin!=0U && _pins.desiredValid &&
+      _pins.desired.pins[directPin].function!=PinFunction::UNOWNED &&
+      _pins.desired.pins[directPin].function!=PinFunction::WAKE) {
+    return wakeConfig("Wake route conflicts with the owned pin profile");
+  }
   if (!settings.pinAvailable) { return wakeConfig("Wake output requires explicit pin ownership"); }
   if (settings.route==WakeRoute::INTERRUPT) {
     if (!_interrupts.desiredValid || !_interrupts.desired.globalEnable || (_interrupts.desired.misr2Mask&2U)==0U ||
@@ -185,6 +199,7 @@ void DP8382x::_retainWakeWord(uint16_t address,uint16_t value) noexcept {
   }
 }
 void DP8382x::_setWakeStep(WakeStep step) noexcept {
+  _pinsWorking=false;
   _wakeWorking=true; _eeeWorking=_powerWorking=_interruptWorking=_cableWorking=_bistWorking=_loopWorking=_configuring=false;
   _wakeStep=step; _operation.nextPollValid=false;
   _operation.phase=step==WakeStep::IDENTIFY?OperationPhase::IDENTIFY:OperationPhase::VERIFY;

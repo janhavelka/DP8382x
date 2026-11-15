@@ -819,3 +819,32 @@ of production codecs and the ledger. API octet0 is first transmitted:
 
 [The fixture plan](wake-on-lan.md) retains exact-part W0C/RH-bit0 and live-change
 qualification; neither fake acknowledgements nor pulse arithmetic prove host wake.
+
+
+## Stage32 independent LED/GPIO literals
+
+SNLS647I detailed tables8-42/43/49/73..78/85/89, independently reviewed from the
+original PDF, supply the test oracles. `test/pins.cpp` does not derive expectations
+from the production field catalogue.
+
+- LED0 sources0..E contribute0000,0008,...,0070 at0025, preservingFF86 and
+  forcing route0001; sources8..E contribute0040..0070. SourceF rejects.
+- At0460, LED1=A,LED2=B,LED3=C with prior low nibble5 givesCBA5.
+  Independent masks00F0/0F00/F000 preserveFF0F/F0FF/0FFF.
+- LEDCR owned force/polarity/blink0692 preservesF96D. Blink0/1/2/3 contributes
+  0000/0200/0400/0600 and selects50/100/200/500ms. ForceHIGH is0012;LOW0010.
+- LEDCFG2 LED1forceHIGH0003,LOW0001;LED2HIGH0030,LOW0010.
+  Polarity0004/0040 combines into0077, preservingFF88 including reserved0700.
+  No LED3 drive or polarity word is legal.
+- MLED swap0200 is separately owned; full0279 preservesFD86. PHYCR stretch0080
+  preservesFF7F, including undocumented LED Configuration0020.
+- LED1 mux0/2/4 and LED2 mux0/2/3/4/5/6/7 preserveFFF8. LED2 MII LED requires
+  explicit write0 and readback, even from reset0. Pin31 codes5/6 reject.
+- IO_CFG1 clock release0040 preservesFFBF; verify0040 then observe0308 bit0
+  with mask0001. No write to0308 or claim of POR resampling.
+- Each MMD update is literal W(0D,001F),W(0E,address),W(0D,401F),R(0E),W(0E),
+  then a separately owned four-frame readback. C22 update/readback takes3frames.
+  Never split the five-frame RMW under a short poll slice.
+
+The test models BMSR consumption clearing LINK_LOST and BICSR1 capture/clear
+changing PRBS indication. These are source-effect oracles, not measured LEDs.

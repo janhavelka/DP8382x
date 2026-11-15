@@ -177,3 +177,11 @@ Secure-ON matching, CRC/pulse/level controls, typed status, shared collection,
 quiesced route/configuration and reset replay. [Guide](wake-on-lan.md) and
 [report](reports/implementation/31-wake-on-lan.md) separate host protocol tests
 from Q3 live-reconfiguration, W0C/RH-bit and physical wake qualification.
+
+
+Stage32 implements `led_configure` and `pin_configure` through one typed
+`PinSettings` profile and shared reset/power restoration. All admitted source,
+force/polarity, blink/stretch and mux values have independent literal/failure
+tests. [The guide](led-gpio.md) lists source-gated routes and
+[the report](reports/implementation/32-led-gpio.md) separates host evidence from
+Q12. IRQ/WoL source owners retain their own mux writes and collector.

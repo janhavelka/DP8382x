@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added bounded exact-part LED/GPIO profiles, complete admitted sources and
+  shared blink/stretch, reserved-safe force/polarity/mux updates, passive evidence
+  and shared reset/power restoration. IRQ/WoL/clock owners cannot steal pins;
+  the IRQ source now configures/restores its own mux after disabling delivery.
+  Contradictory routes stay gated for Q12.
+
 - Audit prompts 30–31: stop WoL mutation immediately after an independently
   observed mismatch, preserve disabled WoL route ownership during IRQ/EEE
   admission, and clear current validity after a failed requested word read.

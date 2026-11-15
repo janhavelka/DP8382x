@@ -1,9 +1,9 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–31 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
+execution. Prompts 1–32 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 187 registered Release CTests, 103 Python tests,
+Current local checks include 196 registered Release CTests, 103 Python tests,
 two linked tests-OFF consumers, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -26,6 +26,13 @@ Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
 operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+Prompt32 began on clean fetched `main` at
+`328b5edbfe3b33c45d680aa34327bd96ef79b4a0`. The
+[stage report](reports/implementation/32-led-gpio.md) records bounded typed pin
+profiles, exact source/mode restrictions, dependency ownership and shared replay.
+Local verification is recorded below; Q12, SDK and remote CI remain NOT RUN.
+Final commit and synchronized upstream equality are recorded in the handoff.
 
 Fresh prompts 30-31 audit began on clean synchronized `main` at
 `12a17284831dc1ae7a6b2e3584f551eed73f5f25`. The

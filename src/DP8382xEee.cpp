@@ -41,6 +41,10 @@ Status DP8382x::_validateEee(const EeeSettings& settings) const noexcept {
   if (settings.advertisement!=0U && settings.advertisement!=2U) {
     return Status::Error(Err::INVALID_PARAM,"EEE advertisement is zero or 100BASE-TX",static_cast<int32_t>(ParamDetail::VALUE_WIDTH));
   }
+  if (settings.enabled && _pins.desiredValid &&
+      (_pins.desired.pins[1].function!=PinFunction::UNOWNED || _pins.desired.led1ClockOverride)) {
+    return eeeConfig("EEE clock recipe conflicts with owned LED1 pin controls");
+  }
   if (settings.enabled && _wake.desiredValid && _wake.desired.route == WakeRoute::LED1) {
     return eeeConfig("EEE clock recipe conflicts with owned LED1 wake route");
   }
@@ -97,6 +101,7 @@ uint16_t DP8382x::_eeeControl() const noexcept {
   return static_cast<uint16_t>((_eee.desired.bypassBit0?0U:1U)|(_eee.desired.bypassBit3?0U:8U));
 }
 void DP8382x::_setEeeStep(EeeStep step) noexcept {
+  _pinsWorking=false;
   _wakeWorking=false;
   _eeeWorking=true; _powerWorking=_interruptWorking=_cableWorking=_bistWorking=_loopWorking=_configuring=false;
   _eeeStep=step; _operation.nextPollValid=false;

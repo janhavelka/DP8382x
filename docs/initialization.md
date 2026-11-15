@@ -233,3 +233,11 @@ needed route/match update and verification, final enable, then IRQ source/masks
 and final power state. Unowned initialization never invents a WoL-off write.
 Acknowledgement is transient and is never restored. Clock/pin incompatibility
 retains failed restoration and cleanup debt.
+
+
+Owned [pin profiles](led-gpio.md) now replay through the shared tail before
+WoL/IRQ activation and final power policy. Source/value preparation precedes
+clock release, mux and final force enable. IRQ/WoL source owners restore their
+own routes; the pin profile is a checked dependency, not a second mux writer.
+NONE/PCS/HARD/RESTART and existing power/diagnostic recovery retain this same
+sequence. Read-only VERIFY detects changed owned fields without repair.

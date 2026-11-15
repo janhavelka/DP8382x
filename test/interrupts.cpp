@@ -388,8 +388,17 @@ void pins() {
   for(bool led1:{false,true})for(bool validMux:{false,true}) {
     Controller b;Driver d;ready(d,b);auto s=settings();s.pin=led1?InterruptPin::LED1:InterruptPin::LED2;
     s.led1ClockUnused=true;s.colUnused=true;b.ext[0x0308]=1;b.ext[led1?0x0304:0x0305]=validMux?4:0;
-    const auto writes=b.mutations;const auto t=configure(d,b,s);CHECK(drain(d,b,t).ok()==validMux);take(d,t);
-    if(!validMux)CHECK(b.mutations==writes);
+    const auto first=b.frames;const auto t=configure(d,b,s);CHECK(drain(d,b,t).ok());take(d,t);
+    bool disabled=false;unsigned muxWrites=0;
+    for(unsigned i=first;i<b.frames;++i) {
+      const auto& frame=b.trace[i];if(frame.kind!=FrameKind::WRITE)continue;
+      if(frame.target==0x11 && (frame.value&2U)==0U)disabled=true;
+      if(frame.target==(led1?0x0304:0x0305)) { CHECK(disabled && frame.value==4U);++muxWrites; }
+    }
+    CHECK(muxWrites==(validMux?0U:1U) && (b.ext[led1?0x0304:0x0305]&7U)==4U);
+    b.ext[led1?0x0304:0x0305]=0;const auto writes=b.mutations;OperationToken verify;
+    CHECK(d.startVerify(budget(),verify).inProgress());CHECK(drain(d,b,verify).is(Err::INVALID_CONFIG));take(d,verify);
+    CHECK(b.mutations==writes); // Verification never silently repairs a mux.
   }
   Controller basic;basic.id2=0xA111;Driver d;ready(d,basic);auto s=settings();s.pin=InterruptPin::LED2;
   const auto calls=basic.calls;OperationToken token;CHECK(!d.startConfigureInterrupts(s,budget(),token).inProgress() && basic.calls==calls);
@@ -399,6 +408,23 @@ void pins() {
     const auto count=bus.calls,clocks=bus.clocks;OperationToken sentinel{999};
     CHECK(driver.startConfigureInterrupts(denied,budget(),sentinel).is(Err::INVALID_CONFIG));
     CHECK(sentinel.value==999 && bus.calls==count && bus.clocks==clocks);
+  }
+  // Stage32's source-owned route mutation is one complete five-frame RMW,
+  // then four-frame readback; fail every new phase before/after acceptance.
+  Controller reference;Driver model;ready(model,reference);auto led=settings();led.pin=InterruptPin::LED2;
+  reference.ext[0x305]=0xA5A8;const auto first=reference.frames;configured(model,reference,led);
+  CHECK(reference.ext[0x305]==0xA5AC);
+  unsigned targetWrite=0;
+  for(unsigned i=first;i<reference.frames;++i) {
+    if(reference.trace[i].kind==FrameKind::WRITE && reference.trace[i].target==0x305)targetWrite=i;
+  }
+  CHECK(targetWrite>=first+4U);
+  for(unsigned phase=targetWrite-4U;phase<=targetWrite+4U;++phase)for(bool accepted:{false,true}) {
+    Controller bus;Driver driver;ready(driver,bus);bus.ext[0x305]=0xA5A8;const auto start=bus.frames;
+    bus.failFrame=static_cast<int>(start+phase-first);bus.acceptedFailure=accepted;
+    const auto t=configure(driver,bus,led);CHECK(drain(driver,bus,t).is(Err::MDIO_TIMEOUT));const auto result=take(driver,t);
+    CHECK(bus.frames==start+phase-first+1U && result.cleanupOwed && !result.persistentRestored);
+    CHECK(driver.interruptSnapshot().trust!=ConfigurationTrust::VERIFIED && !bus.locked);
   }
 }
 
@@ -465,7 +491,7 @@ void replay() {
         CHECK(frame.target!=0x0304 && frame.target!=0x0308);
       }
     }
-    CHECK(resetSeen); // The later pin owner must restore mux/clock before IRQ can replay.
+    CHECK(resetSeen); // Reset removed clock-release evidence; IRQ cannot repair the clock owner.
   }
   for(auto kind:{ResetKind::NONE,ResetKind::PCS,ResetKind::HARD,ResetKind::RESTART}) {
     Controller b;Driver d;ready(d,b);auto s=settings();s.misr1Mask=0x20;s.misr2Mask=2;s.sharedSource=InterruptSharedSource::POLARITY;configured(d,b,s);

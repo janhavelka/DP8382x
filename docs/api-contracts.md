@@ -936,7 +936,8 @@ with equal bookends. No source-backed generation counter exists. The
 `startConfigureInterrupts` copies complete explicit policy into the existing
 operation slot. `InterruptSettings` owns both enable bytes, PHYSCR polarity/global
 and ENHANCED output, plus the RXFS selector; BASIC OE is preserved. Pin permissions
-cover both the selected route and pin21. Alternate mux writes remain prompt32.
+cover both the selected route and pin21. Stage32 adds source-owned alternate
+mux configuration/restoration after delivery disable, with masked readback.
 `interruptSnapshot` separates desired intent, independent raw validity/time,
 policy trust and temporary test effects. Initialization replays owned policy after
 other restore tails; verification/configuration only checks it. A changed mode in
@@ -1005,3 +1006,22 @@ acknowledge pending level implicitly; source-specific neutral one and explicit
 zero share the existing RXFCFG1 composer. Quiesced change/readback and shared
 reset restoration own the narrow required mux field, with general pin controls
 remaining separate. Unsupported custom patterns and LED0/3 access remain gated.
+
+
+## Stage32 shipped LED/GPIO profiles
+
+[The pin guide](led-gpio.md) defines `PinSettings`, bounded direct
+`configurePins(PinSettings, PinResult&, IoBudget)` and passive `pinsSnapshot`.
+A complete request and its full frame/deadline allowance are admitted before
+publishing desired intent. Finite prerequisite reads can still reject unsupported
+live routing. Local rejection preserves caller output; admitted partial results
+retain every successful ordinary word, first mismatch and primary/release status.
+Accepted/uncertain failure establishes OP-9 debt, restored by a separate
+`startInitialize`; no synchronous token/cancel point or automatic rollback exists.
+An empty profile releases intent without changing the old physical mux.
+
+The same fixed pass supplies initialization and diagnostic/power recovery, and
+read-only VERIFY. Shared WAKE/IRQ pin entries depend on the source owner's route
+and verification; passive views withdraw trust if that dependency is lost.
+The source owner alone writes its mux after quiescing delivery. Clock, COL and
+MAC/board availability remain explicit application attestations.

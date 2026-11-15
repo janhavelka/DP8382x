@@ -223,3 +223,12 @@ three-bit disable and shared-family write-one indication handling. Exact SNLS647
 W0C remains selected, with Q3 pending. No implementation was copied. The
 [stage31 report](../reports/implementation/31-wake-on-lan.md) records fresh official
 PDF hashes, original-table review and the quiesced procedure/route boundaries.
+
+
+Stage32 reopens original SNLS647I tables8-42/43/49/73..78/85/89 and8.3.18.
+[The pin guide](../led-gpio.md) selects the exact mode/mux permissions and records
+all reserved/conflicting branches. IO_CFG1[6] is a runtime override;0308[0] is
+a legitimate read-only resulting CLKOUT/LED status, not a writable strap.
+BICSR1 counter-clear command, not an ordinary counter read, affects PRBS LED
+indication. Independent pin masks and source extrema are in
+[the vectors](../register-vectors.md#stage32-independent-ledgpio-literals).

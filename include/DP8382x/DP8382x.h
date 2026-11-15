@@ -285,7 +285,8 @@ enum class OperationKind : uint8_t {
   POWER_CONFIGURE, ///< Apply owned active-sleep, IEEE power intent and PLL control.
   EEE_CONFIGURE, ///< Reset-bearing exact EEE recipe and shared owned-state replay.
   WOL_CONFIGURE, ///< Quiesced match/control update with detector disabled until verification.
-  WOL_ACKNOWLEDGE ///< Explicit W0C acknowledgement after collector harvest; never replayed.
+  WOL_ACKNOWLEDGE, ///< Explicit W0C acknowledgement after collector harvest; never replayed.
+  PIN_CONFIGURE ///< Direct pin-profile mutation owns restoration debt; no retained operation token.
 };
 /// @brief One retained operation slot.
 enum class OperationState : uint8_t {
@@ -770,6 +771,100 @@ struct BatchSummary {
   TransportViolation violation{TransportViolation::NONE}; ///< Callback contract violation.
   bool late{false}; ///< Raw post-return clock reached the exclusive deadline.
 };
+/// @brief Exact LED/GPIO role; unsupported pin-specific choices reject before I/O.
+enum class PinFunction : uint8_t {
+  UNOWNED, ///< Leave this pin to its existing owner; does not undo its physical mux.
+  LED, ///< Normal LED source with optional documented force controls.
+  WAKE, ///< Matching existing WoL route only; source configuration remains with WoL.
+  INTERRUPT, ///< Matching existing IRQ pin only; masks and source remain with IRQ.
+  COLLISION3, ///< LED2 table8-76 COL code3, MII only.
+  COLLISION5, ///< LED2 table8-76 COL code5, MII only.
+  COLLISION6, ///< LED2 table8-76 COL code6, MII only.
+  HIGH, ///< LED2 constant-high mux7.
+  TX_ERROR, ///< Pin31 figure/table contradiction; source-gated, never guessed.
+  CLOCK ///< Clock mux permissions remain source-gated; no generic clock recipe.
+};
+/// @brief Source encodings from SNLS647I tables8-49/85; reserved15 is rejected.
+enum class LedSource : uint8_t {
+  LINK, ///< Link indication.
+  RX_TX, ///< Receive or transmit activity.
+  TX, ///< Transmit activity.
+  RX, ///< Receive activity.
+  COLLISION, ///< Collision indication.
+  SPEED100, ///< 100Mbps speed indication.
+  SPEED10, ///< 10Mbps speed indication.
+  FULL_DUPLEX, ///< Full-duplex indication.
+  LINK_ACTIVITY, ///< Combined link/activity.
+  STRETCH, ///< Active pulse-stretch indication.
+  AN100_FULL, ///< 100Mbps full-duplex autonegotiation indication.
+  LPI, ///< Low-power-idle indication, not a readiness guarantee.
+  MII_ERROR, ///< MII error indication.
+  LINK_LOST, ///< Latched link loss; collector BMSR reads clear the indication.
+  PRBS_ERROR ///< PRBS error indication; BIST counter clearing affects it.
+};
+/// @brief Polarity ownership; BASIC admits only PRESERVE under the source conflict.
+enum class LedPolarity : uint8_t {
+  PRESERVE, ///< Keep the reset-loaded/current polarity without owning it.
+  ACTIVE_LOW, ///< Own the documented polarity field as active-low.
+  ACTIVE_HIGH ///< Own the documented polarity field as active-high.
+};
+/// @brief Output override; no LED3 force fields are documented.
+enum class LedDrive : uint8_t {
+  NORMAL, ///< Source-driven output.
+  LOW, ///< Force physical low using the documented drive override.
+  HIGH ///< Force physical high using the documented drive override.
+};
+/// @brief One pin's source-backed settings; no independent object or bus owner.
+struct PinSetting {
+  PinFunction function{PinFunction::UNOWNED}; ///< Selected role; pin0/3 admit LED only.
+  LedSource source{LedSource::LINK}; ///< Used only with LED; shared collector owns latch acknowledgements.
+  LedPolarity polarity{LedPolarity::PRESERVE}; ///< Optional polarity override on LED0/1/2.
+  LedDrive drive{LedDrive::NORMAL}; ///< Physical low/high override on LED0/1/2.
+};
+/// @brief Complete owned pin profile; untouched pins and globals are preserved.
+struct PinSettings {
+  PinSetting pins[4]{}; ///< Array index is LED0..3, not physical package pin number.
+  bool blinkOwned{false}; ///< Own common LEDCR blink period when true.
+  uint8_t blinkCode{2}; ///< Codes0..3 mean50/100/200/500ms; no measured timing claim.
+  bool stretchOwned{false}; ///< Own common PHYCR pulse-stretch bypass bit.
+  bool stretchBypass{false}; ///< True bypasses pulse stretching.
+  bool led0SwapOwned{false}; ///< Own separate MLEDCR polarity-swap bit, ENHANCED only.
+  bool led0Swap{false}; ///< Invert LED0 source polarity when owned; separate from drive polarity.
+  bool led1ClockOverride{false}; ///< Own IO_CFG1[6]=1 to release CLKOUT for LED1; ENHANCED only.
+  bool maintenanceAdmitted{false}; ///< Owner permits disruptive pin reconfiguration.
+  bool macStopped{false}; ///< Owner stopped MAC use while changing interface-shared pins.
+  bool outputsQuiesced{false}; ///< Owner admits output transitions; no silicon glitch-free promise.
+  uint8_t availableMask{0}; ///< Bits0..3 explicitly release board consumers for selected pins.
+  bool led1ClockUnused{false}; ///< No consumer depends on LED1/CLKOUT during this profile.
+  bool colUnused{false}; ///< Required for non-COL roles on ENHANCED MII LED2.
+};
+/// @brief Pin intent and stable register evidence, never measured electrical output.
+struct PinSnapshot {
+  PinSettings desired{}; ///< Last admitted profile; remains available after failure.
+  bool desiredValid{false}; ///< Explicit profile ownership has been established.
+  ConfigurationTrust trust{ConfigurationTrust::UNKNOWN}; ///< Verification of owned stable masks only.
+  bool observedStale{true}; ///< Failed, partial or invalidated acquisition.
+  bool timeValid{false}; ///< Completion timestamp validity; zero may be valid.
+  uint64_t observedAtUs{0}; ///< Conservative completion upper bound, microseconds.
+  uint16_t raw[10]{}; ///< LEDCR, PHYCR, MLEDCR, LEDCFG, LEDCFG2, IO_CFG1, GPIO0..3 in that order.
+  uint16_t validMask{0}; ///< Bits0..9 identify successfully retained words; stale values remain historical.
+  Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No pin observation"}; ///< Last apply/replay result.
+};
+/// @brief One bounded direct pin application; restoration uses a separate initialize result.
+struct PinResult {
+  Status status{Err::RESULT_NOT_AVAILABLE,0,"No pin result"}; ///< Terminal logical result.
+  Status primary{}; ///< Last terminal backend primary status, separate from release.
+  Status release{}; ///< Last terminal ownership-release status.
+  uint32_t attemptedFrames{0}; ///< Actual attempted C22 frames, including indirect addressing.
+  uint32_t completedFrames{0}; ///< Valid contiguous completed frames.
+  uint32_t transactions{0}; ///< Invoked terminal batch callbacks; no retries.
+  bool mutationAttempted{false}; ///< At least one owned target write was attempted.
+  bool mutationPossible{false}; ///< An accepted/uncertain target may have changed hardware.
+  bool verified{false}; ///< Every admitted stable owned mask was read back.
+  ConfigurationMismatch mismatch{}; ///< First comparison failure, independent of transport status.
+  PinSnapshot pins{}; ///< Retained partial/current evidence at return.
+};
+
 /// @brief Exact-part wake indication route; board wiring is separately admitted.
 enum class WakeRoute : uint8_t {
   STATUS_ONLY, ///< Matching/status without a physical output requirement.
@@ -919,6 +1014,7 @@ struct OperationResult {
   CableAutorunSnapshot cableAutorun{}; ///< Retained policy evidence; success never proves engine quiescence.
   EeeSnapshot eee{}; ///< Retained EEE intent and partial acquisition evidence.
   WakeSnapshot wake{}; ///< Retained WoL intent, control/credential prefixes and status acquisition.
+  PinSnapshot pins{}; ///< Retained pin profile and partial verification during shared restoration.
   PowerSnapshot power{}; ///< Retained power intent, partial observations and transition outcome.
   InterruptSnapshot interrupts{}; ///< Retained policy and transient test effects, independent of restoration result.
   uint16_t savedAnar{0}; ///< Pre-mutation advertisement, never a rollback instruction.
@@ -1170,6 +1266,19 @@ public:
   /// @return Historical/current validity and trust; serialize with the application owner.
   EeeSnapshot eeeSnapshot() const noexcept { return _eee; }
 
+  /// @brief Apply and verify one finite LED/GPIO profile with no scheduled waits.
+  /// @param[in] settings Complete pin ownership, source and board admission values.
+  /// @param[out] result Unchanged on preflight rejection; retained partial result after admitted I/O.
+  /// @param[in] budget Aggregate deadline/frames covers every complete RMW/readback.
+  /// @return Terminal validation/transport/verification status; no retry or implicit restoration.
+  /// @note SNLS647I8.3.18/tables8-42/49/73..78/85/89. Slot must be idle; cancellation
+  /// cannot interrupt a synchronous callback. Failed effects retain OP-9 debt. Shared
+  /// initialization replays the same procedure; physical output remains unqualified.
+  Status configurePins(const PinSettings& settings, PinResult& result, const IoBudget& budget) noexcept;
+  /// @brief Bus/clock-silent retained pin settings and observed values.
+  /// @return Separate desired, valid and trusted evidence; serialize under the owner.
+  PinSnapshot pinsSnapshot() const noexcept;
+
   /// @brief Admit quiesced WoL configuration; start is bus/clock silent.
   /// @param[in] settings Complete match, Secure-ON, CRC, pulse/level and route intent.
   /// @param[in] budget Aggregate operation deadline/frames and finite stalled-poll limit.
@@ -1243,7 +1352,8 @@ public:
   /// @param[out] token New retained operation token on admission only.
   /// @return IN_PROGRESS or local syntax/lifecycle/capability error, unchanged token on rejection.
   /// @note Polls preserve consumed events and verify all owned controls. Initialize
-  /// replays owned policy; startVerify reads only. LED mux writes are not performed.
+  /// replays owned policy; startVerify reads only. Needed LED mux changes occur
+  /// after disabling global delivery, with masked readback (SNLS647I8-75/76).
   /// Other owned policies must stay verified; contradictory inter-poll selector,
   /// reset or identity observations prevent obsolete proof from completing.
   Status startConfigureInterrupts(const InterruptSettings& settings, const OperationBudget& budget,
@@ -1496,6 +1606,20 @@ public:
   TransportSnapshot transportSnapshot() const noexcept { return _transport; }
 
 private:
+  enum class PinStep : uint8_t { CLOCK_STATUS, MUX0, MUX3, APPLY, VERIFY, COMPLETE };
+  PinSnapshot _pins{};
+  PinResult _pinResult{};
+  PinStep _pinStep{PinStep::COMPLETE};
+  uint8_t _pinRow{0};
+  bool _pinsWorking{false}, _pinsDirect{false}, _pinsTailPending{false}, _pinsVerifyOnly{false};
+  Status _validatePins(const PinSettings& settings) const noexcept;
+  void _beginPins(bool verifyOnly) noexcept;
+  MdioBatch _pinsBatch() const noexcept;
+  Status _advancePins(Status status, bool called, const MdioBatch& batch) noexcept;
+  void _retainPinWord(uint16_t address, uint16_t value) noexcept;
+  bool _pinRowValue(uint8_t row, uint16_t& address, uint16_t& mask, uint16_t& value) const noexcept;
+  void _nextPinRow() noexcept;
+  Status _finishPins(Status status) noexcept;
   enum class WakeStep : uint8_t { IDENTIFY, PIN_CLOCK, PIN_MUX, PIN_APPLY, PIN_VERIFY, READ_CONTROL, READ_CREDENTIAL,
     HARVEST_DISABLE, DISABLE, VERIFY_DISABLE, WRITE_CREDENTIAL, VERIFY_CREDENTIAL,
     HARVEST_APPLY, APPLY, VERIFY_CONTROL, READ_SELECTOR, DRAIN_SELECTOR, HARVEST_ACK, ACK };

@@ -30,24 +30,27 @@ selecting an alternate LED mux does not disconnect the dedicated interrupt pin.
 | --- | --- |
 | BASIC pin21 | Observed BASIC identity means strap-selected INT. PHYSCR OE is preserved and has no power-down meaning. |
 | ENHANCED pin21 | OE enables open-drain IRQ output. Requesting OE clear always requires `powerDownInputSafe`; low on the resulting input asserts power-down. |
-| BASIC LED1 | Owner declares availability; live LED1 mux must already select IRQ. |
+| BASIC LED1 | Owner declares availability; source-owned mux setup and readback select IRQ. |
 | ENHANCED LED1 | Also requires `led1ClockUnused` and live GPIO availability from the clock/LED status register. |
-| ENHANCED LED2 | Live IRQ mux required; MII also requires `colUnused`. RMII has no MII COL consumer. |
+| ENHANCED LED2 | Source-owned mux setup/readback; MII also requires `colUnused`. RMII has no MII COL consumer. |
 | BASIC LED2, LED0/LED3 mux mutation | BASIC LED2 rejects. No LED0/LED3 mux write API exists; their tables mark mux read-only. |
 
-Prompt 32 owns LED1/LED2 mux programming and must respect this same retained
-pin policy. This stage reads and validates existing routing only. Pin electrical
-levels, pulls, MCU input voltage and board wiring remain application facts and
-physical Q9 work. A board declaration cannot prove that routing was applied;
-the bounded live check rejects mismatches before IRQ mutation.
+Stage32 integrates [pin dependencies](led-gpio.md). The IRQ source owner now
+configures/restores its low mux field after disabling global delivery, with one
+masked readback. A matching pin-profile entry never writes the route twice.
+Configuration rejects a different retained pin owner, and cannot move away from
+a still-declared INTERRUPT dependency. VERIFY and stimulus operations require
+the route already established and never repair it. Pin electrical levels, pulls,
+MCU input voltage and board wiring remain application facts and physical Q9 work.
 
-A HARD reset can remove an externally established alternate mux. Until the pin
-owner's replay is integrated at prompt32, that case deliberately fails the live
-route check and retains restoration debt instead of reporting a usable IRQ.
-The dedicated pin21 route has complete replay at this stage.
+A HARD reset can remove the selected mux. Shared restoration now replays it;
+lost clock availability still rejects unless the explicitly owned pin profile
+first restores its runtime clock-release override. No POR-only strap is resampled
+by assertion.
 
 Configuration rechecks exact identity, pin prerequisites and an already-active
-unowned test stimulus. It disables global delivery, collects prior shared events,
+unowned test stimulus. It disables global delivery, applies/verifies a needed
+route change, collects prior shared events,
 writes the whole RXFS selector word, reads it through the collector, and consumes
 crossing MISR2 history as ambiguous. It then replaces both enable bytes, applies
 polarity/output, enables global delivery last, and verifies the owned stable
@@ -55,7 +58,8 @@ fields. MISR RMW reads retain events immediately and never echo high status bits
 as writable controls. PHYSCR unrelated power and loopback fields survive.
 
 For pin21 this is 26 frames in 14 callbacks. LED1/LED2 checks add one four-frame
-callback; ENHANCED LED1 adds another. A short poll slice yields before a whole
+callback; ENHANCED LED1 adds another. A changed mux adds9frames/2callbacks for
+the complete RMW and readback. A short poll slice yields before a whole
 batch. No selector or dependent RMW is split. Aggregate deadlines, frame counts,
 clock contracts and stalled-poll bounds follow the shared operation contract.
 

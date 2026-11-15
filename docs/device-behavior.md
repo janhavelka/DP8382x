@@ -496,3 +496,9 @@ Stage31 [WoL controls](wake-on-lan.md) preserve reset-loaded enable/unknown magi
 state until explicit policy ownership. Quiesced disable/verify precedes match or
 route changes, and enable follows verification. Exact W0C acknowledgement is
 separate from neutral configuration; pending samples remain in one collector.
+
+
+Stage32 implements source-admitted [LED/GPIO profiles](led-gpio.md), including
+shared blink/stretch and fixed-mode restrictions. Collector acknowledgement can
+change a latched LED without a pin write. Register verification proves configured
+controls only; Q12 still owns waveform, electrical and contradictory-route evidence.

@@ -181,3 +181,10 @@ No additional job engine, collector or MAC scheduling responsibility is added.
 operation-kind/phase dispatch and collector. Its route/control restoration runs
 before IRQ attribution and final power policy. There is no second event owner or
 wake scheduler; physical MAC/application wake belongs to the application.
+
+
+[LED/GPIO profiles](led-gpio.md) use `DP8382xPins.cpp`: one fixed row/phase pass
+serves bounded direct configuration and the existing restoration operation.
+It prepares source/value, clock/mux and final force enable, preserving unowned
+fields. Pin dependencies precede WoL/IRQ replay and final power completion.
+There is no pin registry, independent collector, scheduler or per-pin object.

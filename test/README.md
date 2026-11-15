@@ -526,3 +526,14 @@ cancellation, malformed receipts, exact bounds, raw contradictions, GPIO/IRQ
 conflicts and reset/power replay. The [owner example](../examples/portable/Wake.h)
 executes normal/failed acknowledgement; tests-OFF consumption links its public API.
 Physical Q3 remains [unmeasured](../docs/wake-on-lan.md).
+
+
+Stage32 registers `pins_vectors`, `pins_admission`, `pins_routing`,
+`pins_failures`, `pins_replay`, `pins_ownership`, `pins_timing`, `pins_collector`
+and `dp8382x_pins_tests_failure_path` with Release-active checks. The fixed fake exercises
+all fifteen sources on every admitted pin, modes/reserved bits, source-owner
+conflicts, every transfer failure, direct aggregate admission, replay cancellation,
+read-only mismatch retention, power/reset restoration and collector LED effects.
+The [portable example](../examples/portable/Pins.h) executes normal/conflict
+paths in the host suite and links in the tests-OFF consumer. Physical Q12 stays
+[NOT RUN](../docs/led-gpio.md).
