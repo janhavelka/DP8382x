@@ -416,3 +416,19 @@ ctest --test-dir build/host -R "verify_|dp8382x_verify_tests_failure_path" --out
 [Reconcile.h](../examples/portable/Reconcile.h) is compiled and executed by the
 tests-OFF consumer: partial raw observation, failed restoration and explicit
 unchanged-intent retry remain separate results. See [reconciliation](../docs/reconciliation.md).
+
+## Loopback sessions (prompt 23)
+
+`test/loopback.cpp` registers matrix, admission, start_failures, stop_failures,
+cancellation, barriers, timing and ownership plus its active Release failure
+probe. Independent literals cover every legal MII/RMII mode/speed and exact
+successful frame/callback totals; exhaustive failure injection follows every
+actual frame and release boundary. Tests cover effect-free attempted mutation,
+partial stop/retry, hard-reset strap reload, retained mismatch/primary errors,
+FIFO/routing overlap, sticky restart, clocks and cross-PHY exclusion.
+
+Run `ctest --test-dir build/host -R "loopback_|dp8382x_loopback_tests_failure_path" --output-on-failure --no-tests=error`.
+The tests-OFF consumer links [Loopback.h](../examples/portable/Loopback.h), with
+an unchanged desired profile, failed stop and explicitly admitted retry.
+See [loopback evidence limits](../docs/loopback.md); no MAC/peer/electrical
+qualification follows from simulated register receipts.

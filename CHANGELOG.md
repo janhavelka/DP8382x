@@ -4,6 +4,13 @@
 
 ### 2026-11-15
 
+- Implemented prompt 23 loopback start/stop sessions for every documented path
+  and legal MII/RMII speed, with explicit maintenance/fixture admission, bounded
+  restart/relink, retained temporary-state barriers and shared verified restoration.
+- Added exact digital recipe/HARD exit, reverse FIFO save/restore, independent
+  mode/sequence/failure tests and a linked maintenance-owner example. Source
+  conflicts and physical packet/electrical qualification remain explicit.
+
 - Audited prompts 21-22 independently. Fixed initialization retaining stale
   readiness/configuration after valid active-reset readback followed by release
   or timing failure; added regressions for reset checks and completion waits.

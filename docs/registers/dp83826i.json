@@ -9929,6 +9929,18 @@
         {
           "register": "PHYRCR",
           "mask": "0x4000"
+        },
+        {
+          "register": "PHYSCR",
+          "mask": "0x0300"
+        },
+        {
+          "register": "CR3",
+          "mask": "0x0060"
+        },
+        {
+          "register": "CR2",
+          "mask": "0x0020"
         }
       ],
       "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. Near-end AN disabled before activation. PCS input10 only; standalone digital is separate100-only recipe. Analog needs100-ohm termination. External cable loopback has separate fixture admission.",
@@ -9938,12 +9950,13 @@
         "Optional line transmit BISCR6=1 only for100Mb/s MII loopback; reject10,PCS,analog use. MAC-interface support follows configured MII/RMII interface, not the historical MII-loopback name.",
         "Analog only: after selector activation issuePHYRCR4000, then bounded restart completion per SNLA423A2.5.3. MII and PCS modes do not acquire this extra restart. Q8 remains physically unqualified. Reject SNLA423A030B=3380: field11:6=0E is outside documented28..38. Do not turn the contradictory script into reserved/illegal field permission.",
         "Observe bounded correlated MAC sent/received frames or separately qualified BIST; configuration readback alone is not path proof. Stop by clearing BMCR14 and BISCR6/low5, then restore persistent speed/AN state.",
-        "Preserve and restore robust CR1[5] and automatic crossover PHYCR[15:14] around the temporary mode; these are not new persistent desired settings."
+        "Preserve and restore robust CR1[5] and automatic crossover PHYCR[15:14] around the temporary mode; these are not new persistent desired settings.",
+        "Prompt23 implementation requires a verified persistent desired profile, maintenance admission and inactive live BMCR/BISCR/reset prerequisites. Near-end temporary full-duplex profile uses the same forced procedure with robust manual MDI, mirror/extension disabled; desired intent remains unchanged. Stop replays the desired profile and verifies saved BISCR705F and PHYSCR0300. HARD also restores/verifies BMCR ordinary extras, including isolation reloaded from straps; no saved command is replayed."
       ],
       "waits": [],
       "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
-      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
-      "cleanup": "Stop diagnostic generation before restoring settings; keep controller lock only across indivisible MDIO/RMW transaction, never across waits. Verify stop/readback with finite cleanup budget; retain cleanup-required on failure.",
+      "partialEffects": "Retain accepted/possible target effects and every independently returned sample. The first attempted semantic session write sets temporaryMayBeActive and cleanupOwed, even if the failed attempt reports no effect. Failure, deadline or cancellation terminates immediately without cleanup I/O. A separately admitted stop or HARD restoration has a new token, result and finite budget; it never replaces the earlier result.",
+      "cleanup": "Application stops diagnostic traffic and separately admits stopLoopback. Clear selectors, use shared initialization/profile replay, restore saved ordinary fields and verify them. No hidden retry or automatic cleanup. Retain the temporary/barrier state on any stop failure; explicit HARD or owner-attested external reset/POR are alternative dispositions under OP-9.",
       "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
       "gates": [
         "loopback_recipe"
@@ -9951,7 +9964,7 @@
       "owner": {
         "api": "startLoopback / stopLoopback",
         "cli": "owner-routed startLoopback / stopLoopback (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startLoopback / stopLoopback; prompts 23, 53-55",
+        "test": "test/loopback.cpp: independent mode/trace matrix, exact bounds, all frame/release/cancel boundaries, restoration, timing and cross-PHY ownership; physical Q8 NOT RUN",
         "implementationStage": 23
       }
     },
@@ -9980,6 +9993,26 @@
         {
           "register": "PHYRCR",
           "mask": "0x4000"
+        },
+        {
+          "register": "PHYSCR",
+          "mask": "0x0300"
+        },
+        {
+          "register": "CR1",
+          "mask": "0x0020"
+        },
+        {
+          "register": "PHYCR",
+          "mask": "0xC000"
+        },
+        {
+          "register": "CR3",
+          "mask": "0x0060"
+        },
+        {
+          "register": "CR2",
+          "mask": "0x0020"
         }
       ],
       "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. ",
@@ -9987,14 +10020,15 @@
         "Admit100BASE-TX forced full-duplex only; coordinate MAC/SDK owner and conflicting EEE recipe use of0123.",
         "Apply exact sequence C22 BMCR=2100, BISCR=0104; MMD31/0122=2000; MMD31/0123=2000; MMD31/0130=47FF; C22 PHYRCR=4000 digital restart. Full BISCR literal includes read-only power indication; the full literal changes all stable writable BISCR controls under705F, and BMCR stable controls under7D80; save/restore those owned masks. Compose reset and AN-restart commands neutral0. Opaque full-word writes are explicit recipe actions, never broad permission.",
         "Wait for restart completion using bounded core reset procedure. Observe readbacks and correlated finite traffic result. Full script order and restart are mandatory for this documented recipe.",
-        "Stop generator and loopback; opaque controls cannot be treated as arbitrary writable snapshots. Use explicitly authorized hard-reset/reinitialization and persistent-state replay for deterministic restoration; otherwise report restore unverified."
+        "Stop generator and loopback; opaque controls cannot be treated as arbitrary writable snapshots. Use explicitly authorized hard-reset/reinitialization and persistent-state replay for deterministic restoration; otherwise report restore unverified.",
+        "Prompt23 implementation requires a verified persistent desired profile, maintenance admission and inactive live BMCR/BISCR/reset prerequisites. Near-end temporary full-duplex profile uses the same forced procedure with robust manual MDI, mirror/extension disabled; desired intent remains unchanged. Stop replays the desired profile and verifies saved BISCR705F and PHYSCR0300. HARD also restores/verifies BMCR ordinary extras, including isolation reloaded from straps; no saved command is replayed."
       ],
       "waits": [
         "PHYRCR restart bit14 self-clear; no fixed completion MAX in this diagnostic text. Any minimum post-write wait anchors to observed completion or a later conservative timestamp."
       ],
       "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
-      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
-      "cleanup": "Stop diagnostic generation before restoring settings; keep controller lock only across indivisible MDIO/RMW transaction, never across waits. Verify stop/readback with finite cleanup budget; retain cleanup-required on failure.",
+      "partialEffects": "Retain accepted/possible target effects and every independently returned sample. The first attempted semantic session write sets temporaryMayBeActive and cleanupOwed, even if the failed attempt reports no effect. Failure, deadline or cancellation terminates immediately without cleanup I/O. A separately admitted stop or HARD restoration has a new token, result and finite budget; it never replaces the earlier result.",
+      "cleanup": "Application stops diagnostic traffic and separately admits stopLoopback. Clear selectors, use shared initialization/profile replay, restore saved ordinary fields and verify them. No hidden retry or automatic cleanup. Retain the temporary/barrier state on any stop failure; explicit HARD or owner-attested external reset/POR are alternative dispositions under OP-9.",
       "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit. Restore all saved BMCR7D80/BISCR705F persistent controls after reset-based reinitialization; never replay PHYRCR restart as persistent state.",
       "gates": [
         "loopback_recipe"
@@ -10002,7 +10036,7 @@
       "owner": {
         "api": "startLoopback / stopLoopback",
         "cli": "owner-routed startLoopback / stopLoopback (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startLoopback / stopLoopback; prompts 23, 53-55",
+        "test": "test/loopback.cpp: independent mode/trace matrix, exact bounds, all frame/release/cancel boundaries, restoration, timing and cross-PHY ownership; physical Q8 NOT RUN",
         "implementationStage": 23
       },
       "writeActions": [
@@ -10047,12 +10081,13 @@
         "Require live compatible link partner and selected speed/interface; save ordinary reverse FIFO depth setting. Select PHYSCR8..9 depth using documented code if owner requests it.",
         "Save and clear BMCR14; verify it is zero along with other near-end selectors before setting reverse mode. Clear other loopbacks and line-transmit option; set BISCR low5=10(hex). MAC transmitted data is ignored and partner received data is looped at MAC interface back onto line.",
         "After activation issue literal PHYRCR4000 and bounded restart completion per SNLA423A scripts; reverse additionally observes bounded relink. Q8 physical comparison remains open.",
-        "Observe finite partner-originated correlated packets and returned payloads. Stop low5=0 and restore FIFO/previous persistent state. Do not write reserved BISCR bit5 from troubleshooting0020 example."
+        "Observe finite partner-originated correlated packets and returned payloads. Stop low5=0 and restore FIFO/previous persistent state. Do not write reserved BISCR bit5 from troubleshooting0020 example.",
+        "Prompt23 implementation requires a verified persistent desired profile, maintenance admission and inactive live BMCR/BISCR/reset prerequisites. Near-end temporary full-duplex profile uses the same forced procedure with robust manual MDI, mirror/extension disabled; desired intent remains unchanged. Stop replays the desired profile and verifies saved BISCR705F and PHYSCR0300. HARD also restores/verifies BMCR ordinary extras, including isolation reloaded from straps; no saved command is replayed."
       ],
       "waits": [],
       "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
-      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
-      "cleanup": "Stop diagnostic generation before restoring settings; keep controller lock only across indivisible MDIO/RMW transaction, never across waits. Verify stop/readback with finite cleanup budget; retain cleanup-required on failure.",
+      "partialEffects": "Retain accepted/possible target effects and every independently returned sample. The first attempted semantic session write sets temporaryMayBeActive and cleanupOwed, even if the failed attempt reports no effect. Failure, deadline or cancellation terminates immediately without cleanup I/O. A separately admitted stop or HARD restoration has a new token, result and finite budget; it never replaces the earlier result.",
+      "cleanup": "Application stops diagnostic traffic and separately admits stopLoopback. Clear selectors, use shared initialization/profile replay, restore saved ordinary fields and verify them. No hidden retry or automatic cleanup. Retain the temporary/barrier state on any stop failure; explicit HARD or owner-attested external reset/POR are alternative dispositions under OP-9.",
       "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
       "gates": [
         "loopback_recipe"
@@ -10060,7 +10095,7 @@
       "owner": {
         "api": "startLoopback / stopLoopback",
         "cli": "owner-routed startLoopback / stopLoopback (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startLoopback / stopLoopback; prompts 23, 53-55",
+        "test": "test/loopback.cpp: independent mode/trace matrix, exact bounds, all frame/release/cancel boundaries, restoration, timing and cross-PHY ownership; physical Q8 NOT RUN",
         "implementationStage": 23
       }
     },
@@ -10085,6 +10120,10 @@
         {
           "register": "BISCR",
           "mask": "0x005F"
+        },
+        {
+          "register": "PHYSCR",
+          "mask": "0x0300"
         }
       ],
       "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. Identified authorized external loopback cable/partner fixture. Hardware setup is application responsibility.",
@@ -10092,18 +10131,19 @@
         "Admit explicit external cable loopback fixture and application-owned MAC traffic or separately admitted BIST. No internal BISCR loopback selector denotes external cable loopback.",
         "Save owned loopback controls; clear and verify BMCR14 and BISCRlow5/bit6 before traffic. An active internal loop must not be misreported as the external cable path. Restore persistent owned state after stopping traffic; preserve failed stop/restore separately.",
         "Configure normal correct speed/interface through core owner; near-end AN-disable rule explicitly does not apply to external fixture.",
-        "Run finite correlated traffic; retain counts/payload mismatches and fixture identity. Stop traffic before fixture removal; restore settings via their owning procedures."
+        "Run finite correlated traffic; retain counts/payload mismatches and fixture identity. Stop traffic before fixture removal; restore settings via their owning procedures.",
+        "Prompt23 implementation requires a verified persistent desired profile, maintenance admission and inactive live BMCR/BISCR/reset prerequisites. Near-end temporary full-duplex profile uses the same forced procedure with robust manual MDI, mirror/extension disabled; desired intent remains unchanged. Stop replays the desired profile and verifies saved BISCR705F and PHYSCR0300. HARD also restores/verifies BMCR ordinary extras, including isolation reloaded from straps; no saved command is replayed."
       ],
       "waits": [],
       "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
-      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
-      "cleanup": "Stop diagnostic generation before restoring settings; keep controller lock only across indivisible MDIO/RMW transaction, never across waits. Verify stop/readback with finite cleanup budget; retain cleanup-required on failure.",
+      "partialEffects": "Retain accepted/possible target effects and every independently returned sample. The first attempted semantic session write sets temporaryMayBeActive and cleanupOwed, even if the failed attempt reports no effect. Failure, deadline or cancellation terminates immediately without cleanup I/O. A separately admitted stop or HARD restoration has a new token, result and finite budget; it never replaces the earlier result.",
+      "cleanup": "Application stops diagnostic traffic and separately admits stopLoopback. Clear selectors, use shared initialization/profile replay, restore saved ordinary fields and verify them. No hidden retry or automatic cleanup. Retain the temporary/barrier state on any stop failure; explicit HARD or owner-attested external reset/POR are alternative dispositions under OP-9.",
       "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
       "gates": [],
       "owner": {
         "api": "startLoopback / stopLoopback",
         "cli": "owner-routed startLoopback / stopLoopback (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startLoopback / stopLoopback; prompts 23, 53-55",
+        "test": "test/loopback.cpp: independent mode/trace matrix, exact bounds, all frame/release/cancel boundaries, restoration, timing and cross-PHY ownership; physical Q8 NOT RUN",
         "implementationStage": 23
       }
     },
@@ -12545,7 +12585,9 @@
         "LOOP_0130",
         "PHYRCR",
         "CR1",
-        "PHYCR"
+        "PHYCR",
+        "CR3",
+        "CR2"
       ],
       "procedures": [
         "loopback_near",
@@ -12562,15 +12604,15 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "loopback_recipe"
       ],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations."
+      "notes": "Prompt23 implements bounded startLoopback/stopLoopback for MII, PCS input/output, digital, analog, reverse and external fixture modes, with retained temporary state and explicit restoration. Independent host literals, all failure boundaries and portable consumer pass. SDK/CLI/runner and Q8 physical path, termination, peer/traffic evidence remain separate later work. Analog030B3380 remains unadopted; no BIST lock or packet result is claimed."
     },
     {
       "id": "bist",
@@ -13280,7 +13322,7 @@
     {
       "id": "loopback_recipe",
       "conflict": "MII prose says BISCR bit2 for all speeds while BMCR table requires1 for10 and4 for100; general all-speed statement conflicts with digital100/PCS-input10 restrictions. SNLA423A adds erroneous reverse0020/RCSR17 checks and analog3B04 expected readback; digital vendor offsets lack ordinary restoration semantics.",
-      "decision": "Select detailed per-speed tables and exact digital recipe. SNLA423A reverse/analog scripts addPHYRCR4000; no such restart for MII/PCS. Reject analog3380 because its field is illegal. Reserve reset/initialization for opaque restoration; no arbitrary saved-word replay.",
+      "decision": "Select detailed per-speed tables and exact digital recipe. SNLA423A reverse/analog scripts addPHYRCR4000; no such restart for MII/PCS. Reject analog3380 because its field is illegal. Reserve reset/initialization for opaque restoration; no arbitrary saved-word replay. Prompt23 executes this selected interpretation for both MII/RMII and uses HARD plus saved ordinary-field/profile restoration for digital; source conflict and Q8 remain open, not a software-wide block.",
       "nextEvidence": "Exact-part clarification or identified traces for both10/100 interfaces, MII versus standalone digital mode, opaque recipe restoration and analog-tuning prerequisite. Qualify termination and MAC/partner independently.",
       "ownerStage": 23,
       "sources": [

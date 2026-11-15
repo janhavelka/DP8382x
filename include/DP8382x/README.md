@@ -66,3 +66,7 @@ later configuration/recovery options only with their behavior. Result delivery
 does not claim a stopped PHY or restored configuration. Include
 clock-return lag, tick rounding, final-poll exhaustion and partial effects in
 public Doxygen and executing tests at that stage.
+
+Loopback start/stop sessions now use the same slot and temporary-state barrier.
+See [loopback ownership and fixtures](../../docs/loopback.md); activation is not
+packet validation and digital's opaque companion recipe requires a HARD exit.

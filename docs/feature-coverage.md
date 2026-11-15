@@ -25,7 +25,9 @@ managed transaction counts, state projection and retained error evidence. There
 is no stage-21 silicon procedure: health is library policy. Prompt 22 adds
 [explicit verification and reconciliation](reconciliation.md), reusing the
 existing initialization/configuration procedures without another restoration
-ledger or automatic recovery. Other feature procedures are PENDING; SDK builds and hardware qualification
+ledger or automatic recovery. Prompt 23 completes [loopback sessions](loopback.md):
+all four ledger procedures use one bounded operation/collector/restoration owner,
+with independent host tests. Other feature procedures are PENDING; SDK builds and hardware qualification
 are NOT RUN. Ledger tests establish their own research layer.
 
 The [prompts 13-18 audit](reports/implementation/13-18-independent-audit.md)

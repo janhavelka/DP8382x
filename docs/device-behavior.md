@@ -436,3 +436,10 @@ RECR and RMII RC conflicts remain raw-only. Reset retains earlier host history
 with discontinuity/staleness rather than assigning it to a new exact interval.
 Local history discard never clears hardware. Future IRQ and diagnostic sessions
 extend this same owner and retention path.
+
+Stage 23 executes the selected loopback interpretations in [loopback sessions](loopback.md).
+MII uses detailed speed-specific companions; digital alone requires the exact
+opaque companion sequence and HARD exit. Reverse/analog use the selected note's
+restart; MII/PCS do not. Reverse saves/restores the FIFO and checks relink speed.
+The existing `loopback_recipe` conflict and Q8 remain unresolved physical/source
+evidence, not permission for the rejected analog gain or reserved reverse word.

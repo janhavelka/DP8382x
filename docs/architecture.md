@@ -127,3 +127,9 @@ Stage 22 adds [VERIFY](reconciliation.md) to that same operation slot: identity
 and mandatory-state acquisition feed the existing mode-specific configuration
 comparisons. Shared slot setup preserves prior obligations; verification cannot
 clear them. Explicit restoration uses the same initialization/replay path.
+
+Stage 23 adds `DP8382xDiagnostics.cpp` for [loopback sessions](loopback.md).
+Its explicit phase switch feeds the existing poll/transport/result machinery.
+Temporary profile targeting reuses configuration without replacing desired intent;
+stop/HARD reuse initialization and one saved-field verification tail. There is
+no second collector, reset engine, background dwell or automatic cleanup owner.

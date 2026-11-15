@@ -107,10 +107,15 @@ initialization/trust; it is not a claim that hardware was restored.
 verification and references the same initialization helper for restoration.
 The separately linked portable consumer executes partial observation, a failed
 restoration and an explicitly admitted retry with unchanged forced intent,
-retaining all three outcomes. Temporary diagnostic overrides and their stops
-arrive in prompt 23; no such support is claimed here.
+retaining all three outcomes. Loopback temporary overrides and their separate stops are implemented in
+prompt 23; later diagnostics retain their own feature owners.
 
 Sources: SNLS647I 8.3.11.1-.5 and tables 8-19/21/22/23/28/29/30/43/48/81.
 Reset strap ambiguity (Q5), forced observation/routing qualification (Q11),
 physical MDIO/restore traces and SDK integration remain separate open evidence.
 Host verification does not close those gates.
+
+Stage 23 now supplies the [loopback session owner](loopback.md). VERIFY rejects
+while temporary state may remain. An owning stop or explicit HARD uses the same
+initialization/profile restore plus saved ordinary-field verification; it does
+not replay prior diagnostic traffic or replace an earlier failed result.

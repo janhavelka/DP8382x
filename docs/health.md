@@ -99,3 +99,7 @@ The transport interpretation follows SNLS647I 8.3.11.1-.5, tables 8-31/32,
 and PHYSTS table 8-34. These sources define transactions and observations, not
 software health policy. Host tests establish accounting and lifecycle behavior;
 controller timing and physical fault rates remain NOT RUN.
+
+Stage 23 classifies loopback start and stop, including stop's initialization
+and desired-profile replay, as RAW. The separate explicit `startInitialize(HARD)`
+escape remains managed. Temporary-state barriers never follow health state.

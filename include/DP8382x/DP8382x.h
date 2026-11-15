@@ -252,7 +252,9 @@ enum class OperationKind : uint8_t {
   NONE, ///< Empty slot.
   INITIALIZE, ///< Identity, optional reset and owned configuration replay.
   CONFIGURE, ///< Complete forced/negotiated profile and optional finite next-page exchange.
-  VERIFY ///< Read identity and currently owned stable settings without semantic writes.
+  VERIFY, ///< Read identity and currently owned stable settings without semantic writes.
+  LOOPBACK_START, ///< Establish a temporary path; dwell belongs to the application.
+  LOOPBACK_STOP ///< Stop the path and verify restoration in a separate operation.
 };
 /// @brief One retained operation slot.
 enum class OperationState : uint8_t {
@@ -288,6 +290,45 @@ struct OperationBudget {
 /// @brief Copied initialization request; NONE still writes/verifies mandatory VOD.
 struct InitializeOptions {
   ResetKind reset{ResetKind::PCS}; ///< Selected reset.
+};
+/// @brief SNLS647I 8.3.14 paths; the historical MII name also admits RMII.
+enum class LoopbackMode : uint8_t {
+  MII, ///< BMCR14 plus speed-specific BISCR companion.
+  PCS_INPUT, ///< 10 Mbit/s PCS input path.
+  PCS_OUTPUT, ///< PCS output path at 10 or 100 Mbit/s.
+  DIGITAL, ///< 100/full exact companion recipe; hard-reset exit required.
+  ANALOG, ///< Analog path with application-attested 100-ohm termination.
+  REVERSE, ///< Live partner traffic returned to the line.
+  EXTERNAL ///< Admitted external fixture, with internal paths disabled.
+};
+/// @brief Copied session request; no option authorizes general recipe-register access.
+struct LoopbackOptions {
+  LoopbackMode mode{LoopbackMode::MII}; ///< Requested path, never enabled implicitly.
+  LinkSpeed speed{LinkSpeed::MBPS_100}; ///< Required 10/100 speed; internal paths use full duplex.
+  bool transmitOnLine{false}; ///< Only 100 Mbit/s MII loopback permits BISCR6.
+  bool maintenanceAdmitted{false}; ///< Owner quiesced normal MAC/SDK traffic and admits disruption.
+  bool termination100Ohm{false}; ///< Required for ANALOG; electrical setup stays with application.
+  bool partnerReady{false}; ///< Required for REVERSE; live link is also checked.
+  bool externalFixture{false}; ///< Required for EXTERNAL; no internal path proof is implied.
+  bool allowHardResetExit{false}; ///< Required for DIGITAL, including eligible strap resampling.
+  uint8_t reverseFifoDepth{0}; ///< REVERSE code 0/1/2/3 means 4/5/6/8 nibbles; otherwise zero.
+};
+/// @brief Retained session observations, not measured packet or electrical results.
+struct LoopbackResult {
+  LoopbackMode mode{LoopbackMode::MII}; ///< Selected internal/external path.
+  LinkSpeed speed{LinkSpeed::UNKNOWN}; ///< Requested speed.
+  bool controlsVerified{false}; ///< Complete activation readback, not traffic validation.
+  bool stopped{false}; ///< Stop and all owned restoration checks completed.
+  bool hardResetExit{false}; ///< Opaque digital companion state requires HARD.
+  uint16_t rawPhysts{0}; ///< Latest independently consumed live status word.
+  bool phystsValid{false}; ///< Raw status was returned; not a simultaneous snapshot.
+};
+/// @brief Passive session record retained across result consumption and application dwell.
+struct LoopbackSnapshot {
+  LoopbackOptions options{}; ///< Copied options of the most recently admitted session.
+  OperationToken token{}; ///< Start token, distinct from each later stop token.
+  bool controlsVerified{false}; ///< Activation completed; invalidation clears this evidence.
+  bool temporaryMayBeActive{false}; ///< Hardware may remain overridden; stop/HARD required.
 };
 /// @brief Fixed maximum number of local or retained partner next pages.
 constexpr uint8_t MAX_NEXT_PAGES = 16;
@@ -406,7 +447,7 @@ struct OperationResult {
   bool commandAccepted{false}; ///< Reset frame completed; does not prove reset completion.
   bool protocolComplete{false}; ///< Requested reset subsequently observed clear on time; not AN completion.
   bool negotiationComplete{false}; ///< BMSR AN-complete observed by an explicitly requested wait.
-  bool temporaryMayBeActive{false}; ///< Initialization alone never starts a temporary stimulus.
+  bool temporaryMayBeActive{false}; ///< Copy of retained temporary-state knowledge at termination.
   bool persistentRestored{false}; ///< All currently owned persistent state verified.
   bool cleanupOwed{false}; ///< Barrier at termination; current state is in operationSnapshot.
   bool clockInvalid{false}; ///< Clock contract failed during the operation.
@@ -416,6 +457,7 @@ struct OperationResult {
   ConfigurationMismatch mismatch{}; ///< First mismatch; an interrupted pass retains its terminal error separately.
   BatchSummary failingBatch{}; ///< First failure, otherwise latest batch.
   NextPageResult nextPage{}; ///< Exchange evidence, including partial consumption.
+  LoopbackResult loopback{}; ///< Selected path and activation/stop evidence, never packet proof.
   uint16_t savedAnar{0}; ///< Pre-mutation advertisement, never a rollback instruction.
   uint16_t savedBmcr{0}; ///< Pre-mutation control, never a rollback instruction.
   bool savedAnarValid{false}; ///< Pre-mutation advertisement was captured.
@@ -437,7 +479,7 @@ struct OperationSnapshot {
   OperationPhase phase{OperationPhase::NONE}; ///< Current phase or COMPLETE.
   Status status{Err::RESULT_NOT_AVAILABLE, 0, "No operation"}; ///< Progress/frozen status.
   bool cleanupOwed{false}; ///< Current restoration barrier, even with an empty slot.
-  bool temporaryMayBeActive{false}; ///< No retained diagnostic stimulus is implemented yet.
+  bool temporaryMayBeActive{false}; ///< Session override may remain, including after failed start/stop.
   uint64_t nextPollAtUs{0}; ///< Earliest legal next scheduled observation.
   bool nextPollValid{false}; ///< A valid scheduled wait exists.
   uint64_t busQuietUntilUs{0}; ///< Hard-reset silence floor; shared owner holds every PHY quiet.
@@ -549,6 +591,30 @@ public:
   /// A changed accepted identity requires explicit initialization; an observed
   /// active BMCR reset invalidates readiness and terminates without waiting.
   Status startVerify(const OperationBudget& budget, OperationToken& token) noexcept;
+
+  /// @brief Admit a bounded loopback start; no MDIO or clock callback on admission.
+  /// @param[in] options Exact path/speed and explicit maintenance/fixture attestations.
+  /// @param[in] budget Aggregate deadline/frames and finite polling bounds.
+  /// @param[out] token Assigned only on admission; consume the retained result before stop.
+  /// @return IN_PROGRESS or local syntax, lifecycle, trust, capability or budget error.
+  /// @pre Initialized, fresh exact identity and VERIFIED persistent desired profile.
+  /// @note SNLS647I 8.3.14, tables 8-19/35/40; SNLA423A pp18/20 restart selection.
+  /// First attempted semantic write sets the temporary barrier. Failure/cancel does
+  /// no cleanup I/O. A successful start releases the slot after takeResult; dwell
+  /// and traffic are application-owned. DIGITAL requires HARD on exit; 0123 overlaps EEE.
+  Status startLoopback(const LoopbackOptions& options, const OperationBudget& budget,
+                       OperationToken& token) noexcept;
+  /// @brief Admit stop and verified restoration of this binding's retained loopback session.
+  /// @param[in] budget New finite allowance, independent of the start result.
+  /// @param[out] token New token assigned only on admission.
+  /// @return IN_PROGRESS or local rejection; a failed stop retains effects for explicit retry.
+  /// @pre Owner has stopped diagnostic traffic; no operation result remains pending.
+  /// @note Clears selectors, reuses initialization/profile replay, then verifies saved
+  /// temporary fields. DIGITAL uses HARD; other modes use NONE. No automatic retry.
+  Status stopLoopback(const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Copy session evidence without bus/clock activity.
+  /// @return Current temporary flag and retained start identity/options; no packet proof.
+  LoopbackSnapshot loopbackSnapshot() const noexcept;
 
   /// @brief Project passive health without bus/clock access or changing admission.
   /// @return UNINIT when not initialized; otherwise READY at zero failures,
@@ -772,6 +838,22 @@ public:
   TransportSnapshot transportSnapshot() const noexcept { return _transport; }
 
 private:
+  enum class LoopStep : uint8_t {
+    IDENTIFY_STOP, READ_BMCR, READ_PHYRCR, READ_BISCR, READ_PHYSCR, CHECK_LINK,
+    CLEAR_BMCR, CLEAR_BISCR, SET_FIFO, DIGITAL_BMCR, SET_BISCR, SET_MII,
+    DIGITAL_0122, DIGITAL_0123, DIGITAL_0130, RESTART, WAIT_RESTART,
+    VERIFY_BMCR, VERIFY_BISCR, VERIFY_ACTIVE_FIFO, RELINK, STOP_BMCR, STOP_BISCR,
+    RESTORE_BMCR, RESTORE_BISCR, RESTORE_FIFO, VERIFY_STOP_BMCR, VERIFY_STOP_BISCR, VERIFY_FIFO
+  };
+  LoopStep _loopStep{LoopStep::READ_BMCR};
+  LoopbackSnapshot _loopback{};
+  LinkSettings _loopProfile{};
+  uint16_t _loopSavedBiscr{0};
+  uint16_t _loopSavedBmcr{0};
+  uint16_t _loopSavedPhyscr{0};
+  bool _loopSession{false};
+  bool _loopWorking{false};
+  bool _loopRestoreTail{false};
   Config _config{};
   HealthSnapshot _health{};
   TransportSnapshot _transport{};
@@ -817,6 +899,7 @@ private:
   uint64_t _lastTimeUs{0};
   Status _sampleTime(uint64_t& raw, uint64_t& upper) noexcept;
   enum class Traffic : uint8_t { RAW, MANAGED };
+  Traffic _operationTraffic() const noexcept;
   Status _execute(MdioBatch batch, const IoBudget& budget, bool* called = nullptr,
                   bool operation = false, Traffic traffic = Traffic::RAW) noexcept;
   Status _readIdentity(DeviceIdentity& identity, const IoBudget& budget, bool operation,
@@ -841,6 +924,14 @@ private:
   MdioBatch _configurationBatch() const noexcept;
   Status _advanceConfiguration(Status status, bool called, const MdioBatch& batch) noexcept;
   void _beginConfiguration(bool exchange) noexcept;
+  const LinkSettings& _configurationTarget() const noexcept;
+  MdioBatch _loopbackBatch() const noexcept;
+  Status _advanceLoopback(Status status, bool called, const MdioBatch& batch) noexcept;
+  void _setLoopStep(LoopStep step) noexcept;
+  void _beginLoopbackActivation() noexcept;
+  void _beginLoopbackRestore() noexcept;
+  static MdioBatch _mmdBatch(uint16_t address, FrameKind kind, uint16_t value,
+                            uint16_t devad = 31) noexcept;
   void _setConfigStep(ConfigStep step) noexcept;
   void _observeConfiguration() noexcept;
   void _retainPageEvidence(const MdioBatch& batch, const BatchResult& receipt,

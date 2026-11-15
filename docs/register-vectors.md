@@ -577,4 +577,29 @@ transitions, every-frame faults/cancellation, reset replay, actual observed
 mismatches and owner exclusion. Existing next-page vectors remain unchanged;
 additional owned controls increase the two-page trace from23 to39frames and the
 duplicate-page trace from25 to41. Physical robust-manual/mirror interaction and
-partner compatibility remain Q11 NOT RUN; loopback restore tests arrive at23.
+partner compatibility remain Q11 NOT RUN; loopback restore tests execute at23.
+
+## Executing loopback vectors (stage 23)
+
+Independent SNLS647I 8.3.14/table8-19/table8-40 vectors: BISCR low5 is01 PCS
+input10,02 PCS output,04 digital100,08 analog,10 reverse (hex). MII combines
+BMCR4000 with01 at10 or04 at100. BISCR0040 line transmission is only MII100.
+External uses no internal selector. Digital's contiguous target sequence is
+W(00,2100), W(16,0104), vendor31 W(0122,2000), W(0123,2000), W(0130,47FF),
+W(1F,4000); each vendor word uses the independent four-frame selector trace.
+No opaque prior-value read or030B3380 write is permitted. Analog/reverse add
+W(1F,4000) per the selected SNLA423A scripts; MII/PCS have no such command.
+
+PHYSCR FIFO codes0/1/2/3 own0300, so0B55 becomes0855/0955/0A55/0B55.
+Inactive BISCR4100 may retain counter policy4000; digital0104 clears that
+policy temporarily, then its HARD exit restores4100 after initialization.
+The tail preserves8FA0 while restoring705F, and preservesFCFF around FIFO0300.
+HARD may reload BMCR isolation0400: restore ordinary extras0480 with preserve
+317F and commands/power neutral0, then verify7D80 against the saved/profile
+intent. This is not a general BMCR or opaque-register raw-write permission.
+
+`test/loopback.cpp` independently pins every semantic write for every legal
+mode/speed/interface, plus exact bounded frame/callback plans and every injected
+frame/release/cancel boundary. It checks manual MDIX and robust/mirror profile
+restoration, FIFO variants, physical-effect uncertainty and separate results.
+These are host protocol vectors; Q8/Q5/Q11 measured traces remain NOT RUN.

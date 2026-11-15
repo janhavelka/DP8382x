@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 project(DP8382x LANGUAGES CXX)
 
 # Portable implementation; no SDK, generated build step or optional tooling.
-add_library(DP8382x STATIC src/DP8382x.cpp src/DP8382xConfiguration.cpp src/DP8382xLink.cpp)
+add_library(DP8382x STATIC src/DP8382x.cpp src/DP8382xConfiguration.cpp src/DP8382xLink.cpp src/DP8382xDiagnostics.cpp)
 add_library(DP8382x::DP8382x ALIAS DP8382x)
 target_compile_features(DP8382x PUBLIC cxx_std_17)
 set_target_properties(DP8382x PROPERTIES CXX_EXTENSIONS OFF)
@@ -50,6 +50,9 @@ if(DP8382X_BUILD_TESTS)
   add_executable(dp8382x_verify_tests test/verify.cpp)
   target_link_libraries(dp8382x_verify_tests PRIVATE DP8382x)
 
+  add_executable(dp8382x_loopback_tests test/loopback.cpp)
+  target_link_libraries(dp8382x_loopback_tests PRIVATE DP8382x)
+
   # Separate translation units catch accidental transitive include requirements.
   add_library(dp8382x_header_checks OBJECT
     test/header_status.cpp
@@ -59,7 +62,7 @@ if(DP8382X_BUILD_TESTS)
     test/header_version.cpp)
   target_link_libraries(dp8382x_header_checks PRIVATE DP8382x)
 
-  foreach(target IN ITEMS DP8382x dp8382x_foundation_tests dp8382x_transport_tests dp8382x_mmd_tests dp8382x_access_tests dp8382x_identity_tests dp8382x_operation_tests dp8382x_reset_tests dp8382x_negotiation_tests dp8382x_forced_tests dp8382x_link_tests dp8382x_events_tests dp8382x_health_tests dp8382x_verify_tests dp8382x_header_checks)
+  foreach(target IN ITEMS DP8382x dp8382x_foundation_tests dp8382x_transport_tests dp8382x_mmd_tests dp8382x_access_tests dp8382x_identity_tests dp8382x_operation_tests dp8382x_reset_tests dp8382x_negotiation_tests dp8382x_forced_tests dp8382x_link_tests dp8382x_events_tests dp8382x_health_tests dp8382x_verify_tests dp8382x_loopback_tests dp8382x_header_checks)
     set_target_properties(${target} PROPERTIES CXX_EXTENSIONS OFF)
     if(MSVC)
       target_compile_options(${target} PRIVATE /W4 /WX /permissive-)
@@ -69,7 +72,7 @@ if(DP8382X_BUILD_TESTS)
     endif()
   endforeach()
 
-  foreach(target IN ITEMS dp8382x_foundation_tests dp8382x_transport_tests dp8382x_mmd_tests dp8382x_access_tests dp8382x_identity_tests dp8382x_operation_tests dp8382x_reset_tests dp8382x_negotiation_tests dp8382x_forced_tests dp8382x_link_tests dp8382x_events_tests dp8382x_health_tests dp8382x_verify_tests)
+  foreach(target IN ITEMS dp8382x_foundation_tests dp8382x_transport_tests dp8382x_mmd_tests dp8382x_access_tests dp8382x_identity_tests dp8382x_operation_tests dp8382x_reset_tests dp8382x_negotiation_tests dp8382x_forced_tests dp8382x_link_tests dp8382x_events_tests dp8382x_health_tests dp8382x_verify_tests dp8382x_loopback_tests)
     add_test(NAME ${target}_failure_path COMMAND ${target} --verify-failure-path)
     set_tests_properties(${target}_failure_path PROPERTIES WILL_FAIL TRUE TIMEOUT 30)
   endforeach()
@@ -117,6 +120,10 @@ if(DP8382X_BUILD_TESTS)
   foreach(suite IN ITEMS lifecycle transitions accounting raw_local reports timing restoration isolation saturation configuration cancellation)
     add_test(NAME health_${suite} COMMAND dp8382x_health_tests ${suite})
     set_tests_properties(health_${suite} PROPERTIES TIMEOUT 30)
+  endforeach()
+  foreach(suite IN ITEMS matrix admission start_failures stop_failures cancellation barriers timing ownership)
+    add_test(NAME loopback_${suite} COMMAND dp8382x_loopback_tests ${suite})
+    set_tests_properties(loopback_${suite} PROPERTIES TIMEOUT 30)
   endforeach()
   foreach(suite IN ITEMS traces comparisons failures admission lifecycle recovery ownership timing interrupted_replay reset_observation_errors barrier)
     add_test(NAME verify_${suite} COMMAND dp8382x_verify_tests ${suite})

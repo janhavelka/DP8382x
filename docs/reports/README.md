@@ -13,7 +13,11 @@ the linked cached-health example.
 The [prompt 22 report](implementation/22-reconcile-recover.md) records bounded
 verification, retained mismatch and cleanup evidence, shared initialization
 recovery, independent review and interrupted-restoration tests. Current execution
-is complete through 22.
+is recorded through 22 there.
+
+The [prompt 23 report](implementation/23-loopback-modes.md) records all loopback
+session modes, verified stop/restoration, independent literal tests and retained
+source/physical gates. Current execution is complete through 23.
 
 The [fresh prompts 21-22 audit](implementation/21-22-independent-audit.md)
 checks actual source, tests and source evidence independently, fixes reset

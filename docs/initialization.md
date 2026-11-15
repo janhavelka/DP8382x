@@ -176,3 +176,9 @@ and forced mode. Forced desired intent never accesses ANAR; it preserves any
 inactive advertisement and neutralizes AN commands in BMCR. Every reset kind
 restores the complete admitted profile after mandatory VOD, with fresh readback.
 No forced profile is invented when the caller has never admitted one.
+
+[Loopback sessions](loopback.md) now retain a temporary barrier across result
+consumption. Only owning stop or HARD initialization is admitted while it is set;
+PCS/NONE/RESTART cannot promise vendor stimulus removal. HARD reuses the saved
+ordinary-field restore tail and clears temporary knowledge only after full
+verification, including isolation that BASIC straps may reload.

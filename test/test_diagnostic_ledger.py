@@ -251,12 +251,16 @@ class DiagnosticLedgerTests(unittest.TestCase):
     def test_diagnostic_procedures_own_changed_controls(self):
         # Original-table masks applied to the independently reviewed procedure
         # actions. Whole-word digital recipe changes more than the loop selector.
+        # Prompt23's shared forced-profile override also owns CR2[5]/CR3[6:5];
+        # the common saved-field exit restores PHYSCR[9:8] after reset/replay.
         expected = {
             'configure_fast_drop': {('CR3', 0x040F), ('FLD_CFG1', 0xFFF0), ('FLD_CFG2', 0x003F)},
-            'loopback_near': {('BMCR', 0x7100), ('BISCR', 0x005F), ('CR1', 0x0020), ('PHYCR', 0xC000), ('PHYRCR', 0x4000)},
-            'loopback_digital': {('BMCR', 0x7D80), ('BISCR', 0x705F), ('PHYRCR', 0x4000)},
+            'loopback_near': {('BMCR', 0x7100), ('BISCR', 0x005F), ('CR1', 0x0020), ('PHYCR', 0xC000),
+                              ('PHYRCR', 0x4000), ('PHYSCR', 0x0300), ('CR2', 0x0020), ('CR3', 0x0060)},
+            'loopback_digital': {('BMCR', 0x7D80), ('BISCR', 0x705F), ('PHYRCR', 0x4000),
+                                 ('PHYSCR', 0x0300), ('CR1', 0x0020), ('PHYCR', 0xC000), ('CR2', 0x0020), ('CR3', 0x0060)},
             'loopback_reverse': {('BMCR', 0x4000), ('BISCR', 0x005F), ('PHYSCR', 0x0300), ('PHYRCR', 0x4000)},
-            'loopback_external': {('BMCR', 0x4000), ('BISCR', 0x005F)},
+            'loopback_external': {('BMCR', 0x4000), ('BISCR', 0x005F), ('PHYSCR', 0x0300)},
             'bist_run': {('BISCR', 0x7000), ('BICSR1', 0x00FF), ('BICSR2', 0x07FF)},
             'bist_capture': {('BICSR1', 0x00FF)},
             'cable_configure': {('CDSCR', 0x7770), ('CDSCR3', 0xFFFF), ('TDR_175', 0x380F),

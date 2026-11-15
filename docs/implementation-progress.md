@@ -1,9 +1,9 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–22 are complete: source research, shared contracts, portable
+execution. Prompts 1–23 are complete: source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 109 registered Release CTests, 103 Python tests,
+Current local checks include 118 registered Release CTests, 103 Python tests,
 the linked tests-OFF consumer, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -22,8 +22,17 @@ and explicit retained-history semantics. Prompt 21 adds [passive health](health.
 exact managed batch accounting and cached state without an offline admission latch.
 Prompt 22 adds [explicit reconciliation](reconciliation.md): bounded verification,
 retained mismatch evidence and recovery through the existing initialization path.
+Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
+operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+Prompt 23 began on clean, synchronized `main` at
+`9dee869f7e43beeea9f3c1837bf111029e29a74b`. The
+[stage report](reports/implementation/23-loopback-modes.md) records fresh TI/sibling
+reviews, all loopback paths and bounded separate stop/restoration, independent
+literal/failure tests and local verification. Session and physical evidence are
+separate; Q8 remains NOT RUN. Final SHA/upstream equality are in the handoff.
 
 Fresh prompts 21-22 audit began on clean, synchronized `main` at
 `04985e91f892160d1767405647a211667dec7438`. The
@@ -265,7 +274,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [20 Implement complete event and counter acquisition](prompts/20-event-counter-acquisition.md) | COMPLETE | [Report](reports/implementation/20-event-counter-acquisition.md); host/UBSan, consumer, docs and reference checks PASS; RECR/RMII derived semantics and physical Q16/Q17 remain gated |
 | [21 Implement passive driver health and exact accounting](prompts/21-passive-health.md) | COMPLETE | [Report](reports/implementation/21-passive-health.md); managed callback counts, cached state/error evidence, 11 focused health suites and portable example; physical NOT RUN |
 | [22 Implement explicit reconciliation and bounded recovery](prompts/22-reconcile-recover.md) | COMPLETE | [Report](reports/implementation/22-reconcile-recover.md); bounded stable-field verification, retained mismatch/cleanup evidence, shared initialization recovery, ten focused suites and portable example; physical NOT RUN |
-| [23 Implement all supported loopback modes](prompts/23-loopback-modes.md) | NOT STARTED | None |
+| [23 Implement all supported loopback modes](prompts/23-loopback-modes.md) | COMPLETE | [Report](reports/implementation/23-loopback-modes.md); all documented mode/speed/interface paths, separate start/stop, retained temporary state, shared restore and independent host/consumer tests; Q8 physical NOT RUN |
 | [24 Implement complete BIST generator and checker sessions](prompts/24-bist-generator-checker.md) | NOT STARTED | None |
 | [25 Implement complete manual cable capture](prompts/25-cable-manual.md) | NOT STARTED | None |
 | [26 Implement cable autorun and shared result acquisition](prompts/26-cable-autorun.md) | NOT STARTED | None |

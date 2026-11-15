@@ -13,6 +13,7 @@
 #include "../../examples/portable/Events.h"
 #include "../../examples/portable/Health.h"
 #include "../../examples/portable/Reconcile.h"
+#include "../../examples/portable/Loopback.h"
 #include <cstring>
 
 #ifdef _MSVC_LANG
@@ -106,6 +107,7 @@ struct InitializationController {
   uint16_t selector{0}, address{0}, vod{0x8400};
   uint16_t anar{0x01E1}, bmcr{0x3100};
   uint16_t cr1{0}, phycr{0x8000}, cr3{0}, cr2{0};
+  uint16_t biscr{0x0100}, physcr{0x0555};
   bool failVodWrite{false};
   bool failHardWrite{false};
   uint32_t resetWrites{0}, hardWrites{0}, restartWrites{0}, vodWrites{0}, frames{0};
@@ -140,6 +142,8 @@ struct InitializationController {
         else if (frame.registerAddress == 25) { receipt.value = controller.phycr; }
         else if (frame.registerAddress == 11) { receipt.value = controller.cr3; }
         else if (frame.registerAddress == 10) { receipt.value = controller.cr2; }
+        else if (frame.registerAddress == 0x16) { receipt.value = controller.biscr; }
+        else if (frame.registerAddress == 0x11) { receipt.value = controller.physcr; }
         else if (frame.registerAddress == 0x1F) { receipt.value = 0; }
         else if (frame.registerAddress == 0x0E && controller.selector == 0x401F) {
           if (controller.address == 0x030E) { receipt.value = controller.vod; }
@@ -157,6 +161,8 @@ struct InitializationController {
       } else if (frame.registerAddress == 25) { controller.phycr = written;
       } else if (frame.registerAddress == 11) { controller.cr3 = written;
       } else if (frame.registerAddress == 10) { controller.cr2 = written;
+      } else if (frame.registerAddress == 0x16) { controller.biscr = static_cast<uint16_t>((controller.biscr & 0x8FA0U) | (written & 0x705FU));
+      } else if (frame.registerAddress == 0x11) { controller.physcr = written;
       } else if (frame.registerAddress == 0x1F && frame.value == 0x8000) {
         ++controller.hardWrites;
         controller.vod = 0x8400;
@@ -383,9 +389,40 @@ static bool configurationExamples() noexcept {
       restoration.token.value == retry.token.value || phy.operationSnapshot().cleanupOwed ||
       phy.settingsSnapshot().desired.mode != DP8382x::LinkMode::FORCED ||
       phy.settingsSnapshot().trust != DP8382x::ConfigurationTrust::VERIFIED) return false;
+  // Maintenance admission is an application decision after traffic is quiesced.
+  DP8382x::LoopbackOptions loopOptions;
+  loopOptions.mode = DP8382x::LoopbackMode::PCS_INPUT;
+  loopOptions.speed = DP8382x::LinkSpeed::MBPS_10;
+  loopOptions.maintenanceAdmitted = true;
+  const auto runLoop = [&](LoopbackAttempt& attempt) {
+    for (unsigned turn = 0; turn < 100 && !attempt.resultAvailable; ++turn) {
+      pollLoopback(phy, attempt, quiet);
+      const auto pending = phy.operationSnapshot();
+      if (pending.nextPollValid && pending.nextPollAtUs > controller.timeUs) controller.timeUs = pending.nextPollAtUs;
+      if (pending.busQuietValid && pending.busQuietUntilUs > controller.timeUs) controller.timeUs = pending.busQuietUntilUs;
+    }
+    return attempt.resultAvailable;
+  };
+  LoopbackAttempt session;
+  if (!beginLoopback(phy, loopOptions, {{100000, 128}, 1000, 20}, session).inProgress() ||
+      !runLoop(session) || !session.result.status.ok() || !phy.loopbackSnapshot().temporaryMayBeActive ||
+      phy.settingsSnapshot().desired.forced.speed != DP8382x::LinkSpeed::MBPS_100) return false;
+  // Dwell/packet correlation belongs here. This host consumer claims no traffic proof.
+  controller.failVodWrite = true;
+  LoopbackAttempt failedStop;
+  if (!beginLoopbackStop(phy, {{100000, 128}, 1000, 20}, failedStop).inProgress() ||
+      !runLoop(failedStop) || !failedStop.result.status.is(DP8382x::Err::MDIO_TIMEOUT) ||
+      !phy.operationSnapshot().temporaryMayBeActive) return false;
+  controller.failVodWrite = false; // Explicit new owner decision, separate retained result.
+  LoopbackAttempt stopRetry;
+  if (!beginLoopbackStop(phy, {{100000, 128}, 1000, 20}, stopRetry).inProgress() ||
+      !runLoop(stopRetry) || !stopRetry.result.status.ok() || !stopRetry.result.loopback.stopped ||
+      !failedStop.result.status.is(DP8382x::Err::MDIO_TIMEOUT) ||
+      phy.operationSnapshot().temporaryMayBeActive || phy.operationSnapshot().cleanupOwed) return false;
   return forced.resultAvailable && forced.result.status.ok() &&
       controller.anar == 0x0101 && controller.bmcr == 0x2100 &&
-      controller.cr1 == 0x0020 && controller.phycr == 0 && controller.vodWrites == 3 &&
+      controller.cr1 == 0x0020 && controller.phycr == 0 && controller.vodWrites == 5 &&
+      controller.biscr == 0x0100 && controller.physcr == 0x0555 &&
       controller.resetWrites == 0 && controller.hardWrites == 0 && controller.restartWrites == 0 && phy.end().ok();
 }
 

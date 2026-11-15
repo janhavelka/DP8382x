@@ -148,3 +148,7 @@ Stage 17's [typed exchange](negotiation.md) is another consumer of this collecto
 It retains ANER events immediately and associates base/next payload validity
 separately. Public ANER acquisition is excluded during an owning exchange so it
 cannot steal a protocol event. Other admitted raw reads remain serialized.
+
+Loopback PHYSTS prerequisite/relink reads also pass through this collector.
+Session writes remain owner-routed: raw access cannot select opaque digital
+companions or clear the temporary barrier. See [loopback](loopback.md).

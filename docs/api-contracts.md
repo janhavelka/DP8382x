@@ -859,3 +859,23 @@ All controls normally precede BMCR activation. Disabling robust routing for AN
 is deferred until after enabling AN, preserving robust routing throughout any
 previous forced interval. Forced readback ignores AN-restart because it has no
 meaning with AN disabled. No physical partner or pause resolution is inferred.
+
+### Shipped loopback sessions (stage 23)
+
+`startLoopback(const LoopbackOptions&, const OperationBudget&, OperationToken&)`
+and `stopLoopback(const OperationBudget&, OperationToken&)` use the same slot;
+`loopbackSnapshot()` is passive. Starts require fresh identity, initialized and
+VERIFIED desired settings, explicit maintenance and mode-specific fixture
+attestations. No callback runs on admission. Loopback start/stop are RAW traffic,
+including stop's initialization/profile replay. Explicit initialization HARD
+remains managed. The [mode/procedure guide](loopback.md) defines exact scope.
+
+OP-9 temporary state survives take/cancel/abandon. Only owning stop, complete
+HARD restoration, external reset/POR attestation or a fresh binding clears it.
+A first attempted session write sets it even if the backend reports no target
+effect; selector-only frames do not. Stop rechecks identity, clears selectors,
+replays the persistent desired profile and verifies saved ordinary fields.
+Digital uses HARD for opaque companions; no arbitrary opaque snapshots are
+replayed. Failed stop leaves the session available for a new explicit attempt.
+Each result retains mode/speed, verified-control/stop flags and any acquired
+raw PHYSTS evidence; no packet result is implied.
