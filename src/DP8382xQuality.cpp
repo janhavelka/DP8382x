@@ -284,10 +284,10 @@ Status DP8382x::readSignalQuality(SignalQualitySnapshot& snapshot,const IoBudget
       !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && _operation.phase==OperationPhase::WAIT)) {
     return qualityBusy(BusyDetail::OPERATION_ACTIVE);
   }
-  if (_stopped) { return qualityBusy(BusyDetail::CONTROLLER_QUARANTINED); }
   auto fail=[this](Status status) noexcept {
     _signalQuality.stale=true; _signalQuality.lastStatus=status; return status;
   };
+  if (_stopped) { return fail(qualityBusy(BusyDetail::CONTROLLER_QUARANTINED)); }
   if (!capabilities().valid) { return fail(Status::Error(Err::NOT_INITIALIZED,"Accepted identity required for raw MSE")); }
   const auto context=_link;
   const auto identity=_identity;

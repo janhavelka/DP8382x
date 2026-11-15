@@ -76,3 +76,11 @@ address/scaling evidence and calibrated measurements before derived units.
 Host tests establish protocol and evidence retention only. Physical latency,
 signal quality, partner compatibility and unavailable MII fixtures remain
 NOT RUN; the initial RMII board does not remove the MII software controls.
+
+Quality prerequisite reads retain active-reset and contradictory BMCR mode
+evidence before a later read or release can fail. An interleaved admitted read
+that observes reset/restart terminates the current maintenance pass before any
+next dependent write. Raw observation success and interrupted-operation failure
+remain distinct. A quarantined-controller MSE request performs no I/O, leaves
+caller output unchanged, and marks the previous cached value stale at its old
+timestamp with the rejection status.

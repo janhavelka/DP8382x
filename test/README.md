@@ -567,3 +567,9 @@ source-gated zero-I/O requests, failure/cancel prefixes, explicit stop and share
 replay, calibration adjacency and HARD quiet floors. The portable consumer
 compiles the maintenance owner example. Host fakes do not qualify analog output,
 COL timing or calibration accuracy.
+
+The prompts34-35 audit extends existing registered quality/analog/electrical
+suites with combined downstream replay, failure/cancel handoff boundaries,
+external-reset/POR obligation clearing, reset-only effect classification and
+interleaved reset observations. Numeric literals remain independent of production
+masks; no extra test framework or physical qualification is introduced.

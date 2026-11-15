@@ -283,7 +283,78 @@ void failures() {
     OperationResult sentinel;sentinel.token.value=777;CHECK(!d.takeResult(t,sentinel).ok() && sentinel.token.value==777U);
   }
 }
+// Each later owner must take over the shared slot after the analog pass ends.
+void downstreamOwners(Driver& d,Controller& b,unsigned mask) {
+  OperationToken token;
+  if ((mask&1U)!=0U) {
+    PinSettings pins;pins.maintenanceAdmitted=pins.macStopped=pins.outputsQuiesced=true;
+    pins.availableMask=1;pins.pins[0].function=PinFunction::LED;pins.pins[0].source=LedSource::LINK_ACTIVITY;
+    PinResult result;CHECK(d.configurePins(pins,result,{1000000,1024}).ok());
+  }
+  if ((mask&2U)!=0U) {
+    WakeSettings wake;wake.enabled=true;wake.maintenanceAdmitted=wake.receiveTrafficQuiesced=true;
+    wake.mac[0]=0x11;wake.mac[5]=0x66;
+    CHECK(d.startConfigureWake(wake,budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+  }
+  if ((mask&4U)!=0U) {
+    InterruptSettings irq;irq.maintenanceAdmitted=irq.pinAvailable=irq.globalEnable=true;
+    irq.misr1Mask=1;irq.misr2Mask=2;
+    CHECK(d.startConfigureInterrupts(irq,budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+  }
+  if ((mask&8U)!=0U) {
+    PowerSettings power;power.maintenanceAdmitted=power.managementClockAvailable=true;
+    CHECK(d.startConfigurePower(power,budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+  }
+}
+void downstreamReplay() {
+  for (unsigned mask:{1U,2U,4U,8U,15U}) {
+    Controller b;Driver d;ready(d,b);downstreamOwners(d,b,mask);configured(d,b,settings());
+    OperationToken token;CHECK(d.startInitialize({ResetKind::HARD},budget(),token).inProgress());
+    CHECK(drain(d,b,token).ok());const auto restored=take(d,token);
+    CHECK(restored.persistentRestored && !restored.cleanupOwed && d.isInitialized());
+    CHECK(d.analogSnapshot().trust==ConfigurationTrust::VERIFIED);
+    if ((mask&1U)!=0U)CHECK(d.pinsSnapshot().trust==ConfigurationTrust::VERIFIED);
+    if ((mask&2U)!=0U)CHECK(d.wakeSnapshot().trust==ConfigurationTrust::VERIFIED);
+    if ((mask&4U)!=0U)CHECK(d.interruptSnapshot().trust==ConfigurationTrust::VERIFIED);
+    if ((mask&8U)!=0U)CHECK(d.powerSnapshot().trust==ConfigurationTrust::VERIFIED);
+    const auto mutations=b.mutations;
+    CHECK(d.startVerify(budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+    CHECK(b.mutations==mutations && d.isInitialized());
+  }
+  Controller oracle;Driver reference;ready(reference,oracle);downstreamOwners(reference,oracle,15);configured(reference,oracle,settings());
+  OperationToken token;const auto startFrames=oracle.frames,startCalls=oracle.calls;
+  CHECK(reference.startInitialize({ResetKind::HARD},budget(),token).inProgress());
+  bool invalidated=false;unsigned handoffFrames=0,handoffCalls=0;
+  for (unsigned n=0;n<512U;++n) {
+    const auto status=poll(reference,oracle,token);
+    if (reference.analogSnapshot().trust!=ConfigurationTrust::VERIFIED)invalidated=true;
+    if (invalidated && handoffFrames==0U && reference.analogSnapshot().trust==ConfigurationTrust::VERIFIED) {
+      CHECK(status.inProgress());handoffFrames=oracle.frames-startFrames;handoffCalls=oracle.calls-startCalls;
+    }
+    if (!status.inProgress()) { CHECK(status.ok());break; }
+  }
+  CHECK(handoffFrames!=0U);take(reference,token);
+  // Every downstream frame failure keeps the whole restoration incomplete,
+  // even though analog's independently verified words remain valid evidence.
+  for (unsigned frame=handoffFrames;frame<oracle.frames-startFrames;++frame) {
+    Controller b;Driver d;ready(d,b);downstreamOwners(d,b,15);configured(d,b,settings());
+    b.failFrame=static_cast<int>(b.frames+frame);
+    CHECK(d.startInitialize({ResetKind::HARD},budget(),token).inProgress());CHECK(drain(d,b,token).is(Err::MDIO_TIMEOUT));
+    const auto failed=take(d,token);
+    CHECK(!failed.persistentRestored && failed.cleanupOwed && !d.isInitialized());
+    CHECK(b.calls==b.releases && !b.locked);
+  }
+  for (unsigned boundary:{handoffCalls-1U,handoffCalls,handoffCalls+1U}) {
+    Controller b;Driver d;ready(d,b);downstreamOwners(d,b,15);configured(d,b,settings());
+    CHECK(d.startInitialize({ResetKind::HARD},budget(),token).inProgress());
+    for (unsigned n=0;n<boundary;++n)CHECK(poll(d,b,token).inProgress());
+    const auto frames=b.frames,clocks=b.clocks;CHECK(d.cancel(token).ok());
+    CHECK(b.frames==frames && b.clocks==clocks);
+    const auto cancelled=take(d,token);CHECK(cancelled.status.is(Err::CANCELLED) && !cancelled.persistentRestored && cancelled.cleanupOwed && !d.isInitialized());
+  }
+}
 void replay() {
+  downstreamReplay();
   for(auto reset:{ResetKind::NONE,ResetKind::PCS,ResetKind::HARD,ResetKind::RESTART}) {
     Controller b;Driver d;ready(d,b);configured(d,b,settings());OperationToken t;const auto first=b.frames;
     CHECK(d.startInitialize({reset},budget(),t).inProgress());CHECK(drain(d,b,t).ok());const auto r=take(d,t);
@@ -337,6 +408,25 @@ void ownership() {
     CHECK(reset.frames==before && reset.clocks==beforeClocks && !phy.isInitialized());
     CHECK(!phy.pollOperation(t,16).inProgress() && reset.frames==before);
     const auto result=take(phy,t);CHECK(!result.persistentRestored && phy.analogSnapshot().observedStale);
+  }
+  // Independent reset evidence interrupts retained composition even when the
+  // owned BMCR mode bits still match. The raw read itself remains publishable.
+  for (unsigned boundary:{3U,7U,9U})for (unsigned resetKind=0;resetKind<3U;++resetKind) {
+    Controller reset;Driver phy;ready(phy,reset);const auto t=start(phy,reset,settings());
+    for (unsigned n=0;n<boundary;++n)CHECK(poll(phy,reset,t).inProgress());
+    const auto mutations=reset.mutations,frames=reset.frames;
+    const uint16_t address=resetKind==0U?uint16_t{0}:uint16_t{0x1F};
+    reset.corruptFrame=static_cast<int>(frames);reset.corruptMask=resetKind==2U?0x4000:0x8000;
+    uint16_t raw=0xCAFE;
+    CHECK(phy.readClause22(address,raw,{1000000,1}).ok());
+    CHECK(raw==(resetKind==0U?0x9000U:resetKind==1U?0x8000U:0x4000U));
+    CHECK(phy.operationSnapshot().state==OperationState::RESULT_PENDING);
+    CHECK(phy.pollOperation(t,MAX_BATCH_FRAMES).is(Err::INVALID_CONFIG));
+    CHECK(reset.frames==frames+1U && reset.mutations==mutations);
+    const auto result=take(phy,t);
+    CHECK(result.status.detail==static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED));
+    CHECK(!result.persistentRestored && result.cleanupOwed==(boundary>=7U));
+    CHECK(result.mutationPossible==(boundary>=7U));
   }
   // Each admitted read compares against snapshot, bridge or completed state,
   // never against an un-applied destination. Drift invalidates saved composition.

@@ -145,3 +145,8 @@ README/CHANGELOG, API/lifecycle/coverage/source guides, vectors and progress wer
 updated. Version/manifests/licenses need no change: this is unreleased feature
 work with no imported code. Commit and upstream-equality evidence is recorded
 in the final handoff to avoid a self-referencing report commit.
+
+The later [independent prompts34-35 audit](34-35-independent-audit.md) corrects
+combined-owner replay, external-reset reconciliation, reset-only session
+classification and interleaved reset handling. It records separate verification
+without changing this original checkpoint's historical evidence.

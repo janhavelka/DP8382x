@@ -115,3 +115,15 @@ looked correct. Do not operate a fixture from these host examples automatically.
 remain explicit source/qualification limits. Q19 covers the sourced script
 adaptations and physical compliance; hardware results, electrical timing,
 resistor accuracy and energy measurements are NOT RUN.
+
+A reset command alone does not mean a compliance stimulus is active: reset
+acceptance, completion, quiet floor and restoration debt remain separate from
+the first attempted companion/profile/stimulus write. Cancellation immediately
+after the initial HARD therefore permits ordinary bounded reconciliation once
+the floor expires. An owner-attested external reset or POR clears current
+electrical sessions and calibration HARD debt without changing a frozen result.
+
+Shared replay leaves the analog pass before handing control to owned pins, WoL,
+interrupts and power. Combined profiles retain readiness and cleanup barriers
+until those later passes also finish. An admitted read observing an active reset
+interrupts a maintenance pass before another dependent snapshot-based write.

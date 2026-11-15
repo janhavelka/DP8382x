@@ -706,6 +706,8 @@ Status DP8382x::invalidateDeviceState(InvalidationReason reason) noexcept {
     _bistSession = _bistWorking = _bistRestoreTail = _bistCapturePending = false;
     _cableSession = _cableWorking = _cableRestoreTail = _cableCurrent = false;
     _cableCalibration = false;
+    _electrical.hardResetOwed = false;
+    _electrical.complianceSession = _electrical.collisionSession = false;
     _interruptTestSession = false;
     _interrupts.testMayBeActive = false;
   }
@@ -876,6 +878,7 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
   uint16_t selected = 0;
   uint16_t control = 0;
   bool prefix = true;
+  bool resetObserved = false;
   uint64_t previous = before;
   for (uint8_t i = 0; i < batch.frameCount; ++i) {
     const auto& frame = batch.frames[i];
@@ -930,15 +933,18 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
       continue; // Distinct MMD namespace; never alias BMSR/BISCR or vendor state.
     }
     if (target && frame.kind == FrameKind::READ && completed) {
-      // New electrical prerequisites may occur after frame0. Retain a reset
-      // indication even when a later frame/release fails the aggregate pass.
-      if (_analogWorking || _electricalWorking) {
-        if (address == cmd::REG_BMCR && (receipt.value & 0x8000U) != 0U) { _invalidateResetEvidence(true); }
+      // Maintenance prerequisites and interleaved reads can observe a reset.
+      // Retain it even when a later frame/release fails the aggregate pass.
+      if (_qualityWorking || _analogWorking || _electricalWorking) {
+        if (address == cmd::REG_BMCR && (receipt.value & 0x8000U) != 0U) {
+          resetObserved = true; _invalidateResetEvidence(true);
+        }
         else if (address == cmd::REG_PHYRCR && (receipt.value & 0xC000U) != 0U) {
+          resetObserved = true;
           _invalidateResetEvidence((receipt.value & 0x8000U) != 0U);
         }
       }
-      if (address == cmd::REG_BMCR && (_analogWorking || (_electricalWorking &&
+      if (address == cmd::REG_BMCR && (_qualityWorking || _analogWorking || (_electricalWorking &&
           (_operation.kind == OperationKind::COLLISION_START || _operation.kind == OperationKind::COLLISION_STOP)))) {
         _retainOwnedMode(receipt.value);
       }
@@ -1121,6 +1127,11 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
     auto& sample = _evidence.samples[static_cast<unsigned>(EvidenceSource::BICSR1)];
     sample.historyLost = true;
     sample.stale = true;
+  }
+  if (!_polling && resetObserved && _operation.state == OperationState::RUNNING) {
+    // Retained pre-reset composition cannot authorize the next dependent write.
+    // The raw read remains valid; the interrupted operation freezes separately.
+    _finishOperation(configError(ConfigDetail::DEVICE_INVALIDATED));
   }
   if (!_polling && (((_interruptWorking || _wakeWorking || (_qualityWorking && !_qualityVerifyOnly) || (_analogWorking && !_analogVerifyOnly)) && _result.mismatch.valid) ||
       (_pinsWorking && _pinResult.mismatch.valid) ||
@@ -1921,6 +1932,9 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
   if (_analogWorking) {
     status = _advanceAnalog(status, called, batch);
     if (status.inProgress()) { return _operation.status; }
+    // A completed analog pass must not remain the selected dispatcher when
+    // shared restoration advances to pins, wake, interrupts or power.
+    if (status.ok()) { _analogWorking = false; }
     _result.persistentRestored = status.ok();
     return _finishOperation(status);
   }

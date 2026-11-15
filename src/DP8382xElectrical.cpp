@@ -176,7 +176,9 @@ void DP8382x::_retainElectricalEffects(const MdioBatch& batch,bool called) noexc
         (r.completed || r.effectPossible || r.valueValid || uncertain)) {
       _electrical.hardResetOwed=true; _operation.cleanupOwed=true;
     }
-    if (attempted && (_electrical.complianceSession || _electrical.collisionSession)) {
+    // OP-9 distinguishes pending reset effects from a temporary stimulus.
+    // Only a non-reset companion/profile/stimulus write activates the session.
+    if (attempted && q.registerAddress!=0x1FU && (_electrical.complianceSession || _electrical.collisionSession)) {
       _operation.temporaryMayBeActive=true; _operation.cleanupOwed=true; _cleanupOwner=_operation.kind;
     }
   }

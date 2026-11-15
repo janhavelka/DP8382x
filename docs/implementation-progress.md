@@ -27,6 +27,13 @@ operations, retained temporary state and verified restoration.
 
 ## Execution record
 
+The [independent prompts34-35 audit](reports/implementation/34-35-independent-audit.md)
+starts from synchronized `main` at `c292dc75658b01d224617548d896f88fb8c6ef71`.
+It corrects quality evidence handling, combined-owner analog replay, electrical
+reset/session reconciliation and interleaved reset invalidation. Existing source
+and physical gates remain open; its report records fresh local verification and
+the final handoff records commit/upstream equality.
+
 Prompt35 began on clean synchronized `main` at
 `a4ee2d4f18b12dc577ed52e75387ab936b8bfc3d`. It implements source-admitted
 analog profiles, compliance/collision sessions and conditional calibration

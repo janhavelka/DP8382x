@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Audit prompts34-35: retain quality reset/mode evidence and stale MSE status;
+  complete analog handoff to later owned restoration; clear electrical debt on
+  external reset; distinguish reset-only effects from stimulus activation.
+  Stop maintenance after an interleaved reset observation before dependent writes.
+
 - Added persistent analog/electrical profiles with legal split-field transitions,
   finite compliance/collision sessions and conditional calibration recovery.
   Shared reset/replay retains partial effects and explicit cleanup; unsupported

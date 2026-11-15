@@ -135,3 +135,7 @@ remain NOT RUN in this portable stage. Remote CI is NOT RUN, reserved for71.
 RECR arithmetic and RMII RC interpretation remain explicit gates. Missing MII
 fixtures do not remove the implemented controls. Final commit/upstream equality
 is recorded in the handoff, avoiding a self-referencing commit.
+
+The later [independent prompts34-35 audit](34-35-independent-audit.md) adds
+reset/mode-evidence and quarantined-MSE regressions and corrections. The results
+above describe the original checkpoint; the audit records its own verification.

@@ -216,7 +216,9 @@ void vectors() {
   Controller rmii;rmii.boardInterface=MacInterface::RMII;Driver d;ready(d,rmii);auto s=settings(false);s.fastDrop.causeMask=0;
   rmii.words[11]=0x046F;configured(d,rmii,s);CHECK(rmii.words[11]==0x0060U);
 }
+void prerequisiteEvidence();
 void admission() {
+  prerequisiteEvidence();
   for(unsigned fault=0;fault<16U;++fault) {
     Controller b;Driver d;if(fault!=0U)ready(d,b);auto s=settings();OperationToken token{777};auto allowance=budget();
     switch(fault) {
@@ -243,6 +245,27 @@ void admission() {
   const auto before=raw.frames;CHECK(!rawPhy.startConfigureQuality(s,budget(),token).inProgress() && raw.frames==before);
   configured(rawPhy,raw,settings());s=settings();s.tx10.owned=false;
   CHECK(!rawPhy.startConfigureQuality(s,budget(),token).inProgress()); // Cannot silently abandon saved fields.
+}
+void prerequisiteEvidence() {
+  // A valid reset indication is retained before later frame/release failure.
+  for (unsigned failure=0;failure<3U;++failure) {
+    Controller b;Driver d;ready(d,b);const auto first=b.frames;
+    b.corruptFrame=static_cast<int>(first);b.corruptMask=0x8000;
+    if (failure==1U) { b.releaseCall=static_cast<int>(b.calls); }
+    if (failure==2U) { b.failFrame=static_cast<int>(first+1U); }
+    const auto token=start(d,b,settings(false));const auto status=drain(d,b,token);
+    CHECK(failure==0U?status.is(Err::INVALID_CONFIG):failure==1U?status.is(Err::MDIO_ERROR):status.is(Err::MDIO_TIMEOUT));
+    const auto result=take(d,token);
+    CHECK(!d.isInitialized() && !d.capabilities().valid && d.identitySnapshot().stale);
+    CHECK(!result.mutationPossible && !result.persistentRestored && writes(b,first,11)==0U);
+  }
+  // An observed mode contradicting persistent intent cannot remain VERIFIED.
+  Controller b;Driver d;ready(d,b);b.words[0]=0x2100;const auto first=b.frames;
+  const auto token=start(d,b,settings(false));CHECK(drain(d,b,token).is(Err::CONFIG_MISMATCH));
+  const auto result=take(d,token);
+  CHECK(result.mismatch.valid && result.mismatch.registerAddress==0U && result.mismatch.mask==0x3100U);
+  CHECK(d.settingsSnapshot().trust==ConfigurationTrust::DIRTY && d.settingsSnapshot().observedStale);
+  CHECK(!result.persistentRestored && !result.mutationAttempted && writes(b,first,11)==0U);
 }
 void failures() {
   Controller ref;Driver reference;ready(reference,ref);const auto first=ref.frames,firstCall=ref.calls;configured(reference,ref,settings());
@@ -382,6 +405,23 @@ void collector() {
   CHECK(current.samples[static_cast<unsigned>(EvidenceSource::RECR)].sampledSum==0U);
 }
 void ownership() {
+  // An interleaved raw reset observation freezes the pass even when stable
+  // mode bits still match. The consumed word remains valid to its caller.
+  for (unsigned boundary=2;boundary<=3U;++boundary) {
+    Controller interleaved;Driver phy;ready(phy,interleaved);
+    const auto token=start(phy,interleaved,settings(false));
+    for (unsigned step=0;step<boundary;++step) { CHECK(poll(phy,interleaved,token).inProgress()); }
+    interleaved.corruptFrame=static_cast<int>(interleaved.frames);interleaved.corruptMask=0x8000;
+    uint16_t word=0xCAFE;CHECK(phy.readClause22(0,word,{1000000,1}).ok() && word==0x9000U);
+    const auto frames=interleaved.frames,mutations=interleaved.mutations;
+    CHECK(phy.operationSnapshot().state==OperationState::RESULT_PENDING);
+    CHECK(phy.pollOperation(token).is(Err::INVALID_CONFIG));
+    const auto result=take(phy,token);
+    CHECK(result.status.detail==static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED));
+    CHECK(result.cleanupOwed && result.mutationCompleted && !result.persistentRestored);
+    CHECK(!phy.isInitialized() && !phy.capabilities().valid);
+    CHECK(interleaved.frames==frames && interleaved.mutations==mutations);
+  }
   Controller b;Driver d,other;ready(d,b);CHECK(other.bind(b.config(2)).ok());b.competitor=&other;
   const auto first=b.frames;configured(d,b,settings());CHECK(b.excluded==b.frames-first);b.competitor=nullptr;
   CHECK(!other.qualitySnapshot().desiredValid);
@@ -428,6 +468,18 @@ void raw() {
   CHECK(out.valid && !out.stale && out.rawMse==0xABCD && out.timeValid && b.frames-first==4U && b.calls-calls==1U);
   CHECK(b.trace[first].reg==13 && b.trace[first].value==0x001FU && b.trace[first+1U].reg==14 && b.trace[first+1U].value==0x0218U);
   CHECK(b.trace[first+2U].reg==13 && b.trace[first+2U].value==0x401FU && b.trace[first+3U].kind==FrameKind::READ);
+  {
+    Controller stopped;Driver stoppedPhy;ready(stoppedPhy,stopped);stopped.ext[0x218]=0x1234;
+    SignalQualitySnapshot retained;CHECK(stoppedPhy.readSignalQuality(retained,{1000000,4}).ok());
+    const auto time=retained.observedAtUs;stopped.badReceiptCall=static_cast<int>(stopped.calls);
+    uint16_t rawId=0;CHECK(!stoppedPhy.readClause22(2,rawId,{1000000,1}).ok());
+    const auto frames=stopped.frames,clocks=stopped.clocks;retained.rawMse=0xCAFE;
+    const auto rejected=stoppedPhy.readSignalQuality(retained,{1000000,4});
+    CHECK(rejected.is(Err::BUSY) && rejected.detail==static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED));
+    const auto cached=stoppedPhy.signalQualitySnapshot();
+    CHECK(retained.rawMse==0xCAFE && cached.rawMse==0x1234 && cached.stale && cached.observedAtUs==time);
+    CHECK(cached.lastStatus.is(Err::BUSY) && stopped.frames==frames && stopped.clocks==clocks);
+  }
   const auto saved=out;for(unsigned phase=0;phase<4U;++phase) {
     b.failFrame=static_cast<int>(b.frames+phase);out.rawMse=0xCAFE;CHECK(d.readSignalQuality(out,{1000000,4}).is(Err::MDIO_TIMEOUT));
     CHECK(out.rawMse==0xCAFE);const auto stale=d.signalQualitySnapshot();

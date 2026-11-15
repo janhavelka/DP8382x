@@ -1074,3 +1074,9 @@ sessions use separate starts/stops and retained results, with no automatic dwell
 or cleanup work. HARD stop/calibration completion leaves persistent restoration
 to a new `startInitialize`. See [electrical procedures](electrical.md) for
 source gates, legal transition ordering, finite bounds and physical limits.
+
+The [prompts34-35 independent audit](reports/implementation/34-35-independent-audit.md)
+adds regressions for OP-9 reset-versus-stimulus evidence, OP-15 current electrical
+obligation clearing, combined-owner replay and interleaved reset observations.
+A valid raw reset observation can terminate the pending maintenance operation
+without turning that successful raw read into a transport failure.

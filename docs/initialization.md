@@ -267,3 +267,9 @@ initialization still writes/verifies the baseline first. `startVerify` compares
 the admitted desired override. Compliance HARD stop and calibration recovery
 leave readiness false and cleanup owed until a separate initialization completes
 all persistent tails. See [electrical controls](electrical.md).
+
+The [prompts34-35 audit](reports/implementation/34-35-independent-audit.md)
+verifies analog handoff to each later owner and their combined profile. A
+finished analog phase no longer remains selected while pin/WoL/IRQ/power replay
+is pending. External reset/POR notifications clear current electrical session
+and calibration HARD obligations while preserving frozen historical results.

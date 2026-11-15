@@ -143,6 +143,12 @@ bool semantic(const Wire& w) { return w.kind==FrameKind::WRITE && w.reg!=13 && !
 unsigned writes(const Controller& b,unsigned first,uint16_t target) {
   unsigned count=0;for(unsigned i=first;i<b.frames;++i)if(semantic(b.trace[i]) && b.trace[i].target==target)++count;return count;
 }
+bool sessionWriteAttempted(const Controller& b,unsigned first) {
+  for (unsigned i=first;i<b.frames;++i) {
+    if (semantic(b.trace[i]) && b.trace[i].target!=0x1FU) { return true; }
+  }
+  return false;
+}
 void vectors() {
   for(const auto mode:{ComplianceMode::TX100,ComplianceMode::NLP10,ComplianceMode::PRBS10,ComplianceMode::PATTERN10}) {
     const unsigned patterns=mode==ComplianceMode::PATTERN10?14U:1U;
@@ -209,7 +215,8 @@ void failures() {
       const auto t=start(d,b,options(mode,mode==ComplianceMode::PATTERN10?3:0));CHECK(drain(d,b,t).is(Err::MDIO_TIMEOUT));
       const auto r=take(d,t);CHECK(r.status.detail==-33033 && b.frames==base+offset+1U);
       CHECK(b.calls==b.releases && !b.locked);
-      if(r.mutationPossible) { CHECK(r.cleanupOwed && r.temporaryMayBeActive);CHECK(d.end().is(Err::BUSY)); }
+      CHECK(r.temporaryMayBeActive==sessionWriteAttempted(b,base));
+      if(r.mutationPossible) { CHECK(r.cleanupOwed);CHECK(d.end().is(Err::BUSY)); }
       CHECK(!r.electrical.controlsVerified);
       if(d.operationSnapshot().busQuietValid && b.now<d.operationSnapshot().busQuietUntilUs) { const auto at=b.frames;uint16_t sentinel=0xCAFE;CHECK(!d.readClause22(2,sentinel,{b.now+1000,1}).ok());CHECK(b.frames==at && sentinel==0xCAFE); }
     }
@@ -249,15 +256,20 @@ void failures() {
   }
 }
 void stopAfterExistingReset();
+void externalResetReconciliation();
+void resetBeforeStimulus();
 void cancellation() {
   stopAfterExistingReset();
+  externalResetReconciliation();
+  resetBeforeStimulus();
   Controller baseline;Driver reference;ready(reference,baseline);const auto calls=baseline.calls;complete(reference,baseline,start(reference,baseline,options(ComplianceMode::PRBS10)));
   for(unsigned boundary=0;boundary<baseline.calls-calls;++boundary) {
-    Controller b;Driver d;ready(d,b);const auto t=start(d,b,options(ComplianceMode::PRBS10));
+    Controller b;Driver d;ready(d,b);const auto first=b.frames;const auto t=start(d,b,options(ComplianceMode::PRBS10));
     for(unsigned i=0;i<boundary;++i)CHECK(poll(d,b,t).inProgress());
     const auto frames=b.frames,clocks=b.clocks;CHECK(d.cancel(t).ok());CHECK(b.frames==frames && b.clocks==clocks);
     const auto r=take(d,t);CHECK(r.status.is(Err::CANCELLED));
-    if(r.mutationPossible)CHECK(r.cleanupOwed && r.temporaryMayBeActive);
+    CHECK(r.temporaryMayBeActive==sessionWriteAttempted(b,first));
+    if(r.mutationPossible)CHECK(r.cleanupOwed);
     OperationResult again;CHECK(d.takeResult(t,again).is(Err::RESULT_NOT_AVAILABLE));
   }
 }
@@ -270,6 +282,72 @@ void stopAfterExistingReset() {
   LinkSettings profile;profile.advertisement.technologyMask=8;OperationToken apply;
   CHECK(driver.startConfigure(profile,{},budget(),apply).inProgress());const auto applied=complete(driver,idle,apply);
   CHECK(!applied.temporaryMayBeActive && !applied.cleanupOwed);
+}
+void resetBeforeStimulus() {
+  for (bool fail : {false,true}) {
+    Controller b; Driver d; ready(d,b); const auto first=b.frames;
+    const auto token=start(d,b,options());
+    for (unsigned n=0;n<32U && d.operationSnapshot().phase!=OperationPhase::COMMAND;++n) {
+      CHECK(poll(d,b,token).inProgress());
+    }
+    CHECK(d.operationSnapshot().phase==OperationPhase::COMMAND);
+    if (fail) { b.failFrame=static_cast<int>(b.frames); }
+    const auto status=poll(d,b,token);
+    CHECK(fail?status.is(Err::MDIO_TIMEOUT):status.inProgress());
+    CHECK(writes(b,first,0x1F)==1U && !sessionWriteAttempted(b,first));
+    CHECK(d.operationSnapshot().busQuietValid && !d.operationSnapshot().temporaryMayBeActive);
+    if (!fail) { CHECK(d.cancel(token).ok()); }
+    const auto result=take(d,token);
+    CHECK(result.cleanupOwed && result.mutationPossible && !result.temporaryMayBeActive);
+    CHECK(!result.electrical.complianceSession && !d.electricalSnapshot().complianceSession);
+    // The pending reset still owns its floor and cleanup, but no stimulus has
+    // started. Explicit NONE reconciliation can observe completion and replay.
+    b.failFrame=-1; OperationToken restore;
+    CHECK(d.startInitialize({ResetKind::NONE},budget(),restore).inProgress());
+    const auto before=b.frames; CHECK(d.pollOperation(restore).inProgress());
+    CHECK(b.frames==before);
+    CHECK(complete(d,b,restore).persistentRestored && b.hard==1U);
+  }
+}
+void externalResetReconciliation() {
+  for (const auto reason : {InvalidationReason::EXTERNAL_RESET, InvalidationReason::EXTERNAL_POWER_ON}) {
+    // A reported physical reset clears current HARD debt, never the frozen failure.
+    Controller b; Driver d; ready(d,b); b.words[30]=0x4102; OperationToken token;
+    b.failFrame=static_cast<int>(b.frames+1U);
+    CHECK(d.startCalibrationRecovery({true,true,true},budget(),token).inProgress());
+    CHECK(drain(d,b,token).is(Err::MDIO_TIMEOUT));
+    CHECK(d.electricalSnapshot().hardResetOwed && d.operationSnapshot().cleanupOwed);
+    b.defaults(); b.failFrame=-1;
+    const auto frames=b.frames,clocks=b.clocks;
+    CHECK(d.invalidateDeviceState(reason).ok());
+    CHECK(b.frames==frames && b.clocks==clocks);
+    CHECK(!d.electricalSnapshot().hardResetOwed && !d.operationSnapshot().cleanupOwed);
+    const auto failed=take(d,token);
+    CHECK(failed.status.is(Err::MDIO_TIMEOUT) && failed.electrical.hardResetOwed && failed.cleanupOwed);
+    CHECK(d.startInitialize({ResetKind::NONE},budget(),token).inProgress());
+    CHECK(complete(d,b,token).persistentRestored && b.hard==0U);
+
+    for (bool collisionSession : {false,true}) {
+      Controller active; Driver session; ready(session,active); OperationToken started;
+      if (collisionSession) {
+        CHECK(session.startCollisionTest({LinkSpeed::MBPS_100,true,true,true,true},budget(),started).inProgress());
+      } else { started=start(session,active,options(ComplianceMode::PATTERN10,3)); }
+      CHECK(drain(session,active,started).ok());
+      CHECK(session.electricalSnapshot().temporaryMayBeActive);
+      active.defaults();
+      const auto before=active.frames,beforeClock=active.clocks;
+      CHECK(session.invalidateDeviceState(reason).ok());
+      CHECK(active.frames==before && active.clocks==beforeClock);
+      const auto current=session.electricalSnapshot();
+      CHECK(!current.complianceSession && !current.collisionSession && !current.temporaryMayBeActive);
+      CHECK(!current.controlsVerified && !session.operationSnapshot().cleanupOwed);
+      const auto historical=take(session,started);
+      CHECK(historical.status.ok() && historical.temporaryMayBeActive && historical.cleanupOwed);
+      CHECK(collisionSession?historical.electrical.collisionSession:historical.electrical.complianceSession);
+      CHECK(session.startInitialize({ResetKind::NONE},budget(),started).inProgress());
+      CHECK(complete(session,active,started).persistentRestored);
+    }
+  }
 }
 void collision() {
   for(const auto speed:{LinkSpeed::MBPS_10,LinkSpeed::MBPS_100})for(bool an:{false,true})for(const uint16_t mux:std::array<uint16_t,3>{{3,5,6}}) {
