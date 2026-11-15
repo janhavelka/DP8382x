@@ -60,6 +60,18 @@ Status DP8382x::_validatePins(const PinSettings& settings) const noexcept {
     return pinConfig("Pin changes require stopped MAC and quiesced output admission");
   }
   const bool basic=_identity.mode==OperatingMode::BASIC;
+  if (_interface.desiredValid) {
+    if (settings.led1ClockOverride && _interface.desired.clockOutput!=ClockOutput::UNOWNED) {
+      return pinConfig("Interface owner already owns the LED1 clock override");
+    }
+    if (settings.pins[1].function!=PinFunction::UNOWNED && _interface.desired.clockOutput==ClockOutput::CLKOUT25) {
+      return pinConfig("LED1 is owned as a clock output");
+    }
+    const auto role=settings.pins[2].function;
+    if (_interface.desired.collisionFullDuplex && role!=PinFunction::UNOWNED && !collision(role)) {
+      return pinConfig("Interface owner requires the MII COL output");
+    }
+  }
   if (basic && (settings.led0SwapOwned || settings.led1ClockOverride)) {
     return pinConfig("BASIC polarity override and clock selection remain source-gated");
   }
@@ -197,6 +209,7 @@ void DP8382x::_nextPinRow() noexcept {
   _pinStep=_pinRow<PIN_ROWS?(_pinsVerifyOnly?PinStep::VERIFY:PinStep::APPLY):PinStep::COMPLETE;
 }
 void DP8382x::_beginPins(bool verifyOnly) noexcept {
+  _interfaceWorking=false;
   _pinsWorking=true; _pinsVerifyOnly=verifyOnly; _pinResult={}; _pinRow=0;
   _pins.observedStale=true;
   const auto valid=_validatePins(_pins.desired);
@@ -396,6 +409,9 @@ Status DP8382x::configurePins(const PinSettings& settings,PinResult& result,cons
 PinSnapshot DP8382x::pinsSnapshot() const noexcept {
   auto snapshot=_pins;
   if (!snapshot.desiredValid) { return snapshot; }
+  if (snapshot.desired.pins[1].function!=PinFunction::UNOWNED && !_led1RouteVerified()) {
+    snapshot.trust=ConfigurationTrust::DIRTY; snapshot.observedStale=true;
+  }
   for (uint8_t i=1;i<3U;++i) {
     const auto function=snapshot.desired.pins[i].function;
     const bool wake=function==PinFunction::WAKE;

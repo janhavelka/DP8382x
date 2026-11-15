@@ -232,3 +232,11 @@ a legitimate read-only resulting CLKOUT/LED status, not a writable strap.
 BICSR1 counter-clear command, not an ordinary counter read, affects PRBS LED
 indication. Independent pin masks and source extrema are in
 [the vectors](../register-vectors.md#stage32-independent-ledgpio-literals).
+
+
+Stage33 rechecked original SNLS647I tables8-19/41/73/84 visually and the current
+TI Zephyr source at `450af1144b8caeb58724bcbae081b409f6bf5c3a` (Apache-2.0).
+Its MII/leader/follower masks agree, but it validates after a read and lacks RC
+retention/readback; no implementation was copied. [The report](../reports/implementation/33-clock-interface-repeater.md)
+records exact paths, current revision and independent source vectors. RCSR's
+100ppm packet arithmetic does not relax table7.6 electrical clock requirements.

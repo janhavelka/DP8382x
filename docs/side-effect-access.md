@@ -175,3 +175,10 @@ ordinary pin reads are non-destructive and do not imply new event acquisition.
 The single collector's BMSR read clears LINK_LOST indication. BICSR1's documented
 capture/clear command affects the PRBS_ERROR indication; an ordinary BICSR1 read
 is not that command. No LED-owned destructive reader is introduced.
+
+
+Stage33 [interface updates](interface-clock.md) route both RCSR RMW reads and
+masked readback through the single collector. RC[3:2] are retained before a later
+error and written as zero, while reserved bit6 remains preserved. A timeout after
+a possibly consuming read records history loss. Raw samples never become decoded
+FIFO faults merely because the printed polarity or fake seems convenient.

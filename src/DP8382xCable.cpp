@@ -105,6 +105,9 @@ Status DP8382x::_admitCable(const OperationBudget& budget, bool stop) const noex
 }
 
 Status DP8382x::startCableTest(const CableSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept {
+  if (_interface.desiredValid && _interface.desired.isolationOwned && _interface.desired.isolate) {
+    return invalid("Release owned MAC isolation before manual cable capture");
+  }
   const auto validation = validateCableSettings(settings); if (!validation.ok()) { return validation; }
   const auto admission = _admitCable(budget, false); if (!admission.ok()) { return admission; }
   if (_operation.cleanupOwed || _operation.temporaryMayBeActive) { return busyCable(BusyDetail::CLEANUP_REQUIRED); }

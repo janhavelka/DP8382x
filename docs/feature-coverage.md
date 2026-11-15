@@ -185,3 +185,12 @@ force/polarity, blink/stretch and mux values have independent literal/failure
 tests. [The guide](led-gpio.md) lists source-gated routes and
 [the report](reports/implementation/32-led-gpio.md) separates host evidence from
 Q12. IRQ/WoL source owners retain their own mux writes and collector.
+
+
+Stage33 implements `clock_configure`, `mii_configure`, `rmii_configure`,
+`repeater_configure`, `compatibility_configure` and `isolation_configure` through
+one `InterfaceSettings`/`configureInterface` pass. Independent host vectors and
+failure/restore tests are in `test/interface.cpp`; the
+[guide](interface-clock.md) and [report](reports/implementation/33-clock-interface-repeater.md)
+keep Q12 clock-mux, Q17 raw-RCSR and physical repeater evidence separate.
+Clock selectors without an established activation route remain rejected.

@@ -537,3 +537,14 @@ read-only mismatch retention, power/reset restoration and collector LED effects.
 The [portable example](../examples/portable/Pins.h) executes normal/conflict
 paths in the host suite and links in the tests-OFF consumer. Physical Q12 stays
 [NOT RUN](../docs/led-gpio.md).
+
+
+Stage33 registers `interface_vectors`, `interface_admission`,
+`interface_failures`, `interface_replay`, `interface_ownership`,
+`interface_collector`, `interface_timing`, `interface_repeater` and the deliberate
+Release failure-path probe. Independent literals cover all RMII role/shift/
+revision/elasticity combinations, MII compatibility, clock/isolation, reserved
+bits and exact frame limits. Failure injection covers each application/replay
+frame, accepted writes, release, RC history loss, raw contradictions and cancel.
+The [example](../examples/portable/Interface.h) compiles in the tests-OFF consumer
+and executes admitted/rejected owner sequences in the host suite.

@@ -1,0 +1,585 @@
+#include "support/Check.h"
+#include <DP8382x/DP8382x.h>
+#include "../examples/portable/Interface.h"
+#include <array>
+#include <cstdint>
+#include <limits>
+
+namespace {
+using namespace DP8382x;
+using Driver = ::DP8382x::DP8382x;
+struct Wire { FrameKind kind; uint8_t reg; uint16_t value, target, devad; uint64_t at; };
+
+// Independent SNLS647I tables8-19/28/29/35/41/73/84. The numeric
+// assertions below come from the original tables; fake RC consumption is not
+// proof of RCSR status polarity or physical clock/repeater operation.
+struct Controller {
+  std::array<uint16_t,32> words{};
+  std::array<uint16_t,0x500> ext{};
+  std::array<uint16_t,64> mmd3{},mmd7{};
+  std::array<Wire,8192> trace{};
+  uint16_t selector{0},address{0},id2{0xA131};
+  MacInterface boardInterface{MacInterface::RMII};
+  uint64_t now{100};
+  unsigned frames{0},calls{0},clocks{0},releases{0},mutations{0},hard{0};
+  std::array<unsigned,2048> firstFrame{};
+  uint16_t capability{2}; bool corruptAdvertisement{false};
+  int failFrame{-1},releaseCall{-1},corruptFrame{-1},lateCall{-1},regressCall{-1},invalidCall{-1},badReceiptCall{-1};
+  uint16_t corruptMask{1};
+  bool acceptedFailure{true},locked{false},powerPin{false},stickyRestart{false};
+  int poisonBmcrFrame{-1},changeBmcrFrame{-1}; uint16_t bmcrChange{0};
+  uint64_t frameTime{2};
+  Driver* competitor{nullptr}; unsigned excluded{0};
+  Controller() { defaults(); }
+  void defaults() {
+    words.fill(0);ext.fill(0);mmd3.fill(0);mmd7.fill(0);words[0]=0x3100;words[4]=0x01E1;
+    words[1]=0x0024;words[5]=0x0101;words[6]=1;words[16]=0x15;
+    words[25]=0x8001;words[22]=0x0100;words[30]=0x0102;words[23]=0x0061;
+    ext[0x0303]=ext[0x0304]=ext[0x0305]=ext[0x0306]=8;
+    ext[0x030E]=0x8400;ext[0x04A1]=0x1000;ext[0x04D1]=0x0080;
+  }
+  Config config(uint32_t phy=1) {
+    Config c;c.variant=Variant::DP83826I;c.interface=boardInterface;c.phyAddress=phy;
+    c.transport={this,execute,clock,{8,4,1}};return c;
+  }
+  static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context);++b.clocks;return b.now; }
+  uint16_t read(uint16_t target,uint16_t devad=31) {
+    if(devad==3) {
+      CHECK(target<64U);if(target>=64U)return 0xFFFF;
+      if(target==0x14)return capability;
+      const auto value=mmd3[target];if(target==1)mmd3[target]&=0xF3FF;if(target==0x16)mmd3[target]=0;
+      return value;
+    }
+    if(devad==7) { CHECK(target<64U);return target<64U?mmd7[target]:uint16_t{0xFFFF}; }
+    if(target==2)return 0x2000;
+    if(target==3)return id2;
+    if(target==0) { words[0]&=stickyRestart?0x7FFFU:0x7DFFU;return static_cast<uint16_t>(words[0]|(powerPin?0x0800U:0U)); }
+    if(target==31)words[31]=0;
+    if(target==0x0308)return static_cast<uint16_t>((ext[0x0302]&0x0040U)!=0U?1U:0U);
+    const auto value=target<32U?words[target]:ext[target];
+    if(target==18 || target==19) { words[target]&=0x00FF;words[16]&=0xFF7F; }
+    if(target==20) { words[20]&=0xFF00;words[16]&=0xF7FF; }
+    if(target==21) { words[21]=0;words[16]&=0xDFFF; }
+    if(target==23)words[23]&=0xFFF3;
+    if(target==0x04A1)ext[target]&=0xFF00;
+    return value;
+  }
+  void write(uint8_t reg,uint16_t value) {
+    if(reg==13) { CHECK((value&0xBFE0U)==0U && ((value&31U)==3U || (value&31U)==7U || (value&31U)==31U));selector=value;return; }
+    if(reg==14 && (selector&0x4000U)==0U) { address=value;return; }
+    const uint16_t target=reg==14?address:uint16_t{reg};++mutations;
+    const uint16_t devad=reg==14?static_cast<uint16_t>(selector&31U):uint16_t{31};
+    if(devad==3 || devad==7) {
+      CHECK(target<64U);if(target>=64U)return;
+      if(devad==3)mmd3[target]=value;else mmd7[target]=static_cast<uint16_t>(value^(corruptAdvertisement?1U:0U));
+      return;
+    }
+    if(target==31 && value==0x8000) { ++hard;defaults();return; }
+    if(target==0 && value==0x8000) { words[0]=0x3100;words[9]=words[10]=words[17]=0;words[23]=0x0061;return; }
+    if(target==23)CHECK((value&0x000CU)==0U);
+    if(target==18 || target==19) { CHECK((value&0xFF00U)==0U);words[target]=static_cast<uint16_t>((words[target]&0xFF00U)|value);return; }
+    if(target==0x04A1) {
+      CHECK(value==0x1000 || value==0);
+      ext[target]=static_cast<uint16_t>((ext[target]&0x00FFU)|value);return;
+    }
+    if(target<32U)words[target]=value;else ext[target]=value;
+  }
+  static BatchResult execute(void* context,const MdioBatch& batch,const IoBudget& budget) noexcept {
+    auto& b=*static_cast<Controller*>(context);BatchResult r;
+    r.status=Status::Ok();r.releaseStatus=Status::Ok();r.controllerReusable=true;
+    if(b.locked) { r.status={Err::BUSY,static_cast<int32_t>(BusyDetail::OWNER_ADMISSION),"Owned"};return r; }
+    CHECK(batch.frameCount<=budget.maxFrames);b.locked=true;const auto call=b.calls++;CHECK(call<b.firstFrame.size());b.firstFrame[call]=b.frames;
+    for(uint8_t i=0;i<batch.frameCount;++i) {
+      const auto& q=batch.frames[i];auto& f=r.frames[i];uint16_t value=q.value;
+      if(q.readIndex!=NO_READ_INDEX) { CHECK(q.readIndex<i && r.frames[q.readIndex].valueValid);value=static_cast<uint16_t>((r.frames[q.readIndex].value&q.preserveMask)|q.value); }
+      const uint16_t target=q.registerAddress==14 && (b.selector&0x4000U)!=0U?b.address:uint16_t{q.registerAddress};
+      const uint16_t devad=q.registerAddress==14 && (b.selector&0x4000U)!=0U?static_cast<uint16_t>(b.selector&31U):uint16_t{31};
+      CHECK(b.frames<b.trace.size());const auto frame=b.frames++;b.trace[frame]={q.kind,q.registerAddress,value,target,devad,b.now};
+      if(static_cast<int>(frame)==b.changeBmcrFrame)b.words[0]^=b.bmcrChange;
+      f.attempted=true;const bool failed=static_cast<int>(frame)==b.failFrame;
+      if(!failed || b.acceptedFailure) {
+        if(q.kind==FrameKind::WRITE)b.write(q.registerAddress,value);
+        else { f.value=b.read(target,devad);if(static_cast<int>(frame)==b.corruptFrame)f.value^=b.corruptMask;
+          if(static_cast<int>(frame)==b.poisonBmcrFrame && target==0)f.value=0xB700; }
+      }
+      b.now+=b.frameTime;
+      if(b.competitor!=nullptr) {
+        uint16_t sentinel=0xCAFE;CHECK(b.competitor->readMmd(31,0x0467,sentinel,budget).is(Err::BUSY));CHECK(sentinel==0xCAFE);++b.excluded;
+      }
+      if(failed) { f.effectPossible=b.acceptedFailure;r.status={Err::MDIO_TIMEOUT,-33033,"Injected frame"};break; }
+      f.completed=true;f.valueValid=q.kind==FrameKind::READ;
+    }
+    if(static_cast<int>(call)==b.releaseCall) { r.releaseStatus={Err::MDIO_ERROR,-37,"Injected release"};r.controllerReusable=false; }
+    if(static_cast<int>(call)==b.lateCall)b.now=budget.deadlineUs;
+    if(static_cast<int>(call)==b.regressCall)b.now=0;
+    if(static_cast<int>(call)==b.invalidCall)r.status={Err::IN_PROGRESS,-33034,"Illegal terminal status"};
+    if(static_cast<int>(call)==b.badReceiptCall)r.frames[0].attempted=false;
+    b.locked=false;++b.releases;return r;
+  }
+};
+OperationBudget budget(uint32_t frames=2048,uint64_t deadline=1000000) { return {{deadline,frames},10,8}; }
+Status poll(Driver& d,Controller& b,OperationToken t,uint32_t slice=MAX_BATCH_FRAMES) {
+  const auto s=d.operationSnapshot();
+  if(s.nextPollValid && b.now<s.nextPollAtUs)b.now=s.nextPollAtUs;
+  if(s.busQuietValid && b.now<s.busQuietUntilUs)b.now=s.busQuietUntilUs;
+  const auto calls=b.calls;const auto status=d.pollOperation(t,slice);CHECK(b.calls<=calls+1U && !b.locked);return status;
+}
+Status drain(Driver& d,Controller& b,OperationToken t) {
+  Status s={Err::IN_PROGRESS,0,"Pending"};for(unsigned n=0;n<512U && s.inProgress();++n)s=poll(d,b,t);CHECK(!s.inProgress());return s;
+}
+OperationResult take(Driver& d,OperationToken t) { OperationResult r;CHECK(d.takeResult(t,r).ok());return r; }
+void initialized(Driver& d,Controller& b) {
+  CHECK(d.bind(b.config()).ok());OperationToken t;CHECK(d.startInitialize({ResetKind::NONE},budget(),t).inProgress());CHECK(drain(d,b,t).ok());take(d,t);
+}
+void ready(Driver& d,Controller& b) {
+  initialized(d,b);LinkSettings profile;profile.advertisement.technologyMask=8;
+  OperationToken t;CHECK(d.startConfigure(profile,{},budget(),t).inProgress());CHECK(drain(d,b,t).ok());take(d,t);
+}
+InterfaceSettings settings(MacInterface mode=MacInterface::RMII) {
+  InterfaceSettings s;s.interface=mode;s.referenceClockMHz=25;
+  s.maintenanceAdmitted=s.macStopped=s.pinsAvailable=true;
+  s.referenceClockStable=s.managementClockAvailable=s.clockChangeApproved=true;
+  return s;
+}
+InterfaceResult configured(Driver& d,Controller& b,const InterfaceSettings& s) {
+  InterfaceResult out;const auto status=d.configureInterface(s,out,{1000000,2048});
+  if(!status.ok())std::fprintf(stderr,"interface status %d detail %d: %s\n",static_cast<int>(status.code),status.detail,status.msg);
+  CHECK(status.ok() && out.verified && out.status.ok() && !b.locked);
+  const auto view=d.interfaceSnapshot();
+  CHECK(view.desiredValid && view.trust==ConfigurationTrust::VERIFIED && !view.observedStale && view.timeValid);
+  CHECK(view.modeValid && view.observedInterface==s.interface);
+  CHECK(d.operationSnapshot().state==OperationState::IDLE && !d.operationSnapshot().cleanupOwed);
+  return out;
+}
+bool semantic(const Wire& w) { return w.kind==FrameKind::WRITE && w.reg!=13 && !(w.reg==14 && w.target==14); }
+unsigned writes(const Controller& b,unsigned start,uint16_t target) {
+  unsigned n=0;for(unsigned i=start;i<b.frames;++i)if(semantic(b.trace[i]) && b.trace[i].target==target)++n;return n;
+}
+void vectors() {
+  for(bool basic:{false,true})for(bool follower:{false,true})for(bool shift:{false,true})
+    for(bool revision:{false,true})for(uint8_t code=0;code<4U;++code) {
+      if(shift && !follower)continue;
+      Controller b;if(basic)b.id2=0xA111;Driver d;ready(d,b);
+      auto s=settings();s.rmiiClock=follower?RmiiClock::FOLLOWER_50MHZ:RmiiClock::LEADER_25MHZ;
+      s.referenceClockMHz=follower?50:25;s.txClockShift=shift;s.revision10=revision;s.elasticityCode=code;
+      b.words[23]=0xFE4C;
+      const auto first=b.frames;configured(d,b,s);
+      const auto expected=static_cast<uint16_t>(0xFE40U|0x0020U|(follower?0x0080U:0U)|(shift?0x0100U:0U)|(revision?0x0010U:0U)|code);
+      CHECK(b.words[23]==expected && writes(b,first,0x17)==1U);
+      CHECK((b.words[23]&0x0040U)!=0U && (b.words[23]&0x000CU)==0U);
+    }
+  for(unsigned bits=0;bits<16;++bits) {
+    Controller b;b.boardInterface=MacInterface::MII;Driver d;ready(d,b);auto s=settings(MacInterface::MII);
+    s.fastRxDv=(bits&1U)!=0U;s.oddNibbleDisable=(bits&2U)!=0U;
+    s.collisionFullDuplex=(bits&4U)!=0U;s.shortIpg=(bits&8U)!=0U;
+    b.words[9]=0xFFFD;b.words[10]=0xFFFD;b.words[17]=0x0FEB;b.words[23]=0x01FF;b.ext[0x456]=0xFFF7;
+    configured(d,b,s);
+    CHECK(b.words[9]==static_cast<uint16_t>(0xFFFDU|(s.fastRxDv?2U:0U)));
+    CHECK(b.words[10]==static_cast<uint16_t>(0xFFFDU|(s.oddNibbleDisable?2U:0U)));
+    CHECK(b.words[17]==static_cast<uint16_t>(0x0FEBU|(s.collisionFullDuplex?0x10U:0U)));
+    CHECK(b.ext[0x456]==static_cast<uint16_t>(0xFFF7U|(s.shortIpg?8U:0U)));
+    CHECK(b.words[23]==0x01D3U); // Only mode20 and RC0C clear in MII.
+    CHECK((b.words[10]&4U)!=0U); // RX_ER-idle is not minimum IPG.
+  }
+  for(auto output:{ClockOutput::CLKOUT25,ClockOutput::LED1})for(bool isolate:{false,true}) {
+    Controller b;Driver d;ready(d,b);auto s=settings();s.clockOutput=output;s.isolationOwned=true;s.isolate=isolate;
+    b.ext[0x302]=0xAEBF;b.words[0]=0x3101;const auto first=b.frames;
+    const auto result=configured(d,b,s);
+    CHECK(b.ext[0x302]==static_cast<uint16_t>((0xAEBFU&0xFEBFU)|(output==ClockOutput::LED1?0x0040U:0U)));
+    CHECK((b.words[0]&0x0400U)==(isolate?0x0400U:0U));CHECK((b.words[0]&0x8200U)==0U);
+    CHECK(result.attemptedFrames==39U && result.transactions==16U && b.frames-first==39U);
+    for(unsigned i=first;i<b.frames;++i)if(semantic(b.trace[i]) && b.trace[i].target==0)CHECK((b.trace[i].value&0x8200U)==0U);
+  }
+  for(bool isolate:{false,true}) {
+    Controller b;Driver d;ready(d,b);PowerSettings p;p.request=PowerRequest::IEEE_POWER_DOWN;
+    p.maintenanceAdmitted=p.managementClockAvailable=p.clockLossApproved=true;OperationToken token;
+    CHECK(d.startConfigurePower(p,budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+    auto s=settings();s.isolationOwned=true;s.isolate=isolate;configured(d,b,s);
+    CHECK((b.words[0]&0x0C00U)==(isolate?0x0C00U:0x0800U) && d.powerSnapshot().requestedPowerDown);
+    p.request=PowerRequest::NORMAL;CHECK(d.startConfigurePower(p,budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+    CHECK((b.words[0]&0x0C00U)==(isolate?0x0400U:0U));
+  }
+  // With owned awake intent, the external power-pin OR must not be echoed
+  // into a software request while isolation is applied or released.
+  for(bool isolate:{false,true}) {
+    Controller b;Driver d;ready(d,b);PowerSettings power;
+    power.maintenanceAdmitted=power.managementClockAvailable=power.clockLossApproved=true;OperationToken token;
+    CHECK(d.startConfigurePower(power,budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+    b.powerPin=true;auto s=settings();s.isolationOwned=true;s.isolate=isolate;const auto first=b.frames;configured(d,b,s);
+    CHECK((b.words[0]&0x0800U)==0U && !d.powerSnapshot().requestedPowerDown);
+    // This acquisition publishes its live OR readback in the interface view;
+    // it does not perform the separate complete power-state acquisition.
+    CHECK((d.interfaceSnapshot().raw[6]&0x0800U)!=0U);
+    for(unsigned i=first;i<b.frames;++i)if(semantic(b.trace[i]) && b.trace[i].target==0)CHECK((b.trace[i].value&0x0800U)==0U);
+  }
+}
+void admission() {
+  for(unsigned fault=0;fault<20;++fault) {
+    Controller b;Driver d;if(fault!=0)ready(d,b);auto s=settings();
+    switch(fault) {
+      case 1:s.maintenanceAdmitted=false;break;case 2:s.macStopped=false;break;
+      case 3:s.pinsAvailable=false;break;case 4:s.referenceClockStable=false;break;
+      case 5:s.managementClockAvailable=false;break;case 6:s.clockChangeApproved=false;break;
+      case 7:s.referenceClockMHz=50;break;case 8:s.interface=MacInterface::MII;break;
+      case 9:s.interface=MacInterface::RGMII;break;case 10:s.txClockShift=true;break;
+      case 11:s.elasticityCode=4;break;case 12:s.clockTolerancePpm=51;break;
+      case 13:s.maxFrameBytes=0;break;case 14:s.repeater=true;break;
+      case 15:s.collisionFullDuplex=true;break;case 16:s.clockOutput=ClockOutput::PLL;break;
+      case 17:s.clockOutput=ClockOutput::RECOVERED;break;
+      case 18:s.rmiiClock=static_cast<RmiiClock>(255);break;
+      case 19:s.clockOutput=static_cast<ClockOutput>(255);break;
+      default:break;
+    }
+    InterfaceResult out;out.attemptedFrames=999;const auto first=b.frames,clocks=b.clocks;
+    CHECK(!d.configureInterface(s,out,{1000000,2048}).ok());
+    CHECK(b.frames==first && b.clocks==clocks && out.attemptedFrames==999 && !d.interfaceSnapshot().desiredValid);
+  }
+  constexpr uint32_t maximum[]={16800,2400,7200,12000};
+  for(uint8_t code=0;code<4U;++code)for(uint16_t ppm:{uint16_t{50},uint16_t{100}})for(bool beyond:{false,true}) {
+    Controller b;Driver d;ready(d,b);auto s=settings();s.elasticityCode=code;s.clockTolerancePpm=ppm;
+    s.maxFrameBytes=maximum[code]/(ppm==50?1U:2U)+(beyond?1U:0U);const auto first=b.frames;InterfaceResult out;
+    const auto status=d.configureInterface(s,out,{1000000,2048});
+    if(beyond)CHECK(!status.ok() && b.frames==first);else CHECK(status.ok());
+  }
+  for(unsigned fault=0;fault<4;++fault) {
+    Controller b;b.boardInterface=MacInterface::MII;Driver d;ready(d,b);auto s=settings(MacInterface::MII);
+    if(fault==0)s.revision10=true;
+    if(fault==1)s.elasticityCode=1;
+    if(fault==2)s.rxDv=true;
+    if(fault==3)s.rmiiClock=RmiiClock::FOLLOWER_50MHZ;
+    const auto first=b.frames;InterfaceResult out;CHECK(!d.configureInterface(s,out,{1000000,2048}).ok() && b.frames==first);
+  }
+  for(bool isolate:{false,true}) {
+    Controller b;Driver d;ready(d,b);auto s=settings();s.isolationOwned=true;s.isolate=isolate;s.clockChangeApproved=false;
+    const auto first=b.frames;InterfaceResult out;CHECK(!d.configureInterface(s,out,{1000000,2048}).ok() && b.frames==first);
+  }
+  Controller b;b.id2=0xA111;Driver d;ready(d,b);auto s=settings();s.clockOutput=ClockOutput::LED1;InterfaceResult out;
+  const auto first=b.frames;CHECK(!d.configureInterface(s,out,{1000000,2048}).ok() && b.frames==first);
+}
+void failures() {
+  Controller ref;Driver reference;ready(reference,ref);auto s=settings();s.isolationOwned=true;s.isolate=true;s.clockOutput=ClockOutput::LED1;
+  s.fastRxDv=s.oddNibbleDisable=s.shortIpg=true;const auto first=ref.frames,firstCall=ref.calls;
+  configured(reference,ref,s);const auto count=ref.frames-first,callbacks=ref.calls-firstCall;CHECK(count==39U && callbacks==16U);
+  for(unsigned phase=0;phase<count;++phase)for(bool accepted:{false,true}) {
+    Controller b;Driver d;ready(d,b);const auto start=b.frames;b.failFrame=static_cast<int>(start+phase);b.acceptedFailure=accepted;InterfaceResult out;
+    CHECK(d.configureInterface(s,out,{1000000,2048}).is(Err::MDIO_TIMEOUT));
+    CHECK(out.status.detail==-33033 && !out.verified && out.attemptedFrames==phase+1U && b.frames==start+phase+1U);
+    CHECK(b.calls==b.releases && !b.locked && d.interfaceSnapshot().trust!=ConfigurationTrust::VERIFIED);
+    bool effect=false;for(unsigned i=0;i<phase;++i)effect|=semantic(ref.trace[first+i]);effect|=accepted && semantic(ref.trace[first+phase]);
+    if(effect)CHECK(out.mutationPossible && d.operationSnapshot().cleanupOwed && !d.end().ok());
+  }
+  for(unsigned call=0;call<callbacks;++call) {
+    Controller b;Driver d;ready(d,b);b.releaseCall=static_cast<int>(b.calls+call);InterfaceResult out;
+    CHECK(d.configureInterface(s,out,{1000000,2048}).is(Err::MDIO_ERROR));CHECK(out.release.detail==-37 && !out.verified);
+  }
+  constexpr uint16_t addresses[]={9,10,17,0x456,0x302,23,0};
+  constexpr uint16_t masks[]={2,2,0x10,8,0x40,0x20,0x400};
+  for(unsigned row=0;row<7;++row) {
+    unsigned last=first;for(unsigned i=first;i<ref.frames;++i)if(ref.trace[i].kind==FrameKind::READ && ref.trace[i].target==addresses[row])last=i;
+    Controller b;Driver d;ready(d,b);b.corruptFrame=static_cast<int>(b.frames+last-first);b.corruptMask=masks[row];InterfaceResult out;
+    CHECK(d.configureInterface(s,out,{1000000,2048}).is(Err::CONFIG_MISMATCH));
+    CHECK(out.mismatch.valid && out.mismatch.registerAddress==addresses[row] && !out.verified && d.operationSnapshot().cleanupOwed);
+  }
+  // A read of the software/pin power OR cannot establish unowned power intent.
+  Controller powered;Driver d;ready(d,powered);powered.powerPin=true;const auto mutations=powered.mutations;InterfaceResult out;
+  CHECK(!d.configureInterface(s,out,{1000000,2048}).ok() && powered.mutations==mutations && !d.operationSnapshot().cleanupOwed);
+}
+void replay() {
+  auto s=settings();s.fastRxDv=s.oddNibbleDisable=s.shortIpg=true;s.rxDv=true;s.clockOutput=ClockOutput::LED1;s.isolationOwned=true;s.isolate=true;
+  for(auto reset:{ResetKind::NONE,ResetKind::PCS,ResetKind::HARD,ResetKind::RESTART}) {
+    Controller b;Driver d;ready(d,b);configured(d,b,s);OperationToken token;
+    CHECK(d.startInitialize({reset},budget(),token).inProgress());CHECK(drain(d,b,token).ok());const auto result=take(d,token);
+    CHECK(result.persistentRestored && !result.cleanupOwed && result.interfaceState.trust==ConfigurationTrust::VERIFIED);
+    CHECK((b.words[9]&2U)!=0U && (b.words[10]&2U)!=0U && (b.ext[0x456]&8U)!=0U && (b.words[0]&0x400U)!=0U);
+    CHECK((b.ext[0x302]&0x140U)==0x140 && (b.words[23]&0x1B3U)==0x20);
+    const auto mutations=b.mutations;CHECK(d.startVerify(budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);CHECK(b.mutations==mutations);
+  }
+  Controller ref;Driver reference;ready(reference,ref);configured(reference,ref,s);OperationToken token;const auto first=ref.frames,firstCall=ref.calls;
+  CHECK(reference.startInitialize({ResetKind::HARD},budget(),token).inProgress());CHECK(drain(reference,ref,token).ok());take(reference,token);const auto count=ref.frames-first,callbacks=ref.calls-firstCall;
+  for(unsigned phase=0;phase<count;++phase) {
+    Controller b;Driver d;ready(d,b);configured(d,b,s);b.failFrame=static_cast<int>(b.frames+phase);
+    CHECK(d.startInitialize({ResetKind::HARD},budget(),token).inProgress());CHECK(!drain(d,b,token).ok());const auto result=take(d,token);
+    CHECK(!result.persistentRestored);
+    if(result.commandAccepted || result.mutationPossible)CHECK(result.interfaceState.trust!=ConfigurationTrust::VERIFIED);
+  }
+  for(unsigned boundary=0;boundary<callbacks;++boundary) {
+    Controller b;Driver d;ready(d,b);configured(d,b,s);CHECK(d.startInitialize({ResetKind::HARD},budget(),token).inProgress());
+    for(unsigned step=0;step<boundary && d.operationSnapshot().state==OperationState::RUNNING;++step)poll(d,b,token);
+    const auto frames=b.frames;CHECK(d.cancel(token).ok());CHECK(b.frames==frames);const auto result=take(d,token);
+    CHECK(result.status.is(Err::CANCELLED));if(result.mutationPossible)CHECK(result.cleanupOwed);
+  }
+  for(bool down:{false,true}) {
+    Controller b;Driver d;ready(d,b);configured(d,b,s);PowerSettings p;p.request=down?PowerRequest::IEEE_POWER_DOWN:PowerRequest::NORMAL;
+    p.maintenanceAdmitted=p.managementClockAvailable=p.clockLossApproved=true;
+    CHECK(d.startConfigurePower(p,budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+    CHECK(d.startInitialize({ResetKind::HARD},budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+    CHECK(d.interfaceSnapshot().trust==ConfigurationTrust::VERIFIED && (b.words[0]&0xC00U)==(down?0xC00U:0x400U));
+  }
+  for(unsigned owner=0;owner<3;++owner) {
+    Controller b;Driver d;ready(d,b);auto clock=settings();clock.clockOutput=ClockOutput::LED1;configured(d,b,clock);
+    PinSettings pins;pins.availableMask=2;pins.maintenanceAdmitted=pins.macStopped=pins.outputsQuiesced=pins.led1ClockUnused=true;
+    if(owner==0)pins.pins[1].function=PinFunction::LED;
+    else if(owner==1) {
+      WakeSettings wake;wake.enabled=true;wake.route=WakeRoute::LED1;
+      wake.maintenanceAdmitted=wake.receiveTrafficQuiesced=wake.pinAvailable=wake.led1ClockUnused=true;
+      CHECK(d.startConfigureWake(wake,budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+      pins.pins[1].function=PinFunction::WAKE;
+    } else {
+      InterruptSettings irq;irq.pin=InterruptPin::LED1;irq.maintenanceAdmitted=irq.pinAvailable=irq.led1ClockUnused=true;
+      CHECK(d.startConfigureInterrupts(irq,budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+      pins.pins[1].function=PinFunction::INTERRUPT;
+    }
+    PinResult pinResult;CHECK(d.configurePins(pins,pinResult,{1000000,2048}).ok());
+    CHECK(d.startInitialize({ResetKind::HARD},budget(),token).inProgress());CHECK(drain(d,b,token).ok());const auto result=take(d,token);
+    CHECK(result.persistentRestored && !result.cleanupOwed && result.interfaceState.trust==ConfigurationTrust::VERIFIED);
+    CHECK(result.pins.trust==ConfigurationTrust::VERIFIED && (b.ext[0x302]&0x40U)!=0U);
+    CHECK((b.ext[0x304]&7U)==(owner==0?0U:owner==1?2U:4U));
+  }
+  {
+    Controller b;Driver d;ready(d,b);configured(d,b,s);PowerSettings power;
+    power.request=PowerRequest::IEEE_POWER_DOWN;power.disablePll=true;
+    power.maintenanceAdmitted=power.managementClockAvailable=power.clockLossApproved=true;
+    CHECK(d.startConfigurePower(power,budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+    CHECK(d.startVerify(budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+    CHECK(d.startInitialize({ResetKind::PCS},budget(),token).inProgress());CHECK(drain(d,b,token).ok());const auto result=take(d,token);
+    CHECK(result.persistentRestored && result.interfaceState.trust==ConfigurationTrust::VERIFIED && (b.words[17]&0x8000U)!=0U);
+  }
+  // An independently consumed word can disprove an already verified row
+  // between restoration polls. A later successful row cannot repair that proof.
+  Controller changed;Driver phy;ready(phy,changed);configured(phy,changed,s);
+  CHECK(phy.startInitialize({ResetKind::HARD},budget(),token).inProgress());
+  bool applied=false,verified=false;
+  for(unsigned n=0;n<128U && !verified;++n) {
+    const auto start=changed.frames;CHECK(poll(phy,changed,token).inProgress());
+    for(unsigned i=start;i<changed.frames;++i)if(changed.trace[i].target==9) {
+      if(semantic(changed.trace[i]) && (changed.trace[i].value&2U)!=0U)applied=true;
+      else if(applied && changed.trace[i].kind==FrameKind::READ)verified=true;
+    }
+  }
+  CHECK(verified);changed.words[9]^=2;uint16_t raw=0;
+  CHECK(phy.readClause22(9,raw,{1000000,1}).ok());const auto frozen=changed.frames;
+  CHECK(!drain(phy,changed,token).ok());const auto result=take(phy,token);
+  CHECK(result.mismatch.valid && result.mismatch.registerAddress==9 && !result.persistentRestored && result.cleanupOwed);
+  CHECK(changed.frames==frozen && phy.interfaceSnapshot().trust!=ConfigurationTrust::VERIFIED);
+}
+void routeDependencies() {
+  // A verified LED1 mux does not prove the independently owned clock route.
+  // Exercise direct LEDs, IRQ, direct wake and wake through the IRQ consumer.
+  const auto setup=[](Driver& d,Controller& b,unsigned owner) {
+    ready(d,b);auto clock=settings();clock.clockOutput=ClockOutput::LED1;configured(d,b,clock);
+    OperationToken token;
+    if(owner==1U || owner==3U) {
+      InterruptSettings irq;irq.pin=InterruptPin::LED1;irq.globalEnable=true;irq.misr2Mask=2;
+      irq.maintenanceAdmitted=irq.pinAvailable=irq.led1ClockUnused=true;
+      CHECK(d.startConfigureInterrupts(irq,budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+    }
+    if(owner>=2U) {
+      WakeSettings wake;wake.enabled=true;wake.route=owner==2U?WakeRoute::LED1:WakeRoute::INTERRUPT;
+      wake.maintenanceAdmitted=wake.receiveTrafficQuiesced=wake.pinAvailable=wake.led1ClockUnused=true;
+      CHECK(d.startConfigureWake(wake,budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+    }
+    PinSettings pins;pins.availableMask=2;pins.maintenanceAdmitted=pins.macStopped=pins.outputsQuiesced=pins.led1ClockUnused=true;
+    pins.pins[1].function=owner==0U?PinFunction::LED:owner==2U?PinFunction::WAKE:PinFunction::INTERRUPT;
+    PinResult pin;CHECK(d.configurePins(pins,pin,{1000000,2048}).ok());
+  };
+  auto clock=settings();clock.clockOutput=ClockOutput::LED1;
+  Controller reference;Driver ref;setup(ref,reference,0);const auto start=reference.frames;configured(ref,reference,clock);
+  unsigned offsets[2]={0,0};
+  for(unsigned i=start;i<reference.frames;++i) {
+    if(reference.trace[i].target==0x0302 && semantic(reference.trace[i]))offsets[0]=i-start;
+    if(reference.trace[i].target==0x0308 && reference.trace[i].kind==FrameKind::READ)offsets[1]=i-start;
+  }
+  CHECK(offsets[0]!=0U && offsets[1]>offsets[0]);
+  for(unsigned owner=0;owner<4U;++owner)for(unsigned fault=0;fault<3U;++fault) {
+    Controller b;Driver d;setup(d,b,owner);const auto pinsBefore=d.pinsSnapshot();
+    const auto irqBefore=d.interruptSnapshot();const auto wakeBefore=d.wakeSnapshot();OperationToken token;
+    OperationResult cancelled;
+    if(fault<2U) {
+      b.failFrame=static_cast<int>(b.frames+offsets[fault]);InterfaceResult failed;
+      CHECK(d.configureInterface(clock,failed,{1000000,2048}).is(Err::MDIO_TIMEOUT));
+      CHECK(failed.mutationPossible && d.operationSnapshot().cleanupOwed);
+    } else {
+      CHECK(d.startInitialize({ResetKind::NONE},budget(),token).inProgress());bool routeWritten=false;
+      for(unsigned n=0;n<512U && !routeWritten;++n) {
+        const auto first=b.frames;CHECK(poll(d,b,token).inProgress());
+        for(unsigned i=first;i<b.frames;++i)if(b.trace[i].target==0x0302 && semantic(b.trace[i]))routeWritten=true;
+      }
+      CHECK(routeWritten);const auto frames=b.frames;CHECK(d.cancel(token).ok() && b.frames==frames);cancelled=take(d,token);
+      CHECK(cancelled.status.is(Err::CANCELLED) && cancelled.cleanupOwed);
+      CHECK(cancelled.pins.trust==ConfigurationTrust::DIRTY && cancelled.pins.observedStale);
+      if(owner==1U || owner==3U)CHECK(cancelled.interrupts.trust==ConfigurationTrust::DIRTY && cancelled.interrupts.observedStale);
+      if(owner>=2U)CHECK(cancelled.wake.trust==ConfigurationTrust::DIRTY && cancelled.wake.observedStale);
+    }
+    const auto frames=b.frames,clocks=b.clocks;
+    for(unsigned reader=0;reader<2U;++reader) {
+      const auto pins=d.pinsSnapshot();CHECK(pins.trust==ConfigurationTrust::DIRTY && pins.observedStale);
+      if(fault<2U)CHECK(pins.observedAtUs==pinsBefore.observedAtUs && pins.timeValid==pinsBefore.timeValid);
+      if(owner==1U || owner==3U) {
+        const auto irq=d.interruptSnapshot();CHECK(irq.trust==ConfigurationTrust::DIRTY && irq.observedStale);
+        if(fault<2U)CHECK(irq.observedAtUs==irqBefore.observedAtUs && irq.timeValid==irqBefore.timeValid);
+      }
+      if(owner>=2U) {
+        const auto wake=d.wakeSnapshot();CHECK(wake.trust==ConfigurationTrust::DIRTY && wake.observedStale);
+        if(fault<2U)CHECK(wake.observedAtUs==wakeBefore.observedAtUs && wake.timeValid==wakeBefore.timeValid);
+      }
+    }
+    CHECK(b.frames==frames && b.clocks==clocks);b.failFrame=-1;
+    if(owner>=2U) {
+      const auto first=b.frames,calls=b.calls,mutations=b.mutations;WakeSnapshot live;
+      CHECK(d.readWakeStatus(live,{1000000,33}).ok());
+      CHECK(live.controlValid && live.rxfsValid && live.misr2Valid && live.credentialValidMask==0x3FU);
+      CHECK(live.trust==ConfigurationTrust::DIRTY && live.observedStale);
+      CHECK(d.wakeSnapshot().trust==ConfigurationTrust::DIRTY && d.wakeSnapshot().observedStale);
+      CHECK(b.frames==first+33U && b.calls==calls+8U && b.mutations==mutations);
+      CHECK(d.interfaceSnapshot().trust==ConfigurationTrust::DIRTY && d.operationSnapshot().cleanupOwed);
+    }
+    CHECK(d.startInitialize({ResetKind::NONE},budget(),token).inProgress());CHECK(drain(d,b,token).ok());const auto repaired=take(d,token);
+    CHECK(repaired.persistentRestored && repaired.pins.trust==ConfigurationTrust::VERIFIED && d.pinsSnapshot().trust==ConfigurationTrust::VERIFIED);
+    if(owner==1U || owner==3U)CHECK(repaired.interrupts.trust==ConfigurationTrust::VERIFIED && d.interruptSnapshot().trust==ConfigurationTrust::VERIFIED);
+    if(owner>=2U)CHECK(repaired.wake.trust==ConfigurationTrust::VERIFIED && d.wakeSnapshot().trust==ConfigurationTrust::VERIFIED);
+  }
+}
+void ownership() {
+  routeDependencies();
+  Controller b;Driver d,other;ready(d,b);CHECK(other.bind(b.config(2)).ok());b.competitor=&other;
+  const auto first=b.frames;configured(d,b,settings());CHECK(b.excluded==b.frames-first);b.competitor=nullptr;
+  const auto calls=b.calls,clocks=b.clocks;const auto a=d.interfaceSnapshot(),c=d.interfaceSnapshot();
+  CHECK(a.validMask==c.validMask && b.calls==calls && b.clocks==clocks && !other.interfaceSnapshot().desiredValid);
+  b.words[9]^=2;uint16_t raw=0;CHECK(d.readClause22(9,raw,{1000000,1}).ok());
+  CHECK(d.interfaceSnapshot().trust==ConfigurationTrust::DIRTY && d.interfaceSnapshot().observedStale);
+  CHECK(d.invalidateDeviceState(InvalidationReason::EXTERNAL_RESET).ok());
+  CHECK(d.interfaceSnapshot().desiredValid && !d.interfaceSnapshot().modeValid);
+  OperationToken token;CHECK(d.startInitialize({ResetKind::NONE},budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+  CHECK(d.interfaceSnapshot().trust==ConfigurationTrust::VERIFIED);
+  for(unsigned owner=0;owner<3;++owner) {
+    Controller bus;Driver phy;ready(phy,bus);auto profile=settings();profile.clockOutput=ClockOutput::CLKOUT25;configured(phy,bus,profile);
+    const auto before=bus.frames;
+    if(owner==0) {
+      PinSettings pin;pin.maintenanceAdmitted=pin.macStopped=pin.outputsQuiesced=pin.led1ClockUnused=true;pin.availableMask=2;
+      pin.pins[1].function=PinFunction::LED;pin.led1ClockOverride=true;PinResult result;
+      CHECK(!phy.configurePins(pin,result,{1000000,2048}).ok());
+    } else if(owner==1) {
+      WakeSettings wake;wake.route=WakeRoute::LED1;wake.maintenanceAdmitted=wake.receiveTrafficQuiesced=wake.pinAvailable=wake.led1ClockUnused=true;
+      CHECK(!phy.startConfigureWake(wake,budget(),token).inProgress());
+    } else {
+      InterruptSettings irq;irq.pin=InterruptPin::LED1;irq.maintenanceAdmitted=irq.pinAvailable=irq.led1ClockUnused=true;
+      CHECK(!phy.startConfigureInterrupts(irq,budget(),token).inProgress());
+    }
+    CHECK(bus.frames==before);
+  }
+  Controller pins;Driver pinDriver;ready(pinDriver,pins);PinSettings pin;
+  pin.maintenanceAdmitted=pin.macStopped=pin.outputsQuiesced=pin.led1ClockUnused=true;pin.availableMask=2;pin.led1ClockOverride=true;pin.pins[1].function=PinFunction::LED;PinResult result;
+  CHECK(pinDriver.configurePins(pin,result,{1000000,2048}).ok());auto profile=settings();profile.clockOutput=ClockOutput::CLKOUT25;
+  const auto before=pins.frames;InterfaceResult interfaceResult;CHECK(!pinDriver.configureInterface(profile,interfaceResult,{1000000,2048}).ok() && pins.frames==before);
+  Controller example;Driver exampleDriver;ready(exampleDriver,example);CHECK(configureStoppedRmii(exampleDriver,interfaceResult,{1000000,2048}).ok());
+  const auto noFrames=example.frames;CHECK(!rejectLiveInterfaceChange(exampleDriver,interfaceResult,{1000000,2048}).ok() && example.frames==noFrames);
+  for(bool eeeFirst:{false,true}) {
+    Controller bus;Driver phy;ready(phy,bus);EeeSettings eee;eee.enabled=eee.maintenanceAdmitted=true;
+    auto conflicting=settings();conflicting.clockOutput=ClockOutput::LED1;
+    if(eeeFirst) {
+      CHECK(phy.startConfigureEee(eee,budget(),token).inProgress());CHECK(drain(phy,bus,token).ok());take(phy,token);
+      const auto start=bus.frames;InterfaceResult rejected;
+      CHECK(!phy.configureInterface(conflicting,rejected,{1000000,2048}).ok() && bus.frames==start);
+      conflicting.clockOutput=ClockOutput::UNOWNED;conflicting.isolationOwned=conflicting.isolate=true;
+      CHECK(!phy.configureInterface(conflicting,rejected,{1000000,2048}).ok() && bus.frames==start);
+    } else {
+      configured(phy,bus,conflicting);const auto start=bus.frames;
+      CHECK(!phy.startConfigureEee(eee,budget(),token).inProgress() && bus.frames==start);
+    }
+  }
+  for(bool interfaceFirst:{false,true}) {
+    Controller bus;bus.boardInterface=MacInterface::MII;Driver phy;ready(phy,bus);
+    auto collision=settings(MacInterface::MII);collision.collisionFullDuplex=true;
+    PinSettings led;led.pins[2].function=PinFunction::LED;led.availableMask=4;
+    led.maintenanceAdmitted=led.macStopped=led.outputsQuiesced=led.colUnused=true;PinResult pinResult;
+    if(interfaceFirst) {
+      configured(phy,bus,collision);const auto start=bus.frames;
+      CHECK(!phy.configurePins(led,pinResult,{1000000,2048}).ok() && bus.frames==start);
+    } else {
+      CHECK(phy.configurePins(led,pinResult,{1000000,2048}).ok());const auto start=bus.frames;InterfaceResult rejected;
+      CHECK(!phy.configureInterface(collision,rejected,{1000000,2048}).ok() && bus.frames==start);
+    }
+  }
+}
+void collector() {
+  Controller ref;Driver reference;ready(reference,ref);ref.words[23]=0x006D;const auto first=ref.frames;configured(reference,ref,settings());
+  unsigned read=first;for(unsigned i=first;i<ref.frames;++i)if(ref.trace[i].target==23 && ref.trace[i].kind==FrameKind::READ) { read=i-first;break; }
+  const auto sample=reference.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::RCSR)];
+  CHECK(sample.valid && sample.samples==2U && (sample.observedOnes&0xCU)==0xCU && sample.sampledSum==0 && !sample.historyLost);
+  for(bool afterEffect:{false,true}) {
+    Controller b;Driver d;ready(d,b);b.words[23]=0x006D;b.failFrame=static_cast<int>(b.frames+read);b.acceptedFailure=afterEffect;InterfaceResult out;
+    CHECK(d.configureInterface(settings(),out,{1000000,2048}).is(Err::MDIO_TIMEOUT));
+    const auto retained=d.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::RCSR)];
+    CHECK(retained.historyLost==afterEffect && !retained.valid && retained.samples==0U);
+  }
+  Controller b;Driver d;ready(d,b);b.words[23]=0x006D;b.failFrame=static_cast<int>(b.frames+read+1U);InterfaceResult out;
+  CHECK(d.configureInterface(settings(),out,{1000000,2048}).is(Err::MDIO_TIMEOUT));
+  const auto retained=d.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::RCSR)];
+  CHECK(retained.valid && retained.samples==1U && retained.raw==0x006D && !retained.historyLost);
+  const auto calls=b.calls,clocks=b.clocks;d.interfaceSnapshot();d.evidenceSnapshot();CHECK(b.calls==calls && b.clocks==clocks);
+  for(unsigned failedRead:{read,read+2U}) {
+    Controller known;Driver phy;ready(phy,known);configured(phy,known,settings());const auto old=phy.interfaceSnapshot();
+    known.failFrame=static_cast<int>(known.frames+failedRead);InterfaceResult partial;
+    CHECK(phy.configureInterface(settings(),partial,{1000000,2048}).is(Err::MDIO_TIMEOUT));
+    const auto stale=phy.interfaceSnapshot();CHECK(!stale.modeValid && stale.observedStale && stale.observedAtUs==old.observedAtUs);
+    CHECK(stale.observedInterface==old.observedInterface); // Retained word is historical, never a new mode claim.
+  }
+}
+void timing() {
+  Controller ref;Driver reference;ready(reference,ref);const auto first=ref.frames,firstCall=ref.calls;configured(reference,ref,settings());
+  const auto frames=ref.frames-first,calls=ref.calls-firstCall;CHECK(frames==32U && calls==13U);
+  for(uint32_t allowance:{0U,frames-1U,frames}) {
+    Controller b;Driver d;ready(d,b);const auto start=b.frames;InterfaceResult out;out.attemptedFrames=999;
+    const auto status=d.configureInterface(settings(),out,{1000000,allowance});
+    if(allowance==frames)CHECK(status.ok());else CHECK(status.is(Err::OPERATION_TIMEOUT) && out.attemptedFrames==999 && b.frames==start);
+  }
+  for(uint64_t margin:{uint64_t{0},uint64_t{233},uint64_t{234}}) {
+    Controller b;Driver d;ready(d,b);const auto start=b.frames;InterfaceResult out;out.attemptedFrames=999;
+    // 13callbacks*8us +32frames*4us +1us clock lag =233us.
+    const auto status=d.configureInterface(settings(),out,{b.now+margin,32});
+    if(margin==234U)CHECK(status.ok());else CHECK(status.is(Err::OPERATION_TIMEOUT) && b.frames==start && out.attemptedFrames==999);
+  }
+  for(unsigned defect=0;defect<6;++defect) {
+    Controller b;Driver d;ready(d,b);const auto call=static_cast<int>(b.calls+2U);
+    if(defect==0)b.lateCall=call;
+    if(defect==1)b.regressCall=call;
+    if(defect==2)b.invalidCall=call;
+    if(defect==3)b.badReceiptCall=call;
+    if(defect==4)b.now=std::numeric_limits<uint64_t>::max();
+    if(defect==5)b.frameTime=0;
+    const auto firstFrames=b.frames;InterfaceResult out;const auto status=d.configureInterface(settings(),out,{defect==4?b.now:1000000,2048});
+    if(defect==5)CHECK(status.ok() && b.frames-firstFrames==frames);else CHECK(!status.ok());
+    CHECK(b.calls==b.releases && !b.locked);
+  }
+  Controller b;Driver d;ready(d,b);configured(d,b,settings());OperationToken token;CHECK(d.startInitialize({ResetKind::NONE},budget(),token).inProgress());
+  bool found=false;
+  for(unsigned n=0;n<128U && !found;++n) {
+    const auto start=b.frames;CHECK(poll(d,b,token).inProgress());
+    for(unsigned i=start;i<b.frames;++i)if(b.trace[i].target==0x456 && semantic(b.trace[i]))found=true;
+  }
+  CHECK(found);const auto before=b.frames;CHECK(poll(d,b,token,3).inProgress() && b.frames==before); // Four-frame MMD readback cannot split.
+  CHECK(drain(d,b,token).ok());take(d,token);
+}
+void repeater() {
+  Controller leftBus,rightBus;Driver left,right;ready(left,leftBus);ready(right,rightBus);
+  auto leader=settings();leader.rxDv=leader.repeater=leader.repeaterWiringAdmitted=true;
+  auto follower=leader;follower.rmiiClock=RmiiClock::FOLLOWER_50MHZ;follower.referenceClockMHz=50;
+  configured(left,leftBus,leader);configured(right,rightBus,follower);
+  CHECK((leftBus.words[23]&0xA0U)==0x20U && (rightBus.words[23]&0xA0U)==0xA0U);
+  CHECK((leftBus.ext[0x302]&0x100U)!=0U && (rightBus.ext[0x302]&0x100U)!=0U);
+  // Two followers may share one application-established reference. No core
+  // object claims a pair is ready or rolls back the successful first side.
+  configured(left,leftBus,follower);rightBus.failFrame=static_cast<int>(rightBus.frames+4U);InterfaceResult partial;
+  CHECK(right.configureInterface(follower,partial,{1000000,2048}).is(Err::MDIO_TIMEOUT));
+  CHECK(left.interfaceSnapshot().trust==ConfigurationTrust::VERIFIED && right.interfaceSnapshot().trust!=ConfigurationTrust::VERIFIED);
+  for(bool wiring:{false,true}) {
+    Controller b;Driver d;ready(d,b);auto rejected=settings();rejected.repeater=true;rejected.repeaterWiringAdmitted=wiring;
+    const auto before=b.frames;InterfaceResult out;CHECK(!d.configureInterface(rejected,out,{1000000,2048}).ok() && b.frames==before);
+  }
+}
+} // namespace
+int main(int argc,char** argv) {
+  const test::Suite suites[]={{"vectors",vectors},{"admission",admission},{"failures",failures},{"replay",replay},
+    {"ownership",ownership},{"collector",collector},{"timing",timing},{"repeater",repeater}};
+  return test::runSuites(argc,argv,suites);
+}

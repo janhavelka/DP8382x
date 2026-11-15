@@ -848,3 +848,28 @@ from the production field catalogue.
 
 The test models BMSR consumption clearing LINK_LOST and BICSR1 capture/clear
 changing PRBS indication. These are source-effect oracles, not measured LEDs.
+
+
+## Stage33 independent interface and isolation literals
+
+Original SNLS647I tables8-19/28/29/35/41/73/84 supply these independent vectors:
+
+- RCSR stable mask01B3, consumed status000C, preserveFE40. OldFFFF with
+  follower+shift+revision1.0+elasticity2 writesFFF2. Reserved0040 survives.
+  MII owns0020 only; old01FF becomes01D3 after RC consumption and mode clear.
+- RMII leader0020/follower00A0; follower shift0100; revision1.0 adds0010.
+  Codes0/1/2/3 mean14/2/6/10bits and16800/2400/7200/12000packet bytes at
+  +/-50ppm; +/-100ppm halves those lengths without changing electrical limits.
+- IO_CFG1 RX_DV0100 plus optional clock route0040 uses0140 and preserveFEBF.
+  ENHANCED clock route0 selects CLKOUT availability;1 selects LED1 availability.
+  Read0308 mask0001 confirms selection, not frequency or timing.
+- CR1fastRXDV0002; CR2odd-nibble DISABLE0002, preserveFFFD. GENCFG IPG0008
+  selects120ns when set or200ns when clear; CR2RX_ER-idle0004 is preserved.
+  PHYSCRfull-duplexCOL0010 preservesFFEB, neutralizing test0004.
+- BMCR isolation RMW uses preserve71FF, owned0400 and software power0800,
+  neutral commands8200. With power intent asserted, a sampledBB00 composes3D00
+  for isolation and3900 for release. A live active command is preflight-rejected;
+  these are composition vectors, not permission to mutate an active reset.
+- Default RMII pass32frames/13callbacks; full clock+isolation39/16; full
+  read-only pass19/9. MMD RMW is five indivisible frames then four-frame readback.
+  RC values0000/000C stay raw history and do not establish a fault count.

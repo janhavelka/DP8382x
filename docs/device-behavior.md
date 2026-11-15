@@ -502,3 +502,10 @@ Stage32 implements source-admitted [LED/GPIO profiles](led-gpio.md), including
 shared blink/stretch and fixed-mode restrictions. Collector acknowledgement can
 change a latched LED without a pin write. Register verification proves configured
 controls only; Q12 still owns waveform, electrical and contradictory-route evidence.
+
+
+[Interface profiles](interface-clock.md) own the documented MII/RMII controls
+without changing application wiring. BMCR isolation stops the RMII-leader50MHz
+output while preserving SMI and the independently owned power request. Readback
+proves register state only. BASIC missing repeater bootstrap does not prohibit
+the documented runtime RX_DV override; ENHANCED POR-only straps remain distinct.

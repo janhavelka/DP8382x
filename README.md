@@ -4,7 +4,7 @@ General microcontroller library workspace for Texas Instruments DP8382x Ethernet
 PHYs, starting with **DP83826IRHBR (DP83826I)**. The C++17 core is
 framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet MAC.
 
-**Status: prompts 1–32 complete for supported procedures; deep-power-down remains source-blocked. Direct/indirect access, retained evidence, identity, bounded resets, verified link profiles, observations, loopback, BIST, manual/autorun cable capture, interrupts, power, EEE, forced LPI, WoL and LED/GPIO profiles are implemented; SDK support and hardware qualification remain future work.**
+**Status: prompts 1–33 complete for supported procedures; deep-power-down remains source-blocked. Direct/indirect access, retained evidence, identity, bounded resets, verified link profiles, observations, loopback, BIST, manual/autorun cable capture, interrupts, power, EEE, forced LPI, WoL, LED/GPIO and clock/interface/repeater profiles are implemented; SDK support and hardware qualification remain future work.**
 [EEE negotiation and status](docs/eee.md) now provide explicit reset-bearing setup,
 verified restoration and bounded retained observations; physical Q1 remains pending.
 [Power policy and observations](docs/power.md) now share explicit software intent,
@@ -209,3 +209,8 @@ configuration and shared restoration. PHY indication is not proof of host wake.
 [LED/GPIO profiles](docs/led-gpio.md) add all admitted sources, force/polarity,
 shared blink/stretch and pin routing with conflict validation and verified replay.
 Reserved or contradictory routes remain gated; physical Q12 is NOT RUN.
+
+[Clock and interface profiles](docs/interface-clock.md) add explicit isolation,
+MII/RMII compatibility, reference direction and repeater-side configuration.
+Application-owned clocks/wiring and per-PHY results remain separate from working
+MAC or two-PHY qualification.

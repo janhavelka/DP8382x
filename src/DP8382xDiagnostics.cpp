@@ -82,6 +82,9 @@ Status DP8382x::startLoopback(const LoopbackOptions& options, const OperationBud
 }
 Status DP8382x::_startLoopback(const LoopbackOptions& options, const OperationBudget& budget,
                               OperationToken& token, bool lineBist) noexcept {
+  if (_interface.desiredValid && _interface.desired.isolationOwned && _interface.desired.isolate) {
+    return rejected("Release owned MAC isolation before diagnostic traffic");
+  }
   if (_softwarePowerWord()!=0U || (_power.desiredValid && _power.desired.disablePll)) {
     return Status::Error(Err::INVALID_CONFIG,"Diagnostic session requires awake power intent",static_cast<int32_t>(ConfigDetail::POWER_STATE));
   }

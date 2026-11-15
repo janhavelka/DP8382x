@@ -1025,3 +1025,24 @@ read-only VERIFY. Shared WAKE/IRQ pin entries depend on the source owner's route
 and verification; passive views withdraw trust if that dependency is lost.
 The source owner alone writes its mux after quiescing delivery. Clock, COL and
 MAC/board availability remain explicit application attestations.
+
+
+## Stage33 shipped clock/interface profile
+
+[Interface and clock controls](interface-clock.md) define `InterfaceSettings`,
+bounded direct `configureInterface`, `InterfaceResult` and passive
+`interfaceSnapshot`. Requests must match `Config.interface`, the immutable
+application wiring declaration. Stopped MAC, pin availability, reference frequency
+and stability, management clock and permission for both removal/reconnection are
+explicit attestations, not measurements. The complete finite allowance is
+admitted before desired intent changes. Live preflight may still reject active
+commands or unowned power before mutation.
+
+Every RCSR read passes through the sole collector, including atomic RMW and
+readback. Observed RCSR mode has independent validity; it is never copied from
+desired mode. RC history/polarity remains raw. Failed accepted mutation leaves
+OP-9 debt with its original direct result; `startInitialize` is the separately
+budgeted restoration. Read-only VERIFY uses the same owned-mask pass.
+Isolation is optional independent ownership of BMCR[10], and writes use the
+power owner's software intent rather than the hardware/software OR readback.
+No direct-call token, scheduled silicon wait or retry is introduced.

@@ -1,5 +1,6 @@
 #include "../../examples/portable/Wake.h"
 #include "../../examples/portable/Pins.h"
+#include "../../examples/portable/Interface.h"
 #include "../../examples/portable/Lpi.h"
 #include <DP8382x/CommandTable.h>
 #include <DP8382x/Config.h>
@@ -452,6 +453,11 @@ static bool configurationExamples() noexcept {
 }
 
 int main() {
+  DP8382x::DP8382x interfaceUnbound;
+  DP8382x::InterfaceResult interfaceResult;
+  if (!configureStoppedRmii(interfaceUnbound,interfaceResult,{10000,128}).is(DP8382x::Err::NOT_BOUND) ||
+      !rejectLiveInterfaceChange(interfaceUnbound,interfaceResult,{10000,128}).is(DP8382x::Err::NOT_BOUND) ||
+      interfaceUnbound.interfaceSnapshot().desiredValid) return 93;
   DP8382x::DP8382x pinsUnbound;
   DP8382x::PinResult pinResult;
   if (!applyLinkLed(pinsUnbound,pinResult,{10000,128}).is(DP8382x::Err::NOT_BOUND) ||

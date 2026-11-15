@@ -79,7 +79,7 @@ void DP8382x::_resumeAfterPowerPreparation() noexcept {
   _setInitStep(_result.commandRequired && !_result.commandAccepted ? InitStep::COMMAND : InitStep::APPLY);
 }
 void DP8382x::_setPowerStep(PowerStep step) noexcept {
-  _pinsWorking=false;
+  _pinsWorking=false; _interfaceWorking=false;
   _wakeWorking=false;
   _powerWorking=true; _interruptWorking=_cableWorking=_bistWorking=_loopWorking=_configuring=false;
   _powerStep=step; _operation.nextPollValid=false; _operation.phase=OperationPhase::VERIFY;

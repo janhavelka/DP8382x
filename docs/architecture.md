@@ -188,3 +188,10 @@ serves bounded direct configuration and the existing restoration operation.
 It prepares source/value, clock/mux and final force enable, preserving unowned
 fields. Pin dependencies precede WoL/IRQ replay and final power completion.
 There is no pin registry, independent collector, scheduler or per-pin object.
+
+
+Stage33 adds `DP8382xInterface.cpp` for one fixed interface/clock/compatibility
+pass. The direct call and existing cooperative restoration share its rows; no
+new operation engine or bus owner exists. It runs before pin/source/power replay
+and uses the existing collector for RCSR. Repeater coordination is two explicit
+application calls with independent results, not a core device registry.

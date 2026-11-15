@@ -56,6 +56,11 @@ Status DP8382x::_validateWake(const WakeSettings& settings) const noexcept {
   }
   if (settings.route==WakeRoute::STATUS_ONLY) { return Status::Ok(); }
   const uint8_t directPin=settings.route==WakeRoute::LED1?1U:settings.route==WakeRoute::LED2?2U:0U;
+  if (_interface.desiredValid &&
+      ((directPin==1U && _interface.desired.clockOutput==ClockOutput::CLKOUT25) ||
+       (directPin==2U && _interface.desired.collisionFullDuplex))) {
+    return wakeConfig("Wake route conflicts with the interface clock/COL owner");
+  }
   if (directPin!=0U && _pins.desiredValid &&
       _pins.desired.pins[directPin].function!=PinFunction::UNOWNED &&
       _pins.desired.pins[directPin].function!=PinFunction::WAKE) {
@@ -199,7 +204,7 @@ void DP8382x::_retainWakeWord(uint16_t address,uint16_t value) noexcept {
   }
 }
 void DP8382x::_setWakeStep(WakeStep step) noexcept {
-  _pinsWorking=false;
+  _pinsWorking=false; _interfaceWorking=false;
   _wakeWorking=true; _eeeWorking=_powerWorking=_interruptWorking=_cableWorking=_bistWorking=_loopWorking=_configuring=false;
   _wakeStep=step; _operation.nextPollValid=false;
   _operation.phase=step==WakeStep::IDENTIFY?OperationPhase::IDENTIFY:OperationPhase::VERIFY;
@@ -437,6 +442,13 @@ Status DP8382x::readWakeStatus(WakeSnapshot& snapshot,const IoBudget& budget) no
     remaining.maxFrames-=batch.frameCount;
   }
   _wake.observedStale=false; _wake.timeValid=true; _wake.observedAtUs=_lastTimeUs+_config.transport.bounds.clockLagUs;
-  snapshot=_wake; return Status::Ok();
+  snapshot=wakeSnapshot(); return Status::Ok();
+}
+WakeSnapshot DP8382x::wakeSnapshot() const noexcept {
+  auto snapshot=_wake;
+  if (snapshot.desiredValid && _wakePin()==1U && !_led1RouteVerified()) {
+    snapshot.trust=ConfigurationTrust::DIRTY; snapshot.observedStale=true;
+  }
+  return snapshot;
 }
 } // namespace DP8382x

@@ -1,9 +1,9 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–32 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
+execution. Prompts 1–33 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 196 registered Release CTests, 103 Python tests,
+Current local checks include 205 registered Release CTests, 103 Python tests,
 two linked tests-OFF consumers, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -26,6 +26,14 @@ Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
 operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+Prompt33 began on clean fetched `main` at
+`3e6e0bfb86d6ed681ba3dde191ff9973078ba31e`, synchronized with upstream.
+[The report](reports/implementation/33-clock-interface-repeater.md) records the
+complete source-admitted interface/clock/compatibility and isolation profile,
+per-PHY repeater configuration, collector-safe RCSR access and shared replay.
+Physical Q12/Q17 and board clock/repeater qualification remain NOT RUN.
+Final verified commit and sync equality are recorded in the handoff.
 
 Prompt32 began on clean fetched `main` at
 `328b5edbfe3b33c45d680aa34327bd96ef79b4a0`. The

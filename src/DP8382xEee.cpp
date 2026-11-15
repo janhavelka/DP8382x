@@ -38,6 +38,11 @@ bool readComplete(const MdioBatch& batch,const BatchResult& result) noexcept {
 } // namespace
 
 Status DP8382x::_validateEee(const EeeSettings& settings) const noexcept {
+  if (settings.enabled && _interface.desiredValid &&
+      (_interface.desired.clockOutput!=ClockOutput::UNOWNED ||
+       (_interface.desired.isolationOwned && _interface.desired.isolate))) {
+    return eeeConfig("EEE conflicts with explicit interface clock or isolation ownership");
+  }
   if (settings.advertisement!=0U && settings.advertisement!=2U) {
     return Status::Error(Err::INVALID_PARAM,"EEE advertisement is zero or 100BASE-TX",static_cast<int32_t>(ParamDetail::VALUE_WIDTH));
   }
@@ -101,7 +106,7 @@ uint16_t DP8382x::_eeeControl() const noexcept {
   return static_cast<uint16_t>((_eee.desired.bypassBit0?0U:1U)|(_eee.desired.bypassBit3?0U:8U));
 }
 void DP8382x::_setEeeStep(EeeStep step) noexcept {
-  _pinsWorking=false;
+  _pinsWorking=false; _interfaceWorking=false;
   _wakeWorking=false;
   _eeeWorking=true; _powerWorking=_interruptWorking=_cableWorking=_bistWorking=_loopWorking=_configuring=false;
   _eeeStep=step; _operation.nextPollValid=false;

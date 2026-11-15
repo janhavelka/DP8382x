@@ -39,6 +39,11 @@ Status serviceBudgetError() noexcept {
 Status DP8382x::_validateInterruptSettings(const InterruptSettings& s) const noexcept {
   const auto syntax=interruptSyntax(s); if (!syntax.ok()) { return syntax; }
   const uint8_t pin=s.pin==InterruptPin::LED1?1U:s.pin==InterruptPin::LED2?2U:0U;
+  if (_interface.desiredValid &&
+      ((pin==1U && _interface.desired.clockOutput==ClockOutput::CLKOUT25) ||
+       (pin==2U && _interface.desired.collisionFullDuplex))) {
+    return invalidIrq("Interrupt route conflicts with the interface clock/COL owner");
+  }
   if (_pins.desiredValid) {
     for (uint8_t i=1;i<=2U;++i) {
       if (_pins.desired.pins[i].function==PinFunction::INTERRUPT && pin!=i) {
@@ -135,7 +140,7 @@ uint16_t DP8382x::_interruptControlValue() const noexcept {
       (_identity.mode!=OperatingMode::BASIC && s.outputEnable?1U:0U));
 }
 void DP8382x::_setInterruptStep(InterruptStep step) noexcept {
-  _pinsWorking=false;
+  _pinsWorking=false; _interfaceWorking=false;
   _wakeWorking=false;
   _interruptWorking=true; _cableWorking=_bistWorking=_loopWorking=_configuring=false;
   _interruptStep=step; _operation.nextPollValid=false;
@@ -350,5 +355,12 @@ Status DP8382x::serviceInterrupts(InterruptServiceSnapshot& snapshot,const Inter
   next.morePossiblyPending=((next.misr1.raw|next.misr2.raw)&0xFF00U)!=0U ||
       budget.maxTransactions==(extra!=0U?2U:1U) || budget.maxSamples==3U+extra || budget.io.maxFrames==3U+extra;
   _interruptService=next; snapshot=next; return Status::Ok();
+}
+InterruptSnapshot DP8382x::interruptSnapshot() const noexcept {
+  auto snapshot=_interrupts;
+  if (snapshot.desiredValid && snapshot.desired.pin==InterruptPin::LED1 && !_led1RouteVerified()) {
+    snapshot.trust=ConfigurationTrust::DIRTY; snapshot.observedStale=true;
+  }
+  return snapshot;
 }
 } // namespace DP8382x

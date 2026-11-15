@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added bounded MII/RMII, clock, compatibility, repeater-side and isolation
+  profiles with collector-routed RCSR readback and shared reset/power replay.
+  Validate wiring, packet/clock allowances and pin ownership before I/O; retain
+  partial effects on failure. Isolation composes independent software power intent.
+  Clock-mux and RCSR-status interpretation gates remain explicit.
+
 - Added bounded exact-part LED/GPIO profiles, complete admitted sources and
   shared blink/stretch, reserved-safe force/polarity/mux updates, passive evidence
   and shared reset/power restoration. IRQ/WoL/clock owners cannot steal pins;

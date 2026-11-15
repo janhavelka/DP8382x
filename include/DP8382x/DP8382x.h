@@ -286,7 +286,8 @@ enum class OperationKind : uint8_t {
   EEE_CONFIGURE, ///< Reset-bearing exact EEE recipe and shared owned-state replay.
   WOL_CONFIGURE, ///< Quiesced match/control update with detector disabled until verification.
   WOL_ACKNOWLEDGE, ///< Explicit W0C acknowledgement after collector harvest; never replayed.
-  PIN_CONFIGURE ///< Direct pin-profile mutation owns restoration debt; no retained operation token.
+  PIN_CONFIGURE, ///< Direct pin-profile mutation owns restoration debt; no retained operation token.
+  INTERFACE_CONFIGURE ///< Direct interface/clock mutation owns restoration debt, without a job token.
 };
 /// @brief One retained operation slot.
 enum class OperationState : uint8_t {
@@ -865,6 +866,76 @@ struct PinResult {
   PinSnapshot pins{}; ///< Retained partial/current evidence at return.
 };
 
+/// @brief RMII reference direction; actual board wiring must agree.
+enum class RmiiClock : uint8_t {
+  LEADER_25MHZ, ///< 25MHz reference; PHY supplies 50MHz to MAC/peer.
+  FOLLOWER_50MHZ ///< External shared 50MHz reference; no second clock driver.
+};
+/// @brief Clock/LED1 route ownership; uncertain selector paths stay rejected.
+enum class ClockOutput : uint8_t {
+  UNOWNED, ///< Preserve the existing route and another pin owner's override.
+  CLKOUT25, ///< ENHANCED IO_CFG1[6]=0; application owns clock consumers.
+  LED1, ///< ENHANCED IO_CFG1[6]=1; release the CLKOUT consumer first.
+  PLL, ///< Representable source-gated request; no proved activation mux.
+  RECOVERED ///< Representable source-gated request; no proved activation mux.
+};
+/// @brief Complete interface/compatibility intent; board declarations are not measurements.
+struct InterfaceSettings {
+  MacInterface interface{MacInterface::UNKNOWN}; ///< Must equal the binding's declared MII/RMII wiring.
+  RmiiClock rmiiClock{RmiiClock::LEADER_25MHZ}; ///< RMII reference direction; dormant default in MII.
+  bool txClockShift{false}; ///< RCSR[8], admitted only in RMII follower mode.
+  bool revision10{false}; ///< True selects RMII1.0; false selects RMII1.2.
+  uint8_t elasticityCode{0}; ///< Codes0/1/2/3 mean14/2/6/10bits, not increasing depth.
+  uint32_t maxFrameBytes{1518}; ///< Declared maximum packet bytes for the elasticity bound.
+  uint16_t clockTolerancePpm{50}; ///< Per-clock +/- tolerance: admitted source cases50 or100ppm.
+  bool rxDv{false}; ///< RMII output RX_DV instead of CRS_DV; required for repeater wiring.
+  bool repeater{false}; ///< One side of an explicitly wired two-PHY repeater, not pair readiness.
+  bool fastRxDv{false}; ///< CR1[1]: assert on /J/ rather than /JK/.
+  bool oddNibbleDisable{false}; ///< CR2[1]: one DISABLES odd-nibble detection.
+  bool collisionFullDuplex{false}; ///< PHYSCR[4]: also generate COL in full duplex, MII only.
+  bool shortIpg{false}; ///< GENCFG[3]:120ns rather than200ns minimum IPG.
+  ClockOutput clockOutput{ClockOutput::UNOWNED}; ///< Optional ENHANCED clock/LED1 route ownership.
+  bool isolationOwned{false}; ///< Explicitly own BMCR[10], separately from power-down.
+  bool isolate{false}; ///< Isolate MAC; stops RMII-leader50MHz output, not SMI.
+  bool maintenanceAdmitted{false}; ///< Owner permits disruptive interface transitions.
+  bool macStopped{false}; ///< MAC traffic and interface consumers are stopped.
+  bool pinsAvailable{false}; ///< Board/interface pin assignments permit the complete request.
+  bool referenceClockStable{false}; ///< Owner has established the required reference externally.
+  bool managementClockAvailable{false}; ///< MDIO controller/reference remains usable through changes.
+  bool clockChangeApproved{false}; ///< Owner approves clock removal AND reconnection; neither is implicit.
+  uint8_t referenceClockMHz{0}; ///< Actual declared reference25MHz or50MHz, matching the requested role.
+  bool repeaterWiringAdmitted{false}; ///< Crossed data/RX_DV and single-driver clock wiring are application-owned.
+};
+/// @brief Retained interface words and intent, distinct from observed working traffic.
+struct InterfaceSnapshot {
+  InterfaceSettings desired{}; ///< Last fully admitted request, retained after partial failure.
+  bool desiredValid{false}; ///< Explicit persistent ownership exists.
+  MacInterface observedInterface{MacInterface::UNKNOWN}; ///< Decoded RCSR mode, independent of desired wiring.
+  bool modeValid{false}; ///< RCSR mode word was successfully observed; stale still marks old context.
+  ConfigurationTrust trust{ConfigurationTrust::UNKNOWN}; ///< Stable-owned-field verification only.
+  uint16_t raw[8]{}; ///< CR1,CR2,PHYSCR,GENCFG,IO_CFG1,RCSR,BMCR,CLK_OUT_LED_STATUS.
+  uint8_t validMask{0}; ///< Successfully retained raw words; failed requested words become invalid.
+  bool observedStale{true}; ///< Partial, failed or invalidated proof; old words remain historical.
+  bool timeValid{false}; ///< Completion timestamp validity; zero can be valid.
+  uint64_t observedAtUs{0}; ///< Conservative completion upper bound in microseconds.
+  Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No interface observation"}; ///< Last apply/replay status.
+};
+/// @brief One finite interface application with partial evidence and no guessed rollback.
+struct InterfaceResult {
+  Status status{Err::RESULT_NOT_AVAILABLE,0,"No interface result"}; ///< Terminal logical outcome.
+  Status primary{}; ///< Last invoked backend primary status.
+  Status release{}; ///< Separate ownership-release status.
+  uint32_t attemptedFrames{0}; ///< Actual attempted MDIO frames, including selectors.
+  uint32_t completedFrames{0}; ///< Independently valid contiguous completed frames.
+  uint32_t transactions{0}; ///< Terminal callback invocations; no retry.
+  bool mutationAttempted{false}; ///< Owned target write attempted.
+  bool mutationCompleted{false}; ///< An owned target has valid completion evidence.
+  bool mutationPossible{false}; ///< Accepted or uncertain persistent hardware effects remain possible.
+  bool verified{false}; ///< Every requested stable field read back; not clock/traffic qualification.
+  ConfigurationMismatch mismatch{}; ///< First independently observed contradiction.
+  InterfaceSnapshot interfaceState{}; ///< Retained partial/current observations at return.
+};
+
 /// @brief Exact-part wake indication route; board wiring is separately admitted.
 enum class WakeRoute : uint8_t {
   STATUS_ONLY, ///< Matching/status without a physical output requirement.
@@ -1015,6 +1086,7 @@ struct OperationResult {
   EeeSnapshot eee{}; ///< Retained EEE intent and partial acquisition evidence.
   WakeSnapshot wake{}; ///< Retained WoL intent, control/credential prefixes and status acquisition.
   PinSnapshot pins{}; ///< Retained pin profile and partial verification during shared restoration.
+  InterfaceSnapshot interfaceState{}; ///< Interface/clock/isolation proof from the shared restoration pass.
   PowerSnapshot power{}; ///< Retained power intent, partial observations and transition outcome.
   InterruptSnapshot interrupts{}; ///< Retained policy and transient test effects, independent of restoration result.
   uint16_t savedAnar{0}; ///< Pre-mutation advertisement, never a rollback instruction.
@@ -1278,6 +1350,18 @@ public:
   /// @brief Bus/clock-silent retained pin settings and observed values.
   /// @return Separate desired, valid and trusted evidence; serialize under the owner.
   PinSnapshot pinsSnapshot() const noexcept;
+  /// @brief Apply a complete clock/interface/compatibility profile under one finite allowance.
+  /// @param[in] settings Valid intent matching bound wiring and explicit stopped-MAC/clock admission.
+  /// @param[out] result Unchanged on local rejection; partial evidence after an invoked callback.
+  /// @param[in] budget Aggregate deadline and frames for the complete synchronous pass.
+  /// @return OK, local admission error, CONFIG_MISMATCH or terminal transport/budget failure.
+  /// @note SNLS647I8-19/28/29/35/41/73/84. RCSR reads consume RC through the
+  /// single collector. Failed accepted writes leave OP-9 debt; restoration uses
+  /// a separately admitted startInitialize. No clock-source switch or retry is automatic.
+  Status configureInterface(const InterfaceSettings& settings, InterfaceResult& result, const IoBudget& budget) noexcept;
+  /// @brief Copy retained interface intent/evidence without bus or clock callbacks.
+  /// @return Stable-field trust, never proof of working clock, MAC or repeater traffic.
+  InterfaceSnapshot interfaceSnapshot() const noexcept { return _interface; }
 
   /// @brief Admit quiesced WoL configuration; start is bus/clock silent.
   /// @param[in] settings Complete match, Secure-ON, CRC, pulse/level and route intent.
@@ -1301,8 +1385,8 @@ public:
   /// @return Terminal transport/admission status; destructive uncertainty remains in the collector.
   Status readWakeStatus(WakeSnapshot& snapshot, const IoBudget& budget) noexcept;
   /// @brief Bus/clock-silent copy of WoL intent and observations.
-  /// @return Historical/partial values with independent validity and staleness.
-  WakeSnapshot wakeSnapshot() const noexcept { return _wake; }
+  /// @return Historical/partial values; trust includes any owned LED1 clock dependency.
+  WakeSnapshot wakeSnapshot() const noexcept;
 
   /// @brief Set forced TX LPI bit12 and verify it; SNLS647I8.3.4/7.6, OP-9.
   /// @param[in] options Explicit MAC drain and maintenance admission.
@@ -1371,8 +1455,8 @@ public:
   /// @return IN_PROGRESS or local error. Failed stop keeps accepted effects and OP-9 debt.
   Status stopInterruptTest(const OperationBudget& budget, OperationToken& token) noexcept;
   /// @brief Copy policy and test evidence without MDIO or clock access.
-  /// @return Desired, raw observed and trust facts; no claim of external pin level.
-  InterruptSnapshot interruptSnapshot() const noexcept { return _interrupts; }
+  /// @return Desired/raw facts and trust including owned LED1 clock routing, not pin level.
+  InterruptSnapshot interruptSnapshot() const noexcept;
   /// @brief Service once in owner context: PHYSTS, both MISRs, then requested half-full counters.
   /// @param[out] snapshot Published only on complete success; unchanged on failure.
   /// @param[in] budget Maximum callbacks/samples and aggregate physical frames/deadline.
@@ -1607,6 +1691,20 @@ public:
 
 private:
   enum class PinStep : uint8_t { CLOCK_STATUS, MUX0, MUX3, APPLY, VERIFY, COMPLETE };
+  enum class InterfaceStep : uint8_t { PREFLIGHT, APPLY, VERIFY, CLOCK_STATUS, COMPLETE };
+  InterfaceSnapshot _interface{};
+  InterfaceResult _interfaceResult{};
+  InterfaceStep _interfaceStep{InterfaceStep::COMPLETE};
+  uint8_t _interfaceRow{0};
+  bool _interfaceWorking{false}, _interfaceDirect{false}, _interfaceTailPending{false}, _interfaceVerifyOnly{false};
+  Status _validateInterface(const InterfaceSettings& settings) const noexcept;
+  void _beginInterface(bool verifyOnly) noexcept;
+  MdioBatch _interfaceBatch() const noexcept;
+  Status _advanceInterface(Status status, bool called, const MdioBatch& batch) noexcept;
+  void _retainInterfaceWord(uint16_t address, uint16_t value) noexcept;
+  bool _interfaceRowValue(uint8_t row, uint16_t& address, uint16_t& mask, uint16_t& value) const noexcept;
+  void _nextInterfaceRow() noexcept;
+  Status _finishInterface(Status status) noexcept;
   PinSnapshot _pins{};
   PinResult _pinResult{};
   PinStep _pinStep{PinStep::COMPLETE};
@@ -1799,6 +1897,7 @@ private:
   Status _checkMutation() noexcept;
   Status _checkToken(OperationToken token) const noexcept;
   bool _otherControlsVerified(OperationKind owner) const noexcept;
+  bool _led1RouteVerified() const noexcept;
   void _beginOperation(OperationKind kind, const OperationBudget& budget) noexcept;
   Status _finishOperation(Status status, bool freshObservation = false) noexcept;
   Status _yieldOperation(uint64_t raw) noexcept;

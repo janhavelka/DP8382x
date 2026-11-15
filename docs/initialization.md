@@ -241,3 +241,12 @@ clock release, mux and final force enable. IRQ/WoL source owners restore their
 own routes; the pin profile is a checked dependency, not a second mux writer.
 NONE/PCS/HARD/RESTART and existing power/diagnostic recovery retain this same
 sequence. Read-only VERIFY detects changed owned fields without repair.
+
+
+Owned [interface/clock settings](interface-clock.md) now replay after mandatory
+VOD/link work and before pin, WoL, IRQ and final power policy. NONE/PCS/HARD/RESTART
+share the same procedure; reset-loaded defaults never replace admitted desired
+intent. RCSR replay/readback consumes RC samples through the collector. Optional
+isolation uses the independent power request; application clock admission also
+covers reassertion after reset. Non-HARD owned PLL shutdown is cleared by existing
+power preparation before interface mutation; VERIFY makes no such writes.

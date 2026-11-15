@@ -10832,24 +10832,24 @@
           "mask": "0x0038"
         }
       ],
-      "prerequisites": "Identified exact DP83826I and mode; one application owner serializes instance and complete bus transactions. Board declares wiring, pin consumers, clock dependencies and MAC state. Pure validation rejects invalid values/source-gated branches without I/O; bounded live prerequisite reads precede mutation. Save persistent desired settings separately from observed values/trust; admit only finite positive primary and cleanup budgets. ",
+      "prerequisites": "Initialized exact part, ENHANCED for IO_CFG1[6], stopped MAC and clock consumers, explicit clockChangeApproved and stable declared reference/management clocks. Full profile matches immutable bound board wiring. Reject conflicting LED1 pin/IRQ/WoL route, duplicate pin clock-override ownership and EEE recipe ownership. PLL/recovered selectors remain pin_fields gates.",
       "steps": [
         "Validate requested clock by pin and mode, powered/PLL/link state and board consumers. In ENHANCED IO_CFG1[6]=0 makes CLKOUT25 available;1 selects LED1 GPIO. Coordinate LED1 mux/source before releasing its clock function.",
         "PLL/recovered selector values5/6 are documented, but a usable mux path is not: LED0 muxR and LED1 mux1reserved. Gate those selections; do not turn internal selector write into a supported output claim. No clock-disable-as-input encoding is invented.",
         "For the independently proved IO_CFG1 route, apply once and observe CLK_OUT_LED_STATUS[0]. This proves route status only. Asserted isolation, PLL shutdown, reset and lost recovered link can stop clocks; notify application owner before any such action."
       ],
       "waits": [],
-      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Bounded direct IoBudget admits the complete request before publishing intent. Default RMII32frames/13callbacks; maximum with clock route and isolation39/16. Full read-only verification19frames/9callbacks. Per C22 row atomic RMW2 plus readback1, MMD row RMW5 plus readback4; one two-read preflight and optional four-frame clock-status observation. Shared replay uses the same pass under the existing operation deadline/frame/poll budget. No extra silicon wait or retry; no lock spans polls.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
-      "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
+      "cleanup": "No automatic cleanup frames. Accepted/possible target effects retain OP-9 debt and original direct result. Separately admitted startInitialize restores the desired profile with its own token, result and finite budget. Cancellation freezes a cooperative restoration without claiming clocks or MAC recovered; end/rebind obey the barrier.",
+      "restoration": "One shared interface/clock pass runs after mandatory VOD/link replay and before pin, WoL, IRQ and final power restoration. Only explicitly owned isolation/clock output is replayed; MII preserves dormant RMII fields. NONE/PCS/HARD/RESTART and existing power/diagnostic recovery share this pass; startVerify and link configuration compare read-only. Desired intent and raw observed mode remain separate. No POR-only strap resampling, generated-clock readiness or two-PHY success is inferred.",
       "gates": [
         "pin_fields"
       ],
       "owner": {
-        "api": "clock_configure",
+        "api": "InterfaceSettings / configureInterface / interfaceSnapshot",
         "cli": "Owner-routed clock_configure with typed preflight and bounded result (44-46).",
-        "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: Identified board and external25/50MHz source, scope at actual consumer; phase/frequency/reset/power/link-loss captures with no conflicting drivers.",
+        "test": "test/interface.cpp independent literals, frame and release failures, collector prefixes, owner conflicts, reset/power replay; physical clock/repeater fixtures NOT RUN.",
         "implementationStage": 33
       }
     },
@@ -10891,17 +10891,17 @@
         "Apply PHYSCR[4] only with explicit application policy:1 enables COL in full duplex. Quiesce conflicting LED2/3 COL/CRS mux ownership. Read back stable controls; actual MAC pin timing remains a fixture claim."
       ],
       "waits": [],
-      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Bounded direct IoBudget admits the complete request before publishing intent. Default RMII32frames/13callbacks; maximum with clock route and isolation39/16. Full read-only verification19frames/9callbacks. Per C22 row atomic RMW2 plus readback1, MMD row RMW5 plus readback4; one two-read preflight and optional four-frame clock-status observation. Shared replay uses the same pass under the existing operation deadline/frame/poll budget. No extra silicon wait or retry; no lock spans polls.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
-      "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
+      "cleanup": "No automatic cleanup frames. Accepted/possible target effects retain OP-9 debt and original direct result. Separately admitted startInitialize restores the desired profile with its own token, result and finite budget. Cancellation freezes a cooperative restoration without claiming clocks or MAC recovered; end/rebind obey the barrier.",
+      "restoration": "One shared interface/clock pass runs after mandatory VOD/link replay and before pin, WoL, IRQ and final power restoration. Only explicitly owned isolation/clock output is replayed; MII preserves dormant RMII fields. NONE/PCS/HARD/RESTART and existing power/diagnostic recovery share this pass; startVerify and link configuration compare read-only. Desired intent and raw observed mode remain separate. No POR-only strap resampling, generated-clock readiness or two-PHY success is inferred.",
       "gates": [
         "rmii_rc"
       ],
       "owner": {
-        "api": "mii_configure",
+        "api": "InterfaceSettings / configureInterface / interfaceSnapshot",
         "cli": "Owner-routed mii_configure with typed preflight and bounded result (44-46).",
-        "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: MII MAC fixture injecting odd TX_EN nibbles and malformed /JK/ sequences; scope RX_DV,RX_ER,COL with full/half duplex.",
+        "test": "test/interface.cpp independent literals, frame and release failures, collector prefixes, owner conflicts, reset/power replay; physical clock/repeater fixtures NOT RUN.",
         "implementationStage": 33
       }
     },
@@ -10932,21 +10932,21 @@
       "steps": [
         "Validate board reference: leader takes25MHz crystal/oscillator and supplies50MHz; follower requires50MHz shared clock. Reject transmit shift outside follower mode. Quiesce MAC and ensure no two output clocks drive one net.",
         "Through the RCSR collector configure modebit5, referencebit7, follower TX shiftbit8, revisionbit4 and elasticity[1:0]; preserve consumed RC fault samples. Revision0 meansRMII1.2 CRS_DV toggle,1 meansRMII1.0 no final toggle.",
-        "Elasticity encoding0/1/2/3 means14/2/6/10bit tolerance and source maximum packet16800/2400/7200/12000bytes at +/-50ppm; at +/-100ppm halve permitted length. Validate declared maximum packet and frequency tolerance; no arbitrary FIFO-size enum.",
+        "Elasticity encoding0/1/2/3 means14/2/6/10bit tolerance and source maximum packet16800/2400/7200/12000bytes at +/-50ppm; at +/-100ppm halve permitted length. Validate declared maximum packet and frequency tolerance; no arbitrary FIFO-size enum. The100ppm arithmetic is not an electrical-compliance allowance; table7.6 clock requirements and physical qualification remain separate.",
         "Set IO_CFG1[8] CRS_DV=0 or RX_DV=1 as board/MAC requires; verify stable settings and hand configuration trust to MAC owner. RC polarity remains raw/table-specific0 fault1 normal; readback does not prove interface traffic."
       ],
       "waits": [],
-      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Bounded direct IoBudget admits the complete request before publishing intent. Default RMII32frames/13callbacks; maximum with clock route and isolation39/16. Full read-only verification19frames/9callbacks. Per C22 row atomic RMW2 plus readback1, MMD row RMW5 plus readback4; one two-read preflight and optional four-frame clock-status observation. Shared replay uses the same pass under the existing operation deadline/frame/poll budget. No extra silicon wait or retry; no lock spans polls.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
-      "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
+      "cleanup": "No automatic cleanup frames. Accepted/possible target effects retain OP-9 debt and original direct result. Separately admitted startInitialize restores the desired profile with its own token, result and finite budget. Cancellation freezes a cooperative restoration without claiming clocks or MAC recovered; end/rebind obey the barrier.",
+      "restoration": "One shared interface/clock pass runs after mandatory VOD/link replay and before pin, WoL, IRQ and final power restoration. Only explicitly owned isolation/clock output is replayed; MII preserves dormant RMII fields. NONE/PCS/HARD/RESTART and existing power/diagnostic recovery share this pass; startVerify and link configuration compare read-only. Desired intent and raw observed mode remain separate. No POR-only strap resampling, generated-clock readiness or two-PHY success is inferred.",
       "gates": [
         "rmii_rc"
       ],
       "owner": {
-        "api": "rmii_configure",
+        "api": "InterfaceSettings / configureInterface / interfaceSnapshot",
         "cli": "Owner-routed rmii_configure with typed preflight and bounded result (44-46).",
-        "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: Clock-declared RMII MAC, scope and packet generator covering leader/follower, revision, lengths and clock tolerance; preserve raw RC samples.",
+        "test": "test/interface.cpp independent literals, frame and release failures, collector prefixes, owner conflicts, reset/power replay; physical clock/repeater fixtures NOT RUN.",
         "implementationStage": 33
       }
     },
@@ -10980,17 +10980,17 @@
         "Verify each side independently; if the second side fails retain first-side applied settings and restore both using their own bounded owners. Do not publish repeater readiness from one configured PHY."
       ],
       "waits": [],
-      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count. This is the PER-PHY bound; two-PHY coordinator reserves twice these framecounts and both finite durations before either mutation; failure cleanup visits each side at most once.",
+      "timeout": "Bounded direct IoBudget admits the complete request before publishing intent. Default RMII32frames/13callbacks; maximum with clock route and isolation39/16. Full read-only verification19frames/9callbacks. Per C22 row atomic RMW2 plus readback1, MMD row RMW5 plus readback4; one two-read preflight and optional four-frame clock-status observation. Shared replay uses the same pass under the existing operation deadline/frame/poll budget. No extra silicon wait or retry; no lock spans polls.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
-      "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
+      "cleanup": "No automatic cleanup frames. Accepted/possible target effects retain OP-9 debt and original direct result. Separately admitted startInitialize restores the desired profile with its own token, result and finite budget. Cancellation freezes a cooperative restoration without claiming clocks or MAC recovered; end/rebind obey the barrier.",
+      "restoration": "One shared interface/clock pass runs after mandatory VOD/link replay and before pin, WoL, IRQ and final power restoration. Only explicitly owned isolation/clock output is replayed; MII preserves dormant RMII fields. NONE/PCS/HARD/RESTART and existing power/diagnostic recovery share this pass; startVerify and link configuration compare read-only. Desired intent and raw observed mode remain separate. No POR-only strap resampling, generated-clock readiness or two-PHY success is inferred.",
       "gates": [
         "rmii_rc"
       ],
       "owner": {
-        "api": "repeater_configure",
+        "api": "InterfaceSettings / configureInterface / interfaceSnapshot",
         "cli": "Owner-routed repeater_configure with typed preflight and bounded result (44-46).",
-        "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: Two identified PHY boards/custom cable, actual peer clock ownership and bidirectional traffic/error capture, disconnect/reset/partial-config rollback.",
+        "test": "test/interface.cpp independent literals, frame and release failures, collector prefixes, owner conflicts, reset/power replay; physical clock/repeater fixtures NOT RUN.",
         "implementationStage": 33
       }
     },
@@ -11180,15 +11180,15 @@
         "Read back owned fields and report actual profile; EtherCAT stack behavior and protocol conformance remain application-owned. Reapply persistent approved policy after reset."
       ],
       "waits": [],
-      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Bounded direct IoBudget admits the complete request before publishing intent. Default RMII32frames/13callbacks; maximum with clock route and isolation39/16. Full read-only verification19frames/9callbacks. Per C22 row atomic RMW2 plus readback1, MMD row RMW5 plus readback4; one two-read preflight and optional four-frame clock-status observation. Shared replay uses the same pass under the existing operation deadline/frame/poll budget. No extra silicon wait or retry; no lock spans polls.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
-      "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
+      "cleanup": "No automatic cleanup frames. Accepted/possible target effects retain OP-9 debt and original direct result. Separately admitted startInitialize restores the desired profile with its own token, result and finite budget. Cancellation freezes a cooperative restoration without claiming clocks or MAC recovered; end/rebind obey the barrier.",
+      "restoration": "One shared interface/clock pass runs after mandatory VOD/link replay and before pin, WoL, IRQ and final power restoration. Only explicitly owned isolation/clock output is replayed; MII preserves dormant RMII fields. NONE/PCS/HARD/RESTART and existing power/diagnostic recovery share this pass; startVerify and link configuration compare read-only. Desired intent and raw observed mode remain separate. No POR-only strap resampling, generated-clock readiness or two-PHY success is inferred.",
       "gates": [],
       "owner": {
-        "api": "compatibility_configure",
+        "api": "InterfaceSettings / configureInterface / interfaceSnapshot",
         "cli": "Owner-routed compatibility_configure with typed preflight and bounded result (44-46).",
-        "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: MAC/IPG timing analyzer and protocol-specific partner, odd-nibble boundary frames; no claimEtherCAT qualification from registers alone.",
+        "test": "test/interface.cpp independent literals, frame and release failures, collector prefixes, owner conflicts, reset/power replay; physical clock/repeater fixtures NOT RUN.",
         "implementationStage": 33
       }
     },
@@ -11303,19 +11303,19 @@
       "prerequisites": "Identified exact DP83826I and mode; one application owner serializes instance and complete bus transactions. Board declares wiring, pin consumers, clock dependencies and MAC state. Pure validation rejects invalid values/source-gated branches without I/O; bounded live prerequisite reads precede mutation. Save persistent desired settings separately from observed values/trust; admit only finite positive primary and cleanup budgets. ",
       "steps": [
         "Require MAC quiesced and application approval for removal of RMII leader50MHz clock; fail preflight when another active consumer depends on it.",
-        "Set BMCR[10] to1 isolate or0 reconnect via mixed BMCR composition: reset/restart W1S neutral0, preserve persistent unrelated settings. Management SMI remains accessible.",
+        "Set BMCR[10] to1 isolate or0 reconnect in one RMW: preserve71FF, neutral reset/restart8200, supply separately owned software power0800 rather than sampled pin OR, and desired isolation0400. Unowned high power indication rejects at live preflight. Verify0400 only; power owner retains its independent proof.",
         "Verify isolation bit; reconnect only under declared stable external/reference clock and MAC sequencing. BASIC strap default is observation, not permission to change external wiring. Hardware reset reloads settings; persistent requested isolation is replayed only at its safe dependency point."
       ],
       "waits": [],
-      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Bounded direct IoBudget admits the complete request before publishing intent. Default RMII32frames/13callbacks; maximum with clock route and isolation39/16. Full read-only verification19frames/9callbacks. Per C22 row atomic RMW2 plus readback1, MMD row RMW5 plus readback4; one two-read preflight and optional four-frame clock-status observation. Shared replay uses the same pass under the existing operation deadline/frame/poll budget. No extra silicon wait or retry; no lock spans polls.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
-      "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
+      "cleanup": "No automatic cleanup frames. Accepted/possible target effects retain OP-9 debt and original direct result. Separately admitted startInitialize restores the desired profile with its own token, result and finite budget. Cancellation freezes a cooperative restoration without claiming clocks or MAC recovered; end/rebind obey the barrier.",
+      "restoration": "One shared interface/clock pass runs after mandatory VOD/link replay and before pin, WoL, IRQ and final power restoration. Only explicitly owned isolation/clock output is replayed; MII preserves dormant RMII fields. NONE/PCS/HARD/RESTART and existing power/diagnostic recovery share this pass; startVerify and link configuration compare read-only. Desired intent and raw observed mode remain separate. No POR-only strap resampling, generated-clock readiness or two-PHY success is inferred.",
       "gates": [],
       "owner": {
-        "api": "isolation_configure",
+        "api": "InterfaceSettings / configureInterface / interfaceSnapshot",
         "cli": "Owner-routed isolation_configure with typed preflight and bounded result (44-46).",
-        "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: MII and RMII leader/follower boards with scope on MAC pins/50MHz and concurrentSMI; no traffic until clock/readiness restored.",
+        "test": "test/interface.cpp independent literals, frame and release failures, collector prefixes, owner conflicts, reset/power replay; physical clock/repeater fixtures NOT RUN.",
         "implementationStage": 33
       }
     },
@@ -12412,23 +12412,23 @@
         "repeater_configure"
       ],
       "owner": {
-        "api": "RepeaterSettings",
-        "cli": "owner-routed RepeaterSettings (prompts 44-46)",
-        "test": "Independent literals and boundary failures for RepeaterSettings; prompts 33, 53-55",
+        "api": "InterfaceSettings / configureInterface / interfaceSnapshot",
+        "cli": "Owner-routed InterfaceSettings and cached interfaceSnapshot (prompts 44-46).",
+        "test": "test/interface.cpp independent literals and bounded failure/restoration cases; physical qualification remains separate.",
         "implementationStage": 33
       },
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "rmii_rc"
       ],
-      "notes": "Source inventory researched, including named source gates. Implementation, host/SDK and hardware evidence remain pending; board wiring does not remove software scope."
+      "notes": "Stage33 implements the source-admitted complete profile, explicit isolation/power composition, collector-safe RCSR access, finite direct application and shared restoration. test/interface.cpp provides independent host vectors/failures. Clock activation mux conflicts remain pin_fields/Q12; raw RCSR status polarity remains rmii_rc/Q17. No working clock, MAC or two-PHY repeater qualification is claimed. SDK and physical evidence NOT RUN."
     },
     {
       "id": "clock",
@@ -12449,23 +12449,23 @@
         "clock_configure"
       ],
       "owner": {
-        "api": "ClockSettings",
-        "cli": "owner-routed ClockSettings (prompts 44-46)",
-        "test": "Independent literals and boundary failures for ClockSettings; prompts 33, 53-55",
+        "api": "InterfaceSettings / configureInterface / interfaceSnapshot",
+        "cli": "Owner-routed InterfaceSettings and cached interfaceSnapshot (prompts 44-46).",
+        "test": "test/interface.cpp independent literals and bounded failure/restoration cases; physical qualification remains separate.",
         "implementationStage": 33
       },
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "pin_fields"
       ],
-      "notes": "Source inventory researched, including named source gates. Implementation, host/SDK and hardware evidence remain pending; board wiring does not remove software scope."
+      "notes": "Stage33 implements the source-admitted complete profile, explicit isolation/power composition, collector-safe RCSR access, finite direct application and shared restoration. test/interface.cpp provides independent host vectors/failures. Clock activation mux conflicts remain pin_fields/Q12; raw RCSR status polarity remains rmii_rc/Q17. No working clock, MAC or two-PHY repeater qualification is claimed. SDK and physical evidence NOT RUN."
     },
     {
       "id": "mii",
@@ -12489,23 +12489,23 @@
         "isolation_configure"
       ],
       "owner": {
-        "api": "MiiSettings",
-        "cli": "owner-routed MiiSettings (prompts 44-46)",
-        "test": "Independent literals and boundary failures for MiiSettings; prompts 33, 53-55",
+        "api": "InterfaceSettings / configureInterface / interfaceSnapshot",
+        "cli": "Owner-routed InterfaceSettings and cached interfaceSnapshot (prompts 44-46).",
+        "test": "test/interface.cpp independent literals and bounded failure/restoration cases; physical qualification remains separate.",
         "implementationStage": 33
       },
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "rmii_rc"
       ],
-      "notes": "Source inventory researched, including named source gates. Implementation, host/SDK and hardware evidence remain pending; board wiring does not remove software scope."
+      "notes": "Stage33 implements the source-admitted complete profile, explicit isolation/power composition, collector-safe RCSR access, finite direct application and shared restoration. test/interface.cpp provides independent host vectors/failures. Clock activation mux conflicts remain pin_fields/Q12; raw RCSR status polarity remains rmii_rc/Q17. No working clock, MAC or two-PHY repeater qualification is claimed. SDK and physical evidence NOT RUN."
     },
     {
       "id": "rmii",
@@ -12525,23 +12525,23 @@
         "rmii_configure"
       ],
       "owner": {
-        "api": "RmiiSettings",
-        "cli": "owner-routed RmiiSettings (prompts 44-46)",
-        "test": "Independent literals and boundary failures for RmiiSettings; prompts 33, 53-55",
+        "api": "InterfaceSettings / configureInterface / interfaceSnapshot",
+        "cli": "Owner-routed InterfaceSettings and cached interfaceSnapshot (prompts 44-46).",
+        "test": "test/interface.cpp independent literals and bounded failure/restoration cases; physical qualification remains separate.",
         "implementationStage": 33
       },
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "rmii_rc"
       ],
-      "notes": "Source inventory researched, including named source gates. Implementation, host/SDK and hardware evidence remain pending; board wiring does not remove software scope."
+      "notes": "Stage33 implements the source-admitted complete profile, explicit isolation/power composition, collector-safe RCSR access, finite direct application and shared restoration. test/interface.cpp provides independent host vectors/failures. Clock activation mux conflicts remain pin_fields/Q12; raw RCSR status polarity remains rmii_rc/Q17. No working clock, MAC or two-PHY repeater qualification is claimed. SDK and physical evidence NOT RUN."
     },
     {
       "id": "tx100",
@@ -13107,21 +13107,21 @@
         "compatibility_configure"
       ],
       "owner": {
-        "api": "CompatibilitySettings",
-        "cli": "owner-routed CompatibilitySettings (prompts 44-46)",
-        "test": "Independent literals and boundary failures for CompatibilitySettings; prompts 33, 53-55",
+        "api": "InterfaceSettings / configureInterface / interfaceSnapshot",
+        "cli": "Owner-routed InterfaceSettings and cached interfaceSnapshot (prompts 44-46).",
+        "test": "test/interface.cpp independent literals and bounded failure/restoration cases; physical qualification remains separate.",
         "implementationStage": 33
       },
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [],
-      "notes": "Source inventory researched, including named source gates. Implementation, host/SDK and hardware evidence remain pending; board wiring does not remove software scope."
+      "notes": "Stage33 implements the source-admitted complete profile, explicit isolation/power composition, collector-safe RCSR access, finite direct application and shared restoration. test/interface.cpp provides independent host vectors/failures. Clock activation mux conflicts remain pin_fields/Q12; raw RCSR status polarity remains rmii_rc/Q17. No working clock, MAC or two-PHY repeater qualification is claimed. SDK and physical evidence NOT RUN."
     },
     {
       "id": "calibration",
@@ -13190,7 +13190,7 @@
       "gates": [
         "hard_reset_straps"
       ],
-      "notes": "Planned typed responsibility; signatures freeze in prompts 7-8. Hardware/absence observations still need tests and qualification."
+      "notes": "Strap fields are observed through source-admitted read-only access; runtime interface profiles do not change POR-only properties or prove resampling. Exact identity and reset operations retain mode/strap uncertainty. Physical reset/strap qualification remains Q5; there is no software strap setter."
     },
     {
       "id": "outside_phy",
