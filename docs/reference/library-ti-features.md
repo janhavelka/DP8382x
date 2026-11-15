@@ -240,3 +240,9 @@ Its MII/leader/follower masks agree, but it validates after a read and lacks RC
 retention/readback; no implementation was copied. [The report](../reports/implementation/33-clock-interface-repeater.md)
 records exact paths, current revision and independent source vectors. RCSR's
 100ppm packet arithmetic does not relax table7.6 electrical clock requirements.
+
+Stage34 re-audit checked SNLS647I tables8-28..30/35/44/51..53/72 directly.
+The FIFO in PHYSCR is specifically far-end-loopback buffering. Independent
+implementation vectors and current source/sibling evidence are recorded in
+[the stage report](../reports/implementation/34-quality-link-loss.md); source
+gates and vendor payloads remain unchanged.

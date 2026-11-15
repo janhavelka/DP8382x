@@ -1,3 +1,4 @@
+#include "../../examples/portable/Quality.h"
 #include "../../examples/portable/Wake.h"
 #include "../../examples/portable/Pins.h"
 #include "../../examples/portable/Interface.h"

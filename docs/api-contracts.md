@@ -1051,3 +1051,14 @@ budgeted restoration. Read-only VERIFY uses the same owned-mask pass.
 Isolation is optional independent ownership of BMCR[10], and writes use the
 power owner's software intent rather than the hardware/software OR readback.
 No direct-call token, scheduled silicon wait or retry is introduced.
+
+## Quality and hardware link-loss ownership (stage34)
+
+`startConfigureQuality(QualitySettings, OperationBudget, OperationToken&)`
+uses OP-1 through OP-17 with one admitted profile, cooperative complete batches
+and separate restoration. `qualitySnapshot()` retains desired, partial raw and
+verified evidence. `readSignalQuality` stages a raw MSE word with original time
+and cached identity/link context; `signalQualitySnapshot()` is bus-silent.
+The [quality guide](quality.md) owns field admission, interface restrictions,
+read effects and physical limits. These routes complete the five stage34 ledger
+procedures without another collector or automatic recovery policy.

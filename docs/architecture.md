@@ -195,3 +195,8 @@ pass. The direct call and existing cooperative restoration share its rows; no
 new operation engine or bus owner exists. It runs before pin/source/power replay
 and uses the existing collector for RCSR. Repeater coordination is two explicit
 application calls with independent results, not a core device registry.
+
+Stage34 adds one explicit quality/TX/link-loss pass in the existing operation
+slot. It shares controller transactions, destructive collector and initialization/
+verification tails; no scheduler or second diagnostic reader is introduced.
+See [quality controls](quality.md) for independent raw MSE and profile evidence.

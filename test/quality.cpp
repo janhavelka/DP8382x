@@ -1,0 +1,463 @@
+#include "support/Check.h"
+#include <DP8382x/DP8382x.h>
+#include "../examples/portable/Quality.h"
+#include <array>
+#include <cstdint>
+#include <limits>
+
+namespace {
+using namespace DP8382x;
+using Driver = ::DP8382x::DP8382x;
+struct Wire { FrameKind kind; uint8_t reg; uint16_t value, target, devad; uint64_t at; };
+
+// Independent SNLS647I tables8-28..30/35/44/51..53/72 original PDF literals.
+// The fake models consumption, not physical latency, thresholds or SNR.
+struct Controller {
+  std::array<uint16_t,32> words{};
+  std::array<uint16_t,0x500> ext{};
+  std::array<uint16_t,64> mmd3{},mmd7{};
+  std::array<Wire,8192> trace{};
+  uint16_t selector{0},address{0},id2{0xA131};
+  MacInterface boardInterface{MacInterface::MII};
+  uint64_t now{100};
+  unsigned frames{0},calls{0},clocks{0},releases{0},mutations{0},hard{0};
+  std::array<unsigned,2048> firstFrame{};
+  uint16_t capability{2}; bool corruptAdvertisement{false};
+  int failFrame{-1},releaseCall{-1},corruptFrame{-1},lateCall{-1},regressCall{-1},invalidCall{-1},badReceiptCall{-1};
+  uint16_t corruptMask{1};
+  bool acceptedFailure{true},locked{false},powerPin{false},stickyRestart{false};
+  int poisonBmcrFrame{-1},changeBmcrFrame{-1}; uint16_t bmcrChange{0};
+  uint64_t frameTime{2};
+  Driver* competitor{nullptr}; unsigned excluded{0};
+  Controller() { defaults(); }
+  void defaults() {
+    words.fill(0);ext.fill(0);mmd3.fill(0);mmd7.fill(0);words[0]=0x3100;words[4]=0x01E1;
+    words[1]=0x0024;words[5]=0x0101;words[6]=1;words[16]=0x15;
+    words[25]=0x8001;words[22]=0x0100;words[30]=0x0102;words[23]=boardInterface==MacInterface::MII?0x0041:0x0061;
+    ext[0x0303]=ext[0x0304]=ext[0x0305]=ext[0x0306]=8;
+    ext[0x117]=0x8147;ext[0x131]=0x2284;ext[0x2A]=0x7998;ext[0x030E]=0x8400;ext[0x04A1]=0x1000;ext[0x04D1]=0x0080;
+  }
+  Config config(uint32_t phy=1) {
+    Config c;c.variant=Variant::DP83826I;c.interface=boardInterface;c.phyAddress=phy;
+    c.transport={this,execute,clock,{8,4,1}};return c;
+  }
+  static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context);++b.clocks;return b.now; }
+  uint16_t read(uint16_t target,uint16_t devad=31) {
+    if(devad==3) {
+      CHECK(target<64U);if(target>=64U)return 0xFFFF;
+      if(target==0x14)return capability;
+      const auto value=mmd3[target];if(target==1)mmd3[target]&=0xF3FF;if(target==0x16)mmd3[target]=0;
+      return value;
+    }
+    if(devad==7) { CHECK(target<64U);return target<64U?mmd7[target]:uint16_t{0xFFFF}; }
+    if(target==2)return 0x2000;
+    if(target==3)return id2;
+    if(target==0) { words[0]&=stickyRestart?0x7FFFU:0x7DFFU;return static_cast<uint16_t>(words[0]|(powerPin?0x0800U:0U)); }
+    if(target==31)words[31]=0;
+    if(target==0x0308)return static_cast<uint16_t>((ext[0x0302]&0x0040U)!=0U?1U:0U);
+    const auto value=target<32U?words[target]:ext[target];
+    if(target==18 || target==19) { words[target]&=0x00FF;words[16]&=0xFF7F; }
+    if(target==20) { words[20]&=0xFF00;words[16]&=0xF7FF; }
+    if(target==21) { words[21]=0;words[16]&=0xDFFF; }
+    if(target==23)words[23]&=0xFFF3;
+    if(target==15)words[15]&=0xFE0F;
+    if(target==26) { words[26]&=0xFFEF;words[16]&=0xEFFF; }
+    if(target==6) { words[6]&=0xFFFD;words[16]&=0xFEFF; }
+    if(target==0x04A1)ext[target]&=0xFF00;
+    return value;
+  }
+  void write(uint8_t reg,uint16_t value) {
+    if(reg==13) { CHECK((value&0xBFE0U)==0U && ((value&31U)==3U || (value&31U)==7U || (value&31U)==31U));selector=value;return; }
+    if(reg==14 && (selector&0x4000U)==0U) { address=value;return; }
+    const uint16_t target=reg==14?address:uint16_t{reg};++mutations;
+    const uint16_t devad=reg==14?static_cast<uint16_t>(selector&31U):uint16_t{31};
+    if(devad==3 || devad==7) {
+      CHECK(target<64U);if(target>=64U)return;
+      if(devad==3)mmd3[target]=value;else mmd7[target]=static_cast<uint16_t>(value^(corruptAdvertisement?1U:0U));
+      return;
+    }
+    if(target==31 && value==0x8000) { ++hard;defaults();return; }
+    if(target==0 && value==0x8000) { words[0]=0x3100;words[9]=words[10]=words[17]=0;words[23]=boardInterface==MacInterface::MII?0x0041:0x0061;return; }
+    if(target==26)CHECK((value&0x0010U)==0U);
+    if(target==23)CHECK((value&0x000CU)==0U);
+    if(target==18 || target==19) { CHECK((value&0xFF00U)==0U);words[target]=static_cast<uint16_t>((words[target]&0xFF00U)|value);return; }
+    if(target==0x04A1) {
+      CHECK(value==0x1000 || value==0);
+      ext[target]=static_cast<uint16_t>((ext[target]&0x00FFU)|value);return;
+    }
+    if(target<32U)words[target]=value;else ext[target]=value;
+  }
+  static BatchResult execute(void* context,const MdioBatch& batch,const IoBudget& budget) noexcept {
+    auto& b=*static_cast<Controller*>(context);BatchResult r;
+    r.status=Status::Ok();r.releaseStatus=Status::Ok();r.controllerReusable=true;
+    if(b.locked) { r.status={Err::BUSY,static_cast<int32_t>(BusyDetail::OWNER_ADMISSION),"Owned"};return r; }
+    CHECK(batch.frameCount<=budget.maxFrames);b.locked=true;const auto call=b.calls++;CHECK(call<b.firstFrame.size());b.firstFrame[call]=b.frames;
+    for(uint8_t i=0;i<batch.frameCount;++i) {
+      const auto& q=batch.frames[i];auto& f=r.frames[i];uint16_t value=q.value;
+      if(q.readIndex!=NO_READ_INDEX) { CHECK(q.readIndex<i && r.frames[q.readIndex].valueValid);value=static_cast<uint16_t>((r.frames[q.readIndex].value&q.preserveMask)|q.value); }
+      const uint16_t target=q.registerAddress==14 && (b.selector&0x4000U)!=0U?b.address:uint16_t{q.registerAddress};
+      const uint16_t devad=q.registerAddress==14 && (b.selector&0x4000U)!=0U?static_cast<uint16_t>(b.selector&31U):uint16_t{31};
+      CHECK(b.frames<b.trace.size());const auto frame=b.frames++;b.trace[frame]={q.kind,q.registerAddress,value,target,devad,b.now};
+      if(static_cast<int>(frame)==b.changeBmcrFrame)b.words[0]^=b.bmcrChange;
+      f.attempted=true;const bool failed=static_cast<int>(frame)==b.failFrame;
+      if(!failed || b.acceptedFailure) {
+        if(q.kind==FrameKind::WRITE)b.write(q.registerAddress,value);
+        else { f.value=b.read(target,devad);if(static_cast<int>(frame)==b.corruptFrame)f.value^=b.corruptMask;
+          if(static_cast<int>(frame)==b.poisonBmcrFrame && target==0)f.value=0xB700; }
+      }
+      b.now+=b.frameTime;
+      if(b.competitor!=nullptr) {
+        uint16_t sentinel=0xCAFE;CHECK(b.competitor->readMmd(31,0x0467,sentinel,budget).is(Err::BUSY));CHECK(sentinel==0xCAFE);++b.excluded;
+      }
+      if(failed) { f.effectPossible=b.acceptedFailure;r.status={Err::MDIO_TIMEOUT,-33033,"Injected frame"};break; }
+      f.completed=true;f.valueValid=q.kind==FrameKind::READ;
+    }
+    if(static_cast<int>(call)==b.releaseCall) { r.releaseStatus={Err::MDIO_ERROR,-37,"Injected release"};r.controllerReusable=false; }
+    if(static_cast<int>(call)==b.lateCall)b.now=budget.deadlineUs;
+    if(static_cast<int>(call)==b.regressCall)b.now=0;
+    if(static_cast<int>(call)==b.invalidCall)r.status={Err::IN_PROGRESS,-33034,"Illegal terminal status"};
+    if(static_cast<int>(call)==b.badReceiptCall)r.frames[0].attempted=false;
+    b.locked=false;++b.releases;return r;
+  }
+};
+OperationBudget budget(uint32_t frames=2048,uint64_t deadline=1000000) { return {{deadline,frames},10,8}; }
+Status poll(Driver& d,Controller& b,OperationToken t,uint32_t slice=MAX_BATCH_FRAMES) {
+  const auto s=d.operationSnapshot();
+  if(s.nextPollValid && b.now<s.nextPollAtUs)b.now=s.nextPollAtUs;
+  if(s.busQuietValid && b.now<s.busQuietUntilUs)b.now=s.busQuietUntilUs;
+  const auto calls=b.calls;const auto status=d.pollOperation(t,slice);CHECK(b.calls<=calls+1U && !b.locked);return status;
+}
+Status drain(Driver& d,Controller& b,OperationToken t) {
+  Status s={Err::IN_PROGRESS,0,"Pending"};for(unsigned n=0;n<512U && s.inProgress();++n)s=poll(d,b,t);CHECK(!s.inProgress());return s;
+}
+OperationResult take(Driver& d,OperationToken t) { OperationResult r;CHECK(d.takeResult(t,r).ok());return r; }
+void initialized(Driver& d,Controller& b) {
+  b.words[23]=b.boardInterface==MacInterface::MII?0x0041:0x0061;
+  CHECK(d.bind(b.config()).ok());OperationToken t;CHECK(d.startInitialize({ResetKind::NONE},budget(),t).inProgress());CHECK(drain(d,b,t).ok());take(d,t);
+}
+void ready(Driver& d,Controller& b) {
+  initialized(d,b);LinkSettings profile;profile.advertisement.technologyMask=8;
+  OperationToken t;CHECK(d.startConfigure(profile,{},budget(),t).inProgress());CHECK(drain(d,b,t).ok());take(d,t);
+}
+
+QualitySettings settings(bool all=true) {
+  QualitySettings s;s.maintenanceAdmitted=s.macStopped=s.partnerPreambleAdmitted=true;
+  s.fastDrop.owned=true;s.fastDrop.causeMask=0x040F;
+  if(all) {
+    s.tx100.owned=s.tx100.scramblerBypass=s.tx100.rxErrorDuringIdle=true;s.tx100.fifoDepthCode=3;
+    s.tx10.owned=s.tx10.lowerThreshold=s.tx10.nlpDisable=s.tx10.jabberDisable=s.tx10.shortPreamble=true;s.tx10.squelchCode=8;
+    s.recoveryOwned=s.linkRecovery=true;
+  }
+  return s;
+}
+OperationToken start(Driver& d,Controller& b,const QualitySettings& s) {
+  OperationToken t;const auto frames=b.frames,clocks=b.clocks;
+  const auto status=d.startConfigureQuality(s,budget(),t);
+  if(!status.inProgress())std::fprintf(stderr,"quality start %d/%d: %s\n",static_cast<int>(status.code),status.detail,status.msg);
+  CHECK(status.inProgress() && b.frames==frames && b.clocks==clocks);return t;
+}
+OperationResult configured(Driver& d,Controller& b,const QualitySettings& s) {
+  const auto t=start(d,b,s);const auto status=drain(d,b,t);
+  if(!status.ok())std::fprintf(stderr,"quality finish %d/%d: %s\n",static_cast<int>(status.code),status.detail,status.msg);
+  CHECK(status.ok());const auto r=take(d,t);
+  CHECK(r.status.ok() && r.persistentRestored && !r.cleanupOwed);
+  const auto q=d.qualitySnapshot();CHECK(q.desiredValid && q.trust==ConfigurationTrust::VERIFIED && !q.observedStale && q.timeValid);
+  return r;
+}
+bool semantic(const Wire& w) { return w.kind==FrameKind::WRITE && w.reg!=13 && !(w.reg==14 && w.target==14); }
+unsigned writes(const Controller& b,unsigned first,uint16_t target) {
+  unsigned n=0;for(unsigned i=first;i<b.frames;++i)if(semantic(b.trace[i]) && b.trace[i].target==target)++n;return n;
+}
+void vectors() {
+  for(unsigned bits=0;bits<32U;++bits) {
+    Controller b;Driver d;ready(d,b);auto s=settings(false);
+    s.fastDrop.causeMask=static_cast<uint16_t>((bits&15U)|((bits&16U)!=0U?0x0400U:0U));
+    b.words[11]=0xA170;const auto first=b.frames;configured(d,b,s);
+    CHECK(b.words[11]==static_cast<uint16_t>(0xA170U|s.fastDrop.causeMask));
+    CHECK(writes(b,first,11)==(bits==0U?1U:2U));
+    CHECK(writes(b,first,0x117)==((bits&4U)!=0U?1U:0U));
+    CHECK(writes(b,first,0x131)==((bits&16U)!=0U?1U:0U));
+    if((bits&4U)!=0U)CHECK(b.ext[0x117]==0x0417U);
+    if((bits&16U)!=0U)CHECK(b.ext[0x131]==0x2288U);
+    const bool maxima=bits!=0U && ((bits&0x16U)==0U || (bits&9U)!=0U);
+    CHECK(d.qualitySnapshot().fldMaximumApplicable==maxima);
+  }
+  for(bool high:{false,true})for(uint8_t fifo=0;fifo<4U;++fifo)for(uint8_t squelch=0;squelch<=8U;++squelch) {
+    Controller b;Driver d;ready(d,b);auto s=settings();
+    s.tx100.fifoDepthCode=fifo;s.tx100.scramblerBypass=s.tx100.rxErrorDuringIdle=high;
+    s.tx10.squelchCode=squelch;s.tx10.lowerThreshold=s.tx10.nlpDisable=s.tx10.jabberDisable=s.tx10.shortPreamble=high;
+    s.linkRecovery=high;b.words[9]=0xFF7F;b.words[10]=0xFFFB;b.words[17]=0x74FB;
+    b.words[26]=0xC16E;b.ext[0x2A]=0xB998;const auto first=b.frames,calls=b.calls;configured(d,b,s);
+    CHECK(b.frames-first==52U && b.calls-calls==19U);
+    CHECK(b.words[17]==static_cast<uint16_t>(0x74FBU|(uint32_t{fifo}<<8)|(high?0x0800U:0U)));
+    CHECK(b.words[10]==static_cast<uint16_t>(0xFFFBU|(high?4U:0U)));
+    CHECK(b.words[26]==static_cast<uint16_t>(0xC16EU|(uint32_t{squelch}<<9)|(high?0x2081U:0U)));
+    CHECK(b.ext[0x2A]==static_cast<uint16_t>(0xB998U|(high?0x4000U:0U)));
+    CHECK(b.words[9]==static_cast<uint16_t>(0xFF7FU|(high?0x80U:0U)));
+    CHECK(writes(b,first,0x30E)==0U && (b.ext[0x30E]&0xFFC0U)==0x4A40U);
+    constexpr uint16_t ordered[]={11,0x117,0x131,17,10,26,0x2A,9,11};unsigned n=0;
+    for(unsigned i=first;i<b.frames;++i)if(semantic(b.trace[i])) { CHECK(n<9U && b.trace[i].target==ordered[n]);++n; }
+    CHECK(n==9U);
+  }
+  for(uint8_t code:{uint8_t{1},uint8_t{63}})for(uint8_t threshold:{uint8_t{1},uint8_t{63}})
+    for(uint8_t descrambler:{uint8_t{0},uint8_t{63}}) {
+      Controller b;Driver d;ready(d,b);auto s=settings(false);s.fastDrop.rawThresholdOverride=true;
+      s.fastDrop.windowCode=code;s.fastDrop.errorThreshold=threshold;s.fastDrop.descramblerThreshold=descrambler;
+      configured(d,b,s);CHECK(b.ext[0x117]==static_cast<uint16_t>((uint32_t{code}<<10)|(uint32_t{threshold}<<4)|7U));
+      CHECK((b.ext[0x131]&0x3FU)==descrambler && !d.qualitySnapshot().fldMaximumApplicable);
+    }
+  // An unexpected reserved readback is preserved, without claiming the exact0417 recipe.
+  {
+    Controller unexpected;Driver phy;ready(phy,unexpected);unexpected.ext[0x117]=0x0413;
+    configured(phy,unexpected,settings(false));
+    CHECK(unexpected.ext[0x117]==0x0413U && !phy.qualitySnapshot().fldMaximumApplicable);
+  }
+  // Source-defined zero-cause disable is admitted on RMII, without inventing a detector.
+  Controller rmii;rmii.boardInterface=MacInterface::RMII;Driver d;ready(d,rmii);auto s=settings(false);s.fastDrop.causeMask=0;
+  rmii.words[11]=0x046F;configured(d,rmii,s);CHECK(rmii.words[11]==0x0060U);
+}
+void admission() {
+  for(unsigned fault=0;fault<16U;++fault) {
+    Controller b;Driver d;if(fault!=0U)ready(d,b);auto s=settings();OperationToken token{777};auto allowance=budget();
+    switch(fault) {
+      case 1:s.maintenanceAdmitted=false;break;case 2:s.macStopped=false;break;
+      case 3:s.partnerPreambleAdmitted=false;break;case 4:s.fastDrop.causeMask=0x10;break;
+      case 5:s.fastDrop.windowCode=0;break;case 6:s.fastDrop.windowCode=64;break;
+      case 7:s.fastDrop.errorThreshold=0;break;case 8:s.fastDrop.errorThreshold=64;break;
+      case 9:s.fastDrop.descramblerThreshold=64;break;case 10:s.tx100.fifoDepthCode=4;break;
+      case 11:s.tx10.squelchCode=9;break;case 12:s.tx10.squelchCode=15;break;
+      case 13:allowance.io.maxFrames=0;break;case 14:allowance.pollIntervalUs=0;break;
+      case 15:allowance.maxStalledPolls=0;break;default:break;
+    }
+    const auto frames=b.frames,clocks=b.clocks;
+    CHECK(!d.startConfigureQuality(s,allowance,token).inProgress());
+    CHECK(token.value==777U && b.frames==frames && b.clocks==clocks && !d.qualitySnapshot().desiredValid);
+  }
+  Controller b;b.boardInterface=MacInterface::RMII;Driver d;ready(d,b);const auto frames=b.frames,clocks=b.clocks;OperationToken token{777};
+  CHECK(!d.startConfigureQuality(settings(),budget(),token).inProgress() && b.frames==frames && b.clocks==clocks);
+  // A contradictory live mode is rejected before a semantic write, after bounded evidence.
+  Controller live;Driver phy;ready(phy,live);live.words[23]|=0x20;const auto mutations=live.mutations;
+  token=start(phy,live,settings());CHECK(!drain(phy,live,token).ok());CHECK(!take(phy,token).mutationPossible && live.mutations==mutations);
+  // Source-gated experimental threshold values require explicit opt-in.
+  Controller raw;Driver rawPhy;ready(rawPhy,raw);auto s=settings(false);s.fastDrop.windowCode=63;
+  const auto before=raw.frames;CHECK(!rawPhy.startConfigureQuality(s,budget(),token).inProgress() && raw.frames==before);
+  configured(rawPhy,raw,settings());s=settings();s.tx10.owned=false;
+  CHECK(!rawPhy.startConfigureQuality(s,budget(),token).inProgress()); // Cannot silently abandon saved fields.
+}
+void failures() {
+  Controller ref;Driver reference;ready(reference,ref);const auto first=ref.frames,firstCall=ref.calls;configured(reference,ref,settings());
+  const auto count=ref.frames-first,callbacks=ref.calls-firstCall;CHECK(count==52U && callbacks==19U);
+  for(unsigned phase=0;phase<count;++phase)for(bool accepted:{false,true}) {
+    Controller b;Driver d;ready(d,b);const auto startFrame=b.frames;b.failFrame=static_cast<int>(startFrame+phase);b.acceptedFailure=accepted;
+    const auto token=start(d,b,settings());CHECK(drain(d,b,token).is(Err::MDIO_TIMEOUT));const auto r=take(d,token);
+    CHECK(r.status.detail==-33033 && b.frames==startFrame+phase+1U && !r.persistentRestored);
+    CHECK(b.calls==b.releases && !b.locked && d.qualitySnapshot().trust!=ConfigurationTrust::VERIFIED);
+    bool effect=false;for(unsigned i=0;i<phase;++i)effect|=semantic(ref.trace[first+i]);effect|=accepted && semantic(ref.trace[first+phase]);
+    if(effect)CHECK(r.mutationPossible && r.cleanupOwed && !d.end().ok());
+  }
+  for(unsigned call=0;call<callbacks;++call) {
+    Controller b;Driver d;ready(d,b);b.releaseCall=static_cast<int>(b.calls+call);const auto token=start(d,b,settings());
+    CHECK(drain(d,b,token).is(Err::MDIO_ERROR));const auto r=take(d,token);
+    CHECK(r.failingBatch.release.detail==-37 && !r.persistentRestored && !b.locked);
+  }
+  constexpr uint16_t addresses[]={11,0x117,0x131,17,10,26,0x2A,9};
+  constexpr uint16_t masks[]={1,0x10,1,0x100,4,1,0x4000,0x80};
+  for(unsigned row=0;row<8U;++row) {
+    unsigned last=first;for(unsigned i=first;i<ref.frames;++i)if(ref.trace[i].kind==FrameKind::READ && ref.trace[i].target==addresses[row])last=i;
+    Controller b;Driver d;ready(d,b);b.corruptFrame=static_cast<int>(b.frames+last-first);b.corruptMask=masks[row];const auto token=start(d,b,settings());
+    CHECK(drain(d,b,token).is(Err::CONFIG_MISMATCH));const auto r=take(d,token);
+    CHECK(r.mismatch.valid && r.mismatch.registerAddress==addresses[row] && r.cleanupOwed && !r.persistentRestored);
+  }
+  // Cancellation is bus-silent at every completed batch boundary, including before the first effect.
+  for(unsigned completed=0;completed<callbacks;++completed) {
+    Controller b;Driver d;ready(d,b);const auto token=start(d,b,settings());
+    for(unsigned n=0;n<completed;++n)CHECK(poll(d,b,token).inProgress());
+    const auto frames=b.frames,clocks=b.clocks;CHECK(d.cancel(token).ok() && b.frames==frames && b.clocks==clocks);
+    const auto r=take(d,token);CHECK(!r.status.ok() && !r.persistentRestored);
+    CHECK(r.cleanupOwed==(completed>=2U));
+    CHECK(!d.qualitySnapshot().fldMaximumApplicable);
+    OperationResult sentinel;sentinel.token.value=777;CHECK(!d.takeResult(token,sentinel).ok() && sentinel.token.value==777U);
+  }
+}
+void replay() {
+  for(auto reset:{ResetKind::NONE,ResetKind::PCS,ResetKind::HARD,ResetKind::RESTART}) {
+    Controller b;Driver d;ready(d,b);configured(d,b,settings());OperationToken token;
+    CHECK(d.startInitialize({reset},budget(),token).inProgress());CHECK(drain(d,b,token).ok());const auto r=take(d,token);
+    CHECK(r.persistentRestored && r.quality.trust==ConfigurationTrust::VERIFIED && !r.cleanupOwed && d.isInitialized());
+    CHECK((b.words[11]&0x040FU)==0x040FU && b.ext[0x117]==0x0417U && (b.ext[0x131]&0x3FU)==8U);
+    CHECK((b.words[17]&0x0B00U)==0x0B00U && (b.words[10]&4U)==4U && (b.words[26]&0x3E81U)==0x3081U);
+    CHECK((b.words[9]&0x80U)==0x80U && (b.ext[0x2A]&0x4000U)!=0U && (b.ext[0x30E]&0xFFC0U)==0x4A40U);
+    const auto mutations=b.mutations;CHECK(d.startVerify(budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+    CHECK(b.mutations==mutations && d.qualitySnapshot().trust==ConfigurationTrust::VERIFIED);
+  }
+  Controller ref;Driver reference;ready(reference,ref);configured(reference,ref,settings());OperationToken token;
+  const auto first=ref.frames;CHECK(reference.startInitialize({ResetKind::HARD},budget(),token).inProgress());CHECK(drain(reference,ref,token).ok());take(reference,token);
+  const auto count=ref.frames-first;
+  for(unsigned phase=0;phase<count;++phase) {
+    Controller b;Driver d;ready(d,b);configured(d,b,settings());b.failFrame=static_cast<int>(b.frames+phase);
+    CHECK(d.startInitialize({ResetKind::HARD},budget(),token).inProgress());CHECK(!drain(d,b,token).ok());const auto r=take(d,token);
+    CHECK(!r.persistentRestored && !b.locked);
+    b.failFrame=-1;CHECK(d.startInitialize({ResetKind::NONE},budget(),token).inProgress());CHECK(drain(d,b,token).ok());
+    CHECK(take(d,token).persistentRestored && d.qualitySnapshot().trust==ConfigurationTrust::VERIFIED);
+  }
+  // Temporary far-end loopback changes the same FIFO field; stop restores
+  // the persistent quality owner through the shared tail, not a second recipe.
+  Controller loop;Driver loopPhy;ready(loopPhy,loop);configured(loopPhy,loop,settings());
+  LoopbackOptions loopOptions;loopOptions.mode=LoopbackMode::REVERSE;loopOptions.speed=LinkSpeed::MBPS_100;
+  loopOptions.maintenanceAdmitted=loopOptions.partnerReady=true;loopOptions.reverseFifoDepth=1;
+  CHECK(loopPhy.startLoopback(loopOptions,budget(),token).inProgress());CHECK(drain(loopPhy,loop,token).ok());take(loopPhy,token);
+  CHECK((loop.words[17]&0x0300U)==0x0100U);
+  CHECK(loopPhy.stopLoopback(budget(),token).inProgress());CHECK(drain(loopPhy,loop,token).ok());take(loopPhy,token);
+  CHECK((loop.words[17]&0x0300U)==0x0300U && loopPhy.qualitySnapshot().trust==ConfigurationTrust::VERIFIED);
+  Controller power;Driver powerPhy;ready(powerPhy,power);configured(powerPhy,power,settings());
+  PowerSettings powerSettings;powerSettings.maintenanceAdmitted=powerSettings.managementClockAvailable=powerSettings.clockLossApproved=true;
+  powerSettings.request=PowerRequest::IEEE_POWER_DOWN;
+  CHECK(powerPhy.startConfigurePower(powerSettings,budget(),token).inProgress());CHECK(drain(powerPhy,power,token).ok());take(powerPhy,token);
+  powerSettings.request=PowerRequest::NORMAL;
+  CHECK(powerPhy.startConfigurePower(powerSettings,budget(),token).inProgress());CHECK(drain(powerPhy,power,token).ok());take(powerPhy,token);
+  CHECK(powerPhy.qualitySnapshot().trust==ConfigurationTrust::VERIFIED && (power.words[17]&0x0B00U)==0x0B00U);
+  // A first verify mismatch remains diagnostic evidence when a later read fails.
+  Controller oracle;Driver oraclePhy;ready(oraclePhy,oracle);configured(oraclePhy,oracle,settings());
+  const auto verifyFirst=oracle.frames;CHECK(oraclePhy.startVerify(budget(),token).inProgress());CHECK(drain(oraclePhy,oracle,token).ok());take(oraclePhy,token);
+  unsigned mismatchRead=verifyFirst;for(unsigned i=verifyFirst;i<oracle.frames;++i)if(oracle.trace[i].target==0x117 && oracle.trace[i].kind==FrameKind::READ) { mismatchRead=i;break; }
+  Controller interrupted;Driver interruptedPhy;ready(interruptedPhy,interrupted);configured(interruptedPhy,interrupted,settings());
+  interrupted.corruptFrame=static_cast<int>(interrupted.frames+mismatchRead-verifyFirst);interrupted.corruptMask=0x10;
+  interrupted.failFrame=interrupted.corruptFrame+1;const auto writesBefore=interrupted.mutations;
+  CHECK(interruptedPhy.startVerify(budget(),token).inProgress());CHECK(drain(interruptedPhy,interrupted,token).is(Err::MDIO_TIMEOUT));
+  const auto interruptedResult=take(interruptedPhy,token);
+  CHECK(interruptedResult.mismatch.valid && interruptedResult.mismatch.registerAddress==0x117 && interruptedResult.status.detail==-33033);
+  CHECK(interrupted.mutations==writesBefore && interruptedPhy.qualitySnapshot().trust!=ConfigurationTrust::VERIFIED);
+  Controller b;Driver d;ready(d,b);configured(d,b,settings());
+  CHECK(d.invalidateDeviceState(InvalidationReason::EXTERNAL_RESET).ok());
+  CHECK(d.qualitySnapshot().desiredValid && d.qualitySnapshot().observedStale && d.qualitySnapshot().trust!=ConfigurationTrust::VERIFIED && !d.qualitySnapshot().fldMaximumApplicable);
+}
+void collector() {
+  Controller ref;Driver reference;ready(reference,ref);ref.words[26]=0x10;ref.words[16]|=0x1000;ref.words[15]=0x01F0;
+  const auto first=ref.frames;configured(reference,ref,settings());
+  const auto evidence=reference.evidenceSnapshot();const auto polarity=evidence.samples[static_cast<unsigned>(EvidenceSource::BTSCR)];
+  CHECK(polarity.valid && polarity.samples==2U && (polarity.observedOnes&0x10U)!=0U && !polarity.historyLost);
+  CHECK((evidence.samples[static_cast<unsigned>(EvidenceSource::PHYSTS)].observedOnes&0x1000U)!=0U);
+  CHECK(evidence.samples[static_cast<unsigned>(EvidenceSource::FLDS)].eventBits==0x1F0U && ref.words[15]==0);
+  unsigned read=0;for(unsigned i=first;i<ref.frames;++i)if(ref.trace[i].target==26 && ref.trace[i].kind==FrameKind::READ) { read=i-first;break; }
+  for(bool afterEffect:{false,true}) {
+    Controller b;Driver d;ready(d,b);b.words[26]=0x10;b.words[15]=0x10;b.words[16]|=0x1000;
+    b.failFrame=static_cast<int>(b.frames+read);b.acceptedFailure=afterEffect;const auto token=start(d,b,settings());
+    CHECK(!drain(d,b,token).ok());take(d,token);const auto samples=d.evidenceSnapshot();
+    CHECK(samples.samples[static_cast<unsigned>(EvidenceSource::BTSCR)].historyLost==afterEffect);
+    CHECK(samples.samples[static_cast<unsigned>(EvidenceSource::FLDS)].valid && samples.samples[static_cast<unsigned>(EvidenceSource::FLDS)].eventBits==0x10U);
+  }
+  Controller b;Driver d;ready(d,b);b.words[26]=0x10;b.failFrame=static_cast<int>(b.frames+read+1U);const auto token=start(d,b,settings());
+  CHECK(!drain(d,b,token).ok());take(d,token);const auto saved=d.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::BTSCR)];
+  CHECK(saved.valid && saved.samples==1U && saved.raw==0x10U && !saved.historyLost);
+  const auto calls=b.calls,clocks=b.clocks;d.qualitySnapshot();d.qualitySnapshot();d.evidenceSnapshot();CHECK(b.calls==calls && b.clocks==clocks);
+  // Original PDF table8-20p56: BMSR[1] is jabber evidence for10BASE-T.
+  // Table8-34p64 mirrors it at PHYSTS[5]; its prose says PHYSTS reads do not
+  // clear it despite the RC label. Retain raw evidence without inventing rearm.
+  Controller jabber;Driver jabberPhy;ready(jabberPhy,jabber);
+  jabber.words[0]=0;jabber.words[1]=0x0006;jabber.words[16]=0x0023;
+  EvidenceSnapshot jabberView;const uint32_t jabberMask=evidenceBit(EvidenceSource::PHYSTS)|evidenceBit(EvidenceSource::BMSR);
+  const auto jabberFirst=jabber.frames;
+  CHECK(jabberPhy.acquireEvidence(jabberMask,jabberView,{1000000,2}).ok());
+  CHECK(jabber.frames==jabberFirst+2U && jabber.trace[jabberFirst].target==0x10 && jabber.trace[jabberFirst+1U].target==1);
+  CHECK((jabberView.samples[static_cast<unsigned>(EvidenceSource::BMSR)].raw&0x0002U)!=0U);
+  CHECK((jabberView.samples[static_cast<unsigned>(EvidenceSource::PHYSTS)].raw&0x0020U)!=0U);
+  const auto jabberCalls=jabber.calls,jabberClocks=jabber.clocks;
+  const auto cached1=jabberPhy.evidenceSnapshot(),cached2=jabberPhy.evidenceSnapshot();
+  CHECK(cached1.samples[static_cast<unsigned>(EvidenceSource::BMSR)].samples==cached2.samples[static_cast<unsigned>(EvidenceSource::BMSR)].samples);
+  CHECK(jabber.calls==jabberCalls && jabber.clocks==jabberClocks);
+  jabber.failFrame=static_cast<int>(jabber.frames+1U);jabberView.lastRequested=0xCAFE;
+  CHECK(jabberPhy.acquireEvidence(jabberMask,jabberView,{1000000,2}).is(Err::MDIO_TIMEOUT) && jabberView.lastRequested==0xCAFEU);
+  const auto partialJabber=jabberPhy.evidenceSnapshot();
+  CHECK(partialJabber.samples[static_cast<unsigned>(EvidenceSource::PHYSTS)].samples==cached1.samples[static_cast<unsigned>(EvidenceSource::PHYSTS)].samples+1U);
+  CHECK((partialJabber.samples[static_cast<unsigned>(EvidenceSource::PHYSTS)].raw&0x0020U)!=0U);
+  CHECK(partialJabber.samples[static_cast<unsigned>(EvidenceSource::BMSR)].samples==cached1.samples[static_cast<unsigned>(EvidenceSource::BMSR)].samples);
+  CHECK(partialJabber.samples[static_cast<unsigned>(EvidenceSource::BMSR)].historyLost);
+  Controller simultaneous;Driver chip;ready(chip,simultaneous);
+  simultaneous.words[18]=0xFF00;simultaneous.words[19]=0xFF00;simultaneous.words[20]=0xFF;simultaneous.words[21]=0xFFFF;simultaneous.words[15]=0x1F0;
+  CounterSnapshot counters;CHECK(chip.collectEvents(counters,{1000000,8}).ok());
+  CHECK(counters.valid && counters.misr1Events==0xFF00 && counters.misr2Events==0xFF00 && counters.fldCauses==0x1F0);
+  CHECK(counters.falseCarrierLowerBound && counters.rawRecr==0xFFFF);
+  const auto old=chip.evidenceSnapshot();SignalQualitySnapshot mse;CHECK(chip.readSignalQuality(mse,{1000000,4}).ok());
+  const auto current=chip.evidenceSnapshot();CHECK(current.samples[static_cast<unsigned>(EvidenceSource::FCSCR)].samples==old.samples[static_cast<unsigned>(EvidenceSource::FCSCR)].samples);
+  CHECK(current.samples[static_cast<unsigned>(EvidenceSource::RECR)].sampledSum==0U);
+}
+void ownership() {
+  Controller b;Driver d,other;ready(d,b);CHECK(other.bind(b.config(2)).ok());b.competitor=&other;
+  const auto first=b.frames;configured(d,b,settings());CHECK(b.excluded==b.frames-first);b.competitor=nullptr;
+  CHECK(!other.qualitySnapshot().desiredValid);
+  // Unrelated interface changes preserve CR2 idle detection, and vice versa.
+  for(bool disabled:{false,true}) {
+    InterfaceSettings i;i.interface=MacInterface::MII;i.referenceClockMHz=25;i.oddNibbleDisable=disabled;i.shortIpg=disabled;
+    i.maintenanceAdmitted=i.macStopped=i.pinsAvailable=i.referenceClockStable=i.managementClockAvailable=i.clockChangeApproved=true;
+    InterfaceResult result;CHECK(d.configureInterface(i,result,{1000000,2048}).ok());
+    CHECK((b.words[10]&6U)==(disabled?6U:4U) && (b.ext[0x456]&8U)==(disabled?8U:0U));
+    configured(d,b,settings());CHECK((b.words[10]&6U)==(disabled?6U:4U) && (b.ext[0x456]&8U)==(disabled?8U:0U));
+  }
+  b.words[9]^=0x80;uint16_t raw=0;CHECK(d.readClause22(9,raw,{1000000,1}).ok());CHECK(d.qualitySnapshot().trust==ConfigurationTrust::DIRTY);
+  OperationToken t;CHECK(d.startInitialize({ResetKind::NONE},budget(),t).inProgress());CHECK(drain(d,b,t).ok());take(d,t);
+  CHECK(d.qualitySnapshot().trust==ConfigurationTrust::VERIFIED);
+  const auto profile=qualityMiiProfile();CHECK(profile.fastDrop.causeMask==9U);
+  Controller example;Driver examplePhy;ready(examplePhy,example);CHECK(startMiiFastDrop(examplePhy,budget(),t).inProgress());
+  CHECK(drain(examplePhy,example,t).ok());take(examplePhy,t);QualityViews views;CHECK(acquireQualityViews(examplePhy,views,{1000000,4}).ok());
+  const auto calls=example.calls;const auto cached=cachedQualityViews(examplePhy);CHECK(cached.mse.valid && example.calls==calls);
+}
+void timing() {
+  for(unsigned defect=0;defect<6U;++defect) {
+    Controller b;Driver d;ready(d,b);const auto call=static_cast<int>(b.calls+3U);auto token=start(d,b,settings());
+    if(defect==0)b.lateCall=call;
+    if(defect==1)b.regressCall=call;
+    if(defect==2)b.invalidCall=call;
+    if(defect==3)b.badReceiptCall=call;
+    if(defect==4)b.now=std::numeric_limits<uint64_t>::max();
+    if(defect==5)b.frameTime=0;
+    const auto status=drain(d,b,token);if(defect==5)CHECK(status.ok());else CHECK(!status.ok());take(d,token);
+    CHECK(!b.locked && b.calls==b.releases);
+  }
+  Controller b;Driver d;ready(d,b);auto token=start(d,b,settings());
+  const auto first=b.frames;CHECK(d.pollOperation(token,0).inProgress() && b.frames==first);
+  CHECK(poll(d,b,token).inProgress());CHECK(poll(d,b,token).inProgress());CHECK(poll(d,b,token).inProgress()); // preflight, disable, verify
+  const auto before=b.frames;CHECK(poll(d,b,token,4).inProgress() && b.frames==before); // Five-frame atomic MMD update.
+  CHECK(drain(d,b,token).ok());take(d,token);
+  Controller stalled;Driver stalledPhy;ready(stalledPhy,stalled);token=start(stalledPhy,stalled,settings());
+  for(unsigned n=0;n<8U;++n)CHECK(stalledPhy.pollOperation(token,0).inProgress());
+  CHECK(stalledPhy.pollOperation(token,0).is(Err::OPERATION_TIMEOUT));take(stalledPhy,token);
+}
+void raw() {
+  Controller b;Driver d;ready(d,b);b.ext[0x218]=0xABCD;const auto first=b.frames,calls=b.calls;
+  SignalQualitySnapshot out;CHECK(d.readSignalQuality(out,{1000000,4}).ok());
+  CHECK(out.valid && !out.stale && out.rawMse==0xABCD && out.timeValid && b.frames-first==4U && b.calls-calls==1U);
+  CHECK(b.trace[first].reg==13 && b.trace[first].value==0x001FU && b.trace[first+1U].reg==14 && b.trace[first+1U].value==0x0218U);
+  CHECK(b.trace[first+2U].reg==13 && b.trace[first+2U].value==0x401FU && b.trace[first+3U].kind==FrameKind::READ);
+  const auto saved=out;for(unsigned phase=0;phase<4U;++phase) {
+    b.failFrame=static_cast<int>(b.frames+phase);out.rawMse=0xCAFE;CHECK(d.readSignalQuality(out,{1000000,4}).is(Err::MDIO_TIMEOUT));
+    CHECK(out.rawMse==0xCAFE);const auto stale=d.signalQualitySnapshot();
+    CHECK(stale.rawMse==0xABCD && stale.stale && stale.observedAtUs==saved.observedAtUs);b.failFrame=-1;
+  }
+  for(uint16_t value:{uint16_t{0},uint16_t{0xFFFF}}) { b.ext[0x218]=value;CHECK(d.readSignalQuality(out,{1000000,4}).ok() && out.rawMse==value && out.valid); }
+  const auto frames=b.frames;out.rawMse=0xCAFE;CHECK(!d.readSignalQuality(out,{1000000,3}).ok() && b.frames==frames && out.rawMse==0xCAFE);
+  CHECK(d.invalidateDeviceState(InvalidationReason::EXTERNAL_POWER_ON).ok());CHECK(d.signalQualitySnapshot().stale);
+  Controller zero;zero.now=0;zero.frameTime=0;Driver zeroPhy;auto binding=zero.config();binding.transport.bounds.clockLagUs=0;
+  CHECK(!zeroPhy.bind(binding).ok() && zero.frames==0U); // Missing clock-lag contract is rejected locally.
+  binding.transport.bounds.clockLagUs=1;CHECK(zeroPhy.bind(binding).ok());DeviceIdentity identity;CHECK(zeroPhy.readIdentity(identity,{1000000,2}).ok());
+  SignalQualitySnapshot zeroSample;CHECK(zeroPhy.readSignalQuality(zeroSample,{1000000,4}).ok() && zeroSample.timeValid && zeroSample.observedAtUs==1U);
+  zero.now=std::numeric_limits<uint64_t>::max();zeroSample.rawMse=0xCAFE;
+  CHECK(!zeroPhy.readSignalQuality(zeroSample,{zero.now,4}).ok() && zeroSample.rawMse==0xCAFE);
+  Controller changed;Driver changedPhy;ready(changedPhy,changed);LinkSnapshot link;
+  CHECK(changedPhy.readLinkStatus(link,{1000000,10}).ok());SignalQualitySnapshot sample;
+  CHECK(changedPhy.readSignalQuality(sample,{1000000,4}).ok());const auto stamp=sample.observedAtUs;
+  changed.words[1]=0;changed.words[16]=0;CHECK(changedPhy.readLinkStatus(link,{1000000,10}).ok());
+  CHECK(changedPhy.signalQualitySnapshot().stale && changedPhy.signalQualitySnapshot().observedAtUs==stamp);
+  // One ordinary event acquisition can expose next-page/polarity/counter evidence;
+  // the MSE reader never performs an extra destructive read to render it.
+  Controller view;Driver phy;ready(phy,view);view.words[6]=3;view.words[26]=0x10;
+  EvidenceSnapshot evidence;CHECK(phy.acquireEvidence(evidenceBit(EvidenceSource::ANER)|evidenceBit(EvidenceSource::BTSCR),evidence,{1000000,8}).ok());
+  CHECK((phy.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::ANER)].observedOnes&2U)!=0U);
+  const auto acquired=view.frames;QualityViews views;CHECK(acquireQualityViews(phy,views,{1000000,4}).ok() && view.frames==acquired+4U);
+  CHECK((views.events.samples[static_cast<unsigned>(EvidenceSource::BTSCR)].observedOnes&0x10U)!=0U);
+}
+} // namespace
+int main(int argc,char** argv) {
+  const test::Suite suites[]={{"vectors",vectors},{"admission",admission},{"failures",failures},{"replay",replay},
+    {"collector",collector},{"ownership",ownership},{"timing",timing},{"raw",raw}};
+  return test::runSuites(argc,argv,suites);
+}

@@ -106,7 +106,7 @@ uint16_t DP8382x::_eeeControl() const noexcept {
   return static_cast<uint16_t>((_eee.desired.bypassBit0?0U:1U)|(_eee.desired.bypassBit3?0U:8U));
 }
 void DP8382x::_setEeeStep(EeeStep step) noexcept {
-  _pinsWorking=false; _interfaceWorking=false;
+  _pinsWorking=false; _interfaceWorking=false; _qualityWorking=false;
   _wakeWorking=false;
   _eeeWorking=true; _powerWorking=_interruptWorking=_cableWorking=_bistWorking=_loopWorking=_configuring=false;
   _eeeStep=step; _operation.nextPollValid=false;

@@ -110,3 +110,8 @@ The [stage report](reports/implementation/19-link-observation.md) separates host
 portable-consumer, SDK and physical results. Q11, real cable/partner behavior,
 MDIO timing and hardware qualification remain NOT RUN. The `forced_physts` gate
 is a nonblocking raw-value question; it does not authorize forced PHYSTS decoding.
+
+[Raw MSE](quality.md) retains the previously cached link context with its own
+time/validity. A changed link observation invalidates that sample's freshness;
+neither acquisition claims simultaneous PHY sampling or derives SNR. Next-page
+and pause continue to use the existing link/collector contracts.

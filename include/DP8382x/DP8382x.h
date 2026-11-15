@@ -287,6 +287,7 @@ enum class OperationKind : uint8_t {
   WOL_CONFIGURE, ///< Quiesced match/control update with detector disabled until verification.
   WOL_ACKNOWLEDGE, ///< Explicit W0C acknowledgement after collector harvest; never replayed.
   PIN_CONFIGURE, ///< Direct pin-profile mutation owns restoration debt; no retained operation token.
+  QUALITY_CONFIGURE, ///< Owned quality, TX and hardware link-loss policy.
   INTERFACE_CONFIGURE ///< Direct interface/clock mutation owns restoration debt, without a job token.
 };
 /// @brief One retained operation slot.
@@ -879,6 +880,66 @@ enum class ClockOutput : uint8_t {
   PLL, ///< Representable source-gated request; no proved activation mux.
   RECOVERED ///< Representable source-gated request; no proved activation mux.
 };
+/// @brief Explicit hardware Fast Link Drop policy; SNLS647I 8.3.17 / tables 8-30/52/53.
+struct FastLinkDropSettings {
+  bool owned{false}; ///< Own this policy; unowned controls are untouched.
+  uint16_t causeMask{0}; ///< CR3 subset 0x040F; nonzero requires MII.
+  bool rawThresholdOverride{false}; ///< Explicit experimental thresholds under fld_threshold_recipe; no latency guarantee.
+  uint8_t windowCode{1}; ///< MLT3 window 1..63: code+1 clocks, 8 ns each; zero reserved.
+  uint8_t errorThreshold{1}; ///< MLT3 error count 1..63; zero reserved.
+  uint8_t descramblerThreshold{8}; ///< Raw six-bit descrambler code; default source recipe 0x08.
+};
+/// @brief Owned 100BASE-TX controls; SNLS647I tables 8-29/35.
+struct Tx100Settings {
+  bool owned{false}; ///< Apply only on explicit owner request.
+  bool scramblerBypass{false}; ///< Coordinated test/partner use, never normal default policy.
+  uint8_t fifoDepthCode{0}; ///< Far-end loopback FIFO: codes 0/1/2/3 select 4/5/6/8 nibbles.
+  bool rxErrorDuringIdle{false}; ///< CR2[2], independent of odd-nibble and GENCFG IPG.
+};
+/// @brief Owned 10BASE-Te controls; SNLS647I tables 8-44/51.
+struct Tx10Settings {
+  bool owned{false}; ///< Apply only on explicit owner request; mandatory VOD remains initialization-owned.
+  bool lowerThreshold{false}; ///< Enable documented receive threshold option; no distance guarantee.
+  uint8_t squelchCode{0}; ///< Codes 0..8 select 200..600 mV in 50 mV steps; 9..15 prohibited.
+  bool nlpDisable{false}; ///< Suppress normal link pulses under maintenance admission.
+  bool jabberDisable{false}; ///< Disable jabber protection under maintenance admission.
+  bool shortPreamble{false}; ///< Short=true/long=false; requires explicit partner admission.
+};
+/// @brief Complete quality profile; include every previously owned subsection when replacing it.
+struct QualitySettings {
+  FastLinkDropSettings fastDrop{}; ///< Hardware link-loss detector policy.
+  Tx100Settings tx100{}; ///< 100M transmit/receive controls.
+  Tx10Settings tx10{}; ///< 10M receive/link controls.
+  bool recoveryOwned{false}; ///< Own CR1[7], independent of software retry policy.
+  bool linkRecovery{false}; ///< Enable silicon link-loss recovery; no transition deadline.
+  bool maintenanceAdmitted{false}; ///< Application authorizes disruptive traffic changes.
+  bool macStopped{false}; ///< Application has stopped/drained MAC traffic before mutation.
+  bool partnerPreambleAdmitted{false}; ///< Partner accepts requested 10M preamble.
+};
+/// @brief Passive desired/observed quality configuration evidence.
+struct QualitySnapshot {
+  QualitySettings desired{}; ///< Last completely admitted request, retained after failure.
+  bool desiredValid{false}; ///< Explicit ownership exists.
+  ConfigurationTrust trust{ConfigurationTrust::UNKNOWN}; ///< Whole owned-mask verification only.
+  std::array<uint16_t,8> raw{}; ///< CR3,FLD_CFG1,FLD_CFG2,PHYSCR,CR2,10BTSCR,10M_CFG,CR1.
+  uint8_t validMask{0}; ///< Valid raw words by index; not simultaneous sampling.
+  bool observedStale{true}; ///< Failure/reset/mutation invalidates current aggregate proof.
+  bool timeValid{false}; ///< Successful verification timestamp is available.
+  uint64_t observedAtUs{0}; ///< Completion upper bound in binding microseconds.
+  bool fldMaximumApplicable{false}; ///< Source recipe and footnote 5 conditions only; physical timing still unmeasured.
+  Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No quality configuration"}; ///< Latest pass outcome.
+};
+/// @brief Raw MSE observation with cached link context; no SNR or calibrated units.
+struct SignalQualitySnapshot {
+  uint16_t rawMse{0}; ///< DEVAD31:0218 word; 0225 alternative remains source-gated.
+  bool valid{false}; ///< A complete terminal read succeeded.
+  bool stale{true}; ///< Failed refresh or known device/link change.
+  bool timeValid{false}; ///< Observed timestamp is available; zero is valid.
+  uint64_t observedAtUs{0}; ///< Conservative completion microseconds.
+  LinkSnapshot linkContext{}; ///< Previously cached context, not a simultaneous link measurement.
+  DeviceIdentity identity{}; ///< Cached identity at sample acquisition; no new probe.
+  Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No MSE acquisition"}; ///< Last read/invalidation status.
+};
 /// @brief Complete interface/compatibility intent; board declarations are not measurements.
 struct InterfaceSettings {
   MacInterface interface{MacInterface::UNKNOWN}; ///< Must equal the binding's declared MII/RMII wiring.
@@ -1086,6 +1147,7 @@ struct OperationResult {
   EeeSnapshot eee{}; ///< Retained EEE intent and partial acquisition evidence.
   WakeSnapshot wake{}; ///< Retained WoL intent, control/credential prefixes and status acquisition.
   PinSnapshot pins{}; ///< Retained pin profile and partial verification during shared restoration.
+  QualitySnapshot quality{}; ///< Retained quality policy proof, including partial acquisition.
   InterfaceSnapshot interfaceState{}; ///< Interface/clock/isolation proof from the shared restoration pass.
   PowerSnapshot power{}; ///< Retained power intent, partial observations and transition outcome.
   InterruptSnapshot interrupts{}; ///< Retained policy and transient test effects, independent of restoration result.
@@ -1352,6 +1414,33 @@ public:
   /// @brief Bus/clock-silent retained pin settings and observed values.
   /// @return Separate desired, valid and trusted evidence; serialize under the owner.
   PinSnapshot pinsSnapshot() const noexcept;
+  /// @brief Start a bus/clock-silent owned quality profile; poll one complete batch per slice.
+  /// @param[in] settings Explicit owned controls and maintenance/partner admission.
+  /// @param[in] budget Finite total deadline/frames and stall allowance.
+  /// @param[out] token Published only after full local validation.
+  /// @return IN_PROGRESS on admission; invalid/source-gated requests perform no I/O.
+  /// @note SNLS647I8.3.17/tables8-28..30/35/44/51..53. Cancellation freezes effects;
+  /// later startInitialize restores behind OP-9. No silicon latency or link claim.
+  Status startConfigureQuality(const QualitySettings& settings, const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Passive owned quality configuration; caller serializes all access.
+  /// @return Retained desired/partial observed values without I/O or a clock read.
+  QualitySnapshot qualitySnapshot() const noexcept {
+    auto snapshot = _quality;
+    snapshot.fldMaximumApplicable = snapshot.fldMaximumApplicable && !snapshot.observedStale &&
+        snapshot.trust == ConfigurationTrust::VERIFIED;
+    return snapshot;
+  }
+  /// @brief One complete four-frame vendor MMD read, SNLS647I table8-72.
+  /// @param[out] snapshot Unchanged unless the complete terminal read succeeds.
+  /// @param[in] budget Aggregate lock/controller allowance, minimum four frames.
+  /// @return Transport/admission status; failure leaves cached sample stale at its old time.
+  /// @note Does not read destructive counters or convert raw MSE to SNR; cached
+  /// link context is not simultaneous. Source gate mse_address remains open.
+  Status readSignalQuality(SignalQualitySnapshot& snapshot, const IoBudget& budget) noexcept;
+  /// @brief Passive raw quality observation; no I/O or clock read.
+  /// @return Retained raw value, validity, staleness and original context.
+  SignalQualitySnapshot signalQualitySnapshot() const noexcept { return _signalQuality; }
+
   /// @brief Apply a complete clock/interface/compatibility profile under one finite allowance.
   /// @param[in] settings Valid intent matching bound wiring and explicit stopped-MAC/clock admission.
   /// @param[out] result Unchanged on local rejection; partial evidence after an invoked callback.
@@ -1693,6 +1782,20 @@ public:
 
 private:
   enum class PinStep : uint8_t { INTERFACE, CLOCK_STATUS, MUX0, MUX3, APPLY, VERIFY, COMPLETE };
+  enum class QualityStep : uint8_t { PREFLIGHT, APPLY, VERIFY, COMPLETE };
+  QualitySnapshot _quality{};
+  SignalQualitySnapshot _signalQuality{};
+  QualityStep _qualityStep{QualityStep::COMPLETE};
+  uint8_t _qualityRow{0};
+  bool _qualityWorking{false}, _qualityTailPending{false}, _qualityVerifyOnly{false};
+  Status _validateQuality(const QualitySettings& settings) const noexcept;
+  void _beginQuality(bool verifyOnly) noexcept;
+  MdioBatch _qualityBatch() const noexcept;
+  Status _advanceQuality(Status status, bool called, const MdioBatch& batch) noexcept;
+  void _retainQualityWord(uint16_t address, uint16_t value) noexcept;
+  bool _qualityRowValue(uint8_t row, uint16_t& address, uint16_t& mask, uint16_t& value) const noexcept;
+  void _nextQualityRow() noexcept;
+  Status _finishQuality(Status status) noexcept;
   enum class InterfaceStep : uint8_t { PREFLIGHT, APPLY, VERIFY, CLOCK_STATUS, COMPLETE };
   InterfaceSnapshot _interface{};
   InterfaceResult _interfaceResult{};

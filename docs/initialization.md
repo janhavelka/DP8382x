@@ -254,3 +254,9 @@ Readiness remains false through mutating interface and pin restoration, includin
 failure/cancellation after mandatory VOD verification. Only full successful
 restoration republishes it. RESTART's command alone still preserves readiness;
 its subsequent mandatory setup and replay must complete independently.
+
+Owned quality profiles now replay after interface restoration and before pins,
+WoL/IRQ and final power policy. The same finite pass restores detector thresholds
+before causes and preserves unrelated settings. Read-only verification performs
+no detector disable or threshold write. [Quality controls](quality.md) retain
+partial effects and require a separately admitted restoration after failure.

@@ -879,3 +879,23 @@ Original SNLS647I tables8-19/28/29/35/41/73/84 supply these independent vectors:
 - Default RMII pass32frames/13callbacks; full clock+isolation39/16; full
   read-only pass19/9. MMD RMW is five indivisible frames then four-frame readback.
   RC values0000/000C stay raw history and do not establish a fault count.
+
+## Stage34 independently transcribed quality vectors
+
+Original SNLS647I tables8-28/29/30/35/44/51/52/53/72 give these
+independent literals, checked by `test/quality.cpp` without production masks:
+
+- CR3 causes040F preserve mirror0060; unknown0010 rejects.
+- FLD_CFG1 minimum codes1/1 yield0410, with reserved7 giving0417;
+  maximum63/63 yieldFFF0, reserved7 givesFFF7. Zero codes reject.
+- Descrambler old2284 with six-bit8 becomes2288.
+- TX100 bypass plus far-end-loopback FIFOcode3 yields owned0B00.
+- TX10 lowerthreshold/NLPdisable/jabberdisable and squelch8 yield3081;
+  code9 is illegal. Preamble7998 becomes3998 forlong,7998 forshort.
+- A consumed10BTSCR0010 polarity sample survives later transport failure;
+  its PHYSTS1000 mirror is captured first when requested.
+- MSE is literal vendor31:0218, not0225; raw0 remains0 without SNR inference.
+
+Physical maxima10us modes1-4/11us mode5 require footnote5's energy/RX condition
+for modes2/3/5 and the source recipe. Override codes are explicit raw settings,
+not a closed `fld_threshold_recipe` gate or measured latency.

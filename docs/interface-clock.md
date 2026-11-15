@@ -200,3 +200,8 @@ and reconnect behavior, packet limits and repeater traffic in both topologies.
 controlled clock-offset/fault-injection and read-clear traces. Host tests prove
 bounded composition, ownership and retained effects, not a working MAC clock,
 repeater link or compliant electrical timing.
+
+[Quality profiles](quality.md) own CR2 RX_ER-during-IDLE separately from this
+profile's odd-nibble-disable bit and GENCFG IPG. Quality nonzero Fast Link Drop
+requires declared and observed MII; a zero disable remains legal on RMII.
+Both profiles preserve one another's masks and share restoration.

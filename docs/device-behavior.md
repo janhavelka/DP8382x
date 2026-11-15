@@ -509,3 +509,10 @@ without changing application wiring. BMCR isolation stops the RMII-leader50MHz
 output while preserving SMI and the independently owned power request. Readback
 proves register state only. BASIC missing repeater bootstrap does not prohibit
 the documented runtime RX_DV override; ENHANCED POR-only straps remain distinct.
+
+Stage34's [quality procedure](quality.md) implements source-admitted Fast Link
+Drop and hardware recovery policy, TX100 scrambler/far-end-loopback FIFO/idle
+error controls and TX10 threshold/squelch/NLP/jabber/preamble. FLD prerequisites
+are applied with causes disabled, then enabled and verified. Mandatory VOD
+remains initialization-owned. All10BTSCR reads consume polarity through the
+single collector. Raw MSE is separate from derived units and link coherence.

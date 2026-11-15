@@ -203,3 +203,8 @@ shared owner must also exclude other PHY addresses. See [initialization](initial
 Stage29's [EEE owner](eee.md) executes the exact recipe and masked controls;
 this does not broaden raw write permissions. Latched status and wake errors
 are named collector sources with DEVAD-qualified identity.
+
+Use [typed quality operations](quality.md) for hardware link-loss policy and
+TX10/TX100 controls. Raw MSE is source-admitted; derived SNR and alternate
+address probing remain gated. Raw/external writes invalidate owned quality
+proof; they do not establish a new persistent profile.

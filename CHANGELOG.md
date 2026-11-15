@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added bounded quality/TX10/TX100 and hardware link-loss profiles, shared reset
+  restoration, raw MSE snapshots and single-collector polarity evidence.
+  Physical detector timing and MSE interpretation remain unqualified.
+
 - Audit prompts 32-33: defer initialized readiness through owned pin/interface
   restoration; propagate pin-owned LED1 clock uncertainty into IRQ/WoL views;
   require live MII/RMII evidence before LED2/3 or LED2 IRQ/WoL routing. Add

@@ -194,3 +194,13 @@ failure/restore tests are in `test/interface.cpp`; the
 [guide](interface-clock.md) and [report](reports/implementation/33-clock-interface-repeater.md)
 keep Q12 clock-mux, Q17 raw-RCSR and physical repeater evidence separate.
 Clock selectors without an established activation route remain rejected.
+
+Stage34 completes `configure_fast_drop`, `signal_quality_sample`,
+`tx100_configure`, `tx10_configure` and `link_recovery_configure` through
+[quality controls](quality.md). `startConfigureQuality` owns explicit grouped
+settings; `readSignalQuality` returns unscaled raw MSE. `test/quality.cpp` covers
+independent literals, collector retention, failure/cancellation, shared replay
+and exact bounds. CLI remains owner-routed work in44-46. Physical MII detector
+latency, MSE calibration and partner/traffic evidence remain NOT RUN. The
+`mse_address`, `fld_threshold_recipe`, `fld_reset_defaults` and `analog_rx_gain`
+gates remain visible; no raw interpretation or fixture result is invented.

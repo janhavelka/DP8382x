@@ -554,3 +554,9 @@ failure/cancellation cases, pin-owned clock uncertainty, and declared-versus-liv
 interface mismatches. LED2 IRQ/WoL tests exercise the same collector prerequisite
 without a separate pin profile. Full Release and UBSan trap runs are recorded
 in the [audit report](../docs/reports/implementation/32-33-independent-audit.md).
+
+Stage34 `test/quality.cpp` registers quality vector/admission/failure/replay/
+collector/ownership/timing/raw suites with active Release checks. The fixture
+uses original-PDF literals, injected effects before errors, and shared-owner
+contention; it does not establish physical Fast Link Drop latency or MSE scale.
+The portable Quality example is compiled in the tests-OFF consumer.

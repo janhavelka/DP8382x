@@ -19,6 +19,7 @@ Status linkTimeout(TimeoutDetail detail) noexcept {
 } // namespace
 
 void DP8382x::_invalidateLink() noexcept {
+  _signalQuality.stale = true;
   _eee.stale = true; _eee.negotiatedValid = false;
   if (_link.valid) {
     if (!_link.stale && _link.changes != std::numeric_limits<uint32_t>::max()) { ++_link.changes; }
@@ -173,6 +174,7 @@ Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) n
       next.change != LinkChange::REPEATED) {
     _eee.stale = true; _eee.negotiatedValid = false;
   }
+  if (next.change != LinkChange::REPEATED) { _signalQuality.stale = true; }
   _link = next;
   _evidence.lastStatus = Status::Ok();
   snapshot = next;

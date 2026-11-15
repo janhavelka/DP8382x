@@ -204,7 +204,7 @@ void DP8382x::_retainWakeWord(uint16_t address,uint16_t value) noexcept {
   }
 }
 void DP8382x::_setWakeStep(WakeStep step) noexcept {
-  _pinsWorking=false; _interfaceWorking=false;
+  _pinsWorking=false; _interfaceWorking=false; _qualityWorking=false;
   _wakeWorking=true; _eeeWorking=_powerWorking=_interruptWorking=_cableWorking=_bistWorking=_loopWorking=_configuring=false;
   _wakeStep=step; _operation.nextPollValid=false;
   _operation.phase=step==WakeStep::IDENTIFY?OperationPhase::IDENTIFY:OperationPhase::VERIFY;

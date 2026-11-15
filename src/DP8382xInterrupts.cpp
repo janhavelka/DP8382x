@@ -140,7 +140,7 @@ uint16_t DP8382x::_interruptControlValue() const noexcept {
       (_identity.mode!=OperatingMode::BASIC && s.outputEnable?1U:0U));
 }
 void DP8382x::_setInterruptStep(InterruptStep step) noexcept {
-  _pinsWorking=false; _interfaceWorking=false;
+  _pinsWorking=false; _interfaceWorking=false; _qualityWorking=false;
   _wakeWorking=false;
   _interruptWorking=true; _cableWorking=_bistWorking=_loopWorking=_configuring=false;
   _interruptStep=step; _operation.nextPollValid=false;

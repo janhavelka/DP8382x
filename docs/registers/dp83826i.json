@@ -9885,16 +9885,16 @@
       "waits": [
         "No invented settling delay. Section7.6 physical MAX10us modes1-4/MAX11us mode5 is not an MDIO polling deadline; modes2/3/5 require RX-error or signal-energy enabled per footnote5. Strapped150m case separately MAX10us."
       ],
-      "timeout": "Caller supplies finite positive aggregate primary duration and finite transaction/poll count before admission, including lock/controller callback bounds. Zero remaining work performs no I/O. Cleanup has a distinct finite duration/count, never an unbounded extension. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "timeout": "One cooperative owned pass, at most52frames/19callbacks for the complete profile; each poll submits at most one indivisible batch of at most5frames. Read-only quality verification uses23frames/9callbacks. OperationBudget includes lock/controller bounds, absolute deadline and finite frame/stall limits; short slices yield before a whole batch. No silicon latency claim. See docs/quality.md and test/quality.cpp.",
       "partialEffects": "A failed write can have applied a partial detector policy; preserve accepted/uncertain masks and invalidate link-policy trust. A failed destructive FLDS read may lose history; retain all earlier successfully consumed samples.",
-      "cleanup": "Cancellation stops new configuration phases and enters separately budgeted restore: disable owned modes, restore saved CFG1/CFG2 then CR3, verify stable owned masks. Release complete-transaction lock before waits/output. Keep primary error and cleanup failure separate; do not automatically reset/retry.",
+      "cleanup": "Cancellation/failure freezes the primary result immediately; no further write or automatic retry. Accepted/uncertain mutation retains OP-9 cleanupOwed. A separately admitted startInitialize replays and verifies the complete persistent profile using its own token, result and finite budget; the earlier failure remains retained.",
       "restoration": "Restore only saved persistent owned controls after temporary testing, never replay latched causes. Full reset reloads hardware defaults/straps; PCS-domain ambiguity prevents assumed retention without verification. Restart preserves register configuration but starts a new link-observation epoch. Reset or uncertain external mutation invalidates prior trust.",
       "gates": [
         "fld_reset_defaults",
         "fld_threshold_recipe"
       ],
       "owner": {
-        "api": "FastLinkDropSettings / startConfigureFastLinkDrop",
+        "api": "QualitySettings / startConfigureQuality / qualitySnapshot",
         "cli": "owner-routed fast-drop configure/readback/observe; reject RMII activation",
         "test": "Prompt34/53-55: invalid bits/codes and RMII rejection before I/O; each-frame failures and bounded restore. Prompt73: identified MII board, controlled noise/cable interruption, oscilloscope trigger from stimulus to link indication; qualify each detector and combination, not P4 RMII.",
         "implementationStage": 34
@@ -10647,7 +10647,7 @@
         "mse_address"
       ],
       "owner": {
-        "api": "readSignalQuality",
+        "api": "readSignalQuality / signalQualitySnapshot",
         "cli": "owner-routed readSignalQuality (prompts 44-46)",
         "test": "Independent literals and boundary failures for readSignalQuality; prompts 34, 53-55",
         "implementationStage": 34
@@ -11025,18 +11025,18 @@
       ],
       "prerequisites": "Identified exact DP83826I and mode; one application owner serializes instance and complete bus transactions. Board declares wiring, pin consumers, clock dependencies and MAC state. Pure validation rejects invalid values/source-gated branches without I/O; bounded live prerequisite reads precede mutation. Save persistent desired settings separately from observed values/trust; admit only finite positive primary and cleanup budgets. ",
       "steps": [
-        "Require selected100BASE-TX and explicitly permitted traffic/diagnostic policy. Apply scrambler bypass PHYSCR[11] only for coordinated tests or compatible application; NRZI bypass is absent and cannot be exposed.",
+        "Admit persistent100BASE-TX controls under explicit stopped-traffic maintenance policy; TX100 and TX10 groups may coexist for their respective current or future modes. Scrambler bypass PHYSCR[11] is for coordinated100M tests or a compatible application; no current-speed gate is invented for reset replay, and NRZI bypass is absent.",
         "Select PHYSCR[9:8] FIFO depth0/1/2/3 for4/5/6/8nibbles per declared loopback packet/clock requirements. CR2[2] enables receive symbol-error detection during idle.",
         "Analog VOD settings delegate analog_configure with validated cross-word values. PHYSTS error observations remain owned by the existing event/link collector. Verify configuration, then require separate partner/traffic evidence to establish operation."
       ],
       "waits": [],
-      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "One cooperative owned pass, at most52frames/19callbacks for the complete profile; each poll submits at most one indivisible batch of at most5frames. Read-only quality verification uses23frames/9callbacks. OperationBudget includes lock/controller bounds, absolute deadline and finite frame/stall limits; short slices yield before a whole batch. No silicon latency claim. See docs/quality.md and test/quality.cpp.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
+      "cleanup": "Cancellation/failure freezes the primary result immediately; no further write or automatic retry. Accepted/uncertain mutation retains OP-9 cleanupOwed. A separately admitted startInitialize replays and verifies the complete persistent profile using its own token, result and finite budget; the earlier failure remains retained.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [],
       "owner": {
-        "api": "tx100_configure",
+        "api": "QualitySettings / startConfigureQuality / qualitySnapshot",
         "cli": "Owner-routed tx100_configure with typed preflight and bounded result (44-46).",
         "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: 100M partner and instrumented MAC; idle-symbol fault injection, FIFO/clock mismatch and scrambler patterns; calibrated MDI measurements via analog fixture.",
         "implementationStage": 34
@@ -11078,15 +11078,15 @@
         "10BTSCR reads consume polarity evidence and use the collector. Explicit VOD ownership must not silently undo required4A40 initialization."
       ],
       "waits": [],
-      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "One cooperative owned pass, at most52frames/19callbacks for the complete profile; each poll submits at most one indivisible batch of at most5frames. Read-only quality verification uses23frames/9callbacks. OperationBudget includes lock/controller bounds, absolute deadline and finite frame/stall limits; short slices yield before a whole batch. No silicon latency claim. See docs/quality.md and test/quality.cpp.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
+      "cleanup": "Cancellation/failure freezes the primary result immediately; no further write or automatic retry. Accepted/uncertain mutation retains OP-9 cleanupOwed. A separately admitted startInitialize replays and verifies the complete persistent profile using its own token, result and finite budget; the earlier failure remains retained.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [
         "analog_rx_gain"
       ],
       "owner": {
-        "api": "tx10_configure",
+        "api": "QualitySettings / startConfigureQuality / qualitySnapshot",
         "cli": "Owner-routed tx10_configure with typed preflight and bounded result (44-46).",
         "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: 10M forced/AN partner, calibrated receive amplitude, reversed pair, short/long preamble and bounded jabber/NLP captures.",
         "implementationStage": 34
@@ -11224,13 +11224,13 @@
         "Retain desired policy and raw link history separately. Approximate250us normal loss and a few additional milliseconds in prose do not become a completion bound; application owns any bounded link-reacquisition wait."
       ],
       "waits": [],
-      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "One cooperative owned pass, at most52frames/19callbacks for the complete profile; each poll submits at most one indivisible batch of at most5frames. Read-only quality verification uses23frames/9callbacks. OperationBudget includes lock/controller bounds, absolute deadline and finite frame/stall limits; short slices yield before a whole batch. No silicon latency claim. See docs/quality.md and test/quality.cpp.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Successful configuration retains its desired settings; it is not immediately reverted.",
+      "cleanup": "Cancellation/failure freezes the primary result immediately; no further write or automatic retry. Accepted/uncertain mutation retains OP-9 cleanupOwed. A separately admitted startInitialize replays and verifies the complete persistent profile using its own token, result and finite budget; the earlier failure remains retained.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [],
       "owner": {
-        "api": "link_recovery_configure",
+        "api": "QualitySettings / startConfigureQuality / qualitySnapshot",
         "cli": "Owner-routed link_recovery_configure with typed preflight and bounded result (44-46).",
         "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: Identified partner with controlled short interference/signal removal; timestamp line disturbance versus link status for enabled/disabled modes. Implementation-stage regression owner: prompt 34.",
         "implementationStage": 34
@@ -12580,13 +12580,13 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [],
-      "notes": "Source inventory researched, including named source gates. Implementation, host/SDK and hardware evidence remain pending; board wiring does not remove software scope."
+      "notes": "Prompt34 implements source-admitted controls through QualitySettings/startConfigureQuality and raw MSE through readSignalQuality; single collector, shared restoration, independent host tests in test/quality.cpp. Derived MSE units, analog gain, FLD default/override interpretation and physical timing remain gated; SDK/hardware evidence unchanged."
     },
     {
       "id": "tx10",
@@ -12614,15 +12614,15 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "analog_rx_gain"
       ],
-      "notes": "Source inventory researched, including named source gates. Implementation, host/SDK and hardware evidence remain pending; board wiring does not remove software scope."
+      "notes": "Prompt34 implements source-admitted controls through QualitySettings/startConfigureQuality and raw MSE through readSignalQuality; single collector, shared restoration, independent host tests in test/quality.cpp. Derived MSE units, analog gain, FLD default/override interpretation and physical timing remain gated; SDK/hardware evidence unchanged."
     },
     {
       "id": "loopback",
@@ -12790,8 +12790,8 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
@@ -12799,7 +12799,7 @@
         "fld_reset_defaults",
         "fld_threshold_recipe"
       ],
-      "notes": "MII-only programmable detector settings/cause evidence. Initial P4 RMII board cannot qualify activation. Physical timing, application polling deadlines and source conflict are separate. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations."
+      "notes": "Prompt34 implements source-admitted controls through QualitySettings/startConfigureQuality and raw MSE through readSignalQuality; single collector, shared restoration, independent host tests in test/quality.cpp. Derived MSE units, analog gain, FLD default/override interpretation and physical timing remain gated; SDK/hardware evidence unchanged."
     },
     {
       "id": "link_recovery",
@@ -12823,13 +12823,13 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [],
-      "notes": "Source inventory researched, including named source gates. Implementation, host/SDK and hardware evidence remain pending; board wiring does not remove software scope."
+      "notes": "Prompt34 implements source-admitted controls through QualitySettings/startConfigureQuality and raw MSE through readSignalQuality; single collector, shared restoration, independent host tests in test/quality.cpp. Derived MSE units, analog gain, FLD default/override interpretation and physical timing remain gated; SDK/hardware evidence unchanged."
     },
     {
       "id": "led",
@@ -13013,15 +13013,15 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "mse_address"
       ],
-      "notes": "Prompt4 source coverage complete with named unresolved behavior gates; no implementation, host driver test, SDK build or hardware qualification follows. See event_source_audit. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations."
+      "notes": "Prompt34 implements source-admitted controls through QualitySettings/startConfigureQuality and raw MSE through readSignalQuality; single collector, shared restoration, independent host tests in test/quality.cpp. Derived MSE units, analog gain, FLD default/override interpretation and physical timing remain gated; SDK/hardware evidence unchanged."
     },
     {
       "id": "compliance",

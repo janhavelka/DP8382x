@@ -3,7 +3,7 @@
 The [80-prompt implementation plan](prompts/README.md) is in its first
 execution. Prompts 1–33 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 205 registered Release CTests, 103 Python tests,
+Current local checks include 214 registered Release CTests, 103 Python tests,
 two linked tests-OFF consumers, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -26,6 +26,15 @@ Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
 operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+Prompt34 began on clean synchronized `main` at
+`e3c25db71c8520d83b997a04c5d107d64b69c707`. It completes the five source-admitted
+quality/TX/link-loss procedures through one cooperative profile, the existing
+collector and shared restore path, plus raw MSE snapshots. The
+[report](reports/implementation/34-quality-link-loss.md) records independent
+source/code review, tests and physical/source limits. SDK, remote CI and
+hardware results remain separate; the final commit and upstream equality are
+recorded in the handoff.
 
 The [independent prompts32-33 audit](reports/implementation/32-33-independent-audit.md)
 starts from synchronized `main` at `2938ed718725b834fc1da105d93a3370d77f2e28`.
@@ -406,7 +415,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [31 Implement complete Wake-on-LAN controls](prompts/31-wake-on-lan.md) | COMPLETE | [Report](reports/implementation/31-wake-on-lan.md), [WoL guide](wake-on-lan.md); eight Release suites, bounded config/ACK/status, routing/replay and portable owner example. Q3 physical pending. |
 | [32 Implement all LED and GPIO controls](prompts/32-led-gpio.md) | NOT STARTED | None |
 | [33 Implement clock, interface and repeater controls](prompts/33-clock-interface-repeater.md) | NOT STARTED | None |
-| [34 Implement quality and hardware link-loss controls](prompts/34-quality-link-loss.md) | NOT STARTED | None |
+| [34 Implement quality and hardware link-loss controls](prompts/34-quality-link-loss.md) | COMPLETE | [Report](reports/implementation/34-quality-link-loss.md), [guide](quality.md), five source-admitted procedures, single collector and shared replay; 214 Release/UBSan tests, 103 Python tests, two portable consumers and local source/document checks PASS. Physical timing and derived MSE units remain gated. |
 | [35 Implement electrical controls and finite compliance procedures](prompts/35-electrical-compliance-calibration.md) | NOT STARTED | None |
 | [36 Audit complete primary-chip feature coverage](prompts/36-primary-feature-closure.md) | NOT STARTED | None |
 | [37 Implement the native ESP-IDF factory and lifecycle](prompts/37-esp-idf-lifecycle.md) | NOT STARTED | None |

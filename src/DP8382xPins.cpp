@@ -209,7 +209,7 @@ void DP8382x::_nextPinRow() noexcept {
   _pinStep=_pinRow<PIN_ROWS?(_pinsVerifyOnly?PinStep::VERIFY:PinStep::APPLY):PinStep::COMPLETE;
 }
 void DP8382x::_beginPins(bool verifyOnly) noexcept {
-  _interfaceWorking=false;
+  _interfaceWorking=false; _qualityWorking=false;
   _pinsWorking=true; _pinsVerifyOnly=verifyOnly; _pinResult={}; _pinRow=0;
   _pins.observedStale=true;
   const auto valid=_validatePins(_pins.desired);

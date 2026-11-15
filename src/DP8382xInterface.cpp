@@ -141,6 +141,7 @@ void DP8382x::_nextInterfaceRow() noexcept {
 void DP8382x::_beginInterface(bool verifyOnly) noexcept {
   _pinsWorking=_wakeWorking=_eeeWorking=_powerWorking=_interruptWorking=false;
   _cableWorking=_bistWorking=_loopWorking=_configuring=false;
+  _qualityWorking=false;
   _interfaceWorking=true; _interfaceVerifyOnly=verifyOnly; _interfaceResult={}; _interfaceRow=0;
   _interface.observedStale=true;
   const auto valid=_validateInterface(_interface.desired);
