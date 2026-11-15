@@ -3,7 +3,7 @@
 The [80-prompt implementation plan](prompts/README.md) is in its first
 execution. Prompts 1–29 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 171 registered Release CTests, 103 Python tests,
+Current local checks include 187 registered Release CTests, 103 Python tests,
 two linked tests-OFF consumers, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -26,6 +26,15 @@ Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
 operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+Prompt31 began on clean synchronized `main` at
+`519c3aa51479c3c6c23f8c22d9a4c55154980986` (completed prompt30).
+[The report](reports/implementation/31-wake-on-lan.md) records complete WoL
+matching/indication, bounded status and acknowledgement, pending-event preservation,
+narrow route ownership and shared restoration. All local checks pass; physical
+Q3 and SDK qualification remain NOT RUN. Remote CI stays prompt71. Final commit
+and upstream equality are recorded in the handoff.
+
 
 Prompt30 began on clean synchronized `main` at
 `356320ac645f7fad405ff35b8ca3e7c853423ea4` (completed prompt29).
@@ -366,7 +375,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [28 Implement active-sleep policy and explicit power states](prompts/28-power-states.md) | COMPLETE, DPD source-gated | [Report](reports/implementation/28-power-states.md), [power guide](power.md), six Release suites and portable owner example. Active-sleep/IEEE/PLL implemented; deep_power_exit and Q6 remain open. |
 | [29 Implement exact EEE negotiation and status](prompts/29-eee-negotiation.md) | COMPLETE | [Report](reports/implementation/29-eee-negotiation.md), [EEE guide](eee.md); committed/synced356320ac. Q1 physical pending. |
 | [30 Implement bounded legacy-MAC LPI sessions](prompts/30-legacy-mac-lpi.md) | COMPLETE | [Report](reports/implementation/30-legacy-mac-lpi.md), [LPI guide](lpi.md); bounded start/stop, retained OP-9 state, independent Release/consumer tests. Q1/Q2 physical pending. |
-| [31 Implement complete Wake-on-LAN controls](prompts/31-wake-on-lan.md) | NOT STARTED | None |
+| [31 Implement complete Wake-on-LAN controls](prompts/31-wake-on-lan.md) | COMPLETE | [Report](reports/implementation/31-wake-on-lan.md), [WoL guide](wake-on-lan.md); eight Release suites, bounded config/ACK/status, routing/replay and portable owner example. Q3 physical pending. |
 | [32 Implement all LED and GPIO controls](prompts/32-led-gpio.md) | NOT STARTED | None |
 | [33 Implement clock, interface and repeater controls](prompts/33-clock-interface-repeater.md) | NOT STARTED | None |
 | [34 Implement quality and hardware link-loss controls](prompts/34-quality-link-loss.md) | NOT STARTED | None |

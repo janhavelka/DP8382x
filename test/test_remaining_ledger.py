@@ -340,7 +340,9 @@ class RemainingLedgerTests(unittest.TestCase):
             'legacy_lpi': {},
             'wol_configure': {'RXFPMD1': 0xFFFF, 'RXFPMD2': 0xFFFF, 'RXFPMD3': 0xFFFF,
                               'RXFSOP1': 0xFFFF, 'RXFSOP2': 0xFFFF, 'RXFSOP3': 0xFFFF,
-                              'RXFCFG1': 0x17A1},
+                              'RXFCFG1': 0x17A1,
+                              # Tables8-75/76: bits2:0 select WoL2 or IRQ4.
+                              'LED1_GPIO_CFG': 0x0007, 'LED2_GPIO_CFG': 0x0007},
             'wol_acknowledge': {'RXFCFG1': 0x0800},
             'led_configure': {'LEDCR': 0x0692, 'MLEDCR': 0x0279, 'LEDCFG': 0xFFF0,
                               'LEDCFG2': 0x0077, 'PHYCR': 0x0080},

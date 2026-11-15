@@ -170,3 +170,10 @@ Stage30 implements `legacy_lpi`: two bounded bit12 calls, persistent OP-9 sessio
 barrier, passive request evidence and separate explicit stop/restoration.
 [Guide](lpi.md) and [report](reports/implementation/30-legacy-mac-lpi.md) record
 host tests; physical Q1/Q2 and SDK/controller results remain NOT RUN.
+
+
+Stage31 implements `wol_configure` and `wol_acknowledge` with exact-part MAC/
+Secure-ON matching, CRC/pulse/level controls, typed status, shared collection,
+quiesced route/configuration and reset replay. [Guide](wake-on-lan.md) and
+[report](reports/implementation/31-wake-on-lan.md) separate host protocol tests
+from Q3 live-reconfiguration, W0C/RH-bit and physical wake qualification.

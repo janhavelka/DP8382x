@@ -201,3 +201,7 @@ and bounded single-run raw acquisition share the same owner and restoration path
 [Forced TX LPI](docs/lpi.md) provides bounded opt-in entry/exit with retained
 uncertainty and application-owned MAC coordination. Q1/Q2 physical qualification
 remains NOT RUN; readback does not prove partner readiness.
+
+[Wake-on-LAN](docs/wake-on-lan.md) adds exact MAC/Secure-ON controls, CRC and
+pulse/level indication, retained status and explicit acknowledgement, with bounded
+configuration and shared restoration. PHY indication is not proof of host wake.

@@ -11823,6 +11823,14 @@
         {
           "register": "RXFCFG1",
           "mask": "0x17A1"
+        },
+        {
+          "register": "LED1_GPIO_CFG",
+          "mask": "0x0007"
+        },
+        {
+          "register": "LED2_GPIO_CFG",
+          "mask": "0x0007"
         }
       ],
       "prerequisites": "Application serializes all instance/snapshot access and all participants share complete indirect/RMW transaction exclusion. Exact part, legal settings, clock/power history, operation ownership and finite primary/cleanup budgets validated before mutation; any live precondition reads are explicit bounded work. CRC/filter requests do not authorize unsupported custom pattern fields. IRQ/GPIO board wiring is independent from register success. ",
@@ -11830,13 +11838,13 @@
         "Validate six-octet MAC/password lengths, Secure-ON/CRC/indication selections and pulse code0..3; reject guessed custom patterns. Require application-coordinated quiesced traffic for credential changes; continuous live guarantees remain gated.",
         "Collector retains pending RXFS/MISR2 evidence with source epoch; disable WoL using owned enable bit while composing bit11 neutral1, preserving unrelated bit6. Do not clear pending level implicitly.",
         "Program/verify MAC04A2/3/4 high:low TI bytes4:5,2:3,0:1. TI byte5 is MSB, so API octet0 (first MAC octet) maps to TI byte5: MAC11:22:33:44:55:66 gives2211/4433/6655. Password04A5/6/7 high:low API octets1:0,3:2,5:4 gives2B2A/2D2C/2F2E for2A..2F. Verify all six ordinary words before enable.",
-        "Apply CRC, Secure-ON and pulse/level controls with W0C0800 neutral. Coordinate GPIO/pin routing and RXFS1000 source/MISR2 enable through existing pin/interrupt owner; enabling WoL can automatically select source, so retain epoch and verify owner configuration.",
+        "While detector disabled, apply/verify only source-backed selected LED1/2 mux bits2:0 (2 for directWoL,4 for an owned IRQ LED route). Then apply CRC, Secure-ON and pulse/level controls with W0C0800 neutral. Enabling can select RXFS1000; retain crossing evidence and verify the existing interrupt owner afterward. General pin/clock controls remain stage32; read-only LED0/3 gates remain.",
         "Enable final policy last, verify stable mask17A1 excluding command0800 and unspecified bit6. Desired/observed/trust remain separate; read-clear acquisition never discarded on later failure.",
         "Before any RXFCFG1 write harvest RXFS and MISR2 through the collector. Exact-part table8-90 W0C is selected, but Q3 tests disagreement with DP83822/SNLA261A and shared Linux write1. Neutral1981 must retain pending level; explicit1181 acknowledges. No physical qualification is inferred.",
         "Skip unchanged stable settings under mask17E1 excluding bit11; named mask flag alone does not authorize custom patterns. Reset is not WoL-off: bit7=1,bit0unknown,RXFS12=1. Explicit disable clears owned bits7,5,0 with W0Cneutral1; bit0RH stability remains Q3."
       ],
       "waits": [],
-      "timeout": "Finite aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Require independent finite logical-transaction and physical-frame/poll limits for primary and cleanup, including delegated work; frozen clock cannot extend count. Zero work budget performs no I/O. No nominal silicon value is a timeout. Proposed base profile ceiling40 target transactions (at most160 C22 frames if all indirect), with pin/IRQ delegation explicitly consuming remaining aggregate allowance; no unbounded live-event drain.",
+      "timeout": "Bounded existing OperationBudget: status-only full change111frames/28callbacks, identical35/10; pin checks/needed five-frame mux RMW+four-frame verify and existing IRQ tail consume the same remaining allowance. Max individual batch5frames; short poll yields without splitting. No physical completion-time claim.",
       "partialEffects": "Record each accepted or uncertain write, reset/configuration epoch and consumed event immediately; late callback success cannot erase deadline/cancellation. Invalidate affected configuration trust without discarding desired policy or retained raw evidence. Credentials can be partially updated; keep detector disabled/untrusted when final enable has not been verified. New events or auto-selected RXFS source during changes retain ambiguity.",
       "cleanup": "Release controller lock after every indivisible transaction and before waits/output. Cancellation schedules no new primary work; owner-admitted cleanup has a separate finite deadline/count. Retain primary and cleanup outcomes independently; no implicit retry/reset/power cycle. Restore stable saved credentials/policy under quiesced conditions with enable last and W0C neutral; preserve status samples. If live retention cannot be guaranteed report lost-interval risk.",
       "restoration": "Restore only persistent owned settings in dependency order, with source-defined stable readback. Never replay transient commands or stale observations. Hard reset invalidates prior observations and requires acyclic identity/clock/interface/configuration replay; do not infer PCS reset or digital restart has identical retention. Hard reset requires credential/policy restore in this order; never restore an acknowledged level by writing command bits. WoL detection requires powered receive path; it cannot be promised during IEEE/deep power-down.",
@@ -11846,9 +11854,9 @@
         "rxfs_sfd_reference"
       ],
       "owner": {
-        "api": "WakeSettings / acknowledgeWake",
+        "api": "WakeSettings / startConfigureWake / readWakeStatus / wakeSnapshot",
         "cli": "owner-routed WakeSettings / acknowledgeWake (prompts 44-46)",
-        "test": "Independent literals and boundary failures for WakeSettings / acknowledgeWake; prompts 31, 53-55; literal vectors and per-step failure/cancel/cleanup matrix in power source review; no physical evidence claimed",
+        "test": "test/wol.cpp independent original-table vectors, all-frame/cancel/replay/history/routing failures; physical Q3 NOT RUN.",
         "implementationStage": 31
       }
     },
@@ -11883,15 +11891,15 @@
         "Before any RXFCFG1 write harvest RXFS and MISR2 through the collector. Exact-part table8-90 W0C is selected, but Q3 tests disagreement with DP83822/SNLA261A and shared Linux write1. Neutral1981 must retain pending level; explicit1181 acknowledges. No physical qualification is inferred."
       ],
       "waits": [],
-      "timeout": "Finite aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Require independent finite logical-transaction and physical-frame/poll limits for primary and cleanup, including delegated work; frozen clock cannot extend count. Zero work budget performs no I/O. No nominal silicon value is a timeout. One indirect target write=4 C22 frames if stable desired configuration valid; any bounded prerequisite RMW/collector reads add counted work.",
+      "timeout": "One separately admitted OperationBudget/retained token:25frames/7callbacks for identity,stablecontrol,harvest,RMW,stableverify,selector/crossingcapture; no repeated drain, retry or deassertion deadline.",
       "partialEffects": "Record each accepted or uncertain write, reset/configuration epoch and consumed event immediately; late callback success cannot erase deadline/cancellation. Invalidate affected configuration trust without discarding desired policy or retained raw evidence. Acknowledged hardware indication is consumed and cannot be reconstructed. A new event racing acknowledgement retains ordering uncertainty.",
       "cleanup": "Release controller lock after every indivisible transaction and before waits/output. Cancellation schedules no new primary work; owner-admitted cleanup has a separate finite deadline/count. Retain primary and cleanup outcomes independently; no implicit retry/reset/power cycle. No automatic acknowledgement retry after uncertain write; retain possible consumed evidence.",
       "restoration": "Restore only persistent owned settings in dependency order, with source-defined stable readback. Never replay transient commands or stale observations. Hard reset invalidates prior observations and requires acyclic identity/clock/interface/configuration replay; do not infer PCS reset or digital restart has identical retention. Acknowledgement is transient and never replayed on initialization/reset/recovery.",
       "gates": [],
       "owner": {
-        "api": "WakeSettings / acknowledgeWake",
+        "api": "acknowledgeWake / pollOperation / takeResult",
         "cli": "owner-routed WakeSettings / acknowledgeWake (prompts 44-46)",
-        "test": "Independent literals and boundary failures for WakeSettings / acknowledgeWake; prompts 31, 53-55; literal vectors and per-step failure/cancel/cleanup matrix in power source review; no physical evidence claimed",
+        "test": "test/wol.cpp independent original-table vectors, all-frame/cancel/replay/history/routing failures; physical Q3 NOT RUN.",
         "implementationStage": 31
       }
     }
@@ -12303,7 +12311,9 @@
         "RXFPMD3",
         "RXFSOP1",
         "RXFSOP2",
-        "RXFSOP3"
+        "RXFSOP3",
+        "LED1_GPIO_CFG",
+        "LED2_GPIO_CFG"
       ],
       "procedures": [
         "wol_configure",
@@ -12318,8 +12328,8 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PARTIAL",
-        "hostTested": "PARTIAL",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
@@ -12328,7 +12338,7 @@
         "wol_live_reconfigure",
         "rxfs_sfd_reference"
       ],
-      "notes": "Research disposition complete, including explicit essential source gates; no implementation or hardware qualification claimed. See power source review for independent literal oracles, finite procedures and fixture matrix. Prompt 13 supplies low-level destructive acquisition and MISR/WoL mixed updates, with retained partial evidence and independent fault tests; complete typed feature behavior remains at its declared implementation stage. SDK and physical evidence remain NOT_RUN."
+      "notes": "Stage31 implements exact MAC/Secure-ON/CRC/pulse-level controls, status/acknowledgement and narrow admitted routes with shared restoration. Custompattern/bit6 and read-only GPIO claims stay gated; Q3 physical polarity/RH-bit/live-reconfiguration and host wake NOT RUN."
     },
     {
       "id": "power",

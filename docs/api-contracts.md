@@ -993,3 +993,15 @@ cancellation before entry performs no call; after entry it requests a separate
 stop. Admitted diagnostic results publish even on error; local rejection preserves
 output. Failed target writes retain UNCERTAIN and explicit frame-loss warning.
 The owner example and guide cover post-exit coordination and retained debt.
+
+
+## Stage31 shipped Wake-on-LAN
+
+[The WoL guide](wake-on-lan.md) defines `WakeSettings`, `WakeSnapshot`,
+`startConfigureWake`, cooperative `acknowledgeWake`, live `readWakeStatus` and
+passive `wakeSnapshot`. All use existing OP-1..17 lifetime and collector rules.
+Configuration and acknowledgement have distinct tokens/results. Settings never
+acknowledge pending level implicitly; source-specific neutral one and explicit
+zero share the existing RXFCFG1 composer. Quiesced change/readback and shared
+reset restoration own the narrow required mux field, with general pin controls
+remaining separate. Unsupported custom patterns and LED0/3 access remain gated.

@@ -126,3 +126,7 @@ after successful transport; [power evidence](power.md) remains a separate domain
 Forced TX LPI entry/exit are RAW temporary-session calls. Their two callbacks
 and nine possible frames affect transport totals only; explicit HARD restoration
 remains managed initialization. Request state and frame-loss risk are separate.
+
+WoL configuration and owned reset replay are managed batches. Explicit level
+acknowledgement and live wake observation are RAW traffic; PHY wake/error flags
+are collector history and never an application-wake or transport-health verdict.

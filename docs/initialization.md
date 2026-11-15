@@ -226,3 +226,10 @@ Without owned EEE, all earlier reset-kind semantics remain unchanged.
 A retained forced-TX-LPI session requires explicit HARD restoration or its
 bounded [stop call](lpi.md). Shared initialization never replays temporary LPI;
 only completed persistent restoration withdraws uncertain session evidence.
+
+
+Owned [WoL settings](wake-on-lan.md) extend the same replay: detector disable,
+needed route/match update and verification, final enable, then IRQ source/masks
+and final power state. Unowned initialization never invents a WoL-off write.
+Acknowledgement is transient and is never restored. Clock/pin incompatibility
+retains failed restoration and cleanup debt.

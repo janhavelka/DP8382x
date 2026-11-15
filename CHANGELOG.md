@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added exact DP83826I Wake-on-LAN configuration, asymmetric MAC/Secure-ON
+  packing, CRC/pulse/level controls, bounded acknowledgement and status collection.
+  Quiesced detector updates preserve pending W0C evidence and restore owned
+  credentials/routes before IRQ and power policy. Physical Q3 remains unqualified.
+
 - Added bounded forced TX LPI entry/exit, bit12-only RMW/readback, retained
   REQUESTED/UNCERTAIN evidence and OP-9 dwell protection without occupying a job.
   Stop preserves unrelated EEE uncertainty; MAC drain and wake readiness remain

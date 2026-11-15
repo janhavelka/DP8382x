@@ -214,3 +214,12 @@ word is rejected because the detailed amplitude field range excludes it. BASIC
 LED polarity stays fixed-low, ENHANCED MII pin availability remains constrained,
 and SNLA344C's PHYCRbit5 label is evidence of a named control, not permission to
 copy its contradictory script. These physical questions remain Q8/Q12.
+
+
+Stage31 fresh comparison: TI Linux `ti-linux-6.18.y` commit
+`fe51a7637cfb7c37e90778949da9338daac552f7`, `drivers/net/phy/dp83822.c`
+(GPL-2.0), lines212-270, retains the same asymmetric MAC/Secure-ON wire words,
+three-bit disable and shared-family write-one indication handling. Exact SNLS647I
+W0C remains selected, with Q3 pending. No implementation was copied. The
+[stage31 report](../reports/implementation/31-wake-on-lan.md) records fresh official
+PDF hashes, original-table review and the quiesced procedure/route boundaries.

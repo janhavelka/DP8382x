@@ -38,6 +38,18 @@ Status serviceBudgetError() noexcept {
 
 Status DP8382x::_validateInterruptSettings(const InterruptSettings& s) const noexcept {
   const auto syntax=interruptSyntax(s); if (!syntax.ok()) { return syntax; }
+  if (_wake.desiredValid && _wake.desired.enabled) {
+    if (s.sharedSource != InterruptSharedSource::WAKE) { return invalidIrq("Owned WoL requires WAKE shared-source selection"); }
+    if ((_wake.desired.route == WakeRoute::LED1 && s.pin == InterruptPin::LED1) ||
+        (_wake.desired.route == WakeRoute::LED2 && s.pin == InterruptPin::LED2)) {
+      return invalidIrq("Direct WoL and interrupt output cannot share the same LED mux");
+    }
+    if (_wake.desired.route == WakeRoute::INTERRUPT &&
+        (!s.globalEnable || (s.misr2Mask & 2U) == 0U ||
+         (_identity.mode == OperatingMode::ENHANCED && !s.outputEnable))) {
+      return invalidIrq("Owned wake interrupt route requires enabled delivery");
+    }
+  }
   if (_eee.desiredValid && _eee.desired.enabled && s.pin != InterruptPin::INTR_PWRDN) {
     return invalidIrq("Disable EEE before conflicting LED interrupt routing");
   }
@@ -109,9 +121,10 @@ uint16_t DP8382x::_interruptControlValue() const noexcept {
       (_identity.mode!=OperatingMode::BASIC && s.outputEnable?1U:0U));
 }
 void DP8382x::_setInterruptStep(InterruptStep step) noexcept {
+  _wakeWorking=false;
   _interruptWorking=true; _cableWorking=_bistWorking=_loopWorking=_configuring=false;
   _interruptStep=step; _operation.nextPollValid=false;
-  if (step==InterruptStep::IDENTIFY) { _interruptExpectedMode=_identity.mode; }
+  if (step==InterruptStep::IDENTIFY) { _interruptExpectedMode=_identity.mode; _interruptPinRestore=false; }
   _operation.phase=step==InterruptStep::IDENTIFY ? OperationPhase::IDENTIFY : OperationPhase::VERIFY;
 }
 MdioBatch DP8382x::_interruptBatch() const noexcept {
@@ -120,7 +133,11 @@ MdioBatch DP8382x::_interruptBatch() const noexcept {
       auto batch=readIrq(2); batch.frameCount=2; batch.frames[1]={FrameKind::READ,3,0,0,NO_READ_INDEX}; return batch;
     }
     case InterruptStep::PIN_CLOCK: return _mmdBatch(0x0308,FrameKind::READ,0);
-    case InterruptStep::PIN_MUX: return _mmdBatch(_interrupts.desired.pin==InterruptPin::LED1?0x0304:0x0305,FrameKind::READ,0);
+    case InterruptStep::PIN_MUX: case InterruptStep::PIN_VERIFY: return _mmdBatch(_interrupts.desired.pin==InterruptPin::LED1?0x0304:0x0305,FrameKind::READ,0);
+    case InterruptStep::PIN_APPLY: {
+      auto batch=_mmdBatch(_interrupts.desired.pin==InterruptPin::LED1?0x0304:0x0305,FrameKind::READ,0);
+      batch.frameCount=5; batch.frames[4]={FrameKind::WRITE,0x0E,4,0xFFF8,3}; return batch;
+    }
     case InterruptStep::CHECK_TEST: case InterruptStep::VERIFY_CONTROL: case InterruptStep::TEST_VERIFY: return readIrq(0x11);
     case InterruptStep::DISABLE: return updateIrq(0x11,0xFFF9,0); // Global off; transient test is never replayed.
     case InterruptStep::DRAIN: case InterruptStep::CROSSING: case InterruptStep::VERIFY2: return readIrq(0x13);
@@ -171,6 +188,8 @@ Status DP8382x::_advanceInterrupt(Status status,bool called,const MdioBatch& bat
   }
   if (complete && batch.frames[last].kind==FrameKind::READ) {
     switch (_interruptStep) {
+      case InterruptStep::PIN_VERIFY:
+        address=_interrupts.desired.pin==InterruptPin::LED1?0x0304:0x0305; mask=7; expected=4; break;
       case InterruptStep::VERIFY1:
         _interrupts.rawMisr1=value; _interrupts.misr1Valid=true; mask=0x00FF; expected=_interrupts.desired.misr1Mask; break;
       case InterruptStep::VERIFY2:
@@ -225,15 +244,24 @@ Status DP8382x::_advanceInterrupt(Status status,bool called,const MdioBatch& bat
       if ((value&1U)==0U) { return _finishOperation(invalidIrq("LED1 is routed to clock output")); }
       _setInterruptStep(InterruptStep::PIN_MUX); break;
     case InterruptStep::PIN_MUX:
-      if ((value&7U)!=4U) { return _finishOperation(invalidIrq("Pin owner has not selected interrupt mux")); }
+      if ((value&7U)!=4U) {
+        if (!_wake.desiredValid || _interruptVerifyOnly || testing || _operation.kind==OperationKind::INTERRUPT_CONFIGURE) {
+          return _finishOperation(invalidIrq("Pin owner has not selected interrupt mux"));
+        }
+        // Shared WoL restoration also restores the separately owned IRQ LED route.
+        // Global delivery is disabled before changing this source-backed low field.
+        _interruptPinRestore=true;
+      }
       nextAfterPin(); break;
+    case InterruptStep::PIN_APPLY: _setInterruptStep(InterruptStep::PIN_VERIFY); break;
+    case InterruptStep::PIN_VERIFY: _interruptPinRestore=false; _setInterruptStep(InterruptStep::DRAIN); break;
     case InterruptStep::CHECK_TEST:
       if ((value&4U)!=0U) {
         _interrupts.testMayBeActive=true;
         return _finishOperation(invalidIrq("Unowned interrupt test already active"));
       }
       _setInterruptStep(testing?InterruptStep::TEST_WRITE:InterruptStep::DISABLE); break;
-    case InterruptStep::DISABLE: _setInterruptStep(InterruptStep::DRAIN); break;
+    case InterruptStep::DISABLE: _setInterruptStep(_interruptPinRestore?InterruptStep::PIN_APPLY:InterruptStep::DRAIN); break;
     case InterruptStep::DRAIN: _setInterruptStep(InterruptStep::SELECT); break;
     case InterruptStep::SELECT: _setInterruptStep(InterruptStep::VERIFY_SELECT); break;
     case InterruptStep::VERIFY_SELECT:

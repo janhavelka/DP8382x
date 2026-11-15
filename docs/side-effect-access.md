@@ -162,3 +162,8 @@ Stage29 adds `EEE_STATUS` and `EEE_ERRORS` to the same collector. Their MMD3
 namespace is distinct from vendor aliases; safe dumps must not consume them.
 See [EEE acquisition](eee.md) for current/latched/RC interpretation, retained
 partial words, possible history loss and source-implied Q1 qualification.
+
+Stage31 uses the same RXFCFG1 W0C composer for typed [WoL procedures](wake-on-lan.md)
+and raw maintenance. Every control write harvests RXFS/MISR2 first. Raw changes
+withdraw typed trust; unchanged stable settings skip writes, explicit acknowledgement
+does not. The bit6 name remains no permission for custom pattern matching.

@@ -795,3 +795,27 @@ independently of production constants. DEVAD31, wire04D1:
   at most2callbacks; any attempted target mutation retains uncertain state.
 
 [The LPI guide](lpi.md) owns the software/physical evidence distinction and Q2 plan.
+
+
+## Stage31 independent Wake-on-LAN literals
+
+Original SNLS647I tables8-90..97 pp91-93 establish these vectors independently
+of production codecs and the ledger. API octet0 is first transmitted:
+
+- MAC11:22:33:44:55:66 ->04A2=2211,04A3=4433,04A4=6655.
+- Secure-ON2A:2B:2C:2D:2E:2F ->04A5=2B2A,04A6=2D2C,04A7=2F2E.
+- CRC+level+enabled+magic =1181, Secure-ON adds0020 ->11A1.
+  Unrelated write neutral words are1981/19A1; explicit acknowledgement1181/11A1.
+- Disable owns00A1, not a reset assumption:1FA1 ->1F00 understable bits,
+  with0800 command-neutral retained on the wire. Preserveunknown0040/reservedE01E.
+- Pulse code0/1/2/3 contributes0000/0200/0400/0600 and means8/16/32/64cycles;
+  at125MHz the independent arithmetic is64/128/256/512ns.
+- Stable no-change comparison17E1 includes the preserved unnamed flag; writes
+  own17A1 and preserve that flag. W0C0800 is never in stable verification.
+- Direct LED mux update owns0007 only: preserveFFF8 and write0002; the owned
+  IRQ route uses0004. DetectorA1 must be verified clear before route/match writes.
+- Full status-only change111frames/28callbacks; unchanged35/10; explicit
+  acknowledgement25/7; live status33/8. No repeat-until-clear loop exists.
+
+[The fixture plan](wake-on-lan.md) retains exact-part W0C/RH-bit0 and live-change
+qualification; neither fake acknowledgements nor pulse arithmetic prove host wake.

@@ -1,3 +1,4 @@
+#include "../../examples/portable/Wake.h"
 #include "../../examples/portable/Lpi.h"
 #include <DP8382x/CommandTable.h>
 #include <DP8382x/Config.h>
@@ -450,6 +451,17 @@ static bool configurationExamples() noexcept {
 }
 
 int main() {
+  DP8382x::DP8382x wakeUnbound;
+  DP8382x::WakeSettings wakePolicy;
+  wakePolicy.maintenanceAdmitted=wakePolicy.receiveTrafficQuiesced=true;
+  WakeAttempt wakeAttempt;
+  DP8382x::OperationBudget wakeBudget{{10000,512},10,8};
+  DP8382x::WakeSnapshot wakeView;
+  if (!beginWakePolicy(wakeUnbound,wakePolicy,wakeBudget,wakeAttempt).is(DP8382x::Err::NOT_BOUND) ||
+      !beginWakeAcknowledgement(wakeUnbound,wakeBudget,wakeAttempt).is(DP8382x::Err::NOT_BOUND) ||
+      !acquireWakeView(wakeUnbound,wakeView,{10000,64}).is(DP8382x::Err::NOT_BOUND) ||
+      cachedWakeView(wakeUnbound).desiredValid) return 91;
+
   // Compile/link the bounded owner contract even without an admitted EEE fixture.
   DP8382x::DP8382x lpiUnbound;
   LpiOwnerAttempt lpiAttempt;

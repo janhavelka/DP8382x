@@ -515,3 +515,14 @@ shared-bus exclusion, cached prerequisites, bypass contradiction debt and HARD
 restoration failures. The owner example executes normal/failed exit handling;
 the tests-OFF consumer compiles/links and exercises rejection. See [Q2](../docs/lpi.md)
 for physical traffic/timing/energy checks that a fake cannot establish.
+
+
+Stage31 registers `wol_vectors`, `wol_admission`, `wol_routing`,
+`wol_acquisition`, `wol_failures`, `wol_replay`, `wol_ownership`, `wol_timing`
+and the active Release failure probe. Run `ctest --test-dir build/host -R wol
+--output-on-failure --no-tests=error`. Literal byte/pulse/W0C vectors are independent
+of codecs. Tests exercise collector partials/history loss, every frame and release,
+cancellation, malformed receipts, exact bounds, raw contradictions, GPIO/IRQ
+conflicts and reset/power replay. The [owner example](../examples/portable/Wake.h)
+executes normal/failed acknowledgement; tests-OFF consumption links its public API.
+Physical Q3 remains [unmeasured](../docs/wake-on-lan.md).

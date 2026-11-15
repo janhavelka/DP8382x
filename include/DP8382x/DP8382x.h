@@ -283,7 +283,9 @@ enum class OperationKind : uint8_t {
   INTERRUPT_TEST_START, ///< Establish a retained software interrupt stimulus.
   INTERRUPT_TEST_STOP, ///< Clear and verify the owned software interrupt stimulus.
   POWER_CONFIGURE, ///< Apply owned active-sleep, IEEE power intent and PLL control.
-  EEE_CONFIGURE ///< Reset-bearing exact EEE recipe and shared owned-state replay.
+  EEE_CONFIGURE, ///< Reset-bearing exact EEE recipe and shared owned-state replay.
+  WOL_CONFIGURE, ///< Quiesced match/control update with detector disabled until verification.
+  WOL_ACKNOWLEDGE ///< Explicit W0C acknowledgement after collector harvest; never replayed.
 };
 /// @brief One retained operation slot.
 enum class OperationState : uint8_t {
@@ -768,6 +770,59 @@ struct BatchSummary {
   TransportViolation violation{TransportViolation::NONE}; ///< Callback contract violation.
   bool late{false}; ///< Raw post-return clock reached the exclusive deadline.
 };
+/// @brief Exact-part wake indication route; board wiring is separately admitted.
+enum class WakeRoute : uint8_t {
+  STATUS_ONLY, ///< Matching/status without a physical output requirement.
+  INTERRUPT, ///< Existing verified task27 WAKE interrupt policy and pin route.
+  LED1, ///< Own LED1 mux2; receiver stays disabled while routing changes.
+  LED2, ///< Own ENHANCED LED2 mux2; MII COL must be unused.
+  LED0, ///< Read-only mux contradiction; rejected until source authority exists.
+  LED3 ///< Read-only mux contradiction; rejected until source authority exists.
+};
+/// @brief Complete opt-in WoL intent; six fixed octets use transmission order.
+struct WakeSettings {
+  bool enabled{false}; ///< Explicit disable clears enable, Secure-ON and magic-match bits.
+  bool secureOn{false}; ///< Require the password when enabled; disable always clears the hardware flag.
+  bool crcGate{true}; ///< Suppress indication on bad CRC when true.
+  bool levelMode{true}; ///< Level-change indication; false selects a pulse.
+  uint8_t pulseWidth{0}; ///< Codes0..3 select8/16/32/64 cycles at125MHz; only applies in pulse mode.
+  uint8_t mac[6]{}; ///< Octet0 is first transmitted; all48-bit values are representable.
+  uint8_t password[6]{}; ///< Secure-ON octet0 first; no cryptographic security claim.
+  WakeRoute route{WakeRoute::STATUS_ONLY}; ///< No implicit pin or MCU setup.
+  bool maintenanceAdmitted{false}; ///< Owner permits disruptive detector configuration.
+  bool receiveTrafficQuiesced{false}; ///< Owner coordinated traffic; disable readback cannot prove quiescence.
+  bool pinAvailable{false}; ///< Required for any output route; no physical wiring proof.
+  bool led1ClockUnused{false}; ///< Required for ENHANCED LED1 route.
+  bool colUnused{false}; ///< Required for ENHANCED MII LED2 route.
+};
+/// @brief Persistent intent and partial observations; event history lives in the collector.
+struct WakeSnapshot {
+  WakeSettings desired{}; ///< Last admitted complete intent, retained across failures.
+  bool desiredValid{false}; ///< Initialization replays WoL only after explicit ownership.
+  ConfigurationTrust trust{ConfigurationTrust::UNKNOWN}; ///< Owned settings verified independently of wake delivery.
+  bool observedStale{true}; ///< Incomplete or invalidated aggregate; successful prefixes remain retained.
+  bool timeValid{false}; ///< Complete observation timestamp validity; zero may be valid.
+  uint64_t observedAtUs{0}; ///< Conservative completion upper bound in microseconds.
+  uint16_t rawControl{0}; ///< RXFCFG1 including command/reserved evidence.
+  uint16_t rawMac[3]{}; ///< Exact RXFPMD1..3 words, pair-validity below.
+  uint16_t rawPassword[3]{}; ///< Exact RXFSOP1..3 words, pair-validity below.
+  uint16_t rawRxfs{0}; ///< Last collector-owned RXFS sample, never repeated consumption.
+  uint16_t rawMisr2{0}; ///< Last collector-owned MISR2 sample.
+  uint16_t rawPinControl{0}; ///< Last selected LED mux word, when that route is used.
+  bool pinControlValid{false}; ///< Raw selected pin word was returned successfully.
+  bool controlValid{false}; ///< Current retained control word is valid.
+  bool rxfsValid{false}; ///< Latest requested RXFS read succeeded.
+  bool misr2Valid{false}; ///< Latest requested MISR2 read succeeded.
+  uint8_t credentialValidMask{0}; ///< Bits0..2 MAC words,3..5 password words; independent partial validity.
+  bool enabled{false}; ///< Observed bit7 when controlValid; reset does not mean disabled.
+  bool secureOn{false}; ///< Observed bit5 when controlValid.
+  bool magicMatch{false}; ///< Observed RH/W bit0; stability remains physical Q3.
+  bool crcGate{false}; ///< Observed bit12 when controlValid.
+  bool levelMode{false}; ///< Observed bit8 when controlValid.
+  uint8_t pulseWidth{0}; ///< Observed code0..3 when controlValid.
+  Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No wake observation"}; ///< Last operation/acquisition result.
+};
+
 /// @brief Software request evidence, never PHY or partner readiness.
 enum class ForcedLpi : uint8_t {
   OFF, ///< No owned request, or bit12 cleared and verified/reset reconciled.
@@ -863,6 +918,7 @@ struct OperationResult {
   CableResult cable{}; ///< Non-destructive cable words; primary and restoration results remain separate.
   CableAutorunSnapshot cableAutorun{}; ///< Retained policy evidence; success never proves engine quiescence.
   EeeSnapshot eee{}; ///< Retained EEE intent and partial acquisition evidence.
+  WakeSnapshot wake{}; ///< Retained WoL intent, control/credential prefixes and status acquisition.
   PowerSnapshot power{}; ///< Retained power intent, partial observations and transition outcome.
   InterruptSnapshot interrupts{}; ///< Retained policy and transient test effects, independent of restoration result.
   uint16_t savedAnar{0}; ///< Pre-mutation advertisement, never a rollback instruction.
@@ -1113,6 +1169,31 @@ public:
   /// @brief Copy EEE intent/evidence without bus or clock I/O.
   /// @return Historical/current validity and trust; serialize with the application owner.
   EeeSnapshot eeeSnapshot() const noexcept { return _eee; }
+
+  /// @brief Admit quiesced WoL configuration; start is bus/clock silent.
+  /// @param[in] settings Complete match, Secure-ON, CRC, pulse/level and route intent.
+  /// @param[in] budget Aggregate operation deadline/frames and finite stalled-poll limit.
+  /// @param[out] token Assigned only on admission; poll and take the retained result.
+  /// @return IN_PROGRESS or local validation/ownership error without mutation.
+  /// @note SNLS647I8.3.5/tables8-90..97. Disable/verify before credential changes,
+  /// verify all words, then enable last. Q3 gates physical live-reconfiguration safety.
+  /// Owned settings extend shared reset restoration; no default WoL-off assumption.
+  Status startConfigureWake(const WakeSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Admit one explicit level acknowledgement, never an automatic drain.
+  /// @param[in] budget Separate finite allowance; harvest RXFS/MISR2 before writing W0C zero.
+  /// @param[out] token Assigned only on admission; acknowledgement is a retained operation.
+  /// @return IN_PROGRESS or validation/ownership error; cancel issues no cleanup I/O.
+  /// @note Requires owned verified level policy. Neutral unrelated writes use one.
+  /// Completed acknowledgement proves command acceptance, not an awakened host or deasserted pin.
+  Status acknowledgeWake(const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Acquire control, six match words and collector RXFS/MISR2 once.
+  /// @param[out] snapshot Assigned only on complete success; cache retains partials on failure.
+  /// @param[in] budget Exclusive deadline and finite frame allowance for the full pass.
+  /// @return Terminal transport/admission status; destructive uncertainty remains in the collector.
+  Status readWakeStatus(WakeSnapshot& snapshot, const IoBudget& budget) noexcept;
+  /// @brief Bus/clock-silent copy of WoL intent and observations.
+  /// @return Historical/partial values with independent validity and staleness.
+  WakeSnapshot wakeSnapshot() const noexcept { return _wake; }
 
   /// @brief Set forced TX LPI bit12 and verify it; SNLS647I8.3.4/7.6, OP-9.
   /// @param[in] options Explicit MAC drain and maintenance admission.
@@ -1415,6 +1496,26 @@ public:
   TransportSnapshot transportSnapshot() const noexcept { return _transport; }
 
 private:
+  enum class WakeStep : uint8_t { IDENTIFY, PIN_CLOCK, PIN_MUX, PIN_APPLY, PIN_VERIFY, READ_CONTROL, READ_CREDENTIAL,
+    HARVEST_DISABLE, DISABLE, VERIFY_DISABLE, WRITE_CREDENTIAL, VERIFY_CREDENTIAL,
+    HARVEST_APPLY, APPLY, VERIFY_CONTROL, READ_SELECTOR, DRAIN_SELECTOR, HARVEST_ACK, ACK };
+  WakeSnapshot _wake{};
+  WakeStep _wakeStep{WakeStep::IDENTIFY};
+  uint8_t _wakeWord{0};
+  bool _wakeCredentialsChanged{false};
+  bool _wakePinNeedsApply{false};
+  OperatingMode _wakeExpectedMode{OperatingMode::UNKNOWN};
+  bool _wakeWorking{false}, _wakeTailPending{false}, _wakeVerifyOnly{false};
+  void _setWakeStep(WakeStep step) noexcept;
+  MdioBatch _wakeBatch() const noexcept;
+  Status _advanceWake(Status status, bool called, const MdioBatch& batch) noexcept;
+  Status _validateWake(const WakeSettings& settings) const noexcept;
+  uint16_t _wakeControl() const noexcept;
+  uint8_t _wakePin() const noexcept;
+  uint16_t _wakePinFunction() const noexcept;
+  void _retainWakeControl(uint16_t value) noexcept;
+  void _retainWakeWord(uint16_t address, uint16_t value) noexcept;
+  MdioBatch _wakeControlBatch(uint16_t mask, uint16_t value, bool acknowledge) const noexcept;
   enum class EeeStep : uint8_t { CAPABILITY, RECIPE, ADVERTISEMENT_CHECK, SET_ADVERTISEMENT,
     SET_CONTROL, VERIFY_ADVERTISEMENT, VERIFY_CONTROL };
   EeeSnapshot _eee{};
@@ -1449,7 +1550,7 @@ private:
   void _retainPowerWord(uint8_t address, uint16_t value) noexcept;
   void _observePower() noexcept;
   enum class InterruptStep : uint8_t {
-    IDENTIFY, PIN_CLOCK, PIN_MUX, CHECK_TEST, DISABLE, DRAIN,
+    IDENTIFY, PIN_CLOCK, PIN_MUX, PIN_APPLY, PIN_VERIFY, CHECK_TEST, DISABLE, DRAIN,
     SELECT, VERIFY_SELECT, CROSSING, MASK1, MASK2, OUTPUT, ENABLE,
     VERIFY1, VERIFY2, VERIFY_CONTROL, TEST_WRITE, TEST_VERIFY
   };
@@ -1458,6 +1559,7 @@ private:
   InterruptServiceSnapshot _interruptService{};
   bool _interruptWorking{false}, _interruptTailPending{false}, _interruptVerifyOnly{false};
   bool _interruptTestSession{false};
+  bool _interruptPinRestore{false};
   OperatingMode _interruptExpectedMode{OperatingMode::UNKNOWN};
   Status _admitInterrupt(const OperationBudget& budget, bool stop) const noexcept;
   Status _validateInterruptSettings(const InterruptSettings& settings) const noexcept;

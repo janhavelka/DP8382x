@@ -490,3 +490,9 @@ Stage30 implements [forced TX LPI](lpi.md) with bit12-only bounded start/stop,
 retained uncertainty and application-owned MAC drain/dwell/wake coordination.
 Both bypass controls must be disabled at entry. The100M/normal-power restriction
 is library policy; nominal timing is never a software completion guarantee.
+
+
+Stage31 [WoL controls](wake-on-lan.md) preserve reset-loaded enable/unknown magic
+state until explicit policy ownership. Quiesced disable/verify precedes match or
+route changes, and enable follows verification. Exact W0C acknowledgement is
+separate from neutral configuration; pending samples remain in one collector.

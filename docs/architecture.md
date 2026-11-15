@@ -175,3 +175,9 @@ Forced TX LPI extends the existing EEE source with two direct bounded calls.
 It uses the shared transaction executor and OP-9 temporary barrier while leaving
 the operation slot idle during application dwell; see [LPI ownership](lpi.md).
 No additional job engine, collector or MAC scheduling responsibility is added.
+
+
+[Wake-on-LAN](wake-on-lan.md) uses a cohesive source module within the same
+operation-kind/phase dispatch and collector. Its route/control restoration runs
+before IRQ attribution and final power policy. There is no second event owner or
+wake scheduler; physical MAC/application wake belongs to the application.
