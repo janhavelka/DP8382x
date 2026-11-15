@@ -38,8 +38,10 @@ Status serviceBudgetError() noexcept {
 
 Status DP8382x::_validateInterruptSettings(const InterruptSettings& s) const noexcept {
   const auto syntax=interruptSyntax(s); if (!syntax.ok()) { return syntax; }
-  if (_wake.desiredValid && _wake.desired.enabled) {
-    if (s.sharedSource != InterruptSharedSource::WAKE) { return invalidIrq("Owned WoL requires WAKE shared-source selection"); }
+  if (_wake.desiredValid) {
+    // Disabling the detector does not release its separately selected route.
+    if ((_wake.desired.enabled || _wake.desired.route == WakeRoute::INTERRUPT) &&
+        s.sharedSource != InterruptSharedSource::WAKE) { return invalidIrq("Owned WoL requires WAKE shared-source selection"); }
     if ((_wake.desired.route == WakeRoute::LED1 && s.pin == InterruptPin::LED1) ||
         (_wake.desired.route == WakeRoute::LED2 && s.pin == InterruptPin::LED2)) {
       return invalidIrq("Direct WoL and interrupt output cannot share the same LED mux");

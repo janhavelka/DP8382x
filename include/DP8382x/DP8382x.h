@@ -788,7 +788,7 @@ struct WakeSettings {
   uint8_t pulseWidth{0}; ///< Codes0..3 select8/16/32/64 cycles at125MHz; only applies in pulse mode.
   uint8_t mac[6]{}; ///< Octet0 is first transmitted; all48-bit values are representable.
   uint8_t password[6]{}; ///< Secure-ON octet0 first; no cryptographic security claim.
-  WakeRoute route{WakeRoute::STATUS_ONLY}; ///< No implicit pin or MCU setup.
+  WakeRoute route{WakeRoute::STATUS_ONLY}; ///< Owned even while disabled; STATUS_ONLY releases the route requirement, not the physical mux.
   bool maintenanceAdmitted{false}; ///< Owner permits disruptive detector configuration.
   bool receiveTrafficQuiesced{false}; ///< Owner coordinated traffic; disable readback cannot prove quiescence.
   bool pinAvailable{false}; ///< Required for any output route; no physical wiring proof.

@@ -1,7 +1,7 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–29 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
+execution. Prompts 1–31 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
 Current local checks include 187 registered Release CTests, 103 Python tests,
 two linked tests-OFF consumers, Doxygen negative checks, ledger/reference integrity
@@ -26,6 +26,12 @@ Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
 operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+Fresh prompts 30-31 audit began on clean synchronized `main` at
+`12a17284831dc1ae7a6b2e3584f551eed73f5f25`. The
+[audit report](reports/implementation/30-31-independent-audit.md) records three
+confirmed WoL corrections, independent LPI review and final local verification.
+Physical Q2/Q3 qualification remains NOT RUN.
 
 Prompt31 began on clean synchronized `main` at
 `519c3aa51479c3c6c23f8c22d9a4c55154980986` (completed prompt30).

@@ -41,7 +41,7 @@ Status DP8382x::_validateEee(const EeeSettings& settings) const noexcept {
   if (settings.advertisement!=0U && settings.advertisement!=2U) {
     return Status::Error(Err::INVALID_PARAM,"EEE advertisement is zero or 100BASE-TX",static_cast<int32_t>(ParamDetail::VALUE_WIDTH));
   }
-  if (settings.enabled && _wake.desiredValid && _wake.desired.enabled && _wake.desired.route == WakeRoute::LED1) {
+  if (settings.enabled && _wake.desiredValid && _wake.desired.route == WakeRoute::LED1) {
     return eeeConfig("EEE clock recipe conflicts with owned LED1 wake route");
   }
   if (!settings.maintenanceAdmitted) { return eeeConfig("EEE reset maintenance not admitted"); }

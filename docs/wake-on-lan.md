@@ -31,7 +31,10 @@ The narrow route fields are restored in the same WoL procedure, including mux4
 when the selected IRQ owner uses an LED. General pin/clock control remains a
 later stage. The selected route is the path this procedure verifies, not a promise
 that other pre-existing pin functions are disconnected; their disposition remains
-with the pin owner. Shared WoL reset replay also restores a separately owned IRQ
+with the pin owner. Disabling detection retains the selected route requirement,
+so conflicting IRQ or EEE requests still reject before changing desired intent.
+Select STATUS_ONLY explicitly to release that requirement; this does not rewrite
+the old pin mux. Shared WoL reset replay also restores a separately owned IRQ
 LED mux after disabling global IRQ delivery. A clock that remains active on LED1 is rejected; no guessed clock
 write is added. Board wiring and host wake logic remain external.
 
@@ -98,6 +101,9 @@ while persistent trust is VERIFIED. Settings, raw fields and event history have
 distinct validity. Valid contradictory controls, credentials, mux or RXFS source
 withdraw trust immediately and survive a later error. Cached rendering never
 consumes events again; host history clearing does not acknowledge the PHY.
+An independent read that contradicts an already verified field between operation
+polls freezes the WoL result immediately. No later poll may enable a detector
+whose credentials or route are already known to be wrong.
 
 The default status-only full change needs111frames/28callbacks; an identical
 request35/10; acknowledgement25/7. Route checks and any required mux update,

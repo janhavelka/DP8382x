@@ -289,36 +289,56 @@ void routeChanges() {
     CHECK(!d.startConfigureWake(wake,budget(),token).inProgress());CHECK(token.value==999 && b.calls==calls && b.clocks==clocks && !d.wakeSnapshot().desiredValid);
   }
 
-  for(auto route:{WakeRoute::LED1,WakeRoute::LED2}) {
-    Controller b;Driver d;ready(d,b);auto wake=settings();wake.route=route;wake.pinAvailable=wake.led1ClockUnused=wake.colUnused=true;
+  for(bool enabled:{false,true})for(auto route:{WakeRoute::LED1,WakeRoute::LED2}) {
+    Controller b;Driver d;ready(d,b);auto wake=settings(enabled);wake.route=route;wake.pinAvailable=wake.led1ClockUnused=wake.colUnused=true;
     b.ext[0x0304]=2;b.ext[0x0305]=2;b.ext[0x0308]=1;configured(d,b,wake);
     InterruptSettings irq;irq.maintenanceAdmitted=irq.pinAvailable=irq.led1ClockUnused=irq.colUnused=true;
     irq.pin=route==WakeRoute::LED1?InterruptPin::LED1:InterruptPin::LED2;
     const auto calls=b.calls,clocks=b.clocks;OperationToken token{999};
     CHECK(!d.startConfigureInterrupts(irq,budget(),token).inProgress());CHECK(b.calls==calls && b.clocks==clocks && token.value==999);
+    CHECK(!d.interruptSnapshot().desiredValid);
   }
-  for(unsigned field=0;field<4U;++field) {
+  for(bool enabled:{false,true})for(unsigned field=0;field<4U;++field) {
     Controller b;Driver d;ready(d,b);InterruptSettings irq;irq.maintenanceAdmitted=irq.pinAvailable=true;
     irq.globalEnable=true;irq.misr2Mask=2;OperationToken token;
     CHECK(d.startConfigureInterrupts(irq,budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
-    auto wake=settings();wake.route=WakeRoute::INTERRUPT;wake.pinAvailable=true;configured(d,b,wake);
+    auto wake=settings(enabled);wake.route=WakeRoute::INTERRUPT;wake.pinAvailable=true;configured(d,b,wake);
     if(field==0U)irq.globalEnable=false;
     if(field==1U)irq.misr2Mask=0;
     if(field==2U) { irq.outputEnable=false;irq.powerDownInputSafe=true; }
     if(field==3U)irq.sharedSource=InterruptSharedSource::POLARITY;
     const auto calls=b.calls,clocks=b.clocks;token.value=999;
     CHECK(!d.startConfigureInterrupts(irq,budget(),token).inProgress());CHECK(b.calls==calls && b.clocks==clocks && token.value==999);
+    const auto retained=d.interruptSnapshot().desired;
+    CHECK(retained.globalEnable && retained.misr2Mask==2 && retained.outputEnable && retained.sharedSource==InterruptSharedSource::WAKE);
   }
-  {
+  for(bool enabled:{false,true}) {
     Controller b;Driver d;ready(d,b);LinkSettings link;link.advertisement.technologyMask=8;OperationToken token;
     CHECK(d.startConfigure(link,{},budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
-    auto wake=settings();wake.route=WakeRoute::LED1;wake.pinAvailable=wake.led1ClockUnused=true;
+    auto wake=settings(enabled);wake.route=WakeRoute::LED1;wake.pinAvailable=wake.led1ClockUnused=true;
     b.ext[0x0304]=2;b.ext[0x0308]=1;configured(d,b,wake);
     EeeSettings eee;eee.enabled=eee.maintenanceAdmitted=true;const auto calls=b.calls,clocks=b.clocks;
     CHECK(!d.startConfigureEee(eee,budget(),token).inProgress());CHECK(b.calls==calls && b.clocks==clocks);
+    CHECK(!d.eeeSnapshot().desiredValid);
   }
 }
 void acquisition() {
+  // Repeated operation reads have the same per-word validity as live capture:
+  // a failed requested word keeps its raw history but loses current validity.
+  for(unsigned source=0;source<3U;++source)for(unsigned phase=0;phase<4U;++phase) {
+    Controller b;Driver d;ready(d,b);auto wake=settings();
+    if(source==2U) { wake.route=WakeRoute::LED2;wake.pinAvailable=true; }
+    configured(d,b,wake);const auto previous=d.wakeSnapshot();
+    const auto token=configure(d,b,wake);
+    CHECK(poll(d,b,token).inProgress()); // Identity, then control or selected pin.
+    if(source==1U)CHECK(poll(d,b,token).inProgress()); // Control, then first MAC word.
+    b.failFrame=static_cast<int>(b.frames+phase);
+    CHECK(drain(d,b,token).is(Err::MDIO_TIMEOUT));const auto result=take(d,token);
+    const auto view=d.wakeSnapshot();CHECK(view.observedStale);
+    if(source==0U)CHECK(!view.controlValid && !result.wake.controlValid && view.rawControl==previous.rawControl);
+    if(source==1U)CHECK((view.credentialValidMask&1U)==0U && (result.wake.credentialValidMask&1U)==0U && view.rawMac[0]==previous.rawMac[0]);
+    if(source==2U)CHECK(!view.pinControlValid && !result.wake.pinControlValid && view.rawPinControl==previous.rawPinControl);
+  }
   {
     Controller b; Driver d; ready(d,b); configured(d,b);
     WakeSnapshot snapshot; CHECK(d.readWakeStatus(snapshot,{1000000,33}).ok());
@@ -533,6 +553,32 @@ void ownerExample() {
   CHECK(!b.pendingWake && failed.result.cleanupOwed && policy.result.status.ok() && acknowledgement.result.status.ok());
 }
 void ownership() {
+  for(bool late:{false,true}) {
+    Controller b;Driver d;ready(d,b);const auto token=configure(d,b,settings());
+    for(unsigned turn=0;turn<24U;++turn)CHECK(poll(d,b,token).inProgress());
+    b.ext[0x04A2]^=1;
+    if(late)b.lateCall=static_cast<int>(b.calls);else b.releaseCall=static_cast<int>(b.calls);
+    uint16_t sentinel=0xCAFE;const auto status=d.readMmd(31,0x04A2,sentinel,{1000000,4});
+    CHECK(status.is(late?Err::OPERATION_TIMEOUT:Err::MDIO_ERROR) && sentinel==0xCAFE);
+    if(!late)CHECK(status.detail==-37);
+    const auto frames=b.frames;CHECK(drain(d,b,token).is(Err::CONFIG_MISMATCH));
+    const auto result=take(d,token);
+    CHECK(result.mismatch.valid && result.mismatch.observed==0x2210 && result.cleanupOwed && b.frames==frames);
+    CHECK((b.ext[0x04A0]&0x0080U)==0U); // Known-wrong match was never enabled.
+  }
+  // A consumed contradiction must freeze the operation before another poll can
+  // enable a match already known to be wrong. Cover every post-credential phase.
+  for(unsigned boundary=18;boundary<28U;++boundary) {
+    Controller b;Driver d;ready(d,b);const auto token=configure(d,b,settings());
+    for(unsigned turn=0;turn<boundary;++turn)CHECK(poll(d,b,token).inProgress());
+    b.ext[0x04A2]^=1;uint16_t raw=0;
+    CHECK(d.readMmd(31,0x04A2,raw,{1000000,4}).ok());
+    CHECK(d.operationSnapshot().state==OperationState::RESULT_PENDING);
+    const auto frames=b.frames,mutations=b.mutations;
+    CHECK(drain(d,b,token).is(Err::CONFIG_MISMATCH));
+    const auto result=take(d,token);
+    CHECK(result.mismatch.valid && result.cleanupOwed && b.frames==frames && b.mutations==mutations);
+  }
   for(bool ack:{false,true}) {
     Controller b;Driver d;ready(d,b);OperationToken token;if(ack) { configured(d,b);CHECK(d.acknowledgeWake(budget(),token).inProgress()); }
     else token=configure(d,b,settings());

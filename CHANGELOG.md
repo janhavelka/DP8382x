@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Audit prompts 30–31: stop WoL mutation immediately after an independently
+  observed mismatch, preserve disabled WoL route ownership during IRQ/EEE
+  admission, and clear current validity after a failed requested word read.
+  Add regression coverage for each case.
+
 - Added exact DP83826I Wake-on-LAN configuration, asymmetric MAC/Secure-ON
   packing, CRC/pulse/level controls, bounded acknowledgement and status collection.
   Quiesced detector updates preserve pending W0C evidence and restore owned

@@ -226,13 +226,29 @@ Status DP8382x::_advanceWake(Status status,bool called,const MdioBatch& batch) n
   const uint8_t last=static_cast<uint8_t>(batch.frameCount-1U);
   const bool complete=called && _result.failingBatch.completedFrames==batch.frameCount;
   const uint16_t value=complete?_transport.lastBatch.frames[last].value:0;
+  // Keep raw history, but never reuse an older word as the result of this
+  // requested acquisition. Valid prefixes survive a later write/release error.
+  const bool targetRead=called && batch.frameCount>=4U && batch.frames[3].kind==FrameKind::READ &&
+      completePrefix(batch,_transport.lastBatch,3);
+  if (batch.frameCount>=4U && batch.frames[3].kind==FrameKind::READ && !targetRead) {
+    const auto address=batch.frames[1].value;
+    if (address==0x04A0U) { _wake.controlValid=false; }
+    else if (address>=0x04A2U && address<=0x04A7U) {
+      _wake.credentialValidMask&=static_cast<uint8_t>(~(1U<<(address-0x04A2U)));
+    } else if (address==0x0304U || address==0x0305U) { _wake.pinControlValid=false; }
+    else if (address==0x04A1U) { _wake.rxfsValid=false; }
+  }
+  if ((_wakeStep==WakeStep::HARVEST_DISABLE || _wakeStep==WakeStep::HARVEST_APPLY ||
+       _wakeStep==WakeStep::HARVEST_ACK || _wakeStep==WakeStep::DRAIN_SELECTOR) && !complete) {
+    _wake.misr2Valid=false;
+  }
   if (called && batch.frames[last].kind==FrameKind::WRITE) {
     const auto& target=_transport.lastBatch.frames[last];
     _result.mutationAttempted|=target.attempted;
     _result.mutationCompleted|=complete;
     _result.mutationPossible|=target.effectPossible || target.completed || target.valueValid || _transport.violation!=TransportViolation::NONE;
   }
-  if (called && batch.frameCount>=4U && completePrefix(batch,_transport.lastBatch,3)) {
+  if (targetRead) {
     const auto raw=_transport.lastBatch.frames[3].value;
     if (_wakeStep==WakeStep::READ_CONTROL || _wakeStep==WakeStep::VERIFY_DISABLE || _wakeStep==WakeStep::VERIFY_CONTROL ||
         _wakeStep==WakeStep::DISABLE || _wakeStep==WakeStep::APPLY || _wakeStep==WakeStep::ACK) {

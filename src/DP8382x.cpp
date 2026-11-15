@@ -1072,11 +1072,11 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
     sample.historyLost = true;
     sample.stale = true;
   }
-  if (!_polling && _interruptWorking && _result.mismatch.valid &&
+  if (!_polling && (_interruptWorking || _wakeWorking) && _result.mismatch.valid &&
       _operation.state == OperationState::RUNNING) {
     // An independent collector call can withdraw proof between polls. Freeze
     // now, before the next poll can execute another mutation using that proof.
-    _finishOperation(Status::Error(Err::CONFIG_MISMATCH,"Interrupt selector evidence changed"));
+    _finishOperation(Status::Error(Err::CONFIG_MISMATCH,"Owned configuration evidence changed"));
   }
 }
 
