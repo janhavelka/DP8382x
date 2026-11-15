@@ -317,10 +317,10 @@ Status admitBudget(const IoBudget& budget, const TransportBounds& bounds,
 
 // OP-6: reserve both bounded transfers, quantization and one scheduled wait.
 Status admitReset(const IoBudget& budget, const TransportBounds& bounds,
-                  uint64_t raw, uint32_t interval) noexcept {
+                  uint64_t raw, uint32_t interval, uint8_t commandFrames = 1) noexcept {
   const uint64_t reserve = uint64_t{4} * bounds.clockLagUs +
-      uint64_t{2} * (uint64_t{bounds.fixedUs} + bounds.frameUs) + interval;
-  if (budget.maxFrames < 2U || raw >= budget.deadlineUs ||
+      uint64_t{2} * bounds.fixedUs + (uint64_t{commandFrames} + 1U) * bounds.frameUs + interval;
+  if (budget.maxFrames < uint32_t{commandFrames} + 1U || raw >= budget.deadlineUs ||
       reserve >= budget.deadlineUs - raw) { return timeout(TimeoutDetail::BOUND_ADMISSION); }
   return Status::Ok();
 }
@@ -410,6 +410,8 @@ Status DP8382x::bind(const Config& config) noexcept {
   _wake = {}; _wakeWorking = _wakeTailPending = _wakeVerifyOnly = false;
   _pins = {}; _pinResult = {}; _pinsWorking = _pinsDirect = _pinsTailPending = false;
   _quality = {}; _signalQuality = {}; _qualityWorking = _qualityTailPending = false;
+  _analog = {}; _analogWorking = _analogTailPending = false;
+  _electrical = {}; _electricalWorking = _electricalRestart = false;
   _interface = {}; _interfaceResult = {}; _interfaceWorking = _interfaceDirect = _interfaceTailPending = false;
   _lpi = {}; _lpiSession = _lpiWorking = false;
   _eeeWorking = _eeeRecipePending = _eeeCapabilityChecked = _eeeTailPending = _eeeResumeInit = _eeeOpaqueValid = false;
@@ -456,6 +458,8 @@ Status DP8382x::end() noexcept {
   _wake = {}; _wakeWorking = _wakeTailPending = _wakeVerifyOnly = false;
   _pins = {}; _pinResult = {}; _pinsWorking = _pinsDirect = _pinsTailPending = false;
   _quality = {}; _signalQuality = {}; _qualityWorking = _qualityTailPending = false;
+  _analog = {}; _analogWorking = _analogTailPending = false;
+  _electrical = {}; _electricalWorking = _electricalRestart = false;
   _interface = {}; _interfaceResult = {}; _interfaceWorking = _interfaceDirect = _interfaceTailPending = false;
   // Abandonment authorizes local detach, never a claim that hardware stopped.
   if (_lpiSession) { _lpi.forcedLpi = ForcedLpi::UNCERTAIN; }
@@ -631,6 +635,9 @@ Status DP8382x::modifyMmd(uint32_t devad, uint32_t registerAddress, uint32_t mas
 }
 
 void DP8382x::_invalidateEvidence() noexcept {
+  _analog.observedStale = true;
+  if (_analog.desiredValid) { _analog.trust = ConfigurationTrust::DIRTY; }
+  _electrical.controlsVerified = false;
   _quality.observedStale = true; _quality.fldMaximumApplicable = false;
   if (_quality.desiredValid) { _quality.trust = ConfigurationTrust::DIRTY; }
   _interface.observedStale = true; _interface.modeValid = false;
@@ -709,7 +716,7 @@ Status DP8382x::acquireEvidence(uint32_t sourceMask, EvidenceSnapshot& evidence,
                                const IoBudget& budget) noexcept {
   if (sourceMask == 0U || (sourceMask & ~ALL_EVIDENCE) != 0U) { return paramError(ParamDetail::ACCESS_POLICY); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
-  if (_active || _polling || (_operation.state == OperationState::RUNNING && !_configuring && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking &&
+  if (_active || _polling || (_operation.state == OperationState::RUNNING && !_configuring && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && !_analogWorking && !_electricalWorking &&
       _operation.phase == OperationPhase::WAIT)) { return busy(BusyDetail::OPERATION_ACTIVE); }
   if (_operation.state == OperationState::RUNNING && _result.nextPage.requested &&
       (sourceMask & evidenceBit(EvidenceSource::ANER)) != 0U) {
@@ -923,9 +930,23 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
       continue; // Distinct MMD namespace; never alias BMSR/BISCR or vendor state.
     }
     if (target && frame.kind == FrameKind::READ && completed) {
+      // New electrical prerequisites may occur after frame0. Retain a reset
+      // indication even when a later frame/release fails the aggregate pass.
+      if (_analogWorking || _electricalWorking) {
+        if (address == cmd::REG_BMCR && (receipt.value & 0x8000U) != 0U) { _invalidateResetEvidence(true); }
+        else if (address == cmd::REG_PHYRCR && (receipt.value & 0xC000U) != 0U) {
+          _invalidateResetEvidence((receipt.value & 0x8000U) != 0U);
+        }
+      }
+      if (address == cmd::REG_BMCR && (_analogWorking || (_electricalWorking &&
+          (_operation.kind == OperationKind::COLLISION_START || _operation.kind == OperationKind::COLLISION_STOP)))) {
+        _retainOwnedMode(receipt.value);
+      }
+      if (address == 0x030EU && _analogWorking) { _settings.rawVod = receipt.value; _settings.vodValid = true; }
       _retainPinWord(address, receipt.value);
       _retainInterfaceWord(address, receipt.value);
       _retainQualityWord(address, receipt.value);
+      _retainAnalogWord(address, receipt.value);
     }
     if (target && frame.kind == FrameKind::READ && ((address >= 0x04A0U && address <= 0x04A7U) || address == 0x0304U || address == 0x0305U) && completed) {
       _retainWakeWord(address, receipt.value);
@@ -1035,7 +1056,12 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
         // A selector/WoL write may change attribution even if its receipt fails.
         _interrupts.selector = InterruptSharedSource::UNKNOWN;
       }
-      if (_qualityWorking) {
+      if (_analogWorking) {
+        _analog.trust = ConfigurationTrust::DIRTY; _analog.observedStale = true;
+        if (address == 0x030EU) { _settings.vodValid = false; }
+      } else if (_electricalWorking && address != cmd::REG_PHYRCR) {
+        _electrical.controlsVerified = false;
+      } else if (_qualityWorking) {
         _quality.trust = ConfigurationTrust::DIRTY; _quality.observedStale = true; _quality.fldMaximumApplicable = false;
       } else if (_interfaceWorking) {
         _interface.trust = ConfigurationTrust::DIRTY; _interface.observedStale = true;
@@ -1081,7 +1107,7 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
         const bool recipe = _eeeOpaqueValid;
         _invalidateEvidence();
         // Mandatory VOD replay cannot alter the earlier opaque EEE recipe.
-        if (_polling && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && _initStep == InitStep::APPLY && address == 0x030EU) { _eeeOpaqueValid = recipe; }
+        if (_polling && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && !_analogWorking && !_electricalWorking && _initStep == InitStep::APPLY && address == 0x030EU) { _eeeOpaqueValid = recipe; }
       }
       // OP-13 preserves readiness on a proved effect-free non-reset failure.
       if (address != 0U && !receipt.completed && !receipt.valueValid && !receipt.effectPossible &&
@@ -1096,7 +1122,7 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
     sample.historyLost = true;
     sample.stale = true;
   }
-  if (!_polling && (((_interruptWorking || _wakeWorking || (_qualityWorking && !_qualityVerifyOnly)) && _result.mismatch.valid) ||
+  if (!_polling && (((_interruptWorking || _wakeWorking || (_qualityWorking && !_qualityVerifyOnly) || (_analogWorking && !_analogVerifyOnly)) && _result.mismatch.valid) ||
       (_pinsWorking && _pinResult.mismatch.valid) ||
       (_interfaceWorking && _interfaceResult.mismatch.valid)) &&
       _operation.state == OperationState::RUNNING) {
@@ -1149,7 +1175,7 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
                         bool operation, Traffic traffic) noexcept {
   if (called != nullptr) { *called = false; }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
-  if (_active || (!operation && (_polling || (_operation.state == OperationState::RUNNING && !_configuring && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking &&
+  if (_active || (!operation && (_polling || (_operation.state == OperationState::RUNNING && !_configuring && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && !_analogWorking && !_electricalWorking &&
       _operation.phase == OperationPhase::WAIT)))) { return busy(BusyDetail::OPERATION_ACTIVE); }
   if (_transport.clockInvalid) { return configError(ConfigDetail::CLOCK_CONTRACT); }
   if (_stopped) { return busy(BusyDetail::CONTROLLER_QUARANTINED); }
@@ -1162,11 +1188,14 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
     status = admitBudget(budget, _config.transport.bounds, batch.frameCount, before, upper);
   }
   if (status.ok() && operation && !_configuring &&
-      ((!_loopWorking && !_bistWorking && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && _initStep == InitStep::COMMAND) || (_loopWorking && _loopStep == LoopStep::RESTART))) {
+      ((!_loopWorking && !_bistWorking && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && !_analogWorking && !_electricalWorking && _initStep == InitStep::COMMAND) || (_loopWorking && _loopStep == LoopStep::RESTART))) {
     status = admitReset(budget, _config.transport.bounds, before, _commandWaitUs());
   }
+  if (status.ok() && operation && _electricalWorking && _electricalStep == ElectricalStep::CAL_PAIR) {
+    status = admitReset(budget, _config.transport.bounds, before, _commandWaitUs(), 2);
+  }
   if (status.ok() && operation && _eeeRecipePending &&
-      ((_eeeWorking && _eeeStep == EeeStep::CAPABILITY) || (!_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && _initStep == InitStep::COMMAND))) {
+      ((_eeeWorking && _eeeStep == EeeStep::CAPABILITY) || (!_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && !_analogWorking && !_electricalWorking && _initStep == InitStep::COMMAND))) {
     // 66 recipe frames + both four-frame self-checks + first reset poll.
     const uint32_t frames = _eeeCapabilityChecked ? 71U : 75U;
     const uint32_t callbacks = _eeeCapabilityChecked ? 20U : 21U;
@@ -1238,7 +1267,8 @@ Status DP8382x::startInitialize(const InitializeOptions& options, const Operatio
   if (_operation.state == OperationState::RESULT_PENDING) { return busy(BusyDetail::RESULT_PENDING); }
   if (_transport.clockInvalid) { return configError(ConfigDetail::CLOCK_CONTRACT); }
   if (_operation.temporaryMayBeActive && options.reset != ResetKind::HARD) { return busy(BusyDetail::CLEANUP_REQUIRED); }
-  if (_cableCalibration) { return configError(ConfigDetail::SOURCE_GATE); }
+  if (_electrical.hardResetOwed && options.reset != ResetKind::HARD) { return busy(BusyDetail::CLEANUP_REQUIRED); }
+  if (_cableCalibration && !_electrical.hardResetOwed) { return configError(ConfigDetail::SOURCE_GATE); }
   if (_eee.desiredValid) {
     const auto eee = _validateEee(_eee.desired); if (!eee.ok()) { return eee; }
   }
@@ -1267,7 +1297,8 @@ Status DP8382x::startInitialize(const InitializeOptions& options, const Operatio
 
 // A narrow cross-owner proof check: repairing one policy cannot bless another.
 bool DP8382x::_otherControlsVerified(OperationKind owner) const noexcept {
-  return (owner == OperationKind::QUALITY_CONFIGURE || !_quality.desiredValid || _quality.trust == ConfigurationTrust::VERIFIED) &&
+  return (owner == OperationKind::ANALOG_CONFIGURE || !_analog.desiredValid || _analog.trust == ConfigurationTrust::VERIFIED) &&
+      (owner == OperationKind::QUALITY_CONFIGURE || !_quality.desiredValid || _quality.trust == ConfigurationTrust::VERIFIED) &&
       (owner == OperationKind::INTERFACE_CONFIGURE || !_interface.desiredValid || _interface.trust == ConfigurationTrust::VERIFIED) &&
       (owner == OperationKind::PIN_CONFIGURE || !_pins.desiredValid || _pins.trust == ConfigurationTrust::VERIFIED) &&
       (owner == OperationKind::WOL_CONFIGURE || !_wake.desiredValid || _wake.trust == ConfigurationTrust::VERIFIED) &&
@@ -1308,6 +1339,8 @@ void DP8382x::_beginOperation(OperationKind kind, const OperationBudget& budget)
   _pinsWorking = _pinsDirect = false; _pinsTailPending = _pins.desiredValid;
   _interfaceWorking = _interfaceDirect = false; _interfaceTailPending = _interface.desiredValid;
   _qualityWorking = false; _qualityTailPending = _quality.desiredValid;
+  _analogWorking = false; _analogTailPending = _analog.desiredValid;
+  _electricalWorking = _electricalRestart = false;
   _loopWorking = false;
   _bistWorking = false;
   _cableWorking = false;
@@ -1420,6 +1453,21 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
     }
     return _operation.status;
   }
+  // Analog overrides follow mandatory VOD setup; verification never rewrites them.
+  if (status.ok() && _result.persistentRestored && _analogTailPending &&
+      (_operation.kind == OperationKind::EEE_CONFIGURE || _operation.kind == OperationKind::INITIALIZE ||
+       _operation.kind == OperationKind::CONFIGURE || _operation.kind == OperationKind::VERIFY ||
+       _operation.kind == OperationKind::LOOPBACK_STOP || _operation.kind == OperationKind::BIST_STOP ||
+       _operation.kind == OperationKind::CABLE_STOP)) {
+    _analogTailPending = false; _result.persistentRestored = false;
+    if (_operation.kind != OperationKind::VERIFY && _operation.kind != OperationKind::CONFIGURE) { _initialized = false; }
+    _beginAnalog(_operation.kind == OperationKind::VERIFY || _operation.kind == OperationKind::CONFIGURE);
+    if (_analogStep == AnalogStep::COMPLETE) {
+      _result.persistentRestored = _analog.lastStatus.ok();
+      return _finishOperation(_analog.lastStatus);
+    }
+    return _operation.status;
+  }
   // Pin source/drive/clock dependencies precede WoL and IRQ source activation.
   if (status.ok() && _result.persistentRestored && _pinsTailPending &&
       (_operation.kind == OperationKind::EEE_CONFIGURE || _operation.kind == OperationKind::INITIALIZE ||
@@ -1471,7 +1519,7 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
     _setPowerStep(PowerStep::READ_BMCR);
     return _operation.status;
   }
-  if (status.ok() && _result.persistentRestored && (_eee.desiredValid || _wake.desiredValid || _pins.desiredValid || _interface.desiredValid || _quality.desiredValid) &&
+  if (status.ok() && _result.persistentRestored && (_eee.desiredValid || _wake.desiredValid || _pins.desiredValid || _interface.desiredValid || _quality.desiredValid || _analog.desiredValid) &&
       !_otherControlsVerified(OperationKind::NONE)) {
     status = configError(ConfigDetail::DEVICE_INVALIDATED);
     _result.persistentRestored = false;
@@ -1490,6 +1538,16 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
   if (_qualityWorking && !status.ok()) {
     _quality.lastStatus = status; _quality.trust = ConfigurationTrust::DIRTY; _quality.observedStale = true; _quality.fldMaximumApplicable = false;
   }
+  if (_analogWorking && !status.ok()) {
+    _analog.lastStatus = status; _analog.trust = ConfigurationTrust::DIRTY; _analog.observedStale = true;
+  }
+  if (_operation.kind == OperationKind::COMPLIANCE_START || _operation.kind == OperationKind::COMPLIANCE_STOP ||
+      _operation.kind == OperationKind::COLLISION_START || _operation.kind == OperationKind::COLLISION_STOP ||
+      _operation.kind == OperationKind::CALIBRATION_RECOVERY) {
+    _electrical.lastStatus = status;
+    if (!status.ok()) { _electrical.controlsVerified = false; }
+  }
+  _result.analog = _analog;
   _result.quality = _quality;
   _result.interfaceState = _interface;
   if (_eeeWorking || _operation.kind == OperationKind::EEE_CONFIGURE) {
@@ -1534,6 +1592,8 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
       _operation.temporaryMayBeActive = false;
       _lpiSession = false; _lpi.forcedLpi = ForcedLpi::OFF;
       _interruptTestSession = false;
+      _electrical.complianceSession = _electrical.collisionSession = false;
+      _electrical.temporaryMayBeActive = false; _electrical.controlsVerified = false;
       _loopSession = false;
       _bistSession = _bistCapturePending = false;
       _cableSession = _cableCurrent = false;
@@ -1560,10 +1620,14 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
     }
   }
   _configuring = false;
-  _pinsWorking = false; _interfaceWorking = false; _qualityWorking = false;
+  _pinsWorking = false; _interfaceWorking = false; _qualityWorking = false; _analogWorking = false; _electricalWorking = false;
   _wakeWorking = false;
   _loopWorking = false;
   if (_startingLoopback() && !_operation.temporaryMayBeActive) { _loopSession = _bistSession = false; }
+  if (!_operation.temporaryMayBeActive) {
+    if (_operation.kind == OperationKind::COMPLIANCE_START) { _electrical.complianceSession = false; }
+    if (_operation.kind == OperationKind::COLLISION_START) { _electrical.collisionSession = false; }
+  }
   if (_operation.kind == OperationKind::BIST_ACQUIRE) {
     _bist.measurement = _result.bist;
     _bist.stale = !status.ok();
@@ -1588,6 +1652,7 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
     _settings.trust = ConfigurationTrust::DIRTY;
     _settings.observedStale = true;
   }
+  _result.electrical = electricalSnapshot();
   _result.status = status;
   _result.cleanupOwed = _operation.cleanupOwed;
   _result.temporaryMayBeActive = _operation.temporaryMayBeActive;
@@ -1602,7 +1667,7 @@ void DP8382x::_setInitStep(InitStep step) noexcept {
   if (step == InitStep::APPLY && _eeeRecipePending && _result.commandAccepted) {
     _eeeRow = 1; _setEeeStep(EeeStep::RECIPE); return;
   }
-  _eeeWorking = false; _wakeWorking = false; _pinsWorking = false; _interfaceWorking = false; _qualityWorking = false;
+  _eeeWorking = false; _wakeWorking = false; _pinsWorking = false; _interfaceWorking = false; _qualityWorking = false; _analogWorking = false; _electricalWorking = false;
   // PLL may be retained by PCS. Restore its control before that reset (or
   // a no-reset replay), while IEEE down still permits the PHYSCR15 change.
   // HARD reloads it directly; VERIFY never writes.
@@ -1720,7 +1785,9 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
   if (_operation.nextPollValid && raw < _operation.nextPollAtUs) { return _yieldOperation(raw); }
 
   MdioBatch batch;
-  if (_qualityWorking) { batch = _qualityBatch(); }
+  if (_analogWorking) { batch = _analogBatch(); }
+  else if (_electricalWorking) { batch = _electricalBatch(); }
+  else if (_qualityWorking) { batch = _qualityBatch(); }
   else if (_interfaceWorking) { batch = _interfaceBatch(); }
   else if (_pinsWorking) { batch = _pinsBatch(); }
   else if (_wakeWorking) { batch = _wakeBatch(); }
@@ -1753,13 +1820,17 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
   status = admitBudget(_operation.remaining, _config.transport.bounds, batch.frameCount, raw, upper);
   if (!status.ok()) { return _finishOperation(status); }
   if (batch.frameCount > maxFrames) { return _yieldOperation(raw); }
-  if (!_configuring && ((!_loopWorking && !_bistWorking && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && _initStep == InitStep::COMMAND) ||
+  if (!_configuring && ((!_loopWorking && !_bistWorking && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && !_analogWorking && !_electricalWorking && _initStep == InitStep::COMMAND) ||
       (_loopWorking && _loopStep == LoopStep::RESTART))) {
     status = admitReset(_operation.remaining, _config.transport.bounds, raw, _commandWaitUs());
     if (!status.ok()) { return _finishOperation(status); }
   }
+  if (_electricalWorking && _electricalStep == ElectricalStep::CAL_PAIR) {
+    status = admitReset(_operation.remaining, _config.transport.bounds, raw, _commandWaitUs(), 2);
+    if (!status.ok()) { return _finishOperation(status); }
+  }
   bool called = false;
-  if ((!_configuring && !_loopWorking && !_bistWorking && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && (_initStep == InitStep::IDENTIFY || _initStep == InitStep::REIDENTIFY)) ||
+  if ((!_configuring && !_loopWorking && !_bistWorking && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && !_analogWorking && !_electricalWorking && (_initStep == InitStep::IDENTIFY || _initStep == InitStep::REIDENTIFY)) ||
       (_wakeWorking && _wakeStep == WakeStep::IDENTIFY) ||
       (_interruptWorking && _interruptStep == InterruptStep::IDENTIFY) ||
       (_loopWorking && _loopStep == LoopStep::IDENTIFY_STOP) ||
@@ -1780,7 +1851,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
     _result.failingBatch = {_operation.phase, frames.attempted, frames.completed, effect,
                            status, classifyReport(receipt, frames).release, _transport.violation, _transport.late};
     _result.late = _result.late || _transport.late;
-    if (!_configuring && !_loopWorking && !_bistWorking && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && (_initStep == InitStep::SOR1 || _initStep == InitStep::SOR2 ||
+    if (!_configuring && !_loopWorking && !_bistWorking && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && !_analogWorking && !_electricalWorking && (_initStep == InitStep::SOR1 || _initStep == InitStep::SOR2 ||
          _initStep == InitStep::RESOR1 || _initStep == InitStep::RESOR2) && frames.completed == 4U) {
       if (_initStep == InitStep::SOR1 || _initStep == InitStep::RESOR1) {
         _result.straps.sor1 = receipt.frames[3].value;
@@ -1812,7 +1883,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
         }
         _result.failingBatch.effectPossible = _result.failingBatch.effectPossible || uncertain;
       }
-    } else if (!_loopWorking && !_bistWorking && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && (_initStep == InitStep::COMMAND || _initStep == InitStep::APPLY)) {
+    } else if (!_loopWorking && !_bistWorking && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && !_analogWorking && !_electricalWorking && (_initStep == InitStep::COMMAND || _initStep == InitStep::APPLY)) {
       const uint8_t index = _initStep == InitStep::COMMAND ? uint8_t{0} : uint8_t{3};
       const auto& target = receipt.frames[index];
       // A contradictory callback cannot prove that an omitted target was never
@@ -1835,6 +1906,23 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
         }
       }
     }
+  }
+  _retainElectricalEffects(batch, called);
+  if (_electricalWorking && _electricalStep == ElectricalStep::CAL_PAIR && called) {
+    _result.commandAccepted = _result.failingBatch.completedFrames > 1U;
+    const auto& target = _transport.lastBatch.frames[1];
+    if (_transport.violation != TransportViolation::NONE || target.attempted || target.completed || target.effectPossible || target.valueValid) {
+      _invalidateResetEvidence(true);
+      const auto anchored = _anchorQuiet();
+      if (status.ok()) { status = anchored; }
+    }
+  }
+  if (_electricalWorking) { return _advanceElectrical(status, called, batch); }
+  if (_analogWorking) {
+    status = _advanceAnalog(status, called, batch);
+    if (status.inProgress()) { return _operation.status; }
+    _result.persistentRestored = status.ok();
+    return _finishOperation(status);
   }
   if (_qualityWorking) {
     status = _advanceQuality(status, called, batch);
@@ -1891,8 +1979,10 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
     const uint16_t vod = _transport.lastBatch.frames[3].value;
     _settings.rawVod = vod;
     _settings.vodValid = true;
-    if ((vod & 0xFFC0U) != 0x4A40U && !_result.mismatch.valid) {
-      _result.mismatch = {true, true, 31, 0x030E, 0xFFC0, 0x4A40, vod};
+    const uint16_t expected = _operation.kind == OperationKind::VERIFY && _analog.desiredValid &&
+        _analog.desired.terminationOwned ? _analogVod3() : uint16_t{0x4A40};
+    if ((vod & 0xFFC0U) != expected && !_result.mismatch.valid) {
+      _result.mismatch = {true, true, 31, 0x030E, 0xFFC0, expected, vod};
       _settings.trust = ConfigurationTrust::DIRTY;
       _settings.observedStale = true;
       _initialized = false;
@@ -1909,7 +1999,12 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
       }
       _setInitStep(_operation.kind == OperationKind::VERIFY ? InitStep::VERIFY : InitStep::SOR1);
       break;
-    case InitStep::REIDENTIFY: _setInitStep(InitStep::RESOR1); break;
+    case InitStep::REIDENTIFY:
+      if ((_operation.kind == OperationKind::COMPLIANCE_STOP || _operation.kind == OperationKind::CALIBRATION_RECOVERY) &&
+          _result.commandAccepted && _result.protocolComplete) {
+        return _finishElectricalReset();
+      }
+      _setInitStep(InitStep::RESOR1); break;
     case InitStep::SOR1: case InitStep::RESOR1:
       _setInitStep(_initStep == InitStep::SOR1 ? InitStep::SOR2 : InitStep::RESOR2); break;
     case InitStep::SOR2: case InitStep::RESOR2:
@@ -1944,14 +2039,21 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
         return _waitOperation();
       }
       _result.protocolComplete = true;
-      _setInitStep(InitStep::REIDENTIFY); break;
+      if (_result.reset == ResetKind::HARD && _result.commandAccepted) {
+        _electrical.hardResetOwed = false; _cableCalibration = false;
+      }
+      if (_electricalRestart) {
+        _electricalRestart = false;
+        _setElectricalStep(ElectricalStep::STIMULUS_VERIFY);
+      } else { _setInitStep(InitStep::REIDENTIFY); }
+      break;
     case InitStep::APPLY: _setInitStep(InitStep::VERIFY); break;
     case InitStep::VERIFY:
       if (_result.mismatch.valid && _operation.kind != OperationKind::VERIFY) {
         return _finishOperation(Status::Error(Err::CONFIG_MISMATCH, "VOD_CFG3 verification failed"));
       }
       _identity = _result.identity; // VOD programming cannot alter the accepted identity.
-      if (_settings.desiredValid) {
+      if (_settings.desiredValid || _operation.kind == OperationKind::COMPLIANCE_START) {
         _beginConfiguration(false);
         break;
       }
@@ -1995,6 +2097,7 @@ Status DP8382x::abandonCleanup() noexcept {
   if (_active || _polling || _operation.state == OperationState::RUNNING) { return busy(BusyDetail::OPERATION_ACTIVE); }
   if (_operation.cleanupOwed) {
     _operation.cleanupOwed = false;
+    _electrical.hardResetOwed = false;
     _invalidateEvidence();
   }
   return Status::Ok();

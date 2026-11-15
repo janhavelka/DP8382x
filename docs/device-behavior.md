@@ -516,3 +516,9 @@ error controls and TX10 threshold/squelch/NLP/jabber/preamble. FLD prerequisites
 are applied with causes disabled, then enabled and verified. Mandatory VOD
 remains initialization-owned. All10BTSCR reads consume polarity through the
 single collector. Raw MSE is separate from derived units and link coherence.
+
+Stage35 implements [electrical maintenance](electrical.md): legal amplitude
+bridging, explicitly owned termination/slew, source-specific compliance, MII
+collision test and the conditional CDCR clear/HARD pair. Reset completion is
+not calibration accuracy. HARD stop leaves a separately admitted persistent
+replay obligation; ambiguous writes preserve possible effects without retry.

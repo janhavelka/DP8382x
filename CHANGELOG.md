@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added persistent analog/electrical profiles with legal split-field transitions,
+  finite compliance/collision sessions and conditional calibration recovery.
+  Shared reset/replay retains partial effects and explicit cleanup; unsupported
+  100M compliance and gain mapping remain source-gated.
+
 - Added bounded quality/TX10/TX100 and hardware link-loss profiles, shared reset
   restoration, raw MSE snapshots and single-collector polarity evidence.
   Physical detector timing and MSE interpretation remain unqualified.

@@ -204,3 +204,8 @@ and exact bounds. CLI remains owner-routed work in44-46. Physical MII detector
 latency, MSE calibration and partner/traffic evidence remain NOT RUN. The
 `mse_address`, `fld_threshold_recipe`, `fld_reset_defaults` and `analog_rx_gain`
 gates remain visible; no raw interpretation or fixture result is invented.
+
+Prompt35 implements `analog_configure`, `collision_test`, `compliance_session`
+and `calibration_recovery` through the [electrical guide](electrical.md). Source
+dispositions include gated receiver gain, IOCTRL example and100M0428 access;
+software coverage does not close Q19 or qualify hardware.

@@ -260,3 +260,10 @@ WoL/IRQ and final power policy. The same finite pass restores detector threshold
 before causes and preserves unrelated settings. Read-only verification performs
 no detector disable or threshold write. [Quality controls](quality.md) retain
 partial effects and require a separately admitted restoration after failure.
+
+Stage35 analog replay follows mandatory VOD setup, interface and quality replay.
+Explicit termination tuning may then replace the owned baseline fields; every
+initialization still writes/verifies the baseline first. `startVerify` compares
+the admitted desired override. Compliance HARD stop and calibration recovery
+leave readiness false and cleanup owed until a separate initialization completes
+all persistent tails. See [electrical controls](electrical.md).

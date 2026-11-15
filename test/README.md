@@ -560,3 +560,10 @@ collector/ownership/timing/raw suites with active Release checks. The fixture
 uses original-PDF literals, injected effects before errors, and shared-owner
 contention; it does not establish physical Fast Link Drop latency or MSE scale.
 The portable Quality example is compiled in the tests-OFF consumer.
+
+Stage35 registers `analog_*` and `electrical_*` Release-active suites. They
+exercise independent electrical literals, all289 split-amplitude endpoint pairs,
+source-gated zero-I/O requests, failure/cancel prefixes, explicit stop and shared
+replay, calibration adjacency and HARD quiet floors. The portable consumer
+compiles the maintenance owner example. Host fakes do not qualify analog output,
+COL timing or calibration accuracy.

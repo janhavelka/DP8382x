@@ -318,7 +318,7 @@ void DP8382x::_retainPageEvidence(const MdioBatch& batch, const BatchResult& rec
 }
 
 void DP8382x::_observeConfiguration() noexcept {
-  if (_startingLoopback()) { return; }
+  if (_startingLoopback() || _operation.kind == OperationKind::COMPLIANCE_START) { return; }
   // Called only after the complete stable readback pass. Decode hardware,
   // never copy intent over a valid mismatch. A forced request did not acquire
   // ANAR, so an unexpectedly enabled AN mode cannot form a complete AN tuple.
@@ -349,6 +349,16 @@ void DP8382x::_observeConfiguration() noexcept {
   _settings.observedStale = false;
   _settings.observedAtUs = _lastTimeUs + _config.transport.bounds.clockLagUs;
   _settings.timeValid = true;
+}
+
+// Maintenance reads can withdraw existing link proof without applying a profile.
+void DP8382x::_retainOwnedMode(uint16_t value) noexcept {
+  _settings.rawBmcr = value; _settings.bmcrValid = true;
+  if (!_settings.desiredValid) { return; }
+  const auto expected = modeWord(_settings.desired);
+  if ((value & BMCR_VERIFY) == expected) { return; }
+  _settings.trust = ConfigurationTrust::DIRTY; _settings.observedStale = true;
+  if (!_result.mismatch.valid) { _result.mismatch = {true, false, 0, cmd::REG_BMCR, BMCR_VERIFY, expected, value}; }
 }
 
 Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatch& batch) noexcept {
@@ -532,6 +542,11 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
       (completedStep == ConfigStep::VERIFY_CLEAR && batch.frames[0].registerAddress == cmd::REG_ANAR &&
        batch.frameCount == 1U && !_result.nextPage.npMayRemainSet);
   if (!finished) { return _operation.status; }
+  if (_operation.kind == OperationKind::COMPLIANCE_START) {
+    _configuring = false;
+    _beginComplianceActivation();
+    return _operation.status;
+  }
   if (_startingLoopback()) {
     _configuring = false;
     _beginLoopbackActivation();

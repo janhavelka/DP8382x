@@ -10680,17 +10680,17 @@
       "steps": [
         "If live bounded read shows CDCR[14]=0, return no recovery needed without command. Preserve raw CDCR evidence, including diagnostic done/fail without claiming freshness.",
         "If bit14 is high, deassert only4000 using documented mixed access semantics; do not replay cable-start8000. Immediately issue C22 PHYRCR001F command8000 as the next hardware action, with no wait/output/unrelated access between the two writes.",
-        "Reserve complete clear/reset pair before starting; cancellation between admitted writes does not erase required reset cleanup. On ambiguous clear/write failure retain possible effects and attempt the immediate hard-reset safety continuation within reserved budget, recording primary and cleanup separately.",
+        "Reserve the complete clear/reset pair, HARD quiet floor and first completion poll before starting. One indivisible batch stops at its first failure under the frozen transport contract. An accepted/uncertain clear leaves HARD-required cleanup debt; a later explicitly admitted HARD recovery has a new budget/result, never an automatic continuation after error.",
         "After the required clear/reset pair, release controller ownership and obey the shared hard-reset frame-free floor before bounded polls. Completion leaves persistent initialization/reapply separately admitted behind cleanupOwed; do not replay transient diagnostics or consumed event latches.",
         "If CDCR14 is high clear only4000 while writing manualstart15=0, then issuePHYRCR8000. Completion is hard-reset completion, not an invented calibration-done event."
       ],
       "waits": [
         "No numerical maximum for the word immediately was specified. Keep writes adjacent under transaction exclusion; no planned hardware wait between them. Reset wait/poll bound follows core hard_reset evidence and application policy, not a fabricated calibration time."
       ],
-      "timeout": "Finite aggregate admission+pair+reset+restoration budget with independently reserved finite cleanup/reset continuation; reject admission if the pair cannot fit policy. No repeated calibration or automatic unbounded reset retries. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
+      "timeout": "One CDCR read, one adjacent two-write batch when high, then shared bounded HARD wait/poll and re-identification. OperationBudget includes frame, lock/controller, absolute deadline and stall limits. Reserve both pair frames plus first reset poll and the HARD minimum wait. Persistent replay is a later operation with its own budget; no automatic continuation, retry or calibration loop.",
       "partialEffects": "Deassertion is not completed recovery without hard reset. Write errors can leave calibration or reset state uncertain; reset destroys hardware counters/latches and may disrupt RMII clock. Retained host evidence persists with an epoch boundary and possible history loss.",
-      "cleanup": "Once clear may have occurred, owed hard reset is cleanup and remains bounded even after primary cancellation/deadline; if impossible mark cleanupOwed and unsafe configuration trust. Never hide original failure behind successful reset.",
-      "restoration": "Verify identity/reset completion and restored persistent configuration using core procedure. Source gate about software hard-reset strap relatching remains. Application alone resumes traffic after readiness evidence; calibration flag clear is not proof of analog calibration accuracy.",
+      "cleanup": "An accepted/possible clear without proven HARD completion retains hardResetOwed and cleanupOwed. NONE/PCS/RESTART cannot discharge that obligation. A new explicitly admitted HARD recovery or explicit abandonment is required; preserve the primary result. After HARD completion, ordinary persistent initialization remains separately owed.",
+      "restoration": "HARD completion and re-identification prove reset only, not calibration completion/accuracy. A separate startInitialize replays persistent controls. Successful recovery clears the previously observed cable calibration barrier; hard_reset_straps and all physical qualification remain open.",
       "gates": [
         "hard_reset_straps"
       ],
@@ -11137,18 +11137,18 @@
         "On any failed, late or uncertain write/readback, stop dependent primary writes and retain the last confirmed and possibly applied prefix. Cleanup re-observes both VOD words before selecting its legal restoration path. ANA_LD_PROG_SL remains wholly reserved; ANA_RX10BT_CTRL physical mapping remains gated. Verify other owned stable fields and release for identified scope measurements; configuration success does not establish electrical compliance."
       ],
       "waits": [],
-      "timeout": "Primary permits at most5 initial register snapshots,6 writes and6 immediate readbacks:17 MMD targets,68 C22 frames with fresh four-frame setup per target, plus at most16 additional prerequisite observation frames. The sixth write and readback cover the split-code bridge. These counts assume retained snapshots and verified words supply composition without additional RMW reads, under continuous conflicting-writer/reset exclusion. Cleanup permits2 current VOD rereads,6 restoration writes and6 readbacks:14 targets,56 frames. Deadlines via OperationBudget; restoration is a separately admitted operation behind cleanupOwed. Zero budget admits no I/O. No retries; release controller lock before waits/output. Frozen clock still terminates by frame count.",
+      "timeout": "Full application or replay uses at most70frames/18callbacks:2 prerequisite C22 reads plus5 initial MMD snapshots,6writes and6readbacks (68frames). Read-only verification uses at most22frames/6callbacks. Every MMD target has a fresh four-frame setup; snapshot/verified words supply composition under conflicting-writer exclusion. All owned words are resampled on restoration because reset/untrusted hardware invalidates reserved-field snapshots. OperationBudget bounds deadline, frames and stalls; short poll slices yield before a whole batch.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After failed/cancelled mutation, first re-read both VOD words once within the separate cleanup budget. If their combined current code is legal and no reset or competing writer invalidated the profile, restore through the same low8 bridge with verification after each write before dependent continuation, then restore the remaining saved owned fields once. If the current code cannot be established or is undocumented, issue no dependent analog restoration writes; retain cleanupOwed/configuration uncertainty for the application recovery owner. Do not guess which prefix an ambiguous transfer applied. Preserve primary and cleanup outcomes separately, with no retries or implicit reset. Successful configuration retains its desired settings.",
+      "cleanup": "Failure/cancellation stops immediately. A separately admitted startInitialize restores all owned groups through the same bounded70-frame analog pass after mandatory setup and earlier reset/link/interface work. Reobserve all owned words, including both VOD words, before legal bridging. Invalid/unavailable current split code keeps cleanupOwed without guessed writes; explicit HARD may establish a legal reset image. No automatic retry or cleanup mutation; earlier primary and later restoration results remain separate.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence. Split MDIX-minus replay/restoration always starts from an established current code and uses the same legal bridge. A reset during the procedure invalidates the saved composition and requires bounded reconciliation before further writes.",
       "gates": [
         "ioctrl_example",
         "analog_rx_gain"
       ],
       "owner": {
-        "api": "analog_configure",
+        "api": "AnalogSettings / startConfigureAnalog / analogSnapshot",
         "cli": "Owner-routed analog_configure with typed preflight and bounded result (44-46).",
-        "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: Exact DP83826I, VDDIO/load/magnetics documented; calibrated differential MDI scope and MAC rise/fall probe, both MDI/MDIX and rates, partial-word recovery. Independently cover all289 legal endpoint pairs and each accepted/uncertain prefix, both2F-to30 and reverse, invalid current code, every bridge readback failure, competing reset and bounded56-frame cleanup. No glitch-free claim.",
+        "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: Exact DP83826I, VDDIO/load/magnetics documented; calibrated differential MDI scope and MAC rise/fall probe, both MDI/MDIX and rates, partial-word recovery. Independently cover all289 legal endpoint pairs and each accepted/uncertain prefix, both2F-to30 and reverse, invalid current code, every bridge readback failure, competing reset and bounded70-frame analog replay. No glitch-free claim.",
         "implementationStage": 35
       }
     },
@@ -11348,16 +11348,16 @@
       "steps": [
         "Admit only a finite application-authorized MAC stimulus session with accessible COL pin and known speed; reject LED-mux conflicts and MAC output dependencies.",
         "Set BMCR[7]=1 with W1S reset/restart neutral0 and preserve normal link controls. External MAC drives TX_EN; PHY must assertCOL within512bit times and deassert within4bit times as specified. HostMDIO scheduling cannot measure this bound.",
-        "End/cancel clears onlycollision-testbit, verifies once and leaves recorded scope evidence distinct from register acceptance. If clear uncertain, mark possible active test until bounded reset/recovery establishes stopped state."
+        "Cancellation terminates bus-silently with a retained result. A separately admitted stopCollisionTest clears the collision bit and verifies once. Failed/uncertain clear retains possible active stimulus and cleanupOwed; explicit HARD recovery is an owner choice. Register acceptance is distinct from scope evidence."
       ],
       "waits": [],
-      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count.",
+      "timeout": "Start:8frame collector-routed prerequisite batch,2frame BMCR RMW,1frame readback (11frames/3callbacks). Stop:2frame RMW+1readback (3frames/2callbacks). Each operation has a separate finite OperationBudget and retained result. No lock spans application dwell.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "After mutation, cancellation or failure runs at most one owned-field restore and verification pass within separately reserved cleanup count/duration. Preserve primary and cleanup outcomes separately. If restoration cannot be established, mark cleanupOwed and configuration trust uncertain; the application decides disruptive reset/recovery. No unbounded retries. Stop stimulus and reserve an authorized hard reset plus persistent-profile reapply; do not claim stop until confirmed.",
+      "cleanup": "Explicit stop clears/verifies only the collision field with neutral command bits. Success discharges its own debt only while unrelated owned proof remains valid. Cancellation/failure does no additional I/O; later stop/reset/restoration has a new token, finite budget and result.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [],
       "owner": {
-        "api": "collision_test",
+        "api": "startCollisionTest / stopCollisionTest / electricalSnapshot",
         "cli": "Owner-routed collision_test with typed preflight and bounded result (44-46).",
         "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: Identified MAC/TX_EN generator and calibrated logic/scope COL timing at10/100; cases pendingTX_EN,cancel,failedclear and reset.",
         "implementationStage": 35
@@ -11405,15 +11405,15 @@
       "waits": [
         "Finite caller-specified stimulus dwell; no documented silicon start/stop maximum. Reset/restart wait follows core procedures, anchored to observed write completion. No lock held through instrument waits."
       ],
-      "timeout": "Per MMD target: snapshot read 4 + atomic modify 5 + verify 4 = 13 frames. Per Clause 22 target: read 1 + write 1 + verify 1 = 3. Deadlines via OperationBudget. Up to 16 additional prerequisite observation frames. Admission, lock acquisition and terminal callbacks count against the aggregate deadline; restoration is separately admitted behind cleanupOwed. Zero budget admits no I/O. Release controller lock before waits/output; frozen clock still terminates by count. Additional explicit exceptional actions: one opaque0428 preservation read followed by three masked writes under transaction exclusion (16frames), at most3 stop/readback logical transfers (12frames); core reset/initialize/forced/crossover/BIST dependencies must add their own finite admitted counts before start. One primary stimulus dwell; no automatic cycle/retry.",
+      "timeout": "Finite OperationBudget bounds shared HARD/forced-profile/optional stimulus/restart phases. A poll submits at most one indivisible batch; reset polls consume frame/stall budgets and use completion-anchored waits. Start/stop each have independent tokens, deadlines and results. Application owns finite dwell and later persistent replay. COUNT100 rejects before any0428 access.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
-      "cleanup": "Stop stimulus before restoring any profile or COMPT field. For the clarified100M branch use explicit disable and bounded stop verification; for10M/opaque or uncertain stop, use the authorized hard_reset completion procedure first. Reserve that reset and persistent-profile reapply count/duration before admission. Do not restore a pattern nibble while exceptional bit4 may still enable emission. If stop cannot be established, retain possible ongoing emission and cleanupOwed; no further stimulus programming or false rollback success. After verified stop/reset, perform one finite persistent-profile reapply/readback pass, never restore temporary test mode. Preserve primary and cleanup outcomes separately; no implicit retries.",
+      "cleanup": "Explicit stop uses HARD and exact-address re-identification. A successful stop proves reset/stimulus termination but leaves cleanupOwed and initialized=false until a separately admitted startInitialize restores all persistent owners. Failure/cancel stops immediately, retains possible emission and both primary/stop results, and never performs hidden retry or reserved-field rollback.",
       "restoration": "After reset, initialization and exact 10BASE-Te prerequisites precede persistent owned configuration; restore clock/interface dependencies before traffic, then sources/mux/drive as applicable. Never replay temporary test modes or consumed event latches. Only successful owned-mask readback restores that configuration trust; link and application readiness require independent evidence.",
       "gates": [
         "compt_reserved"
       ],
       "owner": {
-        "api": "compliance_session",
+        "api": "startCompliance / stopCompliance / electricalSnapshot",
         "cli": "Owner-routed compliance_session with typed preflight and bounded result (44-46).",
         "test": "Independent literal and every-transfer failure tests (53-55); physical fixture: Named compliance test fixture, PHY/board, cable/magnetics and scope calibration; exact10harmonic/100count traces and finite reset cleanup; instrumentlimits and failures retained.",
         "implementationStage": 35
@@ -13051,15 +13051,15 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "compt_reserved"
       ],
-      "notes": "Source inventory researched, including named source gates. Implementation, host/SDK and hardware evidence remain pending; board wiring does not remove software scope."
+      "notes": "Prompt35 implements source-admitted procedures in DP8382xAnalog.cpp/DP8382xElectrical.cpp with shared operation/reset/configuration/collector paths. See docs/electrical.md and independent test/analog.cpp/test/electrical.cpp literals and failure-prefix checks. Named gates remain binding; physical Q19 and SDK evidence remain NOT_RUN."
     },
     {
       "id": "analog",
@@ -13089,8 +13089,8 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
@@ -13098,7 +13098,7 @@
         "ioctrl_example",
         "analog_rx_gain"
       ],
-      "notes": "Source inventory researched, including named source gates. Implementation, host/SDK and hardware evidence remain pending; board wiring does not remove software scope."
+      "notes": "Prompt35 implements source-admitted procedures in DP8382xAnalog.cpp/DP8382xElectrical.cpp with shared operation/reset/configuration/collector paths. See docs/electrical.md and independent test/analog.cpp/test/electrical.cpp literals and failure-prefix checks. Named gates remain binding; physical Q19 and SDK evidence remain NOT_RUN."
     },
     {
       "id": "compatibility",
@@ -13158,15 +13158,15 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "hard_reset_straps"
       ],
-      "notes": "Prompt4 source coverage complete with named unresolved behavior gates; no implementation, host driver test, SDK build or hardware qualification follows. See event_source_audit. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations."
+      "notes": "Prompt35 implements source-admitted procedures in DP8382xAnalog.cpp/DP8382xElectrical.cpp with shared operation/reset/configuration/collector paths. See docs/electrical.md and independent test/analog.cpp/test/electrical.cpp literals and failure-prefix checks. Named gates remain binding; physical Q19 and SDK evidence remain NOT_RUN."
     },
     {
       "id": "straps",

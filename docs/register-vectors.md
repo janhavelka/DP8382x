@@ -899,3 +899,29 @@ independent literals, checked by `test/quality.cpp` without production masks:
 Physical maxima10us modes1-4/11us mode5 require footnote5's energy/RX condition
 for modes2/3/5 and the source recipe. Override codes are explicit raw settings,
 not a closed `fld_threshold_recipe` gate or measured latency.
+
+## Stage35 independent electrical literals
+
+Original SNLS647I tables8-19/47/48/50/73/76/79..83/86 and SNLA266B
+tables5-1/2/4/5 independently establish these vectors:
+
+- Negative amplitude28..38 runs150..50%; positive08..18 runs50..150%,
+  in6.25% steps. Negative MDIX2F->30 passes2F,28,38,30; reverse passes
+  30,38,28,2F. Both2F->3F->30 and30->20->2F are prohibited intermediates.
+- VOD1 high2|MDInegative30|zero0 gives3C00 at MDIX30; VOD2 positive10/10
+  with MDIXlow0 gives0410. Reserved VOD1C000 is preserved.
+- VOD3 mdi4/enable1/mdix4/enable1 gives4A40; codes0..F and both enables
+  are explicit tuning, not inferred impedance units. MACslew10/11, IOslew0/1.
+- Manual MDI/MDIX updates onlyPHYCRC000; CR1robust0020 applies in forced
+  mode. TX100BMCR2100; NLP10/PRBS10BMCR0100. PRBS BISCR701F=7001,
+  preserving observed0100 instead of writing script7101 as a constant.
+- COMPT10M writes0010..001D under the fourteen named recipe exceptions;
+  001E/001F reject. COUNT1000..31 remains typed but source-gated before0428.
+- Collision BMCR0080; unrelated commands/power/isolation compose neutral0,
+  stop clears0080. Explicit COL mux codes3/5/6 at0305 require MII.
+- CDCR4102 becomes0102 then PHYRCR8000 in the same batch; CDCR0102
+  requires no reset. Any attempted HARD enforces at least2000us silence
+  after completion upper bound. This is no calibration-completion deadline.
+
+Host tests use literal words and independent fake register effects, not values
+generated from the production catalogue. Physical qualification remains separate.

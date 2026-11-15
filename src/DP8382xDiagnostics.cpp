@@ -57,7 +57,9 @@ Status nonzeroBudget(const OperationBudget& budget) noexcept {
 } // namespace
 
 DP8382x::Traffic DP8382x::_operationTraffic() const noexcept {
-  if (_operation.kind == OperationKind::WOL_ACKNOWLEDGE || _operation.kind == OperationKind::INTERRUPT_TEST_START || _operation.kind == OperationKind::INTERRUPT_TEST_STOP ||
+  if (_operation.kind == OperationKind::COMPLIANCE_START || _operation.kind == OperationKind::COMPLIANCE_STOP ||
+      _operation.kind == OperationKind::COLLISION_START || _operation.kind == OperationKind::COLLISION_STOP ||
+      _operation.kind == OperationKind::CALIBRATION_RECOVERY || _operation.kind == OperationKind::WOL_ACKNOWLEDGE || _operation.kind == OperationKind::INTERRUPT_TEST_START || _operation.kind == OperationKind::INTERRUPT_TEST_STOP ||
       _operation.kind == OperationKind::CABLE_START || _operation.kind == OperationKind::CABLE_ACQUIRE ||
       _operation.kind == OperationKind::CABLE_STOP || _operation.kind == OperationKind::CABLE_AUTORUN_ACQUIRE) { return Traffic::RAW; }
   return _operation.kind == OperationKind::LOOPBACK_START || _operation.kind == OperationKind::LOOPBACK_STOP ||
@@ -65,6 +67,7 @@ DP8382x::Traffic DP8382x::_operationTraffic() const noexcept {
       Traffic::RAW : Traffic::MANAGED;
 }
 const LinkSettings& DP8382x::_configurationTarget() const noexcept {
+  if (_operation.kind == OperationKind::COMPLIANCE_START) { return _electricalProfile; }
   return _startingLoopback() ? _loopProfile : _settings.desired;
 }
 LoopbackSnapshot DP8382x::loopbackSnapshot() const noexcept {

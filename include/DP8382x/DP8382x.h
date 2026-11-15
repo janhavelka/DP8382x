@@ -287,6 +287,12 @@ enum class OperationKind : uint8_t {
   WOL_CONFIGURE, ///< Quiesced match/control update with detector disabled until verification.
   WOL_ACKNOWLEDGE, ///< Explicit W0C acknowledgement after collector harvest; never replayed.
   PIN_CONFIGURE, ///< Direct pin-profile mutation owns restoration debt; no retained operation token.
+  ANALOG_CONFIGURE, ///< Persistent electrical profile and split-amplitude transition.
+  COMPLIANCE_START, ///< Establish a temporary instrument stimulus.
+  COMPLIANCE_STOP, ///< HARD stop; persistent replay is a later initialize.
+  COLLISION_START, ///< Set an admitted MII collision stimulus.
+  COLLISION_STOP, ///< Clear and verify the owned collision stimulus.
+  CALIBRATION_RECOVERY, ///< One CDCR contingency and bounded HARD completion.
   QUALITY_CONFIGURE, ///< Owned quality, TX and hardware link-loss policy.
   INTERFACE_CONFIGURE ///< Direct interface/clock mutation owns restoration debt, without a job token.
 };
@@ -880,6 +886,90 @@ enum class ClockOutput : uint8_t {
   PLL, ///< Representable source-gated request; no proved activation mux.
   RECOVERED ///< Representable source-gated request; no proved activation mux.
 };
+/// @brief Persistent exact-part electrical intent; SNLS647I tables 8-73/79..81/86.
+struct AnalogSettings {
+  bool amplitudeOwned{false}; ///< Own both 100M VOD words; legal split-code transition is mandatory.
+  uint8_t minusMdi{0x30}; ///< Negative codes28..38:150..50 percent in6.25 percent steps.
+  uint8_t minusMdix{0x30}; ///< Negative codes28..38:150..50 percent in6.25 percent steps.
+  uint8_t plusMdi{0x10}; ///< Positive codes08..18:50..150 percent in6.25 percent steps.
+  uint8_t plusMdix{0x10}; ///< Positive codes08..18:50..150 percent in6.25 percent steps.
+  uint8_t zeroCode{0}; ///< Raw six-bit zero DAC, no physical scale.
+  bool terminationOwned{false}; ///< Explicitly tune after mandatory4A40 initialization.
+  uint8_t mdiTermination{4}; ///< Independent raw codes0..15; table units are unspecified.
+  uint8_t mdixTermination{4}; ///< Independent raw codes0..15; table units are unspecified.
+  bool mdiTerminationEnable{true}; ///< Independent override enables.
+  bool mdixTerminationEnable{true}; ///< Independent override enables.
+  bool macSlewOwned{false}; ///< Own IOCTRL low five bits only.
+  uint16_t macSlewCode{0x10}; ///<10 fast/11 slow;0400 example remains prohibited.
+  bool ioSlewOwned{false}; ///< Own IO_CFG1[15:14], preserving clock/interface fields.
+  uint8_t ioSlewCode{0}; ///<0 slow/1 fast;2/3 reserved.
+  bool receiverGainOwned{false}; ///< Representable source-gated tuning request, rejected before I/O.
+  uint8_t receiverGainCode{0}; ///< Raw five-bit request; mapping remains analog_rx_gain gated.
+  bool maintenanceAdmitted{false}; ///< Owner authorizes temporary intermediate amplitudes.
+  bool macStopped{false}; ///< MAC drained/stopped; does not imply analog transmitter disabled.
+  bool fixtureAdmitted{false}; ///< Identified load/board/measurement conditions accepted by owner.
+  bool terminationOverrideAdmitted{false}; ///< Explicit departure from initialization4A40 permitted by owner.
+};
+/// @brief Passive electrical profile proof; partial words do not establish a complete profile.
+struct AnalogSnapshot {
+  AnalogSettings desired{}; ///< Last fully admitted desired settings.
+  bool desiredValid{false}; ///< Explicit persistent ownership exists.
+  ConfigurationTrust trust{ConfigurationTrust::UNKNOWN}; ///< Whole owned-mask verification.
+  std::array<uint16_t,5> raw{}; ///< VOD1,VOD2,VOD3,IOCTRL,IO_CFG1.
+  uint8_t validMask{0}; ///< Valid retained words; aggregate may still be stale.
+  bool observedStale{true}; ///< Freshness and timestamp validity are independent.
+  bool timeValid{false}; ///< Freshness and timestamp validity are independent.
+  uint64_t observedAtUs{0}; ///< Complete verification upper bound, microseconds.
+  Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No analog profile"}; ///< Latest pass outcome.
+};
+/// @brief Source-qualified compliance stimulus; instrument verdict is outside the PHY.
+enum class ComplianceMode : uint8_t {
+  TX100, ///< SNLA266B table5-1 forced100/full line stimulus.
+  NLP10, ///< Table5-2 forced10/full normal link pulses.
+  PRBS10, ///< Table5-4 PCS/BIST with owned BISCR701F=7001.
+  PATTERN10, ///< Table5-5 COMPT exception:0010|pattern0..D.
+  COUNT100 ///< Typed count0..31;0428 source gate rejects before I/O.
+};
+/// @brief Explicit compliance fixture admission; dwell belongs to the application.
+struct ComplianceOptions {
+  ComplianceMode mode{ComplianceMode::TX100}; ///< Exact source procedure.
+  PairSelection pair{PairSelection::MDI}; ///< Manual MDI/MDIX only; preserve PHYCR reserved/read-only fields.
+  uint8_t pattern{0}; ///<10M0..D;100M count0..31 retains separate E/F meaning.
+  bool maintenanceAdmitted{false}; ///< Owner permits disruptive reset and stimulus.
+  bool macStopped{false}; ///< No production traffic during the test.
+  bool fixtureAdmitted{false}; ///< Operator accepted termination/probes/reference conditions.
+  bool hardResetAdmitted{false}; ///< Reset may change clocks/straps; owner prepares the whole shared bus.
+};
+/// @brief MII collision test admission; external TX_EN drives the actual timing stimulus.
+struct CollisionOptions {
+  LinkSpeed speed{LinkSpeed::UNKNOWN}; ///< Owner fixture-frequency policy: expected local10/100, checked before entry; not a silicon prerequisite.
+  bool maintenanceAdmitted{false}; ///< Owner excludes production traffic.
+  bool macStopped{false}; ///< Owner excludes production traffic.
+  bool colAvailable{false}; ///< Board mux and external generator admitted by owner.
+  bool txEnControlled{false}; ///< Board mux and external generator admitted by owner.
+};
+/// @brief One calibration contingency; does not prove resistor calibration accuracy.
+struct CalibrationOptions {
+  bool maintenanceAdmitted{false}; ///< Explicit reset/traffic permission.
+  bool macStopped{false}; ///< Explicit reset/traffic permission.
+  bool hardResetAdmitted{false}; ///< Explicit reset/traffic permission.
+};
+/// @brief Passive temporary electrical stimulus and contingency evidence.
+struct ElectricalSnapshot {
+  ComplianceOptions compliance{}; ///< Last admitted compliance request.
+  CollisionOptions collision{}; ///< Last admitted collision request.
+  bool complianceSession{false}; ///< Owned sessions, independent of actual emission.
+  bool collisionSession{false}; ///< Owned sessions, independent of actual emission.
+  bool controlsVerified{false}; ///< Register proof only, never instrument PASS.
+  bool stopped{false}; ///< Register proof only, never instrument PASS.
+  bool temporaryMayBeActive{false}; ///< Accepted/uncertain stimulus remains until explicit stop.
+  uint16_t rawCdcr{0}; ///< One calibration flag observation, no capture freshness guarantee.
+  bool hardResetOwed{false}; ///< An accepted/uncertain calibration clear still requires HARD.
+  bool cdcrValid{false}; ///< Distinct flag/reset evidence.
+  bool recoveryNeeded{false}; ///< Distinct flag/reset evidence.
+  bool resetComplete{false}; ///< Distinct flag/reset evidence.
+  Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No electrical operation"}; ///< Latest operation status.
+};
 /// @brief Explicit hardware Fast Link Drop policy; SNLS647I 8.3.17 / tables 8-30/52/53.
 struct FastLinkDropSettings {
   bool owned{false}; ///< Own this policy; unowned controls are untouched.
@@ -1147,6 +1237,8 @@ struct OperationResult {
   EeeSnapshot eee{}; ///< Retained EEE intent and partial acquisition evidence.
   WakeSnapshot wake{}; ///< Retained WoL intent, control/credential prefixes and status acquisition.
   PinSnapshot pins{}; ///< Retained pin profile and partial verification during shared restoration.
+  AnalogSnapshot analog{}; ///< Retained electrical profile proof.
+  ElectricalSnapshot electrical{}; ///< Retained stimulus/contingency evidence.
   QualitySnapshot quality{}; ///< Retained quality policy proof, including partial acquisition.
   InterfaceSnapshot interfaceState{}; ///< Interface/clock/isolation proof from the shared restoration pass.
   PowerSnapshot power{}; ///< Retained power intent, partial observations and transition outcome.
@@ -1414,6 +1506,49 @@ public:
   /// @brief Bus/clock-silent retained pin settings and observed values.
   /// @return Separate desired, valid and trusted evidence; serialize under the owner.
   PinSnapshot pinsSnapshot() const noexcept;
+  /// @brief Admit a complete electrical profile without bus/clock calls; poll bounded batches.
+  /// @param[in] settings Owned fields and explicit traffic/fixture admission.
+  /// @param[in] budget Finite total deadline, frames and stalled-poll limit.
+  /// @param[out] token Published only on successful admission.
+  /// @return IN_PROGRESS or local rejection; source-gated requests perform no I/O.
+  /// @note Split MDIX codes use a verified low8 bridge; cancellation retains OP-9 debt.
+  Status startConfigureAnalog(const AnalogSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Passive electrical configuration; no bus or clock calls.
+  /// @return Desired, partial raw and verified state.
+  AnalogSnapshot analogSnapshot() const noexcept { return _analog; }
+  /// @brief Start a source-qualified, owner-dwelled compliance session.
+  /// @param[in] options Explicit mode, fixture and reset admission.
+  /// @param[in] budget Finite start allowance; excludes later dwell and stop.
+  /// @param[out] token Retained operation token on admission.
+  /// @return IN_PROGRESS or zero-I/O validation failure;0428 remains gated.
+  Status startCompliance(const ComplianceOptions& options, const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief HARD-stop compliance, reidentify and retain separate restoration debt.
+  /// @param[in] budget Independent finite stop allowance.
+  /// @param[out] token New retained stop token.
+  /// @return IN_PROGRESS on admission; later startInitialize replays persistent state.
+  Status stopCompliance(const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Start MII collision-test session; SNLS647I table8-19, external TX_EN required.
+  /// @param[in] options Expected speed and board/traffic admission.
+  /// @param[in] budget Independent bounded start allowance.
+  /// @param[out] token New retained start token.
+  /// @return IN_PROGRESS or local failure; register state does not prove COL timing.
+  Status startCollisionTest(const CollisionOptions& options, const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Clear and verify owned collision stimulus with neutral commands.
+  /// @param[in] budget Independent bounded stop allowance.
+  /// @param[out] token New retained stop token.
+  /// @return IN_PROGRESS or local failure; uncertain exit retains OP-9 debt.
+  Status stopCollisionTest(const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Read CDCR once; if14 is high, submit adjacent clear/HARD writes then prove reset completion.
+  /// @param[in] options Explicit maintenance and reset admission.
+  /// @param[in] budget Finite aggregate contingency/reset allowance.
+  /// @param[out] token New retained result token.
+  /// @return IN_PROGRESS or local rejection; not a calibration-start or calibration-done claim.
+  /// @note Stop on first callback failure; no automatic retry. Later initialization restores reset state.
+  Status startCalibrationRecovery(const CalibrationOptions& options, const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Passive stimulus/reset evidence; no hidden I/O.
+  /// @return Retained current uncertainty and latest operation evidence.
+  ElectricalSnapshot electricalSnapshot() const noexcept;
+
   /// @brief Start a bus/clock-silent owned quality profile; poll one complete batch per slice.
   /// @param[in] settings Explicit owned controls and maintenance/partner admission.
   /// @param[in] budget Finite total deadline/frames and stall allowance.
@@ -1782,6 +1917,34 @@ public:
 
 private:
   enum class PinStep : uint8_t { INTERFACE, CLOCK_STATUS, MUX0, MUX3, APPLY, VERIFY, COMPLETE };
+  enum class AnalogStep : uint8_t { PREFLIGHT, SNAPSHOT, BRIDGE_WRITE, BRIDGE_VERIFY, APPLY, VERIFY, COMPLETE };
+  AnalogSnapshot _analog{};
+  AnalogStep _analogStep{AnalogStep::COMPLETE};
+  uint8_t _analogRow{0};
+  bool _analogWorking{false}, _analogTailPending{false}, _analogVerifyOnly{false};
+  std::array<uint16_t,5> _analogWords{};
+  Status _validateAnalog(const AnalogSettings& settings) const noexcept;
+  void _beginAnalog(bool verifyOnly) noexcept;
+  MdioBatch _analogBatch() const noexcept;
+  Status _advanceAnalog(Status status, bool called, const MdioBatch& batch) noexcept;
+  void _retainOwnedMode(uint16_t value) noexcept;
+  void _retainAnalogWord(uint16_t address, uint16_t value) noexcept;
+  bool _analogRowValue(uint8_t row, uint16_t& address, uint16_t& mask, uint16_t& value) const noexcept;
+  void _nextAnalogRow() noexcept;
+  Status _finishAnalog(Status status) noexcept;
+  uint16_t _analogVod3() const noexcept;
+  enum class ElectricalStep : uint8_t { PREFLIGHT, COLLISION_WRITE, COLLISION_VERIFY, STIMULUS_WRITE, STIMULUS_VERIFY, CAL_READ, CAL_PAIR, COMPLETE };
+  ElectricalSnapshot _electrical{};
+  ElectricalStep _electricalStep{ElectricalStep::COMPLETE};
+  bool _electricalWorking{false}, _electricalRestart{false};
+  LinkSettings _electricalProfile{};
+  Status _admitElectrical(const OperationBudget& budget, bool stop) const noexcept;
+  void _setElectricalStep(ElectricalStep step) noexcept;
+  void _beginComplianceActivation() noexcept;
+  MdioBatch _electricalBatch() const noexcept;
+  Status _advanceElectrical(Status status, bool called, const MdioBatch& batch) noexcept;
+  Status _finishElectricalReset() noexcept;
+  void _retainElectricalEffects(const MdioBatch& batch, bool called) noexcept;
   enum class QualityStep : uint8_t { PREFLIGHT, APPLY, VERIFY, COMPLETE };
   QualitySnapshot _quality{};
   SignalQualitySnapshot _signalQuality{};

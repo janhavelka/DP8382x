@@ -1,9 +1,9 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–33 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
+execution. Prompts 1–35 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 214 registered Release CTests, 103 Python tests,
+Current local checks include 229 registered Release CTests, 103 Python tests,
 two linked tests-OFF consumers, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -26,6 +26,15 @@ Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
 operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+Prompt35 began on clean synchronized `main` at
+`a4ee2d4f18b12dc577ed52e75387ab936b8bfc3d`. It implements source-admitted
+analog profiles, compliance/collision sessions and conditional calibration
+recovery through the shared operation/reset/collector paths. The
+[report](reports/implementation/35-electrical-compliance-calibration.md) records
+independent PDF/code review, failure-prefix corrections and local verification.
+SDK, remote CI and physical qualification remain separate; final commit and
+upstream equality are recorded in the handoff.
 
 Prompt34 began on clean synchronized `main` at
 `e3c25db71c8520d83b997a04c5d107d64b69c707`. It completes the five source-admitted
@@ -416,7 +425,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [32 Implement all LED and GPIO controls](prompts/32-led-gpio.md) | NOT STARTED | None |
 | [33 Implement clock, interface and repeater controls](prompts/33-clock-interface-repeater.md) | NOT STARTED | None |
 | [34 Implement quality and hardware link-loss controls](prompts/34-quality-link-loss.md) | COMPLETE | [Report](reports/implementation/34-quality-link-loss.md), [guide](quality.md), five source-admitted procedures, single collector and shared replay; 214 Release/UBSan tests, 103 Python tests, two portable consumers and local source/document checks PASS. Physical timing and derived MSE units remain gated. |
-| [35 Implement electrical controls and finite compliance procedures](prompts/35-electrical-compliance-calibration.md) | NOT STARTED | None |
+| [35 Implement electrical controls and finite compliance procedures](prompts/35-electrical-compliance-calibration.md) | COMPLETE | [Report](reports/implementation/35-electrical-compliance-calibration.md), [guide](electrical.md); four source-admitted procedures, shared reset/replay, 289 split-field transition vectors and retained failure evidence. 229 Release/UBSan tests, 103 Python tests, two consumers and local checks PASS. Source gates and physical Q19 remain open. |
 | [36 Audit complete primary-chip feature coverage](prompts/36-primary-feature-closure.md) | NOT STARTED | None |
 | [37 Implement the native ESP-IDF factory and lifecycle](prompts/37-esp-idf-lifecycle.md) | NOT STARTED | None |
 | [38 Complete SDK-aware configuration and raw MDIO arbitration](prompts/38-esp-idf-state-arbitration.md) | NOT STARTED | None |

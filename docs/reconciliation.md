@@ -39,7 +39,7 @@ Only stable, active owned fields participate. AN intent includes the IEEE
 selector, legal technologies/pause, prohibited local fault clear and persistent
 NP clear. Forced intent ignores inactive advertisement. Automatic crossover
 does not compare the preserved manual-routing bit. BMCR restart and unowned
-fields are excluded. VOD compares `FFC0` with `4A40`; reserved low bits remain
+fields are excluded. VOD compares `FFC0` with `4A40`, or the explicitly owned stage35 termination override; reserved low bits remain
 unknown/unowned. The ledger and [independent vectors](register-vectors.md) own
 the field catalogue; this guide does not create another register map.
 

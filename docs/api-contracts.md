@@ -1062,3 +1062,15 @@ and cached identity/link context; `signalQualitySnapshot()` is bus-silent.
 The [quality guide](quality.md) owns field admission, interface restrictions,
 read effects and physical limits. These routes complete the five stage34 ledger
 procedures without another collector or automatic recovery policy.
+
+## Stage35 electrical and compliance contracts
+
+`AnalogSettings` owns explicit amplitude, termination and slew groups;
+`startConfigureAnalog` uses the existing slot and keeps desired/raw/trust separate.
+Mandatory initialization setup precedes an admitted termination override; VERIFY
+compares that desired mask. `ComplianceOptions`, `CollisionOptions` and
+`CalibrationOptions` require explicit maintenance/fixture admission. Electrical
+sessions use separate starts/stops and retained results, with no automatic dwell
+or cleanup work. HARD stop/calibration completion leaves persistent restoration
+to a new `startInitialize`. See [electrical procedures](electrical.md) for
+source gates, legal transition ordering, finite bounds and physical limits.

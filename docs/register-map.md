@@ -104,3 +104,7 @@ Stage33's six interface/clock/compatibility procedures share
 [one typed application and replay pass](interface-clock.md). RCSR read effects
 still belong to the collector. Source-gated selector routes are not generic
 write permissions, and runtime mode evidence does not rewrite captured straps.
+
+The [electrical owner](electrical.md) implements legal analog masks and exact
+COMPT recipe exceptions. Generic raw access remains restricted; an exception
+does not authorize a reserved write outside its named procedure.

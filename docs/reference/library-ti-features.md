@@ -246,3 +246,17 @@ The FIFO in PHYSCR is specifically far-end-loopback buffering. Independent
 implementation vectors and current source/sibling evidence are recorded in
 [the stage report](../reports/implementation/34-quality-link-loss.md); source
 gates and vendor payloads remain unchanged.
+
+### Stage35 implementation reconciliation
+
+The source-admitted analog, compliance, collision and calibration procedures
+now execute through [electrical controls](../electrical.md). SNLS647I original
+field tables and SNLA266B5-1/2/4/5 were independently rechecked. The prior ledger
+instruction to continue HARD after a failed calibration clear conflicted with
+the frozen stop-on-first-failure transport: the complete pair is now admitted
+as one batch, with explicit HARD-required debt after an ambiguous clear instead
+of an automatic continuation. Restoration re-snapshots all owned analog words,
+so the full analog replay bound is70frames rather than relying on stale saved
+reserved fields. These are software-contract corrections, not new silicon facts.
+COUNT1000428, IOCTRLexample0400, receiver-gain mapping and hard-reset strap
+qualification retain their existing gates. Vendor payloads/hashes are unchanged.

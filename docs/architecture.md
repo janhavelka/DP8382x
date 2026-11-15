@@ -200,3 +200,8 @@ Stage34 adds one explicit quality/TX/link-loss pass in the existing operation
 slot. It shares controller transactions, destructive collector and initialization/
 verification tails; no scheduler or second diagnostic reader is introduced.
 See [quality controls](quality.md) for independent raw MSE and profile evidence.
+
+Stage35 keeps persistent analog sequencing in `DP8382xAnalog.cpp` and finite
+electrical sessions in `DP8382xElectrical.cpp`. Both extend the existing slot,
+collector and shared reset/configuration/replay paths. No controller lock spans
+a wait; no independent job framework or raw reserved-write route is introduced.
