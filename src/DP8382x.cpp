@@ -967,29 +967,37 @@ Status DP8382x::startInitialize(const InitializeOptions& options, const Operatio
   if (_transport.clockInvalid) { return configError(ConfigDetail::CLOCK_CONTRACT); }
   if (budget.io.maxFrames == 0U) { return timeout(TimeoutDetail::FRAME_BUDGET); }
   if (budget.io.deadlineUs == 0U) { return timeout(TimeoutDetail::DEADLINE); }
+  _beginOperation(OperationKind::INITIALIZE, budget);
+  _result.reset = options.reset;
+  _result.commandRequired = options.reset != ResetKind::NONE;
+  _setInitStep(InitStep::IDENTIFY);
+  token = _operation.token;
+  return _operation.status;
+}
+
+// Shared slot setup only; each public start completes its own admission first.
+void DP8382x::_beginOperation(OperationKind kind, const OperationBudget& budget) noexcept {
   const bool owed = _operation.cleanupOwed;
+  const bool temporary = _operation.temporaryMayBeActive;
   const auto quietUntil = _operation.busQuietUntilUs;
   const bool quietValid = _operation.busQuietValid;
   _operation = {};
   _operation.cleanupOwed = owed;
+  _operation.temporaryMayBeActive = temporary;
   _operation.busQuietUntilUs = quietUntil;
   _operation.busQuietValid = quietValid;
   _operation.token = {++_tokenCounter};
   _operation.state = OperationState::RUNNING;
-  _operation.kind = OperationKind::INITIALIZE;
-  _operation.status = Status::Error(Err::IN_PROGRESS, "Initialization pending");
+  _operation.kind = kind;
+  _operation.status = Status::Error(Err::IN_PROGRESS, "Operation pending");
   _operation.remaining = budget.io;
   _operationBudget = budget;
   _result = {};
   _result.token = _operation.token;
   _result.kind = _operation.kind;
-  _result.reset = options.reset;
-  _result.commandRequired = options.reset != ResetKind::NONE;
+  if (kind == OperationKind::CONFIGURE) { _result.identity = _identity; }
   _configuring = false;
   _pollTimeValid = false;
-  _setInitStep(InitStep::IDENTIFY);
-  token = _operation.token;
-  return _operation.status;
 }
 
 Status DP8382x::_checkToken(OperationToken token) const noexcept {
@@ -1008,14 +1016,14 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
   _operation.phase = OperationPhase::COMPLETE;
   _operation.nextPollValid = false;
   _operation.status = status;
-  if (_result.persistentRestored) {
+  if (_result.persistentRestored && _operation.kind != OperationKind::VERIFY) {
     _operation.cleanupOwed = false;
     _cleanupOwner = OperationKind::NONE;
   } else if (_result.mutationCompleted || _result.mutationPossible) {
     _operation.cleanupOwed = true;
     _cleanupOwner = _operation.kind;
   }
-  if (_configuring || _operation.kind == OperationKind::CONFIGURE) {
+  if (_configuring || _operation.kind == OperationKind::CONFIGURE || _operation.kind == OperationKind::VERIFY) {
     _settings.lastVerificationStatus = status;
     if (!status.ok()) {
       _settings.trust = ConfigurationTrust::DIRTY;
@@ -1234,10 +1242,30 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
     }
   }
   if (_configuring) { return _advanceConfiguration(status, called, batch); }
+  // Keep independently returned mandatory-state evidence before a release,
+  // deadline or later read can interrupt the verification pass.
+  if (_initStep == InitStep::VERIFY && called && _result.failingBatch.completedFrames == 4U) {
+    const uint16_t vod = _transport.lastBatch.frames[3].value;
+    _settings.rawVod = vod;
+    _settings.vodValid = true;
+    if ((vod & 0xFFC0U) != 0x4A40U && !_result.mismatch.valid) {
+      _result.mismatch = {true, true, 31, 0x030E, 0xFFC0, 0x4A40, vod};
+      _settings.trust = ConfigurationTrust::DIRTY;
+      _settings.observedStale = true;
+      _initialized = false;
+    }
+  }
   if (!status.ok()) { return _finishOperation(status); }
   const uint16_t value = _transport.lastBatch.frames[batch.frameCount - 1U].value;
   switch (_initStep) {
-    case InitStep::IDENTIFY: _setInitStep(InitStep::SOR1); break;
+    case InitStep::IDENTIFY:
+      if (_operation.kind == OperationKind::VERIFY && !_initialized) {
+        // A newly accepted mode is real identity evidence, but cannot validate
+        // the initialization context of the previously observed mode.
+        return _finishOperation(configError(ConfigDetail::DEVICE_INVALIDATED));
+      }
+      _setInitStep(_operation.kind == OperationKind::VERIFY ? InitStep::VERIFY : InitStep::SOR1);
+      break;
     case InitStep::REIDENTIFY: _setInitStep(InitStep::RESOR1); break;
     case InitStep::SOR1: case InitStep::RESOR1:
       _setInitStep(_initStep == InitStep::SOR1 ? InitStep::SOR2 : InitStep::RESOR2); break;
@@ -1279,9 +1307,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
       _setInitStep(InitStep::REIDENTIFY); break;
     case InitStep::APPLY: _setInitStep(InitStep::VERIFY); break;
     case InitStep::VERIFY:
-      if ((value & 0xFFC0U) != 0x4A40U) {
-        _initialized = false;
-        _result.mismatch = {true, true, 31, 0x030E, 0xFFC0, 0x4A40, value};
+      if (_result.mismatch.valid && _operation.kind != OperationKind::VERIFY) {
         return _finishOperation(Status::Error(Err::CONFIG_MISMATCH, "VOD_CFG3 verification failed"));
       }
       _identity = _result.identity; // VOD programming cannot alter the accepted identity.
@@ -1289,8 +1315,11 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
         _beginConfiguration(false);
         break;
       }
+      if (_result.mismatch.valid) {
+        return _finishOperation(Status::Error(Err::CONFIG_MISMATCH, "VOD_CFG3 verification failed"));
+      }
       _result.persistentRestored = true;
-      _initialized = true;
+      if (_operation.kind != OperationKind::VERIFY) { _initialized = true; }
       return _finishOperation(Status::Ok());
   }
   return _operation.status;

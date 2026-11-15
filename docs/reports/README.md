@@ -8,7 +8,12 @@ recommendations and residual corrections; that maintenance left stage completion
 
 The [prompt 21 report](implementation/21-passive-health.md) records passive
 managed health, independent source/contract review, exact accounting tests and
-the linked cached-health example. Current execution is complete through 21.
+the linked cached-health example.
+
+The [prompt 22 report](implementation/22-reconcile-recover.md) records bounded
+verification, retained mismatch and cleanup evidence, shared initialization
+recovery, independent review and interrupted-restoration tests. Current execution
+is complete through 22.
 
 The [prompt 14 report](implementation/14-identity-capabilities.md) records exact
 identity/capability implementation, current TI/peer review, independent failure

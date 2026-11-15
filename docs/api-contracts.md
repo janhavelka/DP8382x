@@ -310,6 +310,17 @@ forced mode is neither a mismatch nor a reason to clear it. A complete in-budget
 readback mismatch publishes the fresh observed tuple/time, sets trust DIRTY and
 lastVerificationStatus=CONFIG_MISMATCH. Partial/failed verification preserves the
 old tuple/time as stale, records its error and never promotes trust.
+The additional rawVod/vodValid fields retain an independently returned mandatory
+word even when that batch later fails release or timing. Like other raw-field
+validity flags, they describe historical capture, not whole-profile freshness.
+VERIFY without desired settings checks identity and VOD only and never fabricates
+verified profile trust. An accepted changed identity returns
+INVALID_CONFIG/DEVICE_INVALIDATED and requires explicit reinitialization;
+actual declared identity mismatch remains DEVICE_MISMATCH. An observed active
+BMCR reset invalidates initialization before any release/deadline error is
+returned; otherwise VERIFY returns BUSY without waiting. AN-restart is ignored
+by stable comparison. Successful VERIFY may set persistentRestored as stable
+proof while cleanupOwed remains unchanged under OP-9.
 
 ```cpp contract
 namespace DP8382x {
@@ -421,6 +432,7 @@ void resetStatistics() noexcept;
 LinkSnapshot linkSnapshot() const noexcept;
 SettingsSnapshot settingsSnapshot() const noexcept;
 Status invalidateDeviceState(InvalidationReason reason) noexcept;
+Status startVerify(const OperationBudget& budget, OperationToken& token) noexcept;
 ```
 
 ### Live link result and failure examples
@@ -493,11 +505,12 @@ and compiling [owner example](../examples/portable/Initialize.h).
 INITIALIZE with NONE/PCS/HARD/RESTART and the retained
 busQuietUntilUs/busQuietValid floor are implemented through stage 16. Stage 17
 implements CONFIGURE and SettingsSnapshot for negotiated ANAR/BMCR plus mandatory
-VOD; stage 18 adds forced modes and all owned CR1/PHYCR/CR3/CR2 controls. VERIFY arrives with 22. No unimplemented
-kind or desired-link-settings snapshot is exposed. EXTERNAL_POWER_ON is
-already a local invalidation attestation, not a hard-reset operation. Future
-startVerify will use the same slot and OperationBudget; startConfigure already
-uses them. No successful placeholder call exists.
+VOD; stage 18 adds forced modes and all owned CR1/PHYCR/CR3/CR2 controls.
+Stage 22 implements VERIFY in the same slot and OperationBudget. EXTERNAL_POWER_ON
+remains a local invalidation attestation, not a hard-reset operation. See
+[reconciliation](reconciliation.md) for the exact finite read plan, retained
+mismatch semantics and explicit initialization replay. No separate reset/recover
+alias or automatic escalation exists.
 
 StrapEvidence retains raw partial/historical words, with independent validity
 and staleness. A trustworthy completed read survives a later release/deadline

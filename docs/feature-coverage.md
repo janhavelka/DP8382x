@@ -22,7 +22,10 @@ Prompt20 completes [typed events/counters](event-counters.md), per-source partia
 history and source-qualified FCSCR accumulation. RECR/RMII derived interpretations
 remain gated. Prompt 21 completes [passive health](health.md), with separate
 managed transaction counts, state projection and retained error evidence. There
-is no stage-21 silicon procedure: health is library policy. Other feature procedures are PENDING; SDK builds and hardware qualification
+is no stage-21 silicon procedure: health is library policy. Prompt 22 adds
+[explicit verification and reconciliation](reconciliation.md), reusing the
+existing initialization/configuration procedures without another restoration
+ledger or automatic recovery. Other feature procedures are PENDING; SDK builds and hardware qualification
 are NOT RUN. Ledger tests establish their own research layer.
 
 The [prompts 13-18 audit](reports/implementation/13-18-independent-audit.md)

@@ -53,6 +53,8 @@ identity is complete at 14, settings/link at 17-19 and managed health at 21.
 `driverState` and `healthSnapshot` project initialized state and managed callback
 accounting; `resetStatistics` clears only health cumulative totals. All are
 bus/clock-silent. See [health](../../docs/health.md).
+Stage 22 adds startVerify in the same token/result slot, without semantic writes
+or cleanup-barrier clearance; see [reconciliation](../../docs/reconciliation.md).
 Drivers and operation owners are neither copyable nor movable. Direct reads stage
 ordinary output, while the collector retains consumed partial evidence. A valid
 link-down is successful output, not missing data or an MDIO error.

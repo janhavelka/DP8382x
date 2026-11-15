@@ -251,7 +251,8 @@ constexpr OperationToken INVALID_OPERATION_TOKEN{};
 enum class OperationKind : uint8_t {
   NONE, ///< Empty slot.
   INITIALIZE, ///< Identity, optional reset and owned configuration replay.
-  CONFIGURE ///< Complete forced/negotiated profile and optional finite next-page exchange.
+  CONFIGURE, ///< Complete forced/negotiated profile and optional finite next-page exchange.
+  VERIFY ///< Read identity and currently owned stable settings without semantic writes.
 };
 /// @brief One retained operation slot.
 enum class OperationState : uint8_t {
@@ -336,6 +337,8 @@ struct SettingsSnapshot {
   bool phycrValid{false}; ///< Raw PHYCR has been captured.
   bool cr3Valid{false}; ///< Raw CR3 has been captured.
   bool cr2Valid{false}; ///< Raw CR2 has been captured.
+  uint16_t rawVod{0}; ///< Latest independently returned mandatory VOD_CFG3 word.
+  bool vodValid{false}; ///< Raw VOD was captured; aggregate trust still requires a complete pass.
 };
 /// @brief Independently consumed partner page, retained even if later work fails.
 struct PageEvidence {
@@ -527,6 +530,23 @@ public:
   /// @brief Query implemented initialization readiness without MDIO or clock access.
   /// @return True only after identity/reset/mandatory VOD verification; never a link claim.
   bool isInitialized() const noexcept { return _initialized; }
+
+  /// @brief Admit a finite identity/stable-owned-state check without bus/clock callbacks.
+  /// @param[in] budget Exclusive aggregate allowance; poll slices never split an MMD batch.
+  /// @param[out] token Assigned only on admission; take the result before another start.
+  /// @return IN_PROGRESS, or syntax, binding, slot, clock, temporary-state,
+  /// initialization/capability or zero-budget error without changing evidence.
+  /// @pre Initialized with fresh accepted identity and serialized application ownership.
+  /// @note SNLS647I tables 8-19/21/22/23/28/29/30/43/81. Two identity reads,
+  /// four-frame VOD read, then six AN or five forced stable-field reads when
+  /// desired settings exist. Only indirect selectors are written; no reset,
+  /// restart, VOD write, negotiation wait, retry or escalation. Forced skips ANAR.
+  /// A complete matching profile restores verified trust, never cleanupOwed.
+  /// Without desired settings only mandatory state is checked; profile trust
+  /// stays unverified. Partial/mismatched raw words remain diagnostic evidence.
+  /// A changed accepted identity requires explicit initialization; an observed
+  /// active BMCR reset invalidates readiness and terminates without waiting.
+  Status startVerify(const OperationBudget& budget, OperationToken& token) noexcept;
 
   /// @brief Project passive health without bus/clock access or changing admission.
   /// @return UNINIT when not initialized; otherwise READY at zero failures,
@@ -806,6 +826,7 @@ private:
   void _invalidateLink() noexcept;
   Status _checkMutation() noexcept;
   Status _checkToken(OperationToken token) const noexcept;
+  void _beginOperation(OperationKind kind, const OperationBudget& budget) noexcept;
   Status _finishOperation(Status status, bool freshObservation = false) noexcept;
   Status _yieldOperation(uint64_t raw) noexcept;
   void _setInitStep(InitStep step) noexcept;

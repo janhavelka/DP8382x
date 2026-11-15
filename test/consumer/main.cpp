@@ -12,6 +12,7 @@
 #include "../../examples/portable/LinkStatus.h"
 #include "../../examples/portable/Events.h"
 #include "../../examples/portable/Health.h"
+#include "../../examples/portable/Reconcile.h"
 #include <cstring>
 
 #ifdef _MSVC_LANG
@@ -352,9 +353,40 @@ static bool configurationExamples() noexcept {
   phy.resetStatistics();
   if (phy.healthSnapshot().totalSuccess != 0 || phy.driverState() != DP8382x::DriverState::READY ||
       controller.frames != framesBefore + 10) return false;
+  // Simulated unannounced drift. Verification observes it without repairing it.
+  controller.cr1 ^= 0x0020;
+  VerificationAttempt verification;
+  if (!beginVerification(phy, {{100000, 64}, 1000, 20}, verification).inProgress()) return false;
+  for (unsigned turn = 0; turn < 3; ++turn) {
+    if (!pollVerification(phy, verification).inProgress()) return false;
+  }
+  const auto partial = phy.settingsSnapshot();
+  if (!partial.cr1Valid || partial.rawCr1 != 0 || !partial.observedStale ||
+      partial.trust != DP8382x::ConfigurationTrust::DIRTY) return false;
+  for (unsigned turn = 0; turn < 8 && !verification.resultAvailable; ++turn) {
+    pollVerification(phy, verification);
+  }
+  if (!verification.resultAvailable || !verification.result.status.is(DP8382x::Err::CONFIG_MISMATCH) ||
+      controller.vodWrites != 1 || controller.cr1 != 0) return false;
+  // Explicit owner decision 1: restore the same stored forced profile, no reset.
+  controller.failVodWrite = true;
+  InitializeAttempt restoration;
+  if (!beginInitialization(phy, DP8382x::ResetKind::NONE, {{100000, 64}, 1000, 20}, restoration).inProgress() ||
+      !runInitialization(phy, controller, quiet, restoration).is(DP8382x::Err::MDIO_TIMEOUT) ||
+      !phy.operationSnapshot().cleanupOwed) return false;
+  // Explicit owner decision 2 after examining that failure: one new bounded retry.
+  controller.failVodWrite = false;
+  InitializeAttempt retry;
+  if (!beginInitialization(phy, DP8382x::ResetKind::NONE, {{100000, 64}, 1000, 20}, retry).inProgress() ||
+      !runInitialization(phy, controller, quiet, retry).ok() ||
+      !restoration.result.status.is(DP8382x::Err::MDIO_TIMEOUT) ||
+      restoration.token.value == retry.token.value || phy.operationSnapshot().cleanupOwed ||
+      phy.settingsSnapshot().desired.mode != DP8382x::LinkMode::FORCED ||
+      phy.settingsSnapshot().trust != DP8382x::ConfigurationTrust::VERIFIED) return false;
   return forced.resultAvailable && forced.result.status.ok() &&
       controller.anar == 0x0101 && controller.bmcr == 0x2100 &&
-      controller.cr1 == 0x0020 && controller.phycr == 0 && controller.vodWrites == 1 && phy.end().ok();
+      controller.cr1 == 0x0020 && controller.phycr == 0 && controller.vodWrites == 3 &&
+      controller.resetWrites == 0 && controller.hardWrites == 0 && controller.restartWrites == 0 && phy.end().ok();
 }
 
 int main() {

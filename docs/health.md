@@ -20,7 +20,8 @@ Cable-down and negotiation-in-progress observations can also have healthy MDIO.
 
 ## One callback, one transaction
 
-Initialization, persistent configuration and live link acquisition are managed.
+Initialization, persistent configuration, explicit verification and live link
+acquisition are managed.
 Each invoked batch callback contributes at most one health outcome. The first
 three successful selector/address frames of an MMD batch cannot turn a failed
 fourth target frame into a success. A complete link pass has two managed

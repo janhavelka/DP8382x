@@ -4,6 +4,14 @@
 
 ### 2026-11-15
 
+- Implemented prompt 22 startVerify: finite identity/VOD/owned-profile checks
+  in the existing slot, with no semantic writes, automatic recovery or cleanup
+  barrier clearance. Retain raw mandatory-state evidence and the first mismatch
+  through later errors; observed reset invalidates readiness even on late or
+  failed release. Restoration reuses the existing initialization/replay path.
+- Added literal verification/failure/restoration regressions and a linked owner
+  example retaining a failed restoration and an explicitly admitted retry.
+
 - Implemented prompt 21 passive managed health: UNINIT/READY/DEGRADED/OFFLINE,
   cached snapshots, saturating batch counts and retained signed errors/timestamps.
   OFFLINE never blocks explicit attempts; raw diagnostics cannot clear a managed

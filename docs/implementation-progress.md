@@ -1,9 +1,9 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–21 are complete: source research, shared contracts, portable
+execution. Prompts 1–22 are complete: source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 97 registered Release CTests, 103 Python tests,
+Current local checks include 108 registered Release CTests, 103 Python tests,
 the linked tests-OFF consumer, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -20,8 +20,18 @@ Prompt 19 adds [live/cached link observations](link-observation.md), qualified
 mode/pause and retained change evidence. Prompt20 adds [typed event/counter acquisition](event-counters.md)
 and explicit retained-history semantics. Prompt 21 adds [passive health](health.md),
 exact managed batch accounting and cached state without an offline admission latch.
+Prompt 22 adds [explicit reconciliation](reconciliation.md): bounded verification,
+retained mismatch evidence and recovery through the existing initialization path.
 
 ## Execution record
+
+Prompt 22 completed on `main`, starting from synchronized prompt-21 checkpoint
+`fe539237f3a2e71078491c81c9ac2678ffad2f2a`. The
+[stage report](reports/implementation/22-reconcile-recover.md) records fresh sibling/TI
+sources, independent review, verification and interrupted-restoration tests:
+108 Release CTests, 103 Python tests, portable consumer, Doxygen, ledger,
+reference and version checks pass. SDK/remote CI/physical execution remain later
+work. Final commit/upstream equality is recorded in the handoff.
 
 Prompt 21 completed on `main`, starting from synchronized audit checkpoint
 `0a2d2c45f5ee43b5458949acaf7f21ebb99bb67c`. The
@@ -246,7 +256,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [19 Implement live and cached link observations](prompts/19-link-observation.md) | COMPLETE | [Report](reports/implementation/19-link-observation.md); Release/UBSan host, tests-OFF consumer and documentation checks PASS; SDK/physical NOT RUN |
 | [20 Implement complete event and counter acquisition](prompts/20-event-counter-acquisition.md) | COMPLETE | [Report](reports/implementation/20-event-counter-acquisition.md); host/UBSan, consumer, docs and reference checks PASS; RECR/RMII derived semantics and physical Q16/Q17 remain gated |
 | [21 Implement passive driver health and exact accounting](prompts/21-passive-health.md) | COMPLETE | [Report](reports/implementation/21-passive-health.md); managed callback counts, cached state/error evidence, 11 focused health suites and portable example; physical NOT RUN |
-| [22 Implement explicit reconciliation and bounded recovery](prompts/22-reconcile-recover.md) | NOT STARTED | None |
+| [22 Implement explicit reconciliation and bounded recovery](prompts/22-reconcile-recover.md) | COMPLETE | [Report](reports/implementation/22-reconcile-recover.md); bounded stable-field verification, retained mismatch/cleanup evidence, shared initialization recovery, ten focused suites and portable example; physical NOT RUN |
 | [23 Implement all supported loopback modes](prompts/23-loopback-modes.md) | NOT STARTED | None |
 | [24 Implement complete BIST generator and checker sessions](prompts/24-bist-generator-checker.md) | NOT STARTED | None |
 | [25 Implement complete manual cable capture](prompts/25-cable-manual.md) | NOT STARTED | None |

@@ -86,7 +86,8 @@ Cached readers perform no MDIO or clock callbacks. Raw semantic writes mark
 a malformed receipt omits its effect flags;
 selector setup alone does not. `invalidateDeviceState` records external/raw
 uncertainty without I/O and retains samples. No transport success clears dirty
-configuration evidence. Future typed verification owns that transition. Binding
+configuration evidence. [Typed verification](reconciliation.md) can establish
+current owned-profile trust; the historical configurationDirty latch remains. Binding
 or local end resets local history; the owner copies needed evidence first.
 
 A failed/rejected identity probe now blocks mixed maintenance before any I/O,

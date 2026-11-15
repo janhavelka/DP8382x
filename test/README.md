@@ -395,3 +395,21 @@ ctest --test-dir build/host -R "health_|dp8382x_health_tests_failure_path" --out
 The tests-OFF portable consumer also compiles and executes
 [Health.h](../examples/portable/Health.h), projecting health separately from a
 valid cable-down link. No SDK or physical wire health is established.
+
+## Verification and reconciliation (prompt 22)
+
+`test/verify.cpp` registers traces, comparisons, failures, admission, lifecycle,
+recovery, ownership, timing, interrupted_replay and barrier suites plus its
+intentional Release failure probe. Literal traces prove 6/12/11 frame plans
+without semantic writes for mandatory-only/AN/forced verification. Cases cover
+all read/release boundaries, unowned bits, partial/mismatched evidence, changed
+identity, raw/external invalidation, cleanup owner retention, cancelled/failed
+verification and every reset/replay frame followed by explicit recovery.
+
+```sh
+ctest --test-dir build/host -R "verify_|dp8382x_verify_tests_failure_path" --output-on-failure --no-tests=error
+```
+
+[Reconcile.h](../examples/portable/Reconcile.h) is compiled and executed by the
+tests-OFF consumer: partial raw observation, failed restoration and explicit
+unchanged-intent retry remain separate results. See [reconciliation](../docs/reconciliation.md).

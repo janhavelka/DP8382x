@@ -122,3 +122,8 @@ raw/probe/collector traffic only contributes transport totals. Cached state is
 derived from initialization and the failure streak, with no admission latch or
 automatic recovery. A private arithmetic helper owns saturating accumulation
 and retained timestamps only; it adds no transport or state-machine owner.
+
+Stage 22 adds [VERIFY](reconciliation.md) to that same operation slot: identity
+and mandatory-state acquisition feed the existing mode-specific configuration
+comparisons. Shared slot setup preserves prior obligations; verification cannot
+clear them. Explicit restoration uses the same initialization/replay path.

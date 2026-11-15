@@ -12,6 +12,10 @@ hardware qualification requires measured fixtures. The
 [reset-effects table](device-behavior.md#reset-domains-and-readiness) distinguishes
 the settings, identity and strap domains of every trigger.
 
+[Verification and reconciliation](reconciliation.md) use the same slot and
+stable comparisons. startVerify does not write VOD or clear a cleanup obligation;
+restoration explicitly uses startInitialize with the stored desired intent.
+
 The [public header](../include/DP8382x/DP8382x.h) owns declarations and Doxygen;
 [OP-1 through OP-17](api-contracts.md#one-cooperative-operation-and-retained-result)
 own admission/lifetime rules. The [ledger](registers/dp83826i.json) procedures

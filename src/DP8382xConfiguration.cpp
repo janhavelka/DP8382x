@@ -146,30 +146,41 @@ Status DP8382x::startConfigure(const LinkSettings& settings, const ConfigureOpti
   if (budget.io.maxFrames == 0U) { return configTimeout(TimeoutDetail::FRAME_BUDGET); }
   if (budget.io.deadlineUs == 0U) { return configTimeout(TimeoutDetail::DEADLINE); }
 
-  const bool owed = _operation.cleanupOwed;
-  const auto quietUntil = _operation.busQuietUntilUs;
-  const bool quietValid = _operation.busQuietValid;
-  _operation = {};
-  _operation.cleanupOwed = owed;
-  _operation.busQuietUntilUs = quietUntil;
-  _operation.busQuietValid = quietValid;
-  _operation.token = {++_tokenCounter};
-  _operation.kind = OperationKind::CONFIGURE;
-  _operation.state = OperationState::RUNNING;
-  _operation.status = Status::Error(Err::IN_PROGRESS, "Link configuration pending");
-  _operation.remaining = budget.io;
-  _operationBudget = budget;
-  _result = {};
-  _result.token = _operation.token;
-  _result.kind = _operation.kind;
-  _result.identity = _identity;
+  _beginOperation(OperationKind::CONFIGURE, budget);
   _settings.desired = settings;
   _settings.desiredValid = true;
   _settings.trust = ConfigurationTrust::DIRTY;
   _settings.observedStale = true;
   _configureOptions = options;
-  _pollTimeValid = false;
   _beginConfiguration(options.nextPages.pageCount != 0U);
+  token = _operation.token;
+  return _operation.status;
+}
+
+Status DP8382x::startVerify(const OperationBudget& budget, OperationToken& token) noexcept {
+  if (budget.pollIntervalUs == 0U || budget.maxStalledPolls == 0U) {
+    return Status::Error(Err::INVALID_PARAM, "Invalid polling budget", static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
+  }
+  if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
+  if (_active || _polling || _operation.state == OperationState::RUNNING) { return configBusy(BusyDetail::OPERATION_ACTIVE); }
+  if (_operation.state == OperationState::RESULT_PENDING) { return configBusy(BusyDetail::RESULT_PENDING); }
+  if (_transport.clockInvalid) {
+    return Status::Error(Err::INVALID_CONFIG, "Clock contract failed", static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT));
+  }
+  if (_operation.temporaryMayBeActive) { return configBusy(BusyDetail::CLEANUP_REQUIRED); }
+  if (!_initialized || !capabilities().valid) { return Status::Error(Err::NOT_INITIALIZED, "Initialize before verifying"); }
+  if (_settings.desiredValid) {
+    const auto valid = validateLinkSettings(_settings.desired);
+    if (!valid.ok()) { return valid; }
+  }
+  if (budget.io.maxFrames == 0U) { return configTimeout(TimeoutDetail::FRAME_BUDGET); }
+  if (budget.io.deadlineUs == 0U) { return configTimeout(TimeoutDetail::DEADLINE); }
+  _beginOperation(OperationKind::VERIFY, budget);
+  // Keep old decoded values/time as history until this entire pass completes.
+  if (_settings.desiredValid) { _settings.trust = ConfigurationTrust::DIRTY; }
+  _settings.observedStale = true;
+  _configureOptions = {};
+  _setInitStep(InitStep::IDENTIFY);
   token = _operation.token;
   return _operation.status;
 }
@@ -184,6 +195,10 @@ void DP8382x::_beginConfiguration(bool exchange) noexcept {
   _pageEventPending = false;
   _pageEventRaw = 0;
   _result.nextPage.requested = exchange;
+  if (_operation.kind == OperationKind::VERIFY) {
+    _setConfigStep(_settings.desired.mode == LinkMode::FORCED ? ConfigStep::VERIFY_CR1 : ConfigStep::VERIFY_ANAR);
+    return;
+  }
   _setConfigStep(exchange ? ConfigStep::DRAIN :
       (_settings.desired.mode == LinkMode::FORCED ? ConfigStep::READ_BMCR : ConfigStep::READ_ANAR));
 }
@@ -385,7 +400,11 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
     if (_configStep == ConfigStep::VERIFY_BMCR) {
       _settings.rawBmcr = value;
       _settings.bmcrValid = true;
-      if ((value & BMCR_VERIFY) != modeWord(_settings.desired) && !_result.mismatch.valid) {
+      if (_operation.kind == OperationKind::VERIFY && (value & cmd::MASK_BMCR_RESET) != 0U) {
+        // A valid consumed reset indication invalidates context even when
+        // release/timing subsequently fails. Keep that primary error below.
+        _invalidateResetEvidence(true);
+      } else if ((value & BMCR_VERIFY) != modeWord(_settings.desired) && !_result.mismatch.valid) {
         _result.mismatch = {true, false, 0, cmd::REG_BMCR, BMCR_VERIFY, modeWord(_settings.desired), value};
       }
     }
@@ -428,11 +447,15 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
     case ConfigStep::VERIFY_CR3: _setConfigStep(ConfigStep::VERIFY_CR2); break;
     case ConfigStep::VERIFY_CR2: _setConfigStep(ConfigStep::VERIFY_BMCR); break;
     case ConfigStep::VERIFY_BMCR:
+      if (_operation.kind == OperationKind::VERIFY && (value & cmd::MASK_BMCR_RESET) != 0U) {
+        return _finishOperation(configBusy(BusyDetail::OPERATION_ACTIVE));
+      }
       _observeConfiguration();
       if (_result.mismatch.valid) {
         _settings.lastVerificationStatus = mismatchStatus();
         return _finishOperation(mismatchStatus(), !_settings.observedStale);
       }
+      if (_operation.kind == OperationKind::VERIFY) { break; }
       if (_settings.desired.mode == LinkMode::AUTONEGOTIATED) {
         if ((value & cmd::MASK_BMCR_AN_RESTART) != 0U) { return _waitOperation(); }
       }
@@ -495,7 +518,7 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
       break;
   }
   const bool finished = (completedStep == ConfigStep::VERIFY_BMCR && !_result.nextPage.requested &&
-                         !_configureOptions.waitForCompletion && (_settings.desired.mode == LinkMode::FORCED ||
+                         !_configureOptions.waitForCompletion && (_operation.kind == OperationKind::VERIFY || _settings.desired.mode == LinkMode::FORCED ||
                          (value & cmd::MASK_BMCR_AN_RESTART) == 0U)) ||
       (completedStep == ConfigStep::WAIT_COMPLETE && !_result.nextPage.requested && (value & cmd::MASK_BMSR_AN_COMPLETE) != 0U) ||
       (completedStep == ConfigStep::VERIFY_CLEAR && batch.frames[0].registerAddress == cmd::REG_ANAR &&
@@ -504,7 +527,7 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
   _settings.trust = ConfigurationTrust::VERIFIED;
   _settings.lastVerificationStatus = Status::Ok();
   _result.persistentRestored = true;
-  _initialized = true;
+  if (_operation.kind != OperationKind::VERIFY) { _initialized = true; }
   _configuring = false;
   return _finishOperation(Status::Ok());
 }
