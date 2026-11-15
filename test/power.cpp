@@ -166,7 +166,27 @@ void policy() {
   const auto t=configure(d,b,settings());CHECK(!drain(d,b,t).ok());const auto r=take(d,t);
   CHECK(writes(b,first,17)==0U && writes(b,first,0)==0U && !r.cleanupOwed);
 }
+// OP-2 ordering distinguishes syntax, lifetime and source admission without I/O.
+void auditAdmissionOrder() {
+  Controller b;Driver d;auto deep=settings(PowerRequest::DEEP_POWER_DOWN);OperationToken token{999};
+  auto malformed=budget();malformed.pollIntervalUs=0;
+  auto status=d.startConfigurePower(deep,malformed,token);
+  CHECK(status.is(Err::INVALID_PARAM) && status.detail==static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
+  CHECK(d.startConfigurePower(deep,budget(),token).is(Err::NOT_BOUND));
+  CHECK(b.calls==0U && b.clocks==0U && token.value==999U);
+  ready(d,b);const auto active=configure(d,b,settings());const auto calls=b.calls,clocks=b.clocks;
+  status=d.startConfigurePower(deep,budget(),token);
+  CHECK(status.is(Err::BUSY) && status.detail==static_cast<int32_t>(BusyDetail::OPERATION_ACTIVE));
+  CHECK(d.cancel(active).ok());
+  status=d.startConfigurePower(deep,budget(),token);
+  CHECK(status.is(Err::BUSY) && status.detail==static_cast<int32_t>(BusyDetail::RESULT_PENDING));
+  take(d,active);
+  status=d.startConfigurePower(deep,budget(0),token);
+  CHECK(status.is(Err::UNSUPPORTED) && status.detail==static_cast<int32_t>(ConfigDetail::SOURCE_GATE));
+  CHECK(token.value==999U && b.calls==calls && b.clocks==clocks);
+}
 void transitions() {
+  auditAdmissionOrder();
   for(bool pll:{false,true})for(bool sleep:{false,true}) {
     Controller b;Driver d;ready(d,b);b.words[0]=0x3500;b.words[17]=0x010B;
     auto down=settings(PowerRequest::IEEE_POWER_DOWN);down.disablePll=pll;down.activeSleep=sleep;
@@ -396,7 +416,82 @@ void replay() {
     CHECK((b.words[17]&0x7000U)==0x6000U);
   }
 }
+void auditInterleavedEvidence() {
+  // OP14 permits exact identity reads between polls. A newly accepted mode
+  // invalidates earlier context; the last BISCR read cannot restore it.
+  for(unsigned phase=0;phase<7U;++phase) {
+    Controller b;Driver d;ready(d,b);auto s=settings();s.activeSleep=true;const auto first=b.frames;
+    const auto token=configure(d,b,s);
+    for(unsigned n=0;n<phase;++n)CHECK(poll(d,b,token).inProgress());
+    b.id2=0xA111;DeviceIdentity identity;CHECK(d.readIdentity(identity,{1000000,2}).ok());
+    const auto calls=b.calls,clocks=b.clocks;
+    const auto status=d.pollOperation(token);
+    CHECK(status.is(Err::INVALID_CONFIG) && status.detail==static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED));
+    CHECK(b.calls==calls && b.clocks==clocks && !d.isInitialized());
+    const auto result=take(d,token);CHECK(!result.persistentRestored);
+    CHECK(result.cleanupOwed==(writes(b,first,0)!=0U || writes(b,first,17)!=0U));
+  }
+  // An independently returned reset keeps its invalidation even if the next
+  // live-read frame fails. Its raw transport status is separate from the
+  // running operation invalidated by that read, as with public readIdentity.
+  for(bool laterFailure:{false,true}) {
+    Controller b;Driver d;ready(d,b);const auto token=configure(d,b,settings());
+    for(unsigned n=0;n<6U;++n)CHECK(poll(d,b,token).inProgress());
+    b.poisonBmcrFrame=static_cast<int>(b.frames);
+    if(laterFailure)b.failFrame=static_cast<int>(b.frames+1U);
+    PowerSnapshot sentinel;sentinel.rawBmcr=0xCAFE;
+    const auto live=d.readPowerStatus(sentinel,{1000000,3});
+    CHECK(live.is(laterFailure?Err::MDIO_TIMEOUT:Err::INVALID_CONFIG));
+    if(laterFailure)CHECK(live.detail==-28028);
+    CHECK(sentinel.rawBmcr==0xCAFE && !d.isInitialized());
+    const auto calls=b.calls,clocks=b.clocks;const auto status=d.pollOperation(token);
+    CHECK(status.is(Err::INVALID_CONFIG) && status.detail==static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED));
+    CHECK(b.calls==calls && b.clocks==clocks);
+    const auto result=take(d,token);CHECK(!result.persistentRestored && result.cleanupOwed);
+  }
+  // A later valid control word contradicts an already verified field. The
+  // remaining successful state read cannot erase that evidence or restore trust.
+  {
+    Controller b;Driver d;ready(d,b);auto s=settings();s.activeSleep=true;const auto token=configure(d,b,s);
+    for(unsigned n=0;n<6U;++n)CHECK(poll(d,b,token).inProgress());
+    b.words[17]&=0x8FFF;PowerSnapshot observed;CHECK(d.readPowerStatus(observed,{1000000,3}).ok());
+    CHECK(observed.rawPhyscr==0U && observed.trust==ConfigurationTrust::DIRTY);
+    CHECK(!drain(d,b,token).ok());const auto result=take(d,token);
+    CHECK(result.cleanupOwed && !result.persistentRestored && d.powerSnapshot().trust!=ConfigurationTrust::VERIFIED);
+  }
+  // The final PLL read also returns the active-sleep controls. A valid
+  // contradicting bit in that same word must not be ignored by the PLL mask.
+  {
+    Controller b;Driver d;ready(d,b);auto s=settings(PowerRequest::IEEE_POWER_DOWN);s.disablePll=s.activeSleep=true;
+    b.corruptFrame=static_cast<int>(b.frames+10U);b.corruptMask=0x6000;
+    const auto token=configure(d,b,s);CHECK(drain(d,b,token).is(Err::CONFIG_MISMATCH));
+    const auto result=take(d,token);CHECK(result.mismatch.valid && result.cleanupOwed && !result.persistentRestored);
+    CHECK(d.powerSnapshot().rawPhyscr==0x8000 && d.powerSnapshot().trust!=ConfigurationTrust::VERIFIED);
+  }
+  // A power operation neither repairs nor erases another persistent owner's
+  // uncertainty. RXFS is read through the same collector, invalidating IRQ trust.
+  for(bool during:{false,true}) {
+    Controller b;Driver d;ready(d,b);InterruptSettings irq;irq.maintenanceAdmitted=irq.pinAvailable=true;
+    OperationToken irqToken;CHECK(d.startConfigureInterrupts(irq,budget(),irqToken).inProgress());
+    CHECK(drain(d,b,irqToken).ok());take(d,irqToken);
+    OperationToken token{999};
+    if(during) { token=configure(d,b,settings());for(unsigned n=0;n<3U;++n)CHECK(poll(d,b,token).inProgress()); }
+    b.ext[0x04A1]=0;EvidenceSnapshot evidence;
+    CHECK(d.acquireEvidence(evidenceBit(EvidenceSource::RXFS),evidence,{1000000,4}).ok());
+    CHECK(d.interruptSnapshot().trust==ConfigurationTrust::DIRTY);
+    const auto calls=b.calls,clocks=b.clocks;
+    if(during) {
+      CHECK(!drain(d,b,token).ok());const auto result=take(d,token);
+      CHECK(result.cleanupOwed && !result.persistentRestored);
+    } else {
+      CHECK(d.startConfigurePower(settings(),budget(),token).is(Err::INVALID_CONFIG));
+      CHECK(token.value==999U && b.calls==calls && b.clocks==clocks);
+    }
+    CHECK(d.interruptSnapshot().trust==ConfigurationTrust::DIRTY);
+  }
+}
 void ownership() {
+  auditInterleavedEvidence();
   // Every cancellation boundary is silent and preserves accepted effects.
   for(unsigned phase=0;phase<7U;++phase) {
     Controller b;Driver d;ready(d,b);const auto first=b.frames;const auto t=configure(d,b,settings());

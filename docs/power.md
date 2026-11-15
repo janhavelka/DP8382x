@@ -38,6 +38,20 @@ identity/readiness even if a later callback/release fails. Failed aggregate
 observations remain stale and never become evidence of sleep or wake. A live read
 does not upgrade dirty configuration trust. `powerSnapshot` is passive.
 
+An admitted operation retains its identity. A later identity change or valid
+reset indication freezes that operation before another poll can mutate hardware.
+The observation call keeps its own transport error and backend detail if a later
+read fails; the concurrent operation independently reports `DEVICE_INVALIDATED`.
+Power completion checks the whole retained owned control tuple, including evidence
+acquired between polls. A successful BISCR read cannot erase contradictory
+control evidence.
+
+Power configuration requires other owned link, autorun and IRQ controls to remain
+verified, both at admission and completion. Repairing power alone cannot report
+`persistentRestored` while another owned policy is dirty. Use initialization for
+complete restoration. Syntax and budget shape precede lifecycle checks; source
+permissions precede zero-allowance rejection under OP-2.
+
 ## Finite control procedure
 
 Source authority is SNLS647I pp28-29 section8.3.6, p55 table8-19, p65 table8-35

@@ -138,6 +138,17 @@ Cancel is bus-silent. A failed or late stop keeps uncertainty and the original
 result remains unchanged. Stable-policy mismatch withdraws policy trust; a
 failure solely to set/clear the test bit does not invent a stable-policy mismatch.
 If persistent state is dirty, clearing test alone cannot claim full restoration.
+This includes owned power and autorun policy, not only link settings. Standalone
+IRQ configuration checks those other owners at admission and completion.
+
+Every valid PHYSCR control read is retained, including the read prefix of a test
+RMW whose write or release fails. A stable-control contradiction dirties trust
+and remains in the result alongside the primary transport error. A contradictory
+RXFS observation between selector verification and crossing invalidates the
+pending selector proof even while attribution is UNKNOWN. An independent
+collector call freezes that operation immediately; its next poll issues no more
+frames. Valid reset or identity-change observations likewise prevent a pending
+IRQ operation from restoring obsolete proof. Cached readers remain bus-silent.
 
 Shared initialization replays owned policy after profile/diagnostic and autorun
 restoration; it never replays test=1. NONE/PCS/HARD/RESTART share this path. A

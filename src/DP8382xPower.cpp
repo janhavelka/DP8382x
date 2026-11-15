@@ -36,7 +36,9 @@ Status DP8382x::_validatePower(const PowerSettings& s) const noexcept {
   return Status::Ok();
 }
 Status DP8382x::startConfigurePower(const PowerSettings& settings,const OperationBudget& budget,OperationToken& token) noexcept {
-  auto status=_validatePower(settings); if (!status.ok()) { return status; }
+  if (settings.request>PowerRequest::DEEP_POWER_DOWN) {
+    return Status::Error(Err::INVALID_PARAM,"Invalid power request",static_cast<int32_t>(ParamDetail::ENUM_VALUE));
+  }
   if (budget.pollIntervalUs==0U || budget.maxStalledPolls==0U) {
     return Status::Error(Err::INVALID_PARAM,"Invalid power operation budget",static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
   }
@@ -54,7 +56,8 @@ Status DP8382x::startConfigurePower(const PowerSettings& settings,const Operatio
     return Status::Error(Err::BUSY,"Restore earlier effects first",static_cast<int32_t>(BusyDetail::CLEANUP_REQUIRED));
   }
   if (!_initialized || !capabilities().valid) { return Status::Error(Err::NOT_INITIALIZED,"Initialize before power configuration"); }
-  if (_settings.desiredValid && _settings.trust!=ConfigurationTrust::VERIFIED) { return powerError("Verify persistent link profile first"); }
+  const auto valid=_validatePower(settings); if (!valid.ok()) { return valid; }
+  if (!_otherControlsVerified(OperationKind::POWER_CONFIGURE)) { return powerError("Verify other owned controls first"); }
   if (budget.io.maxFrames==0U || budget.io.deadlineUs==0U) {
     return Status::Error(Err::OPERATION_TIMEOUT,"Empty power budget",static_cast<int32_t>(
         budget.io.maxFrames==0U?TimeoutDetail::FRAME_BUDGET:TimeoutDetail::DEADLINE));
@@ -152,7 +155,6 @@ Status DP8382x::_advancePower(Status status,bool called,const MdioBatch& batch) 
   }
   switch (_powerStep) {
     case PowerStep::READ_BMCR:
-      if ((_power.rawBmcr&0x8000U)!=0U) { _invalidateResetEvidence(true); return _finishOperation(powerError("Reset active during power procedure")); }
       _setPowerStep(PowerStep::READ_PHYSCR); break;
     case PowerStep::READ_PHYSCR: {
       const auto valid=_validatePower(_power.desired); if (!valid.ok()) { return _finishOperation(valid); }
@@ -187,11 +189,22 @@ Status DP8382x::_advancePower(Status status,bool called,const MdioBatch& batch) 
     case PowerStep::VERIFY_BMCR: _setPowerStep(_power.desired.disablePll?PowerStep::PLL:PowerStep::BISCR); break;
     case PowerStep::PLL: _setPowerStep(PowerStep::VERIFY_PLL); break;
     case PowerStep::VERIFY_PLL: _setPowerStep(PowerStep::BISCR); break;
-    case PowerStep::BISCR:
+    case PowerStep::BISCR: {
+      const auto expected=static_cast<uint16_t>((_power.desired.activeSleep?0x6000U:0U)|(_power.desired.disablePll?0x8000U:0U));
+      const bool control=(_power.rawPhyscr&0xF000U)!=expected;
+      if (control || _power.observedBmcrPowerDown!=_power.requestedPowerDown) {
+        _result.mismatch={true,false,0,static_cast<uint16_t>(control?0x11:0),static_cast<uint16_t>(control?0xF000:0x0800),
+                          control?expected:_softwarePowerWord(),control?_power.rawPhyscr:_power.rawBmcr};
+        return _finishOperation(Status::Error(Err::CONFIG_MISMATCH,"Power evidence changed during verification"));
+      }
+      if (!_otherControlsVerified(OperationKind::POWER_CONFIGURE)) {
+        return _finishOperation(powerError("Other owned controls lost verification"));
+      }
       _observePower(); _power.trust=ConfigurationTrust::VERIFIED;
       _result.persistentRestored=true;
       if (_operation.kind!=OperationKind::VERIFY) { _initialized=true; }
       return _finishOperation(Status::Ok());
+    }
   }
   return _operation.status;
 }
@@ -203,13 +216,19 @@ Status DP8382x::readPowerStatus(PowerSnapshot& snapshot,const IoBudget& budget) 
   batch.frames[2]={FrameKind::READ,0x16,0,0,NO_READ_INDEX};
   bool called=false;
   const auto status=_execute(batch,budget,&called);
+  bool resetObserved=false;
   if (called) {
     _power.observedStale=true; _power.state=PowerState::UNKNOWN;
     for (uint8_t i=0;i<3U;++i) {
       const auto& frame=_transport.lastBatch.frames[i];
       if (!frame.attempted || !frame.completed || !frame.valueValid) { break; }
       _retainPowerWord(batch.frames[i].registerAddress,frame.value);
+      resetObserved|=i==0U && (frame.value&0x8000U)!=0U;
     }
+  }
+  if (resetObserved && _operation.state==OperationState::RUNNING) {
+    _finishOperation(Status::Error(Err::INVALID_CONFIG,"Reset invalidated running operation",
+                                  static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED)));
   }
   _power.lastStatus=status;
   if (!status.ok()) { _power.observedStale=true; _power.state=PowerState::UNKNOWN; return status; }

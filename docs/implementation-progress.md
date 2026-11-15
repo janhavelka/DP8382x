@@ -27,6 +27,14 @@ operations, retained temporary state and verified restoration.
 
 ## Execution record
 
+The [independent prompts 27-28 audit](reports/implementation/27-28-independent-audit.md)
+began on clean, fetched and synchronized `main` at
+`cd0420e2846a218b0b2a934f7f2074d33a4568a5`. It fixes inter-poll identity/reset/
+selector invalidation, retained control contradictions, complete owned-policy
+proof and OP-2 admission order. Prompts 1-28 retain their existing scope; DPD,
+Q6/Q9, SDK and physical gates remain separate. Final verified audit commit and
+upstream equality are recorded in the handoff.
+
 Prompt28 began on clean, fetched and synchronized `main` at
 `ced8b1ce5418aec044eb156b507ea78573302576`. The
 [stage report](reports/implementation/28-power-states.md) records active-sleep,

@@ -517,7 +517,101 @@ void replay() {
   }
 }
 
+// Fresh prompt27/28 audit: a valid prefix and an observation between owner
+// turns can withdraw earlier proof; a later successful read cannot restore it.
+void auditRegressions() {
+  for(bool stopping:{false,true}) {
+    Controller b;Driver d;ready(d,b);configured(d,b);OperationToken t;
+    if(stopping) { CHECK(d.startInterruptTest(budget(),t).inProgress());CHECK(drain(d,b,t).ok());take(d,t); }
+    CHECK((stopping?d.stopInterruptTest(budget(),t):d.startInterruptTest(budget(),t)).inProgress());
+    CHECK(poll(d,b,t).inProgress()); // identity
+    if(!stopping)CHECK(poll(d,b,t).inProgress()); // test preflight
+    b.words[17]&=0xFFFD; // observed global-enable contradiction at RMW read
+    b.failFrame=static_cast<int>(b.frames+1U);b.acceptedFailure=false;
+    CHECK(poll(d,b,t).is(Err::MDIO_TIMEOUT));const auto result=take(d,t);
+    const auto snapshot=d.interruptSnapshot();
+    CHECK(result.status.detail==-27027 && snapshot.rawPhyscr==b.words[17]);
+    CHECK(snapshot.physcrValid && snapshot.observedStale && snapshot.trust==ConfigurationTrust::DIRTY);
+    CHECK(result.mismatch.valid && !result.persistentRestored);
+  }
+  {
+    Controller b;Driver d;ready(d,b);configured(d,b);OperationToken t;
+    CHECK(d.startInterruptTest(budget(),t).inProgress());CHECK(poll(d,b,t).inProgress());
+    b.words[17]&=0xFFFD;b.releaseCall=static_cast<int>(b.calls);
+    CHECK(poll(d,b,t).is(Err::MDIO_ERROR));const auto result=take(d,t);
+    CHECK(result.mismatch.valid && result.status.detail==-37);
+    CHECK(d.interruptSnapshot().rawPhyscr==b.words[17] && d.interruptSnapshot().trust==ConfigurationTrust::DIRTY);
+  }
+  {
+    Controller b;Driver d;ready(d,b);const auto t=configure(d,b,settings());
+    for(unsigned i=0;i<13U;++i)CHECK(poll(d,b,t).inProgress()); // before final PHYSCR verification
+    b.corruptFrame=static_cast<int>(b.frames);b.corruptMask=0x8000;
+    PowerSnapshot sentinel;sentinel.rawBmcr=0xCAFE;
+    CHECK(d.readPowerStatus(sentinel,{1000000,3}).is(Err::INVALID_CONFIG));CHECK(sentinel.rawBmcr==0xCAFE);
+    const auto frames=b.frames;CHECK(!poll(d,b,t).ok());const auto result=take(d,t);
+    CHECK(b.frames==frames && !d.isInitialized() && d.identitySnapshot().stale);
+    CHECK(result.cleanupOwed && !result.persistentRestored && d.interruptSnapshot().trust!=ConfigurationTrust::VERIFIED);
+  }
+  {
+    Controller b;Driver d;ready(d,b);auto desired=settings();desired.sharedSource=InterruptSharedSource::POLARITY;
+    const auto t=configure(d,b,desired);
+    for(unsigned i=0;i<6U;++i)CHECK(poll(d,b,t).inProgress()); // selector verified; crossing drain pending
+    b.ext[0x04A1]=0x1000;EvidenceSnapshot raw;
+    CHECK(d.acquireEvidence(evidenceBit(EvidenceSource::RXFS),raw,{1000000,4}).ok());
+    CHECK(d.operationSnapshot().state==OperationState::RESULT_PENDING);
+    const auto frames=b.frames,calls=b.calls;
+    CHECK(poll(d,b,t).is(Err::CONFIG_MISMATCH));
+    CHECK(b.frames==frames && b.calls==calls);const auto result=take(d,t);
+    CHECK(result.cleanupOwed && !result.persistentRestored);
+    CHECK(d.interruptSnapshot().selector==InterruptSharedSource::UNKNOWN && d.interruptSnapshot().trust==ConfigurationTrust::DIRTY);
+    b.words[19]|=0x0200;InterruptServiceSnapshot observed;
+    CHECK(d.serviceInterrupts(observed,serviceBudget()).ok());
+    CHECK(observed.misr2.sharedAmbiguous && !observed.misr2.polaritySeen);
+  }
+  const auto ownPower=[](Driver& driver,Controller& bus) {
+    PowerSettings power;power.maintenanceAdmitted=power.managementClockAvailable=power.clockLossApproved=true;
+    OperationToken t;CHECK(driver.startConfigurePower(power,budget(),t).inProgress());CHECK(drain(driver,bus,t).ok());take(driver,t);
+  };
+  for(unsigned phase=0;phase<3U;++phase) {
+    Controller b;Driver d;ready(d,b);configured(d,b);ownPower(d,b);OperationToken t;
+    if(phase==1U) {
+      t=configure(d,b,settings());for(unsigned i=0;i<13U;++i)CHECK(poll(d,b,t).inProgress());
+    } else if(phase==2U) {
+      CHECK(d.startInterruptTest(budget(),t).inProgress());CHECK(drain(d,b,t).ok());take(d,t);
+    }
+    b.words[17]|=0x6000;PowerSnapshot observed;CHECK(d.readPowerStatus(observed,{1000000,3}).ok());
+    CHECK(d.powerSnapshot().trust==ConfigurationTrust::DIRTY);
+    if(phase==0U) {
+      const auto frames=b.frames,clocks=b.clocks;OperationToken sentinel{999};
+      CHECK(d.startConfigureInterrupts(settings(),budget(),sentinel).is(Err::INVALID_CONFIG));
+      CHECK(d.startInterruptTest(budget(),sentinel).is(Err::INVALID_CONFIG));
+      CHECK(sentinel.value==999 && b.frames==frames && b.clocks==clocks);
+    } else {
+      if(phase==2U)CHECK(d.stopInterruptTest(budget(),t).inProgress());
+      CHECK(!drain(d,b,t).ok());const auto result=take(d,t);
+      CHECK(result.cleanupOwed && !result.persistentRestored && d.powerSnapshot().trust==ConfigurationTrust::DIRTY);
+      if(phase==2U)CHECK((b.words[17]&4U)==0U); // owning stop still clears its stimulus
+    }
+  }
+  // OP2: syntax first, then binding/slot, then source/capability permissions,
+  // and only then zero execution allowance. All rejected calls are silent.
+  {
+    Driver unbound;OperationToken t{999};auto denied=settings();denied.maintenanceAdmitted=false;
+    CHECK(unbound.startConfigureInterrupts(denied,budget(0),t).is(Err::NOT_BOUND));
+    auto invalid=denied;invalid.misr1Mask=0x100;
+    CHECK(unbound.startConfigureInterrupts(invalid,budget(),t).is(Err::INVALID_PARAM));
+    auto badBudget=budget();badBudget.pollIntervalUs=0;
+    CHECK(unbound.startConfigureInterrupts(denied,badBudget,t).is(Err::INVALID_PARAM));CHECK(t.value==999);
+    Controller b;Driver d;ready(d,b);const auto active=configure(d,b,settings());
+    CHECK(drain(d,b,active).ok());const auto frames=b.frames,clocks=b.clocks;
+    CHECK(d.startConfigureInterrupts(denied,budget(0),t).is(Err::BUSY));
+    CHECK(d.startConfigureInterrupts(denied,badBudget,t).is(Err::INVALID_PARAM));
+    CHECK(t.value==999 && b.frames==frames && b.clocks==clocks);take(d,active);
+  }
+}
+
 void ownership() {
+  auditRegressions();
   Controller b;Driver d,other;ready(d,b);CHECK(other.bind(b.config(2)).ok());b.competitor=&other;
   configured(d,b);InterruptServiceSnapshot out;CHECK(d.serviceInterrupts(out,serviceBudget()).ok());
   CHECK(b.excluded>0U && b.releases==b.calls && !b.locked);

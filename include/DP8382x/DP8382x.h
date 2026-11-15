@@ -1031,12 +1031,15 @@ public:
   /// @param[out] token New lifetime token only on admission; unchanged on rejection.
   /// @return IN_PROGRESS or local validation/ownership error. Poll uses one complete batch;
   /// failed/uncertain writes retain OP9 debt. Wake writes once, then reports blocked readback.
-  /// @note SNLS647I 8.3.6/table8-19/35/40. Isolation is preserved. No GPIO/rail operation.
+  /// @note Other owned persistent controls must stay verified through completion.
+  /// SNLS647I 8.3.6/table8-19/35/40. Isolation is preserved. No GPIO/rail operation.
   Status startConfigurePower(const PowerSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept;
   /// @brief Acquire BMCR/PHYSCR/BISCR once in one three-frame owned batch.
   /// @param[out] snapshot Unchanged on failure; passive snapshot retains partial words as stale.
   /// @param budget Aggregate terminal allowance; no resampling or partner wait.
   /// @return OK or transport/admission error. BISCR uses the existing collector.
+  /// @note A valid reset word freezes a running operation as DEVICE_INVALIDATED;
+  /// this acquisition still retains its own transport error if a later read fails.
   Status readPowerStatus(PowerSnapshot& snapshot, const IoBudget& budget) noexcept;
   /// @brief Return copied power intent and evidence without I/O; serialize with the owner.
   /// @return Copied intent, raw validity, trust and indication; never physical wake proof.
@@ -1048,6 +1051,8 @@ public:
   /// @return IN_PROGRESS or local syntax/lifecycle/capability error, unchanged token on rejection.
   /// @note Polls preserve consumed events and verify all owned controls. Initialize
   /// replays owned policy; startVerify reads only. LED mux writes are not performed.
+  /// Other owned policies must stay verified; contradictory inter-poll selector,
+  /// reset or identity observations prevent obsolete proof from completing.
   Status startConfigureInterrupts(const InterruptSettings& settings, const OperationBudget& budget,
                                   OperationToken& token) noexcept;
   /// @brief Start retained PHYSCR2 software stimulus; requires verified owned IRQ policy.
@@ -1435,6 +1440,7 @@ private:
   void _invalidateLink() noexcept;
   Status _checkMutation() noexcept;
   Status _checkToken(OperationToken token) const noexcept;
+  bool _otherControlsVerified(OperationKind owner) const noexcept;
   void _beginOperation(OperationKind kind, const OperationBudget& budget) noexcept;
   Status _finishOperation(Status status, bool freshObservation = false) noexcept;
   Status _yieldOperation(uint64_t raw) noexcept;

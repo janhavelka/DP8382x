@@ -865,6 +865,19 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
           if ((receipt.value & 0x0100U) != 0U) { _evidence.pendingInterruptCounters |= 2U; }
         } else if (address == cmd::REG_FCSCR) { _evidence.pendingInterruptCounters &= 0xFEU; }
         else if (address == cmd::REG_RECR) { _evidence.pendingInterruptCounters &= 0xFDU; }
+        if (address == cmd::REG_RXFS && _interruptWorking &&
+            _interruptStep >= InterruptStep::VERIFY_SELECT && _interruptStep <= InterruptStep::VERIFY_CONTROL &&
+            ((receipt.value & 0x1000U) != 0U) != (_interrupts.desired.sharedSource == InterruptSharedSource::WAKE)) {
+          // The verified selector is a proof even during the UNKNOWN crossing
+          // window. A new contradictory sample must prevent later attribution.
+          _interrupts.rawRxfs = receipt.value; _interrupts.rxfsValid = true;
+          _interrupts.selector = InterruptSharedSource::UNKNOWN;
+          _interrupts.trust = ConfigurationTrust::DIRTY; _interrupts.observedStale = true;
+          if (!_result.mismatch.valid) {
+            _result.mismatch = {true,true,31,cmd::REG_RXFS,0x1000,
+                static_cast<uint16_t>(_interrupts.desired.sharedSource == InterruptSharedSource::WAKE ? 0x1000 : 0),receipt.value};
+          }
+        }
         if (address == cmd::REG_RXFS && _interrupts.selector != InterruptSharedSource::UNKNOWN &&
             ((receipt.value & 0x1000U) != 0U) != (_interrupts.selector == InterruptSharedSource::WAKE)) {
           // Independently observed contradiction withdraws future attribution,
@@ -962,6 +975,12 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
     auto& sample = _evidence.samples[static_cast<unsigned>(EvidenceSource::BICSR1)];
     sample.historyLost = true;
     sample.stale = true;
+  }
+  if (!_polling && _interruptWorking && _result.mismatch.valid &&
+      _operation.state == OperationState::RUNNING) {
+    // An independent collector call can withdraw proof between polls. Freeze
+    // now, before the next poll can execute another mutation using that proof.
+    _finishOperation(Status::Error(Err::CONFIG_MISMATCH,"Interrupt selector evidence changed"));
   }
 }
 
@@ -1106,6 +1125,16 @@ Status DP8382x::startInitialize(const InitializeOptions& options, const Operatio
   return _operation.status;
 }
 
+// A narrow cross-owner proof check: repairing one policy cannot bless another.
+bool DP8382x::_otherControlsVerified(OperationKind owner) const noexcept {
+  return (!_settings.desiredValid || _settings.trust == ConfigurationTrust::VERIFIED) &&
+      (!_autorun.desiredValid || _autorun.trust == ConfigurationTrust::VERIFIED) &&
+      (owner == OperationKind::INTERRUPT_CONFIGURE || !_interrupts.desiredValid ||
+       _interrupts.trust == ConfigurationTrust::VERIFIED) &&
+      (owner == OperationKind::POWER_CONFIGURE || !_power.desiredValid ||
+       _power.trust == ConfigurationTrust::VERIFIED);
+}
+
 // Shared slot setup only; each public start completes its own admission first.
 void DP8382x::_beginOperation(OperationKind kind, const OperationBudget& budget) noexcept {
   const bool owed = _operation.cleanupOwed;
@@ -1126,7 +1155,7 @@ void DP8382x::_beginOperation(OperationKind kind, const OperationBudget& budget)
   _result = {};
   _result.token = _operation.token;
   _result.kind = _operation.kind;
-  if (kind == OperationKind::CONFIGURE) { _result.identity = _identity; }
+  _result.identity = _identity; // Every running feature is tied to its admitted identity.
   _configuring = false;
   _loopWorking = false;
   _bistWorking = false;

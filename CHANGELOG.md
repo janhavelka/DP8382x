@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fixed interrupt/power operations accepting obsolete identity, selector or control
+  evidence after observations between polls. Preserve contradictory RMW prefixes
+  beside transport failures and require other owned policies to remain verified.
+- Corrected IRQ/power admission error precedence and added independent regression
+  coverage for immediate invalidation, partial reads and cross-policy restoration.
+
 - Added opt-in active-sleep policy, explicit IEEE power request/wake and PLL
   control with retained partial observations, single-write blocked-wake behavior
   and shared reset restoration. All BMCR writers use owned software intent.

@@ -17,16 +17,27 @@ MdioBatch updateIrq(uint8_t address,uint16_t preserve,uint16_t value) noexcept {
   auto batch=readIrq(address); batch.frameCount=2;
   batch.frames[1]={FrameKind::WRITE,address,value,preserve,0}; return batch;
 }
+Status interruptSyntax(const InterruptSettings& s) noexcept {
+  if (s.pin>InterruptPin::LED2 || s.sharedSource==InterruptSharedSource::UNKNOWN || s.sharedSource>InterruptSharedSource::WAKE ||
+      s.misr1Mask>0x00FFU || s.misr2Mask>0x00FFU) {
+    return Status::Error(Err::INVALID_PARAM,"Invalid interrupt encoding",static_cast<int32_t>(ParamDetail::VALUE_WIDTH));
+  }
+  return Status::Ok();
+}
+Status interruptAllowance(const OperationBudget& budget) noexcept {
+  if (budget.io.maxFrames==0U || budget.io.deadlineUs==0U) {
+    return Status::Error(Err::OPERATION_TIMEOUT,"Empty interrupt allowance",static_cast<int32_t>(
+        budget.io.maxFrames==0U?TimeoutDetail::FRAME_BUDGET:TimeoutDetail::DEADLINE));
+  }
+  return Status::Ok();
+}
 Status serviceBudgetError() noexcept {
   return Status::Error(Err::OPERATION_TIMEOUT,"Interrupt service allowance exhausted",static_cast<int32_t>(TimeoutDetail::FRAME_BUDGET));
 }
 }
 
 Status DP8382x::_validateInterruptSettings(const InterruptSettings& s) const noexcept {
-  if (s.pin>InterruptPin::LED2 || s.sharedSource==InterruptSharedSource::UNKNOWN || s.sharedSource>InterruptSharedSource::WAKE ||
-      s.misr1Mask>0x00FFU || s.misr2Mask>0x00FFU) {
-    return Status::Error(Err::INVALID_PARAM,"Invalid interrupt encoding",static_cast<int32_t>(ParamDetail::VALUE_WIDTH));
-  }
+  const auto syntax=interruptSyntax(s); if (!syntax.ok()) { return syntax; }
   if (!s.maintenanceAdmitted || !s.pinAvailable) { return invalidIrq("Interrupt pin maintenance not admitted"); }
   if (_identity.mode==OperatingMode::BASIC) {
     if (s.pin==InterruptPin::LED2) { return Status::Error(Err::UNSUPPORTED,"BASIC has no LED2 output"); }
@@ -54,17 +65,15 @@ Status DP8382x::_admitInterrupt(const OperationBudget& budget,bool stop) const n
   } else {
     if (_operation.cleanupOwed || _operation.temporaryMayBeActive) { return busyIrq(BusyDetail::CLEANUP_REQUIRED); }
     if (!_initialized || !capabilities().valid) { return Status::Error(Err::NOT_INITIALIZED,"Initialize before interrupt configuration"); }
-    if (_settings.desiredValid && _settings.trust!=ConfigurationTrust::VERIFIED) { return invalidIrq("Verify persistent link profile first"); }
-  }
-  if (budget.io.maxFrames==0U) { return serviceBudgetError(); }
-  if (budget.io.deadlineUs==0U) {
-    return Status::Error(Err::OPERATION_TIMEOUT,"Empty interrupt deadline",static_cast<int32_t>(TimeoutDetail::DEADLINE));
+    if (!_otherControlsVerified(OperationKind::INTERRUPT_CONFIGURE)) { return invalidIrq("Verify other owned controls first"); }
   }
   return Status::Ok();
 }
 Status DP8382x::startConfigureInterrupts(const InterruptSettings& settings,const OperationBudget& budget,OperationToken& token) noexcept {
-  auto status=_validateInterruptSettings(settings); if (!status.ok()) { return status; }
+  auto status=interruptSyntax(settings); if (!status.ok()) { return status; }
   status=_admitInterrupt(budget,false); if (!status.ok()) { return status; }
+  status=_validateInterruptSettings(settings); if (!status.ok()) { return status; }
+  status=interruptAllowance(budget); if (!status.ok()) { return status; }
   _beginOperation(OperationKind::INTERRUPT_CONFIGURE,budget);
   _interrupts.desired=settings; _interrupts.desiredValid=true;
   _interrupts.trust=ConfigurationTrust::DIRTY; _interrupts.observedStale=true;
@@ -76,13 +85,15 @@ Status DP8382x::startInterruptTest(const OperationBudget& budget,OperationToken&
   auto status=_admitInterrupt(budget,false); if (!status.ok()) { return status; }
   if (!_interrupts.desiredValid || _interrupts.trust!=ConfigurationTrust::VERIFIED) { return invalidIrq("Verified IRQ policy required for stimulus"); }
   status=_validateInterruptSettings(_interrupts.desired); if (!status.ok()) { return status; }
+  status=interruptAllowance(budget); if (!status.ok()) { return status; }
   _beginOperation(OperationKind::INTERRUPT_TEST_START,budget);
   _interruptTailPending=false; _interruptVerifyOnly=false;
   _setInterruptStep(InterruptStep::IDENTIFY);
   token=_operation.token; return _operation.status;
 }
 Status DP8382x::stopInterruptTest(const OperationBudget& budget,OperationToken& token) noexcept {
-  const auto status=_admitInterrupt(budget,true); if (!status.ok()) { return status; }
+  auto status=_admitInterrupt(budget,true); if (!status.ok()) { return status; }
+  status=interruptAllowance(budget); if (!status.ok()) { return status; }
   _beginOperation(OperationKind::INTERRUPT_TEST_STOP,budget);
   _interruptTailPending=false; _interruptVerifyOnly=false;
   _setInterruptStep(InterruptStep::IDENTIFY);
@@ -138,6 +149,21 @@ Status DP8382x::_advanceInterrupt(Status status,bool called,const MdioBatch& bat
       _interruptTestSession=true; _interrupts.testMayBeActive=true;
       _operation.cleanupOwed=_operation.temporaryMayBeActive=true;
       _cleanupOwner=OperationKind::INTERRUPT_TEST_START;
+    }
+  }
+  // Retain every valid control read, including the read prefix of a failed
+  // atomic test RMW. A later write/release failure cannot erase that evidence.
+  if (called) {
+    for (uint8_t i=0;i<_result.failingBatch.completedFrames;++i) {
+      if (batch.frames[i].kind!=FrameKind::READ || batch.frames[i].registerAddress!=0x11U) { continue; }
+      const auto raw=_transport.lastBatch.frames[i].value;
+      _interrupts.rawPhyscr=raw; _interrupts.physcrValid=true;
+      if (testing && ((raw^_interruptControlValue())&_interruptControlMask())!=0U) {
+        _interrupts.trust=ConfigurationTrust::DIRTY; _interrupts.observedStale=true;
+        if (!_result.mismatch.valid) {
+          _result.mismatch={true,false,0,0x11,_interruptControlMask(),_interruptControlValue(),raw};
+        }
+      }
     }
   }
   if (complete && batch.frames[last].kind==FrameKind::READ) {
@@ -222,6 +248,10 @@ Status DP8382x::_advanceInterrupt(Status status,bool called,const MdioBatch& bat
     case InterruptStep::VERIFY1: _setInterruptStep(InterruptStep::VERIFY2); break;
     case InterruptStep::VERIFY2: _setInterruptStep(InterruptStep::VERIFY_CONTROL); break;
     case InterruptStep::VERIFY_CONTROL:
+      if (_operation.kind==OperationKind::INTERRUPT_CONFIGURE &&
+          !_otherControlsVerified(OperationKind::INTERRUPT_CONFIGURE)) {
+        return _finishOperation(invalidIrq("Other owned controls lost verification"));
+      }
       _interrupts.trust=ConfigurationTrust::VERIFIED; _interrupts.observedStale=false;
       _interrupts.timeValid=true; _interrupts.observedAtUs=_lastTimeUs+_config.transport.bounds.clockLagUs;
       _interrupts.testMayBeActive=false;
@@ -233,7 +263,7 @@ Status DP8382x::_advanceInterrupt(Status status,bool called,const MdioBatch& bat
       if (_operation.kind==OperationKind::INTERRUPT_TEST_STOP) {
         _interrupts.testMayBeActive=false;
         if (!_initialized || _interrupts.trust!=ConfigurationTrust::VERIFIED ||
-            (_settings.desiredValid && _settings.trust!=ConfigurationTrust::VERIFIED)) {
+            !_otherControlsVerified(OperationKind::INTERRUPT_CONFIGURE)) {
           return _finishOperation(invalidIrq("Test cleared; persistent state still needs restoration"));
         }
         _result.persistentRestored=true;
