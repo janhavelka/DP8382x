@@ -29,11 +29,13 @@ struct Controller {
   void defaults() {
     words.fill(0);ext.fill(0);words[0]=0x3100;words[4]=0x01E1;
     words[25]=0x8001;words[22]=0x0100;words[30]=0x0102;
+    words[23]=(id2==0xA111 || enhancedMii)?0U:0x0020U;
     words[24]=0x0400;words[27]=0x007D;words[28]=0x05EE;ext[0x0025]=0x0041;ext[0x0460]=0x5665;ext[0x0303]=ext[0x0304]=ext[0x0305]=ext[0x0306]=8;
     ext[0x030E]=0x8400;ext[0x04A1]=0x1000;ext[0x04A0]=0x1081;ext[0x0308]=clockOffStrap?1U:0U;pendingWake=true;
   }
   Config config(uint32_t phy=1) {
     Config c;c.variant=Variant::DP83826I;c.interface=(id2==0xA111 || enhancedMii)?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
+    words[23]=static_cast<uint16_t>((words[23]&0xFFDFU)|(c.interface==MacInterface::RMII?0x0020U:0U));
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
   static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context);++b.clocks;return b.now; }
@@ -48,6 +50,7 @@ struct Controller {
     if(target==18 || target==19) { words[target]&=0x00FF;words[16]&=0xFF7F; }
     if(target==20) { words[20]&=0xFF00;words[16]&=0xF7FF; }
     if(target==21) { words[21]=0;words[16]&=0xDFFF; }
+    if(target==23)words[23]&=0xFFF3; // Table8-41 raw RC bits; no fault-polarity claim.
     if(target==0x04A1)ext[target]&=0xFF00;
     return value;
   }
@@ -180,7 +183,7 @@ void vectors() {
     if(position<10U)CHECK(b.trace[i].target==addresses[position] && b.trace[i].value==values[position]);
     ++position;
   }
-  CHECK(position==10U && result.attemptedFrames==84U && result.transactions==23U);
+  CHECK(position==10U && result.attemptedFrames==85U && result.transactions==24U);
 }
 void admission() {
   for(unsigned fault=0;fault<15;++fault) {
@@ -210,7 +213,48 @@ void admission() {
     if(pin<2 && !overridePolarity)CHECK(status.ok());else CHECK(!status.ok() && b.frames==frames);
   }
 }
+void observedMode() {
+  for(bool declaredMii:{false,true})for(bool useLed3:{false,true}) {
+    if(declaredMii && useLed3)continue; // This combination rejects in pure validation.
+    Controller b;b.enhancedMii=declaredMii;b.clockOffStrap=true;Driver d;ready(d,b);
+    b.words[23]=declaredMii?0x002CU:0x000CU;
+    auto s=settings(useLed3?8U:4U);s.colUnused=declaredMii;
+    const auto first=b.frames,mutations=b.mutations;PinResult result;
+    CHECK(!d.configurePins(s,result,{1000000,2048}).ok());
+    CHECK(b.frames==first+1U && b.trace[first].reg==0x17 && b.trace[first].kind==FrameKind::READ);
+    CHECK(b.mutations==mutations && !result.mutationPossible && !result.verified);
+    const auto retained=d.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::RCSR)];
+    CHECK(retained.valid && retained.samples==1U && (retained.raw&0xCU)==0xCU && !retained.historyLost);
+  }
+  for(bool afterEffect:{false,true}) {
+    Controller b;b.clockOffStrap=true;Driver d;ready(d,b);b.words[23]=0x006CU;
+    const auto first=b.frames;b.failFrame=static_cast<int>(first);b.acceptedFailure=afterEffect;PinResult result;
+    CHECK(d.configurePins(settings(8),result,{1000000,2048}).is(Err::MDIO_TIMEOUT));
+    CHECK(b.frames==first+1U && !result.mutationPossible && !d.operationSnapshot().cleanupOwed);
+    const auto retained=d.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::RCSR)];
+    CHECK(!retained.valid && retained.samples==0U && retained.historyLost==afterEffect);
+    CHECK(b.words[23]==(afterEffect?0x0060U:0x006CU));
+  }
+  Controller b;b.clockOffStrap=true;Driver d;ready(d,b);configured(d,b,settings(8));
+  b.words[23]=0;EvidenceSnapshot evidence;CHECK(d.acquireEvidence(evidenceBit(EvidenceSource::RCSR),evidence,{1000000,1}).ok());
+  CHECK(d.pinsSnapshot().trust==ConfigurationTrust::DIRTY && d.pinsSnapshot().observedStale);
+  b.words[23]=0x20;OperationToken token;
+  CHECK(d.startInitialize({ResetKind::NONE},budget(),token).inProgress());
+  bool observed=false;
+  for(unsigned n=0;n<128U && !observed;++n) {
+    const auto first=b.frames;CHECK(poll(d,b,token).inProgress());
+    for(unsigned i=first;i<b.frames;++i)observed|=b.trace[i].reg==0x17 && b.trace[i].kind==FrameKind::READ;
+  }
+  CHECK(observed);b.words[23]=0;
+  CHECK(d.acquireEvidence(evidenceBit(EvidenceSource::RCSR),evidence,{1000000,1}).ok());
+  const auto after=b.frames;const auto failed=take(d,token);
+  CHECK(failed.status.is(Err::CONFIG_MISMATCH) && failed.mismatch.valid && failed.mismatch.registerAddress==0x17);
+  CHECK(!failed.persistentRestored && b.frames==after);
+  b.words[23]=0x20;CHECK(d.startInitialize({ResetKind::NONE},budget(),token).inProgress());
+  CHECK(drain(d,b,token).ok());CHECK(take(d,token).pins.trust==ConfigurationTrust::VERIFIED);
+}
 void routing() {
+  observedMode();
   for(auto function:{PinFunction::COLLISION3,PinFunction::COLLISION5,PinFunction::COLLISION6,PinFunction::HIGH}) {
     Controller b;b.enhancedMii=true;Driver d;ready(d,b);auto s=settings(4);s.pins[2].function=function;
     b.ext[0x305]=0xA5A8;configured(d,b,s);const unsigned code=function==PinFunction::COLLISION3?3U:function==PinFunction::COLLISION5?5U:function==PinFunction::COLLISION6?6U:7U;
@@ -248,10 +292,10 @@ void routing() {
     auto s=settings(4);const auto frames=b.frames;PinResult out;CHECK(!d.configurePins(s,out,{1000000,2048}).ok() && b.frames==frames);
     s.pins[2].function=wakeOwner?PinFunction::WAKE:PinFunction::INTERRUPT;
     const auto sharedStart=b.frames;configured(d,b,s);
-    CHECK(b.frames==sharedStart && !b.matchWhileEnabled && b.pendingWake);
+    CHECK(b.frames==sharedStart+1U && !b.matchWhileEnabled && b.pendingWake);
     s.pins[2].function=wakeOwner?PinFunction::INTERRUPT:PinFunction::WAKE;
-    CHECK(!d.configurePins(s,out,{1000000,2048}).ok() && b.frames==sharedStart);
-    CHECK(!tryLed2(d,out,{1000000,128}).ok() && b.frames==sharedStart);
+    CHECK(!d.configurePins(s,out,{1000000,2048}).ok() && b.frames==sharedStart+1U);
+    CHECK(!tryLed2(d,out,{1000000,128}).ok() && b.frames==sharedStart+1U);
     OperationToken rejected{777};
     if(wakeOwner) {
       auto moved=d.wakeSnapshot().desired;moved.route=WakeRoute::STATUS_ONLY;
@@ -260,7 +304,7 @@ void routing() {
       auto moved=d.interruptSnapshot().desired;moved.pin=InterruptPin::INTR_PWRDN;
       CHECK(!d.startConfigureInterrupts(moved,budget(),rejected).ok());
     }
-    CHECK(b.frames==sharedStart && rejected.value==777);
+    CHECK(b.frames==sharedStart+1U && rejected.value==777);
     CHECK(d.startInitialize({ResetKind::HARD},budget(),token).inProgress());
     const auto replayStatus=drain(d,b,token);
     CHECK(replayStatus.ok());const auto restored=take(d,token);
@@ -276,8 +320,8 @@ void failures() {
   const auto first=reference.frames,firstCall=reference.calls;const auto success=configured(ref,reference,s);
   const auto count=reference.frames-first,calls=reference.calls-firstCall;
   // Three four-frame prerequisites, six nine-frame extended RMW/readbacks,
-  // and three three-frame C22 RMW/readbacks. No retries or hidden acquisitions.
-  CHECK(count==75U && calls==21U && success.attemptedFrames==75U && success.transactions==21U);
+  // three three-frame C22 RMW/readbacks and one RCSR mode read. No retries.
+  CHECK(count==76U && calls==22U && success.attemptedFrames==76U && success.transactions==22U);
   for(unsigned phase=0;phase<count;++phase)for(bool accepted:{false,true}) {
     Controller b;b.clockOffStrap=true;Driver d;ready(d,b);const auto begin=b.frames;
     b.failFrame=static_cast<int>(begin+phase);b.acceptedFailure=accepted;PinResult out;
@@ -363,7 +407,63 @@ void replay() {
   CHECK(mismatch.mismatch.valid && mismatch.mismatch.registerAddress==0x25 && !mismatch.persistentRestored);
   CHECK(mismatch.cleanupOwed && d.pinsSnapshot().trust!=ConfigurationTrust::VERIFIED);
 }
+void clockDependencies() {
+  // A pin-owned IO_CFG1 override is also an IRQ/WoL routing prerequisite.
+  const auto setup=[](Driver& d,Controller& b,unsigned owner) {
+    b.clockOffStrap=true;ready(d,b);OperationToken token;
+    if(owner!=1U) {
+      InterruptSettings irq;irq.pin=InterruptPin::LED1;irq.globalEnable=true;irq.misr2Mask=2;
+      irq.maintenanceAdmitted=irq.pinAvailable=irq.led1ClockUnused=true;
+      CHECK(d.startConfigureInterrupts(irq,budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+    }
+    if(owner!=0U) {
+      WakeSettings wake;wake.enabled=true;wake.route=owner==1U?WakeRoute::LED1:WakeRoute::INTERRUPT;
+      wake.maintenanceAdmitted=wake.receiveTrafficQuiesced=wake.pinAvailable=wake.led1ClockUnused=true;
+      CHECK(d.startConfigureWake(wake,budget(),token).inProgress());CHECK(drain(d,b,token).ok());take(d,token);
+    }
+    auto s=settings(2);s.led1ClockOverride=true;
+    s.pins[1].function=owner==1U?PinFunction::WAKE:PinFunction::INTERRUPT;
+    configured(d,b,s);return s;
+  };
+  Controller reference;Driver ref;const auto profile=setup(ref,reference,0);
+  const auto start=reference.frames;configured(ref,reference,profile);
+  unsigned offsets[2]={0,0};
+  for(unsigned i=start;i<reference.frames;++i) {
+    if(reference.trace[i].target==0x302 && semantic(reference.trace[i]))offsets[0]=i-start;
+    if(reference.trace[i].target==0x308 && reference.trace[i].kind==FrameKind::READ)offsets[1]=i-start;
+  }
+  CHECK(offsets[0]!=0U && offsets[1]>offsets[0]);
+  for(unsigned owner=0;owner<3U;++owner)for(unsigned fault=0;fault<2U;++fault) {
+    Controller b;Driver d;const auto s=setup(d,b,owner);
+    const auto irqBefore=d.interruptSnapshot();const auto wakeBefore=d.wakeSnapshot();
+    b.failFrame=static_cast<int>(b.frames+offsets[fault]);PinResult failed;
+    CHECK(d.configurePins(s,failed,{1000000,2048}).is(Err::MDIO_TIMEOUT));
+    CHECK(failed.mutationPossible && d.operationSnapshot().cleanupOwed);
+    const auto frames=b.frames,clocks=b.clocks;
+    for(unsigned reader=0;reader<2U;++reader) {
+      if(owner!=1U) {
+        const auto irq=d.interruptSnapshot();CHECK(irq.trust==ConfigurationTrust::DIRTY && irq.observedStale);
+        CHECK(irq.observedAtUs==irqBefore.observedAtUs && irq.timeValid==irqBefore.timeValid);
+      }
+      if(owner!=0U) {
+        const auto wake=d.wakeSnapshot();CHECK(wake.trust==ConfigurationTrust::DIRTY && wake.observedStale);
+        CHECK(wake.observedAtUs==wakeBefore.observedAtUs && wake.timeValid==wakeBefore.timeValid);
+      }
+    }
+    CHECK(b.frames==frames && b.clocks==clocks);b.failFrame=-1;
+    if(owner!=0U) {
+      WakeSnapshot live;CHECK(d.readWakeStatus(live,{1000000,33}).ok());
+      CHECK(live.trust==ConfigurationTrust::DIRTY && live.observedStale);
+    }
+    OperationToken token;CHECK(d.startInitialize({ResetKind::NONE},budget(),token).inProgress());
+    CHECK(drain(d,b,token).ok());const auto restored=take(d,token);
+    CHECK(restored.persistentRestored && !restored.cleanupOwed && restored.pins.trust==ConfigurationTrust::VERIFIED);
+    if(owner!=1U)CHECK(restored.interrupts.trust==ConfigurationTrust::VERIFIED && d.interruptSnapshot().trust==ConfigurationTrust::VERIFIED);
+    if(owner!=0U)CHECK(restored.wake.trust==ConfigurationTrust::VERIFIED && d.wakeSnapshot().trust==ConfigurationTrust::VERIFIED);
+  }
+}
 void ownership() {
+  clockDependencies();
   Controller b;b.clockOffStrap=true;Driver d,other;ready(d,b);CHECK(other.bind(b.config(2)).ok());b.competitor=&other;
   const auto begin=b.frames;configured(d,b,settings());CHECK(b.excluded==b.frames-begin);b.competitor=nullptr;CHECK(!other.pinsSnapshot().desiredValid);
   const auto calls=b.calls,clocks=b.clocks;const auto one=d.pinsSnapshot(),two=d.pinsSnapshot();
@@ -405,8 +505,8 @@ void ownership() {
       source.ext[0x305]^=1;uint16_t raw=0;CHECK(phy.readMmd(31,0x305,raw,{1000000,4}).ok());
       CHECK(phy.wakeSnapshot().trust==ConfigurationTrust::DIRTY);
     } else {
-      // Identity2, mux4, test admission1, then the disable RMW's write.
-      source.failFrame=static_cast<int>(source.frames+8U);
+      // Identity2, mux plus RCSR5, test admission1, then disable RMW's write.
+      source.failFrame=static_cast<int>(source.frames+9U);
       CHECK(phy.startConfigureInterrupts(phy.interruptSnapshot().desired,budget(),operation).inProgress());
       CHECK(drain(phy,source,operation).is(Err::MDIO_TIMEOUT));const auto failed=take(phy,operation);
       CHECK(failed.mutationPossible && failed.cleanupOwed && phy.interruptSnapshot().trust==ConfigurationTrust::DIRTY);
@@ -430,7 +530,7 @@ void ownership() {
 void timing() {
   Controller reference;reference.clockOffStrap=true;Driver ref;ready(ref,reference);const auto first=reference.frames,callFirst=reference.calls;
   configured(ref,reference,settings());const auto frames=reference.frames-first,calls=reference.calls-callFirst;
-  CHECK(frames==60U && calls==15U);
+  CHECK(frames==61U && calls==16U);
   for(uint32_t allowance:{0U,frames-1U,frames}) {
     Controller b;b.clockOffStrap=true;Driver d;ready(d,b);const auto start=b.frames;PinResult out;out.attemptedFrames=999;
     const auto status=d.configurePins(settings(),out,{1000000,allowance});

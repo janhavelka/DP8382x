@@ -548,3 +548,9 @@ bits and exact frame limits. Failure injection covers each application/replay
 frame, accepted writes, release, RC history loss, raw contradictions and cancel.
 The [example](../examples/portable/Interface.h) compiles in the tests-OFF consumer
 and executes admitted/rejected owner sequences in the host suite.
+
+The prompts32-33 audit extends these registered suites with premature-readiness
+failure/cancellation cases, pin-owned clock uncertainty, and declared-versus-live
+interface mismatches. LED2 IRQ/WoL tests exercise the same collector prerequisite
+without a separate pin profile. Full Release and UBSan trap runs are recorded
+in the [audit report](../docs/reports/implementation/32-33-independent-audit.md).

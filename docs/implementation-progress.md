@@ -27,6 +27,13 @@ operations, retained temporary state and verified restoration.
 
 ## Execution record
 
+The [independent prompts32-33 audit](reports/implementation/32-33-independent-audit.md)
+starts from synchronized `main` at `2938ed718725b834fc1da105d93a3370d77f2e28`.
+It corrects premature restoration readiness, pin-owned clock dependency proof
+and live interface admission for shared LED2/3 routes. Existing source and
+physical gates remain open; final check and synchronization evidence is in
+the audit report and handoff.
+
 Prompt33 began on clean fetched `main` at
 `3e6e0bfb86d6ed681ba3dde191ff9973078ba31e`, synchronized with upstream.
 [The report](reports/implementation/33-clock-interface-repeater.md) records the

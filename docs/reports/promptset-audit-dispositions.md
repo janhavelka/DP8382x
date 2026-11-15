@@ -155,10 +155,10 @@ it to measured silicon behavior.
 | G5-4 | Planned34: RMII zero-cause disable/FLDS allowed, nonzero causes reject, unknown CR3 reset retained. |
 | G5-5 | Planned34: conditional maxima and literal MLT3/descrambler settings retained; no unconditional detector deadline. |
 | G5-6 | Planned35: PHYCR owned fields and BISCR701F/7001, no reserved script copy; forced robust difference/Q19 explicit. |
-| G5-7 | Planned32, gate retained: PHYCR5 exists but semantics incomplete, outside typed profile; Q12. |
+| G5-7 | Implemented32, gate retained and rechecked in audit32-33: PHYCR5 exists but semantics incomplete, outside typed profile; Q12. |
 | G5-8 | Planned35: hard reset destroys state, later finite replay restores it; no impossible entry-preservation promise. |
 | G5-9 | Planned35: CDCR14 clear then HARD, reset completion only, not fabricated calibration completion; table8-47. |
-| G5-10 | Planned32: per-mode mux/polarity, LED3 read-only and pin31 code conflict; tables8-76/77 and pin_fields retained. |
+| G5-10 | Implemented32 and audited32-33: per-mode mux/polarity and live RCSR admission; LED3 MII/read-only and pin31 code conflicts remain gated under tables8-76/77 and pin_fields. |
 | G5-11 | Corrected: P35 directly requires24; other originally cited omissions were transitive, not blockers. |
 
 ## Findings G6-G7: native owner, CLI and runners

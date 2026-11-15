@@ -835,7 +835,7 @@ struct PinSettings {
   bool maintenanceAdmitted{false}; ///< Owner permits disruptive pin reconfiguration.
   bool macStopped{false}; ///< Owner stopped MAC use while changing interface-shared pins.
   bool outputsQuiesced{false}; ///< Owner admits output transitions; no silicon glitch-free promise.
-  uint8_t availableMask{0}; ///< Bits0..3 explicitly release board consumers for selected pins.
+  uint8_t availableMask{0}; ///< Bits0..3 release board consumers; LED2/3 also require matching live RCSR mode.
   bool led1ClockUnused{false}; ///< No consumer depends on LED1/CLKOUT during this profile.
   bool colUnused{false}; ///< Required for non-COL roles on ENHANCED MII LED2.
 };
@@ -1346,6 +1346,8 @@ public:
   /// @note SNLS647I8.3.18/tables8-42/49/73..78/85/89. Slot must be idle; cancellation
   /// cannot interrupt a synchronous callback. Failed effects retain OP-9 debt. Shared
   /// initialization replays the same procedure; physical output remains unqualified.
+  /// LED2/3 first consume RCSR through the collector and require its current mode
+  /// to match declared wiring (tables5-1/8-41); a mux reset value is not proof.
   Status configurePins(const PinSettings& settings, PinResult& result, const IoBudget& budget) noexcept;
   /// @brief Bus/clock-silent retained pin settings and observed values.
   /// @return Separate desired, valid and trusted evidence; serialize under the owner.
@@ -1690,7 +1692,7 @@ public:
   TransportSnapshot transportSnapshot() const noexcept { return _transport; }
 
 private:
-  enum class PinStep : uint8_t { CLOCK_STATUS, MUX0, MUX3, APPLY, VERIFY, COMPLETE };
+  enum class PinStep : uint8_t { INTERFACE, CLOCK_STATUS, MUX0, MUX3, APPLY, VERIFY, COMPLETE };
   enum class InterfaceStep : uint8_t { PREFLIGHT, APPLY, VERIFY, CLOCK_STATUS, COMPLETE };
   InterfaceSnapshot _interface{};
   InterfaceResult _interfaceResult{};

@@ -165,6 +165,12 @@ desired policy for later explicit replay.
 
 ## Qualification boundaries
 
+LED2 route acquisition appends one RCSR read to its four-frame mux read in the
+same owned batch. Current MII/RMII mode must match declared wiring before any
+route write; declaration alone cannot waive COL admission. RC samples remain in
+the single collector. A later contradictory mode observation withdraws route
+trust and stops an active pass before another mutation.
+
 The host [tests](../test/interrupts.cpp) cover every source, simultaneous events,
 pin/mode admission, transitions, bounds, partial read effects, all apply/stop/
 restore failure phases and cross-PHY exclusion. They do not prove that an IRQ

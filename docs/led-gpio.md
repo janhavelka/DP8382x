@@ -109,6 +109,13 @@ is already zero: the pin table says the MII default is COL, so reset code alone
 is not routing proof. The application must stop and reconfigure affected MAC
 consumers before admitting this transition.
 
+Any profile owning LED2 or LED3 first reads RCSR through the shared collector
+and checks that the current MII/RMII bit matches declared wiring. A declaration
+or read-only mux reset value alone cannot prove pin availability. A mismatch
+rejects before target mutation. The read still consumes RC status, whose raw
+sample or possible history loss remains in the collector. Later contradictory
+RCSR observations withdraw pin trust; the pin API never changes interface mode.
+
 WAKE and INTERRUPT profile entries require matching, already owned source routes.
 The WoL and IRQ owners retain source activation, masks, status and acknowledgement.
 The source owner configures/restores its own mux after quiescing delivery; a
@@ -126,7 +133,7 @@ Each stable field update uses the existing complete MDIO transaction mechanism.
 Source and force values are prepared before final drive/mux activation where
 applicable. No documented silicon wait is added. The aggregate allowance covers
 prerequisite reads, target updates and masked readback. The maximum all-control
-profile takes 84 frames in 23 callbacks; admission counts the exact smaller plan.
+profile takes 85 frames in 24 callbacks; admission counts the exact smaller plan.
 Each callback holds at most one complete five-frame RMW; no controller lock spans
 owner scheduling or output. A finite failure stops the current pass without an
 automatic retry, reset or compensating write.
@@ -138,6 +145,10 @@ historical or missing words. A readback mismatch or ambiguous accepted write
 withdraws trust. Raw/external mutation invalidates affected proof rather than
 pretending the old settings were restored.
 
+IRQ/WoL LED1 snapshots require verified clock routing whether the override is
+owned by the pin profile or interface profile. Reading detector status cannot
+repair an uncertain clock route. Dependent views retain their own timestamps.
+
 Pin mutation is persistent. Cancellation or local teardown cannot undo a write.
 An incomplete application with accepted or possible mutations leaves OP-9
 restoration debt; a separately admitted
@@ -147,6 +158,8 @@ the profile does not claim to resample POR-only straps. Shared replay restores
 pin prerequisites before dependent source/power completion. `startVerify` checks
 owned fields without mutation. A successful restoration does not replace the
 original failed result.
+Initialization readiness is published only after all owned restoration tails
+complete; failure or cancellation in a mutating pin/interface tail leaves it false.
 
 The existing collector owns BMSR and BIST/error evidence. Reading BMSR can clear
 the LINK_LOST LED latch; the BIST counter-clear procedure can change PRBS_ERROR

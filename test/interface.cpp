@@ -284,7 +284,62 @@ void failures() {
   Controller powered;Driver d;ready(d,powered);powered.powerPin=true;const auto mutations=powered.mutations;InterfaceResult out;
   CHECK(!d.configureInterface(s,out,{1000000,2048}).ok() && powered.mutations==mutations && !d.operationSnapshot().cleanupOwed);
 }
+void replayReadiness() {
+  // Mandatory VOD proof is not full initialization when owned pin/interface
+  // restoration remains. Exercise both the no-link and link-profile paths.
+  for (bool linkOwned:{false,true}) for (unsigned owners=0;owners<3U;++owners)
+    for (auto reset:{ResetKind::NONE,ResetKind::PCS,ResetKind::HARD,ResetKind::RESTART})
+      for (unsigned outcome=0;outcome<3U;++outcome) {
+        Controller b;Driver d;
+        if (linkOwned) { ready(d,b); } else { initialized(d,b); }
+        if (owners!=0U) { configured(d,b,settings()); }
+        if (owners!=1U) {
+          PinSettings pins;pins.availableMask=1;
+          pins.maintenanceAdmitted=pins.macStopped=pins.outputsQuiesced=true;
+          pins.pins[0].function=PinFunction::LED;PinResult result;
+          CHECK(d.configurePins(pins,result,{1000000,2048}).ok());
+        }
+        OperationToken token;CHECK(d.startInitialize({reset},budget(),token).inProgress());
+        bool entered=false,vodWritten=false;
+        for (unsigned n=0;n<256U && !entered;++n) {
+          const auto first=b.frames;CHECK(poll(d,b,token).inProgress());
+          for (unsigned i=first;i<b.frames;++i) {
+            const auto& frame=b.trace[i];
+            if (semantic(frame) && frame.target==31U && frame.value==0x4000U) {
+              CHECK(d.isInitialized()); // RESTART itself retains readiness (OP-13).
+            }
+            if (semantic(frame) && frame.target==0x030EU) { vodWritten=true; }
+          }
+          if (!vodWritten) { continue; }
+          if (owners!=0U) {
+            entered=b.frames==first+2U && b.trace[first].kind==FrameKind::READ &&
+                b.trace[first].target==0U && b.trace[first+1U].target==0x11U;
+          } else {
+            for (unsigned i=first;i<b.frames;++i) {
+              entered|=b.trace[i].kind==FrameKind::READ && b.trace[i].target==0x0303U;
+            }
+          }
+        }
+        CHECK(entered && !d.isInitialized());
+        // A short slice cannot finish the outstanding owned restoration.
+        const auto frames=b.frames;CHECK(d.pollOperation(token,0).inProgress());
+        CHECK(b.frames==frames && !d.isInitialized());
+        if (outcome==0U) {
+          CHECK(drain(d,b,token).ok());const auto result=take(d,token);
+          CHECK(result.persistentRestored && d.isInitialized());
+        } else {
+          if (outcome==1U) {
+            b.failFrame=static_cast<int>(b.frames);CHECK(!poll(d,b,token).ok());
+          } else { CHECK(d.cancel(token).ok()); }
+          const auto result=take(d,token);
+          CHECK(!result.persistentRestored && result.cleanupOwed && !d.isInitialized());
+          b.failFrame=-1;CHECK(d.startInitialize({ResetKind::NONE},budget(),token).inProgress());
+          CHECK(drain(d,b,token).ok());CHECK(take(d,token).persistentRestored && d.isInitialized());
+        }
+      }
+}
 void replay() {
+  replayReadiness();
   auto s=settings();s.fastRxDv=s.oddNibbleDisable=s.shortIpg=true;s.rxDv=true;s.clockOutput=ClockOutput::LED1;s.isolationOwned=true;s.isolate=true;
   for(auto reset:{ResetKind::NONE,ResetKind::PCS,ResetKind::HARD,ResetKind::RESTART}) {
     Controller b;Driver d;ready(d,b);configured(d,b,s);OperationToken token;
@@ -489,6 +544,7 @@ void ownership() {
   }
   for(bool interfaceFirst:{false,true}) {
     Controller bus;bus.boardInterface=MacInterface::MII;Driver phy;ready(phy,bus);
+    bus.words[23]&=0xFFDFU; // Actual MII strap/mode agrees with this pin-routing case.
     auto collision=settings(MacInterface::MII);collision.collisionFullDuplex=true;
     PinSettings led;led.pins[2].function=PinFunction::LED;led.availableMask=4;
     led.maintenanceAdmitted=led.macStopped=led.outputsQuiesced=led.colUnused=true;PinResult pinResult;

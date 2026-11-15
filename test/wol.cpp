@@ -29,6 +29,7 @@ struct Controller {
   void defaults() {
     words.fill(0);ext.fill(0);words[0]=0x3100;words[4]=0x01E1;
     words[25]=0x8001;words[22]=0x0100;words[30]=0x0102;
+    words[23]=(id2==0xA111 || enhancedMii)?0U:0x0020U;
     ext[0x030E]=0x8400;ext[0x04A1]=0x1000;ext[0x04A0]=0x1081;ext[0x0308]=clockOffStrap?1U:0U;pendingWake=true;
   }
   Config config(uint32_t phy=1) {
@@ -45,6 +46,7 @@ struct Controller {
     if(target==18 || target==19) { words[target]&=0x00FF;words[16]&=0xFF7F; }
     if(target==20) { words[20]&=0xFF00;words[16]&=0xF7FF; }
     if(target==21) { words[21]=0;words[16]&=0xDFFF; }
+    if(target==23)words[23]&=0xFFF3;
     if(target==0x04A1)ext[target]&=0xFF00;
     return value;
   }
@@ -111,6 +113,7 @@ Status drain(Driver& d,Controller& b,OperationToken t) {
 }
 OperationResult take(Driver& d,OperationToken t) { OperationResult r;CHECK(d.takeResult(t,r).ok());return r; }
 void ready(Driver& d,Controller& b) {
+  b.words[23]=b.config().interface==MacInterface::RMII?0x0020U:0U;
   CHECK(d.bind(b.config()).ok());OperationToken t;CHECK(d.startInitialize({ResetKind::NONE},budget(),t).inProgress());CHECK(drain(d,b,t).ok());take(d,t);
 }
 
@@ -161,7 +164,7 @@ void vectors() {
   for(bool basic:{false,true})for(bool crc:{false,true})for(bool level:{false,true})for(bool secure:{false,true})for(uint8_t pulse=0;pulse<4U;++pulse) {
     Controller b;b.id2=basic?0xA111:0xA131;Driver d;ready(d,b);auto s=settings();s.crcGate=crc;s.levelMode=level;s.secureOn=secure;s.pulseWidth=pulse;
     b.ext[0x04A0]|=0xE01E;const auto first=b.frames;configured(d,b,s);
-    const uint16_t expected=static_cast<uint16_t>((crc?0x1000U:0U)|(level?0x0100U:0U)|(uint16_t{pulse}<<9U)|0x0081U|(secure?0x0020U:0U));
+    const uint16_t expected=static_cast<uint16_t>((crc?0x1000U:0U)|(level?0x0100U:0U)|(uint32_t{pulse}<<9U)|0x0081U|(secure?0x0020U:0U));
     CHECK((b.ext[0x04A0]&0x17A1U)==expected && (b.ext[0x04A0]&0xE01EU)==0xE01E);
     CHECK(b.ext[0x04A2]==0x2211 && b.ext[0x04A3]==0x4433 && b.ext[0x04A4]==0x6655);
     CHECK(b.ext[0x04A5]==0x2B2A && b.ext[0x04A6]==0x2D2C && b.ext[0x04A7]==0x2F2E);
@@ -228,7 +231,47 @@ void admission() {
   const auto calls=b.calls;CHECK(!d.acknowledgeWake(budget(),token).inProgress() && b.calls==calls);
 }
 void routeChanges();
+void liveModeRouting() {
+  // No PinSettings owner exists: each direct source must verify actual mode.
+  for (bool mii:{false,true}) for (unsigned outcome=0;outcome<4U;++outcome) {
+    Controller b;b.enhancedMii=mii;Driver d;ready(d,b);auto s=settings();
+    s.route=WakeRoute::LED2; s.pinAvailable=true;s.colUnused=mii;
+    b.words[23]=static_cast<uint16_t>((mii?0U:0x0020U)|0x000CU);
+    if (outcome==1U) { b.words[23]^=0x0020U; }
+    const auto first=b.frames,calls=b.calls,mutations=b.mutations;
+    if (outcome==2U) { b.failFrame=static_cast<int>(first+6U); }
+    const auto token=configure(d,b,s);
+    if (outcome==0U || outcome==3U) {
+      CHECK(drain(d,b,token).ok());take(d,token);
+      CHECK(b.frames==first+125U && b.calls==calls+31U);
+      const auto view=d.wakeSnapshot();CHECK(view.trust==ConfigurationTrust::VERIFIED);
+      const auto evidence=d.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::RCSR)];
+      CHECK(evidence.valid && (evidence.raw&0x000CU)==0x000CU && !evidence.historyLost);
+      CHECK((b.words[23]&0x000CU)==0U);
+      if (outcome==3U) {
+        b.words[23]^=0x0020U;EvidenceSnapshot retained;
+        CHECK(d.acquireEvidence(evidenceBit(EvidenceSource::RCSR),retained,{1000000,1}).ok());
+        CHECK(d.wakeSnapshot().trust==ConfigurationTrust::DIRTY && d.wakeSnapshot().observedStale);
+      }
+    } else {
+      CHECK(!drain(d,b,token).ok());const auto result=take(d,token);
+      CHECK(b.mutations==mutations && !result.mutationPossible && !result.cleanupOwed);
+      CHECK(b.frames==first+7U && b.calls==calls+2U);
+      const auto evidence=d.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::RCSR)];
+      if (outcome==2U) { CHECK(result.status.is(Err::MDIO_TIMEOUT) && evidence.historyLost && !evidence.valid); }
+      else { CHECK(evidence.valid && !evidence.historyLost && (evidence.raw&0x000CU)==0x000CU); }
+    }
+  }
+  // A second collector observation between the admission read and first
+  // mutation revokes the mode proof; the operation must not keep writing.
+  Controller b;Driver d;ready(d,b);auto s=settings();s.route=WakeRoute::LED2; s.pinAvailable=true;
+  const auto token=configure(d,b,s);CHECK(poll(d,b,token).inProgress());CHECK(poll(d,b,token).inProgress());
+  const auto mutations=b.mutations;b.words[23]=0;EvidenceSnapshot evidence;
+  CHECK(d.acquireEvidence(evidenceBit(EvidenceSource::RCSR),evidence,{1000000,1}).ok());
+  CHECK(!drain(d,b,token).ok());take(d,token);CHECK(b.mutations==mutations);
+}
 void routing() {
+  liveModeRouting();
   for(bool basic:{false,true}) {
     Controller b;b.id2=basic?0xA111:0xA131;b.enhancedMii=!basic;Driver d;ready(d,b);auto wake=settings();
     wake.route=basic?WakeRoute::LED1:WakeRoute::LED2;wake.pinAvailable=wake.colUnused=true;

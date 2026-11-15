@@ -1388,6 +1388,7 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
        _operation.kind == OperationKind::LOOPBACK_STOP || _operation.kind == OperationKind::BIST_STOP ||
        _operation.kind == OperationKind::CABLE_STOP)) {
     _interfaceTailPending = false; _result.persistentRestored = false; _interfaceDirect = false;
+    if (_operation.kind != OperationKind::VERIFY && _operation.kind != OperationKind::CONFIGURE) { _initialized = false; }
     _beginInterface(_operation.kind == OperationKind::VERIFY || _operation.kind == OperationKind::CONFIGURE);
     if (_interfaceStep == InterfaceStep::COMPLETE) {
       _result.persistentRestored = _interfaceResult.status.ok();
@@ -1402,6 +1403,7 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
        _operation.kind == OperationKind::LOOPBACK_STOP || _operation.kind == OperationKind::BIST_STOP ||
        _operation.kind == OperationKind::CABLE_STOP)) {
     _pinsTailPending = false; _result.persistentRestored = false; _pinsDirect = false;
+    if (_operation.kind != OperationKind::VERIFY && _operation.kind != OperationKind::CONFIGURE) { _initialized = false; }
     _beginPins(_operation.kind == OperationKind::VERIFY || _operation.kind == OperationKind::CONFIGURE);
     if (_pinStep == PinStep::COMPLETE) {
       _result.persistentRestored = _pinResult.status.ok();
@@ -1495,6 +1497,8 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
   _operation.nextPollValid = false;
   _operation.status = status;
   if (_result.persistentRestored && _operation.kind != OperationKind::VERIFY) {
+    // Readiness includes every owned restoration tail, not just VOD/link proof.
+    if (status.ok()) { _initialized = true; }
     _operation.cleanupOwed = false;
     _cleanupOwner = OperationKind::NONE;
     if (_operation.kind == OperationKind::LOOPBACK_STOP || _operation.kind == OperationKind::BIST_STOP || _operation.kind == OperationKind::CABLE_STOP ||

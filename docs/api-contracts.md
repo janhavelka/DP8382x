@@ -1025,6 +1025,11 @@ read-only VERIFY. Shared WAKE/IRQ pin entries depend on the source owner's route
 and verification; passive views withdraw trust if that dependency is lost.
 The source owner alone writes its mux after quiescing delivery. Clock, COL and
 MAC/board availability remain explicit application attestations.
+For LED2/3, live collector-routed RCSR mode must match declared wiring before
+mutation; the mux reset value is not availability proof. Direct LED2 IRQ/WoL
+source routes enforce the same prerequisite without requiring a pin profile.
+Pin-owned and interface-owned LED1 clock uncertainty both invalidate dependent
+IRQ/WoL views. Initialization readiness waits for every owned restoration tail.
 
 
 ## Stage33 shipped clock/interface profile

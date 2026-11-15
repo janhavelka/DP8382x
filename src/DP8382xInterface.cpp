@@ -176,6 +176,19 @@ void DP8382x::_retainInterfaceWord(uint16_t address,uint16_t value) noexcept {
   if (address==0x0017U) {
     _interface.observedInterface=(value&0x0020U)!=0U?MacInterface::RMII:MacInterface::MII;
     _interface.modeValid=true;
+    // LED2 source owners share the same mode prerequisite even without a pin
+    // profile. A later collector observation cannot leave their route verified.
+    if (_interface.observedInterface!=_config.interface) {
+      const bool irq=_interrupts.desiredValid && _interrupts.desired.pin==InterruptPin::LED2;
+      const bool wake=_wake.desiredValid && _wakePin()==2U;
+      if (irq) { _interrupts.trust=ConfigurationTrust::DIRTY; _interrupts.observedStale=true; }
+      if (wake) { _wake.trust=ConfigurationTrust::DIRTY; _wake.observedStale=true; }
+      const bool proved=(irq && _interruptWorking && _interruptStep!=InterruptStep::IDENTIFY && _interruptStep!=InterruptStep::PIN_MUX) ||
+          (wake && _wakeWorking && _wakeStep!=WakeStep::IDENTIFY && _wakeStep!=WakeStep::PIN_MUX);
+      if (proved && !_result.mismatch.valid) {
+        _result.mismatch={true,false,0,0x17,0x0020,static_cast<uint16_t>(_config.interface==MacInterface::RMII?0x0020:0),value};
+      }
+    }
   }
   if (!_interface.desiredValid) { return; }
   uint16_t target=0,mask=0,expected=0;
@@ -318,7 +331,10 @@ Status DP8382x::configureInterface(const InterfaceSettings& settings,InterfaceRe
   return _interfaceResult.status;
 }
 bool DP8382x::_led1RouteVerified() const noexcept {
-  return !_interface.desiredValid || _interface.desired.clockOutput==ClockOutput::UNOWNED ||
+  const bool pinRoute=!_pins.desiredValid || !_pins.desired.led1ClockOverride ||
+      _pins.trust==ConfigurationTrust::VERIFIED;
+  const bool interfaceRoute=!_interface.desiredValid || _interface.desired.clockOutput==ClockOutput::UNOWNED ||
       (_interface.desired.clockOutput==ClockOutput::LED1 && _interface.trust==ConfigurationTrust::VERIFIED);
+  return pinRoute && interfaceRoute;
 }
 } // namespace DP8382x

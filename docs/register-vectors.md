@@ -852,6 +852,12 @@ changing PRBS indication. These are source-effect oracles, not measured LEDs.
 
 ## Stage33 independent interface and isolation literals
 
+Audit32-33 adds the independent pin prerequisite R(17): mask0020 must be0020
+for declared RMII or0000 for MII before an LED2/3 profile can mutate. GPIO3's
+reset0008 (mux0) does not replace this check. Raw RC000C is consumed once by the
+collector. The full pin plan is now85frames/24callbacks; LED2 IRQ/WoL append
+R(17) as frame5 after their four-frame mux read, with no additional callback.
+
 Original SNLS647I tables8-19/28/29/35/41/73/84 supply these independent vectors:
 
 - RCSR stable mask01B3, consumed status000C, preserveFE40. OldFFFF with

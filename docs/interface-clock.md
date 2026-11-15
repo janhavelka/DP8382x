@@ -162,6 +162,7 @@ validity. Failed requested words lose current validity; historical words/time
 remain explicitly stale. A successful later word cannot erase an earlier
 contradiction. Cached rendering performs no I/O or second destructive read.
 LED1 pin, interrupt and wake views also require a verified owned clock route.
+This applies equally to a pin-owned clock override and an interface-owned route.
 An uncertain route makes those views stale even when their individual controls
 were verified earlier. Reading wake detector status cannot repair clock routing.
 
@@ -174,6 +175,8 @@ same persistent profile with a new budget/result, before pin/IRQ/WoL and final
 power completion. NONE, PCS, HARD, RESTART and existing power/diagnostic recovery
 reuse this path with their distinct reset effects. `startVerify` uses the same
 owned masks without writes. Reset never invents an unrequested interface profile.
+Initialization does not publish readiness between mandatory setup and unfinished
+pin/interface replay. Failed or cancelled restoration retains uninitialized state.
 
 ## Two-PHY repeater ownership and qualification
 

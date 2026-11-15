@@ -118,6 +118,12 @@ failed result while admitting any restoration with a new token/budget.
 
 ## Physical qualification
 
+Before configuring an LED2 output, the source owner reads RCSR as the fifth frame
+of its mux-read batch and requires observed mode to match declared wiring. This
+also covers WoL through an LED2 IRQ route. No pin profile is required, and none
+can bypass this prerequisite. Consumed RC evidence stays with the collector;
+later mode contradictions withdraw route trust before further mutation.
+
 Q3 remains NOT RUN: record exact part/revision/straps/interface, firmware identity,
 MAC/Secure-ON packet octets, good/bad CRC and passwords, each route/pulse code,
 line measurements, simultaneous interrupt sources and receive-path power state.

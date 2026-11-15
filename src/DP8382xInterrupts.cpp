@@ -153,7 +153,13 @@ MdioBatch DP8382x::_interruptBatch() const noexcept {
       auto batch=readIrq(2); batch.frameCount=2; batch.frames[1]={FrameKind::READ,3,0,0,NO_READ_INDEX}; return batch;
     }
     case InterruptStep::PIN_CLOCK: return _mmdBatch(0x0308,FrameKind::READ,0);
-    case InterruptStep::PIN_MUX: case InterruptStep::PIN_VERIFY: return _mmdBatch(_interrupts.desired.pin==InterruptPin::LED1?0x0304:0x0305,FrameKind::READ,0);
+    case InterruptStep::PIN_MUX: case InterruptStep::PIN_VERIFY: {
+      auto batch=_mmdBatch(_interrupts.desired.pin==InterruptPin::LED1?0x0304:0x0305,FrameKind::READ,0);
+      if (_interruptStep==InterruptStep::PIN_MUX && _interrupts.desired.pin==InterruptPin::LED2) {
+        batch.frames[batch.frameCount++]={FrameKind::READ,0x17,0,0,NO_READ_INDEX};
+      }
+      return batch;
+    }
     case InterruptStep::PIN_APPLY: {
       auto batch=_mmdBatch(_interrupts.desired.pin==InterruptPin::LED1?0x0304:0x0305,FrameKind::READ,0);
       batch.frameCount=5; batch.frames[4]={FrameKind::WRITE,0x0E,4,0xFFF8,3}; return batch;
@@ -175,7 +181,7 @@ MdioBatch DP8382x::_interruptBatch() const noexcept {
 }
 Status DP8382x::_advanceInterrupt(Status status,bool called,const MdioBatch& batch) noexcept {
   const uint8_t last=static_cast<uint8_t>(batch.frameCount-1U);
-  const auto value=_transport.lastBatch.frames[last].value;
+  const auto value=_transport.lastBatch.frames[_interruptStep==InterruptStep::PIN_MUX?3U:last].value;
   const bool complete=called && _result.failingBatch.completedFrames==batch.frameCount;
   const bool testing=_operation.kind==OperationKind::INTERRUPT_TEST_START || _operation.kind==OperationKind::INTERRUPT_TEST_STOP;
   uint16_t mask=0,expected=0,address=batch.frames[last].registerAddress;
@@ -264,6 +270,10 @@ Status DP8382x::_advanceInterrupt(Status status,bool called,const MdioBatch& bat
       if ((value&1U)==0U) { return _finishOperation(invalidIrq("LED1 is routed to clock output")); }
       _setInterruptStep(InterruptStep::PIN_MUX); break;
     case InterruptStep::PIN_MUX:
+      if (_interrupts.desired.pin==InterruptPin::LED2 &&
+          (_transport.lastBatch.frames[4].value&0x0020U)!=(_config.interface==MacInterface::RMII?0x0020U:0U)) {
+        return _finishOperation(invalidIrq("Observed interface differs from LED2 IRQ wiring"));
+      }
       if ((value&7U)!=4U) {
         if (_interruptVerifyOnly || testing) {
           return _finishOperation(invalidIrq("Pin owner has not selected interrupt mux"));

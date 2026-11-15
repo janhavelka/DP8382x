@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Audit prompts 32-33: defer initialized readiness through owned pin/interface
+  restoration; propagate pin-owned LED1 clock uncertainty into IRQ/WoL views;
+  require live MII/RMII evidence before LED2/3 or LED2 IRQ/WoL routing. Add
+  failure, cancellation, collector and mode-mismatch regressions.
+
 - Added bounded MII/RMII, clock, compatibility, repeater-side and isolation
   profiles with collector-routed RCSR readback and shared reset/power replay.
   Validate wiring, packet/clock allowances and pin ownership before I/O; retain

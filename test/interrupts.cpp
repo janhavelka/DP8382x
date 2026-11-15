@@ -24,16 +24,17 @@ struct Controller {
   uint16_t corruptMask{1};
   int injectFrame{-1}; uint16_t injectMisr1{0},injectMisr2{0};
   int identityChangeFrame{-1}; unsigned mutationsAtIdentityChange{0};
-  bool acceptedFailure{true},locked{false};
+  bool acceptedFailure{true},locked{false},enhancedMii{false};
   Driver* competitor{nullptr}; unsigned excluded{0};
   Controller() { defaults(); }
   void defaults() {
     words.fill(0);ext.fill(0);words[0]=0x3100;words[4]=0x01E1;
     words[25]=0x8001;words[22]=0x0100;words[30]=0x0102;
+    words[23]=(id2==0xA111 || enhancedMii)?0U:0x0020U;
     ext[0x030E]=0x8400;ext[0x04A1]=0x1000;
   }
   Config config(uint32_t phy=1) {
-    Config c;c.variant=Variant::DP83826I;c.interface=id2==0xA111?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
+    Config c;c.variant=Variant::DP83826I;c.interface=(id2==0xA111 || enhancedMii)?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
   static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context);++b.clocks;return b.now; }
@@ -46,6 +47,7 @@ struct Controller {
     if(target==18 || target==19) { words[target]&=0x00FF;words[16]&=0xFF7F; }
     if(target==20) { words[20]&=0xFF00;words[16]&=0xF7FF; }
     if(target==21) { words[21]=0;words[16]&=0xDFFF; }
+    if(target==23)words[23]&=0xFFF3;
     if(target==0x04A1)ext[target]&=0xFF00;
     return value;
   }
@@ -106,6 +108,7 @@ Status drain(Driver& d,Controller& b,OperationToken t) {
 }
 OperationResult take(Driver& d,OperationToken t) { OperationResult r;CHECK(d.takeResult(t,r).ok());return r; }
 void ready(Driver& d,Controller& b) {
+  b.words[23]=b.config().interface==MacInterface::RMII?0x0020U:0U;
   CHECK(d.bind(b.config()).ok());OperationToken t;CHECK(d.startInitialize({ResetKind::NONE},budget(),t).inProgress());CHECK(drain(d,b,t).ok());take(d,t);
 }
 InterruptSettings settings() {
@@ -160,8 +163,8 @@ void policy() {
   }
   for(unsigned bank=0;bank<2U;++bank)for(unsigned bit=0;bit<8U;++bit) {
     Controller b;Driver d;ready(d,b);auto s=settings();
-    s.misr1Mask=bank==0U?static_cast<uint16_t>(1U<<bit):0;
-    s.misr2Mask=bank==1U?static_cast<uint16_t>(1U<<bit):0;
+    s.misr1Mask=static_cast<uint16_t>(bank==0U?(1U<<bit):0U);
+    s.misr2Mask=static_cast<uint16_t>(bank==1U?(1U<<bit):0U);
     configured(d,b,s);CHECK((b.words[18]&0xFFU)==s.misr1Mask && (b.words[19]&0xFFU)==s.misr2Mask);
   }
 }
@@ -372,7 +375,47 @@ void failures() {
   }
 }
 
+void liveModeRouting() {
+  // No PinSettings owner exists: each direct source must verify actual mode.
+  for (bool mii:{false,true}) for (unsigned outcome=0;outcome<4U;++outcome) {
+    Controller b;b.enhancedMii=mii;Driver d;ready(d,b);auto s=settings();
+    s.pin=InterruptPin::LED2; s.pinAvailable=true;s.colUnused=mii;
+    b.words[23]=static_cast<uint16_t>((mii?0U:0x0020U)|0x000CU);
+    if (outcome==1U) { b.words[23]^=0x0020U; }
+    const auto first=b.frames,calls=b.calls,mutations=b.mutations;
+    if (outcome==2U) { b.failFrame=static_cast<int>(first+6U); }
+    const auto token=configure(d,b,s);
+    if (outcome==0U || outcome==3U) {
+      CHECK(drain(d,b,token).ok());take(d,token);
+      CHECK(b.frames==first+40U && b.calls==calls+17U);
+      const auto view=d.interruptSnapshot();CHECK(view.trust==ConfigurationTrust::VERIFIED);
+      const auto evidence=d.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::RCSR)];
+      CHECK(evidence.valid && (evidence.raw&0x000CU)==0x000CU && !evidence.historyLost);
+      CHECK((b.words[23]&0x000CU)==0U);
+      if (outcome==3U) {
+        b.words[23]^=0x0020U;EvidenceSnapshot retained;
+        CHECK(d.acquireEvidence(evidenceBit(EvidenceSource::RCSR),retained,{1000000,1}).ok());
+        CHECK(d.interruptSnapshot().trust==ConfigurationTrust::DIRTY && d.interruptSnapshot().observedStale);
+      }
+    } else {
+      CHECK(!drain(d,b,token).ok());const auto result=take(d,token);
+      CHECK(b.mutations==mutations && !result.mutationPossible && !result.cleanupOwed);
+      CHECK(b.frames==first+7U && b.calls==calls+2U);
+      const auto evidence=d.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::RCSR)];
+      if (outcome==2U) { CHECK(result.status.is(Err::MDIO_TIMEOUT) && evidence.historyLost && !evidence.valid); }
+      else { CHECK(evidence.valid && !evidence.historyLost && (evidence.raw&0x000CU)==0x000CU); }
+    }
+  }
+  // A second collector observation between the admission read and first
+  // mutation revokes the mode proof; the operation must not keep writing.
+  Controller b;Driver d;ready(d,b);auto s=settings();s.pin=InterruptPin::LED2; s.pinAvailable=true;
+  const auto token=configure(d,b,s);CHECK(poll(d,b,token).inProgress());CHECK(poll(d,b,token).inProgress());
+  const auto mutations=b.mutations;b.words[23]=0;EvidenceSnapshot evidence;
+  CHECK(d.acquireEvidence(evidenceBit(EvidenceSource::RCSR),evidence,{1000000,1}).ok());
+  CHECK(!drain(d,b,token).ok());take(d,token);CHECK(b.mutations==mutations);
+}
 void pins() {
+  liveModeRouting();
   for(unsigned invalid=0;invalid<7U;++invalid) {
     Controller b;Driver d;ready(d,b);auto s=settings();
     if(invalid==0U)s.misr1Mask=0x100;

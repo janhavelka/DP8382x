@@ -250,3 +250,7 @@ intent. RCSR replay/readback consumes RC samples through the collector. Optional
 isolation uses the independent power request; application clock admission also
 covers reassertion after reset. Non-HARD owned PLL shutdown is cleared by existing
 power preparation before interface mutation; VERIFY makes no such writes.
+Readiness remains false through mutating interface and pin restoration, including
+failure/cancellation after mandatory VOD verification. Only full successful
+restoration republishes it. RESTART's command alone still preserves readiness;
+its subsequent mandatory setup and replay must complete independently.

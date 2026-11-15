@@ -10512,6 +10512,10 @@
         {
           "source": "snls647i",
           "location": "Tables8-35..37,8-75/76,8-91"
+        },
+        {
+          "source": "snls647i",
+          "location": "tables5-1/8-41: actual MII/RMII mode for LED2/COL applicability"
         }
       ],
       "ownedMasks": [
@@ -10540,7 +10544,7 @@
           "mask": "0x0007"
         }
       ],
-      "prerequisites": "Initialized exact DP83826I, verified link profile when owned, one application/controller owner, finite primary budget and explicit maintenance/pin permissions before callbacks. Pin permission covers selected route AND pin21; ENHANCED OE0 requires declared powerDownInputSafe. BASIC pin21 is strap-selected INT and OE is preserved. LED1/2 mux4 is established by the admitted source owner after disabling delivery; VERIFY/test require it already established; LED0/3 mux remain read-only. ENHANCED LED1 needs declared clock-unused and live0308 GPIO availability; BASIC LED2 rejects, ENHANCED MII LED2 needs declared unused COL.",
+      "prerequisites": "Initialized exact DP83826I, verified link profile when owned, one application/controller owner, finite primary budget and explicit maintenance/pin permissions before callbacks. Pin permission covers selected route AND pin21; ENHANCED OE0 requires declared powerDownInputSafe. BASIC pin21 is strap-selected INT and OE is preserved. LED1/2 mux4 is established by the admitted source owner after disabling delivery; VERIFY/test require it already established; LED0/3 mux remain read-only. ENHANCED LED1 needs declared clock-unused and live0308 GPIO availability; BASIC LED2 rejects, ENHANCED MII LED2 needs declared unused COL. LED2 routes require actual RCSR[5] to match declared wiring before mutation; the four-frame mux read appends one collector-routed C22 RCSR read in the same batch. Later mode contradictions withdraw route proof.",
       "steps": [
         "Admit desired complete source-enable bytes, polarity, direction and selector without callbacks; retain independent observed validity/time/trust. Live identity/pin checks and already-active test rejection precede mutation.",
         "Disable PHYSCR global enable before changing routing or policy; preserve unrelated power/loopback fields.",
@@ -10707,7 +10711,7 @@
       "sources": [
         {
           "source": "snls647i",
-          "location": "8.3.18; tables8-42/43/49/85/89"
+          "location": "8.3.18; tables8-42/43/49/85/89; tables5-1/8-41"
         }
       ],
       "ownedMasks": [
@@ -10732,8 +10736,9 @@
           "mask": "0x0080"
         }
       ],
-      "prerequisites": "Accepted exact DP83826I identity and initialization; one serialized application and complete bus-transaction owner. Explicit maintenanceAdmitted, macStopped, outputsQuiesced and per-pin availability, clock/COL consumer attestations. Validate whole profile, source-owner conflicts and complete direct budget before publishing desired intent. Live read-only mux/clock prerequisites may still reject after admission without target mutation.",
+      "prerequisites": "Accepted exact DP83826I identity and initialization; one serialized application and complete bus-transaction owner. Explicit maintenanceAdmitted, macStopped, outputsQuiesced and per-pin availability, clock/COL consumer attestations. Validate whole profile, source-owner conflicts and complete direct budget before publishing desired intent. Live read-only mux/clock prerequisites may still reject after admission without target mutation. LED2/3 require a collector-routed RCSR[5] read matching declared wiring before any pin mutation; mux reset0 alone is insufficient.",
       "steps": [
+        "For an owned LED2/3 role, read C22 RCSR once through the collector and compare mode0020 against declared MII/RMII; reject mismatch before writes. Retain consumed RC samples/history-loss and invalidate pin proof after later contradictory RCSR evidence.",
         "Validate LED0/1/2/3 source 0..E, reject F; MLED route must remain1. Map LED1 to0460[7:4], LED2[11:8], LED3[15:12]. Preserve low reserved nibble; PHYCR[5] has no sourced encoding and is excluded.",
         "Validate board pin role and BASIC/ENHANCED polarity. Program source and forced value before enabling drive where possible; LED0 uses0018[4,1], LED1/2 use0469[0:2,4:6]. No LED3 polarity/drive permission is inferred from reserved[10:8].",
         "Apply common blink0018[10:9] and stretch bypass0019[7] once; four independent blink timers are not available. Preserve other owners including crossover and address.",
@@ -10741,7 +10746,7 @@
         "BASIC exposesLED0/1 and fixed-low polarity; reject BASIC polarity override pendingQ12. ENHANCED RMII exposes0..3. ENHANCED MII LED2 requires freeCOL plus explicit0305[2:0]=0 write/readback; resetcode0 does not prove route. LED3 MII has no writable route and is rejected. ENHANCED LED1 depends on CLKOUT strap6/IO_CFG1[6]."
       ],
       "waits": [],
-      "timeout": "configurePins uses one finite IoBudget: per C22 row atomic read/write plus readback = 3 frames/2 callbacks; per MMD row atomic RMW5 plus readback4 = 9/2. At most ten rows and three prerequisite reads: 84 frames/23 callbacks upper bound, with exact smaller plan admitted before I/O. Every callback receives remaining aggregate allowance. Shared reset/verify replay executes the same rows through one OperationBudget, yields before whole batches, and releases ownership between polls. No scheduled silicon wait or retry.",
+      "timeout": "configurePins uses one finite IoBudget: per C22 row atomic read/write plus readback = 3 frames/2 callbacks; per MMD row atomic RMW5 plus readback4 = 9/2. At most ten rows and four prerequisite reads (one C22 mode plus three MMD mux/clock): 85 frames/24 callbacks upper bound, with exact smaller plan admitted before I/O. Every callback receives remaining aggregate allowance. Shared reset/verify replay executes the same rows through one OperationBudget, yields before whole batches, and releases ownership between polls. No scheduled silicon wait or retry.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
       "cleanup": "No automatic compensating writes. Failed accepted/uncertain mutation retains desired/observed/trust and OP-9 cleanupOwed. A separately admitted startInitialize restores persistent owned settings with its own token, budget and result; cancellation freezes the current operation. Direct calls have no intermediate cancellation API. Effect-free rejection creates no pin-mutation debt.",
       "restoration": "Shared initialization/recovery restores source/value then clock/mux/final drive, before dependent WoL/IRQ and final power completion. NONE/PCS/HARD/RESTART and power recovery share this path. Source owners restore their own WAKE/IRQ mux fields; pin profile entries are dependencies, never duplicate writes. VERIFY compares only owned stable fields. No POR strap resampling or physical output readiness is inferred.",
@@ -10765,7 +10770,7 @@
       "sources": [
         {
           "source": "snls647i",
-          "location": "8.3.18; tables8-73..78"
+          "location": "8.3.18; tables8-73..78; tables5-1/8-41"
         }
       ],
       "ownedMasks": [
@@ -10782,8 +10787,9 @@
           "mask": "0x0040"
         }
       ],
-      "prerequisites": "Accepted exact DP83826I identity and initialization; one serialized application and complete bus-transaction owner. Explicit maintenanceAdmitted, macStopped, outputsQuiesced and per-pin availability, clock/COL consumer attestations. Validate whole profile, source-owner conflicts and complete direct budget before publishing desired intent. Live read-only mux/clock prerequisites may still reject after admission without target mutation.",
+      "prerequisites": "Accepted exact DP83826I identity and initialization; one serialized application and complete bus-transaction owner. Explicit maintenanceAdmitted, macStopped, outputsQuiesced and per-pin availability, clock/COL consumer attestations. Validate whole profile, source-owner conflicts and complete direct budget before publishing desired intent. Live read-only mux/clock prerequisites may still reject after admission without target mutation. LED2/3 require a collector-routed RCSR[5] read matching declared wiring before any pin mutation; mux reset0 alone is insufficient.",
       "steps": [
+        "For an owned LED2/3 role, read C22 RCSR once through the collector and compare mode0020 against declared MII/RMII; reject mismatch before writes. Retain consumed RC samples/history-loss and invalidate pin proof after later contradictory RCSR evidence.",
         "Validate detailed mux encodings and selected gates: LED1 admits0 LED,2 WoL,4 IRQ; reserved1/3/7 and contradictory5 TX_ER/6 CLKOUT25 are rejected. LED2 admits0 LED,2 WoL,3/5/6 COL,4 IRQ,7 HIGH; reserved1 rejects. COL codes require MII.",
         "Reject writable LED0/3 mux requests while detailed tables label them R. Reject clocks on LED2/3 whose selector fields are reserved. No unsupported input/tristate mux is invented.",
         "Before route enable, configure the selected source under its owner and mask asynchronous interrupt/wake generation as needed using those procedures. Check MAC CRS/COL and clock consumers: no pin may simultaneously serve incompatible roles. Apply legal route then verify once; retain source and mux partial-state evidence.",
@@ -10791,7 +10797,7 @@
         "Optional owned IO_CFG1[6]=1 releases CLKOUT only with an explicit stopped clock-consumer declaration; verify0040 and read0308[0]=1. Read-only GPIO0/3 mux0 is observed, never written. Matching WAKE/IRQ entries require an already verified source owner; source setters reject moving a still-declared dependency."
       ],
       "waits": [],
-      "timeout": "configurePins uses one finite IoBudget: per C22 row atomic read/write plus readback = 3 frames/2 callbacks; per MMD row atomic RMW5 plus readback4 = 9/2. At most ten rows and three prerequisite reads: 84 frames/23 callbacks upper bound, with exact smaller plan admitted before I/O. Every callback receives remaining aggregate allowance. Shared reset/verify replay executes the same rows through one OperationBudget, yields before whole batches, and releases ownership between polls. No scheduled silicon wait or retry.",
+      "timeout": "configurePins uses one finite IoBudget: per C22 row atomic read/write plus readback = 3 frames/2 callbacks; per MMD row atomic RMW5 plus readback4 = 9/2. At most ten rows and four prerequisite reads (one C22 mode plus three MMD mux/clock): 85 frames/24 callbacks upper bound, with exact smaller plan admitted before I/O. Every callback receives remaining aggregate allowance. Shared reset/verify replay executes the same rows through one OperationBudget, yields before whole batches, and releases ownership between polls. No scheduled silicon wait or retry.",
       "partialEffects": "Cancellation before mutation preserves prior hardware state except explicitly collected status. Once any write is accepted or uncertain, preserve the applied-prefix evidence and desired/observed/trust distinction; do not report atomic rollback. A failed readback does not prove the write failed. Mixed/read-clear observations go through the sole collector and consumed samples survive later failure.",
       "cleanup": "No automatic compensating writes. Failed accepted/uncertain mutation retains desired/observed/trust and OP-9 cleanupOwed. A separately admitted startInitialize restores persistent owned settings with its own token, budget and result; cancellation freezes the current operation. Direct calls have no intermediate cancellation API. Effect-free rejection creates no pin-mutation debt.",
       "restoration": "Shared initialization/recovery restores source/value then clock/mux/final drive, before dependent WoL/IRQ and final power completion. NONE/PCS/HARD/RESTART and power recovery share this path. Source owners restore their own WAKE/IRQ mux fields; pin profile entries are dependencies, never duplicate writes. VERIFY compares only owned stable fields. No POR strap resampling or physical output readiness is inferred.",
@@ -11808,6 +11814,10 @@
         {
           "source": "power_source_audit",
           "location": "Whole procedures, independent literal oracles and fixture plans"
+        },
+        {
+          "source": "snls647i",
+          "location": "tables5-1/8-41: actual MII/RMII mode for LED2/COL applicability"
         }
       ],
       "ownedMasks": [
@@ -11848,7 +11858,7 @@
           "mask": "0x0007"
         }
       ],
-      "prerequisites": "Application serializes all instance/snapshot access and all participants share complete indirect/RMW transaction exclusion. Exact part, legal settings, clock/power history, operation ownership and finite primary/cleanup budgets validated before mutation; any live precondition reads are explicit bounded work. CRC/filter requests do not authorize unsupported custom pattern fields. IRQ/GPIO board wiring is independent from register success. ",
+      "prerequisites": "Application serializes all instance/snapshot access and all participants share complete indirect/RMW transaction exclusion. Exact part, legal settings, clock/power history, operation ownership and finite primary/cleanup budgets validated before mutation; any live precondition reads are explicit bounded work. CRC/filter requests do not authorize unsupported custom pattern fields. IRQ/GPIO board wiring is independent from register success.  LED2 routes require actual RCSR[5] to match declared wiring before mutation; the four-frame mux read appends one collector-routed C22 RCSR read in the same batch. Later mode contradictions withdraw route proof.",
       "steps": [
         "Validate six-octet MAC/password lengths, Secure-ON/CRC/indication selections and pulse code0..3; reject guessed custom patterns. Require application-coordinated quiesced traffic for credential changes; continuous live guarantees remain gated.",
         "Collector retains pending RXFS/MISR2 evidence with source epoch; disable WoL using owned enable bit while composing bit11 neutral1, preserving unrelated bit6. Do not clear pending level implicitly.",

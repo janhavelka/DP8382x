@@ -216,7 +216,13 @@ MdioBatch DP8382x::_wakeBatch() const noexcept {
       auto batch=wakeRead(2); batch.frameCount=2; batch.frames[1]={FrameKind::READ,3,0,0,NO_READ_INDEX}; return batch;
     }
     case WakeStep::PIN_CLOCK: return _mmdBatch(0x0308,FrameKind::READ,0);
-    case WakeStep::PIN_MUX: case WakeStep::PIN_VERIFY: return _mmdBatch(_wakePin()==1U?0x0304:0x0305,FrameKind::READ,0);
+    case WakeStep::PIN_MUX: case WakeStep::PIN_VERIFY: {
+      auto batch=_mmdBatch(_wakePin()==1U?0x0304:0x0305,FrameKind::READ,0);
+      if (_wakeStep==WakeStep::PIN_MUX && _wakePin()==2U) {
+        batch.frames[batch.frameCount++]={FrameKind::READ,0x17,0,0,NO_READ_INDEX};
+      }
+      return batch;
+    }
     case WakeStep::PIN_APPLY: {
       auto batch=_mmdBatch(_wakePin()==1U?0x0304:0x0305,FrameKind::READ,0); batch.frameCount=5;
       // Only the documented GPIO function field belongs to this narrow owner.
@@ -245,7 +251,7 @@ Status DP8382x::_advanceWake(Status status,bool called,const MdioBatch& batch) n
   const bool ack=_operation.kind==OperationKind::WOL_ACKNOWLEDGE;
   const uint8_t last=static_cast<uint8_t>(batch.frameCount-1U);
   const bool complete=called && _result.failingBatch.completedFrames==batch.frameCount;
-  const uint16_t value=complete?_transport.lastBatch.frames[last].value:0;
+  const uint16_t value=complete?_transport.lastBatch.frames[_wakeStep==WakeStep::PIN_MUX?3U:last].value:0;
   // Keep raw history, but never reuse an older word as the result of this
   // requested acquisition. Valid prefixes survive a later write/release error.
   const bool targetRead=called && batch.frameCount>=4U && batch.frames[3].kind==FrameKind::READ &&
@@ -327,6 +333,10 @@ Status DP8382x::_advanceWake(Status status,bool called,const MdioBatch& batch) n
       if ((value&1U)==0U) { return _finishOperation(wakeConfig("LED1 clock output remains active")); }
       _setWakeStep(WakeStep::PIN_MUX); break;
     case WakeStep::PIN_MUX:
+      if (_wakePin()==2U &&
+          (_transport.lastBatch.frames[4].value&0x0020U)!=(_config.interface==MacInterface::RMII?0x0020U:0U)) {
+        return _finishOperation(wakeConfig("Observed interface differs from LED2 wake wiring"));
+      }
       _wakePinNeedsApply=(value&7U)!=_wakePinFunction();
       if (_wakeVerifyOnly && _wakePinNeedsApply) {
         _result.mismatch={true,true,31,static_cast<uint16_t>(_wakePin()==1U?0x0304:0x0305),7,_wakePinFunction(),value};

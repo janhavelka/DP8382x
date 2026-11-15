@@ -214,7 +214,9 @@ void DP8382x::_beginPins(bool verifyOnly) noexcept {
   _pins.observedStale=true;
   const auto valid=_validatePins(_pins.desired);
   if (!valid.ok()) { _pinStep=PinStep::COMPLETE; _finishPins(valid); return; }
-  if (_pins.desired.pins[1].function!=PinFunction::UNOWNED && _identity.mode==OperatingMode::ENHANCED && !_pins.desired.led1ClockOverride) {
+  if (_pins.desired.pins[2].function!=PinFunction::UNOWNED || _pins.desired.pins[3].function!=PinFunction::UNOWNED) {
+    _pinStep=PinStep::INTERFACE;
+  } else if (_pins.desired.pins[1].function!=PinFunction::UNOWNED && _identity.mode==OperatingMode::ENHANCED && !_pins.desired.led1ClockOverride) {
     _pinStep=PinStep::CLOCK_STATUS;
   } else if (_pins.desired.pins[0].function==PinFunction::LED) { _pinStep=PinStep::MUX0; }
   else if (_pins.desired.pins[3].function==PinFunction::LED) { _pinStep=PinStep::MUX3; }
@@ -223,6 +225,10 @@ void DP8382x::_beginPins(bool verifyOnly) noexcept {
 }
 
 MdioBatch DP8382x::_pinsBatch() const noexcept {
+  if (_pinStep==PinStep::INTERFACE) {
+    MdioBatch batch; batch.frameCount=1;
+    batch.frames[0]={FrameKind::READ,0x17,0,0,NO_READ_INDEX}; return batch;
+  }
   if (_pinStep==PinStep::CLOCK_STATUS) { return _mmdBatch(0x0308,FrameKind::READ,0); }
   if (_pinStep==PinStep::MUX0 || _pinStep==PinStep::MUX3) { return _mmdBatch(_pinStep==PinStep::MUX0?0x0303:0x0306,FrameKind::READ,0); }
   uint16_t address=0,mask=0,value=0; _pinRowValue(_pinRow,address,mask,value);
@@ -244,7 +250,11 @@ void DP8382x::_retainPinWord(uint16_t address,uint16_t value) noexcept {
   // observation contradicts them. They are not writable profile rows.
   uint16_t prerequisiteMask=0,prerequisiteValue=0;
   bool prerequisiteProved=!_pinsWorking;
-  if (address==0x0303U && _pins.desired.pins[0].function==PinFunction::LED) {
+  if (address==0x0017U && (_pins.desired.pins[2].function!=PinFunction::UNOWNED ||
+      _pins.desired.pins[3].function!=PinFunction::UNOWNED)) {
+    prerequisiteMask=0x0020; prerequisiteValue=_config.interface==MacInterface::RMII?0x0020:0;
+    prerequisiteProved|=_pinStep!=PinStep::INTERFACE;
+  } else if (address==0x0303U && _pins.desired.pins[0].function==PinFunction::LED) {
     prerequisiteMask=7;
     prerequisiteProved|=_pinStep==PinStep::MUX3 || _pinStep==PinStep::APPLY ||
         _pinStep==PinStep::VERIFY || _pinStep==PinStep::COMPLETE || (_pinStep==PinStep::CLOCK_STATUS && _pinRow==6U);
@@ -261,7 +271,7 @@ void DP8382x::_retainPinWord(uint16_t address,uint16_t value) noexcept {
   if (prerequisiteMask!=0U && (value&prerequisiteMask)!=prerequisiteValue) {
     _pins.trust=ConfigurationTrust::DIRTY; _pins.observedStale=true;
     if (_pinsWorking && prerequisiteProved && !_pinResult.mismatch.valid) {
-      _pinResult.mismatch={true,true,31,address,prerequisiteMask,prerequisiteValue,value};
+      _pinResult.mismatch={true,address>0x1FU,static_cast<uint8_t>(address>0x1FU?31:0),address,prerequisiteMask,prerequisiteValue,value};
     }
   }
   if (index<0) { return; }
@@ -337,6 +347,16 @@ Status DP8382x::_advancePins(Status status,bool called,const MdioBatch& batch) n
     else { _nextPinRow(); }
   };
   switch (_pinStep) {
+    case PinStep::INTERFACE:
+      // Tables5-1/8-41: a board declaration or read-only mux default cannot
+      // prove current LED2/3 availability. RC status enters the sole collector.
+      if ((receipt.frames[readIndex].value&0x0020U)!=(_config.interface==MacInterface::RMII?0x0020U:0U)) {
+        return _finishPins(pinConfig("Observed interface differs from pin-profile wiring"));
+      }
+      if (_pins.desired.pins[1].function!=PinFunction::UNOWNED && _identity.mode==OperatingMode::ENHANCED && !_pins.desired.led1ClockOverride) {
+        _pinStep=PinStep::CLOCK_STATUS;
+      } else { prerequisiteNext(); }
+      break;
     case PinStep::CLOCK_STATUS:
       if ((receipt.frames[readIndex].value&1U)==0U) { return _finishPins(pinConfig("LED1 clock output remains selected")); }
       if (_pinRow==6U) { _nextPinRow(); } else { prerequisiteNext(); }
@@ -373,6 +393,7 @@ Status DP8382x::configurePins(const PinSettings& settings,PinResult& result,cons
   const auto old=_pins; const bool oldVerify=_pinsVerifyOnly;
   _pins.desired=settings; _pinsVerifyOnly=false;
   uint32_t frames=0,callbacks=0;
+  if (settings.pins[2].function!=PinFunction::UNOWNED || settings.pins[3].function!=PinFunction::UNOWNED) { ++frames; ++callbacks; }
   for (uint8_t row=0;row<PIN_ROWS;++row) {
     uint16_t address=0,mask=0,value=0;
     if (_pinRowValue(row,address,mask,value)) { frames+=address<=0x1FU?3U:9U; callbacks+=2; }
