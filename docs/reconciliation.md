@@ -125,3 +125,10 @@ its owned CR1 bit once and retains mismatch/partial readback without writes.
 Initialization replays it last after diagnostic restoration. Policy trust is
 separate in `cableAutorunSnapshot`; a raw capture does not verify policy or clear
 cleanup. Disabled policy never supplies engine-quiescence evidence.
+
+Prompt27 extends the same verification with owned IRQ policy and pin prerequisites.
+It consumes MISR/RXFS evidence through the collector, reads without selector or
+control writes, and keeps crossing attribution unknown until a bounded drain.
+A contradictory RXFS word withdraws prior selector context even if release later
+fails. Restoration remains explicit initialization; test stimulus has a separate
+owned stop and is never replayed. See [interrupts](interrupts.md).

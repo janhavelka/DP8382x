@@ -646,3 +646,25 @@ Initial0102 done, identical results and equal bookends remain uncorrelated.
 Hardware updates at every read/handoff position never become a generation proof.
 Owned reset replay adds3 frames/two callbacks last; verify adds one read only.
 No policy ownership adds no frames. These are software bounds, not silicon times.
+
+## Prompt 27 independent interrupt vectors
+
+Original SNLS647I tables8-35..37/91 and pin tables, independently checked against
+the original PDF by the source reviewer:
+
+- PHYSCR0108 ->010B is active-low global/output enabled; active-high is0103.
+  Test010B ->010F ->010B. ENHANCED stablemask000B; BASIC stablemask000A preservesOE
+  without claiming a power-down role. UnrelatedE310 plusowned000B becomesE31B.
+- MISR1 enable01/02/04/08/10/20/40/80 maps to RECR-half/FCSCR-half/AN-complete/
+  duplex/speed/link/energy/quality events0100/0200/0400/0800/1000/2000/4000/8000.
+- MISR2 the same enable ladder maps jabber/shared-polarity-or-WoL/sleep/MDIX/FIFO/
+  page/AN-error/EEE-error. Read-clearFF00 is never echoed as a control byte.
+- RXFS whole-word0000 selects polarity,1000 selects wake. The four-frame write
+  is W(0D,001F),W(0E,04A1),W(0D,401F),W(0E,0000or1000); no preceding RXFS read
+  builds the word. Both pre-change and ambiguous crossing MISR2 evidence survive.
+- Service always R(10),R(12),R(13); MISR1raw0300 requests R(14),R(15) in one
+  further callback. A prior exhausted pass still owes those reads when the next
+  MISR pair is zero. Five maximum frames, two callbacks, no unlimited drain.
+
+`test/interrupts.cpp` embeds its own literal fake and assertions, not a lookup of
+production masks. Q9 must independently qualify wire/pin latching and delivery.

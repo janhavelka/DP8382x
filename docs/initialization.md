@@ -201,3 +201,11 @@ policy is untouched; owned enable or disable adds one RMW/readback. Failed or
 cancelled final replay keeps initialization incomplete and prior effects visible.
 `startVerify` checks this policy without changing it. Future power transitions
 extend the same path; no enable operation authorizes automatic reset or recovery.
+
+Prompt27 adds explicitly owned interrupt policy as the final shared replay tail,
+after diagnostic saved state and autorun. Unowned IRQ policy adds no frames.
+BASIC preserves PHYSCR OE; ENHANCED validates the declared pin21 role. Replay
+never restores transient test1. Readback or identity failure leaves initialization
+incomplete and the original effects/result intact. Alternate pin muxes are
+validated, not implicitly programmed; prompt32 extends the same dependency order.
+See [interrupt ownership](interrupts.md).

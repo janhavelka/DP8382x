@@ -143,3 +143,10 @@ bounded shared single-run raw acquisition and final shared reset replay. All cab
 software procedures now have host/portable evidence; unknown freshness/coherence,
 engine quiescence and Q7 physical accuracy remain explicit source/fixture limits.
 Calibration recovery still belongs to its separate prompt-35 procedure.
+
+Prompt27 completes `interrupt_configuration` and `interrupt_test` through
+[owned IRQ policy and service](interrupts.md): all source enables, global/output/
+polarity, qualified shared-source attribution, explicit test stop, finite service
+and shared reset replay. Pending half-full requests survive incomplete passes.
+Host tests cover complete procedures; Q9 pin/latching behavior and the RXFS SFD
+interpretation gate remain open. LED1/2 mux programming remains prompt32.

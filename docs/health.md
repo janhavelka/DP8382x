@@ -111,3 +111,9 @@ Explicit autorun policy configuration is MANAGED traffic. Its single-run raw
 acquisition is RAW; policy enable is not a physical trigger, and uncertain cable
 freshness is not an MDIO failure. An owning diagnostic stop remains RAW through
 its final persistent autorun replay, while explicit initialization stays managed.
+
+Prompt27 classifies persistent interrupt configuration and its initialization/
+verification tails as managed batches. Deferred service and test stimulus
+start/stop remain RAW diagnostic traffic. Counter requests and IRQ events are
+collector evidence; neither a pin test nor an empty event pass proves physical
+interrupt delivery or managed recovery.

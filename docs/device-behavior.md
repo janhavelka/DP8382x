@@ -462,3 +462,12 @@ Disable/readback proves only policy, never engine quiescence. Fixed raw CDCR/res
 bookends detect some changes but cannot establish an atomic/fresh generation;
 shadow tuning is not a result latch. No physical completion maximum is invented.
 See [manual and autorun ownership](cable.md) for the shared acquisition/restoration.
+
+Stage27 implements the interrupt procedure with opt-in owned policy, separate
+software-test start/stop and at most one MISR pair plus requested counters per
+service call. Each MISR2 sample records known prior selector context or UNKNOWN;
+crossing events are never relabelled from a new RXFS word. Consumed half-full
+requests survive failed/short service until the single collector reads their
+counters. PHYSCR OE has electrical meaning only in ENHANCED; BASIC pin21 is INT.
+Alternate IRQ mux selection does not disconnect pin21. See [interrupts](interrupts.md)
+for board permissions, restoration and unmeasured Q9 limits.

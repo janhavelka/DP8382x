@@ -474,3 +474,16 @@ partial evidence, reset replay, read-only verify, clocks and cross-PHY exclusion
 The existing tests-OFF cable consumer now executes policy enable, raw acquisition,
 passive views, explicit disable and the manual/HARD-restoration flow. No hardware
 generation, timing or physical distance is asserted by the fake controller.
+
+## Interrupt configuration and deferred service
+
+`test/interrupts.cpp` registers nine suites plus the active Release failure probe.
+Run `ctest --test-dir build/host -R interrupt --output-on-failure --no-tests=error`.
+Independent literals cover every source and both identity modes, pending events
+during mask/source changes, pin conflicts, direct and shared-collector attribution,
+finite service, retained counter requests, all apply/readback/test-stop/restore
+failures, cancellation, malformed receipts, clocks, exact slices and cross-PHY
+exclusion. Tail identity changes cannot turn dirty earlier proof into success.
+The tests-OFF cable consumer now executes the deferred-owner IRQ example, two
+cached views, explicit stimulus clear and IRQ replay after cable HARD restoration.
+Physical Q9 remains NOT RUN; the fake cannot establish MCU notification delivery.

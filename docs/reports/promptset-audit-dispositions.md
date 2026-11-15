@@ -122,7 +122,7 @@ it to measured silicon behavior.
 | G2-9 | Implemented through G1-2: unconditional initialization VOD. |
 | G2-10 | Implemented: coupled CR3 mask0060 and matching swap settings, table8-30; forced vectors. |
 | G2-11 | Implemented: IEEE28B-3 pause plus highest-common full-duplex qualification and PHYCR cross-check; link pause tests. |
-| G2-12 | Implemented collector; planned27 selector extension. ANER/BTSCR/RXFS ownership and mirror order retained; shared MISR2 remains raw. |
+| G2-12 | Implemented20/27: one collector, owned selector-at-consumption and retained ambiguous crossing history; ANER/BTSCR/RXFS mirror order preserved. |
 | G2-13 | Implemented raw evidence, physical gates retained: RECR arithmetic absent, RCSR polarity unknown; events/access tests, Q16/Q17. |
 | G2-14 | Implemented through G11-22: consistent snapshot names. |
 | G2-15 | Planned22: startVerify has no mutation or escalation; explicit initialization replay and OP9 barrier. |
@@ -135,11 +135,11 @@ it to measured silicon behavior.
 | G3-1 | Implemented25, independent literal tests: SNLA428 table2-1 six runs/gains, channel A, exceptional GENCFG and HARD/replay; ledger tdrRecipe. |
 | G3-2 | Implemented25: matching-run threshold/formula, whole-word sign, NO_PEAK and MATLAB conflicts. Corrected section2.2 citation here; tables2-4/5. |
 | G3-3 | Implemented23/24 (physical Q8 NOT RUN): script-only reverse/analog restart retained as conflict; 030B3380 unadopted outside table8-79 range; SNLA423A pp18/20. |
-| G3-4 | Planned27 engineering inference: both MISRs, bounded morePossiblyPending, no dependence on a new edge; Q9 unmeasured. |
+| G3-4 | Implemented27: both MISRs, bounded morePossiblyPending, retained counter requests and no dependence on a new edge; Q9 unmeasured. |
 | G3-5 | Implemented25/26: CDCR and result words0180/0185/018A are non-destructive; tables8-47/61/66/71. |
 | G3-6 | Implemented26: autorun disable/readback is policy, not quiescence; one autorun cannot stand in for six-run interpretation. |
-| G3-7 | Implemented/planned27 through G2-12: dependent mirrors and per-part RXFS selector evidence. |
-| G3-8 | Planned27/32: PHYSCR versus LED mux ownership and ENHANCED-only OE power meaning. |
+| G3-7 | Implemented27 through G2-12: dependent mirrors and exact-part RXFS selector evidence. |
+| G3-8 | Implemented27 PHYSCR/pin admission and ENHANCED-only OE power meaning; LED1/2 mux writes remain32, LED0/3 read-only. |
 | G3-9 | Corrected: ledger/test owners interrupt27, autorun26, TDR calibration25; COV agrees. |
 | G4-1 | Source-implied policy implemented for three safe raw tuples; P29 owns full recipe. EEE_REGISTERS, mmd tests, 825 table7-92, 8227.4.2.9; Q1 remains. |
 | G4-2 | Planned30 start/stop/application dwell already correct; corrected stale COV readiness wording here. 8268.3.4 provides no readiness event. |

@@ -34,7 +34,9 @@ REQUIRED_TYPES = {"DP8382x::Status", "DP8382x::Config", "DP8382x::LinkSettings",
                   "DP8382x::CableControls", "DP8382x::CableSettings", "DP8382x::CableWord",
                   "DP8382x::CableSample", "DP8382x::CableResult", "DP8382x::CableSnapshot",
                   "DP8382x::CableDiagnosis", "DP8382x::CableAutorunOptions",
-                  "DP8382x::CableAutorunSnapshot"}
+                  "DP8382x::CableAutorunSnapshot", "DP8382x::InterruptSettings",
+                  "DP8382x::InterruptSnapshot", "DP8382x::InterruptServiceBudget",
+                  "DP8382x::InterruptServiceSnapshot"}
 
 
 class HtmlPage(HTMLParser):

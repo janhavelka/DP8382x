@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added complete opt-in interrupt policy, pin-conflict validation, retained test
+  start/stop and bounded deferred service through the existing collector.
+- Added selector-at-consumption history, pending half-full counter requests,
+  shared reset replay, independent failure regressions and executed owner example.
+  Physical IRQ delivery remains unqualified.
+
 - Added exact DP83826I manual cable capture: SNLA428 six-run/subset recipes,
   typed raw A/B controls, freshness-qualified per-word results, explicit reread
   and separately budgeted HARD restoration through the existing owner.

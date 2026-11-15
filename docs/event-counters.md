@@ -39,10 +39,12 @@ read. The typed six-source pass adds no implicit RXFS or ANER acquisition.
 | RCSR | Raw RMII word including conflicting RC fields | No fault-polarity/rearm interpretation; Q17 remains open. |
 | RXFS | Raw filter/wake status and source selector | SFD configuration-reference gate remains. An observed selector does not establish its earlier event epoch. |
 
-MISR2's shared polarity-or-WoL bit stays unclassified here. No extra RXFS read is
-added merely to label it. DP83826 reset selects WoL, but generic history may span
-earlier state and unknown writes. Prompt27 owns qualified selection and its
-whole-word writes; WoL enable/reset invalidates that future selection knowledge.
+MISR2's shared polarity-or-WoL bit is unclassified without stage-27 owned selector
+evidence. No extra RXFS read is added merely to label it. The [interrupt owner](interrupts.md)
+establishes qualified selection with whole-word writes and a crossing-history
+drain. Each collector sample retains its context and separate sticky attributed/
+ambiguous history; generic history may span earlier state and unknown writes.
+WoL control writes, reset and contradictory readback withdraw selection knowledge.
 DP83822's default and W1S semantics cannot be imported into this primary-part API.
 
 ## Partial evidence versus complete output
@@ -100,6 +102,11 @@ identity, transport counters and retained operation results. It never clears
 hardware: the next returned sample may contain events predating the discard.
 Binding/end also begin a new local history. Multiple cached readers do not clear
 or acknowledge one another's evidence.
+
+MISR1 half-full events also retain pending counter requests for bounded IRQ
+service. Any valid FCSCR/RECR collector read satisfies its request; incomplete
+service cannot lose it merely because the MISR event was already consumed.
+`clearEvidence` discards these host requests and the cached IRQ aggregate too.
 
 Chip receive/false-carrier samples are distinct from actual MDIO frame counts in
 `transportSnapshot()`, and from [managed health](health.md) implemented in prompt 21. Explicit collector

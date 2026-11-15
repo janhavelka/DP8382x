@@ -931,3 +931,30 @@ no trigger and no environmental polling. `complete` means read-plan completion;
 `autorun` plus aggregate `stale` withholds fresh/coherent-measurement claims, even
 with equal bookends. No source-backed generation counter exists. The
 [cable guide](cable.md) specifies bounds, current settings, handoff and fixtures.
+
+## Prompt 27 interrupt policy, stimulus and service
+
+`startConfigureInterrupts` copies complete explicit policy into the existing
+operation slot. `InterruptSettings` owns both enable bytes, PHYSCR polarity/global
+and ENHANCED output, plus the RXFS selector; BASIC OE is preserved. Pin permissions
+cover both the selected route and pin21. Alternate mux writes remain prompt32.
+`interruptSnapshot` separates desired intent, independent raw validity/time,
+policy trust and temporary test effects. Initialization replays owned policy after
+other restore tails; verification/configuration only checks it. A changed mode in
+the final identity batch invalidates prior proof and rejects before IRQ mutation.
+
+`startInterruptTest` / `stopInterruptTest` are two operations with independent
+budgets/results. A possible stimulus leaves OP-9 temporary state. Cancellation
+is local; explicit stop verifies clear and preserved stable policy. Full HARD
+restoration never replays test1. Stable-policy mismatch cannot remain VERIFIED.
+
+`serviceInterrupts` reads PHYSTS/MISR1/MISR2 once and optionally FCSCR/RECR in a
+second callback: at most five samples/frames. Transaction/sample/frame/deadline
+limits are explicit. The ordinary output is staged; per-source consumed prefixes
+and history loss are retained immediately by the one collector. Nonzero events
+or exhausted allowance report morePossiblyPending. Pending half-full requests
+survive until a valid collector counter read or explicit host-history discard.
+Selector context is captured at MISR2 consumption, with separate sticky ambiguous
+history. A read alone cannot establish an old epoch. Cached service/policy getters
+do no I/O; ISR only signals the application owner. See [the complete procedure and
+board constraints](interrupts.md). Q9 is NOT RUN.

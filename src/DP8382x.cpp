@@ -400,6 +400,8 @@ Status DP8382x::bind(const Config& config) noexcept {
   _loopback = {};
   _bist = {};
   _cable = {};
+  _interrupts = {}; _interruptService = {};
+  _interruptWorking = _interruptTailPending = _interruptVerifyOnly = _interruptTestSession = false;
   _autorun = {};
   _autorunTailPending = false;
   _cableCalibration = false;
@@ -435,6 +437,8 @@ Status DP8382x::end() noexcept {
   _loopback = {};
   _bist = {};
   _cable = {};
+  _interrupts = {}; _interruptService = {};
+  _interruptWorking = _interruptTailPending = _interruptVerifyOnly = _interruptTestSession = false;
   _autorun = {};
   _autorunTailPending = false;
   _cableCalibration = false;
@@ -613,6 +617,9 @@ void DP8382x::_invalidateEvidence() noexcept {
   _bist.stale = true;
   _cable.result.stale = true;
   _cableCurrent = false;
+  _interrupts.observedStale = true;
+  _interrupts.selector = InterruptSharedSource::UNKNOWN;
+  if (_interrupts.desiredValid) { _interrupts.trust = ConfigurationTrust::DIRTY; }
   _autorun.observedStale = true;
   if (_autorun.desiredValid) { _autorun.trust = ConfigurationTrust::DIRTY; }
   _settings.trust = ConfigurationTrust::DIRTY;
@@ -621,6 +628,8 @@ void DP8382x::_invalidateEvidence() noexcept {
 }
 
 void DP8382x::_markEvidenceDiscontinuous() noexcept {
+  _interruptService.stale = true;
+  _interruptService.morePossiblyPending = true;
   for (auto& sample : _evidence.samples) {
     sample.stale = true;
     sample.discontinuous = true;
@@ -653,6 +662,8 @@ Status DP8382x::invalidateDeviceState(InvalidationReason reason) noexcept {
     _bistSession = _bistWorking = _bistRestoreTail = _bistCapturePending = false;
     _cableSession = _cableWorking = _cableRestoreTail = _cableCurrent = false;
     _cableCalibration = false;
+    _interruptTestSession = false;
+    _interrupts.testMayBeActive = false;
   }
   return Status::Ok();
 }
@@ -661,7 +672,7 @@ Status DP8382x::acquireEvidence(uint32_t sourceMask, EvidenceSnapshot& evidence,
                                const IoBudget& budget) noexcept {
   if (sourceMask == 0U || (sourceMask & ~ALL_EVIDENCE) != 0U) { return paramError(ParamDetail::ACCESS_POLICY); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
-  if (_active || _polling || (_operation.state == OperationState::RUNNING && !_configuring && !_cableWorking &&
+  if (_active || _polling || (_operation.state == OperationState::RUNNING && !_configuring && !_cableWorking && !_interruptWorking &&
       _operation.phase == OperationPhase::WAIT)) { return busy(BusyDetail::OPERATION_ACTIVE); }
   if (_operation.state == OperationState::RUNNING && _result.nextPage.requested &&
       (sourceMask & evidenceBit(EvidenceSource::ANER)) != 0U) {
@@ -758,6 +769,7 @@ Status DP8382x::clearEvidence() noexcept {
   _evidence = {};
   _evidence.configurationDirty = dirty;
   _counters = {};
+  _interruptService = {};
   return Status::Ok();
 }
 
@@ -839,16 +851,38 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
       auto& sample = _evidence.samples[static_cast<unsigned>(index)];
       if (address == 0x0016U || address == 0x001BU) { _bist.stale = true; }
       // Any later collector acquisition makes the previous complete aggregate historical.
+      _interruptService.stale = true;
       _counters.stale = true;
       _counters.lastStatus = _transport.clockInvalid ? configError(ConfigDetail::CLOCK_CONTRACT) :
           Status::Error(Err::RESULT_NOT_AVAILABLE, "New partial collector evidence");
       if (completed) {
+        if (address == cmd::REG_MISR1) {
+          if ((receipt.value & 0x0200U) != 0U) { _evidence.pendingInterruptCounters |= 1U; }
+          if ((receipt.value & 0x0100U) != 0U) { _evidence.pendingInterruptCounters |= 2U; }
+        } else if (address == cmd::REG_FCSCR) { _evidence.pendingInterruptCounters &= 0xFEU; }
+        else if (address == cmd::REG_RECR) { _evidence.pendingInterruptCounters &= 0xFDU; }
+        if (address == cmd::REG_RXFS && _interrupts.selector != InterruptSharedSource::UNKNOWN &&
+            ((receipt.value & 0x1000U) != 0U) != (_interrupts.selector == InterruptSharedSource::WAKE)) {
+          // Independently observed contradiction withdraws future attribution,
+          // including a valid read whose callback later fails release/deadline.
+          _interrupts.selector = InterruptSharedSource::UNKNOWN;
+          _interrupts.trust = ConfigurationTrust::DIRTY;
+          _interrupts.observedStale = true;
+        }
         // Every admitted collector read contributes to the same live BIST
         // session, including explicit reads between typed acquisitions.
         if (address == 0x0016U && _bistSession &&
             (_bist.active || (_bistWorking && _bistStep == BistStep::VERIFY_ENABLE))) {
           _bistActivity = _bistActivity || (receipt.value & 0x0200U) != 0U;
           _bistLoss = _bistLoss || (receipt.value & 0x0400U) != 0U;
+        }
+        if (address == cmd::REG_MISR2) {
+          sample.sharedSource = _interrupts.selector;
+          if ((receipt.value & 0x0200U) != 0U) {
+            sample.polaritySeen = sample.polaritySeen || sample.sharedSource == InterruptSharedSource::POLARITY;
+            sample.wakeSeen = sample.wakeSeen || sample.sharedSource == InterruptSharedSource::WAKE;
+            sample.sharedAmbiguous = sample.sharedAmbiguous || sample.sharedSource == InterruptSharedSource::UNKNOWN;
+          }
         }
         sample.raw = receipt.value;
         sample.observedOnes |= receipt.value;
@@ -886,7 +920,16 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
          _transport.violation != TransportViolation::NONE)) {
       _invalidateLink();
       const bool initialized = _initialized;
-      if (_cableWorking && _cableStep == CableStep::POLICY_WRITE) {
+      if (address == 0x04A1U || address == 0x04A0U) {
+        // A selector/WoL write may change attribution even if its receipt fails.
+        _interrupts.selector = InterruptSharedSource::UNKNOWN;
+      }
+      if (_interruptWorking) {
+        if (_operation.kind != OperationKind::INTERRUPT_TEST_START && _operation.kind != OperationKind::INTERRUPT_TEST_STOP) {
+          _interrupts.trust = ConfigurationTrust::DIRTY;
+          _interrupts.observedStale = true;
+        }
+      } else if (_cableWorking && _cableStep == CableStep::POLICY_WRITE) {
         // Persistent policy owns only CR1[8]; unrelated profile fields are preserved.
         _autorun.trust = ConfigurationTrust::DIRTY;
         _autorun.observedStale = true;
@@ -923,6 +966,8 @@ Status DP8382x::_sampleTime(uint64_t& raw, uint64_t& upper) noexcept {
     _transport.clockInvalid = true;
     _invalidateLink();
     _link.lastRefreshStatus = configError(ConfigDetail::CLOCK_CONTRACT);
+    _interruptService.stale = true;
+    _interruptService.morePossiblyPending = true;
     _counters.stale = true;
     _counters.lastStatus = configError(ConfigDetail::CLOCK_CONTRACT);
     return configError(ConfigDetail::CLOCK_CONTRACT);
@@ -955,7 +1000,7 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
                         bool operation, Traffic traffic) noexcept {
   if (called != nullptr) { *called = false; }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
-  if (_active || (!operation && (_polling || (_operation.state == OperationState::RUNNING && !_configuring && !_cableWorking &&
+  if (_active || (!operation && (_polling || (_operation.state == OperationState::RUNNING && !_configuring && !_cableWorking && !_interruptWorking &&
       _operation.phase == OperationPhase::WAIT)))) { return busy(BusyDetail::OPERATION_ACTIVE); }
   if (_transport.clockInvalid) { return configError(ConfigDetail::CLOCK_CONTRACT); }
   if (_stopped) { return busy(BusyDetail::CONTROLLER_QUARANTINED); }
@@ -968,7 +1013,7 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
     status = admitBudget(budget, _config.transport.bounds, batch.frameCount, before, upper);
   }
   if (status.ok() && operation && !_configuring &&
-      ((!_loopWorking && !_bistWorking && !_cableWorking && _initStep == InitStep::COMMAND) || (_loopWorking && _loopStep == LoopStep::RESTART))) {
+      ((!_loopWorking && !_bistWorking && !_cableWorking && !_interruptWorking && _initStep == InitStep::COMMAND) || (_loopWorking && _loopStep == LoopStep::RESTART))) {
     status = admitReset(budget, _config.transport.bounds, before, _commandWaitUs());
   }
   if (!status.ok()) {
@@ -1081,6 +1126,8 @@ void DP8382x::_beginOperation(OperationKind kind, const OperationBudget& budget)
   _bistWorking = false;
   _cableWorking = false;
   _autorunTailPending = _autorun.desiredValid;
+  _interruptWorking = false;
+  _interruptTailPending = _interrupts.desiredValid;
   _pollTimeValid = false;
 }
 
@@ -1146,6 +1193,25 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
         CableStep::POLICY_VERIFY : CableStep::POLICY_WRITE);
     return _operation.status;
   }
+  if (status.ok() && _result.persistentRestored && _interruptTailPending &&
+      (_operation.kind == OperationKind::INITIALIZE || _operation.kind == OperationKind::VERIFY ||
+       _operation.kind == OperationKind::CONFIGURE || _operation.kind == OperationKind::LOOPBACK_STOP ||
+       _operation.kind == OperationKind::BIST_STOP || _operation.kind == OperationKind::CABLE_STOP)) {
+    _interruptTailPending = false;
+    _result.persistentRestored = false;
+    _interrupts.trust = ConfigurationTrust::DIRTY; _interrupts.observedStale = true;
+    _interruptVerifyOnly = _operation.kind == OperationKind::VERIFY || _operation.kind == OperationKind::CONFIGURE;
+    if (!_interruptVerifyOnly) { _initialized = false; }
+    _setInterruptStep(InterruptStep::IDENTIFY);
+    return _operation.status;
+  }
+  if (_interruptWorking) {
+    _interrupts.lastStatus = status;
+    if (!status.ok() && _operation.kind != OperationKind::INTERRUPT_TEST_START && _operation.kind != OperationKind::INTERRUPT_TEST_STOP) {
+      _interrupts.trust = ConfigurationTrust::DIRTY; _interrupts.observedStale = true;
+    }
+  }
+  _result.interrupts = _interrupts;
   if (_cableWorking && (_cableStep == CableStep::POLICY_WRITE || _cableStep == CableStep::POLICY_VERIFY ||
       _operation.kind == OperationKind::CABLE_AUTORUN_CONFIGURE)) {
     _autorun.lastStatus = status;
@@ -1164,6 +1230,7 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
     if (_operation.kind == OperationKind::LOOPBACK_STOP || _operation.kind == OperationKind::BIST_STOP || _operation.kind == OperationKind::CABLE_STOP ||
         (_operation.kind == OperationKind::INITIALIZE && _result.reset == ResetKind::HARD)) {
       _operation.temporaryMayBeActive = false;
+      _interruptTestSession = false;
       _loopSession = false;
       _bistSession = _bistCapturePending = false;
       _cableSession = _cableCurrent = false;
@@ -1173,6 +1240,10 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
       if (_operation.kind == OperationKind::LOOPBACK_STOP || _result.loopback.speed != LinkSpeed::UNKNOWN) {
         _result.loopback.stopped = true;
       }
+    }
+    if (_operation.kind == OperationKind::INTERRUPT_TEST_STOP) {
+      _operation.temporaryMayBeActive = false;
+      _interruptTestSession = false;
     }
   } else if (_result.mutationCompleted || _result.mutationPossible) {
     _operation.cleanupOwed = true;
@@ -1202,6 +1273,7 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
     _result.cable = _cable.result;
   }
   if (_operation.kind == OperationKind::CABLE_START && !_operation.temporaryMayBeActive) { _cableSession = false; }
+  _interruptWorking = false;
   _cableWorking = false;
   _bistWorking = false;
   if (!status.ok() && _loopSession) {
@@ -1325,7 +1397,8 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
   if (_operation.nextPollValid && raw < _operation.nextPollAtUs) { return _yieldOperation(raw); }
 
   MdioBatch batch;
-  if (_cableWorking) { batch = _cableBatch(); }
+  if (_interruptWorking) { batch = _interruptBatch(); }
+  else if (_cableWorking) { batch = _cableBatch(); }
   else if (_bistWorking) { batch = _bistBatch(); }
   else if (_loopWorking) { batch = _loopbackBatch(); }
   else if (_configuring) { batch = _configurationBatch(); }
@@ -1351,13 +1424,14 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
   status = admitBudget(_operation.remaining, _config.transport.bounds, batch.frameCount, raw, upper);
   if (!status.ok()) { return _finishOperation(status); }
   if (batch.frameCount > maxFrames) { return _yieldOperation(raw); }
-  if (!_configuring && ((!_loopWorking && !_bistWorking && !_cableWorking && _initStep == InitStep::COMMAND) ||
+  if (!_configuring && ((!_loopWorking && !_bistWorking && !_cableWorking && !_interruptWorking && _initStep == InitStep::COMMAND) ||
       (_loopWorking && _loopStep == LoopStep::RESTART))) {
     status = admitReset(_operation.remaining, _config.transport.bounds, raw, _commandWaitUs());
     if (!status.ok()) { return _finishOperation(status); }
   }
   bool called = false;
-  if ((!_configuring && !_loopWorking && !_bistWorking && !_cableWorking && (_initStep == InitStep::IDENTIFY || _initStep == InitStep::REIDENTIFY)) ||
+  if ((!_configuring && !_loopWorking && !_bistWorking && !_cableWorking && !_interruptWorking && (_initStep == InitStep::IDENTIFY || _initStep == InitStep::REIDENTIFY)) ||
+      (_interruptWorking && _interruptStep == InterruptStep::IDENTIFY) ||
       (_loopWorking && _loopStep == LoopStep::IDENTIFY_STOP) ||
       (_cableWorking && (_cableStep == CableStep::IDENTIFY || _cableStep == CableStep::STOP_IDENTITY))) {
     DeviceIdentity accepted;
@@ -1376,7 +1450,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
     _result.failingBatch = {_operation.phase, frames.attempted, frames.completed, effect,
                            status, classifyReport(receipt, frames).release, _transport.violation, _transport.late};
     _result.late = _result.late || _transport.late;
-    if (!_configuring && !_loopWorking && !_bistWorking && !_cableWorking && (_initStep == InitStep::SOR1 || _initStep == InitStep::SOR2 ||
+    if (!_configuring && !_loopWorking && !_bistWorking && !_cableWorking && !_interruptWorking && (_initStep == InitStep::SOR1 || _initStep == InitStep::SOR2 ||
          _initStep == InitStep::RESOR1 || _initStep == InitStep::RESOR2) && frames.completed == 4U) {
       if (_initStep == InitStep::SOR1 || _initStep == InitStep::RESOR1) {
         _result.straps.sor1 = receipt.frames[3].value;
@@ -1408,7 +1482,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
         }
         _result.failingBatch.effectPossible = _result.failingBatch.effectPossible || uncertain;
       }
-    } else if (!_loopWorking && !_bistWorking && !_cableWorking && (_initStep == InitStep::COMMAND || _initStep == InitStep::APPLY)) {
+    } else if (!_loopWorking && !_bistWorking && !_cableWorking && !_interruptWorking && (_initStep == InitStep::COMMAND || _initStep == InitStep::APPLY)) {
       const uint8_t index = _initStep == InitStep::COMMAND ? uint8_t{0} : uint8_t{3};
       const auto& target = receipt.frames[index];
       // A contradictory callback cannot prove that an omitted target was never
@@ -1432,6 +1506,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
       }
     }
   }
+  if (_interruptWorking) { return _advanceInterrupt(status, called, batch); }
   if (_cableWorking) { return _advanceCable(status, called, batch); }
   if (_bistWorking) { return _advanceBist(status, called, batch); }
   if (_loopWorking) { return _advanceLoopback(status, called, batch); }

@@ -182,6 +182,13 @@ constexpr uint32_t evidenceBit(EvidenceSource source) noexcept {
 /// @brief Every currently supported destructive source; no automatic polling.
 constexpr uint32_t ALL_EVIDENCE = (uint32_t{1} << static_cast<uint8_t>(EvidenceSource::COUNT)) - 1U;
 
+/// @brief Context for MISR2[9] at consumption; a later selector cannot relabel history.
+enum class InterruptSharedSource : uint8_t {
+  UNKNOWN, ///< Transition, external change or unowned selector.
+  POLARITY, ///< Owned RXFS[12]=0, with crossing evidence already consumed.
+  WAKE ///< Owned RXFS[12]=1; not proof that a valid wake packet arrived.
+};
+
 /// @brief Retained evidence from one destructive source, separate from aggregate success.
 struct EvidenceSample {
   uint16_t raw{0}; ///< Latest successfully returned full word, including unknown bits.
@@ -201,6 +208,10 @@ struct EvidenceSample {
   bool timeValid{false}; ///< Timestamp is usable; zero is a valid timestamp.
   bool stale{true}; ///< Failed refresh or known external/configuration change.
   bool historyLost{false}; ///< Sticky: a possible consumption returned no trusted word.
+  InterruptSharedSource sharedSource{InterruptSharedSource::UNKNOWN}; ///< MISR2 latest sample's selector context only.
+  bool polaritySeen{false}; ///< Sticky MISR2[9] consumed under a proved polarity selector.
+  bool wakeSeen{false}; ///< Sticky MISR2[9] consumed under a proved wake selector.
+  bool sharedAmbiguous{false}; ///< Sticky MISR2[9] consumed without proved epoch attribution.
 };
 
 /// @brief Passive destructive evidence; binding/end begin a new local history.
@@ -209,6 +220,7 @@ struct EvidenceSnapshot {
   uint32_t lastRequested{0}; ///< Sources requested by the latest admitted acquisition.
   Status lastStatus{Err::RESULT_NOT_AVAILABLE, 0, "No evidence acquisition"}; ///< Latest acquisition or admitted mixed update result; comparison-only wake exit leaves it unchanged.
   bool configurationDirty{false}; ///< Historical mutation/uncertainty latch; not the initialized-state flag.
+  uint8_t pendingInterruptCounters{0}; ///< Consumed MISR1 requests awaiting a valid counter read: bit0 FCSCR, bit1 RECR.
 };
 
 /// @brief Complete six-source acquisition, separate from immediately retained partial evidence.
@@ -264,7 +276,10 @@ enum class OperationKind : uint8_t {
   CABLE_ACQUIRE, ///< Nondestructively reacquire the current triggered run.
   CABLE_STOP, ///< Stop manual capture, HARD reset and verify saved-state restoration.
   CABLE_AUTORUN_CONFIGURE, ///< Apply one persistent hardware link-down autorun flag.
-  CABLE_AUTORUN_ACQUIRE ///< Acquire one uncorrelated raw autorun result without waiting for a trigger.
+  CABLE_AUTORUN_ACQUIRE, ///< Acquire one uncorrelated raw autorun result without waiting for a trigger.
+  INTERRUPT_CONFIGURE, ///< Apply and verify explicitly owned interrupt policy.
+  INTERRUPT_TEST_START, ///< Establish a retained software interrupt stimulus.
+  INTERRUPT_TEST_STOP ///< Clear and verify the owned software interrupt stimulus.
 };
 /// @brief One retained operation slot.
 enum class OperationState : uint8_t {
@@ -564,6 +579,70 @@ struct CableAutorunSnapshot {
   bool timeValid{false}; ///< Timestamp zero is valid when true.
   Status lastStatus{Err::RESULT_NOT_AVAILABLE, 0, "No autorun policy verification"}; ///< Last policy outcome.
 };
+/// @brief Selected interrupt output route; mux writes belong to the later pin owner.
+enum class InterruptPin : uint8_t {
+  INTR_PWRDN, ///< Pin21: BASIC INT or ENHANCED direction selected by OE.
+  LED1, ///< Requires live mux0304=4; ENHANCED also requires GPIO availability.
+  LED2 ///< ENHANCED only; MII additionally requires declared unused COL.
+};
+/// @brief Complete opt-in policy; masks use named cmd::MASK_MISR*_ENABLE fields.
+/// @note SNLS647I tables8-35..37/74..78/91. Board declarations are permissions,
+/// not measurements. No mux, GPIO, MCU ISR or scheduler is configured here.
+struct InterruptSettings {
+  uint16_t misr1Mask{0}; ///< Eight enable bits; reject bits outside00FF before I/O.
+  uint16_t misr2Mask{0}; ///< Eight enable bits, distinct source map from MISR1.
+  InterruptSharedSource sharedSource{InterruptSharedSource::WAKE}; ///< POLARITY or WAKE; UNKNOWN is not a setting.
+  InterruptPin pin{InterruptPin::INTR_PWRDN}; ///< Pin route to verify before mutation.
+  bool activeLow{true}; ///< PHYSCR3; external electrical levels remain unqualified.
+  bool globalEnable{false}; ///< PHYSCR1; disabled delivery does not clear evidence.
+  bool outputEnable{true}; ///< PHYSCR0 in ENHANCED; ignored/preserved in BASIC.
+  bool maintenanceAdmitted{false}; ///< Application admits disruptive pin/mask changes.
+  bool pinAvailable{false}; ///< Application owns selected route AND pin21's role; alternate mux does not disconnect pin21.
+  bool led1ClockUnused{false}; ///< Required board declaration for ENHANCED LED1.
+  bool colUnused{false}; ///< Required board declaration for ENHANCED MII LED2.
+  bool powerDownInputSafe{false}; ///< Required whenever ENHANCED OE=0 is requested.
+};
+/// @brief Passive interrupt intent/readback and test-stimulus evidence.
+struct InterruptSnapshot {
+  InterruptSettings desired{}; ///< Last admitted complete policy; replayed only if owned.
+  bool desiredValid{false}; ///< Explicit configuration established policy ownership.
+  ConfigurationTrust trust{ConfigurationTrust::UNKNOWN}; ///< Complete stable policy verification only.
+  uint16_t rawPhyscr{0}; ///< Latest independently read control word.
+  uint16_t rawMisr1{0}; ///< Latest policy readback, including consumed events.
+  uint16_t rawMisr2{0}; ///< Latest policy readback, including consumed events.
+  uint16_t rawRxfs{0}; ///< Latest policy readback, including consumed filter status.
+  bool physcrValid{false}; ///< A valid PHYSCR observation exists.
+  bool misr1Valid{false}; ///< A valid MISR1 policy readback exists.
+  bool misr2Valid{false}; ///< A valid MISR2 policy readback exists.
+  bool rxfsValid{false}; ///< A valid RXFS policy readback exists.
+  bool observedStale{true}; ///< Incomplete verification or external/reset uncertainty.
+  bool timeValid{false}; ///< Complete verification timestamp validity.
+  uint64_t observedAtUs{0}; ///< Microsecond upper bound; zero is valid.
+  bool basicStrapInterrupt{false}; ///< Observed BASIC mode gives pin21 its INT role; OE has no direction meaning.
+  InterruptSharedSource selector{InterruptSharedSource::UNKNOWN}; ///< Current attribution context; unknown through transitions.
+  bool testMayBeActive{false}; ///< Accepted/uncertain stimulus until explicit clear or reset restoration.
+  Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No interrupt configuration"}; ///< Last policy/stimulus outcome.
+};
+/// @brief Bounds for a single owner service pass, never an unlimited drain.
+struct InterruptServiceBudget {
+  IoBudget io{}; ///< Aggregate exclusive deadline and physical-frame allowance.
+  uint8_t maxTransactions{2}; ///< Maximum callbacks; plan needs one, optionally a second for counters.
+  uint8_t maxSamples{5}; ///< Maximum consumed words; first PHYSTS/MISR1/MISR2 need three.
+};
+/// @brief Last complete IRQ service, separate from immediate per-source collector history.
+struct InterruptServiceSnapshot {
+  bool valid{false}; ///< A complete software acquisition exists, never simultaneous silicon state.
+  bool stale{true}; ///< Another read, failure or invalidation makes the stored aggregate historical.
+  bool morePossiblyPending{true}; ///< Nonzero event bytes or incomplete/budget-limited work require owner rescheduling.
+  uint16_t rawPhysts{0}; ///< Mirrors read before MISRs; never used to skip them.
+  EvidenceSample misr1{}; ///< Latest word plus sample identity and retained history.
+  EvidenceSample misr2{}; ///< Latest word plus sample identity, history and selector context.
+  EvidenceSample fcscr{}; ///< Optional half-full sample and qualified lower-bound accumulation.
+  EvidenceSample recr{}; ///< Optional raw half-full sample; arithmetic remains gated.
+  bool fcscrRequested{false}; ///< Current or retained FCSCR request serviced in this pass.
+  bool recrRequested{false}; ///< Current or retained RECR request serviced in this pass.
+  Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No interrupt service"}; ///< Failed refresh leaves cached values stale.
+};
 /// @brief Passive profile evidence. VERIFIED covers active advertisement/mode, routing, extension and mandatory VOD.
 struct SettingsSnapshot {
   LinkSettings desired{}; ///< Authoritative intent copied at successful start admission.
@@ -670,6 +749,7 @@ struct OperationResult {
   BistResult bist{}; ///< Current diagnostic evidence, separate from primary/stop outcomes.
   CableResult cable{}; ///< Non-destructive cable words; primary and restoration results remain separate.
   CableAutorunSnapshot cableAutorun{}; ///< Retained policy evidence; success never proves engine quiescence.
+  InterruptSnapshot interrupts{}; ///< Retained policy and transient test effects, independent of restoration result.
   uint16_t savedAnar{0}; ///< Pre-mutation advertisement, never a rollback instruction.
   uint16_t savedBmcr{0}; ///< Pre-mutation control, never a rollback instruction.
   bool savedAnarValid{false}; ///< Pre-mutation advertisement was captured.
@@ -900,6 +980,41 @@ public:
   /// @return Policy evidence only; disabled does not imply engine idle.
   CableAutorunSnapshot cableAutorunSnapshot() const noexcept { return _autorun; }
 
+  /// @brief Admit complete opt-in interrupt policy without bus/clock callbacks.
+  /// @param[in] settings Valid masks, source and explicit board/pin permissions.
+  /// @param[in] budget Finite primary allowance; cancellation leaves OP-9 restoration debt.
+  /// @param[out] token New retained operation token on admission only.
+  /// @return IN_PROGRESS or local syntax/lifecycle/capability error, unchanged token on rejection.
+  /// @note Polls preserve consumed events and verify all owned controls. Initialize
+  /// replays owned policy; startVerify reads only. LED mux writes are not performed.
+  Status startConfigureInterrupts(const InterruptSettings& settings, const OperationBudget& budget,
+                                  OperationToken& token) noexcept;
+  /// @brief Start retained PHYSCR2 software stimulus; requires verified owned IRQ policy.
+  /// @param[in] budget Finite operation allowance; application owns observation duration.
+  /// @param[out] token New token only on admission.
+  /// @return IN_PROGRESS or local error. No callbacks during start.
+  /// @note Table8-35. Success proves register readback, not pin or MCU delivery.
+  /// Cancel is bus-silent; separately call stopInterruptTest after taking the result.
+  Status startInterruptTest(const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Admit explicit clear/readback of retained test stimulus, with a new budget/result.
+  /// @param[in] budget Finite restoration allowance, separate from the primary result.
+  /// @param[out] token New token on admission only.
+  /// @return IN_PROGRESS or local error. Failed stop keeps accepted effects and OP-9 debt.
+  Status stopInterruptTest(const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Copy policy and test evidence without MDIO or clock access.
+  /// @return Desired, raw observed and trust facts; no claim of external pin level.
+  InterruptSnapshot interruptSnapshot() const noexcept { return _interrupts; }
+  /// @brief Service once in owner context: PHYSTS, both MISRs, then requested half-full counters.
+  /// @param[out] snapshot Published only on complete success; unchanged on failure.
+  /// @param[in] budget Maximum callbacks/samples and aggregate physical frames/deadline.
+  /// @return OK or bounded transport/admission error; no retries or drain loop.
+  /// @note Partial consumed samples remain in the single collector. ISR only signals
+  /// the application owner; reschedule if morePossiblyPending, without requiring a new edge.
+  Status serviceInterrupts(InterruptServiceSnapshot& snapshot, const InterruptServiceBudget& budget) noexcept;
+  /// @brief Copy the last complete service and its freshness/error without consuming events.
+  /// @return Passive value; repeated cached readers create no new notifications.
+  InterruptServiceSnapshot interruptServiceSnapshot() const noexcept { return _interruptService; }
+
   /// @brief Project passive health without bus/clock access or changing admission.
   /// @return UNINIT when not initialized; otherwise READY at zero failures,
   /// DEGRADED below offlineThreshold, or OFFLINE at/above it.
@@ -1122,6 +1237,24 @@ public:
   TransportSnapshot transportSnapshot() const noexcept { return _transport; }
 
 private:
+  enum class InterruptStep : uint8_t {
+    IDENTIFY, PIN_CLOCK, PIN_MUX, CHECK_TEST, DISABLE, DRAIN,
+    SELECT, VERIFY_SELECT, CROSSING, MASK1, MASK2, OUTPUT, ENABLE,
+    VERIFY1, VERIFY2, VERIFY_CONTROL, TEST_WRITE, TEST_VERIFY
+  };
+  InterruptStep _interruptStep{InterruptStep::IDENTIFY};
+  InterruptSnapshot _interrupts{};
+  InterruptServiceSnapshot _interruptService{};
+  bool _interruptWorking{false}, _interruptTailPending{false}, _interruptVerifyOnly{false};
+  bool _interruptTestSession{false};
+  OperatingMode _interruptExpectedMode{OperatingMode::UNKNOWN};
+  Status _admitInterrupt(const OperationBudget& budget, bool stop) const noexcept;
+  Status _validateInterruptSettings(const InterruptSettings& settings) const noexcept;
+  void _setInterruptStep(InterruptStep step) noexcept;
+  MdioBatch _interruptBatch() const noexcept;
+  Status _advanceInterrupt(Status status, bool called, const MdioBatch& batch) noexcept;
+  uint16_t _interruptControlMask() const noexcept;
+  uint16_t _interruptControlValue() const noexcept;
   enum class CableStep : uint8_t {
     IDENTIFY, BMCR, PHYRCR, CR1, BISCR, LINK, CDCR, SAVE,
     APPLY, VERIFY, TRIGGER, WAIT, INDEX, AMPLITUDE, PEAK, BOOKEND,

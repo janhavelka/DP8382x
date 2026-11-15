@@ -1,5 +1,6 @@
 #include "../../examples/portable/CableCapture.h"
 #include "../../examples/portable/CableAutorun.h"
+#include "../../examples/portable/Interrupts.h"
 #include <array>
 
 namespace {
@@ -21,7 +22,7 @@ struct Controller {
     words[0] = 0x3100; words[4] = 0x01E1; words[25] = 0x8000;
     words[22] = 0x0100; words[30] = 0x0102; words[0x030E] = 0x8400;
     words[0x0170] = 0x5C12; words[0x0175] = 0x1007;
-    words[0x0456] = 8;
+    words[0x0456] = 8; words[0x04A1] = 0x1000; words[0x11] = 0x0108;
   }
   static uint64_t clock(void* context) noexcept {
     auto& self = *static_cast<Controller*>(context); ++self.clockCalls; return self.now;
@@ -37,7 +38,10 @@ struct Controller {
     if (target == 0x0180) return 21;
     if (target == 0x0185) return 34;
     if (target == 0x018A) return 0x0800;
-    return words[target];
+    const auto value = words[target];
+    if (target == 18 || target == 19) words[target] &= 0x00FF;
+    if (target == 0x04A1) words[target] &= 0xFF1E;
+    return value;
   }
   void write(uint16_t target, uint16_t value) noexcept {
     if (target == 31 && value == 0x8000) {
@@ -45,6 +49,10 @@ struct Controller {
       quietUntil = now + 2U + 1U + 2000U; // Frame completion, declared lag, HARD floor.
     } else if (target == 0) {
       words[0] = static_cast<uint16_t>(value & 0xFDFFU);
+    } else if (target == 18 || target == 19) {
+      words[target] = static_cast<uint16_t>((words[target] & 0xFF00U) | (value & 0x00FFU));
+    } else if (target == 0x04A1) {
+      words[target] = static_cast<uint16_t>((words[target] & 0x00E1U) | value);
     } else {
       words[target] = value;
       if (target == 30 && (value & 0x8000U) != 0U) { ++triggers; completionReads = 0; }
@@ -150,6 +158,26 @@ int main() {
   if ((bus.words[9] & 0x0100U) != 0U || handoff.result.cableAutorun.observed ||
       handoff.result.cableAutorun.trust != ConfigurationTrust::VERIFIED) return 20;
 
+  // This host-only permission models an admitted board; no real IRQ wire is assumed.
+  InterruptSettings irq; irq.maintenanceAdmitted = irq.pinAvailable = true;
+  irq.globalEnable = true; irq.misr1Mask = 0x20; irq.misr2Mask = 0x02;
+  InterruptAttempt irqPolicy;
+  if (!beginInterruptPolicy(phy, irq, budget(), irqPolicy).inProgress() ||
+      !finish(phy, bus, irqPolicy, quiet)) return 22;
+  bus.words[18] |= 0x2000; bus.words[19] |= 0x0200;
+  InterruptServiceSnapshot irqView; bool reschedule = false;
+  if (!serviceDeferredInterrupt(phy, {{1000000,5},2,5}, irqView, reschedule).ok() || !reschedule ||
+      !irqView.misr2.wakeSeen) return 23;
+  const auto irqCalls = bus.callbacks, irqClocks = bus.clockCalls;
+  const auto irqOne = cachedInterruptView(phy), irqTwo = cachedInterruptView(phy);
+  if (!irqOne.valid || !irqTwo.valid || bus.callbacks != irqCalls || bus.clockCalls != irqClocks) return 24;
+  if (!serviceDeferredInterrupt(phy, {{1000000,5},2,5}, irqView, reschedule).ok() || reschedule) return 25;
+  InterruptAttempt stimulus, clearStimulus;
+  if (!phy.startInterruptTest(budget(), stimulus.token).inProgress() || !finish(phy,bus,stimulus,quiet)) return 26;
+  if ((bus.words[17] & 4U) == 0U || !stimulus.result.cleanupOwed) return 27;
+  if (!phy.stopInterruptTest(budget(), clearStimulus.token).inProgress() || !finish(phy,bus,clearStimulus,quiet) ||
+      (bus.words[17] & 4U) != 0U) return 28;
+
   CableSettings settings; settings.recipe = CableRecipe::RAW; settings.runMask = 1;
   settings.controls.channel = CableChannel::B_TO_A;
   settings.maintenanceAdmitted = settings.peerQuiet = settings.allowHardResetExit = true;
@@ -175,5 +203,6 @@ int main() {
   const auto replayed = phy.cableAutorunSnapshot();
   if (!replayed.desiredValid || replayed.desired || replayed.observed ||
       replayed.trust != ConfigurationTrust::VERIFIED || (bus.words[9] & 0x0100U) != 0U) return 21;
+  if (phy.interruptSnapshot().trust != ConfigurationTrust::VERIFIED || (bus.words[17] & 0x000FU) != 0x000BU) return 29;
   return phy.end().ok() ? 0 : 12;
 }

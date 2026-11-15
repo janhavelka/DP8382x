@@ -10528,26 +10528,26 @@
           "mask": "0x1000"
         }
       ],
-      "prerequisites": "Identified part, finite apply/readback/cleanup budgets; application owns pin mux, electrical role and synchronization. ENHANCED INTR/PWRDN direction changes require declared board compatibility; alternate GPIO routing belongs to pin owner. Preserve power/loopback controls and collector ownership.",
+      "prerequisites": "Initialized exact DP83826I, verified link profile when owned, one application/controller owner, finite primary budget and explicit maintenance/pin permissions before callbacks. Pin permission covers selected route AND pin21; ENHANCED OE0 requires declared powerDownInputSafe. BASIC pin21 is strap-selected INT and OE is preserved. LED1/2 mux4 must already be established by pin owner; LED0/3 mux remain read-only. ENHANCED LED1 needs declared clock-unused and live0308 GPIO availability; BASIC LED2 rejects, ENHANCED MII LED2 needs declared unused COL.",
       "steps": [
-        "Validate desired eight-bit source enables, polarity, output role and shared polarity/WoL selector before I/O. Capture stable prior owned configuration and collect any consumed event words during capture.",
-        "Disable PHYSCR event enable while changing enables/routing under serialized owner; do not assume this clears latches. Retain pending shared-source events with prior selector context; events spanning selector/WoL auto-change remain ambiguous.",
-        "Apply RXFS source, both MISR low-byte enables and PHYSCR polarity/output; all readback/RMW consumes via collector. Compose only owned writable masks, preserve unrelated bits, never echo high event bits as writable controls.",
-        "Enable global event delivery last and verify stable writable fields. Source readback proves control state, not IRQ wiring or absence of history. Failed/mismatched/late accepted writes mark configuration trust uncertain and retain observed/desired/prior values separately.",
-        "MISR2 bit0200 is raw polarity/WoL until RXFS[12] is known. Prompt27 selects RXFS1000 or0000 whole-word, never RMW, and verifies via collector. WoL enable or hard reset restores WoL/unknown routing. PHYSCR configuration owns000B; testbit2 is separate."
+        "Admit desired complete source-enable bytes, polarity, direction and selector without callbacks; retain independent observed validity/time/trust. Live identity/pin checks and already-active test rejection precede mutation.",
+        "Disable PHYSCR global enable while changing policy; retain pending MISR2 with prior selector context. Write RXFS wholeword1000 or0000, verify through collector and drain crossing events as UNKNOWN before establishing future selector context. WoL writes, contradictory RXFS reads and reset/external uncertainty withdraw attribution.",
+        "MISR1/2 atomic read/lowbyte write retains consumed status and never echoes high RC events. Apply PHYSCR mask000B in ENHANCED or000A preservingOE in BASIC; global enable last, transient test0. Verify all stable owned fields; preserve unrelated power/loopback bits.",
+        "Service PHYSTS then both MISRs regardless of PHYSTS7. Retain each sample/context centrally. Nonzero event byte or exhausted allowance sets morePossiblyPending; owner schedules bounded level/pin/poll followup, never waits for another edge or drains indefinitely.",
+        "MISR1 half-full events retain pending FCSCR/RECR requests across failed or budget-limited passes. Successful collector counter reads clear requests; lost reads retain history-loss. Service maximum is two callbacks/five samples/frames; normal aggregate is staged, partial evidence remains cached. No RXFS read is added just to label an event."
       ],
       "waits": [],
       "timeout": "Finite primary deadline/frame budget for preflight, collector reads, writes and readback; distinct finite cleanup allowance; no unbounded IRQ draining. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
       "partialEffects": "Disabling delivery may hide external assertion without removing internal history. RXFS read clears events. A mux/polarity/pin role change may assert or release external pin; an ambiguous write can already have changed hardware.",
-      "cleanup": "On cancellation/failure attempt bounded restoration of stable prior owned masks in dependency order with global enable last, preserving collector output. Cleanup failure remains explicit and cannot overwrite the primary error.",
-      "restoration": "Verify restored stable masks and retain desired policy separately; do not restore events or transient test bit. Hard reset requires configured policy replay; digital restart does not authorize replaying old latches.",
+      "cleanup": "No cleanup frames on failure/cancellation. Freeze primary result and OP-9 accepted/possible effects; separately admitted startInitialize replays authoritative desired policy with its own token, deadline/frame budget and result. No hidden retry or rollback.",
+      "restoration": "Replay only explicitly owned policy last after profile/diagnostic and autorun tails; verify controls before initialization success. Never replay transient test1. startVerify and link configuration only verify IRQ policy. Changed identity during final proof rejects and invalidates earlier proof. Pin mux programming remains prompt32, not an implicit interrupt side effect.",
       "gates": [
         "rxfs_sfd_reference"
       ],
       "owner": {
-        "api": "InterruptSettings / collectEvents",
+        "api": "startConfigureInterrupts / interruptSnapshot / serviceInterrupts / interruptServiceSnapshot / startInterruptTest / stopInterruptTest",
         "cli": "owner-routed InterruptSettings / collectEvents (prompts 44-46)",
-        "test": "Independent literals and boundary failures for InterruptSettings / collectEvents; prompts 27, 53-55",
+        "test": "test/interrupts.cpp independent policy/source/selector/budget/failure/replay/pin suites; portable owner consumer; Q9 NOT RUN",
         "implementationStage": 27
       }
     },
@@ -10570,25 +10570,25 @@
           "mask": "0x0004"
         }
       ],
-      "prerequisites": "Exclusive owner; identified part, board-authorized IRQ wiring and finite stimulus/cleanup budgets. Test bit initially known clear; application controls external pin sampling and ISR scheduling, never MDIO in ISR.",
+      "prerequisites": "Initialized exact identity, verified explicitly owned IRQ policy and exclusive application pin admission. Finite start and separately supplied stop budgets. Live initially-clear test check; ISR only signals the owner.",
       "steps": [
-        "Capture IRQ configuration and establish test token. Set PHYSCR[2] with unrelated state preserved and record accepted/uncertain effect.",
-        "Observe external IRQ pin/owner notification under finite deadline; service real events through collector without attributing them to test. Register write/readback alone proves control only, not physical IRQ delivery.",
-        "Clear test bit on success, failure, timeout or cancellation using separately reserved finite cleanup; verify bit clear and report external deassertion evidence if available.",
-        "Service both MISRs regardless of PHYSTS7. Any nonzero event or budget exhaustion means morePossiblyPending; bounded level/pin sample or re-poll follows. Empty acquisition with a test-bit stimulus is not itself an error."
+        "Admit a retained test-start operation without I/O. Recheck identity/pin prerequisites and test initiallyclear; setPHYSCR2 with unrelated state preserved, verify stable policy and test1, retaining accepted/uncertain effects.",
+        "Application schedules finite external observation; library success proves register readback only. Service both MISRs regardless of PHYSTS7. Empty event words while test set are not error and do not cause a drain loop.",
+        "Take primary result before separately admitting stopInterruptTest with a new token/budget. Recheck identity, clearPHYSCR2 once, verify stable policy/test0. Cancellation itself is bus-silent; failed stop retains cleanup debt.",
+        "An accepted/possible test write retains OP-9 temporary state until owning stop, full HARD restoration or external reset/POR disposition. Stable-policy mismatch withdraws trust; a later read cannot erase prior primary/release failure. Reset replay never sets test."
       ],
       "waits": [
         "Bounded application observation only; no specified silicon IRQ assertion maximum was established. Release controller lock before waiting or output."
       ],
       "timeout": "Separate finite primary observation deadline and cleanup deadline/frame count. A stuck GPIO or continuously arriving event cannot extend either. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
       "partialEffects": "Test interrupt continues while bit remains set. Failure after attempted set may leave IRQ asserted; retain cleanup debt and primary result independently.",
-      "cleanup": "Always attempt bounded clear+readback once stimulus may have occurred; cleanup failure leaves test-state/configuration uncertain, for application recovery.",
-      "restoration": "Restore test bit to0, do not enable an initially active transient bit after reset. Preserve all other desired enables and consumed real events. Reset during test invalidates test outcome and starts new observation epoch.",
+      "cleanup": "No automatic cleanup after cancellation/failure. Explicit stopInterruptTest has its own finite budget/token/result and cannot overwrite the retained start result. Failed/uncertain clear leaves effects and OP-9 visible; initialized persistent-state restoration may require separately admitted HARD.",
+      "restoration": "Owning stop verifies test0 and preserved stable policy. Shared HARD initialization clears stimulus and replays owned policy, never test1. External reset notification invalidates observations without I/O. Physical pin assertion/deassertion remains Q9, not host-proved.",
       "gates": [],
       "owner": {
-        "api": "InterruptSettings / collectEvents",
+        "api": "startInterruptTest / stopInterruptTest / interruptSnapshot / serviceInterrupts",
         "cli": "owner-routed InterruptSettings / collectEvents (prompts 44-46)",
-        "test": "Independent literals and boundary failures for InterruptSettings / collectEvents; prompts 27, 53-55",
+        "test": "test/interrupts.cpp stimulus/failure/ownership suites and portable owner consumer; Q9 physical NOT RUN",
         "implementationStage": 27
       }
     },
@@ -12870,23 +12870,23 @@
         "interrupt_test"
       ],
       "owner": {
-        "api": "InterruptSettings / collectEvents",
+        "api": "startConfigureInterrupts / interruptSnapshot / serviceInterrupts / interruptServiceSnapshot / startInterruptTest / stopInterruptTest",
         "cli": "owner-routed InterruptSettings / collectEvents (prompts 44-46)",
-        "test": "Independent literals and boundary failures for InterruptSettings / collectEvents; prompts 27, 53-55",
+        "test": "test/interrupts.cpp and test/consumer/cable.cpp; Q9 physical NOT RUN",
         "implementationStage": 27
       },
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PARTIAL",
-        "hostTested": "PARTIAL",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "rxfs_sfd_reference"
       ],
-      "notes": "Prompts13/20 implement shared consuming capture, retained event history, complete aggregate and MISR enable maintenance. Global routing, output policy/test and IRQ service remain prompt27; selection ambiguity and SDK/physical gates remain open."
+      "notes": "Prompt27 completes owned global/output/polarity/source policy, separate retained test start/stop, single-collector bounded service and shared reset replay. Selector-at-consumption and crossing ambiguity are retained. Pin mux writes remain prompt32; Q9 and RXFS SFD interpretation remain open."
     },
     {
       "id": "counters",

@@ -149,3 +149,13 @@ Stage 26 extends the same cable phase switch with persistent policy write/readba
 and reuses the manual result-reading phases for a fixed autorun observation.
 Shared initialization restores owned policy last; no second acquisition engine,
 collector, scheduler or autonomous link-recovery loop is introduced.
+
+## Interrupt ownership
+
+`src/DP8382xInterrupts.cpp` adds policy/test phases to the existing operation slot
+and one finite deferred service pass. All destructive reads still enter
+`_retainEvidence`, including selector attribution and pending half-full counter
+requests. No second IRQ collector, event queue, scheduler or generic manager is
+introduced. The shared initialization tail replays explicitly owned IRQ policy
+after diagnostic/autorun restoration. The [interrupt guide](interrupts.md) defines
+pin conflicts that later LED/GPIO owners must preserve.

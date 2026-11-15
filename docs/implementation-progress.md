@@ -1,9 +1,9 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–26 are complete: source research, shared contracts, portable
+execution. Prompts 1–27 are complete: source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 144 registered Release CTests, 103 Python tests,
+Current local checks include 154 registered Release CTests, 103 Python tests,
 two linked tests-OFF consumers, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -26,6 +26,15 @@ Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
 operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+Prompt27 began on clean, fetched and synchronized `main` at
+`87aafc01c959d5f811fb7342a037e26c105acac4`. The
+[stage report](reports/implementation/27-interrupt-service.md) records complete
+[interrupt policy and deferred service](interrupts.md), separate test start/stop,
+single-collector attribution/pending counter requests and verified shared replay.
+Independent source, sibling/test and lifecycle reviews are integrated; local
+checks pass. Physical Q9 remains NOT RUN. Final SHA and upstream equality are
+recorded in the handoff.
 
 The [independent prompts 25-26 audit](reports/implementation/25-26-independent-audit.md)
 began on clean, fetched and synchronized `main` at
@@ -316,7 +325,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [24 Implement complete BIST generator and checker sessions](prompts/24-bist-generator-checker.md) | COMPLETE | [Report](reports/implementation/24-bist-generator-checker.md); all controls, bounded raw capture, partial evidence and verified stop; host/consumer PASS, exact-interval/PASS and physical BIST remain gated |
 | [25 Implement complete manual cable capture](prompts/25-cable-manual.md) | COMPLETE | [Report](reports/implementation/25-cable-manual.md); six-run/raw capture, partial evidence, bounded HARD restoration and pure interpretation; host/consumer PASS; physical Q7 NOT RUN |
 | [26 Implement cable autorun and shared result acquisition](prompts/26-cable-autorun.md) | COMPLETE | [Report](reports/implementation/26-cable-autorun.md); one owned enable flag, fixed raw acquisition, manual handoff, reset replay and verification; host/consumer PASS, physical timing/accuracy NOT RUN |
-| [27 Implement bounded interrupt configuration and service](prompts/27-interrupt-service.md) | NOT STARTED | None |
+| [27 Implement bounded interrupt configuration and service](prompts/27-interrupt-service.md) | COMPLETE | [Report](reports/implementation/27-interrupt-service.md), [IRQ guide](interrupts.md); all sources/policy/test/service/replay, independent literals and failure regressions. 154 Release tests, two tests-OFF consumers and source/document checks PASS. Q9 remains NOT RUN. |
 | [28 Implement active-sleep policy and explicit power states](prompts/28-power-states.md) | NOT STARTED | None |
 | [29 Implement exact EEE negotiation and status](prompts/29-eee-negotiation.md) | NOT STARTED | None |
 | [30 Implement bounded legacy-MAC LPI sessions](prompts/30-legacy-mac-lpi.md) | NOT STARTED | None |
