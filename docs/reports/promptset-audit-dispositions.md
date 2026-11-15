@@ -104,7 +104,7 @@ it to measured silicon behavior.
 | G1-6 | Implemented: identity methods and two-frame staged _readIdentity, partial diagnostics and OP14 guards; identity/reset tests. |
 | G1-7 | Implemented: EXTERNAL_POWER_ON distinct from EXTERNAL_RESET; enhanced POR-only strap distinction and silent reset tests. |
 | G1-8 | Planned33: current initialization does not write RCSR; P15 explicitly defers collector-routed replay. |
-| G1-9 | Planned25/35: CDCR14 preflight rejection, calibration_recovery owner35, raw CDCR refused; table8-47 requires clear then HARD. |
+| G1-9 | Implemented25 / planned35: CDCR14 preflight rejection, calibration_recovery owner35, raw CDCR refused; table8-47 requires clear then HARD. |
 | G1-10 | Corrected: hard_reset_straps retains the table8-48/8.4.1 ambiguity, possible resample and Q5. |
 | G1-11 | Corrected: P15/P16 anchor external readiness to final supplies and clock-qualified reset; no inferred PCS completion maximum. |
 | G1-12 | Implemented through G11-20: no token-exhaustion machinery or unused legacy status details. |
@@ -132,11 +132,11 @@ it to measured silicon behavior.
 
 | ID | Disposition and current evidence |
 | --- | --- |
-| G3-1 | Planned25, source records corrected: SNLA428 table2-1 six runs/gains, channel A, exceptional GENCFG and HARD/replay; ledger tdrRecipe. |
-| G3-2 | Planned25: matching-run threshold/formula, whole-word sign, NO_PEAK and MATLAB conflicts. Corrected section2.2 citation here; tables2-4/5. |
+| G3-1 | Implemented25, independent literal tests: SNLA428 table2-1 six runs/gains, channel A, exceptional GENCFG and HARD/replay; ledger tdrRecipe. |
+| G3-2 | Implemented25: matching-run threshold/formula, whole-word sign, NO_PEAK and MATLAB conflicts. Corrected section2.2 citation here; tables2-4/5. |
 | G3-3 | Implemented23/24 (physical Q8 NOT RUN): script-only reverse/analog restart retained as conflict; 030B3380 unadopted outside table8-79 range; SNLA423A pp18/20. |
 | G3-4 | Planned27 engineering inference: both MISRs, bounded morePossiblyPending, no dependence on a new edge; Q9 unmeasured. |
-| G3-5 | Planned25/26: CDCR and result words0180/0185/018A are non-destructive; tables8-47/61/66/71. |
+| G3-5 | Implemented25 / autorun26 pending: CDCR and result words0180/0185/018A are non-destructive; tables8-47/61/66/71. |
 | G3-6 | Planned26: autorun disable/readback is policy, not quiescence; one autorun cannot stand in for six-run interpretation. |
 | G3-7 | Implemented/planned27 through G2-12: dependent mirrors and per-part RXFS selector evidence. |
 | G3-8 | Planned27/32: PHYSCR versus LED mux ownership and ENHANCED-only OE power meaning. |
@@ -303,7 +303,7 @@ it to measured silicon behavior.
 | N-2 | Re-pin reflected in P40/DD; clarified board RX signal names here, final-netlist validation still required. |
 | N-3 | Implemented: Advertisement has no persistent nextPage; typed exchange and NP0 reset replay only. |
 | N-4 | Planned40/DD6: default-loop handlers bounded/nonblocking, glue has no own timeout; RX lifetime now additionally gates destruction. |
-| N-5 | Planned25/35: live CDCR14 rejection before cable mutation, separate clear/HARD contingency. |
+| N-5 | Implemented25 / recovery35 pending: live CDCR14 rejection before cable mutation, separate clear/HARD contingency. |
 | N-6 | Planned62: function10 REGCR contradiction retained; no-post-increment only,8227.4.2.7 versus7.4.2.1. |
 | R-1 | Implemented persistent quiet floor across cancel/take/operations; OP12 external owner duty survives end/rebind. |
 | R-2 | Implemented reset result distinction; temporary session producer planned23. |

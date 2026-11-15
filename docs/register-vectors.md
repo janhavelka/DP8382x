@@ -618,3 +618,20 @@ loss0400 gives3F08. RH is hardware set/clear, not RC. Counter80 in807D is
 read data, never a pending command. Zero/wrap and unproved repeat-latch intervals
 remain inconclusive. `test/bist.cpp` uses independent literals for every mode,
 field boundary, indivisible capture, fault and restoration.
+
+## Executing manual cable vectors (prompt 25)
+
+`test/cable.cpp` independently transcribes SNLA428 table 2-1 and SNLS647I
+tables 8-54/56..60, rather than deriving expectations from production arrays.
+It checks all six rows and subsets, all A/B channel combinations, legal extrema,
+prohibited average7 and saved segment0/6/7, reserved preservation and GENCFG
+old0008 ->0608 / old0000 ->0600. Datasheet per-segment tuning remains separate.
+The complete SNLA428 table 2-5 sample selects run5/open/100m at4.6 ns/m;
+strict thresholds, same-row indexing, whole peak word, raw bits11/5 and NO_PEAK
+are literal regressions. No host vector establishes physical accuracy.
+
+One-busy/one-done fixtures prove 426 frames/128 callbacks for all six rows,
+101/33 for one SNLA428 row, 102/32 RAW; negotiated restoration uses 127/50 or
+118/48 respectively. Each additional pending poll consumes one frame/callback.
+Failure injection covers every frame and cancellation boundary without retries,
+including partial nonconsuming result reads, explicit reread and failed HARD tail.

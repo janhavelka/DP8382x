@@ -187,3 +187,10 @@ Stage 24 extends this same HARD-restoration tail with saved BIST packet/IPG.
 Those values are captured before any loopback companion mutation. A failed BIST
 start/acquire requires owning stop or HARD; no earlier measurement is erased or
 converted into a restoration success. See [BIST](bist.md).
+
+Manual cable sessions also extend this restore path. Their stop always admits
+HARD, then current persistent replay and saved documented cable controls. Every
+new HARD attempt replays the entire saved tail even after partial restoration.
+Known CDCR calibration blocks initialization: clear-then-HARD belongs to prompt
+35, not an incidental reset. The [cable guide](cable.md) separates RAW ownership,
+SNLA428 companions, retained primary evidence and physical quiescence limits.

@@ -30,7 +30,10 @@ REQUIRED_TYPES = {"DP8382x::Status", "DP8382x::Config", "DP8382x::LinkSettings",
                   "DP8382x::OperationSnapshot", "DP8382x::StrapEvidence",
                   "DP8382x::SettingsSnapshot", "DP8382x::ConfigureOptions",
                   "DP8382x::NextPage", "DP8382x::NextPageResult", "DP8382x::LinkSnapshot",
-                  "DP8382x::EvidenceSample", "DP8382x::EvidenceSnapshot", "DP8382x::CounterSnapshot"}
+                  "DP8382x::EvidenceSample", "DP8382x::EvidenceSnapshot", "DP8382x::CounterSnapshot",
+                  "DP8382x::CableControls", "DP8382x::CableSettings", "DP8382x::CableWord",
+                  "DP8382x::CableSample", "DP8382x::CableResult", "DP8382x::CableSnapshot",
+                  "DP8382x::CableDiagnosis"}
 
 
 class HtmlPage(HTMLParser):

@@ -138,3 +138,9 @@ Stage 24 extends the same diagnostics source and operation slot for BIST. It
 chains the existing loopback/configuration/reset procedures and saved-field exit;
 BISCR/BICSR1 retention extends the existing collector. No test framework, second
 collector or automatic cleanup engine is added. See [BIST](bist.md).
+
+Stage 25 adds `src/DP8382xCable.cpp` for the cohesive manual cable procedure,
+raw control composition and pure interpretation. It extends the existing slot,
+terminal batch execution and shared HARD/profile restoration; it adds no worker,
+collector or generic job engine. Six bounded result rows retain nondestructive
+per-word evidence. See [manual cable capture](cable.md).

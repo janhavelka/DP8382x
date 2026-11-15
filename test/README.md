@@ -447,3 +447,15 @@ activity/loss through all read routes, and HARD replay after late stop failure
 or cancellation. Admitted 10-Mbit paths retain their independent control vectors.
 The tests-OFF consumer links [Bist.h](../examples/portable/Bist.h), acquires once
 and copies two cached views before separate stop. Physical results remain NOT RUN.
+
+## Manual cable capture
+
+`test/cable.cpp` registers eight suites plus an active Release failure-path probe.
+Run `ctest --test-dir build/host -R cable --output-on-failure --no-tests=error`.
+Independent source literals cover six-run/subset and raw matrices, freshness,
+partial nondestructive results, every frame/release/cancel boundary, clocks,
+calibration gating, full restore/retry and pure interpretation. The tests-OFF
+`test/consumer` build registers `portable_cable_consumer`, which executes raw
+B-to-A capture, passive views, explicit reread and separate HARD restoration.
+The host model proves protocol/ownership only; see the [fixture plan](../docs/cable.md)
+for unexecuted physical qualification.

@@ -130,3 +130,10 @@ Prompt 24 completes `bist_run` and `bist_capture` control/raw-acquisition scope
 through [bounded BIST sessions](bist.md), with independent host/consumer tests.
 The `bist_result_semantics` gate still blocks PASS/exact-interval claims; SDK
 and physical BIST qualification remain NOT RUN.
+
+Prompt 25 completes `cable_configure`, `cable_manual` and `cable_capture` through
+[manual cable sessions](cable.md), including raw controls, the selected six-run
+recipe, bounded separate HARD restoration and independent interpretation tests.
+The cable family remains PARTIAL because `cable_autorun` belongs to prompt 26.
+CDCR calibration recovery remains prompt 35; Q7 and source conflicts remain open.
+SDK linking and physical cable accuracy are NOT RUN.

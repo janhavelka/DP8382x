@@ -1,10 +1,10 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–24 are complete: source research, shared contracts, portable
+execution. Prompts 1–25 are complete: source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 127 registered Release CTests, 103 Python tests,
-the linked tests-OFF consumer, Doxygen negative checks, ledger/reference integrity
+Current local checks include 136 registered Release CTests, 103 Python tests,
+two linked tests-OFF consumers, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
 The driver now provides the restricted Clause 22/MMD subset, stable-field RMW
@@ -26,6 +26,14 @@ Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
 operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+Prompt 25 began on clean, fetched and synchronized `main` at
+`87b08d2ccb407d4fe33b1dc03920600855570c7a`. The
+[stage report](reports/implementation/25-cable-manual.md) records independent
+source/peer/test review, complete [manual cable capture](cable.md), raw controls,
+partial evidence and separately admitted HARD restoration. Autorun remains
+prompt 26; calibration recovery remains prompt 35. Physical Q7 is NOT RUN.
+Final commit and upstream equality are recorded in the handoff.
 
 The [independent prompts 23-24 audit](reports/implementation/23-24-independent-audit.md)
 began on clean synchronized `main` at `63b4121c9b38fe5421c50eea958a441b81e58ff8`.
@@ -290,7 +298,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [22 Implement explicit reconciliation and bounded recovery](prompts/22-reconcile-recover.md) | COMPLETE | [Report](reports/implementation/22-reconcile-recover.md); bounded stable-field verification, retained mismatch/cleanup evidence, shared initialization recovery, ten focused suites and portable example; physical NOT RUN |
 | [23 Implement all supported loopback modes](prompts/23-loopback-modes.md) | COMPLETE | [Report](reports/implementation/23-loopback-modes.md); all documented mode/speed/interface paths, separate start/stop, retained temporary state, shared restore and independent host/consumer tests; Q8 physical NOT RUN |
 | [24 Implement complete BIST generator and checker sessions](prompts/24-bist-generator-checker.md) | COMPLETE | [Report](reports/implementation/24-bist-generator-checker.md); all controls, bounded raw capture, partial evidence and verified stop; host/consumer PASS, exact-interval/PASS and physical BIST remain gated |
-| [25 Implement complete manual cable capture](prompts/25-cable-manual.md) | NOT STARTED | None |
+| [25 Implement complete manual cable capture](prompts/25-cable-manual.md) | COMPLETE | [Report](reports/implementation/25-cable-manual.md); six-run/raw capture, partial evidence, bounded HARD restoration and pure interpretation; host/consumer PASS; physical Q7 NOT RUN |
 | [26 Implement cable autorun and shared result acquisition](prompts/26-cable-autorun.md) | NOT STARTED | None |
 | [27 Implement bounded interrupt configuration and service](prompts/27-interrupt-service.md) | NOT STARTED | None |
 | [28 Implement active-sleep policy and explicit power states](prompts/28-power-states.md) | NOT STARTED | None |

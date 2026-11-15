@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added exact DP83826I manual cable capture: SNLA428 six-run/subset recipes,
+  typed raw A/B controls, freshness-qualified per-word results, explicit reread
+  and separately budgeted HARD restoration through the existing owner.
+- Added pure source-implied cable interpretation, independent literal/failure
+  tests and an executed portable raw-capture consumer. Physical accuracy remains
+  unqualified; autorun and calibration recovery retain their later owners.
+
 ### 2026-11-15
 
 - Audited prompts 23-24 independently. Corrected MII line-transmit ordering,

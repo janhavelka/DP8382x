@@ -399,6 +399,9 @@ Status DP8382x::bind(const Config& config) noexcept {
   _identity.declaredVariant = config.variant;
   _loopback = {};
   _bist = {};
+  _cable = {};
+  _cableCalibration = false;
+  _cableSession = _cableWorking = _cableRestoreTail = _cableCurrent = false;
   _bistSession = _bistWorking = _bistRestoreTail = _bistCapturePending = false;
   _loopSession = _loopWorking = _loopRestoreTail = false;
   _operation.temporaryMayBeActive = false;
@@ -429,6 +432,9 @@ Status DP8382x::end() noexcept {
   _cleanupOwner = OperationKind::NONE;
   _loopback = {};
   _bist = {};
+  _cable = {};
+  _cableCalibration = false;
+  _cableSession = _cableWorking = _cableRestoreTail = _cableCurrent = false;
   _bistSession = _bistWorking = _bistRestoreTail = _bistCapturePending = false;
   _loopSession = _loopWorking = _loopRestoreTail = false;
   _operation.temporaryMayBeActive = false;
@@ -601,6 +607,8 @@ void DP8382x::_invalidateEvidence() noexcept {
   _loopback.controlsVerified = false;
   _bist.active = false;
   _bist.stale = true;
+  _cable.result.stale = true;
+  _cableCurrent = false;
   _settings.trust = ConfigurationTrust::DIRTY;
   _settings.observedStale = true;
   _markEvidenceDiscontinuous();
@@ -637,6 +645,8 @@ Status DP8382x::invalidateDeviceState(InvalidationReason reason) noexcept {
     _operation.temporaryMayBeActive = false;
     _loopSession = _loopWorking = _loopRestoreTail = false;
     _bistSession = _bistWorking = _bistRestoreTail = _bistCapturePending = false;
+    _cableSession = _cableWorking = _cableRestoreTail = _cableCurrent = false;
+    _cableCalibration = false;
   }
   return Status::Ok();
 }
@@ -645,7 +655,7 @@ Status DP8382x::acquireEvidence(uint32_t sourceMask, EvidenceSnapshot& evidence,
                                const IoBudget& budget) noexcept {
   if (sourceMask == 0U || (sourceMask & ~ALL_EVIDENCE) != 0U) { return paramError(ParamDetail::ACCESS_POLICY); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
-  if (_active || _polling || (_operation.state == OperationState::RUNNING && !_configuring &&
+  if (_active || _polling || (_operation.state == OperationState::RUNNING && !_configuring && !_cableWorking &&
       _operation.phase == OperationPhase::WAIT)) { return busy(BusyDetail::OPERATION_ACTIVE); }
   if (_operation.state == OperationState::RUNNING && _result.nextPage.requested &&
       (sourceMask & evidenceBit(EvidenceSource::ANER)) != 0U) {
@@ -873,7 +883,7 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
       if (address == 0x001FU && frame.value == 0x4000U) {
         // Table8-48 circuitry restart keeps registers, identity and initialized state.
         _markEvidenceDiscontinuous();
-      } else if (((_loopWorking || _bistWorking) && address != cmd::REG_PHYRCR) || (_configuring && (address == cmd::REG_BMCR || address == cmd::REG_ANAR || address == cmd::REG_ANNPTR ||
+      } else if (((_loopWorking || _bistWorking || _cableWorking) && address != cmd::REG_PHYRCR) || (_configuring && (address == cmd::REG_BMCR || address == cmd::REG_ANAR || address == cmd::REG_ANNPTR ||
           address == cmd::REG_CR1 || address == cmd::REG_PHYCR || address == cmd::REG_CR3 || address == cmd::REG_CR2))) {
         // Owned profile changes do not reset the device or undo mandatory VOD setup.
         _evidence.configurationDirty = true;
@@ -935,7 +945,7 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
                         bool operation, Traffic traffic) noexcept {
   if (called != nullptr) { *called = false; }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
-  if (_active || (!operation && (_polling || (_operation.state == OperationState::RUNNING && !_configuring &&
+  if (_active || (!operation && (_polling || (_operation.state == OperationState::RUNNING && !_configuring && !_cableWorking &&
       _operation.phase == OperationPhase::WAIT)))) { return busy(BusyDetail::OPERATION_ACTIVE); }
   if (_transport.clockInvalid) { return configError(ConfigDetail::CLOCK_CONTRACT); }
   if (_stopped) { return busy(BusyDetail::CONTROLLER_QUARANTINED); }
@@ -948,7 +958,7 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
     status = admitBudget(budget, _config.transport.bounds, batch.frameCount, before, upper);
   }
   if (status.ok() && operation && !_configuring &&
-      ((!_loopWorking && !_bistWorking && _initStep == InitStep::COMMAND) || (_loopWorking && _loopStep == LoopStep::RESTART))) {
+      ((!_loopWorking && !_bistWorking && !_cableWorking && _initStep == InitStep::COMMAND) || (_loopWorking && _loopStep == LoopStep::RESTART))) {
     status = admitReset(budget, _config.transport.bounds, before, _commandWaitUs());
   }
   if (!status.ok()) {
@@ -1012,6 +1022,7 @@ Status DP8382x::startInitialize(const InitializeOptions& options, const Operatio
   if (_operation.state == OperationState::RESULT_PENDING) { return busy(BusyDetail::RESULT_PENDING); }
   if (_transport.clockInvalid) { return configError(ConfigDetail::CLOCK_CONTRACT); }
   if (_operation.temporaryMayBeActive && options.reset != ResetKind::HARD) { return busy(BusyDetail::CLEANUP_REQUIRED); }
+  if (_cableCalibration) { return configError(ConfigDetail::SOURCE_GATE); }
   if (budget.io.maxFrames == 0U) { return timeout(TimeoutDetail::FRAME_BUDGET); }
   if (budget.io.deadlineUs == 0U) { return timeout(TimeoutDetail::DEADLINE); }
   _beginOperation(OperationKind::INITIALIZE, budget);
@@ -1028,6 +1039,7 @@ Status DP8382x::startInitialize(const InitializeOptions& options, const Operatio
     _result.bist = _bist.measurement;
     if (options.reset == ResetKind::HARD) { _bistRestoreTail = true; }
   }
+  if (_cableSession && options.reset == ResetKind::HARD) { _cableRestoreTail = true; }
   _setInitStep(InitStep::IDENTIFY);
   token = _operation.token;
   return _operation.status;
@@ -1057,6 +1069,7 @@ void DP8382x::_beginOperation(OperationKind kind, const OperationBudget& budget)
   _configuring = false;
   _loopWorking = false;
   _bistWorking = false;
+  _cableWorking = false;
   _pollTimeValid = false;
 }
 
@@ -1098,6 +1111,14 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
     _setBistStep(BistStep::RESTORE_IPG);
     return _operation.status;
   }
+  if (status.ok() && _result.persistentRestored && _cableSession && _cableRestoreTail &&
+      (_operation.kind == OperationKind::CABLE_STOP ||
+       (_operation.kind == OperationKind::INITIALIZE && _result.reset == ResetKind::HARD))) {
+    _result.persistentRestored = false;
+    _settings.trust = ConfigurationTrust::DIRTY; _initialized = false;
+    _setCableStep(CableStep::RESTORE_BMCR);
+    return _operation.status;
+  }
   // A partial verification keeps its mismatch evidence separately. The error
   // that interrupts the pass remains the terminal outcome, including its detail.
   _operation.state = OperationState::RESULT_PENDING;
@@ -1107,11 +1128,12 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
   if (_result.persistentRestored && _operation.kind != OperationKind::VERIFY) {
     _operation.cleanupOwed = false;
     _cleanupOwner = OperationKind::NONE;
-    if (_operation.kind == OperationKind::LOOPBACK_STOP || _operation.kind == OperationKind::BIST_STOP ||
+    if (_operation.kind == OperationKind::LOOPBACK_STOP || _operation.kind == OperationKind::BIST_STOP || _operation.kind == OperationKind::CABLE_STOP ||
         (_operation.kind == OperationKind::INITIALIZE && _result.reset == ResetKind::HARD)) {
       _operation.temporaryMayBeActive = false;
       _loopSession = false;
       _bistSession = _bistCapturePending = false;
+      _cableSession = _cableCurrent = false;
       _bist.active = false;
       _bist.stale = true;
       _loopback.controlsVerified = false;
@@ -1138,6 +1160,16 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
     _bist.stale = !status.ok();
   }
   if (!status.ok() && _bistSession) { _bist.stale = true; }
+  if (_cableSession || _operation.kind == OperationKind::CABLE_START ||
+      _operation.kind == OperationKind::CABLE_ACQUIRE || _operation.kind == OperationKind::CABLE_STOP || _cableWorking) {
+    if (!status.ok()) {
+      _cable.result.stale = true;
+      if (_operation.temporaryMayBeActive) { _settings.trust = ConfigurationTrust::DIRTY; _settings.observedStale = true; }
+    }
+    _result.cable = _cable.result;
+  }
+  if (_operation.kind == OperationKind::CABLE_START && !_operation.temporaryMayBeActive) { _cableSession = false; }
+  _cableWorking = false;
   _bistWorking = false;
   if (!status.ok() && _loopSession) {
     _loopback.controlsVerified = false;
@@ -1260,7 +1292,8 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
   if (_operation.nextPollValid && raw < _operation.nextPollAtUs) { return _yieldOperation(raw); }
 
   MdioBatch batch;
-  if (_bistWorking) { batch = _bistBatch(); }
+  if (_cableWorking) { batch = _cableBatch(); }
+  else if (_bistWorking) { batch = _bistBatch(); }
   else if (_loopWorking) { batch = _loopbackBatch(); }
   else if (_configuring) { batch = _configurationBatch(); }
   else switch (_initStep) {
@@ -1285,14 +1318,15 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
   status = admitBudget(_operation.remaining, _config.transport.bounds, batch.frameCount, raw, upper);
   if (!status.ok()) { return _finishOperation(status); }
   if (batch.frameCount > maxFrames) { return _yieldOperation(raw); }
-  if (!_configuring && ((!_loopWorking && !_bistWorking && _initStep == InitStep::COMMAND) ||
+  if (!_configuring && ((!_loopWorking && !_bistWorking && !_cableWorking && _initStep == InitStep::COMMAND) ||
       (_loopWorking && _loopStep == LoopStep::RESTART))) {
     status = admitReset(_operation.remaining, _config.transport.bounds, raw, _commandWaitUs());
     if (!status.ok()) { return _finishOperation(status); }
   }
   bool called = false;
-  if ((!_configuring && !_loopWorking && !_bistWorking && (_initStep == InitStep::IDENTIFY || _initStep == InitStep::REIDENTIFY)) ||
-      (_loopWorking && _loopStep == LoopStep::IDENTIFY_STOP)) {
+  if ((!_configuring && !_loopWorking && !_bistWorking && !_cableWorking && (_initStep == InitStep::IDENTIFY || _initStep == InitStep::REIDENTIFY)) ||
+      (_loopWorking && _loopStep == LoopStep::IDENTIFY_STOP) ||
+      (_cableWorking && (_cableStep == CableStep::IDENTIFY || _cableStep == CableStep::STOP_IDENTITY))) {
     DeviceIdentity accepted;
     status = _readIdentity(accepted, _operation.remaining, true, &called);
     if (called) { _result.identity = _identity; }
@@ -1309,7 +1343,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
     _result.failingBatch = {_operation.phase, frames.attempted, frames.completed, effect,
                            status, classifyReport(receipt, frames).release, _transport.violation, _transport.late};
     _result.late = _result.late || _transport.late;
-    if (!_configuring && !_loopWorking && !_bistWorking && (_initStep == InitStep::SOR1 || _initStep == InitStep::SOR2 ||
+    if (!_configuring && !_loopWorking && !_bistWorking && !_cableWorking && (_initStep == InitStep::SOR1 || _initStep == InitStep::SOR2 ||
          _initStep == InitStep::RESOR1 || _initStep == InitStep::RESOR2) && frames.completed == 4U) {
       if (_initStep == InitStep::SOR1 || _initStep == InitStep::RESOR1) {
         _result.straps.sor1 = receipt.frames[3].value;
@@ -1341,7 +1375,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
         }
         _result.failingBatch.effectPossible = _result.failingBatch.effectPossible || uncertain;
       }
-    } else if (!_loopWorking && !_bistWorking && (_initStep == InitStep::COMMAND || _initStep == InitStep::APPLY)) {
+    } else if (!_loopWorking && !_bistWorking && !_cableWorking && (_initStep == InitStep::COMMAND || _initStep == InitStep::APPLY)) {
       const uint8_t index = _initStep == InitStep::COMMAND ? uint8_t{0} : uint8_t{3};
       const auto& target = receipt.frames[index];
       // A contradictory callback cannot prove that an omitted target was never
@@ -1365,6 +1399,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
       }
     }
   }
+  if (_cableWorking) { return _advanceCable(status, called, batch); }
   if (_bistWorking) { return _advanceBist(status, called, batch); }
   if (_loopWorking) { return _advanceLoopback(status, called, batch); }
   if (_configuring) { return _advanceConfiguration(status, called, batch); }

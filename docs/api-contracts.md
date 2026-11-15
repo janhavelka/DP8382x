@@ -892,3 +892,20 @@ to retained session activity/loss even if host history is later cleared. A new
 HARD replays both saved-field tails regardless of earlier partial stop progress.
 See [BIST](bist.md) for the typed mode matrix, exact bounds, per-field validity,
 external observation contract and source-gated INCONCLUSIVE outcome.
+
+### Shipped manual cable capture (stage 25)
+
+`startCableTest`, `startCableAcquire`, `stopCableTest` and passive `cableSnapshot`
+share the operation slot and OP-9 barrier. Start validates CableSettings, exact
+initialized capability and VERIFIED profile before I/O. Live preflight precedes
+all mutations. Start executes the finite selected plan and retains temporary
+effects; success does not imply restoration. Explicit acquire rereads only the
+current accepted trigger, never retriggers or resumes unperformed rows.
+
+Stop has a new token/budget/result and requires HARD through the shared replay
+path, followed by saved documented fields. Failure/cancellation freeze the
+primary result without cleanup callbacks. Diagnostic traffic is RAW; explicit
+initialization remains managed. Nondestructive cable words retain successful
+partial reads without inventing history loss. `interpretCable` stages its output
+and accepts only complete fresh SNLA428 rows. See [cable contracts](cable.md)
+for freshness, raw controls, helper limits and the physical fixture plan.

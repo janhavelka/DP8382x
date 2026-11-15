@@ -10290,7 +10290,7 @@
       ],
       "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. ",
       "steps": [
-        "Disable manual trigger and autorun under owning procedures; admit quiet/disconnected partner. Preserve reserved fields and unknown tuning state. Do not write CDSCR2 or absent0172/0174/ALCD addresses.",
+        "Require inactive manual trigger and CR1 autorun before mutation; prompt26 owns future disable/restore handoff. Admit quiet/disconnected partner, live link down and verified persistent profile. Save documented controls before mutation; reject prohibited saved encodings. Preserve reserved fields; do not write CDSCR2 or absent0172/0174/ALCD addresses.",
         "Select TX/RX combination via CDSCR14:13: A->A=2,A->B=0,B->A=1,B->B=3. Set explicit DC-removal no-init policy and averaging0..6; reject7.",
         "Raw typed tuning retains SNLS647I tables8-56/57 words0D07,0D14,1A21,343B,8F6F and1004,1004,1005,1008,100B. The separately selected derived-measurement recipe uses tdrRecipe six-run SNLA428 matrix instead; do not mix rows or infer pairB.",
         "Verify ordinary owned field readback. Segment descriptions are recipe selection intervals, not decoded measured distance. All capture/configuration phases remain separate and bounded.",
@@ -10298,17 +10298,17 @@
       ],
       "waits": [],
       "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
-      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
-      "cleanup": "Stop diagnostic generation before restoring settings; keep controller lock only across indivisible MDIO/RMW transaction, never across waits. Verify stop/readback with finite cleanup budget; retain cleanup-required on failure.",
-      "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
+      "partialEffects": "Retain accepted/ambiguous writes and every successful nondestructive raw word with validity/time. Failure, deadline or cancellation freezes the primary result immediately with no cleanup callbacks. OP-9 retains temporary effects until separately admitted bounded stop/HARD restoration; its result cannot replace the earlier result. Explicit bounded current-run reread does not retrigger or invent history loss.",
+      "cleanup": "Cancel/end are bus-silent. Retain OP-9 barrier; a separately admitted stop verifies command control and performs HARD/shared replay under a fresh finite budget. Known CDCR14 blocks ordinary initialization until owning stop observes clear or external reset/POR notification invalidates it; prompt35 owns clear-then-HARD recovery.",
+      "restoration": "Separate stop validates identity/CDCR, clears manual start and verifies command control, then requires shared HARD initialization/profile replay. Replay saved documented tuning and BMCR extras; SNLA428 additionally owns GENCFG0600, RAW does not. No arbitrary read/restore of opaque0411/0416. Reverify the full tail on each new HARD attempt. Future implemented EEE extends the same shared replay. Old captures retain historical evidence and become stale on reset.",
       "gates": [
         "tdr_calibration",
         "tdr_recipe"
       ],
       "owner": {
-        "api": "startCableTest / CableSettings / CableSample",
+        "api": "startCableTest / startCableAcquire / stopCableTest / cableSnapshot / interpretCable",
         "cli": "owner-routed startCableTest / CableSettings / CableSample (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startCableTest / CableSettings / CableSample; prompts 25, 53-55",
+        "test": "test/cable.cpp independent literal/control/failure/restoration suites; test/consumer/cable.cpp; Q7 physical NOT RUN",
         "implementationStage": 25
       },
       "writeActions": [
@@ -10349,23 +10349,23 @@
         "For each explicitly selected legal segment/channel configuration, record baseline/status generation, then set CDCR15=1 with calibration neutral0; retain command acceptance/uncertainty and completion timestamp.",
         "Poll CDCR with released controller lock between polls. Accept fresh measurement only after observed post-trigger start/busy or done0 transition followed by start0 and done1, unless stronger exact-part evidence establishes another correlation mechanism. Initial/reset done1 alone never passes. Missed transient progress => freshness unknown, not fabricated failure/success.",
         "Read fail and supported words through cable_capture; preserve completed runs on later failure. Derive only from correlated matching SNLA428 runs; unperformed runs remain NOT_RUN.",
-        "On completion/cancel/deadline disable manual trigger and autorun, retain all effects, then restore persistent settings using finite cleanup."
+        "On completion retain temporary state; on cancellation/failure/deadline terminate immediately without extra frames. Separately admit stop/manual-start-clear and HARD/shared restoration with its own token, budget and result. Autorun was required disabled and is not mutated here."
       ],
       "waits": [
         "No documented completion MAX or minimum trigger-to-done transition. Use finite application budget; lack of observed busy evidence can leave otherwise completed sample uncorrelated."
       ],
       "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
-      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
+      "partialEffects": "Retain accepted/ambiguous writes and every successful nondestructive raw word with validity/time. Failure, deadline or cancellation freezes the primary result immediately with no cleanup callbacks. OP-9 retains temporary effects until separately admitted bounded stop/HARD restoration; its result cannot replace the earlier result. Explicit bounded current-run reread does not retrigger or invent history loss.",
       "cleanup": "If CR1[8] or CDCR[14] rejects admission, perform no cable write. Once a manual command may have applied, retain cleanupOwed and its possible effects; separately admitted restoration writes manual start0 and verifies control readback. Autorun was required disabled; prompt26 owns its disable/restore handoff. Engine abort acknowledgement is unspecified, so retain quiescence unknown if not otherwise proved. Prompt35 calibration_recovery owns the required rescal-clear then hard-reset recipe. Preserve the primary failure; do not reset merely to hide it.",
-      "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
+      "restoration": "Separate stop validates identity/CDCR, clears manual start and verifies command control, then requires shared HARD initialization/profile replay. Replay saved documented tuning and BMCR extras; SNLA428 additionally owns GENCFG0600, RAW does not. No arbitrary read/restore of opaque0411/0416. Reverify the full tail on each new HARD attempt. Future implemented EEE extends the same shared replay. Old captures retain historical evidence and become stale on reset.",
       "gates": [
         "tdr_freshness_abort",
         "tdr_calibration"
       ],
       "owner": {
-        "api": "startCableTest / CableSettings / CableSample",
+        "api": "startCableTest / startCableAcquire / stopCableTest / cableSnapshot / interpretCable",
         "cli": "owner-routed startCableTest / CableSettings / CableSample (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startCableTest / CableSettings / CableSample; prompts 25, 53-55",
+        "test": "test/cable.cpp independent literal/control/failure/restoration suites; test/consumer/cable.cpp; Q7 physical NOT RUN",
         "implementationStage": 25
       }
     },
@@ -10437,18 +10437,18 @@
       ],
       "waits": [],
       "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
-      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
+      "partialEffects": "Retain accepted/ambiguous writes and every successful nondestructive raw word with validity/time. Failure, deadline or cancellation freezes the primary result immediately with no cleanup callbacks. OP-9 retains temporary effects until separately admitted bounded stop/HARD restoration; its result cannot replace the earlier result. Explicit bounded current-run reread does not retrigger or invent history loss.",
       "cleanup": "Read-only capture has no undo operation. Keep consumed raw words and uncertainty; cancellation never discards already returned measurements.",
-      "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
+      "restoration": "Separate stop validates identity/CDCR, clears manual start and verifies command control, then requires shared HARD initialization/profile replay. Replay saved documented tuning and BMCR extras; SNLA428 additionally owns GENCFG0600, RAW does not. No arbitrary read/restore of opaque0411/0416. Reverify the full tail on each new HARD attempt. Future implemented EEE extends the same shared replay. Old captures retain historical evidence and become stale on reset.",
       "gates": [
         "tdr_calibration",
         "tdr_freshness_abort",
         "tdr_reserved"
       ],
       "owner": {
-        "api": "startCableTest / CableSettings / CableSample",
+        "api": "startCableTest / startCableAcquire / stopCableTest / cableSnapshot / interpretCable",
         "cli": "owner-routed startCableTest / CableSettings / CableSample (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startCableTest / CableSettings / CableSample; prompts 25, 53-55",
+        "test": "test/cable.cpp independent literal/control/failure/restoration suites; test/consumer/cable.cpp; Q7 physical NOT RUN",
         "implementationStage": 25
       }
     },
@@ -12691,16 +12691,16 @@
         "cable_capture"
       ],
       "owner": {
-        "api": "startCableTest / CableSettings / CableSample",
+        "api": "startCableTest / startCableAcquire / stopCableTest / cableSnapshot / interpretCable",
         "cli": "owner-routed startCableTest / CableSettings / CableSample (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startCableTest / CableSettings / CableSample; prompts 25, 53-55",
+        "test": "test/cable.cpp and test/consumer/cable.cpp; autorun prompt26; physical Q7 NOT RUN",
         "implementationStage": 25
       },
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "PARTIAL",
+        "hostTested": "PARTIAL",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
@@ -12710,7 +12710,7 @@
         "tdr_freshness_abort",
         "tdr_recipe"
       ],
-      "notes": "Required full-feature scope; first-board policy does not remove capabilities. Prompt4 source research complete, including named conflicts and explicit future API/CLI/test/fixture responsibilities. Source coverage is not implemented, host-tested, SDK-built or hardware-qualified support. Procedure contracts retain finite primary/cleanup budgets, partial effects and reset/restoration obligations."
+      "notes": "Prompt25 completes manual configuration/capture, typed raw A/B controls, exact SNLA428 recipe, explicit reread and separate shared HARD restoration. Independent host/portable tests pass. Autorun remains prompt26, calibration recovery prompt35; source-implied helper accuracy and physical Q7 remain unqualified."
     },
     {
       "id": "fast_drop",

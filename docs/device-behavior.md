@@ -449,3 +449,10 @@ is independent of generator mode. RH sync loss is hardware-controlled, not RC.
 The repeat-latch/lock-history gate remains open, so zero cannot imply PASS.
 Analog status uses the actual analog selector; SNLA423A status/address typos and
 the rejected gain recipe do not change the datasheet-selected implementation.
+
+Prompt 25 implements [manual cable capture](cable.md). Initial CDCR done is not
+a new measurement: accepted trigger plus observed progress precedes completion.
+Raw result banks are nondestructive and individually retained. SNLA428's opaque
+companion writes require shared HARD/replay; no arbitrary read/restore permission
+is inferred. Software supports the selected recipe and typed raw controls while
+Q7 and freshness/abort/calibration conflicts remain explicitly unqualified.

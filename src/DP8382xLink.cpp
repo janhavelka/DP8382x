@@ -31,7 +31,7 @@ void DP8382x::_invalidateLink() noexcept {
 Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) noexcept {
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (_active || _polling || (_operation.state == OperationState::RUNNING &&
-      ((!_configuring && _operation.phase == OperationPhase::WAIT) || _result.nextPage.requested))) {
+      ((!_configuring && !_cableWorking && _operation.phase == OperationPhase::WAIT) || _result.nextPage.requested))) {
     // ANER has one destructive consumer during the typed next-page epoch.
     return Status::Error(Err::BUSY, "Observation owner unavailable", static_cast<int32_t>(BusyDetail::OPERATION_ACTIVE));
   }

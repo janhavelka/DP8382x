@@ -259,7 +259,10 @@ enum class OperationKind : uint8_t {
   LOOPBACK_STOP, ///< Stop the path and verify restoration in a separate operation.
   BIST_START, ///< Establish a BIST session using the shared loopback procedure.
   BIST_ACQUIRE, ///< Capture one bounded current-session BIST observation.
-  BIST_STOP ///< Disable BIST and verify restoration under a new budget.
+  BIST_STOP, ///< Disable BIST and verify restoration under a new budget.
+  CABLE_START, ///< Configure and capture a finite manual cable plan; explicit stop required.
+  CABLE_ACQUIRE, ///< Nondestructively reacquire the current triggered run.
+  CABLE_STOP ///< Stop manual capture, HARD reset and verify saved-state restoration.
 };
 /// @brief One retained operation slot.
 enum class OperationState : uint8_t {
@@ -401,6 +404,119 @@ struct BistSnapshot {
   bool stale{true}; ///< Measurement is historical or incomplete.
   bool temporaryMayBeActive{false}; ///< Hardware may need the owning stop or HARD restoration.
 };
+/// @brief Exact source recipe or one independently tuned raw measurement.
+enum class CableRecipe : uint8_t {
+  SNLA428, ///< Selected exact-part six-run recipe, with transmit A and capture A.
+  RAW ///< One caller-configured capture without derived distance.
+};
+/// @brief Table8-54 transmitter/capture channel selections.
+enum class CableChannel : uint8_t {
+  A_TO_B, ///< Transmit A, capture B.
+  B_TO_A, ///< Transmit B, capture A.
+  A_TO_A, ///< Transmit A, capture A.
+  B_TO_B ///< Transmit B, capture B.
+};
+/// @brief Fixed row identity; ordering is SNLA428 table2-1, never a distance bin.
+enum class CableRun : uint8_t {
+  RUN_1A, ///< First segment-1 tuning; also the RAW result slot.
+  RUN_1B, ///< Second segment-1 tuning.
+  RUN_2, ///< Segment-2 tuning.
+  RUN_3, ///< Segment-3 tuning.
+  RUN_4, ///< Segment-4 tuning.
+  RUN_5 ///< Segment-5 tuning.
+};
+/// @brief Raw controls from SNLS647I tables8-54/56..60, preserving reserved bits.
+struct CableControls {
+  CableChannel channel{CableChannel::A_TO_A}; ///< Transmit/capture combination.
+  bool dcNoInit{true}; ///< CDSCR12 DC-removal no-initialization policy.
+  uint8_t averaging{4}; ///< CDSCR code0..6 means1..64;7 is reserved.
+  uint8_t segment{1}; ///< Documented code1..5; not measured length.
+  uint8_t duration{13}; ///< CDSCR3 high byte, raw code0..255.
+  uint8_t initialSkip{7}; ///< CDSCR3 low byte, raw code0..255.
+  uint8_t shadowAverage{2}; ///< TDR175 code0..7; no inferred time unit.
+  uint8_t forwardShadow{4}; ///< TDR175 code0..15.
+  uint8_t locationThreshold{0}; ///< TDR176 code0..31.
+  uint8_t shortThreshold{0}; ///< CDSCR4 code0..31.
+  uint8_t pulseWidth{2}; ///< TDR178 code0..7.
+};
+/// @brief Copied manual plan with explicit disruptive-maintenance admission.
+struct CableSettings {
+  CableRecipe recipe{CableRecipe::SNLA428}; ///< Exact six-run recipe or raw single capture.
+  uint8_t runMask{0x3F}; ///< SNLA428 subset bits in CableRun order; RAW requires1.
+  CableControls controls{}; ///< Used only for RAW; SNLA428 owns its exact controls.
+  bool maintenanceAdmitted{false}; ///< Normal MAC/EtherCAT traffic is quiesced.
+  bool peerQuiet{false}; ///< Owner disconnected or silenced the peer; link-down is also checked.
+  bool allowHardResetExit{false}; ///< Owner accepts HARD effects on unowned state and straps.
+};
+/// @brief One non-destructive raw word; failed reads retain older data as stale.
+struct CableWord {
+  uint16_t raw{0}; ///< Full returned word, including unclassified bits.
+  bool valid{false}; ///< At least one sound read returned data.
+  bool stale{true}; ///< Latest attempted read failed or its generation changed.
+  bool timeValid{false}; ///< Completion upper timestamp is valid, including zero.
+  uint64_t observedAtUs{0}; ///< Microseconds; never guessed after clock failure.
+};
+/// @brief Explicit per-row progress; skipped rows are never zero measurements.
+enum class CableRunState : uint8_t {
+  NOT_RUN, ///< No trigger attempted for this row.
+  STARTED, ///< Trigger attempted; complete correlated data not yet retained.
+  COMPLETE ///< Fresh completion and all result words retained; inspect fail status.
+};
+/// @brief Retained current-run evidence, separate from operation transport status.
+struct CableSample {
+  CableRunState state{CableRunState::NOT_RUN}; ///< Request progress, not cable quality.
+  CableWord cdcr{}; ///< Full CDCR completion/fail word.
+  CableWord index{}; ///< Full0180 location word.
+  CableWord amplitude{}; ///< Full0185 amplitude word.
+  CableWord peak{}; ///< Full018A peak word.
+  bool triggerAccepted{false}; ///< Trigger frame completed successfully.
+  bool triggerPossible{false}; ///< Trigger may have affected hardware despite error.
+  bool freshnessObserved{false}; ///< Post-trigger start1 or done0 was actually observed.
+  bool failed{false}; ///< CDCR fail bit; captured data remains raw evidence.
+};
+/// @brief Fixed retained capture plan; raw data has no hardware-history-loss semantics.
+struct CableResult {
+  OperationToken session{}; ///< Original start token.
+  CableRecipe recipe{CableRecipe::SNLA428}; ///< Interpretation provenance.
+  uint8_t requestedMask{0}; ///< Selected rows; unselected rows remain NOT_RUN.
+  std::array<CableSample, 6> samples{}; ///< Fixed bounded storage in CableRun order.
+  CableWord prerequisiteCdcr{}; ///< Live preflight/stop status, including calibration rejection.
+  bool complete{false}; ///< All requested rows captured coherently; does not mean good cable.
+  bool stale{true}; ///< Incomplete or reset/external invalidation made current interpretation unavailable.
+  bool stopped{false}; ///< HARD replay and saved-field verification completed.
+};
+/// @brief Passive settings, capture and outstanding effects.
+struct CableSnapshot {
+  CableSettings settings{}; ///< Copied request.
+  CableResult result{}; ///< Partial or historical evidence without additional I/O.
+  bool temporaryMayBeActive{false}; ///< Owning stop/HARD may still be required.
+};
+/// @brief SNLA428-only source-implied classification, not physical qualification.
+enum class CableConclusion : uint8_t {
+  NO_PEAK, ///< No qualifying peak; no claim of cable health or distance.
+  OPEN, ///< Source-implied open on the selected transmit-A path.
+  SHORT ///< Source-implied short on the selected transmit-A path.
+};
+/// @brief Pure derived result for transmit-A only; never describes pair B or the whole cable.
+struct CableDiagnosis {
+  CableConclusion conclusion{CableConclusion::NO_PEAK}; ///< No qualifying peak is not a good cable.
+  CableRun run{CableRun::RUN_1A}; ///< Meaningful only with distanceValid.
+  double metres{0}; ///< Source-implied value, not calibrated accuracy.
+  bool distanceValid{false}; ///< False for NO_PEAK; zero numeric default is not a distance.
+  bool amplitudeAtLimit{false}; ///< Raw7F; saturation behavior is not inferred.
+  bool rawBit11{false}; ///< Raw018A bit11 without invented polarity.
+  bool rawBit5{false}; ///< Raw018A bit5 without invented polarity.
+};
+/// @brief Validate settings without I/O; source tables8-54..60 and SNLA428 table2-1.
+/// @param[in] settings Complete request, including maintenance/peer/HARD admission.
+/// @return OK or INVALID_PARAM/INVALID_CONFIG; no state changes.
+Status validateCableSettings(const CableSettings& settings) noexcept;
+/// @brief Independently derived SNLA428 table2-5 helper over complete retained samples.
+/// @param[in] result Fresh complete selected-recipe capture; failed/incomplete/raw plans reject.
+/// @param[in] propagationDelayNsPerM Positive finite ns/m; Cat5/5e5.35,Cat6 5,Cat7 4.6 are note examples.
+/// @param[out] diagnosis Unchanged on failure; NO_PEAK has no valid distance.
+/// @return OK or INVALID_PARAM/INVALID_CONFIG/RESULT_NOT_AVAILABLE. Pure, bounded, Q7 unqualified.
+Status interpretCable(const CableResult& result, double propagationDelayNsPerM, CableDiagnosis& diagnosis) noexcept;
 /// @brief Fixed maximum number of local or retained partner next pages.
 constexpr uint8_t MAX_NEXT_PAGES = 16;
 /// @brief Clause 28 page content; NP and the read-only toggle are driver/hardware owned.
@@ -530,6 +646,7 @@ struct OperationResult {
   NextPageResult nextPage{}; ///< Exchange evidence, including partial consumption.
   LoopbackResult loopback{}; ///< Selected path and activation/stop evidence, never packet proof.
   BistResult bist{}; ///< Current diagnostic evidence, separate from primary/stop outcomes.
+  CableResult cable{}; ///< Non-destructive cable words; primary and restoration results remain separate.
   uint16_t savedAnar{0}; ///< Pre-mutation advertisement, never a rollback instruction.
   uint16_t savedBmcr{0}; ///< Pre-mutation control, never a rollback instruction.
   bool savedAnarValid{false}; ///< Pre-mutation advertisement was captured.
@@ -713,6 +830,29 @@ public:
   /// @brief Copy current/historical BIST evidence without I/O or consuming a result.
   /// @return Retained options, samples and explicit validity/staleness.
   BistSnapshot bistSnapshot() const noexcept;
+
+  /// @brief Admit finite manual configure/trigger/capture, leaving restoration to a new stop.
+  /// @param[in] settings Exact recipe subset or one typed raw measurement.
+  /// @param[in] budget Aggregate deadline/frame allowance; no callback on admission.
+  /// @param[out] token Assigned only on admission; consume result exactly once.
+  /// @return IN_PROGRESS or local rejection; requires initialized VERIFIED desired profile.
+  /// @note CR1 autorun, active modes, live link and CDCR calibration reject before mutation.
+  /// Tables8-47/54..71 and SNLA428 table2-1; no maximum completion time is invented.
+  Status startCableTest(const CableSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Admit a bounded nondestructive reread of this session's last triggered row.
+  /// @param[in] budget New finite allowance; no repeated trigger or automatic retry.
+  /// @param[out] token New token only on admission.
+  /// @return IN_PROGRESS or local error; generation/reset invalidation rejects acquisition.
+  Status startCableAcquire(const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Admit identity check, manual stop, HARD and full implemented-state replay.
+  /// @param[in] budget Independent restoration allowance; failure retains the OP-9 barrier.
+  /// @param[out] token New token only on admission.
+  /// @return IN_PROGRESS or local rejection; allowed after failed/cancelled start.
+  /// @note Opaque0411/0416 are never read for replay. Live CDCR14 rejects clear here (prompt35).
+  Status stopCableTest(const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Copy partial/historical cable evidence without MDIO or clock calls.
+  /// @return Fixed capture storage and outstanding temporary-state flag.
+  CableSnapshot cableSnapshot() const noexcept;
 
   /// @brief Project passive health without bus/clock access or changing admission.
   /// @return UNINIT when not initialized; otherwise READY at zero failures,
@@ -936,6 +1076,24 @@ public:
   TransportSnapshot transportSnapshot() const noexcept { return _transport; }
 
 private:
+  enum class CableStep : uint8_t {
+    IDENTIFY, BMCR, PHYRCR, CR1, BISCR, LINK, CDCR, SAVE,
+    APPLY, VERIFY, TRIGGER, WAIT, INDEX, AMPLITUDE, PEAK, BOOKEND,
+    STOP_IDENTITY, STOP_STATUS, STOP_COMMAND, STOP_VERIFY,
+    RESTORE_BMCR, VERIFY_BMCR, RESTORE, VERIFY_RESTORE
+  };
+  CableStep _cableStep{CableStep::BMCR};
+  CableSnapshot _cable{};
+  std::array<uint16_t, 7> _cableSaved{};
+  uint16_t _cableSavedBmcr{0};
+  uint8_t _cableRun{0}, _cableField{0};
+  bool _cableSession{false}, _cableWorking{false}, _cableRestoreTail{false}, _cableCurrent{false};
+  bool _cableCalibration{false};
+  void _setCableStep(CableStep step) noexcept;
+  MdioBatch _cableBatch() const noexcept;
+  Status _advanceCable(Status status, bool called, const MdioBatch& batch) noexcept;
+  Status _admitCable(const OperationBudget& budget, bool stop) const noexcept;
+  uint16_t _cableValue(uint8_t field) const noexcept;
   enum class BistStep : uint8_t {
     SAVE_IPG, SAVE_PACKET, APPLY_IPG, APPLY_PACKET, VERIFY_IPG, VERIFY_PACKET,
     BASELINE, LINK, ENABLE, VERIFY_ENABLE, BEFORE, CAPTURE, AFTER,
