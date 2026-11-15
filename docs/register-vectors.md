@@ -668,3 +668,21 @@ the original PDF by the source reviewer:
 
 `test/interrupts.cpp` embeds its own literal fake and assertions, not a lookup of
 production masks. Q9 must independently qualify wire/pin latching and delivery.
+
+## Prompt 28 independent power vectors
+
+Original SNLS647I p29 section8.3.6, p55 table8-19, p65 table8-35 and p69 table8-40
+were reviewed independently of production constants. PHYSCR `0108 -> 6108`
+enables active sleep while BISCR `0100` still indicates normal; BISCR `0000`
+indicates sleep only in the applicable active-sleep context. With IEEE down
+established, PHYSCR `8108 -> E108` changes policy without clearing PLL disable.
+The reverse policy change gives `8108`, not `0108`.
+
+BMCR sampled `B700` composed with reset/restart neutral zero and requested
+power-down becomes `3D00`; requested normal becomes `3500`. Isolation `0400`
+survives both. A valid reset-bearing sampled word also invalidates readiness,
+even if the already indivisible write completed. Readback `0800` after a clear
+is blocked/unconfirmed, not an instruction to write again. PLL exit orders
+PHYSCR bit15 clear/readback before BMCR bit11 clear/readback. `test/power.cpp`
+checks independent literal frames, pin assertion during RMW and accepted-write
+failure before separate PCS preparation. No DPD inverse vector is invented.

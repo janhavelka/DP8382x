@@ -1,6 +1,7 @@
 #include "../../examples/portable/CableCapture.h"
 #include "../../examples/portable/CableAutorun.h"
 #include "../../examples/portable/Interrupts.h"
+#include "../../examples/portable/Power.h"
 #include <array>
 
 namespace {
@@ -204,5 +205,25 @@ int main() {
   if (!replayed.desiredValid || replayed.desired || replayed.observed ||
       replayed.trust != ConfigurationTrust::VERIFIED || (bus.words[9] & 0x0100U) != 0U) return 21;
   if (phy.interruptSnapshot().trust != ConfigurationTrust::VERIFIED || (bus.words[17] & 0x000FU) != 0x000BU) return 29;
+  // Board admissions are explicit host assumptions, not fixture qualification.
+  PowerSettings power; power.activeSleep = true;
+  power.maintenanceAdmitted = power.managementClockAvailable = power.clockLossApproved = true;
+  PowerAttempt sleepPolicy;
+  if (!beginPowerPolicy(phy,power,budget(),sleepPolicy).inProgress()) return 30;
+  if (!finish(phy,bus,sleepPolicy,quiet)) return 35;
+  if (sleepPolicy.result.power.state != PowerState::NORMAL_INDICATED) return 36;
+  power.request = PowerRequest::IEEE_POWER_DOWN; power.disablePll = true;
+  PowerAttempt down;
+  if (!beginPowerPolicy(phy,power,budget(),down).inProgress() || !finish(phy,bus,down,quiet) ||
+      !down.result.power.requestedPowerDown || (bus.words[17]&0x8000U)==0U) return 31;
+  power.request = PowerRequest::NORMAL; power.disablePll = false;
+  PowerAttempt wake;
+  if (!beginPowerPolicy(phy,power,budget(),wake).inProgress() || !finish(phy,bus,wake,quiet)) return 32;
+  PowerSnapshot powerView;
+  if (!acquirePowerView(phy,powerView,{1000000,3}).ok() || powerView.observedBmcrPowerDown) return 33;
+  const auto powerCalls=bus.callbacks,powerClocks=bus.clockCalls;
+  const auto powerOne=phy.powerSnapshot(),powerTwo=phy.powerSnapshot();
+  if (powerOne.observedStale || powerTwo.requestedPowerDown || bus.callbacks!=powerCalls || bus.clockCalls!=powerClocks ||
+      (bus.words[17]&0x000FU)!=0x000BU) return 34;
   return phy.end().ok() ? 0 : 12;
 }

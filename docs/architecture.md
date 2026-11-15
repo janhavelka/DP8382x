@@ -159,3 +159,8 @@ requests. No second IRQ collector, event queue, scheduler or generic manager is
 introduced. The shared initialization tail replays explicitly owned IRQ policy
 after diagnostic/autorun restoration. The [interrupt guide](interrupts.md) defines
 pin conflicts that later LED/GPIO owners must preserve.
+
+Stage 28 adds `DP8382xPower.cpp` for [power policy and observations](power.md),
+feeding the same slot/transport/collector. One software power intent is shared
+by every BMCR writer; live pre-reset PLL preparation and final power replay
+extend initialization. There is no second power engine, scheduler or clock owner.

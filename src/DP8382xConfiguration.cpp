@@ -12,9 +12,8 @@ namespace {
 constexpr uint16_t ANAR_PRESERVE = 0x5200;
 constexpr uint16_t ANAR_VERIFY = 0xADFF;
 // Table 8-19: bit 11 reads software request OR the ENHANCED power pin.
-// READ_BMCR requires it low before mutation, proving software request zero.
-// The serialized owner excludes external software writes; a later pin assertion
-// must not be echoed into a persistent software power-down request.
+// Without owned intent READ_BMCR requires low. With owned intent every write
+// supplies that intent explicitly; a pin assertion is never echoed.
 constexpr uint16_t BMCR_PRESERVE = 0x44FF;
 constexpr uint16_t BMCR_VERIFY = 0x3100;
 constexpr uint16_t ANNPTR_PRESERVE = 0x4800;
@@ -146,6 +145,9 @@ Status DP8382x::startConfigure(const LinkSettings& settings, const ConfigureOpti
   if (budget.io.maxFrames == 0U) { return configTimeout(TimeoutDetail::FRAME_BUDGET); }
   if (budget.io.deadlineUs == 0U) { return configTimeout(TimeoutDetail::DEADLINE); }
 
+  if (_softwarePowerWord()!=0U && (options.waitForCompletion || options.nextPages.pageCount!=0U)) {
+    return Status::Error(Err::INVALID_CONFIG,"Negotiation wait requires awake software intent",static_cast<int32_t>(ConfigDetail::POWER_STATE));
+  }
   _beginOperation(OperationKind::CONFIGURE, budget);
   _settings.desired = settings;
   _settings.desiredValid = true;
@@ -251,8 +253,8 @@ MdioBatch DP8382x::_configurationBatch() const noexcept {
     case ConfigStep::APPLY_BMCR:
       // Activate only after all coupled controls. Forced mode neutralizes both
       // commands; AN alone requests restart. Neither branch touches VOD.
-      return updateRegister(cmd::REG_BMCR, BMCR_PRESERVE, static_cast<uint16_t>(modeWord(_configurationTarget()) |
-          (_configurationTarget().mode == LinkMode::AUTONEGOTIATED ? cmd::MASK_BMCR_AN_RESTART : 0U)));
+      return updateRegister(cmd::REG_BMCR, BMCR_PRESERVE, static_cast<uint16_t>(modeWord(_configurationTarget()) | _softwarePowerWord() |
+          (_configurationTarget().mode == LinkMode::AUTONEGOTIATED && _softwarePowerWord()==0U ? cmd::MASK_BMCR_AN_RESTART : 0U)));
     case ConfigStep::READ_BASE: return readRegister(cmd::REG_ALNPAR);
     case ConfigStep::READ_PAGE: return readRegister(cmd::REG_ANLNPTR);
     case ConfigStep::WAIT_COMPLETE: return readRegister(cmd::REG_BMSR);
@@ -418,7 +420,7 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
     case ConfigStep::DRAIN: _setConfigStep(ConfigStep::READ_ANAR); break;
     case ConfigStep::READ_ANAR: _setConfigStep(ConfigStep::READ_BMCR); break;
     case ConfigStep::READ_BMCR:
-      if ((value & cmd::MASK_BMCR_POWER_DOWN) != 0U) {
+      if (!_power.desiredValid && (value & cmd::MASK_BMCR_POWER_DOWN) != 0U) {
         return _finishOperation(Status::Error(Err::INVALID_CONFIG,
             "Power-down prevents active profile application", static_cast<int32_t>(ConfigDetail::POWER_STATE)));
       }
@@ -459,7 +461,7 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
       }
       if (_operation.kind == OperationKind::VERIFY) { break; }
       if (_configurationTarget().mode == LinkMode::AUTONEGOTIATED) {
-        if ((value & cmd::MASK_BMCR_AN_RESTART) != 0U) { return _waitOperation(); }
+        if (_softwarePowerWord()==0U && (value & cmd::MASK_BMCR_AN_RESTART) != 0U) { return _waitOperation(); }
       }
       if (_result.nextPage.requested) { _setConfigStep(ConfigStep::WAIT_BASE); break; }
       if (_configureOptions.waitForCompletion) { _setConfigStep(ConfigStep::WAIT_COMPLETE); break; }

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added opt-in active-sleep policy, explicit IEEE power request/wake and PLL
+  control with retained partial observations, single-write blocked-wake behavior
+  and shared reset restoration. All BMCR writers use owned software intent.
+- Added live PLL preparation before non-HARD initialization, independent failure
+  regressions and a linked power owner example. Deep-power-down remains rejected
+  pending exact-part exit evidence; physical clock/power qualification is NOT RUN.
+
 - Added complete opt-in interrupt policy, pin-conflict validation, retained test
   start/stop and bounded deferred service through the existing collector.
 - Added selector-at-consumption history, pending half-full counter requests,

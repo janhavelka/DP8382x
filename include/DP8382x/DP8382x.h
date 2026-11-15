@@ -279,7 +279,8 @@ enum class OperationKind : uint8_t {
   CABLE_AUTORUN_ACQUIRE, ///< Acquire one uncorrelated raw autorun result without waiting for a trigger.
   INTERRUPT_CONFIGURE, ///< Apply and verify explicitly owned interrupt policy.
   INTERRUPT_TEST_START, ///< Establish a retained software interrupt stimulus.
-  INTERRUPT_TEST_STOP ///< Clear and verify the owned software interrupt stimulus.
+  INTERRUPT_TEST_STOP, ///< Clear and verify the owned software interrupt stimulus.
+  POWER_CONFIGURE ///< Apply owned active-sleep, IEEE power intent and PLL control.
 };
 /// @brief One retained operation slot.
 enum class OperationState : uint8_t {
@@ -567,6 +568,48 @@ enum class ConfigurationTrust : uint8_t {
   VERIFIED, ///< Complete currently owned stable settings verified.
   DIRTY ///< Admitted desired change or uncertainty needs verification/restoration.
 };
+/// @brief Explicit software power request, never inferred from the power pin.
+enum class PowerRequest : uint8_t {
+  NORMAL, ///< Clear software power-down once; a pin can still block wake.
+  IEEE_POWER_DOWN, ///< Assert BMCR11; no separate actual-state register exists.
+  DEEP_POWER_DOWN ///< Source-gated: no proved exit/clock-ready procedure; rejects before I/O.
+};
+/// @brief Complete opt-in policy. SNLS647I 8.3.6 and tables8-19/35/40.
+struct PowerSettings {
+  PowerRequest request{PowerRequest::NORMAL}; ///< Software intent, distinct from BMCR's software/pin OR.
+  bool activeSleep{false}; ///< PHYSCR14:12=110; successful policy need not enter sleep.
+  bool disablePll{false}; ///< PHYSCR15, allowed only with IEEE_POWER_DOWN.
+  bool maintenanceAdmitted{false}; ///< Application permits link/power disruption.
+  bool clockLossApproved{false}; ///< Application permits loss of PHY-generated clocks.
+  bool managementClockAvailable{false}; ///< Board guarantees the reference/MDIO access needed through transition.
+};
+/// @brief Read indications only, not measured clock, supply or partner readiness.
+enum class PowerState : uint8_t {
+  UNKNOWN, ///< Incomplete or stale observation.
+  NORMAL_INDICATED, ///< BMCR11=0 and BISCR8=1; no clock/partner qualification.
+  ACTIVE_SLEEP_INDICATED, ///< BMCR11=0 and BISCR8=0 under enabled active-sleep policy.
+  POWER_DOWN_INDICATED, ///< BMCR11=1, a software/pin OR rather than actual-state proof.
+  WAKE_BLOCKED_OR_UNCONFIRMED ///< Owner requested normal but BMCR11 remains high.
+};
+/// @brief Passive power intent and independently valid raw evidence.
+struct PowerSnapshot {
+  PowerSettings desired{}; ///< Last admitted request, retained on failure/cancellation.
+  bool desiredValid{false}; ///< Explicit policy ownership; no default power activation.
+  bool requestedPowerDown{false}; ///< Owner software intent, never sampled BMCR11.
+  bool observedBmcrPowerDown{false}; ///< Hardware software/pin OR when bmcrValid.
+  uint16_t rawBmcr{0}; ///< Latest returned BMCR.
+  uint16_t rawPhyscr{0}; ///< Latest returned PHYSCR.
+  uint16_t rawBiscr{0}; ///< Latest collector-routed BISCR.
+  bool bmcrValid{false}; ///< Raw BMCR validity, including partial acquisitions.
+  bool physcrValid{false}; ///< Raw PHYSCR validity.
+  bool biscrValid{false}; ///< Raw BISCR validity.
+  bool observedStale{true}; ///< Aggregate incomplete or invalidated; raw words remain historical.
+  bool timeValid{false}; ///< Complete observation timestamp validity.
+  uint64_t observedAtUs{0}; ///< Conservative completion upper bound in microseconds.
+  PowerState state{PowerState::UNKNOWN}; ///< Current indication only when not stale.
+  ConfigurationTrust trust{ConfigurationTrust::UNKNOWN}; ///< Complete owned control verification, separate from physical state.
+  Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No power observation"}; ///< Last operation/acquisition outcome.
+};
 /// @brief Passive persistent policy evidence, separate from trigger and capture freshness.
 struct CableAutorunSnapshot {
   bool desired{false}; ///< Last admitted enable intent.
@@ -749,6 +792,7 @@ struct OperationResult {
   BistResult bist{}; ///< Current diagnostic evidence, separate from primary/stop outcomes.
   CableResult cable{}; ///< Non-destructive cable words; primary and restoration results remain separate.
   CableAutorunSnapshot cableAutorun{}; ///< Retained policy evidence; success never proves engine quiescence.
+  PowerSnapshot power{}; ///< Retained power intent, partial observations and transition outcome.
   InterruptSnapshot interrupts{}; ///< Retained policy and transient test effects, independent of restoration result.
   uint16_t savedAnar{0}; ///< Pre-mutation advertisement, never a rollback instruction.
   uint16_t savedBmcr{0}; ///< Pre-mutation control, never a rollback instruction.
@@ -980,6 +1024,23 @@ public:
   /// @return Policy evidence only; disabled does not imply engine idle.
   CableAutorunSnapshot cableAutorunSnapshot() const noexcept { return _autorun; }
 
+  /// @brief Start one bounded power-policy/transition operation; bus and clock silent.
+  /// @param settings Copied complete intent. Maintenance and management clock admission required;
+  /// clock-loss approval required for IEEE down or PLL changes. DPD remains source-gated.
+  /// @param budget Aggregate deadline/frame/stall bounds; no partner-dependent sleep wait.
+  /// @param[out] token New lifetime token only on admission; unchanged on rejection.
+  /// @return IN_PROGRESS or local validation/ownership error. Poll uses one complete batch;
+  /// failed/uncertain writes retain OP9 debt. Wake writes once, then reports blocked readback.
+  /// @note SNLS647I 8.3.6/table8-19/35/40. Isolation is preserved. No GPIO/rail operation.
+  Status startConfigurePower(const PowerSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Acquire BMCR/PHYSCR/BISCR once in one three-frame owned batch.
+  /// @param[out] snapshot Unchanged on failure; passive snapshot retains partial words as stale.
+  /// @param budget Aggregate terminal allowance; no resampling or partner wait.
+  /// @return OK or transport/admission error. BISCR uses the existing collector.
+  Status readPowerStatus(PowerSnapshot& snapshot, const IoBudget& budget) noexcept;
+  /// @brief Return copied power intent and evidence without I/O; serialize with the owner.
+  /// @return Copied intent, raw validity, trust and indication; never physical wake proof.
+  PowerSnapshot powerSnapshot() const noexcept { return _power; }
   /// @brief Admit complete opt-in interrupt policy without bus/clock callbacks.
   /// @param[in] settings Valid masks, source and explicit board/pin permissions.
   /// @param[in] budget Finite primary allowance; cancellation leaves OP-9 restoration debt.
@@ -1048,7 +1109,7 @@ public:
   /// Admission copies desired intent and marks trust DIRTY. NP belongs only to
   /// this exchange. Failure/cancel stops without cleanup writes; restoration is
   /// a new initialization or eligible configuration operation. No VOD write here.
-  /// @note Live preflight rejects BMCR power-down with INVALID_CONFIG/POWER_STATE
+  /// @note Without owned power intent, live preflight rejects BMCR power-down with INVALID_CONFIG/POWER_STATE
   /// before profile writes. Table 8-19 combines software request and pin state;
   /// later pin assertion is never echoed into the software request. This does
   /// not prove physical wake, and external writers remain excluded by the owner.
@@ -1237,6 +1298,19 @@ public:
   TransportSnapshot transportSnapshot() const noexcept { return _transport; }
 
 private:
+  enum class PowerStep : uint8_t { READ_BMCR, READ_PHYSCR, CLEAR_PLL, VERIFY_CLEAR_PLL,
+    POLICY, VERIFY_POLICY, BMCR, VERIFY_BMCR, PLL, VERIFY_PLL, BISCR };
+  PowerStep _powerStep{PowerStep::READ_BMCR};
+  PowerSnapshot _power{};
+  bool _powerWorking{false}, _powerTailPending{false}, _powerVerifyOnly{false}, _powerPreparingReset{false}, _powerPreparationDone{false};
+  void _resumeAfterPowerPreparation() noexcept;
+  uint16_t _softwarePowerWord() const noexcept;
+  Status _validatePower(const PowerSettings& settings) const noexcept;
+  void _setPowerStep(PowerStep step) noexcept;
+  MdioBatch _powerBatch() const noexcept;
+  Status _advancePower(Status status, bool called, const MdioBatch& batch) noexcept;
+  void _retainPowerWord(uint8_t address, uint16_t value) noexcept;
+  void _observePower() noexcept;
   enum class InterruptStep : uint8_t {
     IDENTIFY, PIN_CLOCK, PIN_MUX, CHECK_TEST, DISABLE, DRAIN,
     SELECT, VERIFY_SELECT, CROSSING, MASK1, MASK2, OUTPUT, ENABLE,

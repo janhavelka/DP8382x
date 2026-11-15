@@ -144,10 +144,10 @@ it to measured silicon behavior.
 | G4-1 | Source-implied policy implemented for three safe raw tuples; P29 owns full recipe. EEE_REGISTERS, mmd tests, 825 table7-92, 8227.4.2.9; Q1 remains. |
 | G4-2 | Planned30 start/stop/application dwell already correct; corrected stale COV readiness wording here. 8268.3.4 provides no readiness event. |
 | G4-3 | Implemented neutral W0C subset; planned31 full wake. 8268-90/A8-91 differ from8228-87; no-op suppression/collector retain evidence, Q3 remains. |
-| G4-4 | Corrected here in current profile preflight/atomic composition, with POWER_STATE and forced_power_pin tests. P28 owns broader intent integration; table8-19/Q6. |
+| G4-4 | Corrected here in current profile preflight/atomic composition, with POWER_STATE and forced_power_pin tests. P28 implements owned software intent across BMCR writers and reset replay; table8-19/Q6. |
 | G4-5 | Planned31/59/67: identical asymmetric MAC/password wire packing established in prompts/catalogue; labels do not imply reversed words. |
 | G4-6 | Planned31: reset108X is not disabled WoL; unknown bit0 stays unknown and explicit disable is neutral; table8-90. |
-| G4-7 | Planned28: PHYSCR15 separate PLL control, IEEE-down/clock-loss admission. |
+| G4-7 | Implemented28: PHYSCR15 separate PLL control, IEEE-down/clock-loss admission, live pre-reset preparation and control verification; physical Q6 remains open. |
 | G4-8 | Planned30: exact826 bit12 only, no imported825 bits14:13; Q2 measures108B. |
 | G5-1 | Planned35: fourteen COMPT exceptions already present; corrected stale nextEvidence here. Table8-50 admits0..D; upper bits/100M0428 remain gated. |
 | G5-2 | Planned34: tx10/tx100 fields, squelch bounds/FIFO/preamble and collector-routed 10BTSCR explicit. |

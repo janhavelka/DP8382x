@@ -237,7 +237,7 @@ MdioBatch DP8382x::_cableBatch() const noexcept {
     case CableStep::STOP_COMMAND: return direct(0x1E,FrameKind::WRITE,static_cast<uint16_t>(_cable.result.prerequisiteCdcr.raw & 0x3FFFU));
     case CableStep::RESTORE_BMCR: {
       auto batch = direct(0); batch.frameCount = 2;
-      batch.frames[1] = {FrameKind::WRITE,0,static_cast<uint16_t>(_cableSavedBmcr & 0x0480U),0x317F,0}; return batch;
+      batch.frames[1] = {FrameKind::WRITE,0,static_cast<uint16_t>((_cableSavedBmcr & 0x0480U) | _softwarePowerWord()),0x317F,0}; return batch;
     }
     case CableStep::RESTORE: return modify(addresses[_cableField],masks[_cableField],static_cast<uint16_t>(_cableSaved[_cableField] & masks[_cableField]));
     case CableStep::POLICY_WRITE: {
@@ -331,7 +331,7 @@ Status DP8382x::_advanceCable(Status status, bool called, const MdioBatch& batch
       }
       if (_cableStep == CableStep::VERIFY_BMCR) {
         mask = 0x7D80;
-        expected = static_cast<uint16_t>((_cableSavedBmcr & 0x0480U) |
+        expected = static_cast<uint16_t>((_cableSavedBmcr & 0x0480U) | _softwarePowerWord() |
             (_settings.desired.mode == LinkMode::AUTONEGOTIATED ? 0x1000U :
              ((_settings.desired.forced.speed == LinkSpeed::MBPS_100 ? 0x2000U : 0U) |
               (_settings.desired.forced.duplex == Duplex::FULL ? 0x0100U : 0U))));

@@ -11447,13 +11447,13 @@
       "waits": [],
       "timeout": "Finite aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Require independent finite logical-transaction and physical-frame/poll limits for primary and cleanup, including delegated work; frozen clock cannot extend count. Zero work budget performs no I/O. No nominal silicon value is a timeout. Base change uses at most3 direct target frames: read/write/readback; declared preflight and cleanup add finite counted work.",
       "partialEffects": "Record each accepted or uncertain write, reset/configuration epoch and consumed event immediately; late callback success cannot erase deadline/cancellation. Invalidate affected configuration trust without discarding desired policy or retained raw evidence. A software clear does not prove awake or restore link.",
-      "cleanup": "Release controller lock after every indivisible transaction and before waits/output. Cancellation schedules no new primary work; owner-admitted cleanup has a separate finite deadline/count. Retain primary and cleanup outcomes independently; no implicit retry/reset/power cycle. If requested, restore prior owned request once with bounded verification; no wait-until-link loop.",
-      "restoration": "Restore only persistent owned settings in dependency order, with source-defined stable readback. Never replay transient commands or stale observations. Hard reset invalidates prior observations and requires acyclic identity/clock/interface/configuration replay; do not infer PCS reset or digital restart has identical retention. ",
+      "cleanup": "Cancellation/failure terminates immediately with retained accepted/possible effects and OP-9 debt. No automatic cleanup I/O. Later startInitialize uses its own token, finite budget and result; abandonCleanup requires application-established external disposition. Release controller ownership after every terminal batch.",
+      "restoration": "Same initialization owner restores power last, after profile/autorun/IRQ. For owned power, non-HARD initialization reads live BMCR/PHYSCR first and clears/verifies PLL disable while IEEE down is established before reset/replay. HARD reloads controls; VERIFY/CONFIGURE tails only verify. Desired intent survives uncertainty; physical clock readiness is not inferred.",
       "gates": [],
       "owner": {
-        "api": "PowerSettings / startPowerTransition",
-        "cli": "owner-routed PowerSettings / startPowerTransition (prompts 44-46)",
-        "test": "Independent literals and boundary failures for PowerSettings / startPowerTransition; prompts 28, 53-55; literal vectors and per-step failure/cancel/cleanup matrix in power source review; no physical evidence claimed",
+        "api": "PowerSettings / startConfigurePower / readPowerStatus / powerSnapshot",
+        "cli": "owner-routed power policy and observations (prompts 44-46)",
+        "test": "test/power.cpp independent literals/failure/reset matrix and test/consumer/cable.cpp; Q6 physical NOT RUN",
         "implementationStage": 28
       }
     },
@@ -11489,13 +11489,13 @@
       "waits": [],
       "timeout": "Finite aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Require independent finite logical-transaction and physical-frame/poll limits for primary and cleanup, including delegated work; frozen clock cannot extend count. Zero work budget performs no I/O. No nominal silicon value is a timeout. Base apply/readback/state sample at most4 direct target frames; no sleep-entry or partner-wake polling as configuration completion.",
       "partialEffects": "Record each accepted or uncertain write, reset/configuration epoch and consumed event immediately; late callback success cannot erase deadline/cancellation. Invalidate affected configuration trust without discarding desired policy or retained raw evidence. ",
-      "cleanup": "Release controller lock after every indivisible transaction and before waits/output. Cancellation schedules no new primary work; owner-admitted cleanup has a separate finite deadline/count. Retain primary and cleanup outcomes independently; no implicit retry/reset/power cycle. ",
-      "restoration": "Restore only persistent owned settings in dependency order, with source-defined stable readback. Never replay transient commands or stale observations. Hard reset invalidates prior observations and requires acyclic identity/clock/interface/configuration replay; do not infer PCS reset or digital restart has identical retention. Replay only explicitly desired policy, never a request to force a BISCR state.",
+      "cleanup": "Cancellation/failure terminates immediately with retained accepted/possible effects and OP-9 debt. No automatic cleanup I/O. Later startInitialize uses its own token, finite budget and result; abandonCleanup requires application-established external disposition. Release controller ownership after every terminal batch.",
+      "restoration": "Same initialization owner restores power last, after profile/autorun/IRQ. For owned power, non-HARD initialization reads live BMCR/PHYSCR first and clears/verifies PLL disable while IEEE down is established before reset/replay. HARD reloads controls; VERIFY/CONFIGURE tails only verify. Desired intent survives uncertainty; physical clock readiness is not inferred.",
       "gates": [],
       "owner": {
-        "api": "PowerSettings / startPowerTransition",
-        "cli": "owner-routed PowerSettings / startPowerTransition (prompts 44-46)",
-        "test": "Independent literals and boundary failures for PowerSettings / startPowerTransition; prompts 28, 53-55; literal vectors and per-step failure/cancel/cleanup matrix in power source review; no physical evidence claimed",
+        "api": "PowerSettings / startConfigurePower / readPowerStatus / powerSnapshot",
+        "cli": "owner-routed power policy and observations (prompts 44-46)",
+        "test": "test/power.cpp independent literals/failure/reset matrix and test/consumer/cable.cpp; Q6 physical NOT RUN",
         "implementationStage": 28
       }
     },
@@ -11531,13 +11531,13 @@
       "waits": [],
       "timeout": "Finite aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Require independent finite logical-transaction and physical-frame/poll limits for primary and cleanup, including delegated work; frozen clock cannot extend count. Zero work budget performs no I/O. No nominal silicon value is a timeout. One PHYSCR read/write/readback at most3 direct target frames, plus separately counted prerequisite read if needed.",
       "partialEffects": "Record each accepted or uncertain write, reset/configuration epoch and consumed event immediately; late callback success cannot erase deadline/cancellation. Invalidate affected configuration trust without discarding desired policy or retained raw evidence. Loss of a PHY-sourced reference can affect the MAC even when SMI remains accessible.",
-      "cleanup": "Release controller lock after every indivisible transaction and before waits/output. Cancellation schedules no new primary work; owner-admitted cleanup has a separate finite deadline/count. Retain primary and cleanup outcomes independently; no implicit retry/reset/power cycle. ",
-      "restoration": "Restore only persistent owned settings in dependency order, with source-defined stable readback. Never replay transient commands or stale observations. Hard reset invalidates prior observations and requires acyclic identity/clock/interface/configuration replay; do not infer PCS reset or digital restart has identical retention. ",
+      "cleanup": "Cancellation/failure terminates immediately with retained accepted/possible effects and OP-9 debt. No automatic cleanup I/O. Later startInitialize uses its own token, finite budget and result; abandonCleanup requires application-established external disposition. Release controller ownership after every terminal batch.",
+      "restoration": "Same initialization owner restores power last, after profile/autorun/IRQ. For owned power, non-HARD initialization reads live BMCR/PHYSCR first and clears/verifies PLL disable while IEEE down is established before reset/replay. HARD reloads controls; VERIFY/CONFIGURE tails only verify. Desired intent survives uncertainty; physical clock readiness is not inferred.",
       "gates": [],
       "owner": {
-        "api": "PowerSettings / startPowerTransition",
-        "cli": "owner-routed PowerSettings / startPowerTransition (prompts 44-46)",
-        "test": "Independent literals and boundary failures for PowerSettings / startPowerTransition; prompts 28, 53-55; literal vectors and per-step failure/cancel/cleanup matrix in power source review; no physical evidence claimed",
+        "api": "PowerSettings / startConfigurePower / readPowerStatus / powerSnapshot",
+        "cli": "owner-routed power policy and observations (prompts 44-46)",
+        "test": "test/power.cpp independent literals/failure/reset matrix and test/consumer/cable.cpp; Q6 physical NOT RUN",
         "implementationStage": 28
       }
     },
@@ -11574,15 +11574,15 @@
       "waits": [],
       "timeout": "Finite aggregate monotonic deadline includes owner admission, controller lock and every bounded terminal callback. Require independent finite logical-transaction and physical-frame/poll limits for primary and cleanup, including delegated work; frozen clock cannot extend count. Zero work budget performs no I/O. No nominal silicon value is a timeout. Entry logical floor2 writes, indirect0428 plus directBMCR, excludes required composition/preflight/verification and cleanup. Assign complete finite counts only after source gate closes.",
       "partialEffects": "Record each accepted or uncertain write, reset/configuration epoch and consumed event immediately; late callback success cannot erase deadline/cancellation. Invalidate affected configuration trust without discarding desired policy or retained raw evidence. DPD may have stopped PLL; retain power/clock uncertainty even when software teardown succeeds.",
-      "cleanup": "Release controller lock after every indivisible transaction and before waits/output. Cancellation schedules no new primary work; owner-admitted cleanup has a separate finite deadline/count. Retain primary and cleanup outcomes independently; no implicit retry/reset/power cycle. Opaque0428 cannot use invented saved-word restore; cleanup remains required/unverified if exact exit or admitted recovery cannot complete.",
+      "cleanup": "Cancellation/failure terminates immediately with retained accepted/possible effects and OP-9 debt. No automatic cleanup I/O. Later startInitialize uses its own token, finite budget and result; abandonCleanup requires application-established external disposition. Release controller ownership after every terminal batch. Opaque0428 has no supported saved-word restore or complete exit; no entry is admitted while deep_power_exit is unresolved.",
       "restoration": "Restore only persistent owned settings in dependency order, with source-defined stable readback. Never replay transient commands or stale observations. Hard reset invalidates prior observations and requires acyclic identity/clock/interface/configuration replay; do not infer PCS reset or digital restart has identical retention. ",
       "gates": [
         "deep_power_exit"
       ],
       "owner": {
-        "api": "PowerSettings / startPowerTransition",
-        "cli": "owner-routed PowerSettings / startPowerTransition (prompts 44-46)",
-        "test": "Independent literals and boundary failures for PowerSettings / startPowerTransition; prompts 28, 53-55; literal vectors and per-step failure/cancel/cleanup matrix in power source review; no physical evidence claimed",
+        "api": "PowerSettings / startConfigurePower / readPowerStatus / powerSnapshot",
+        "cli": "owner-routed power policy and observations (prompts 44-46)",
+        "test": "test/power.cpp independent literals/failure/reset matrix and test/consumer/cable.cpp; Q6 physical NOT RUN",
         "implementationStage": 28
       },
       "writeActions": [
@@ -12334,23 +12334,23 @@
         "power_deep"
       ],
       "owner": {
-        "api": "PowerSettings / startPowerTransition",
-        "cli": "owner-routed PowerSettings / startPowerTransition (prompts 44-46)",
-        "test": "Independent literals and boundary failures for PowerSettings / startPowerTransition; prompts 28, 53-55",
+        "api": "PowerSettings / startConfigurePower / readPowerStatus / powerSnapshot",
+        "cli": "owner-routed power policy and observations (prompts 44-46)",
+        "test": "test/power.cpp and test/consumer/cable.cpp; Q6 physical NOT RUN",
         "implementationStage": 28
       },
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "PARTIAL",
+        "hostTested": "PARTIAL",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "deep_power_exit"
       ],
-      "notes": "Research disposition complete, including explicit essential source gates; no implementation or hardware qualification claimed. See power source review for independent literal oracles, finite procedures and fixture matrix."
+      "notes": "Prompt28 implements and host-tests active-sleep policy, IEEE request/clear and separate PLL control through one operation/restore owner. Deep power remains source-blocked under deep_power_exit and rejects before I/O; its rejection is host-tested, not its silicon entry/exit. Policy, BMCR software/pin OR and active-sleep indication stay separate. SDK and Q6 physical clock/power qualification NOT_RUN."
     },
     {
       "id": "repeater",

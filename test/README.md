@@ -487,3 +487,12 @@ exclusion. Tail identity changes cannot turn dirty earlier proof into success.
 The tests-OFF cable consumer now executes the deferred-owner IRQ example, two
 cached views, explicit stimulus clear and IRQ replay after cable HARD restoration.
 Physical Q9 remains NOT RUN; the fake cannot establish MCU notification delivery.
+
+## Power suites (prompt 28)
+
+`ctest --test-dir build/host -R "power_|dp8382x_power_tests_failure_path" --output-on-failure`
+runs policy, transitions, failures, replay, ownership and timing plus the active
+Release-check rejection probe. `test/power.cpp` uses independent literal tables,
+all transition/readback failure phases, accepted effects, partial/reset invalidation,
+pin OR races, PLL preparation, cancellation, clocks and reset replay. The tests-OFF
+consumer executes `examples/portable/Power.h`. Q6 clock/power tests remain NOT RUN.

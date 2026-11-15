@@ -150,3 +150,12 @@ polarity, qualified shared-source attribution, explicit test stop, finite servic
 and shared reset replay. Pending half-full requests survive incomplete passes.
 Host tests cover complete procedures; Q9 pin/latching behavior and the RXFS SFD
 interpretation gate remain open. LED1/2 mux programming remains prompt32.
+
+## Prompt 28 power implementation
+
+[Power operations](power.md) implement `power_ieee`, `power_active_sleep` and
+`power_pll_control`, including profile intent, non-HARD PLL preparation and shared
+restoration. `power_deep` has a tested zero-I/O rejection; entry/exit remain
+BLOCKED by `deep_power_exit`. Thus the whole power feature remains PARTIAL in the
+ledger, despite completion of its independently supported procedures. Host tests
+and portable examples do not close Q6 or establish SDK support.

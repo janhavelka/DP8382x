@@ -284,13 +284,12 @@ evidence, set stale=true and lastRefreshStatus to the returned error. An ordinar
 caller output remains unchanged. A clock fault additionally prevents comparing
 that history to the now-invalid time domain; it never manufactures a fresh stamp.
 
-Active-profile preflight currently requires BMCR[11]=0. A high observation
-returns INVALID_CONFIG/POWER_STATE before profile writes, retaining savedBmcr.
-SNLS647I table 8-19 makes that read the software/pin OR. After low preflight,
-exclusive ownership establishes software request zero; the final atomic BMCR
-write must keep it zero even if the pin asserts. This is not physical-wake
-verification. Initialization replay retains earlier effects on this rejection.
-Prompt 28 extends the same writer with explicit owned software-power intent.
+Active-profile preflight requires BMCR[11]=0 only when software power intent is
+unowned. With explicit `PowerSettings`, every BMCR writer replaces bit11 from
+that owned intent, never the software/pin OR. Owned IEEE down is retained across
+profile application; negotiation wait/page exchange rejects while down and AN
+restart is suppressed. Power reset/replay uses the same intent. See [power
+operations](power.md) for separate readback, blocked wake and PLL ordering.
 
 Settings trust VERIFIED means every stable owned bit of this foundational tuple
 was compared successfully against validated desired intent in the current
@@ -924,7 +923,7 @@ Shared initialization replays owned policy last after saved diagnostic fields;
 failed/cancelled final replay cannot leave initialization complete. `startVerify`
 and link `startConfigure` verify the owned bit without writing. Direct/raw reset
 invalidation keeps desired policy and stales its independent trust. Unowned
-policy never adds replay writes. Future power-state transitions use this owner.
+policy never adds replay writes. Power-state transitions use this owner and shared restoration.
 
 Autorun acquisition is one fourteen-frame pass with nondestructive partial words,
 no trigger and no environmental polling. `complete` means read-plan completion;
@@ -958,3 +957,15 @@ Selector context is captured at MISR2 consumption, with separate sticky ambiguou
 history. A read alone cannot establish an old epoch. Cached service/policy getters
 do no I/O; ISR only signals the application owner. See [the complete procedure and
 board constraints](interrupts.md). Q9 is NOT RUN.
+
+## Stage 28 power ownership
+
+`startConfigurePower`, `readPowerStatus` and passive `powerSnapshot` expose one
+complete opt-in policy, source-defined indications and retained partial evidence.
+`POWER_CONFIGURE` uses OP-1 through OP-17; starts/cancel/end/cached access remain
+bus-silent. Failed mutation requires separate `startInitialize` restoration.
+`PowerSettings` owns active-sleep policy, software power-down intent and PLL
+control. BMCR isolation remains independent. The [power guide](power.md) defines
+finite sequences, live reset/partial invalidation, profile interactions and
+non-HARD PLL preparation. DPD is explicitly rejected under `deep_power_exit`;
+control readback never proves physical wake or generated-clock readiness.

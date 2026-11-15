@@ -11,6 +11,7 @@ struct InitializeAttempt {
   bool resultAvailable{false};
   DP8382x::ResetKind reset{DP8382x::ResetKind::NONE};
   bool hardFloorCaptured{false};
+  bool hardCommandPhaseSeen{false};
 };
 
 // This belongs to the shared controller owner, not to one PHY. It outlives
@@ -52,8 +53,12 @@ inline DP8382x::Status pollInitialization(DP8382x::DP8382x& phy,
                                           uint32_t maxFrames = DP8382x::MAX_BATCH_FRAMES) noexcept {
   if (attempt.resultAvailable) { return attempt.result.status; }
   if (attempt.reset == DP8382x::ResetKind::HARD &&
+      !attempt.hardCommandPhaseSeen &&
       phy.operationSnapshot().phase == DP8382x::OperationPhase::COMMAND) {
-    attempt.hardFloorCaptured = false; // A new command needs its own completion anchor.
+    // One reset per operation. Later profile writes also use COMMAND and must
+    // not discard the already captured silence evidence.
+    attempt.hardCommandPhaseSeen = true;
+    attempt.hardFloorCaptured = false;
   }
   const auto status = phy.pollOperation(attempt.token, maxFrames);
   const auto snapshot = phy.operationSnapshot();

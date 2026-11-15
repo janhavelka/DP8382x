@@ -117,3 +117,8 @@ verification tails as managed batches. Deferred service and test stimulus
 start/stop remain RAW diagnostic traffic. Counter requests and IRQ events are
 collector evidence; neither a pin test nor an empty event pass proves physical
 interrupt delivery or managed recovery.
+
+Power configuration/restoration batches are managed attempts; explicit live power
+observation is raw acquisition. Neither a sleep indication nor an asserted
+power-down pin is an MDIO failure. A blocked wake can return CONFIG_MISMATCH
+after successful transport; [power evidence](power.md) remains a separate domain.

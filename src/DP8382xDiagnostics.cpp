@@ -82,6 +82,9 @@ Status DP8382x::startLoopback(const LoopbackOptions& options, const OperationBud
 }
 Status DP8382x::_startLoopback(const LoopbackOptions& options, const OperationBudget& budget,
                               OperationToken& token, bool lineBist) noexcept {
+  if (_softwarePowerWord()!=0U || (_power.desiredValid && _power.desired.disablePll)) {
+    return Status::Error(Err::INVALID_CONFIG,"Diagnostic session requires awake power intent",static_cast<int32_t>(ConfigDetail::POWER_STATE));
+  }
   if (options.mode > LoopbackMode::EXTERNAL ||
       (options.speed != LinkSpeed::MBPS_10 && options.speed != LinkSpeed::MBPS_100)) {
     return Status::Error(Err::INVALID_PARAM, "Invalid loopback enum", static_cast<int32_t>(ParamDetail::ENUM_VALUE));
@@ -190,10 +193,10 @@ MdioBatch DP8382x::_loopbackBatch() const noexcept {
     case LoopStep::READ_PHYSCR: case LoopStep::VERIFY_ACTIVE_FIFO: case LoopStep::VERIFY_FIFO: return readWord(0x11);
     case LoopStep::CHECK_LINK: case LoopStep::RELINK: return readWord(0x10);
     // Table8-19 commands neutral0; never echo the power-pin OR bit into software.
-    case LoopStep::CLEAR_BMCR: case LoopStep::STOP_BMCR: return updateWord(0, 0x35FF, 0);
+    case LoopStep::CLEAR_BMCR: case LoopStep::STOP_BMCR: return updateWord(0, 0x35FF, _softwarePowerWord());
     case LoopStep::CLEAR_BISCR: case LoopStep::STOP_BISCR: return updateWord(0x16, 0xFFA0, 0);
     case LoopStep::SET_FIFO: return updateWord(0x11, 0xFCFF, static_cast<uint16_t>(uint16_t{options.reverseFifoDepth} << 8U));
-    case LoopStep::DIGITAL_BMCR: return writeWord(0, 0x2100);
+    case LoopStep::DIGITAL_BMCR: return writeWord(0, static_cast<uint16_t>(0x2100U | _softwarePowerWord()));
     case LoopStep::SET_BISCR:
       if (options.mode == LoopbackMode::DIGITAL) { return writeWord(0x16, 0x0104); }
       return updateWord(0x16, 0xFFA0, static_cast<uint16_t>(selector(options) | (options.transmitOnLine ? 0x0040U : 0U)));
@@ -203,8 +206,8 @@ MdioBatch DP8382x::_loopbackBatch() const noexcept {
     case LoopStep::DIGITAL_0130: return _mmdBatch(0x0130, FrameKind::WRITE, 0x47FF);
     case LoopStep::RESTART: return writeWord(0x1F, 0x4000);
     // HARD may reload BASIC isolation straps. Restore only the saved ordinary
-    // extras (preflight required zero), with power/reset/restart neutral zero.
-    case LoopStep::RESTORE_BMCR: return updateWord(0, 0x317F, static_cast<uint16_t>(_loopSavedBmcr & 0x0480));
+    // extras (preflight required zero), owned power intent and neutral reset/restart.
+    case LoopStep::RESTORE_BMCR: return updateWord(0, 0x317F, static_cast<uint16_t>((_loopSavedBmcr & 0x0480) | _softwarePowerWord()));
     case LoopStep::RESTORE_BISCR: return updateWord(0x16, 0x8FA0, static_cast<uint16_t>(_loopSavedBiscr & 0x705F));
     case LoopStep::RESTORE_FIFO: return updateWord(0x11, 0xFCFF, static_cast<uint16_t>(_loopSavedPhyscr & 0x0300));
   }

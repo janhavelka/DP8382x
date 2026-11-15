@@ -471,3 +471,11 @@ requests survive failed/short service until the single collector reads their
 counters. PHYSCR OE has electrical meaning only in ENHANCED; BASIC pin21 is INT.
 Alternate IRQ mux selection does not disconnect pin21. See [interrupts](interrupts.md)
 for board permissions, restoration and unmeasured Q9 limits.
+
+## Implemented power boundary (stage 28)
+
+[Power policy](power.md) separates owner intent, BMCR's software/pin OR and BISCR
+active-sleep indication. A blocked clear terminates after one write. PLL control
+is separate from DPD and ordered under IEEE down. Non-HARD initialization prepares
+PLL using live reads before reset, then replays power last. DPD exit remains
+source-blocked, and all physical power/clock claims remain NOT RUN.

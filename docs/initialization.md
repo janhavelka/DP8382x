@@ -209,3 +209,11 @@ never restores transient test1. Readback or identity failure leaves initializati
 incomplete and the original effects/result intact. Alternate pin muxes are
 validated, not implicitly programmed; prompt32 extends the same dependency order.
 See [interrupt ownership](interrupts.md).
+
+## Owned power replay
+
+Stage 28 adds [power preparation and replay](power.md). With explicit owned power
+policy, non-HARD initialization reads live BMCR/PHYSCR and clears/verifies PLL
+disable before resetting retained vendor state; HARD reloads it itself. Mandatory
+VOD and other persistent owners run before final power replay. Power failure
+retains earlier initialization effects and OP-9 debt; no retry or silent wake.

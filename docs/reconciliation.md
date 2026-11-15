@@ -132,3 +132,8 @@ control writes, and keeps crossing attribution unknown until a bounded drain.
 A contradictory RXFS word withdraws prior selector context even if release later
 fails. Restoration remains explicit initialization; test stimulus has a separate
 owned stop and is never replayed. See [interrupts](interrupts.md).
+
+Owned [power controls](power.md) extend VERIFY with BMCR/PHYSCR/BISCR reads only.
+Restoration uses startInitialize and the same power procedure, including live
+non-HARD PLL preparation. Verification cannot clear prior cleanup debt. No
+readback claims measured PLL lock, external-pin release or partner readiness.

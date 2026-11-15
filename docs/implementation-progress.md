@@ -1,9 +1,9 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–27 are complete: source research, shared contracts, portable
+execution. Prompts 1–28 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 154 registered Release CTests, 103 Python tests,
+Current local checks include 161 registered Release CTests, 103 Python tests,
 two linked tests-OFF consumers, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -26,6 +26,16 @@ Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
 operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+Prompt28 began on clean, fetched and synchronized `main` at
+`ced8b1ce5418aec044eb156b507ea78573302576`. The
+[stage report](reports/implementation/28-power-states.md) records active-sleep,
+IEEE software intent, separate PLL control, shared profile/reset integration and
+live/cached power evidence. Independent source, sibling, test and lifecycle
+reviews are integrated. `deep_power_exit` remains an essential source gate;
+DPD rejects before I/O. Q6 and SDK/physical qualification remain NOT RUN.
+Final commit and upstream equality are recorded in the handoff.
+
 
 Prompt27 began on clean, fetched and synchronized `main` at
 `87aafc01c959d5f811fb7342a037e26c105acac4`. The
@@ -326,7 +336,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [25 Implement complete manual cable capture](prompts/25-cable-manual.md) | COMPLETE | [Report](reports/implementation/25-cable-manual.md); six-run/raw capture, partial evidence, bounded HARD restoration and pure interpretation; host/consumer PASS; physical Q7 NOT RUN |
 | [26 Implement cable autorun and shared result acquisition](prompts/26-cable-autorun.md) | COMPLETE | [Report](reports/implementation/26-cable-autorun.md); one owned enable flag, fixed raw acquisition, manual handoff, reset replay and verification; host/consumer PASS, physical timing/accuracy NOT RUN |
 | [27 Implement bounded interrupt configuration and service](prompts/27-interrupt-service.md) | COMPLETE | [Report](reports/implementation/27-interrupt-service.md), [IRQ guide](interrupts.md); all sources/policy/test/service/replay, independent literals and failure regressions. 154 Release tests, two tests-OFF consumers and source/document checks PASS. Q9 remains NOT RUN. |
-| [28 Implement active-sleep policy and explicit power states](prompts/28-power-states.md) | NOT STARTED | None |
+| [28 Implement active-sleep policy and explicit power states](prompts/28-power-states.md) | COMPLETE, DPD source-gated | [Report](reports/implementation/28-power-states.md), [power guide](power.md), six Release suites and portable owner example. Active-sleep/IEEE/PLL implemented; deep_power_exit and Q6 remain open. |
 | [29 Implement exact EEE negotiation and status](prompts/29-eee-negotiation.md) | NOT STARTED | None |
 | [30 Implement bounded legacy-MAC LPI sessions](prompts/30-legacy-mac-lpi.md) | NOT STARTED | None |
 | [31 Implement complete Wake-on-LAN controls](prompts/31-wake-on-lan.md) | NOT STARTED | None |
