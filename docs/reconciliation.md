@@ -51,6 +51,11 @@ BASIC/ENHANCED withdraws the old initialization context and returns
 INVALID_CONFIG/DEVICE_INVALIDATED; the fresh accepted identity remains visible.
 An actual declared-part/mode/revision mismatch retains DEVICE_MISMATCH instead.
 
+The shared initialization path also retains independently returned active
+BMCR/PHYRCR reset evidence before any release/timing error. PCS/HARD withdraw
+readiness and settings trust; RESTART retains them and interrupts link/history.
+The original error and any earlier driver-issued effects remain separate.
+
 ## Current evidence and ownership
 
 | Evidence | Establishment | Invalidation/retention |

@@ -64,14 +64,19 @@ the caller token and state unchanged. Each `pollOperation` runs at most one batc
    must match every owned stable bit. A mismatch retains expected, mask and raw
    observed value in `ConfigurationMismatch`.
 
-With clear initial commands and first completion read clear, NONE uses 20 frames;
-PCS/HARD/RESTART use 32. No RCSR mutation or CDCR read is admitted. Only mandatory VOD is
-currently persistent owned state: raw LED/IRQ/WoL maintenance does not create
-a desired profile. Later feature procedures extend this same finite replay path.
+Without a desired link profile, with clear initial commands and first completion
+read clear, NONE uses 20 frames; PCS/HARD/RESTART use 32. An admitted desired
+link profile adds the shared negotiated/forced replay and verification steps.
+No RCSR mutation or CDCR read is admitted. Raw LED/IRQ/WoL maintenance does not
+create desired intent. Later features extend this same finite replay path.
 
 An accepted or uncertain PCS or HARD reset invalidates initialized, identity and configuration
 knowledge even when a later read fails. `commandAccepted` records command frame
 completion; `protocolComplete` requires the later in-budget clear observation.
+An independently returned active PCS/HARD indication also invalidates that
+knowledge before a later release, deadline or clock error terminates the poll.
+The error stays primary; observing reset does not claim a driver-issued mutation.
+An observed RESTART retains initialization and settings, but invalidates link/history.
 Selectors do not count as target mutation. A failed/late target write remains
 possible hardware state; no read retroactively turns its earlier failure into
 success. Partial ID/strap words survive with explicit validity/staleness; a later

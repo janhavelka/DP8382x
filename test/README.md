@@ -399,12 +399,15 @@ valid cable-down link. No SDK or physical wire health is established.
 ## Verification and reconciliation (prompt 22)
 
 `test/verify.cpp` registers traces, comparisons, failures, admission, lifecycle,
-recovery, ownership, timing, interrupted_replay and barrier suites plus its
+recovery, ownership, timing, interrupted_replay, reset_observation_errors and barrier suites plus its
 intentional Release failure probe. Literal traces prove 6/12/11 frame plans
 without semantic writes for mandatory-only/AN/forced verification. Cases cover
 all read/release boundaries, unowned bits, partial/mismatched evidence, changed
 identity, raw/external invalidation, cleanup owner retention, cancelled/failed
 verification and every reset/replay frame followed by explicit recovery.
+The reset-observation regressions retain valid BMCR/PHYRCR evidence through
+release failure, late completion, regressing clocks and uint64 overflow, while
+preserving the original error, health classification and distinct reset domains.
 
 ```sh
 ctest --test-dir build/host -R "verify_|dp8382x_verify_tests_failure_path" --output-on-failure --no-tests=error

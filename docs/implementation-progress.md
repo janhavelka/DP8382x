@@ -3,7 +3,7 @@
 The [80-prompt implementation plan](prompts/README.md) is in its first
 execution. Prompts 1–22 are complete: source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 108 registered Release CTests, 103 Python tests,
+Current local checks include 109 registered Release CTests, 103 Python tests,
 the linked tests-OFF consumer, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -24,6 +24,14 @@ Prompt 22 adds [explicit reconciliation](reconciliation.md): bounded verificatio
 retained mismatch evidence and recovery through the existing initialization path.
 
 ## Execution record
+
+Fresh prompts 21-22 audit began on clean, synchronized `main` at
+`04985e91f892160d1767405647a211667dec7438`. The
+[independent report](reports/implementation/21-22-independent-audit.md) records
+one reset-evidence correction and a stale initialization-guide correction.
+Release and UBSan each pass 109 CTests; 103 Python tests, portable consumer,
+Doxygen, ledger/reference/version checks also pass. Stage completion remains
+1-22; final commit and upstream equality are recorded in the handoff.
 
 Prompt 22 completed on `main`, starting from synchronized prompt-21 checkpoint
 `fe539237f3a2e71078491c81c9ac2678ffad2f2a`. The

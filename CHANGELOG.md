@@ -4,6 +4,11 @@
 
 ### 2026-11-15
 
+- Audited prompts 21-22 independently. Fixed initialization retaining stale
+  readiness/configuration after valid active-reset readback followed by release
+  or timing failure; added regressions for reset checks and completion waits.
+  Corrected initialization guide bounds to distinguish profile replay.
+
 - Implemented prompt 22 startVerify: finite identity/VOD/owned-profile checks
   in the existing slot, with no semantic writes, automatic recovery or cleanup
   barrier clearance. Retain raw mandatory-state evidence and the first mismatch

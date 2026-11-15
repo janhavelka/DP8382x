@@ -607,6 +607,7 @@ retains normalized release evidence independently of the operation status.
   and a replacing `bind` discard a pending hard-reset floor, so the owner must wait at least 2000 us after the last possible PHYRCR[15] write before the new
   binding's first frame. Neither touches hardware or controller quarantine.
 - **OP-13 Initialized.** A successful `startInitialize` sets it. It clears when a PCS or HARD reset is attempted or possibly applied,
+  or independently observed active, even if that read's release or timing later fails,
   when `invalidateDeviceState` runs, or on abandon. `startInitialize({NONE})` on an initialized object leaves it set unless identity or
   verification fails, or a mandatory-initialization write is possibly applied and unverified, so link polling continues through a
   reapply. RESTART never clears it, because table 8-48 keeps registers; a HARD inside a session recipe does. An owning stop that

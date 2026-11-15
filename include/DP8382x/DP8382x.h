@@ -497,6 +497,8 @@ public:
   /// @param[out] token Assigned only when IN_PROGRESS is returned; instance lifetime scope.
   /// @return IN_PROGRESS or local syntax/binding/slot/clock/budget rejection.
   /// @pre Owner has established supplies/clock/reset readiness and admitted disruption.
+  /// @note SNLS647I tables 8-19/48: valid active-reset readback invalidates its
+  /// reset domain even if release or timing then fails; that error remains primary.
   Status startInitialize(const InitializeOptions& options, const OperationBudget& budget,
                          OperationToken& token) noexcept;
   /// @brief Advance at most one complete owned batch; return while waiting or short of slice.

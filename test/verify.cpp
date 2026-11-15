@@ -19,7 +19,7 @@ struct Controller {
   uint64_t now{100}, frameTime{2};
   unsigned calls{0}, frames{0}, clocks{0}, releases{0}, semanticWrites{0}, vodWrites{0}, resets{0};
   int failFrame{-1}, releaseCall{-1}, lateCall{-1}, regressCall{-1}, overflowCall{-1};
-  bool locked{false}, holdRestart{false}, holdReset{false}, failAfterEffect{true};
+  bool locked{false}, holdRestart{false}, holdReset{false}, holdPhyrcr{false}, failAfterEffect{true};
   Driver* competitor{nullptr};
   unsigned exclusions{0};
   Controller() { words[0] = 0x3100; words[4] = 0x01E1; words[25] = 0x8001; }
@@ -37,7 +37,7 @@ struct Controller {
       if (!holdReset && (words[0] & 0x8000U) != 0U) words[0] = 0x3100;
       if (!holdRestart) words[0] = static_cast<uint16_t>(words[0] & 0xFDFFU);
     }
-    if (reg == 31) words[31] = 0;
+    if (reg == 31 && !holdPhyrcr) words[31] = 0;
     if (reg == 14 && selector == 0x401F) {
       if (address == 0x030E) return vod;
       if (address == 0x0467) return 0x1234;
@@ -453,6 +453,50 @@ void interruptedReplay() {
   }
 }
 
+void resetObservationErrors() {
+  // Valid reset evidence is independent of a later release/clock/deadline
+  // failure. Literal BMCR PCS and PHYRCR HARD invalidate settings; RESTART
+  // only interrupts link/history and must not invent a hardware mutation.
+  for (unsigned scenario = 0; scenario < 5; ++scenario) {
+    for (unsigned fault = 0; fault < 4; ++fault) {
+      Controller bus; Driver driver; initialize(driver, bus); configure(driver, bus, profile());
+      const auto intent = driver.settingsSnapshot();
+      OperationToken token;
+      CHECK(driver.startInitialize({scenario == 3 ? ResetKind::RESTART : ResetKind::NONE}, allowance(), token).inProgress());
+      const unsigned prefix = scenario == 0 ? 3U : scenario == 2 ? 5U : scenario == 3 ? 6U : 4U;
+      if (scenario == 2) { bus.words[31] = 0x4000; bus.holdPhyrcr = true; }
+      for (unsigned i = 0; i < prefix; ++i) CHECK(driver.pollOperation(token).inProgress());
+      CHECK(driver.isInitialized() && driver.settingsSnapshot().trust == ConfigurationTrust::VERIFIED);
+      const auto pending = driver.operationSnapshot();
+      if (pending.nextPollValid && bus.now < pending.nextPollAtUs) bus.now = pending.nextPollAtUs;
+      if (scenario == 0) { bus.words[0] = 0x8000; bus.holdReset = true; }
+      else { bus.words[31] = scenario == 4 ? 0x4000 : 0x8000; bus.holdPhyrcr = true; }
+      const auto calls = bus.calls, frames = bus.frames, writes = bus.semanticWrites;
+      const auto health = driver.healthSnapshot();
+      if (fault == 0) bus.releaseCall = static_cast<int>(calls);
+      if (fault == 1) bus.lateCall = static_cast<int>(calls);
+      if (fault == 2) bus.regressCall = static_cast<int>(calls);
+      if (fault == 3) bus.overflowCall = static_cast<int>(calls);
+      const auto status = driver.pollOperation(token);
+      CHECK(status.is(fault == 0 ? Err::MDIO_ERROR : fault == 1 ? Err::OPERATION_TIMEOUT : Err::INVALID_CONFIG));
+      CHECK(bus.calls == calls + 1 && bus.frames == frames + 1 && bus.semanticWrites == writes);
+      CHECK(bus.trace[frames].reg == (scenario == 0 ? 0 : 31));
+      const auto result = take(driver, token);
+      CHECK(result.status.code == status.code && result.status.detail == status.detail);
+      CHECK(result.failingBatch.completedFrames == 1 && !result.persistentRestored);
+      CHECK(result.mutationPossible == (scenario == 3) && result.cleanupOwed == (scenario == 3));
+      CHECK(driver.isInitialized() == (scenario == 4));
+      CHECK(driver.identitySnapshot().stale == (scenario != 4));
+      CHECK(driver.settingsSnapshot().trust == (scenario == 4 ? ConfigurationTrust::VERIFIED : ConfigurationTrust::DIRTY));
+      if (scenario != 4) CHECK(result.identity.stale && result.straps.stale && !result.straps.timeValid);
+      unchangedIntent(intent, driver.settingsSnapshot());
+      const auto after = driver.healthSnapshot();
+      CHECK(after.totalFailures == health.totalFailures + (fault == 0 ? 1U : 0U));
+      CHECK(after.totalSuccess == health.totalSuccess + (fault == 0 ? 0U : 1U));
+    }
+  }
+}
+
 void retainedBarrier() {
   Controller bus; Driver driver; initialize(driver, bus); configure(driver, bus, profile());
   OperationToken apply; CHECK(driver.startConfigure(profile(), allowance(), apply).inProgress());
@@ -523,6 +567,6 @@ void timing() {
 int main(int argc, char** argv) {
   const test::Suite suites[] = {{"traces", traces}, {"comparisons", comparisons}, {"failures", failures},
     {"admission", admission}, {"lifecycle", lifecycle}, {"recovery", recovery}, {"ownership", ownership}, {"timing", timing},
-    {"interrupted_replay", interruptedReplay}, {"barrier", retainedBarrier}};
+    {"interrupted_replay", interruptedReplay}, {"reset_observation_errors", resetObservationErrors}, {"barrier", retainedBarrier}};
   return test::runSuites(argc, argv, suites);
 }

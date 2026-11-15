@@ -15,6 +15,10 @@ verification, retained mismatch and cleanup evidence, shared initialization
 recovery, independent review and interrupted-restoration tests. Current execution
 is complete through 22.
 
+The [fresh prompts 21-22 audit](implementation/21-22-independent-audit.md)
+checks actual source, tests and source evidence independently, fixes reset
+observation retention on later errors, and records final local verification.
+
 The [prompt 14 report](implementation/14-identity-capabilities.md) records exact
 identity/capability implementation, current TI/peer review, independent failure
 tests and the compiling probe example.
