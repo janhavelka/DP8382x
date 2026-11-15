@@ -504,3 +504,14 @@ literal tests use separate DEVAD banks, exact recipe and self-check words,
 per-frame accepted/error injection, all reset/disable replay, status contradictions,
 latched/RC partials, owner contention and persistent HARD floors. They qualify
 host protocol behavior, not physical EEE interoperability or power savings.
+
+
+Stage30 registers `lpi_traces`, `lpi_admission`, `lpi_failures`, `lpi_timing`,
+`lpi_ownership`, `lpi_recovery` plus its active Release failure-path probe.
+Run `ctest --test-dir build/host -R lpi --output-on-failure --no-tests=error`.
+Independent literals cover every start/stop frame, accepted errors, malformed
+reports, primary/release precedence, late/overflow/regressing/frozen clocks,
+shared-bus exclusion, cached prerequisites, bypass contradiction debt and HARD
+restoration failures. The owner example executes normal/failed exit handling;
+the tests-OFF consumer compiles/links and exercises rejection. See [Q2](../docs/lpi.md)
+for physical traffic/timing/energy checks that a fake cannot establish.

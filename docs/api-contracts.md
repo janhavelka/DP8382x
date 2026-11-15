@@ -981,3 +981,15 @@ initialization intent: `OperationResult.reset` records HARD, and the persistent
 shared-bus floor applies. The recipe precedes VOD/profile and other owned replay;
 read-only VERIFY cannot prove opaque state or discharge an interrupted recipe.
 Host next-page and hardware EEE ownership are exclusive. No TX LPI is requested.
+
+
+## Stage30 shipped forced TX LPI
+
+[The LPI contract](lpi.md) defines synchronous `startLpi(LpiOptions, LpiResult&,
+IoBudget)` and `stopLpi(LpiResult&, IoBudget)`. These are OP-9's no-wait direct
+calls: at most9frames/2callbacks, slot IDLE, owned temporary barrier during dwell.
+No token cancellation point is invented inside a synchronous callback. Caller
+cancellation before entry performs no call; after entry it requests a separate
+stop. Admitted diagnostic results publish even on error; local rejection preserves
+output. Failed target writes retain UNCERTAIN and explicit frame-loss warning.
+The owner example and guide cover post-exit coordination and retained debt.

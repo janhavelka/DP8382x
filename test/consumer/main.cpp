@@ -1,3 +1,4 @@
+#include "../../examples/portable/Lpi.h"
 #include <DP8382x/CommandTable.h>
 #include <DP8382x/Config.h>
 #include <DP8382x/Status.h>
@@ -449,6 +450,13 @@ static bool configurationExamples() noexcept {
 }
 
 int main() {
+  // Compile/link the bounded owner contract even without an admitted EEE fixture.
+  DP8382x::DP8382x lpiUnbound;
+  LpiOwnerAttempt lpiAttempt;
+  if (!enterOwnerLpi(lpiUnbound,{true,true},{1000,9},lpiAttempt).is(DP8382x::Err::NOT_BOUND) ||
+      !exitOwnerLpi(lpiUnbound,{2000,9},lpiAttempt).is(DP8382x::Err::NOT_BOUND) ||
+      permitMacAfterLpi(lpiUnbound,true,lpiAttempt) || !lpiAttempt.keepMacStopped) return 90;
+
   DP8382x::LinkSettings settings;
   settings.advertisement.technologyMask = DP8382x::LINK_100_FULL;
   const auto status = DP8382x::validateLinkSettings(settings);

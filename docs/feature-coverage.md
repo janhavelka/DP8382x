@@ -163,4 +163,10 @@ and portable examples do not close Q6 or establish SDK support.
 Stage29 implements `eee_initialize` and `eee_negotiation_status` through the
 [EEE guide](eee.md), exact eighteen-row recipe, shared restoration and single
 DEVAD-qualified collector. Host coverage is in `test/eee.cpp`; Q1 physical wire,
-control and interoperability qualification remains pending. LPI stays stage30.
+control and interoperability qualification remains pending. Explicit LPI is implemented separately in stage30.
+
+
+Stage30 implements `legacy_lpi`: two bounded bit12 calls, persistent OP-9 session
+barrier, passive request evidence and separate explicit stop/restoration.
+[Guide](lpi.md) and [report](reports/implementation/30-legacy-mac-lpi.md) record
+host tests; physical Q1/Q2 and SDK/controller results remain NOT RUN.

@@ -28,5 +28,5 @@ inline bool negotiatedEee(const DP8382x::EeeSnapshot& view) noexcept {
   return view.valid && !view.stale && view.negotiatedValid && view.negotiated;
 }
 // After a successful acquisition render multiple phy.eeeSnapshot() copies.
-// Before any future TX LPI session the MAC owner must stop/drain transmission
+// Before any explicit TX LPI session the MAC owner must stop/drain transmission
 // and supply measured latency constraints. Stage29 sends no TX LPI command.

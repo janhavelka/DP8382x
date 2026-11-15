@@ -11759,9 +11759,9 @@
       "waits": [
         "No hardware dwell or ready event is specified. Application owns dwell and MAC coordination. Sleep210us,quiet20ms,wake36us,refresh200us are NOM, not completion bounds; never import DP83825 minimum36us as an exact26 guarantee."
       ],
-      "timeout": "Each start/stop is one bounded MMD RMW5frames plus verify4frames, with aggregate OperationBudget. No operation slot or controller lock spans application dwell; no invented session deadline.",
-      "partialEffects": "Record each accepted or uncertain write, reset/configuration epoch and consumed event immediately; late callback success cannot erase deadline/cancellation. Invalidate affected configuration trust without discarding desired policy or retained raw evidence. MAC may remain inhibited and LPI may remain active even if callback failed after effect.",
-      "cleanup": "Release controller lock after every indivisible transaction and before waits/output. Cancellation schedules no new primary work; owner-admitted cleanup has a separate finite deadline/count. Retain primary and cleanup outcomes independently; no implicit retry/reset/power cycle. ",
+      "timeout": "Each start/stop is one bounded MMD RMW5frames plus verify4frames, with aggregate IoBudget. No operation slot or controller lock spans application dwell; no invented session deadline.",
+      "partialEffects": "Owned bit12 writes preserve persistent EEE proof but invalidate current link/negotiated observation. Any attempted target mutation retains the temporary/cleanup barrier; admitted failures retain UNCERTAIN and explicit frame-loss warning. Valid contradictory bypass observations dirty persistent trust even when stop proves bit12 clear. Selector effects and target effects remain distinct.",
+      "cleanup": "Direct synchronous calls have no in-flight cancellation token. Skip invocation before admission, or cancel dwell with separately budgeted stop afterward. Release every complete transaction; no automatic retry/reset. Keep separate entry/exit results and primary/release statuses. Abandonment authorizes teardown, never hardware clearance.",
       "restoration": "Restore only persistent owned settings in dependency order, with source-defined stable readback. Never replay transient commands or stale observations. Hard reset invalidates prior observations and requires acyclic identity/clock/interface/configuration replay; do not infer PCS reset or digital restart has identical retention. Transient forced LPI is never persistent desired state or automatic reset replay; after any reset reacquire EEE/link validity before new admission.",
       "gates": [
         "eee_wire",
@@ -11770,7 +11770,7 @@
       "owner": {
         "api": "startLpi / stopLpi",
         "cli": "owner-routed startLpi / stopLpi (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startLpi / stopLpi; prompts 30, 53-55; literal vectors and per-step failure/cancel/cleanup matrix in power source review; no physical evidence claimed",
+        "test": "test/lpi.cpp: independent literals, all-frame failure/cancel-contract/restore/ownership suites; Q2 physical NOT RUN.",
         "implementationStage": 30
       },
       "writeActions": [
@@ -12277,8 +12277,8 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PENDING",
-        "hostTested": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
@@ -12286,7 +12286,7 @@
         "eee_wire",
         "eee_control_semantics"
       ],
-      "notes": "Research disposition complete, including explicit essential source gates; no implementation or hardware qualification claimed. See power source review for independent literal oracles, finite procedures and fixture matrix."
+      "notes": "Stage30 implements legacy_lpi as direct bounded calls with passive request/uncertainty, same OP-9 barrier and shared restoration. Source-implied EEE prerequisites remain physically unqualified Q1/Q2; no partner-ready or energy claim."
     },
     {
       "id": "wol",

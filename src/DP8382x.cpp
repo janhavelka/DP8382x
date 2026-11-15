@@ -407,6 +407,7 @@ Status DP8382x::bind(const Config& config) noexcept {
   _power = {};
   _powerWorking = _powerTailPending = _powerVerifyOnly = _powerPreparingReset = _powerPreparationDone = false;
   _eee = {};
+  _lpi = {}; _lpiSession = _lpiWorking = false;
   _eeeWorking = _eeeRecipePending = _eeeCapabilityChecked = _eeeTailPending = _eeeResumeInit = _eeeOpaqueValid = false;
   _interruptWorking = _interruptTailPending = _interruptVerifyOnly = _interruptTestSession = false;
   _autorun = {};
@@ -448,6 +449,9 @@ Status DP8382x::end() noexcept {
   _power = {};
   _powerWorking = _powerTailPending = _powerVerifyOnly = _powerPreparingReset = _powerPreparationDone = false;
   _eee = {};
+  // Abandonment authorizes local detach, never a claim that hardware stopped.
+  if (_lpiSession) { _lpi.forcedLpi = ForcedLpi::UNCERTAIN; }
+  _lpiSession = _lpiWorking = false;
   _eeeWorking = _eeeRecipePending = _eeeCapabilityChecked = _eeeTailPending = _eeeResumeInit = _eeeOpaqueValid = false;
   _interruptWorking = _interruptTailPending = _interruptVerifyOnly = _interruptTestSession = false;
   _autorun = {};
@@ -619,6 +623,7 @@ Status DP8382x::modifyMmd(uint32_t devad, uint32_t registerAddress, uint32_t mas
 }
 
 void DP8382x::_invalidateEvidence() noexcept {
+  if (_lpiSession) { _lpi.forcedLpi = ForcedLpi::UNCERTAIN; }
   _eee.trust = ConfigurationTrust::DIRTY; _eee.stale = true; _eee.negotiatedValid = false;
   _eeeOpaqueValid = false;
   _invalidateLink();
@@ -673,6 +678,7 @@ Status DP8382x::invalidateDeviceState(InvalidationReason reason) noexcept {
   }
   if (reason == InvalidationReason::EXTERNAL_RESET || reason == InvalidationReason::EXTERNAL_POWER_ON) {
     _operation.temporaryMayBeActive = false;
+    _lpiSession = false; _lpi.forcedLpi = ForcedLpi::OFF;
     _loopSession = _loopWorking = _loopRestoreTail = false;
     _bistSession = _bistWorking = _bistRestoreTail = _bistCapturePending = false;
     _cableSession = _cableWorking = _cableRestoreTail = _cableCurrent = false;
@@ -989,7 +995,11 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
         // A selector/WoL write may change attribution even if its receipt fails.
         _interrupts.selector = InterruptSharedSource::UNKNOWN;
       }
-      if (_eeeWorking) {
+      if (_lpiWorking && address == 0x04D1U) {
+        // Exact bit12 temporary owner preserves persistent EEE/identity proof.
+        _lpiSession = true; _lpi.forcedLpi = ForcedLpi::UNCERTAIN;
+        _operation.temporaryMayBeActive = _operation.cleanupOwed = true;
+      } else if (_eeeWorking) {
         _eee.trust = ConfigurationTrust::DIRTY; _eee.stale = true;
       } else if (_powerWorking) {
         _power.trust = ConfigurationTrust::DIRTY; _power.observedStale = true;
@@ -1377,6 +1387,7 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
     if (_operation.kind == OperationKind::LOOPBACK_STOP || _operation.kind == OperationKind::BIST_STOP || _operation.kind == OperationKind::CABLE_STOP ||
         (_operation.kind == OperationKind::INITIALIZE && _result.reset == ResetKind::HARD)) {
       _operation.temporaryMayBeActive = false;
+      _lpiSession = false; _lpi.forcedLpi = ForcedLpi::OFF;
       _interruptTestSession = false;
       _loopSession = false;
       _bistSession = _bistCapturePending = false;

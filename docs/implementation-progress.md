@@ -27,6 +27,16 @@ operations, retained temporary state and verified restoration.
 
 ## Execution record
 
+Prompt30 began on clean synchronized `main` at
+`356320ac645f7fad405ff35b8ca3e7c853423ea4` (completed prompt29).
+The [stage30 report](reports/implementation/30-legacy-mac-lpi.md) records bounded
+forced-TX-LPI start/stop, slot-free dwell with OP-9 protection, cached prerequisites,
+retained uncertain effects and separate stop/HARD restoration. Local Release,
+portable consumer and documentation checks pass. Q1/Q2 physical evidence and SDK
+qualification remain NOT RUN; remote CI stays prompt71. Final commit and verified
+upstream equality are recorded in the handoff.
+
+
 Prompt29 began on clean, fetched and synchronized `main` at
 `ce3df832c334c68e23a824333c9e5c86908b5ab8`. The
 [stage report](reports/implementation/29-eee-negotiation.md) records complete
@@ -354,8 +364,8 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [26 Implement cable autorun and shared result acquisition](prompts/26-cable-autorun.md) | COMPLETE | [Report](reports/implementation/26-cable-autorun.md); one owned enable flag, fixed raw acquisition, manual handoff, reset replay and verification; host/consumer PASS, physical timing/accuracy NOT RUN |
 | [27 Implement bounded interrupt configuration and service](prompts/27-interrupt-service.md) | COMPLETE | [Report](reports/implementation/27-interrupt-service.md), [IRQ guide](interrupts.md); all sources/policy/test/service/replay, independent literals and failure regressions. 154 Release tests, two tests-OFF consumers and source/document checks PASS. Q9 remains NOT RUN. |
 | [28 Implement active-sleep policy and explicit power states](prompts/28-power-states.md) | COMPLETE, DPD source-gated | [Report](reports/implementation/28-power-states.md), [power guide](power.md), six Release suites and portable owner example. Active-sleep/IEEE/PLL implemented; deep_power_exit and Q6 remain open. |
-| [29 Implement exact EEE negotiation and status](prompts/29-eee-negotiation.md) | NOT STARTED | None |
-| [30 Implement bounded legacy-MAC LPI sessions](prompts/30-legacy-mac-lpi.md) | NOT STARTED | None |
+| [29 Implement exact EEE negotiation and status](prompts/29-eee-negotiation.md) | COMPLETE | [Report](reports/implementation/29-eee-negotiation.md), [EEE guide](eee.md); committed/synced356320ac. Q1 physical pending. |
+| [30 Implement bounded legacy-MAC LPI sessions](prompts/30-legacy-mac-lpi.md) | COMPLETE | [Report](reports/implementation/30-legacy-mac-lpi.md), [LPI guide](lpi.md); bounded start/stop, retained OP-9 state, independent Release/consumer tests. Q1/Q2 physical pending. |
 | [31 Implement complete Wake-on-LAN controls](prompts/31-wake-on-lan.md) | NOT STARTED | None |
 | [32 Implement all LED and GPIO controls](prompts/32-led-gpio.md) | NOT STARTED | None |
 | [33 Implement clock, interface and repeater controls](prompts/33-clock-interface-repeater.md) | NOT STARTED | None |

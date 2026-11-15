@@ -20,7 +20,7 @@ only zero or 100BASE-TX EEE; reserved technologies reject before I/O.
 True clears the respective bit; false disables bypass by setting it. The source
 does not establish independent TX/RX directional meanings for these controls.
 Only the admitted control mask is modified; opaque recipe bits are preserved.
-Forced TX LPI stays clear. Explicit TX LPI sessions belong to prompt30.
+EEE configuration keeps forced TX LPI clear. [Explicit LPI calls](lpi.md) own its temporary bit12 session.
 
 Host-controlled next-page exchange cannot run while EEE is enabled. Forced link
 profiles, explicit active-sleep/IEEE-down/PLL-disable policies, alternate LED IRQ
@@ -108,7 +108,7 @@ that dirty EEE proof. Cached readers cause no callbacks.
 [The portable example](../examples/portable/Eee.h) uses the shared owner-loop and
 quiet-floor helper. Check Status before using ordinary output, then render any
 number of passive copies. Applications coordinate MAC queues, latency and clock
-ownership before future LPI work; the PHY has no implied packet buffer.
+ownership before explicit LPI entry; the PHY has no implied packet buffer.
 
 Q1 remains NOT RUN: record exact part/revision/straps and real DEVAD3/7 traces,
 self-check words, partner agreement, bypass behavior and wake-error access.

@@ -222,3 +222,7 @@ With explicitly owned [EEE policy](eee.md), initialization selects one effective
 HARD even for NONE/PCS/RESTART requests. The result reports HARD. This source-backed
 reset/reapply prefix precedes VOD/profile and ordinary replay, and cannot recurse.
 Without owned EEE, all earlier reset-kind semantics remain unchanged.
+
+A retained forced-TX-LPI session requires explicit HARD restoration or its
+bounded [stop call](lpi.md). Shared initialization never replays temporary LPI;
+only completed persistent restoration withdraws uncertain session evidence.

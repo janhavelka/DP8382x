@@ -169,3 +169,9 @@ Stage29 adds `DP8382xEee.cpp` for [EEE](eee.md). Its exact recipe is a once-only
 prefix to shared initialization; it never re-enters reset from a replay tail.
 The existing collector gains DEVAD-qualified EEE history, with no second event
 owner. Ordinary profile/VERIFY tails compare EEE stable controls without reset.
+
+
+Forced TX LPI extends the existing EEE source with two direct bounded calls.
+It uses the shared transaction executor and OP-9 temporary barrier while leaving
+the operation slot idle during application dwell; see [LPI ownership](lpi.md).
+No additional job engine, collector or MAC scheduling responsibility is added.

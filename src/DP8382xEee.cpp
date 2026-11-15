@@ -262,7 +262,7 @@ Status DP8382x::readEeeStatus(EeeSnapshot& snapshot,const IoBudget& budget) noex
         // A valid contradiction survives a later phase or release failure.
         if (_eee.desiredValid && ((phase==3U && (_eee.advertisement&2U)!=
             (_eee.desired.enabled?_eee.desired.advertisement:0U)) ||
-            (phase==6U && _eee.desired.enabled && (_eee.control&0x1009U)!=_eeeControl()))) {
+            (phase==6U && _eee.desired.enabled && (_eee.control&(_lpiSession?0x0009U:0x1009U))!=_eeeControl()))) {
           _eee.trust=ConfigurationTrust::DIRTY;
         }
       }
@@ -291,5 +291,117 @@ Status DP8382x::readEeeStatus(EeeSnapshot& snapshot,const IoBudget& budget) noex
   _eee.valid=true; _eee.stale=false; _eee.timeValid=true;
   _eee.observedAtUs=_lastTimeUs+bounds.clockLagUs; _eee.lastStatus=Status::Ok();
   snapshot=_eee; return Status::Ok();
+}
+Status DP8382x::startLpi(const LpiOptions& options,LpiResult& result,const IoBudget& budget) noexcept {
+  return _setLpi(true,options,result,budget);
+}
+Status DP8382x::stopLpi(LpiResult& result,const IoBudget& budget) noexcept {
+  return _setLpi(false,{},result,budget);
+}
+Status DP8382x::_setLpi(bool enabled,const LpiOptions& options,LpiResult& result,const IoBudget& budget) noexcept {
+  if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
+  if (_active || _polling || _operation.state==OperationState::RUNNING) { return eeeBusy(BusyDetail::OPERATION_ACTIVE); }
+  if (_operation.state==OperationState::RESULT_PENDING) { return eeeBusy(BusyDetail::RESULT_PENDING); }
+  if (_transport.clockInvalid) {
+    return Status::Error(Err::INVALID_CONFIG,"Clock contract failed",static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT));
+  }
+  if (_stopped) { return eeeBusy(BusyDetail::CONTROLLER_QUARANTINED); }
+  if (enabled) {
+    if (_operation.cleanupOwed || _operation.temporaryMayBeActive) { return eeeBusy(BusyDetail::CLEANUP_REQUIRED); }
+    if (!options.macTxQuiesced || !options.maintenanceAdmitted) { return eeeConfig("MAC drain and LPI maintenance must be admitted"); }
+    if (!_initialized || !capabilities().valid) { return Status::Error(Err::NOT_INITIALIZED,"Initialize before LPI entry"); }
+    if (!_otherControlsVerified(OperationKind::NONE) || !_eeeOpaqueValid || !_eee.desiredValid || !_eee.desired.enabled ||
+        _eee.desired.bypassBit0 || _eee.desired.bypassBit3 || !_eee.valid || _eee.stale || !_eee.timeValid ||
+        !_eee.negotiatedValid || !_eee.negotiated) { return eeeConfig("Verified negotiated EEE with both bypass controls disabled is required"); }
+    // 100M restriction is library policy: section7.6 supplies timings only at100M.
+    if (!_link.valid || _link.stale || !_link.timeValid || !_link.linkUp || !_link.resolvedModeValid ||
+        _link.speed!=LinkSpeed::MBPS_100) { return eeeConfig("Current resolved 100M link is required"); }
+    if (_power.observedStale || !_power.timeValid || !_power.bmcrValid || !_power.physcrValid || !_power.biscrValid ||
+        _power.state!=PowerState::NORMAL_INDICATED || (_power.rawPhyscr&0xF000U)!=0U ||
+        (_power.rawBmcr&0x0800U)!=0U) { return eeeConfig("Current normal power with sleep and PLL policies disabled is required"); }
+  } else if (!_lpiSession) { return eeeConfig("No owned forced LPI session"); }
+  const auto quiet=_checkQuiet(); if (!quiet.ok()) { return quiet; }
+  if (budget.maxFrames<9U) { return eeeTimeout(TimeoutDetail::FRAME_BUDGET); }
+  uint64_t raw=0,upper=0;
+  _active=true; const auto clock=_sampleTime(raw,upper); _active=false;
+  if (!clock.ok()) { return clock; }
+  if (raw>=budget.deadlineUs) { return eeeTimeout(TimeoutDetail::DEADLINE); }
+  const auto& bounds=_config.transport.bounds;
+  const uint64_t bound=uint64_t{2}*bounds.fixedUs+uint64_t{9}*bounds.frameUs;
+  if (upper>=budget.deadlineUs || bound>=budget.deadlineUs-upper) { return eeeTimeout(TimeoutDetail::BOUND_ADMISSION); }
+
+  LpiResult next;
+  IoBudget remaining=budget;
+  const uint16_t expected=enabled?uint16_t{0x1000}:uint16_t{0};
+  for (uint8_t phase=0;phase<2U;++phase) {
+    auto batch=_mmdBatch(0x04D1,FrameKind::READ,0);
+    if (phase==0U) {
+      batch.frameCount=5;
+      // SNLS647I8.3.4: only bit12. In particular, never import neighbor bits14:13.
+      batch.frames[4]={FrameKind::WRITE,0x0E,expected,0xEFFF,3};
+    }
+    bool called=false;
+    _lpiWorking=true;
+    const auto status=_execute(batch,remaining,&called);
+    _lpiWorking=false;
+    next.status=status;
+    if (called) {
+      ++next.transactions;
+      const auto& receipt=_transport.lastBatch;
+      next.primary=receipt.status; next.release=receipt.releaseStatus;
+      bool completed=true;
+      for (uint8_t i=0;i<batch.frameCount;++i) {
+        const auto& frame=receipt.frames[i];
+        const bool attempted=completed && frame.attempted;
+        completed=completed && attempted && frame.completed && frame.valueValid==(batch.frames[i].kind==FrameKind::READ);
+        if (attempted) { ++next.attemptedFrames; }
+        if (completed) { ++next.completedFrames; }
+        if (i==3U && completed) {
+          _eee.control=frame.value; _eee.controlValid=true;
+          _eee.stale=true; _eee.negotiatedValid=false;
+          // Both acquisitions can disprove persistent bypass controls. Stop still
+          // succeeds on bit12 alone, but must not forgive this independent debt.
+          if (_eee.desiredValid && _eee.desired.enabled && (frame.value&0x0009U)!=_eeeControl()) {
+            _eee.trust=ConfigurationTrust::DIRTY;
+          }
+        }
+      }
+      if (phase==0U) {
+        const auto& target=receipt.frames[4];
+        next.mutationAttempted=target.attempted;
+        next.mutationCompleted=completed;
+        next.mutationPossible=target.completed || target.effectPossible || target.valueValid || _transport.violation!=TransportViolation::NONE;
+        if (next.mutationAttempted || next.mutationPossible) {
+          _lpiSession=true; _lpi.forcedLpi=ForcedLpi::UNCERTAIN;
+          _operation.cleanupOwed=_operation.temporaryMayBeActive=true;
+        }
+      } else if (completed) {
+        next.control=receipt.frames[3].value; next.readbackValid=true;
+        if (status.ok() && (next.control&0x1000U)!=expected) {
+          next.status=Status::Error(Err::CONFIG_MISMATCH,"Forced LPI bit12 readback mismatch");
+        }
+      }
+    }
+    if (!next.status.ok()) { break; }
+    remaining.maxFrames-=batch.frameCount;
+  }
+  // No callback means preflight/admission failed; preserve the previous diagnostic result.
+  if (next.transactions==0U) { return next.status; }
+  if (next.status.ok()) {
+    _lpi.forcedLpi=enabled?ForcedLpi::REQUESTED:ForcedLpi::OFF;
+    if (!enabled) {
+      _lpiSession=false; _operation.temporaryMayBeActive=false;
+      // A clear request cannot repair unrelated persistent uncertainty.
+      if (_initialized && _otherControlsVerified(OperationKind::NONE)) {
+        _operation.cleanupOwed=false; _cleanupOwner=OperationKind::NONE;
+      }
+    }
+  } else if (_lpiSession) { _lpi.forcedLpi=ForcedLpi::UNCERTAIN; }
+  next.forcedLpi=_lpi.forcedLpi;
+  if (next.forcedLpi==ForcedLpi::UNCERTAIN) {
+    next.warning="forced LPI may remain active; frames sent now can be lost";
+  }
+  _lpi.lastResult=next; result=next;
+  return next.status;
 }
 } // namespace DP8382x

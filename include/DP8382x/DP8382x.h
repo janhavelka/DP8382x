@@ -768,6 +768,39 @@ struct BatchSummary {
   TransportViolation violation{TransportViolation::NONE}; ///< Callback contract violation.
   bool late{false}; ///< Raw post-return clock reached the exclusive deadline.
 };
+/// @brief Software request evidence, never PHY or partner readiness.
+enum class ForcedLpi : uint8_t {
+  OFF, ///< No owned request, or bit12 cleared and verified/reset reconciled.
+  REQUESTED, ///< Bit12 set and verified; MAC traffic must stay drained.
+  UNCERTAIN ///< Forced LPI may remain active; frames sent now can be lost.
+};
+/// @brief Explicit owner admission for disruptive legacy-MAC LPI entry.
+struct LpiOptions {
+  bool macTxQuiesced{false}; ///< Application has stopped and drained MAC transmission.
+  bool maintenanceAdmitted{false}; ///< Application owns dwell and post-exit readiness.
+};
+/// @brief Diagnostic output of one admitted bounded call; published even on failure.
+struct LpiResult {
+  Status status{Err::RESULT_NOT_AVAILABLE,0,"No LPI call"}; ///< Final normalized call outcome.
+  Status primary{Err::RESULT_NOT_AVAILABLE,0,"No LPI batch"}; ///< Exact backend primary status of final/failing batch.
+  Status release{Err::RESULT_NOT_AVAILABLE,0,"No LPI batch"}; ///< Separate backend release status.
+  ForcedLpi forcedLpi{ForcedLpi::OFF}; ///< Request evidence at return, retained independently of status.
+  bool mutationAttempted{false}; ///< Target write attempted, excluding selector effects.
+  bool mutationCompleted{false}; ///< Target receipt completed, even if later validation failed.
+  bool mutationPossible{false}; ///< Target may have changed, including malformed reports.
+  bool readbackValid{false}; ///< Final target word returned valid data; status still gates success.
+  uint16_t control{0}; ///< Final raw EEECFG3 readback, valid only when readbackValid.
+  uint8_t attemptedFrames{0}; ///< Valid attempted prefixes, at most nine frames.
+  uint8_t completedFrames{0}; ///< Valid completed prefixes, at most nine frames.
+  uint8_t transactions{0}; ///< Actual callbacks, at most two.
+  const char* warning{nullptr}; ///< Static warning when forced LPI may remain active.
+};
+/// @brief Passive session and last-call evidence; callers retain earlier result copies.
+struct LpiSnapshot {
+  ForcedLpi forcedLpi{ForcedLpi::OFF}; ///< Current owned session knowledge.
+  LpiResult lastResult{}; ///< Last admitted call, unchanged by local preflight rejection.
+};
+
 /// @brief Explicit EEE intent; defaults do not activate the feature.
 struct EeeSettings {
   bool enabled{false}; ///< Enable the exact eighteen-row recipe; disable uses HARD/replay.
@@ -1081,6 +1114,28 @@ public:
   /// @return Historical/current validity and trust; serialize with the application owner.
   EeeSnapshot eeeSnapshot() const noexcept { return _eee; }
 
+  /// @brief Set forced TX LPI bit12 and verify it; SNLS647I8.3.4/7.6, OP-9.
+  /// @param[in] options Explicit MAC drain and maintenance admission.
+  /// @param[out] result Unchanged on preflight rejection; diagnostic output on admitted failure too.
+  /// @param[in] budget Aggregate exclusive deadline and at least nine frames.
+  /// @return OK proves bit12 readback only; failures preserve accepted/uncertain effects.
+  /// @note Requires current cached EEE100 negotiation, resolved100M link and normal power.
+  /// One five-frame RMW and one four-frame readback; no wait, retry or operation token.
+  /// Slot stays idle during dwell; OP-9 blocks unrelated mutations. Owner cancellation
+  /// before entry means not calling; after entry use a separately budgeted stopLpi.
+  Status startLpi(const LpiOptions& options, LpiResult& result, const IoBudget& budget) noexcept;
+  /// @brief Clear and verify bit12 only, preserving all other EEECFG3 bits.
+  /// @param[out] result Diagnostic result, with the same publication rule as startLpi.
+  /// @param[in] budget Separate nine-frame/two-callback aggregate allowance.
+  /// @return OK proves the request cleared, not partner wake or MAC readiness.
+  /// @note Requires retained session ownership; stale entry prerequisites do not prevent exit.
+  /// Failure retains UNCERTAIN and OP-9 debt. No callback reentry or automatic cleanup.
+  Status stopLpi(LpiResult& result, const IoBudget& budget) noexcept;
+  /// @brief Bus/clock-silent copied evidence; serialize with every other instance access.
+  /// @return Current request evidence and last admitted call result; no I/O.
+  LpiSnapshot lpiSnapshot() const noexcept { return _lpi; }
+
+
   /// @brief Start one bounded power-policy/transition operation; bus and clock silent.
   /// @param settings Copied complete intent. Maintenance and management clock admission required;
   /// clock-loss approval required for IEEE down or PLL changes. DPD remains source-gated.
@@ -1365,6 +1420,10 @@ private:
   EeeSnapshot _eee{};
   EeeStep _eeeStep{EeeStep::CAPABILITY};
   uint8_t _eeeRow{1};
+  LpiSnapshot _lpi{};
+  bool _lpiSession{false};
+  bool _lpiWorking{false};
+  Status _setLpi(bool enabled, const LpiOptions& options, LpiResult& result, const IoBudget& budget) noexcept;
   bool _eeeWorking{false};
   bool _eeeRecipePending{false};
   bool _eeeCapabilityChecked{false};

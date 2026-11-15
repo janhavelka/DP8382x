@@ -197,3 +197,7 @@ corrects failure/effect reporting and extends next-page boundary coverage.
 typed raw A/B controls, per-word evidence and separate HARD restoration. The
 source-implied distance helper is not physically qualified. Explicit autorun policy
 and bounded single-run raw acquisition share the same owner and restoration path.
+
+[Forced TX LPI](docs/lpi.md) provides bounded opt-in entry/exit with retained
+uncertainty and application-owned MAC coordination. Q1/Q2 physical qualification
+remains NOT RUN; readback does not prove partner readiness.

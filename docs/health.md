@@ -122,3 +122,7 @@ Power configuration/restoration batches are managed attempts; explicit live powe
 observation is raw acquisition. Neither a sleep indication nor an asserted
 power-down pin is an MDIO failure. A blocked wake can return CONFIG_MISMATCH
 after successful transport; [power evidence](power.md) remains a separate domain.
+
+Forced TX LPI entry/exit are RAW temporary-session calls. Their two callbacks
+and nine possible frames affect transport totals only; explicit HARD restoration
+remains managed initialization. Request state and frame-loss risk are separate.

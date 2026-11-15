@@ -774,3 +774,24 @@ incomplete/stale/transport-failed acquisition cannot publish negotiated success.
 10BASE-Te reduced amplitude from exact-part p26 is a different fact, not an
 invented10Mbps EEE advertisement bit. Current link and prior LPI history also
 remain different evidence. All physical Q1/Q2 checks remain NOT RUN.
+
+
+## Stage30 independent forced TX LPI vectors
+
+Derived from original SNLS647I p27 section8.3.4 and p15 NOM timing column,
+independently of production constants. DEVAD31, wire04D1:
+
+- Entry: W(0D,001F),W(0E,04D1),W(0D,401F),R(0E)=008B,W(0E)=108B.
+- Readback: W(0D,001F),W(0E,04D1),W(0D,401F),R(0E)=108B; compare1000.
+- Exit repeats the five-frame RMW with108B ->008B and four-frame readback;
+  compare1000==0000 only. PreserveEFFF, including opaque bit1 and bits14:13.
+- Other preserved words: EFFF->FFFF->EFFF;0009->1009->0009;
+  A00B->B00B->A00B. These are preservation oracles, not alternate recipe authority.
+- Stop1080->0080 succeeds for bit12, but observed bits0/3 contradict owned0009:
+  persistent EEE trust stays DIRTY and cleanup remains owed.
+- For callback bounds8us+4us/frame and clockLag1us, rawNow+53us rejects the
+  full9frame/two-callback exclusive admission. No nominal PHY wait is appended.
+- Fail each frame0..8, late completion, malformed receipt and release: no retry,
+  at most2callbacks; any attempted target mutation retains uncertain state.
+
+[The LPI guide](lpi.md) owns the software/physical evidence distinction and Q2 plan.

@@ -2,9 +2,14 @@
 
 ## Unreleased
 
+- Added bounded forced TX LPI entry/exit, bit12-only RMW/readback, retained
+  REQUESTED/UNCERTAIN evidence and OP-9 dwell protection without occupying a job.
+  Stop preserves unrelated EEE uncertainty; MAC drain and wake readiness remain
+  application-owned. Independent failure/restoration tests and owner example added.
+
 - Added exact opt-in DP83826I EEE setup/disable, two whole-word source checks,
   one HARD reset and shared owned-state replay. Explicit EEE ownership upgrades
-  initialization to HARD; forced LPI remains a separate later session.
+  initialization to HARD; forced LPI is a separate explicit session.
 - Added bounded EEE capability/local/partner/status acquisition, DEVAD-qualified
   collector retention, passive snapshots, coherent negotiation validity and
   independent recipe/failure/replay tests. Wire/control Q1 remains unqualified.

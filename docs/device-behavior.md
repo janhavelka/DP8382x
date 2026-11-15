@@ -485,3 +485,8 @@ one HARD and acyclic persistent restoration. Requested bypass controls keep
 opaque bits intact and TX LPI clear. Owned EEE initialization reports effective
 HARD for every requested reset kind; unowned defaults never activate EEE.
 The ledger's wire/control Q1 gates remain physical-check pending.
+
+Stage30 implements [forced TX LPI](lpi.md) with bit12-only bounded start/stop,
+retained uncertainty and application-owned MAC drain/dwell/wake coordination.
+Both bypass controls must be disabled at entry. The100M/normal-power restriction
+is library policy; nominal timing is never a software completion guarantee.
