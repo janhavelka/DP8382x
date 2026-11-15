@@ -459,3 +459,14 @@ calibration gating, full restore/retry and pure interpretation. The tests-OFF
 B-to-A capture, passive views, explicit reread and separate HARD restoration.
 The host model proves protocol/ownership only; see the [fixture plan](../docs/cable.md)
 for unexecuted physical qualification.
+
+## Cable autorun
+
+`test/autorun.cpp` registers seven suites and an active Release failure probe.
+Run `ctest --test-dir build/host -R autorun --output-on-failure --no-tests=error`.
+Independent literals exercise owned enable/disable, old done/identical words,
+hardware updates at every read/handoff frame, frame/release/cancel failures,
+partial evidence, reset replay, read-only verify, clocks and cross-PHY exclusion.
+The existing tests-OFF cable consumer now executes policy enable, raw acquisition,
+passive views, explicit disable and the manual/HARD-restoration flow. No hardware
+generation, timing or physical distance is asserted by the fake controller.

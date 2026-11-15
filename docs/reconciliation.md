@@ -119,3 +119,9 @@ Stage 23 now supplies the [loopback session owner](loopback.md). VERIFY rejects
 while temporary state may remain. An owning stop or explicit HARD uses the same
 initialization/profile restore plus saved ordinary-field verification; it does
 not replay prior diagnostic traffic or replace an earlier failed result.
+
+Explicitly owned cable autorun is part of stage-26 reconciliation. Verify reads
+its owned CR1 bit once and retains mismatch/partial readback without writes.
+Initialization replays it last after diagnostic restoration. Policy trust is
+separate in `cableAutorunSnapshot`; a raw capture does not verify policy or clear
+cleanup. Disabled policy never supplies engine-quiescence evidence.

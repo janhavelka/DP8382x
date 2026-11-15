@@ -456,3 +456,9 @@ Raw result banks are nondestructive and individually retained. SNLA428's opaque
 companion writes require shared HARD/replay; no arbitrary read/restore permission
 is inferred. Software supports the selected recipe and typed raw controls while
 Q7 and freshness/abort/calibration conflicts remain explicitly unqualified.
+
+Stage 26 implements CR1 hardware link-down autorun as one explicit enable flag.
+Disable/readback proves only policy, never engine quiescence. Fixed raw CDCR/result
+bookends detect some changes but cannot establish an atomic/fresh generation;
+shadow tuning is not a result latch. No physical completion maximum is invented.
+See [manual and autorun ownership](cable.md) for the shared acquisition/restoration.

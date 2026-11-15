@@ -194,3 +194,10 @@ new HARD attempt replays the entire saved tail even after partial restoration.
 Known CDCR calibration blocks initialization: clear-then-HARD belongs to prompt
 35, not an incidental reset. The [cable guide](cable.md) separates RAW ownership,
 SNLA428 companions, retained primary evidence and physical quiescence limits.
+
+Stage 26 adds explicitly owned autorun policy to the shared restore order,
+after every persistent profile and temporary saved-field tail. Unowned CR1
+policy is untouched; owned enable or disable adds one RMW/readback. Failed or
+cancelled final replay keeps initialization incomplete and prior effects visible.
+`startVerify` checks this policy without changing it. Future power transitions
+extend the same path; no enable operation authorizes automatic reset or recovery.

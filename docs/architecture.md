@@ -144,3 +144,8 @@ raw control composition and pure interpretation. It extends the existing slot,
 terminal batch execution and shared HARD/profile restoration; it adds no worker,
 collector or generic job engine. Six bounded result rows retain nondestructive
 per-word evidence. See [manual cable capture](cable.md).
+
+Stage 26 extends the same cable phase switch with persistent policy write/readback
+and reuses the manual result-reading phases for a fixed autorun observation.
+Shared initialization restores owned policy last; no second acquisition engine,
+collector, scheduler or autonomous link-recovery loop is introduced.

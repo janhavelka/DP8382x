@@ -54,7 +54,7 @@ Status validateCableSettings(const CableSettings& settings) noexcept {
 
 Status interpretCable(const CableResult& result, double delay, CableDiagnosis& diagnosis) noexcept {
   if (!std::isfinite(delay) || delay <= 0.0) { return Status::Error(Err::INVALID_PARAM, "Positive finite propagation delay required"); }
-  if (result.recipe != CableRecipe::SNLA428) { return invalid("Derived distance requires the SNLA428 transmit-A recipe"); }
+  if (result.autorun || result.recipe != CableRecipe::SNLA428) { return invalid("Derived distance requires the SNLA428 transmit-A recipe"); }
   if (!result.complete || result.stale || result.requestedMask == 0U || (result.requestedMask & 0xC0U) != 0U) {
     return Status::Error(Err::RESULT_NOT_AVAILABLE, "Complete fresh cable samples required");
   }
@@ -110,9 +110,10 @@ Status DP8382x::startCableTest(const CableSettings& settings, const OperationBud
   if (_operation.cleanupOwed || _operation.temporaryMayBeActive) { return busyCable(BusyDetail::CLEANUP_REQUIRED); }
   if (!_initialized || !capabilities().valid) { return Status::Error(Err::NOT_INITIALIZED, "Fresh initialized identity required"); }
   if (!_settings.desiredValid || _settings.trust != ConfigurationTrust::VERIFIED) { return invalid("Verified persistent profile required"); }
+  if (_cableCalibration) { return invalid("Known calibration requires clear-then-HARD recovery"); }
   const auto budgetStatus = nonzeroBudget(budget); if (!budgetStatus.ok()) { return budgetStatus; }
   _beginOperation(OperationKind::CABLE_START, budget);
-  _cable = {}; _cable.settings = settings;
+  _cable = {}; _cable.settings = settings; _cable.settingsValid = true;
   _cable.result.session = _operation.token;
   _cable.result.recipe = settings.recipe; _cable.result.requestedMask = settings.runMask;
   _cableSession = _cableRestoreTail = true; _cableCurrent = false;
@@ -146,6 +147,35 @@ Status DP8382x::stopCableTest(const OperationBudget& budget, OperationToken& tok
 }
 CableSnapshot DP8382x::cableSnapshot() const noexcept {
   auto snapshot = _cable; snapshot.temporaryMayBeActive = _cableSession && _operation.temporaryMayBeActive; return snapshot;
+}
+Status DP8382x::startConfigureCableAutorun(const CableAutorunOptions& options,
+    const OperationBudget& budget, OperationToken& token) noexcept {
+  if (!options.maintenanceAdmitted) { return invalid("Autorun policy requires maintenance admission"); }
+  const auto admission = _admitCable(budget, false); if (!admission.ok()) { return admission; }
+  if (_operation.cleanupOwed || _operation.temporaryMayBeActive) { return busyCable(BusyDetail::CLEANUP_REQUIRED); }
+  if (!_initialized || !capabilities().valid) { return Status::Error(Err::NOT_INITIALIZED, "Initialize before autorun policy"); }
+  if (_settings.desiredValid && _settings.trust != ConfigurationTrust::VERIFIED) { return invalid("Verify persistent profile before autorun policy"); }
+  if (_cableCalibration) { return invalid("Known calibration requires clear-then-HARD recovery"); }
+  const auto available = nonzeroBudget(budget); if (!available.ok()) { return available; }
+  _beginOperation(OperationKind::CABLE_AUTORUN_CONFIGURE, budget);
+  _cable = {}; _cable.result.recipe = CableRecipe::RAW; _cableRun = 0;
+  _autorunTailPending = false;
+  _autorun.desired = options.enabled; _autorun.desiredValid = true;
+  _autorun.trust = ConfigurationTrust::DIRTY; _autorun.observedStale = true;
+  _setCableStep(CableStep::IDENTIFY);
+  token = _operation.token; return _operation.status;
+}
+Status DP8382x::startCableAutorunAcquire(const OperationBudget& budget, OperationToken& token) noexcept {
+  const auto admission = _admitCable(budget, false); if (!admission.ok()) { return admission; }
+  if (_operation.temporaryMayBeActive) { return busyCable(BusyDetail::CLEANUP_REQUIRED); }
+  if (!_initialized || !capabilities().valid) { return Status::Error(Err::NOT_INITIALIZED, "Initialize before autorun observation"); }
+  const auto available = nonzeroBudget(budget); if (!available.ok()) { return available; }
+  _beginOperation(OperationKind::CABLE_AUTORUN_ACQUIRE, budget);
+  _cable = {}; _cable.settings.recipe = CableRecipe::RAW; _cable.settings.runMask = 1;
+  _cable.result.session = _operation.token; _cable.result.recipe = CableRecipe::RAW;
+  _cable.result.requestedMask = 1; _cable.result.autorun = true; _cableRun = 0;
+  _setCableStep(CableStep::CDCR);
+  token = _operation.token; return _operation.status;
 }
 void DP8382x::_setCableStep(CableStep step) noexcept {
   _cableWorking = true; _configuring = _loopWorking = _bistWorking = false;
@@ -210,6 +240,12 @@ MdioBatch DP8382x::_cableBatch() const noexcept {
       batch.frames[1] = {FrameKind::WRITE,0,static_cast<uint16_t>(_cableSavedBmcr & 0x0480U),0x317F,0}; return batch;
     }
     case CableStep::RESTORE: return modify(addresses[_cableField],masks[_cableField],static_cast<uint16_t>(_cableSaved[_cableField] & masks[_cableField]));
+    case CableStep::POLICY_WRITE: {
+      auto batch = direct(9); batch.frameCount = 2;
+      batch.frames[1] = {FrameKind::WRITE,9,static_cast<uint16_t>(_autorun.desired ? 0x0100 : 0),0xFEFF,0};
+      return batch;
+    }
+    case CableStep::POLICY_VERIFY: return direct(9);
   }
   return {};
 }
@@ -244,7 +280,12 @@ Status DP8382x::_advanceCable(Status status, bool called, const MdioBatch& batch
         word->raw = value; word->valid = true; word->stale = false;
         word->timeValid = !_transport.clockInvalid;
         word->observedAtUs = word->timeValid ? _lastTimeUs + _config.transport.bounds.clockLagUs : 0;
-        if (batch.frames[last].registerAddress == 0x1EU) { _cableCalibration = (value & 0x4000U) != 0U; }
+        if (batch.frames[last].registerAddress == 0x1EU) {
+          if ((value & 0x4000U) != 0U) { _cableCalibration = true; }
+          // A raw zero cannot prove required recovery. Only the owning stop may
+          // accept clear here: its temporary-state barrier still mandates HARD.
+          else if (_cableStep == CableStep::STOP_STATUS) { _cableCalibration = false; }
+        }
       }
     }
     if (batch.frames[last].kind == FrameKind::WRITE) {
@@ -254,7 +295,7 @@ Status DP8382x::_advanceCable(Status status, bool called, const MdioBatch& batch
       _result.mutationAttempted = _result.mutationAttempted || receipt.attempted;
       _result.mutationCompleted = _result.mutationCompleted || completed == batch.frameCount;
       _result.mutationPossible = _result.mutationPossible || receipt.effectPossible || completed == batch.frameCount || uncertain;
-      if (attempted) {
+      if (attempted && _cableStep != CableStep::POLICY_WRITE) {
         _operation.temporaryMayBeActive = _operation.cleanupOwed = true;
         _cleanupOwner = OperationKind::CABLE_START;
       }
@@ -266,6 +307,14 @@ Status DP8382x::_advanceCable(Status status, bool called, const MdioBatch& batch
       }
     }
     if (completed == batch.frameCount && batch.frames[last].kind == FrameKind::READ) {
+      if (_cableStep == CableStep::POLICY_VERIFY) {
+        _autorun.observed = (value & 0x0100U) != 0U; _autorun.observedValid = true;
+        _autorun.timeValid = !_transport.clockInvalid;
+        _autorun.observedAtUs = _autorun.timeValid ? _lastTimeUs + _config.transport.bounds.clockLagUs : 0;
+        if (_autorun.observed != _autorun.desired && !_result.mismatch.valid) {
+          _result.mismatch = {true,false,0,9,0x0100,static_cast<uint16_t>(_autorun.desired ? 0x0100 : 0),value};
+        }
+      }
       if (_cableStep == CableStep::SAVE) { _cableSaved[_cableField] = value; }
       if (_cableStep == CableStep::BMCR) { _cableSavedBmcr = value; }
       resetActive = ((_cableStep == CableStep::BMCR || _cableStep == CableStep::VERIFY_BMCR) && (value & 0x8000U) != 0U) ||
@@ -308,16 +357,21 @@ Status DP8382x::_advanceCable(Status status, bool called, const MdioBatch& batch
       if ((value & 0xC000U) != 0U) { return _finishOperation(invalid("Reset or restart active")); }
       _setCableStep(CableStep::CR1); break;
     case CableStep::CR1:
-      if ((value & 0x0100U) != 0U) { return _finishOperation(invalid("Disable autorun through its owner before manual cable test")); }
+      if (_operation.kind != OperationKind::CABLE_AUTORUN_CONFIGURE && (value & 0x0100U) != 0U) { return _finishOperation(invalid("Disable autorun through its owner before manual cable test")); }
       _setCableStep(CableStep::BISCR); break;
     case CableStep::BISCR:
       if ((value & 0x325FU) != 0U) { return _finishOperation(invalid("BIST or loopback active")); }
-      _setCableStep(CableStep::LINK); break;
+      _setCableStep(_operation.kind == OperationKind::CABLE_AUTORUN_CONFIGURE ? CableStep::CDCR : CableStep::LINK); break;
     case CableStep::LINK:
       if ((value & 1U) != 0U) { return _finishOperation(invalid("Manual cable capture requires live link down")); }
       _setCableStep(CableStep::CDCR); break;
     case CableStep::CDCR:
+      if (_operation.kind == OperationKind::CABLE_AUTORUN_ACQUIRE) {
+        // One raw observation, even with busy/initial done. No trigger correlation.
+        _setCableStep(CableStep::INDEX); break;
+      }
       if ((value & 0xC000U) != 0U) { return _finishOperation(invalid("CDCR calibration or manual command already active")); }
+      if (_operation.kind == OperationKind::CABLE_AUTORUN_CONFIGURE) { _setCableStep(CableStep::POLICY_WRITE); break; }
       _cableField = 0; _setCableStep(CableStep::SAVE); break;
     case CableStep::SAVE:
       if (_cableField == 0U && (((value & 0x0700U) == 0x0700U) ||
@@ -343,6 +397,14 @@ Status DP8382x::_advanceCable(Status status, bool called, const MdioBatch& batch
     case CableStep::AMPLITUDE: _setCableStep(CableStep::PEAK); break;
     case CableStep::PEAK: _setCableStep(CableStep::BOOKEND); break;
     case CableStep::BOOKEND: {
+      if (_operation.kind == OperationKind::CABLE_AUTORUN_ACQUIRE) {
+        capture.statusChanged = value != capture.prerequisiteCdcr.raw;
+        sample.failed = (value & 1U) != 0U;
+        sample.state = CableRunState::COMPLETE;
+        capture.complete = true; // Complete software read plan, not a silicon snapshot.
+        capture.stale = true;
+        return _finishOperation(Status::Ok());
+      }
       if ((value & 0xC003U) != (sample.failed ? 3U : 2U)) {
         sample.index.stale = sample.amplitude.stale = sample.peak.stale = true;
         _cableCurrent = false;
@@ -378,6 +440,12 @@ Status DP8382x::_advanceCable(Status status, bool called, const MdioBatch& batch
       if (++_cableField < (recipe ? 7U : 6U)) { _setCableStep(CableStep::RESTORE); break; }
       _cableRestoreTail = false; capture.stopped = true;
       _result.persistentRestored = true; _settings.trust = ConfigurationTrust::VERIFIED; _initialized = true;
+      return _finishOperation(Status::Ok());
+    case CableStep::POLICY_WRITE: _setCableStep(CableStep::POLICY_VERIFY); break;
+    case CableStep::POLICY_VERIFY:
+      _autorun.trust = ConfigurationTrust::VERIFIED; _autorun.observedStale = false;
+      _result.persistentRestored = true;
+      if (_operation.kind != OperationKind::VERIFY) { _initialized = true; }
       return _finishOperation(Status::Ok());
   }
   return _operation.status;

@@ -1,4 +1,5 @@
 #include "../../examples/portable/CableCapture.h"
+#include "../../examples/portable/CableAutorun.h"
 #include <array>
 
 namespace {
@@ -121,6 +122,34 @@ int main() {
   if (!phy.startConfigure(profile, budget(), configuration.token).inProgress() ||
       !finish(phy, bus, configuration, quiet)) return 3;
 
+  // Explicit silicon policy, later bounded raw observation, then explicit
+  // disable for manual handoff. This host model has no physical link-down event.
+  CableAutorunOptions autorun; autorun.enabled = true; autorun.maintenanceAdmitted = true;
+  CableAttempt policy;
+  if (!configureCableAutorun(phy, autorun, budget(), policy).inProgress() ||
+      !finish(phy, bus, policy, quiet)) return 13;
+  if ((bus.words[9] & 0x0100U) == 0U || !policy.result.cableAutorun.observed ||
+      policy.result.cableAutorun.trust != ConfigurationTrust::VERIFIED || bus.triggers != 0U) return 14;
+  const auto policyCalls = bus.callbacks, policyClocks = bus.clockCalls;
+  const auto policyOne = phy.cableAutorunSnapshot(), policyTwo = phy.cableAutorunSnapshot();
+  if (!policyOne.desired || !policyTwo.observed || bus.callbacks != policyCalls || bus.clockCalls != policyClocks) return 15;
+  CableAttempt observation;
+  if (!acquireCableAutorun(phy, budget(), observation).inProgress() ||
+      !finish(phy, bus, observation, quiet)) return 16;
+  if (bus.callbacks != policyCalls + 5U || bus.triggers != 0U || bus.hardResets != 0U ||
+      !observation.result.cable.complete || !observation.result.cable.stale ||
+      !observation.result.cable.autorun || observation.result.cable.statusChanged ||
+      !observation.result.cable.samples[0].index.valid ||
+      observation.result.cable.samples[0].freshnessObserved) return 17;
+  CableDiagnosis autorunSentinel; autorunSentinel.metres = 777;
+  if (interpretCable(observation.result.cable, 4.6, autorunSentinel).ok() || autorunSentinel.metres != 777) return 18;
+  autorun.enabled = false;
+  CableAttempt handoff;
+  if (!configureCableAutorun(phy, autorun, budget(), handoff).inProgress() ||
+      !finish(phy, bus, handoff, quiet)) return 19;
+  if ((bus.words[9] & 0x0100U) != 0U || handoff.result.cableAutorun.observed ||
+      handoff.result.cableAutorun.trust != ConfigurationTrust::VERIFIED) return 20;
+
   CableSettings settings; settings.recipe = CableRecipe::RAW; settings.runMask = 1;
   settings.controls.channel = CableChannel::B_TO_A;
   settings.maintenanceAdmitted = settings.peerQuiet = settings.allowHardResetExit = true;
@@ -143,5 +172,8 @@ int main() {
   if (!restoration.result.persistentRestored || !restoration.result.cable.stopped ||
       phy.operationSnapshot().cleanupOwed || bus.hardResets != 1U || bus.violated || !phy.isInitialized()) return 10;
   if (!capture.result.cable.complete || capture.result.cable.stale || !capture.result.cleanupOwed) return 11;
+  const auto replayed = phy.cableAutorunSnapshot();
+  if (!replayed.desiredValid || replayed.desired || replayed.observed ||
+      replayed.trust != ConfigurationTrust::VERIFIED || (bus.words[9] & 0x0100U) != 0U) return 21;
   return phy.end().ok() ? 0 : 12;
 }

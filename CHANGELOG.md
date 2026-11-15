@@ -11,6 +11,12 @@
 
 ### 2026-11-15
 
+- Added explicit cable autorun policy with separate desired/readback/trust,
+  verified disable handoff, shared reset replay and read-only verification.
+- Added bounded single-run autorun raw acquisition with per-word partial evidence
+  and explicit unknown freshness/coherence, plus independent tests and an executed
+  portable owner example. Hardware trigger timing and cable accuracy remain unqualified.
+
 - Audited prompts 23-24 independently. Corrected MII line-transmit ordering,
   required exact identity before BIST stop writes, retained dwell collector
   activity/loss in typed BIST evidence, and replayed all saved session fields

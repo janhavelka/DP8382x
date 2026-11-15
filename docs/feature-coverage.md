@@ -134,6 +134,12 @@ and physical BIST qualification remain NOT RUN.
 Prompt 25 completes `cable_configure`, `cable_manual` and `cable_capture` through
 [manual cable sessions](cable.md), including raw controls, the selected six-run
 recipe, bounded separate HARD restoration and independent interpretation tests.
-The cable family remains PARTIAL because `cable_autorun` belongs to prompt 26.
+The cable family was partial at stage 25; stage 26 below completes `cable_autorun`.
 CDCR calibration recovery remains prompt 35; Q7 and source conflicts remain open.
 SDK linking and physical cable accuracy are NOT RUN.
+
+Prompt 26 completes `cable_autorun`: explicit policy, verified manual handoff,
+bounded shared single-run raw acquisition and final shared reset replay. All cable
+software procedures now have host/portable evidence; unknown freshness/coherence,
+engine quiescence and Q7 physical accuracy remain explicit source/fixture limits.
+Calibration recovery still belongs to its separate prompt-35 procedure.

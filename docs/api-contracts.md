@@ -909,3 +909,25 @@ initialization remains managed. Nondestructive cable words retain successful
 partial reads without inventing history loss. `interpretCable` stages its output
 and accepts only complete fresh SNLA428 rows. See [cable contracts](cable.md)
 for freshness, raw controls, helper limits and the physical fixture plan.
+
+### Shipped cable autorun (stage 26)
+
+`startConfigureCableAutorun`, `startCableAutorunAcquire` and passive
+`cableAutorunSnapshot` extend the existing slot/cable phases. One explicit
+maintenance-admitted flag owns CR1 autorun. Admission copies desired intent;
+readback establishes only owned policy trust. Disable is the manual handoff and
+never proves engine quiescence. Configuration is MANAGED, acquisition RAW.
+Failed semantic effects retain OP-9; restoration is a later `startInitialize`,
+not a retry exception or hidden cleanup operation.
+
+Shared initialization replays owned policy last after saved diagnostic fields;
+failed/cancelled final replay cannot leave initialization complete. `startVerify`
+and link `startConfigure` verify the owned bit without writing. Direct/raw reset
+invalidation keeps desired policy and stales its independent trust. Unowned
+policy never adds replay writes. Future power-state transitions use this owner.
+
+Autorun acquisition is one fourteen-frame pass with nondestructive partial words,
+no trigger and no environmental polling. `complete` means read-plan completion;
+`autorun` plus aggregate `stale` withholds fresh/coherent-measurement claims, even
+with equal bookends. No source-backed generation counter exists. The
+[cable guide](cable.md) specifies bounds, current settings, handoff and fixtures.

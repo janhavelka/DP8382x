@@ -52,7 +52,7 @@ Raw configuration uses six complete field RMWs and readbacks, preserving reserve
 bits. It does not access opaque recipe companions. The values from SNLS647I
 tables 8-56/57 remain available through these typed fields and are distinct from
 SNLA428 tuning. Raw B/cross-pair capture has no derived distance/classification
-claim. This task does not implement link-down autorun; prompt 26 owns its handoff.
+claim. Explicit link-down autorun and its manual handoff are described below.
 
 ## Freshness, raw data and explicit reacquisition
 
@@ -210,3 +210,78 @@ With the test's negotiated profile, successful separate stop/replay uses 127/50
 for SNLA428 and 118/48 for RAW. Other owned profiles can change replay counts;
 the finite caller allowance remains authoritative. No sequence is split across
 an indirect transaction and no controller ownership survives a wait.
+
+## Hardware link-down autorun
+
+`startConfigureCableAutorun({enabled, maintenanceAdmitted}, budget, token)`
+owns only the documented CR1 enable bit. It requires initialized accepted
+identity and, when present, a VERIFIED link profile. Starts are bus/clock silent;
+syntax/lifecycle/barrier/initialization checks precede zero-budget outcomes.
+Admitted intent is copied immediately into `cableAutorunSnapshot().desired` and
+remains authoritative after cancellation. Rejected requests change no intent.
+Observed value, validity/time, staleness and trust are independent fields.
+
+Live identity/reset/BIST/manual-command/calibration checks precede a single
+two-frame CR1 RMW and one owned-bit readback. Policy configuration takes exactly
+10 frames in eight terminal callbacks on success. All unrelated CR1 controls and
+reserved bits are preserved. Setting the flag is not a physical trigger; neither
+link-down nor CDCR's initial done bit proves a fresh diagnostic measurement.
+Policy configuration is MANAGED traffic; raw acquisition is RAW.
+
+Disable with the same explicit operation and consume its successful result before
+starting manual capture. **Engine quiescence remains unknown**: readback proves
+only disabled policy. Hardware may update status/results during any handoff phase.
+Manual capture still performs its own live preflight and rejects enabled autorun,
+an active manual command or calibration. No automatic disable/re-enable, hardware
+idle claim, generation counter or drain-until-stable loop is added. Keep normal
+application traffic quiesced under the same maintenance owner.
+
+Every shared initialization replays an explicitly owned flag, including disabled
+intent, after persistent profile and temporary diagnostic saved-field restoration.
+It adds three frames in two callbacks. Initialization/restoration cannot become
+complete until this final replay/readback succeeds. Unowned policy adds no frames
+and is never implicitly enabled. `startVerify` and ordinary `startConfigure`
+check owned policy with one additional read, without rewriting it. Reset/raw
+invalidation keeps desired intent while staling observed/trusted evidence; rebind
+or end discards local ownership. Future power operations extend this same replay.
+
+Failed/late policy mutation retains possible effects and the OP-9 cleanup barrier.
+Cancellation performs no cleanup I/O. Take the frozen result, then explicitly
+admit `startInitialize` with a new budget/token to restore all owned state.
+A later successful read cannot retroactively validate the failed write. Policy
+configuration cannot bypass another diagnostic's temporary-state barrier.
+
+## One bounded autorun observation
+
+`startCableAutorunAcquire(budget, token)` uses the same result-read phases as
+manual capture: CDCR, the three documented result words, then CDCR once more.
+This is exactly 14 frames in five terminal callbacks, without a trigger, reset,
+environmental wait or retry. The initialized owner can read even without owning
+policy, or while a nontemporary cleanup obligation exists, as raw observation;
+temporary manual/other diagnostic sessions reject this separate acquisition.
+
+The result has `autorun=true`, RAW provenance, one row, and `complete=true` only
+when the software read plan finishes. Aggregate `stale=true` explicitly withholds
+current-measurement interpretation. No accepted manual trigger or freshness flag
+is fabricated. Cached `settingsValid=false` means no tuning/recipe context was
+captured; default control values are not observed hardware settings.
+`statusChanged` reports unequal CDCR bookends; equal bookends
+cannot prove coherent generation, freshness or unchanged intermediate results.
+Each word can still be valid and timestamped as an individual observation.
+The derived SNLA428 distance helper rejects this result.
+
+On failure, each successfully returned nondestructive word remains in the retained
+result; missing words stay invalid and no history-loss flag is invented. A new
+explicit acquisition can reread under a new budget. Cache storage represents the
+latest cable procedure; retain prior operation results separately. Two cached
+readers do no I/O. Destructive preflight words remain with the existing collector.
+The [portable autorun example](../examples/portable/CableAutorun.h) is compiled
+and executed by the tests-OFF cable consumer.
+
+For physical qualification, extend the identified fixture plan above: capture
+CR1 readback and MDIO traces before/after controlled peer disconnects; correlate
+actual link drops and cable changes with observations. Exercise updates during
+disable, every result read and manual admission. Repeat identical-result and
+missed-transition cases without assigning a new generation. Record peer activity,
+termination and restoration independently. These are planned scenarios, not
+executed measurements; physical trigger timing and distance accuracy remain NOT RUN.

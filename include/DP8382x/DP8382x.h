@@ -262,7 +262,9 @@ enum class OperationKind : uint8_t {
   BIST_STOP, ///< Disable BIST and verify restoration under a new budget.
   CABLE_START, ///< Configure and capture a finite manual cable plan; explicit stop required.
   CABLE_ACQUIRE, ///< Nondestructively reacquire the current triggered run.
-  CABLE_STOP ///< Stop manual capture, HARD reset and verify saved-state restoration.
+  CABLE_STOP, ///< Stop manual capture, HARD reset and verify saved-state restoration.
+  CABLE_AUTORUN_CONFIGURE, ///< Apply one persistent hardware link-down autorun flag.
+  CABLE_AUTORUN_ACQUIRE ///< Acquire one uncorrelated raw autorun result without waiting for a trigger.
 };
 /// @brief One retained operation slot.
 enum class OperationState : uint8_t {
@@ -460,7 +462,7 @@ struct CableWord {
 enum class CableRunState : uint8_t {
   NOT_RUN, ///< No trigger attempted for this row.
   STARTED, ///< Trigger attempted; complete correlated data not yet retained.
-  COMPLETE ///< Fresh completion and all result words retained; inspect fail status.
+  COMPLETE ///< All result words retained; inspect fail/freshness, and autorun remains uncorrelated.
 };
 /// @brief Retained current-run evidence, separate from operation transport status.
 struct CableSample {
@@ -476,18 +478,26 @@ struct CableSample {
 };
 /// @brief Fixed retained capture plan; raw data has no hardware-history-loss semantics.
 struct CableResult {
-  OperationToken session{}; ///< Original start token.
+  OperationToken session{}; ///< Original operation/session token, never a silicon generation counter.
   CableRecipe recipe{CableRecipe::SNLA428}; ///< Interpretation provenance.
   uint8_t requestedMask{0}; ///< Selected rows; unselected rows remain NOT_RUN.
   std::array<CableSample, 6> samples{}; ///< Fixed bounded storage in CableRun order.
   CableWord prerequisiteCdcr{}; ///< Live preflight/stop status, including calibration rejection.
-  bool complete{false}; ///< All requested rows captured coherently; does not mean good cable.
+  bool complete{false}; ///< All requested words returned; autorun never proves a coherent generation.
   bool stale{true}; ///< Incomplete or reset/external invalidation made current interpretation unavailable.
   bool stopped{false}; ///< HARD replay and saved-field verification completed.
+  bool autorun{false}; ///< One raw hardware-autorun observation with unknown freshness/coherence.
+  bool statusChanged{false}; ///< CDCR bookends differed; equal bookends cannot prove atomic capture.
+};
+/// @brief The sole hardware autorun control plus explicit disruptive-maintenance admission.
+struct CableAutorunOptions {
+  bool enabled{false}; ///< CR1[8] policy; does not trigger a test or attest engine idle.
+  bool maintenanceAdmitted{false}; ///< Owner quiesced normal application activity as required.
 };
 /// @brief Passive settings, capture and outstanding effects.
 struct CableSnapshot {
-  CableSettings settings{}; ///< Copied request.
+  CableSettings settings{}; ///< Copied manual request, meaningful only when settingsValid.
+  bool settingsValid{false}; ///< Autorun has no captured tuning/recipe context; defaults are not evidence.
   CableResult result{}; ///< Partial or historical evidence without additional I/O.
   bool temporaryMayBeActive{false}; ///< Owning stop/HARD may still be required.
 };
@@ -541,6 +551,18 @@ enum class ConfigurationTrust : uint8_t {
   UNKNOWN, ///< No established configuration evidence.
   VERIFIED, ///< Complete currently owned stable settings verified.
   DIRTY ///< Admitted desired change or uncertainty needs verification/restoration.
+};
+/// @brief Passive persistent policy evidence, separate from trigger and capture freshness.
+struct CableAutorunSnapshot {
+  bool desired{false}; ///< Last admitted enable intent.
+  bool desiredValid{false}; ///< This binding explicitly owns policy only after admission.
+  bool observed{false}; ///< Last independently returned CR1[8] value.
+  bool observedValid{false}; ///< A policy readback returned valid data.
+  bool observedStale{true}; ///< Reset/external change or incomplete verification invalidated trust.
+  ConfigurationTrust trust{ConfigurationTrust::UNKNOWN}; ///< Owned policy only, not the link profile.
+  uint64_t observedAtUs{0}; ///< Conservative readback upper timestamp in microseconds.
+  bool timeValid{false}; ///< Timestamp zero is valid when true.
+  Status lastStatus{Err::RESULT_NOT_AVAILABLE, 0, "No autorun policy verification"}; ///< Last policy outcome.
 };
 /// @brief Passive profile evidence. VERIFIED covers active advertisement/mode, routing, extension and mandatory VOD.
 struct SettingsSnapshot {
@@ -647,6 +669,7 @@ struct OperationResult {
   LoopbackResult loopback{}; ///< Selected path and activation/stop evidence, never packet proof.
   BistResult bist{}; ///< Current diagnostic evidence, separate from primary/stop outcomes.
   CableResult cable{}; ///< Non-destructive cable words; primary and restoration results remain separate.
+  CableAutorunSnapshot cableAutorun{}; ///< Retained policy evidence; success never proves engine quiescence.
   uint16_t savedAnar{0}; ///< Pre-mutation advertisement, never a rollback instruction.
   uint16_t savedBmcr{0}; ///< Pre-mutation control, never a rollback instruction.
   bool savedAnarValid{false}; ///< Pre-mutation advertisement was captured.
@@ -853,6 +876,29 @@ public:
   /// @brief Copy partial/historical cable evidence without MDIO or clock calls.
   /// @return Fixed capture storage and outstanding temporary-state flag.
   CableSnapshot cableSnapshot() const noexcept;
+  /// @brief Admit explicit persistent CR1[8] policy configuration without bus/clock I/O.
+  /// @param[in] options One enable flag and disruptive maintenance admission.
+  /// @param[in] budget Finite aggregate deadline/frame/stall allowance.
+  /// @param[out] token Assigned only on admission; take the retained result before reuse.
+  /// @return IN_PROGRESS or syntax, lifecycle, cleanup, initialization or budget error.
+  /// @note SNLS647I 8.3.16.1/table8-28. Apply only0100, preserveFEFF, verify0100.
+  /// Desired intent becomes authoritative at admission. Failure/cancel retains
+  /// effects behind OP-9; startInitialize replays it with a new budget/result.
+  /// Disable is the manual handoff; engine quiescence remains unknown.
+  Status startConfigureCableAutorun(const CableAutorunOptions& options, const OperationBudget& budget,
+                                   OperationToken& token) noexcept;
+  /// @brief Admit one bounded raw autorun observation using the shared cable result path.
+  /// @param[in] budget Finite allowance for14 frames in5 indivisible callbacks.
+  /// @param[out] token Assigned only on admission; words are retained in result.cable.
+  /// @return IN_PROGRESS or lifecycle, temporary-session, initialization or budget error.
+  /// @note SNLS647I tables8-47/61/66/71: read CDCR,0180,0185,018A,CDCR once.
+  /// No trigger, wait or retry. Even equal
+  /// bookends leave freshness/coherence unknown and aggregate stale. Each returned
+  /// nondestructive word has independent validity/time; failures imply no history loss.
+  Status startCableAutorunAcquire(const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Copy owned autorun intent/readback/trust without MDIO or clock I/O.
+  /// @return Policy evidence only; disabled does not imply engine idle.
+  CableAutorunSnapshot cableAutorunSnapshot() const noexcept { return _autorun; }
 
   /// @brief Project passive health without bus/clock access or changing admission.
   /// @return UNINIT when not initialized; otherwise READY at zero failures,
@@ -1080,7 +1126,7 @@ private:
     IDENTIFY, BMCR, PHYRCR, CR1, BISCR, LINK, CDCR, SAVE,
     APPLY, VERIFY, TRIGGER, WAIT, INDEX, AMPLITUDE, PEAK, BOOKEND,
     STOP_IDENTITY, STOP_STATUS, STOP_COMMAND, STOP_VERIFY,
-    RESTORE_BMCR, VERIFY_BMCR, RESTORE, VERIFY_RESTORE
+    RESTORE_BMCR, VERIFY_BMCR, RESTORE, VERIFY_RESTORE, POLICY_WRITE, POLICY_VERIFY
   };
   CableStep _cableStep{CableStep::BMCR};
   CableSnapshot _cable{};
@@ -1089,6 +1135,8 @@ private:
   uint8_t _cableRun{0}, _cableField{0};
   bool _cableSession{false}, _cableWorking{false}, _cableRestoreTail{false}, _cableCurrent{false};
   bool _cableCalibration{false};
+  CableAutorunSnapshot _autorun{};
+  bool _autorunTailPending{false};
   void _setCableStep(CableStep step) noexcept;
   MdioBatch _cableBatch() const noexcept;
   Status _advanceCable(Status status, bool called, const MdioBatch& batch) noexcept;

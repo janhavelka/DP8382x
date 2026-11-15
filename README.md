@@ -4,7 +4,7 @@ General microcontroller library workspace for Texas Instruments DP8382x Ethernet
 PHYs, starting with **DP83826IRHBR (DP83826I)**. The C++17 core is
 framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet MAC.
 
-**Status: prompts 1–25 complete. Direct/indirect access, retained evidence, identity, bounded resets, verified link profiles, observations, loopback, BIST and manual cable capture are implemented; SDK support and hardware qualification remain future work.**
+**Status: prompts 1–26 complete. Direct/indirect access, retained evidence, identity, bounded resets, verified link profiles, observations, loopback, BIST and manual/autorun cable capture are implemented; SDK support and hardware qualification remain future work.**
 Official references and the 80-prompt implementation plan are available. The
 [current source and tooling comparison](docs/library-comparison.md) records
 the first two execution results. The [primary silicon ledger](docs/register-map.md)
@@ -187,4 +187,5 @@ corrects failure/effect reporting and extends next-page boundary coverage.
 
 [Manual cable capture](docs/cable.md) provides the exact SNLA428 six-run recipe,
 typed raw A/B controls, per-word evidence and separate HARD restoration. The
-source-implied distance helper is not physically qualified; autorun remains prompt 26.
+source-implied distance helper is not physically qualified. Explicit autorun policy
+and bounded single-run raw acquisition share the same owner and restoration path.

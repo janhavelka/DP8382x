@@ -635,3 +635,14 @@ One-busy/one-done fixtures prove 426 frames/128 callbacks for all six rows,
 118/48 respectively. Each additional pending poll consumes one frame/callback.
 Failure injection covers every frame and cancellation boundary without retries,
 including partial nonconsuming result reads, explicit reread and failed HARD tail.
+
+## Executing autorun vectors (prompt 26)
+
+Independent table8-28 literals in `test/autorun.cpp` verify old00A2 ->01A2 on
+enable and old03F3 ->02F3 on disable; preserveFEFF, compare0100 only. Policy
+preflight plus one RMW/readback uses10 frames/eight callbacks. No manual trigger
+is written. Raw R1E, MMD31 R0180/R0185/R018A, R1E uses14 frames/five callbacks.
+Initial0102 done, identical results and equal bookends remain uncorrelated.
+Hardware updates at every read/handoff position never become a generation proof.
+Owned reset replay adds3 frames/two callbacks last; verify adds one read only.
+No policy ownership adds no frames. These are software bounds, not silicon times.

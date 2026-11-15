@@ -58,7 +58,7 @@ Status nonzeroBudget(const OperationBudget& budget) noexcept {
 
 DP8382x::Traffic DP8382x::_operationTraffic() const noexcept {
   if (_operation.kind == OperationKind::CABLE_START || _operation.kind == OperationKind::CABLE_ACQUIRE ||
-      _operation.kind == OperationKind::CABLE_STOP) { return Traffic::RAW; }
+      _operation.kind == OperationKind::CABLE_STOP || _operation.kind == OperationKind::CABLE_AUTORUN_ACQUIRE) { return Traffic::RAW; }
   return _operation.kind == OperationKind::LOOPBACK_START || _operation.kind == OperationKind::LOOPBACK_STOP ||
       _operation.kind == OperationKind::BIST_START || _operation.kind == OperationKind::BIST_ACQUIRE || _operation.kind == OperationKind::BIST_STOP ?
       Traffic::RAW : Traffic::MANAGED;

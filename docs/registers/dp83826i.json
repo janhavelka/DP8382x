@@ -10388,29 +10388,28 @@
           "mask": "0x0100"
         }
       ],
-      "prerequisites": "Serialized application owner; correct exact-part identity and BASIC/ENHANCED mode; application admits disruptive diagnostic and quiesces normal MAC/SDK link activity; finite aggregate primary and cleanup budgets; no other destructive collector or raw selector access. ",
+      "prerequisites": "Exact initialized DP83826I identity, serialized application/controller owner, explicit disruptive maintenance admission and verified link profile when owned. One operation slot; no temporary diagnostic effects. Validate all admission and finite budget before callbacks. Live preflight rejects reset/BIST/manual command/calibration before policy mutation.",
       "steps": [
-        "Admit application-owned disruptive link-down autorun policy and verified TDR configuration, with one result collector and no manual run.",
-        "Set CR1 bit8=1 and verify readback. It enables automatic TDR after link-down event; it is not an immediate trigger or proof that a measurement occurred.",
-        "Record event/reset generations and CDCR progress; use cable_capture only when fresh completion can be correlated. Link flaps may retrigger and replace result words; do not claim atomic coherent sample without evidence.",
-        "Disable CR1 bit8 before stopping/restoring the diagnostic session; read back and retain in-flight/result-latching uncertainty. Restore persistent autorun policy only after other temporary TDR settings are restored.",
-        "A link-down transition does not prove the remote transmitter is quiet: record partner/fixture activity and gate result interpretation when ongoing partner signaling can contaminate the capture. Preserve raw evidence and uncertainty.",
-        "CR1[8] is only the autorun enable. Disabling and verifying the bit does not establish engine quiescence. At most one raw run is captured; no six-run derived result without known complete recipe context."
+        "Admit the sole CR1[8] enable flag as authoritative persistent desired intent; keep independent observed validity/time and policy trust. Preserve all other CR1 bits in one RMW, then compare only0100. No additional silicon policy settings or trigger are invented.",
+        "Explicit disable and successful readback is the handoff to manual capture; engine quiescence remains unknown. Manual preflight still rejects enabled autorun or active command. No automatic disable/re-enable sequence or wait-for-idle claim.",
+        "Acquire at most one raw run using CDCR,0180,0185,018A,CDCR once (14 frames/five callbacks). Reuse cable_capture phases. Reset done0102 or unchanged words never prove freshness. Unequal bookends flag change; equal bookends do not prove atomicity or a silicon generation.",
+        "Retain each nondestructive raw word with validity/time immediately. Complete means software read-plan complete; autorun aggregate remains stale/uninterpreted. Failed words are invalid/missing, not history loss. An explicit finite reread is legal; no automatic retry or environmental polling.",
+        "Replay only explicitly owned policy after shared initialization and temporary saved-field restoration. Verify/readback does not establish a physical trigger, quiet peer or accurate distance. One raw autorun result never becomes the six-run SNLA428 interpretation."
       ],
       "waits": [
-        "Link-down occurrence is not guaranteed; finite owner observation session expires without inventing a sample. Completion polling remains bounded."
+        "No environmental trigger or completion wait. One finite raw pass; neither a silicon completion maximum nor a quiescence acknowledgement is documented."
       ],
       "timeout": "Application-supplied finite aggregate primary deadline includes admission, controller lock, bounded MDIO callbacks and hardware polling. Separate finite cleanup deadline/transaction bound preserves original terminal status; no datasheet worst-case completion time is invented. Require finite primary and cleanup transaction/poll limits as well as monotonic durations before admission, so a frozen clock cannot extend work. Zero work budget performs no I/O.",
-      "partialEffects": "Retain accepted writes, ambiguous mutations, successfully captured raw words and reset generation. Cancel/deadline between terminal callbacks stops new primary work and begins bounded cleanup; failed cleanup does not erase primary evidence. An uncertain mutation invalidates affected configuration trust.",
-      "cleanup": "Stop diagnostic generation before restoring settings; keep controller lock only across indivisible MDIO/RMW transaction, never across waits. Verify stop/readback with finite cleanup budget; retain cleanup-required on failure.",
-      "restoration": "Read back each restored ordinary owned setting against saved persistent desired state. Keep temporary diagnostic values out of desired configuration. Reset interrupts the generation; invalidate old results, recheck identity/straps and replay/reverify persistent settings in owner-defined finite order. Unverified restoration remains explicit.",
+      "partialEffects": "Failure/deadline/cancellation freezes its result immediately with no cleanup frames. Preserve admitted desired policy, accepted/possible mutations, readback and per-word raw evidence. Failed semantic effects retain OP-9; a new restoration operation has its own token, finite budget and result.",
+      "cleanup": "No undocumented engine-stop sequence. Policy disable/readback does not prove engine quiescence. Failed persistent mutation is reconciled by separately admitted startInitialize; no policy-retry barrier bypass or automatic reset/recovery.",
+      "restoration": "Shared initialization replays owned enable/disable last, after all diagnostic saved fields, and verifies0100. Unowned policy is not written. Failed final replay keeps initialization incomplete. startVerify and ordinary link configuration check policy without writing; external/reset invalidation preserves desired intent and stales observed/trusted evidence. Future power transitions extend this same owner.",
       "gates": [
         "tdr_freshness_abort"
       ],
       "owner": {
-        "api": "startCableTest / CableSettings / CableSample",
-        "cli": "owner-routed startCableTest / CableSettings / CableSample (prompts 44-46)",
-        "test": "Independent literals and boundary failures for startCableTest / CableSettings / CableSample; prompts 26, 53-55",
+        "api": "startConfigureCableAutorun / cableAutorunSnapshot / startCableAutorunAcquire",
+        "cli": "Owner-routed policy configuration/acquisition and cached output (prompts44-46)",
+        "test": "test/autorun.cpp independent policy/raw/failure/replay/handoff suites and test/consumer/cable.cpp; Q7 physical NOT RUN",
         "implementationStage": 26
       }
     },
@@ -12691,16 +12690,16 @@
         "cable_capture"
       ],
       "owner": {
-        "api": "startCableTest / startCableAcquire / stopCableTest / cableSnapshot / interpretCable",
+        "api": "startCableTest / startCableAcquire / stopCableTest / cableSnapshot / interpretCable / startConfigureCableAutorun / startCableAutorunAcquire / cableAutorunSnapshot",
         "cli": "owner-routed startCableTest / CableSettings / CableSample (prompts 44-46)",
-        "test": "test/cable.cpp and test/consumer/cable.cpp; autorun prompt26; physical Q7 NOT RUN",
+        "test": "test/cable.cpp, test/autorun.cpp and test/consumer/cable.cpp; physical Q7 NOT RUN",
         "implementationStage": 25
       },
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PARTIAL",
-        "hostTested": "PARTIAL",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
         "sdkBuilt": "NOT_RUN",
         "hardwareQualified": "NOT_RUN"
       },
@@ -12710,7 +12709,7 @@
         "tdr_freshness_abort",
         "tdr_recipe"
       ],
-      "notes": "Prompt25 completes manual configuration/capture, typed raw A/B controls, exact SNLA428 recipe, explicit reread and separate shared HARD restoration. Independent host/portable tests pass. Autorun remains prompt26, calibration recovery prompt35; source-implied helper accuracy and physical Q7 remain unqualified."
+      "notes": "Prompts25/26 complete manual/raw/SNLA428 capture, explicit hardware autorun policy, finite single-run raw acquisition, manual handoff and shared verified restoration. Freshness/coherence and engine quiescence remain unknown where undocumented. Calibration recovery is separate prompt35; Q7 physical timing/accuracy is NOT RUN."
     },
     {
       "id": "fast_drop",

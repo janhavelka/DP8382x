@@ -400,6 +400,8 @@ Status DP8382x::bind(const Config& config) noexcept {
   _loopback = {};
   _bist = {};
   _cable = {};
+  _autorun = {};
+  _autorunTailPending = false;
   _cableCalibration = false;
   _cableSession = _cableWorking = _cableRestoreTail = _cableCurrent = false;
   _bistSession = _bistWorking = _bistRestoreTail = _bistCapturePending = false;
@@ -433,6 +435,8 @@ Status DP8382x::end() noexcept {
   _loopback = {};
   _bist = {};
   _cable = {};
+  _autorun = {};
+  _autorunTailPending = false;
   _cableCalibration = false;
   _cableSession = _cableWorking = _cableRestoreTail = _cableCurrent = false;
   _bistSession = _bistWorking = _bistRestoreTail = _bistCapturePending = false;
@@ -609,6 +613,8 @@ void DP8382x::_invalidateEvidence() noexcept {
   _bist.stale = true;
   _cable.result.stale = true;
   _cableCurrent = false;
+  _autorun.observedStale = true;
+  if (_autorun.desiredValid) { _autorun.trust = ConfigurationTrust::DIRTY; }
   _settings.trust = ConfigurationTrust::DIRTY;
   _settings.observedStale = true;
   _markEvidenceDiscontinuous();
@@ -880,7 +886,11 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
          _transport.violation != TransportViolation::NONE)) {
       _invalidateLink();
       const bool initialized = _initialized;
-      if (address == 0x001FU && frame.value == 0x4000U) {
+      if (_cableWorking && _cableStep == CableStep::POLICY_WRITE) {
+        // Persistent policy owns only CR1[8]; unrelated profile fields are preserved.
+        _autorun.trust = ConfigurationTrust::DIRTY;
+        _autorun.observedStale = true;
+      } else if (address == 0x001FU && frame.value == 0x4000U) {
         // Table8-48 circuitry restart keeps registers, identity and initialized state.
         _markEvidenceDiscontinuous();
       } else if (((_loopWorking || _bistWorking || _cableWorking) && address != cmd::REG_PHYRCR) || (_configuring && (address == cmd::REG_BMCR || address == cmd::REG_ANAR || address == cmd::REG_ANNPTR ||
@@ -1070,6 +1080,7 @@ void DP8382x::_beginOperation(OperationKind kind, const OperationBudget& budget)
   _loopWorking = false;
   _bistWorking = false;
   _cableWorking = false;
+  _autorunTailPending = _autorun.desiredValid;
   _pollTimeValid = false;
 }
 
@@ -1119,6 +1130,28 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
     _setCableStep(CableStep::RESTORE_BMCR);
     return _operation.status;
   }
+  // Replay policy last, after every temporary saved-field tail. Verification
+  // and ordinary link configuration only read it; no implicit new enable intent.
+  if (status.ok() && _result.persistentRestored && _autorunTailPending &&
+      (_operation.kind == OperationKind::INITIALIZE || _operation.kind == OperationKind::VERIFY ||
+       _operation.kind == OperationKind::CONFIGURE || _operation.kind == OperationKind::LOOPBACK_STOP ||
+       _operation.kind == OperationKind::BIST_STOP || _operation.kind == OperationKind::CABLE_STOP)) {
+    _autorunTailPending = false;
+    _result.persistentRestored = false;
+    _autorun.trust = ConfigurationTrust::DIRTY; _autorun.observedStale = true;
+    if (_operation.kind != OperationKind::VERIFY && _operation.kind != OperationKind::CONFIGURE) {
+      _initialized = false; // Initialization/restoration is incomplete until owned policy is proved too.
+    }
+    _setCableStep(_operation.kind == OperationKind::VERIFY || _operation.kind == OperationKind::CONFIGURE ?
+        CableStep::POLICY_VERIFY : CableStep::POLICY_WRITE);
+    return _operation.status;
+  }
+  if (_cableWorking && (_cableStep == CableStep::POLICY_WRITE || _cableStep == CableStep::POLICY_VERIFY ||
+      _operation.kind == OperationKind::CABLE_AUTORUN_CONFIGURE)) {
+    _autorun.lastStatus = status;
+    if (!status.ok()) { _autorun.trust = ConfigurationTrust::DIRTY; _autorun.observedStale = true; }
+  }
+  _result.cableAutorun = _autorun;
   // A partial verification keeps its mismatch evidence separately. The error
   // that interrupts the pass remains the terminal outcome, including its detail.
   _operation.state = OperationState::RESULT_PENDING;

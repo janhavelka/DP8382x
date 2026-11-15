@@ -106,3 +106,8 @@ escape remains managed. Temporary-state barriers never follow health state.
 
 BIST start/acquire/stop are RAW, including shared stop replay. Counter errors
 and inconclusive test outcomes are distinct from MDIO and managed health.
+
+Explicit autorun policy configuration is MANAGED traffic. Its single-run raw
+acquisition is RAW; policy enable is not a physical trigger, and uncertain cable
+freshness is not an MDIO failure. An owning diagnostic stop remains RAW through
+its final persistent autorun replay, while explicit initialization stays managed.
