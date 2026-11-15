@@ -374,3 +374,24 @@ The independent promptset revalidation adds `forced_power_pin`: initial
 software/pin power-down rejection, pin assertion between preflight and atomic
 BMCR update, and shared NONE/PCS/HARD/RESTART replay. It models the OR readback
 from SNLS647I table 8-19 independently; Q6 still requires hardware observation.
+
+## Passive health (prompt 21)
+
+`test/health.cpp` registers lifecycle, transitions, accounting, raw_local,
+reports, timing, restoration, isolation, saturation, configuration and cancellation suites plus its required
+intentional failing assertion probe. Release CHECKs exercise exact batch/frame
+counts, every four-frame MMD failure phase, all ten link-read failure positions,
+raw exclusion, semantic mismatch, zero-attempt/release normalization, late and
+broken-clock receipts, retained restoration results and no-I/O cached access.
+The private accumulator is tested at UINT32_MAX boundaries without a public
+counter-seeding hook or billions of callbacks. See [health](../docs/health.md).
+
+Run focused tests after configuring/building the host target:
+
+```sh
+ctest --test-dir build/host -R "health_|dp8382x_health_tests_failure_path" --output-on-failure --no-tests=error
+```
+
+The tests-OFF portable consumer also compiles and executes
+[Health.h](../examples/portable/Health.h), projecting health separately from a
+valid cable-down link. No SDK or physical wire health is established.

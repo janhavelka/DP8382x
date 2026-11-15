@@ -115,3 +115,10 @@ one six-source aggregate, while per-source evidence survives partial failure.
 independent limit tests; it owns no transport or storage. Explicit host-history
 discard is bus-silent. [Event/counter semantics](event-counters.md) separate
 current words, coalesced history, FCS lower bounds and source-gated raw RECR/RCSR.
+
+Stage 21 projects [passive health](health.md) at the existing terminal callback
+boundary. Managed initialization/configuration/link batches count once each;
+raw/probe/collector traffic only contributes transport totals. Cached state is
+derived from initialization and the failure streak, with no admission latch or
+automatic recovery. A private arithmetic helper owns saturating accumulation
+and retained timestamps only; it adds no transport or state-machine owner.

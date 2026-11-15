@@ -7,6 +7,45 @@
 /// @brief Portable PHY driver and copied transport observations.
 namespace DP8382x {
 
+/// @brief Passive managed-transport state; never an admission or recovery policy.
+enum class DriverState : uint8_t {
+  UNINIT,   ///< Initialization is not currently established, regardless of counters.
+  READY,    ///< Initialized with no consecutive managed transport failures.
+  DEGRADED, ///< Initialized with failures below the configured offline threshold.
+  OFFLINE   ///< Initialized with failures at or above threshold; explicit attempts remain legal.
+};
+
+/// @brief Name a passive state without I/O, allocation or clock access.
+/// @param[in] state State to name, including invalid enum representations.
+/// @return Uppercase static name, or UNKNOWN for an invalid value.
+inline constexpr const char* driverStateName(DriverState state) noexcept {
+  switch (state) {
+    case DriverState::UNINIT: return "UNINIT";
+    case DriverState::READY: return "READY";
+    case DriverState::DEGRADED: return "DEGRADED";
+    case DriverState::OFFLINE: return "OFFLINE";
+  }
+  return "UNKNOWN";
+}
+
+/// @brief Managed batch health, separate from link, configuration trust and chip counters.
+/// @note One eligible callback is one transaction, irrespective of its frame count.
+/// Times are post-callback raw clock samples in microseconds, subject to the
+/// binding's clockLagUs uncertainty. Zero is valid when flagged. They are not
+/// precise wire completion times or freshness deadlines; a clock fault forbids age use.
+struct HealthSnapshot {
+  DriverState state{DriverState::UNINIT}; ///< Derived from initialization and the current streak.
+  bool initialized{false}; ///< Current initialization evidence, not a link or safety claim.
+  uint32_t consecutiveFailures{0}; ///< Saturating managed failure streak; not an admission latch.
+  uint32_t totalFailures{0}; ///< Saturating failed managed batch count.
+  uint32_t totalSuccess{0}; ///< Saturating successful managed batch count.
+  uint64_t lastOkUs{0}; ///< Post-callback raw time of the last managed success.
+  uint64_t lastErrorUs{0}; ///< Post-callback raw time of the retained error.
+  bool lastOkTimeValid{false}; ///< Independent validity of lastOkUs.
+  bool lastErrorTimeValid{false}; ///< Independent validity of lastErrorUs.
+  Status lastError{Err::OK, 0, "No managed transport failure"}; ///< Normalized failure and full signed detail; success preserves it.
+};
+
 /// @brief Assessment of complete identity words under the exact-part policy.
 enum class IdentityAcceptance : uint8_t {
   UNASSESSED, ///< No complete successful acquisition has been assessed.
@@ -489,6 +528,25 @@ public:
   /// @return True only after identity/reset/mandatory VOD verification; never a link claim.
   bool isInitialized() const noexcept { return _initialized; }
 
+  /// @brief Project passive health without bus/clock access or changing admission.
+  /// @return UNINIT when not initialized; otherwise READY at zero failures,
+  /// DEGRADED below offlineThreshold, or OFFLINE at/above it.
+  /// @note READY does not establish link, verified settings or application readiness.
+  DriverState driverState() const noexcept;
+  /// @brief Copy managed health evidence without bus/clock callbacks.
+  /// @return Counts and retained error/time evidence with the current derived state.
+  /// @note Initialization, configuration and live link callbacks are managed.
+  /// Raw/probe and explicit event/register maintenance are transport-only.
+  /// Late clean callbacks remain successes; clock/deadline and semantic failures
+  /// are reported separately. A later managed restoration can reset the streak,
+  /// but cannot replace an earlier operation result or erase lastError.
+  HealthSnapshot healthSnapshot() const noexcept;
+  /// @brief Clear only cumulative health success/failure totals, without I/O.
+  /// @note Preserves streak, state, initialization, error/times, transport and chip
+  /// counts, configuration trust, collector history and pending operation results.
+  /// Like every instance call, this requires the serialized application owner.
+  void resetStatistics() noexcept;
+
   /// @brief Admit a complete negotiated or forced profile without MDIO or clock callbacks.
   /// @param[in] settings AN advertisement or forced10/100 half/full, coupled routing/mirror and extension.
   /// @param[in] options Optional bounded Clause 28 exchange/completion wait.
@@ -693,6 +751,7 @@ public:
 
 private:
   Config _config{};
+  HealthSnapshot _health{};
   TransportSnapshot _transport{};
   EvidenceSnapshot _evidence{};
   CounterSnapshot _counters{};
@@ -735,8 +794,9 @@ private:
   bool _timeValid{false};
   uint64_t _lastTimeUs{0};
   Status _sampleTime(uint64_t& raw, uint64_t& upper) noexcept;
+  enum class Traffic : uint8_t { RAW, MANAGED };
   Status _execute(MdioBatch batch, const IoBudget& budget, bool* called = nullptr,
-                  bool operation = false) noexcept;
+                  bool operation = false, Traffic traffic = Traffic::RAW) noexcept;
   Status _readIdentity(DeviceIdentity& identity, const IoBudget& budget, bool operation,
                        bool* called = nullptr) noexcept;
   void _retainEvidence(const MdioBatch& batch, const BatchResult& result,

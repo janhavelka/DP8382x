@@ -80,7 +80,7 @@ Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) n
     for (uint8_t i = 0; i < batch.frameCount; ++i) {
       batch.frames[i] = {FrameKind::READ, addresses[offset + i], 0, 0, NO_READ_INDEX};
     }
-    const auto status = _execute(batch, remaining);
+    const auto status = _execute(batch, remaining, nullptr, false, Traffic::MANAGED);
     if (!status.ok()) { return fail(status); }
     for (uint8_t i = 0; i < batch.frameCount; ++i) { words[offset + i] = _transport.lastBatch.frames[i].value; }
     remaining.maxFrames -= batch.frameCount;

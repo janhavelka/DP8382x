@@ -2,8 +2,9 @@
 
 Stages 15-16 initialization supports only the declared DP83826I, in accepted BASIC
 or ENHANCED mode. NONE/PCS/HARD/RESTART success adds initialized procedure evidence; it does
-not broaden the variant table or establish link, actual strap wiring, managed
-health or hardware qualification. See [initialization](initialization.md).
+not broaden the variant table or establish link, actual strap wiring or hardware
+qualification. [Passive health](health.md) projects managed callback evidence
+separately. See [initialization](initialization.md).
 
 Core evidence and side-effect access re-audited on 2026-11-07.
 **DP83826I has host-tested identity/capability selection and a bounded direct/indirect access subset; no variant has a complete

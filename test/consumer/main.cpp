@@ -11,6 +11,7 @@
 #include "../../examples/portable/Forced.h"
 #include "../../examples/portable/LinkStatus.h"
 #include "../../examples/portable/Events.h"
+#include "../../examples/portable/Health.h"
 #include <cstring>
 
 #ifdef _MSVC_LANG
@@ -341,6 +342,15 @@ static bool configurationExamples() noexcept {
       controller.frames != framesBefore + 10) return false;
   const auto cached = phy.linkSnapshot();
   if (cached100FullUsable(cached, controller.timeUs + 1, 1000) ||
+      controller.frames != framesBefore + 10) return false;
+  const auto health = copyHealth(phy);
+  if (health.state != DP8382x::DriverState::READY || !health.initialized ||
+      health.totalSuccess == 0 || health.totalFailures != 0 ||
+      std::strcmp(DP8382x::driverStateName(health.state), "READY") != 0 ||
+      std::strcmp(cachedHealthAdvice(health), "Check link and application policy separately") != 0 ||
+      controller.frames != framesBefore + 10) return false;
+  phy.resetStatistics();
+  if (phy.healthSnapshot().totalSuccess != 0 || phy.driverState() != DP8382x::DriverState::READY ||
       controller.frames != framesBefore + 10) return false;
   return forced.resultAvailable && forced.result.status.ok() &&
       controller.anar == 0x0101 && controller.bmcr == 0x2100 &&

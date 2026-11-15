@@ -18,7 +18,7 @@ The backend must honor the shared controller owner across every PHY address.
 Stage20 [event/counter acquisition](event-counters.md) extends the same collector.
 A link read can update per-source partial history and stale a previously complete
 counter aggregate; cached link/counter readers consume neither. Chip error counts
-remain separate from MDIO activity and future managed health.
+remain separate from MDIO activity and [passive managed health](health.md).
 
 Success uses exactly ten C22 reads in two terminal batches:
 
@@ -50,7 +50,7 @@ which returns to the same state between observations can remain unseen.
 | `resolvedModeValid` | Applicable local speed and duplex | Forced mode does not prove partner duplex |
 | `pauseValid` | Qualified IEEE pause result agrees with PHYCR | MAC flow-control policy is application-owned |
 | `stale`, old values/time | Previous coherent observation is historical | No synthetic DOWN or fresh timestamp |
-| `lastRefreshStatus` and transport receipt | Acquisition/error evidence | Managed health arrives in prompt 21 |
+| `lastRefreshStatus` and transport receipt | Acquisition/error evidence | Managed health counts each batch separately; see [health](health.md) |
 | Application 100/full/age policy | Owner decides whether the value is usable | DHCP, IP, EtherCAT and machine readiness are not PHY fields |
 
 With AN disabled, speed and duplex come from BMCR; PHYSTS mode bits remain raw.

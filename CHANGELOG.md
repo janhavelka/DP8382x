@@ -4,6 +4,13 @@
 
 ### 2026-11-15
 
+- Implemented prompt 21 passive managed health: UNINIT/READY/DEGRADED/OFFLINE,
+  cached snapshots, saturating batch counts and retained signed errors/timestamps.
+  OFFLINE never blocks explicit attempts; raw diagnostics cannot clear a managed
+  failure streak. Statistics reset clears only cumulative health totals.
+- Added health transition/failure/clock/restoration tests and a linked portable
+  cached-health example; physical wire health remains unqualified.
+
 - Rechecked every independent promptset-audit finding against current code and
   source contracts; recorded individual dispositions and corrected remaining
   health, discovery, metadata, lifetime and source-citation instructions.

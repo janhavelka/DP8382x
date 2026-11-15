@@ -12890,7 +12890,7 @@
         "rxfs_sfd_reference",
         "forced_physts"
       ],
-      "notes": "Prompt20 completes source-qualified collect_event_counters through the single collector. RECR arithmetic and RMII RC decoding remain visibly source-blocked; raw acquisition is implemented. BIST/EEE feature-owned captures retain their own procedures. Managed MDIO health is prompt21, distinct from chip samples. SDK/physical Q16/Q17 remain NOT_RUN."
+      "notes": "Prompt20 completes source-qualified collect_event_counters through the single collector. RECR arithmetic and RMII RC decoding remain visibly source-blocked; raw acquisition is implemented. BIST/EEE feature-owned captures retain their own procedures. Prompt21 implements passive managed MDIO health separately from chip samples; explicit collectEvents/acquireEvidence remain diagnostic traffic and do not reset its failure streak. SDK/physical Q16/Q17 remain NOT_RUN."
     },
     {
       "id": "quality",

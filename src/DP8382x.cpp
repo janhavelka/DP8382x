@@ -3,6 +3,7 @@
 #include <DP8382x/DP8382x.h>
 #include <DP8382x/CommandTable.h>
 #include "DP8382xEvidence.h"
+#include "DP8382xHealth.h"
 
 #include <limits>
 
@@ -382,6 +383,7 @@ Status DP8382x::bind(const Config& config) noexcept {
   if (_operation.state == OperationState::RESULT_PENDING) { return busy(BusyDetail::RESULT_PENDING); }
   if (_operation.cleanupOwed) { return busy(BusyDetail::CLEANUP_REQUIRED); }
   _config = config;
+  _health = {};
   _transport = {};
   _evidence = {};
   _counters = {};
@@ -407,6 +409,7 @@ Status DP8382x::end() noexcept {
   if (_operation.state == OperationState::RESULT_PENDING) { return busy(BusyDetail::RESULT_PENDING); }
   if (_operation.cleanupOwed) { return busy(BusyDetail::CLEANUP_REQUIRED); }
   _config = {};
+  _health = {};
   _transport = {};
   _evidence = {};
   _counters = {};
@@ -445,7 +448,7 @@ Status DP8382x::_readIdentity(DeviceIdentity& identity, const IoBudget& budget, 
   batch.frameCount = 2;
   batch.frames[1] = {FrameKind::READ, cmd::REG_PHYIDR2, 0, 0, NO_READ_INDEX};
   bool called = false;
-  Status status = _execute(batch, budget, &called, operation);
+  Status status = _execute(batch, budget, &called, operation, operation ? Traffic::MANAGED : Traffic::RAW);
   if (invoked != nullptr) { *invoked = called; }
   if (!called) { return status; } // Local admission never reuses an old receipt.
   const auto& result = _transport.lastBatch;
@@ -865,7 +868,26 @@ Status DP8382x::_sampleTime(uint64_t& raw, uint64_t& upper) noexcept {
   return Status::Ok();
 }
 
-Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called, bool operation) noexcept {
+DriverState DP8382x::driverState() const noexcept {
+  if (!_initialized) { return DriverState::UNINIT; }
+  if (_health.consecutiveFailures == 0U) { return DriverState::READY; }
+  return _health.consecutiveFailures >= _config.offlineThreshold ? DriverState::OFFLINE : DriverState::DEGRADED;
+}
+
+HealthSnapshot DP8382x::healthSnapshot() const noexcept {
+  HealthSnapshot snapshot = _health;
+  snapshot.state = driverState();
+  snapshot.initialized = _initialized;
+  return snapshot;
+}
+
+void DP8382x::resetStatistics() noexcept {
+  _health.totalSuccess = 0;
+  _health.totalFailures = 0;
+}
+
+Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
+                        bool operation, Traffic traffic) noexcept {
   if (called != nullptr) { *called = false; }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (_active || (!operation && (_polling || (_operation.state == OperationState::RUNNING && !_configuring &&
@@ -900,6 +922,25 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called, 
 
   const auto frames = auditFrames(batch, result, clockStatus.ok(), before, upper);
   const auto report = classifyReport(result, frames);
+  // API managed-health predicate: classify the callback before adding local
+  // deadline/clock outcomes. A four-frame MMD callback is one transaction;
+  // successful selector frames cannot conceal a failed target frame.
+  if (traffic == Traffic::MANAGED) {
+    const bool excluded = report.violation == TransportViolation::NONE && frames.attempted == 0U &&
+        (report.primary.is(Err::BUSY) || report.primary.is(Err::OPERATION_TIMEOUT)) &&
+        result.releaseStatus.ok() && (result.controllerReusable ||
+        (report.primary.is(Err::BUSY) && report.primary.detail == static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED)));
+    if (!excluded) {
+      Status outcome = report.primary;
+      if (!outcome.is(Err::MDIO_ERROR) && !outcome.is(Err::MDIO_TIMEOUT)) {
+        if (!report.release.ok()) { outcome = report.release; }
+        else if (!outcome.ok()) {
+          outcome = Status::Error(Err::MDIO_ERROR, "Managed batch incomplete", outcome.detail);
+        }
+      }
+      detail::retainHealth(_health, outcome, after, clockStatus.ok());
+    }
+  }
   _transport.violation = report.violation;
   _retainEvidence(batch, result, clockStatus.ok(), before, upper);
   _retainPageEvidence(batch, result, frames.completed, clockStatus.ok(), upper);
@@ -1129,7 +1170,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
     DeviceIdentity accepted;
     status = _readIdentity(accepted, _operation.remaining, true, &called);
     if (called) { _result.identity = _identity; }
-  } else { status = _execute(batch, _operation.remaining, &called, true); }
+  } else { status = _execute(batch, _operation.remaining, &called, true, Traffic::MANAGED); }
   _pollTimeUs = _lastTimeUs;
   _pollTimeValid = true;
   if (called) {

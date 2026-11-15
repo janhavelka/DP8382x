@@ -4,7 +4,11 @@ The [2026-11-15 finding-by-finding dispositions](promptset-audit-dispositions.md
 independently check all 179 G/M/N findings and 18 contract-review mappings in the
 remaining-prompts audit, plus the earlier prompt correctness/workload reports.
 They distinguish implemented fixes, future acceptance requirements, superseded
-recommendations and residual corrections; stage completion remains 1-20.
+recommendations and residual corrections; that maintenance left stage completion at 1-20.
+
+The [prompt 21 report](implementation/21-passive-health.md) records passive
+managed health, independent source/contract review, exact accounting tests and
+the linked cached-health example. Current execution is complete through 21.
 
 The [prompt 14 report](implementation/14-identity-capabilities.md) records exact
 identity/capability implementation, current TI/peer review, independent failure

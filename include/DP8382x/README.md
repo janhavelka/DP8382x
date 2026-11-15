@@ -49,8 +49,10 @@ teardown/quiescence. Prompt 9 checks the shipped header comments with Doxygen;
 later methods must add their own documentation when they work.
 
 Implement methods only at their owning stage: transport accounting begins at 11,
-identity is complete at 14, settings/link at 17–19 and managed health at 21. Do not publish
-working-looking health methods that return fixed UNINIT/READY before then.
+identity is complete at 14, settings/link at 17-19 and managed health at 21.
+`driverState` and `healthSnapshot` project initialized state and managed callback
+accounting; `resetStatistics` clears only health cumulative totals. All are
+bus/clock-silent. See [health](../../docs/health.md).
 Drivers and operation owners are neither copyable nor movable. Direct reads stage
 ordinary output, while the collector retains consumed partial evidence. A valid
 link-down is successful output, not missing data or an MDIO error.

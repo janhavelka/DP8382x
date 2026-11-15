@@ -5,7 +5,9 @@ Stages 15–16 implement exact-address DP83826I initialization with `ResetKind::
 checks BMCR and PHYRCR for active commands, then writes and verifies mandatory
 VOD settings. Initialization
 can succeed with cable down. It proves this implemented procedure completed;
-link-profile application arrives in stages 17–18, managed health in 21, and
+link-profile replay is implemented in stages 17–18 and
+[passive health](health.md) in stage 21. Initialization callbacks count as
+managed transactions even before initialization completes, and
 hardware qualification requires measured fixtures. The
 [reset-effects table](device-behavior.md#reset-domains-and-readiness) distinguishes
 the settings, identity and strap domains of every trigger.

@@ -20,7 +20,9 @@ the same configuration/replay path. Prompt 19 completes [live/cached link observ
 with ten-read consistency, forced/pause qualification and retained change evidence.
 Prompt20 completes [typed events/counters](event-counters.md), per-source partial
 history and source-qualified FCSCR accumulation. RECR/RMII derived interpretations
-remain gated. Other feature procedures are PENDING; SDK builds and hardware qualification
+remain gated. Prompt 21 completes [passive health](health.md), with separate
+managed transaction counts, state projection and retained error evidence. There
+is no stage-21 silicon procedure: health is library policy. Other feature procedures are PENDING; SDK builds and hardware qualification
 are NOT RUN. Ledger tests establish their own research layer.
 
 The [prompts 13-18 audit](reports/implementation/13-18-independent-audit.md)

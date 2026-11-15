@@ -222,13 +222,20 @@ error, with clock/deadline outcome retained separately. This is the cause of the
 health count, not necessarily the public call's primary status. For example,
 primary BUSY/OWNER_ADMISSION plus release MDIO_ERROR/-37 remains BUSY publicly
 but records one health failure with lastError=MDIO_ERROR/-37. Invalid reports
-normalize to MDIO_ERROR as above. An otherwise clean, excluded no-attempt
+normalize to MDIO_ERROR as above. A valid OPERATION_TIMEOUT after attempted
+frames counts as an incomplete managed transaction: if no primary MDIO or
+release error exists, its health cause is MDIO_ERROR with the original detail.
+This does not prove a physical wire defect; public timeout and raw report stay
+unchanged. An otherwise clean, excluded no-attempt
 rejection plus clock regression remains uncounted; clockInvalid still latches.
 At most one managed count is produced per callback.
 
 All counters saturate at UINT32_MAX. A managed failure increments totalFailures
 and consecutiveFailures, records normalized status and completion-time
-`lastErrorUs` if valid. Replacing lastError also replaces its timestamp validity:
+`lastErrorUs` if valid. Health timestamps use the post-callback raw clock sample
+in microseconds, subject to clockLagUs uncertainty; zero is valid. They are
+not exact wire-completion instants or freshness guarantees. Replacing lastError
+also replaces its timestamp validity:
 if that failure has no valid completion time, set lastErrorUs=0 and
 lastErrorTimeValid=false. Never attach an older error's valid timestamp to a
 new error. An earlier lastOk/time-valid remains historical evidence; the clock
@@ -256,9 +263,8 @@ validity flags, threshold, transport totals, chip counters, desired settings,
 trust, collector history and pending results. No I/O, clock read or recovery.
 Successful replacement binding/local end starts a new binding's local evidence
 after required result delivery and barrier disposition; it is not this statistics reset.
-Health methods are introduced only in prompt 21. Prompt 11 introduces actual
-transport accounting. A working initialized PHY must not expose placeholder
-UNINIT/READY methods before those behaviors exist.
+Prompt 21 implements these health methods over prompt 11 transport accounting;
+see [passive health](health.md) for the executing classification and lifecycle table.
 
 Cached accessors return value copies without callbacks (including clock), I/O,
 polling, acknowledgement or retry. Age is computed externally from a timestamp
@@ -404,7 +410,7 @@ hardware, clear transport/managed-health counters, alter configuration trust,
 or consume a retained operation result. Running work/callbacks refuse discard.
 
 The following class-member signatures are shipped for settings/lifecycle and,
-from prompt 19, link observation. Health remains planned for prompt 21; the
+from prompt 19, link observation. Passive health is implemented in prompt 21; the
 enclosing class is omitted from this declaration excerpt:
 
 ```cpp interface

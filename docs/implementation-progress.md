@@ -1,9 +1,9 @@
 # Implementation progress
 
 The [80-prompt implementation plan](prompts/README.md) is in its first
-execution. Prompts 1–20 are complete: source research, shared contracts, portable
+execution. Prompts 1–21 are complete: source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 85 registered Release CTests, 103 Python tests,
+Current local checks include 97 registered Release CTests, 103 Python tests,
 the linked tests-OFF consumer, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -18,9 +18,18 @@ retained results and separately admitted restoration. Prompt 17 adds negotiated
 profile replay; prompt18 adds forced modes and coupled routing/extension.
 Prompt 19 adds [live/cached link observations](link-observation.md), qualified
 mode/pause and retained change evidence. Prompt20 adds [typed event/counter acquisition](event-counters.md)
-and explicit retained-history semantics. Managed health retains prompt 21.
+and explicit retained-history semantics. Prompt 21 adds [passive health](health.md),
+exact managed batch accounting and cached state without an offline admission latch.
 
 ## Execution record
+
+Prompt 21 completed on `main`, starting from synchronized audit checkpoint
+`0a2d2c45f5ee43b5458949acaf7f21ebb99bb67c`. The
+[stage report](reports/implementation/21-passive-health.md) records fresh sibling/TI
+sources, independent review, explicit traffic classification and local results:
+97 Release CTests, 103 Python tests, portable consumer, Doxygen, ledger,
+reference and version checks pass. SDK/remote CI/physical execution remain later
+work. Final commit/upstream equality is recorded in the handoff.
 
 2026-11-15 promptset-audit maintenance began on clean, synchronized `main` at
 `f576dee3b067e16f51e3a8e51d9ffe17b35924ab`. The
@@ -236,7 +245,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [18 Implement forced modes and coupled crossover settings](prompts/18-forced-crossover-settings.md) | COMPLETE | [Report](reports/implementation/18-forced-crossover-settings.md); host/consumer PASS, Q11 NOT RUN |
 | [19 Implement live and cached link observations](prompts/19-link-observation.md) | COMPLETE | [Report](reports/implementation/19-link-observation.md); Release/UBSan host, tests-OFF consumer and documentation checks PASS; SDK/physical NOT RUN |
 | [20 Implement complete event and counter acquisition](prompts/20-event-counter-acquisition.md) | COMPLETE | [Report](reports/implementation/20-event-counter-acquisition.md); host/UBSan, consumer, docs and reference checks PASS; RECR/RMII derived semantics and physical Q16/Q17 remain gated |
-| [21 Implement passive driver health and exact accounting](prompts/21-passive-health.md) | NOT STARTED | None |
+| [21 Implement passive driver health and exact accounting](prompts/21-passive-health.md) | COMPLETE | [Report](reports/implementation/21-passive-health.md); managed callback counts, cached state/error evidence, 11 focused health suites and portable example; physical NOT RUN |
 | [22 Implement explicit reconciliation and bounded recovery](prompts/22-reconcile-recover.md) | NOT STARTED | None |
 | [23 Implement all supported loopback modes](prompts/23-loopback-modes.md) | NOT STARTED | None |
 | [24 Implement complete BIST generator and checker sessions](prompts/24-bist-generator-checker.md) | NOT STARTED | None |

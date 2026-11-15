@@ -102,7 +102,8 @@ Binding/end also begin a new local history. Multiple cached readers do not clear
 or acknowledge one another's evidence.
 
 Chip receive/false-carrier samples are distinct from actual MDIO frame counts in
-`transportSnapshot()`, and from managed health introduced in prompt21. Cable
+`transportSnapshot()`, and from [managed health](health.md) implemented in prompt 21. Explicit collector
+acquisition is diagnostic traffic and does not alter the managed failure streak. Cable
 traffic errors do not imply an MDIO failure; successful MDIO cannot prove clean
 Ethernet traffic or application readiness.
 

@@ -158,8 +158,8 @@ the previous ambiguous write. No retry or selector-cleanup write is hidden.
 
 Every callback increments the saturating batch count; frame counts use only the
 independently valid requested prefix. Successful frames remain counted on later
-primary/release/time failure. No managed-health API is implemented here and raw
-access will not feed its success/failure statistics. The normalized primary error
+primary/release/time failure. Raw access does not feed the separate
+[managed-health](health.md) success/failure statistics. The normalized primary error
 takes precedence over release/unsafe-controller error, then clock fault, then
 deadline failure. `late` records positive raw-clock evidence only;
 an upper-bound overlap alone does not deny publication. Clock-lag uncertainty
