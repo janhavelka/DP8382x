@@ -584,6 +584,9 @@ partner compatibility remain Q11 NOT RUN; loopback restore tests execute at23.
 Independent SNLS647I 8.3.14/table8-19/table8-40 vectors: BISCR low5 is01 PCS
 input10,02 PCS output,04 digital100,08 analog,10 reverse (hex). MII combines
 BMCR4000 with01 at10 or04 at100. BISCR0040 line transmission is only MII100.
+Table8-40 requires BMCR14 active before BISCR6: from forced100/full and inactive
+BISCR4100, enable W(00,6100) then W(16,4144); stop W(16,4100) then W(00,2100).
+The companion10/full pair is W(00,4100), W(16,4101), with no line-transmit bit.
 External uses no internal selector. Digital's contiguous target sequence is
 W(00,2100), W(16,0104), vendor31 W(0122,2000), W(0123,2000), W(0130,47FF),
 W(1F,4000); each vendor word uses the independent four-frame selector trace.

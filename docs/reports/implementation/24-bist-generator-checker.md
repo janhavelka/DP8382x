@@ -1,5 +1,8 @@
 # Prompt 24 - BIST generator and checker sessions
 
+The subsequent [independent audit](23-24-independent-audit.md) corrects stop
+identity admission, dwell evidence retention and HARD replay after partial stop.
+
 Date: 2026-11-15. Branch: `main`. Entry checkpoint, clean/fetched/synchronized:
 `d58a7da95b0f3e96c0a908b70eb2ecaa439b1377`. Final commit and verified upstream
 equality are recorded in the handoff rather than a self-referencing commit.

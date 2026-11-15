@@ -49,6 +49,9 @@ the whole pair. There is no drain loop, automatic repeat or retry. The minimum
 observation spacing is anchored after activation verification and after each
 complete acquisition, using the clock's conservative upper bound. Overflow,
 deadline and frozen clocks terminate under the existing operation rules.
+An incomplete acquisition does not rearm this spacing. Its capture may already
+have cleared the counter; a later explicit acquire remains raw interval-uncertain
+evidence, not a full-duration error count.
 
 Writing BICSR1 bit 15 captures the error count and clears the live counter; the
 write preserves the configured IPG, with other high bits zero. The subsequent
@@ -63,6 +66,9 @@ a complete successful raw acquisition in this session. It is separate from
 A snapshot/clear that may have occurred without valid returned data sets possible
 history loss. It never becomes zero errors. New sessions reset typed measurement
 validity and tokens; collector history keeps its own historical validity.
+Permitted dwell reads of BISCR through the collector, C22 or its vendor alias
+contribute activity and sync-loss observations to the same session. Clearing
+host collector history cannot erase those retained session observations.
 
 | Evidence | Result |
 | --- | --- |
@@ -90,13 +96,15 @@ The first attempted session mutation retains `temporaryMayBeActive` and
 An acquire or stop has its own budget/token/result. A failed start still admits
 its owning stop; a failed acquire cannot replace the earlier setup result.
 
-Stop disables PRBS, verifies the controls and waits boundedly for generator-active
+Stop rechecks exact identity before any mutation, then disables PRBS, verifies the controls and waits boundedly for generator-active
 to clear. Only then does it invoke shared loopback stop, initialization/profile
 replay, saved loopback fields and finally saved IPG/packet writes/readbacks.
 Digital uses HARD; saved values were acquired before any companion mutation so
 early failures can still restore them. Explicit HARD initialization uses the same
 tail. No prior PRBS mode is replayed. Failed restoration keeps trust DIRTY and the
 barrier; earlier measurements remain separate historical evidence.
+Every newly admitted HARD replays both saved-field tails, even after a previous
+stop completed one tail before failing or being cancelled in the other.
 
 Plain `stopLoopback` cannot bypass BIST's restoration owner. Other feature starts
 and raw mutations remain excluded. Abandon does not claim a stopped generator.

@@ -165,6 +165,7 @@ void DP8382x::_setLoopStep(LoopStep step) noexcept {
 void DP8382x::_beginLoopbackActivation() noexcept {
   if (_loopback.options.mode == LoopbackMode::DIGITAL) { _setLoopStep(LoopStep::DIGITAL_BMCR); }
   else if (_loopback.options.mode == LoopbackMode::REVERSE) { _setLoopStep(LoopStep::SET_FIFO); }
+  else if (_loopback.options.mode == LoopbackMode::MII) { _setLoopStep(LoopStep::SET_MII); }
   else { _setLoopStep(LoopStep::SET_BISCR); }
 }
 void DP8382x::_beginLoopbackRestore() noexcept {
@@ -278,7 +279,10 @@ Status DP8382x::_advanceLoopback(Status status, bool called, const MdioBatch& ba
   if (resetActive) { return _finishOperation(rejected("Unexpected reset during loopback")); }
   if (_result.mismatch.valid) { return _finishOperation(Status::Error(Err::CONFIG_MISMATCH, "Loopback readback mismatch")); }
   switch (_loopStep) {
-    case LoopStep::IDENTIFY_STOP: _setLoopStep(LoopStep::STOP_BMCR); break;
+    case LoopStep::IDENTIFY_STOP:
+      if (_operation.kind == OperationKind::BIST_STOP) { _setBistStep(BistStep::DISABLE); }
+      else { _setLoopStep(LoopStep::STOP_BISCR); }
+      break;
     case LoopStep::READ_BMCR:
       if ((value & 0xCC80U) != 0U) { return _finishOperation(rejected("Reset, power, isolation, collision or loopback already active")); }
       _setLoopStep(LoopStep::READ_PHYRCR); break;
@@ -306,11 +310,12 @@ Status DP8382x::_advanceLoopback(Status status, bool called, const MdioBatch& ba
     case LoopStep::DIGITAL_BMCR: _setLoopStep(LoopStep::SET_BISCR); break;
     case LoopStep::SET_BISCR:
       if (options.mode == LoopbackMode::DIGITAL) { _setLoopStep(LoopStep::DIGITAL_0122); }
-      else if (options.mode == LoopbackMode::MII) { _setLoopStep(LoopStep::SET_MII); }
       else if (options.mode == LoopbackMode::ANALOG || options.mode == LoopbackMode::REVERSE) { _setLoopStep(LoopStep::RESTART); }
       else { _setLoopStep(LoopStep::VERIFY_BMCR); }
       break;
-    case LoopStep::SET_MII: _setLoopStep(LoopStep::VERIFY_BMCR); break;
+    // Table 8-40 permits BISCR6 only while BMCR14 is set. Establish MII
+    // loopback before enabling line transmission, and remove it in reverse order.
+    case LoopStep::SET_MII: _setLoopStep(LoopStep::SET_BISCR); break;
     case LoopStep::DIGITAL_0122: _setLoopStep(LoopStep::DIGITAL_0123); break;
     case LoopStep::DIGITAL_0123: _setLoopStep(LoopStep::DIGITAL_0130); break;
     case LoopStep::DIGITAL_0130: _setLoopStep(LoopStep::RESTART); break;
@@ -336,8 +341,8 @@ Status DP8382x::_advanceLoopback(Status status, bool called, const MdioBatch& ba
       }
       _loopback.controlsVerified = _result.loopback.controlsVerified = true;
       return _finishOperation(Status::Ok());
-    case LoopStep::STOP_BMCR: _setLoopStep(LoopStep::STOP_BISCR); break;
-    case LoopStep::STOP_BISCR: _beginLoopbackRestore(); break;
+    case LoopStep::STOP_BISCR: _setLoopStep(LoopStep::STOP_BMCR); break;
+    case LoopStep::STOP_BMCR: _beginLoopbackRestore(); break;
     case LoopStep::RESTORE_BMCR: _setLoopStep(LoopStep::RESTORE_BISCR); break;
     case LoopStep::RESTORE_BISCR: _setLoopStep(LoopStep::RESTORE_FIFO); break;
     case LoopStep::RESTORE_FIFO: _setLoopStep(LoopStep::VERIFY_STOP_BMCR); break;
@@ -429,7 +434,7 @@ Status DP8382x::stopBist(const OperationBudget& budget, OperationToken& token) n
   _bist.active = _loopback.controlsVerified = false;
   _bist.stale = true;
   _loopRestoreTail = _bistRestoreTail = true;
-  _setBistStep(BistStep::DISABLE);
+  _setLoopStep(LoopStep::IDENTIFY_STOP);
   token = _operation.token;
   return _operation.status;
 }
@@ -484,10 +489,6 @@ Status DP8382x::_advanceBist(Status status, bool called, const MdioBatch& batch)
       const auto value = receipt.frames[i].value;
       if (_bistStep == BistStep::SAVE_IPG) { _bistSavedIpg = value & 0x00FFU; _bistSavedIpgValid = true; }
       if (_bistStep == BistStep::SAVE_PACKET) { _bistSavedPacket = value & 0x07FFU; _bistSavedPacketValid = true; }
-      if (batch.frames[i].registerAddress == 0x16 && _bistStep != BistStep::DISABLE && _bistStep != BistStep::VERIFY_DISABLE) {
-        _bistActivity = _bistActivity || (value & 0x0200U) != 0U;
-        _bistLoss = _bistLoss || (value & 0x0400U) != 0U;
-      }
       if (_bistStep == BistStep::BEFORE) { measured.rawBefore = value; measured.beforeValid = true; }
       if (_bistStep == BistStep::AFTER) { measured.rawAfter = value; measured.afterValid = true; }
       if (_bistStep == BistStep::CAPTURE && i == 1U) {
@@ -559,7 +560,7 @@ Status DP8382x::_advanceBist(Status status, bool called, const MdioBatch& batch)
     case BistStep::DISABLE: _setBistStep(BistStep::VERIFY_DISABLE); break;
     case BistStep::VERIFY_DISABLE:
       if ((receipt.frames[0].value & 0x0200U) != 0U) { return _waitOperation(); }
-      _bistWorking = false; _setLoopStep(LoopStep::IDENTIFY_STOP); break;
+      _bistWorking = false; _setLoopStep(LoopStep::STOP_BISCR); break;
     case BistStep::RESTORE_IPG:
       _setBistStep(_bistSavedPacketValid ? BistStep::RESTORE_PACKET : BistStep::VERIFY_RESTORE_IPG); break;
     case BistStep::RESTORE_PACKET:

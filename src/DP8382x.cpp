@@ -827,6 +827,13 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
       _counters.lastStatus = _transport.clockInvalid ? configError(ConfigDetail::CLOCK_CONTRACT) :
           Status::Error(Err::RESULT_NOT_AVAILABLE, "New partial collector evidence");
       if (completed) {
+        // Every admitted collector read contributes to the same live BIST
+        // session, including explicit reads between typed acquisitions.
+        if (address == 0x0016U && _bistSession &&
+            (_bist.active || (_bistWorking && _bistStep == BistStep::VERIFY_ENABLE))) {
+          _bistActivity = _bistActivity || (receipt.value & 0x0200U) != 0U;
+          _bistLoss = _bistLoss || (receipt.value & 0x0400U) != 0U;
+        }
         sample.raw = receipt.value;
         sample.observedOnes |= receipt.value;
         sample.observedZeros |= static_cast<uint16_t>(~receipt.value);
@@ -1013,8 +1020,14 @@ Status DP8382x::startInitialize(const InitializeOptions& options, const Operatio
   if (_loopSession) {
     const auto& saved = _loopback.options;
     _result.loopback = {saved.mode, saved.speed, false, false, saved.mode == LoopbackMode::DIGITAL, 0, false};
+    // A new HARD reloads fields even if an earlier, incomplete stop already
+    // verified this tail. Replay all saved session state after every reset.
+    if (options.reset == ResetKind::HARD) { _loopRestoreTail = true; }
   }
-  if (_bistSession) { _result.bist = _bist.measurement; }
+  if (_bistSession) {
+    _result.bist = _bist.measurement;
+    if (options.reset == ResetKind::HARD) { _bistRestoreTail = true; }
+  }
   _setInitStep(InitStep::IDENTIFY);
   token = _operation.token;
   return _operation.status;

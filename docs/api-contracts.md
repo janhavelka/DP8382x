@@ -887,5 +887,8 @@ the same OP-9 owner. All three operations are RAW traffic. Each uses a new token
 and budget; start/acquire require initialized, owning stop does not. Saved packet/
 IPG precede loopback mutation; stop/HARD reuse shared restoration. The single
 collector retains BISCR/BICSR1 partial words and capture-loss uncertainty.
+Stop rechecks identity before PRBS mutation. Dwell collector reads contribute
+to retained session activity/loss even if host history is later cleared. A new
+HARD replays both saved-field tails regardless of earlier partial stop progress.
 See [BIST](bist.md) for the typed mode matrix, exact bounds, per-field validity,
 external observation contract and source-gated INCONCLUSIVE outcome.

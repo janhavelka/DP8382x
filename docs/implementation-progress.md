@@ -27,6 +27,13 @@ operations, retained temporary state and verified restoration.
 
 ## Execution record
 
+The [independent prompts 23-24 audit](reports/implementation/23-24-independent-audit.md)
+began on clean synchronized `main` at `63b4121c9b38fe5421c50eea958a441b81e58ff8`.
+It corrects line-transmit ordering, BIST stop identity admission, dwell evidence
+retention and complete HARD replay after a partial stop. Prompts 1-24 remain
+complete; source/physical gates and prompt 25 remain unchanged. The final audit
+checkpoint and upstream equality are recorded in the handoff.
+
 Prompt 24 began on clean, synchronized `main` at
 `d58a7da95b0f3e96c0a908b70eb2ecaa439b1377`. The
 [stage report](reports/implementation/24-bist-generator-checker.md) records the

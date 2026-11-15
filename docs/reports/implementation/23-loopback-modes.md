@@ -1,5 +1,8 @@
 # Prompt 23 - bounded loopback sessions
 
+The subsequent [independent audit](23-24-independent-audit.md) corrects MII
+line-transmit transition ordering and records integrated restoration regressions.
+
 Date: 2026-11-15. Execution branch: `main`. Clean, fetched and synchronized
 entry checkpoint: `9dee869f7e43beeea9f3c1837bf111029e29a74b`. Final commit and
 upstream equality are recorded in the handoff, avoiding a self-referencing commit.

@@ -310,7 +310,7 @@ enum class LoopbackMode : uint8_t {
 struct LoopbackOptions {
   LoopbackMode mode{LoopbackMode::MII}; ///< Requested path, never enabled implicitly.
   LinkSpeed speed{LinkSpeed::MBPS_100}; ///< Required 10/100 speed; internal paths use full duplex.
-  bool transmitOnLine{false}; ///< Only 100 Mbit/s MII loopback permits BISCR6.
+  bool transmitOnLine{false}; ///< Only MII100; enable after BMCR14, clear before disabling it (table8-40).
   bool maintenanceAdmitted{false}; ///< Owner quiesced normal MAC/SDK traffic and admits disruption.
   bool termination100Ohm{false}; ///< Required for ANALOG; electrical setup stays with application.
   bool partnerReady{false}; ///< Required for REVERSE; live link is also checked.
@@ -353,7 +353,7 @@ struct BistOptions {
   BistCounterMode counterMode{BistCounterMode::SATURATE}; ///< FF saturation or modulo wrapping.
   uint16_t packetBytes{1518}; ///< Table8-46 raw field 0..2047; no minimum Ethernet-frame claim.
   uint16_t interPacketGapBytes{500}; ///< Table8-45: multiples of four, 0..1020 bytes.
-  uint64_t observationUs{1000}; ///< Nonzero owner-selected minimum interval, never silicon completion bound.
+  uint64_t observationUs{1000}; ///< Minimum us after activation/complete acquisition; failed captures do not rearm it.
   bool useLoopback{false}; ///< Otherwise normal line operation, without claiming an external-loop fixture.
   LoopbackOptions loopback{}; ///< Maintenance/speed admission; optional DIGITAL, ANALOG or EXTERNAL only.
 };
@@ -383,7 +383,7 @@ struct BistResult {
   bool measurementValid{false}; ///< Complete current acquisition, not an exact interval or PASS.
   bool activityObserved{false}; ///< At least one current-session generator-active observation.
   bool lockObserved{false}; ///< Both acquisition bookends show checker lock.
-  bool syncLossObserved{false}; ///< Hardware-controlled loss bit observed; not an invented RC interval.
+  bool syncLossObserved{false}; ///< Any current-session collector read observed loss; not an invented RC interval.
   uint8_t errorBytes{0}; ///< Eight-bit captured sample; meaningful only with counterValid.
   bool saturated{false}; ///< SATURATE mode and FF: count is a lower bound.
   bool wrapPossible{false}; ///< WRAP mode cannot prove an exact total, even for zero.
@@ -707,6 +707,8 @@ public:
   /// @param[in] budget New finite stop allowance; no hidden retry or automatic cleanup.
   /// @param[out] token New token assigned on admission.
   /// @return IN_PROGRESS or local error; failed stop retains temporary state and earlier measurement.
+  /// @note Rechecks exact identity before disabling PRBS. HARD restoration always replays
+  /// both saved-field tails, including after a partially completed earlier stop.
   Status stopBist(const OperationBudget& budget, OperationToken& token) noexcept;
   /// @brief Copy current/historical BIST evidence without I/O or consuming a result.
   /// @return Retained options, samples and explicit validity/staleness.

@@ -426,6 +426,8 @@ successful frame/callback totals; exhaustive failure injection follows every
 actual frame and release boundary. Tests cover effect-free attempted mutation,
 partial stop/retry, hard-reset strap reload, retained mismatch/primary errors,
 FIFO/routing overlap, sticky restart, clocks and cross-PHY exclusion.
+Line-enabled MII cases check table8-40's BMCR14 prerequisite at each write,
+including every injected failure and restoration retry.
 
 Run `ctest --test-dir build/host -R "loopback_|dp8382x_loopback_tests_failure_path" --output-on-failure --no-tests=error`.
 The tests-OFF consumer links [Loopback.h](../examples/portable/Loopback.h), with
@@ -440,5 +442,8 @@ operation_failures, cancellation, lifecycle and timing_ownership, plus the
 Release failure probe. Run `ctest --test-dir build/host -R "bist_" --output-on-failure --no-tests=error`.
 Literals, all callback failure/cancel boundaries, saved fields, atomic capture,
 partial validity, generator-off waits and source-gated outcomes are checked.
+Audit regressions cover identity rejection before stop writes, dwell collector
+activity/loss through all read routes, and HARD replay after late stop failure
+or cancellation. Admitted 10-Mbit paths retain their independent control vectors.
 The tests-OFF consumer links [Bist.h](../examples/portable/Bist.h), acquires once
 and copies two cached views before separate stop. Physical results remain NOT RUN.

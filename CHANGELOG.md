@@ -4,6 +4,11 @@
 
 ### 2026-11-15
 
+- Audited prompts 23-24 independently. Corrected MII line-transmit ordering,
+  required exact identity before BIST stop writes, retained dwell collector
+  activity/loss in typed BIST evidence, and replayed all saved session fields
+  after HARD recovery from a partially completed stop. Added regressions.
+
 - Implemented prompt 24 bounded BIST start/acquire/stop, all documented mode and
   packet/IPG controls, single-collector partial counter evidence and shared
   verified restoration. Added independent failure/encoding tests and portable

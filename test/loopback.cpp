@@ -56,6 +56,9 @@ struct Controller {
   void write(uint8_t reg, uint16_t value) noexcept {
     if (reg == 13) { selector = value; return; }
     if (reg == 14 && selector == 0x001F) { address = value; return; }
+    // Table 8-40: line transmission is legal only while BMCR14 is set.
+    if (reg == 22 && (value & 0x0040U) != 0U) CHECK((words[0] & 0x4000U) != 0U);
+    if (reg == 0 && (value & 0xC000U) == 0U) CHECK((words[22] & 0x0040U) == 0U);
     CHECK(semanticWrites < writes.size());
     writes[semanticWrites++] = {reg == 14 ? address : uint16_t{reg}, value, reg == 14};
     if (reg == 14 && selector == 0x401F) {
@@ -275,8 +278,8 @@ void matrix() {
       } else {
         if(mode.mode==LoopbackMode::REVERSE) target(0x11,0x0955);
         const uint16_t bits=mode.mode==LoopbackMode::MII?(speed==LinkSpeed::MBPS_100?0x0044:0x0001):mode.selector;
-        target(0x16,static_cast<uint16_t>(0x4100U|bits));
         if(mode.mode==LoopbackMode::MII) target(0,static_cast<uint16_t>(forced|0x4000U));
+        target(0x16,static_cast<uint16_t>(0x4100U|bits));
         if(mode.restart) target(0x1F,0x4000);
       }
       CHECK(bus.semanticWrites-writes==used);
@@ -318,8 +321,13 @@ void matrix() {
       const auto copy1 = driver.loopbackSnapshot(), copy2 = driver.loopbackSnapshot();
       CHECK(copy1.controlsVerified && copy2.controlsVerified && bus.calls == calls && bus.clocks == clocks);
       const auto stopFrames=bus.frames,stopCalls=bus.calls;
+      const auto stopWrites=bus.semanticWrites;
       const auto stopToken = stop(driver, bus); CHECK(drain(driver, bus, stopToken).ok());
       const auto stopped = take(driver, stopToken);
+      if (o.transmitOnLine) {
+        CHECK(bus.writes[stopWrites].address == 0x16 && bus.writes[stopWrites].value == 0x4100);
+        CHECK(bus.writes[stopWrites+1].address == 0 && bus.writes[stopWrites+1].value == 0x2100);
+      }
       // Stop identity+two RMWs=6/3, initialization NONE20/7 or HARD32/12,
       // AN replay24/18, two saved-extra RMWs + three checks=7/5. HARD also
       // restores BMCR ordinary extras in one2-frame RMW after strap reload.
@@ -398,7 +406,9 @@ constexpr LoopbackMode TEST_MODES[] = {LoopbackMode::MII, LoopbackMode::PCS_INPU
     LoopbackMode::PCS_OUTPUT, LoopbackMode::DIGITAL, LoopbackMode::ANALOG,
     LoopbackMode::REVERSE, LoopbackMode::EXTERNAL};
 LoopbackOptions representative(LoopbackMode mode) {
-  return options(mode, mode == LoopbackMode::PCS_INPUT ? LinkSpeed::MBPS_10 : LinkSpeed::MBPS_100);
+  auto result = options(mode, mode == LoopbackMode::PCS_INPUT ? LinkSpeed::MBPS_10 : LinkSpeed::MBPS_100);
+  result.transmitOnLine = mode == LoopbackMode::MII;
+  return result;
 }
 void activate(Driver& driver, Controller& bus, LoopbackMode mode) {
   const auto token = begin(driver,bus,representative(mode));

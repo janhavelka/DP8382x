@@ -35,6 +35,8 @@ configuration: full duplex, robust manual MDI, no mirror or duplex extension.
 The persistent desired profile is never overwritten. Reverse and external
 retain it. Start does not rewrite mandatory VOD; initialization already proved
 it. Every stop reuses initialization, so VOD is rewritten and verified there.
+For MII loopback, BMCR14 is set before optional BISCR6 line transmission;
+stop clears BISCR6 before clearing BMCR14 (SNLS647I table 8-40).
 
 The source ledger owns field encodings. [Independent vectors](register-vectors.md)
 and `test/loopback.cpp` contain literal recipes and bounds derived from the
@@ -78,6 +80,8 @@ through their existing profile owner. The barrier clears only after the complete
 tail passes. A readback mismatch remains in the result even if release or timing
 then fails; the later error is primary. HARD readiness stays invalid until that
 tail succeeds. An explicitly requested HARD uses the same saved-field tail.
+Each new HARD replays that tail even if an earlier stop verified it before
+failing in a later BIST restoration step: reset invalidates the earlier proof.
 
 Session start/stop callbacks, including their replay, count only in transport
 totals. A separately admitted `startInitialize({HARD})` is managed traffic.

@@ -60,7 +60,7 @@ struct Controller {
       if (address == 0x030E) return vod;
       if (address == 0x0467) return 0x1234;
       if (address == 0x0468) return 0x5678;
-      if (address < 32U) return words[address];
+      if (address < 32U) return read(static_cast<uint8_t>(address));
       CHECK(address != 0x0122 && address != 0x0123 && address != 0x0130); // Opaque recipe is not saveable.
     }
     return words[reg];
@@ -278,6 +278,33 @@ void finishStop(Driver& driver,Controller& bus,const SettingsSnapshot& intent) {
   restored(driver,bus,intent);
 }
 void matrix() {
+  // Table8-40 analog selection is independent of the supported 10-Mbit
+  // forced speed. Normal line and external fixture keep that exact profile.
+  for(auto interface:{MacInterface::MII,MacInterface::RMII}) for(unsigned path=0;path<3;++path) {
+    Controller bus; Driver driver; ready(driver,bus,interface);
+    configure(driver,bus,profile(true,false,true));
+    const auto intent=driver.settingsSnapshot();
+    auto o=path==0?options():loopOptions(path==1?LoopbackMode::ANALOG:LoopbackMode::EXTERNAL);
+    o.loopback.speed=LinkSpeed::MBPS_10;
+    bus.words[16]=0x0007;
+    activate(driver,bus,o);
+    CHECK((bus.words[0]&0x3100U)==0x0100U); // 10/full, AN off.
+    CHECK((bus.words[22]&0x001FU)==(path==1?0x0008U:0U));
+    CHECK(bus.vod==0x4A40);
+    bus.liveErrors=2;
+    const auto token=acquire(driver,bus);
+    CHECK(drain(driver,bus,token).ok()); const auto result=take(driver,token);
+    CHECK(result.bist.measurementValid && result.bist.rawCounter==0x027D);
+    CHECK(result.bist.rawBefore==(path==1?0x3B08U:0x3B00U));
+    const auto cleanup=stop(driver,bus);
+    CHECK(drain(driver,bus,cleanup).ok()); CHECK(take(driver,cleanup).persistentRestored);
+    CHECK(!driver.bistSnapshot().temporaryMayBeActive && driver.isInitialized());
+    CHECK(driver.settingsSnapshot().trust==ConfigurationTrust::VERIFIED);
+    CHECK((bus.words[0]&0x7100U)==0x0100U && (bus.words[22]&0x705FU)==0x4000U);
+    CHECK((bus.words[17]&0x0300U)==0x0300U && (bus.words[25]&0xC000U)==0x4000U);
+    CHECK((bus.words[27]&0x00FFU)==0x002DU && (bus.words[28]&0x07FFU)==0x0123U);
+    unchangedIntent(intent,driver.settingsSnapshot());
+  }
   for(MacInterface interface:{MacInterface::MII,MacInterface::RMII}) {
     for(BistMode mode:{BistMode::OFF,BistMode::SINGLE_PACKET,BistMode::CHECKER,BistMode::GENERATOR_CHECKER}) {
       for(BistCounterMode policy:{BistCounterMode::SATURATE,BistCounterMode::WRAP}) {
@@ -389,6 +416,34 @@ void fields() {
   CHECK(active.semanticWrites==mutations && !subject.operationSnapshot().cleanupOwed);
 }
 void measurements() {
+  // Dwell observations use the same collector as typed acquisition. A loss or
+  // activity sample must count even when RH changes before the next bookends.
+  for(unsigned route=0;route<3;++route) for(bool loss:{false,true}) {
+    Controller bus; Driver driver; ready(driver,bus);
+    bus.statusBits=0x0800; // No generator activity during activation.
+    activate(driver,bus);
+    bus.statusBits=loss?0x0E00:0x0A00;
+    uint16_t raw=0;
+    if(route==0) {
+      EvidenceSnapshot evidence;
+      CHECK(driver.acquireEvidence(evidenceBit(EvidenceSource::BISCR),evidence,{1000000,1}).ok());
+      raw=evidence.samples[static_cast<unsigned>(EvidenceSource::BISCR)].raw;
+    } else if(route==1) {
+      CHECK(driver.readClause22(0x16,raw,{1000000,1}).ok());
+    } else {
+      CHECK(driver.readMmd(31,0x16,raw,{1000000,4}).ok());
+    }
+    CHECK((raw&0x0E00U)==(loss?0x0E00U:0x0A00U));
+    const auto calls=bus.calls,clocks=bus.clocks;
+    CHECK(driver.clearEvidence().ok()); // Host history disposal cannot erase session evidence.
+    CHECK(bus.calls==calls && bus.clocks==clocks);
+    bus.statusBits=0x0800; bus.liveErrors=3;
+    const auto token=acquire(driver,bus);
+    CHECK(drain(driver,bus,token).ok()); const auto result=take(driver,token);
+    CHECK(result.bist.measurementValid && result.bist.activityObserved);
+    CHECK(result.bist.syncLossObserved==loss);
+    CHECK(result.bist.outcome==(loss?BistOutcome::INCONCLUSIVE:BistOutcome::ERRORS_OBSERVED));
+  }
   for(unsigned scenario=0;scenario<9;++scenario) {
     Controller bus; Driver driver; ready(driver,bus);
     auto o=options();
@@ -530,6 +585,58 @@ void cancellation() {
   }
 }
 void lifecycle() {
+  // A later HARD reloads every register again. Completion of the loopback tail
+  // during a failed/cancelled BIST stop cannot exempt it from that new replay.
+  for(auto path:PATHS) {
+    const auto o=path==LoopbackMode::EXTERNAL?options():loopOptions(path);
+    Controller reference; Driver baseline; ready(baseline,reference); activate(baseline,reference,o);
+    const auto firstFrame=reference.frames,firstCall=reference.calls;
+    const auto complete=stop(baseline,reference); CHECK(drain(baseline,reference,complete).ok());
+    CHECK(take(baseline,complete).persistentRestored);
+    const auto frames=reference.frames-firstFrame,calls=reference.calls-firstCall;
+    for(bool cancelStop:{false,true}) for(unsigned phase=0;phase<(cancelStop?4U:5U);++phase) {
+      Controller bus; Driver driver; ready(driver,bus); const auto intent=driver.settingsSnapshot();
+      activate(driver,bus,o);
+      const auto token=stop(driver,bus);
+      if(cancelStop) {
+        for(unsigned i=0;i<calls-4U+phase;++i) CHECK(pollOne(driver,bus,token).inProgress());
+        const auto callbackCount=bus.calls;
+        CHECK(driver.cancel(token).ok() && bus.calls==callbackCount);
+      } else {
+        bus.failFrame=static_cast<int>(bus.frames+frames-5U+phase);
+        CHECK(drain(driver,bus,token).is(Err::MDIO_TIMEOUT));
+      }
+      const auto failed=take(driver,token);
+      CHECK(failed.status.is(cancelStop?Err::CANCELLED:Err::MDIO_TIMEOUT));
+      CHECK(failed.cleanupOwed && failed.temporaryMayBeActive && !failed.persistentRestored);
+      bus.failFrame=-1;
+      OperationToken hard;
+      CHECK(driver.startInitialize({ResetKind::HARD},allowance(),hard).inProgress());
+      CHECK(drain(driver,bus,hard).ok()); CHECK(take(driver,hard).persistentRestored);
+      restored(driver,bus,intent);
+      CHECK((bus.words[0]&0x0480U)==0U); // Do not leave HARD's modeled isolation strap reload.
+      CHECK(failed.status.is(cancelStop?Err::CANCELLED:Err::MDIO_TIMEOUT));
+    }
+  }
+  // Stop must accept the current exact identity before disabling another
+  // device's generator or changing any saved temporary controls.
+  for(auto path:PATHS) for(bool mismatch:{false,true}) {
+    Controller b; Driver d; ready(d,b); const auto desired=d.settingsSnapshot();
+    activate(d,b,path==LoopbackMode::EXTERNAL?options():loopOptions(path));
+    const auto firstFrame=b.frames,mutations=b.semanticWrites;
+    if(mismatch) b.id2=0xA141;
+    else b.failFrame=static_cast<int>(firstFrame+1U);
+    const auto token=stop(d,b);
+    CHECK(drain(d,b,token).is(mismatch?Err::DEVICE_MISMATCH:Err::MDIO_TIMEOUT));
+    const auto result=take(d,token);
+    CHECK(b.frames==firstFrame+2U && b.semanticWrites==mutations);
+    CHECK(b.trace[firstFrame].kind==FrameKind::READ && b.trace[firstFrame].reg==2U);
+    CHECK(b.trace[firstFrame+1U].kind==FrameKind::READ && b.trace[firstFrame+1U].reg==3U);
+    CHECK(!result.mutationAttempted && result.cleanupOwed && result.temporaryMayBeActive);
+    if(!mismatch) CHECK(result.status.detail==-22022);
+    b.id2=0xA131; b.failFrame=-1;
+    finishStop(d,b,desired);
+  }
   Controller bus; Driver driver; ready(driver,bus); const auto intent=driver.settingsSnapshot();
   OperationToken prior;
   for(unsigned epoch=0;epoch<2;++epoch) {
