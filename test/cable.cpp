@@ -360,6 +360,48 @@ void capture() {
     CHECK(d.startCableAcquire(allowance(),again).inProgress());CHECK(drain(d,b,again).ok());const auto read=take(d,again);
     CHECK(read.cable.complete && b.triggers==triggers && failed.status.detail==-25025);finishStop(d,b);
   }
+  // Interrupt the second selected row after its index read. Reacquisition owns
+  // only that accepted trigger: it must retain row1A, finish row1B without a new
+  // trigger, and leave the requested but unstarted row2 explicitly NOT_RUN.
+  for(bool cancelled:{false,true}) {
+    Controller b; Driver d; ready(d,b); const auto t=start(d,b,settings(0x07));
+    for(unsigned turn=0;turn<128U && !d.cableSnapshot().result.samples[1].index.valid;++turn) {
+      CHECK(pollOne(d,b,t).inProgress());
+    }
+    const auto before=d.cableSnapshot().result;
+    CHECK(before.samples[0].state==CableRunState::COMPLETE);
+    CHECK(before.samples[1].index.valid && !before.samples[1].amplitude.valid);
+    CHECK(before.samples[2].state==CableRunState::NOT_RUN && b.triggers==2U);
+    const auto frames=b.frames,calls=b.calls,clocks=b.clocks;
+    if(cancelled) {
+      CHECK(d.cancel(t).ok());
+      CHECK(b.frames==frames && b.calls==calls && b.clocks==clocks);
+    } else {
+      b.failFrame=static_cast<int>(b.frames+3U); // Second row's0185 data read.
+      CHECK(pollOne(d,b,t).is(Err::MDIO_TIMEOUT));
+      CHECK(b.frames==frames+4U && b.calls==calls+1U);
+    }
+    const auto interrupted=take(d,t);
+    CHECK(interrupted.status.is(cancelled?Err::CANCELLED:Err::MDIO_TIMEOUT));
+    CHECK(!interrupted.cable.complete && interrupted.cable.stale && interrupted.cleanupOwed);
+    CHECK(interrupted.cable.samples[0].index.raw==before.samples[0].index.raw);
+    CHECK(interrupted.cable.samples[0].index.observedAtUs==before.samples[0].index.observedAtUs);
+    CHECK(interrupted.cable.samples[0].state==CableRunState::COMPLETE);
+    CHECK(interrupted.cable.samples[1].index.valid && !interrupted.cable.samples[1].amplitude.valid);
+    CHECK(interrupted.cable.samples[2].state==CableRunState::NOT_RUN);
+    b.failFrame=-1; const auto rereadFrames=b.frames,rereadCalls=b.calls,writes=b.writeCount;
+    OperationToken again; CHECK(d.startCableAcquire(allowance(),again).inProgress());
+    CHECK(drain(d,b,again).ok()); const auto reread=take(d,again);
+    CHECK(b.frames==rereadFrames+14U && b.calls==rereadCalls+5U && b.writeCount==writes && b.triggers==2U);
+    CHECK(reread.cable.samples[0].state==CableRunState::COMPLETE && reread.cable.samples[1].state==CableRunState::COMPLETE);
+    CHECK(reread.cable.samples[0].index.observedAtUs==before.samples[0].index.observedAtUs);
+    CHECK(reread.cable.samples[2].state==CableRunState::NOT_RUN && !reread.cable.samples[2].index.valid);
+    CHECK(!reread.cable.complete && reread.cable.stale && reread.cleanupOwed);
+    CHECK(!interrupted.cable.samples[1].amplitude.valid); // Prior retained result stays immutable.
+    CableDiagnosis sentinel; sentinel.metres=999;
+    CHECK(interpretCable(reread.cable,4.6,sentinel).is(Err::RESULT_NOT_AVAILABLE) && sentinel.metres==999);
+    finishStop(d,b); CHECK(b.triggers==2U);
+  }
 }
 
 void failures() {

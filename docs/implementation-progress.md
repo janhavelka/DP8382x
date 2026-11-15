@@ -27,6 +27,14 @@ operations, retained temporary state and verified restoration.
 
 ## Execution record
 
+The [independent prompts 25-26 audit](reports/implementation/25-26-independent-audit.md)
+began on clean, fetched and synchronized `main` at
+`e1e14a84f80fd2826c245c231bfda8cbabfc6a8c`. Original-PDF, lifecycle and
+test reviews found no production defect. The audit adds multi-run interruption
+and partial-reacquisition regressions and repeats local verification. Existing
+source/physical gates remain open; this does not start prompt 27. Final audit
+commit and upstream equality are recorded in the handoff.
+
 Prompt 26 began on clean, fetched and synchronized `main` at
 `1aedc22238027120da7eb9ea389fb11074a6d27f`. The
 [stage report](reports/implementation/26-cable-autorun.md) records explicit

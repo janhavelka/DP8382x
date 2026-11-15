@@ -460,6 +460,10 @@ B-to-A capture, passive views, explicit reread and separate HARD restoration.
 The host model proves protocol/ownership only; see the [fixture plan](../docs/cable.md)
 for unexecuted physical qualification.
 
+Multi-run interruption cases retain completed earlier rows, explicitly reacquire
+only the current row without another trigger, and leave later selected rows
+NOT_RUN. Incomplete plans cannot produce a derived distance or clear cleanup.
+
 ## Cable autorun
 
 `test/autorun.cpp` registers seven suites and an active Release failure probe.

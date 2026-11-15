@@ -7,9 +7,13 @@
   and separately budgeted HARD restoration through the existing owner.
 - Added pure source-implied cable interpretation, independent literal/failure
   tests and an executed portable raw-capture consumer. Physical accuracy remains
-  unqualified; autorun and calibration recovery retain their later owners.
+  unqualified; calibration recovery retains its later owner.
 
 ### 2026-11-15
+
+- Audited prompts 25-26 independently against current source and original TI
+  tables. Added multi-run failure/cancellation and partial-reacquisition
+  regressions; no production behavior correction was required.
 
 - Added explicit cable autorun policy with separate desired/readback/trust,
   verified disable handoff, shared reset replay and read-only verification.
