@@ -3,7 +3,7 @@
 The [80-prompt implementation plan](prompts/README.md) is in its first
 execution. Prompts 1–20 are complete: source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 84 registered Release CTests, 102 Python tests,
+Current local checks include 85 registered Release CTests, 103 Python tests,
 the linked tests-OFF consumer, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -21,6 +21,14 @@ mode/pause and retained change evidence. Prompt20 adds [typed event/counter acqu
 and explicit retained-history semantics. Managed health retains prompt 21.
 
 ## Execution record
+
+2026-11-15 promptset-audit maintenance began on clean, synchronized `main` at
+`f576dee3b067e16f51e3a8e51d9ffe17b35924ab`. The
+[finding-by-finding report](reports/promptset-audit-dispositions.md) records
+independent adjudication, the BMCR power-pin correction, future prompt changes
+and current verification. Stage completion remains 1-20; larger native/power/CLI
+work stays with its named owner, and physical evidence remains NOT RUN. Final
+verified commit/upstream equality is recorded in the handoff.
 
 Prompt20 entry / synchronized prompt19 checkpoint:
 `0d176b555c7fb35c1836041d9b7499ac5e9d5304`. The same execution branch/base is

@@ -45,13 +45,16 @@ gate and continue independent eligible work; do not supply a success stub or
 call the entire owner integration complete. This does not authorize physical
 fixture operation, power actions or servo motion.
 
-RX application context has static lifetime through mac->del. Its nonblocking
-callback drops/frees after session end. Teardown swaps the stub mediator first,
-then waits for the application RX count zero with a finite deadline, uninstalls,
-and deletes MAC. The counter does not prove RX-task idle or close the pre-call
-window documented by prompt 37; retain that SDK limit and at-most-one-frame leak.
-Use header-free owner tests, pinned-driver host failure injection and P4 link;
-none proves actual DMA timing or EtherCAT cycles.
+RX application context remains alive for the entire retained MAC lifetime.
+Its nonblocking callback drops/frees after session end. Apply prompt 37's
+`native_rx_quiescence` gate: a mediator swap and application RX count zero do
+not authorize uninstall or deletion. Retain driver, glue, MAC, PHY and callback
+contexts with admission closed until restart unless the public-API route has
+proved quiescence. Test RX paused before callback entry, late RX after stop,
+raw versus netif ownership and no released-context access. Reusable teardown
+remains BLOCKED until that proof; a linked image or physical stress run alone
+cannot resolve a known lifetime race. Use the same lifecycle route as prompt 37,
+not a second raw-frame teardown implementation.
 
 ## Acceptance
 

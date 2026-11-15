@@ -68,7 +68,7 @@ wiring, while polled status cases remain eligible.
 ## Acceptance
 
 Test suite selection and every case with complete positive transcripts plus
-one missing/corrupt required evidence item. Exercise real commands/admission
+each required evidence item missing/corrupt in turn. Exercise real commands/admission
 against the compiled CLI fixture. Test wrong firmware, unavailable partner,
 partial restoration and zero-case/skip-only aggregate verdicts. No fixture is
 operated merely to fill rows; offline/dry-run tests cannot upgrade

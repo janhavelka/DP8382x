@@ -108,7 +108,8 @@ enum class ConfigDetail : int32_t {
   ENUM_VALUE,         ///< Binding contains an invalid enum representation.
   ADDRESS_RANGE,      ///< Binding PHY address exceeds Clause 22 range.
   INTERFACE_REQUIRED, ///< No MAC interface was declared.
-  DEVICE_INVALIDATED  ///< Current device evidence was invalidated externally.
+  DEVICE_INVALIDATED, ///< Current device evidence was invalidated externally.
+  POWER_STATE        ///< Live power-down prevents safe active-profile application.
 };
 
 /// @brief BUSY detail values.

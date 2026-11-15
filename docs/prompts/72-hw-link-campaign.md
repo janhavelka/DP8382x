@@ -37,7 +37,8 @@ this stage BLOCKED (software/readiness done, physical NOT RUN), and continue
 netlist/pins/SDK when fixtures arrive. Define Q5 hard-reset first-valid-read and
 strap relatch; Q10 next-page/re-AN; Q11 forced-mode raw PHYSTS, robust/manual
 MDI and port-swap; Q13 P4 fenced stop, repeated/never-started stop, STOP delivery,
-stub mediator and RX teardown; Q14 FX BMSR/SD and explicit restart refresh;
+RX stop/retention and teardown only after native_rx_quiescence is closed by
+software lifetime evidence; Q14 FX BMSR/SD and explicit restart refresh;
 Q15 DP83825 identity/latch/Leader clock/SecureON. Use the exact observations
 and authorization boundaries in REMAINING_PROMPTS_AUDIT section 8; none is
 pre-qualified by the readiness record.

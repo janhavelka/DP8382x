@@ -503,6 +503,10 @@ public:
   /// Admission copies desired intent and marks trust DIRTY. NP belongs only to
   /// this exchange. Failure/cancel stops without cleanup writes; restoration is
   /// a new initialization or eligible configuration operation. No VOD write here.
+  /// @note Live preflight rejects BMCR power-down with INVALID_CONFIG/POWER_STATE
+  /// before profile writes. Table 8-19 combines software request and pin state;
+  /// later pin assertion is never echoed into the software request. This does
+  /// not prove physical wake, and external writers remain excluded by the owner.
   Status startConfigure(const LinkSettings& settings, const ConfigureOptions& options,
                         const OperationBudget& budget, OperationToken& token) noexcept;
   /// @brief Apply registers without waiting for negotiation or exchanging next pages.

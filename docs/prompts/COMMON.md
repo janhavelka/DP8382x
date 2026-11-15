@@ -127,10 +127,11 @@ source/tool dependencies explicit; the entire set is complete only when all
 required gates close. Hardware operation, sibling edits and publication require
 their own authorized task scope.
 
-## Apply the remaining-prompts audit
+## Use the independent audit dispositions
 
-[REMAINING_PROMPTS_AUDIT](REMAINING_PROMPTS_AUDIT.md) lists ordered corrections
-to prompts 13-80, the shared contracts and the shipped code. Apply its work
-packages before prompt 13, following its section 2, and check its per-prompt
-index before each stage. A prompt not yet corrected still carries the defects
-listed there.
+[REMAINING_PROMPTS_AUDIT](REMAINING_PROMPTS_AUDIT.md) preserves the historical
+findings and their per-prompt index. WP0-WP7 were integrated during prompt 13;
+do not replay its pre-13 instructions or superseded API removals blindly.
+Consult the [current finding-by-finding dispositions](../reports/promptset-audit-dispositions.md)
+and the maintained owning prompt before each affected stage. Accepted future
+work is an acceptance requirement, not evidence of implemented support.

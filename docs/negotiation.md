@@ -132,3 +132,17 @@ separate [initialization attempt](../examples/portable/Initialize.h) for
 restoration. Host tests and a linked portable consumer establish software
 behavior only; SDK/controller timing, real advertisement readback and physical
 negotiation remain separate qualification layers.
+
+## Power-pin admission
+
+Before profile writes, active-profile application reads BMCR. If bit 11 is high,
+it returns
+`INVALID_CONFIG/POWER_STATE` before profile writes and retains the raw word;
+that bit cannot distinguish an external pin assertion from a software request
+(SNLS647I table 8-19). A low preflight establishes software request zero under
+the exclusive-owner contract. The later atomic BMCR update keeps that request
+zero even if the power pin changes before its read. It does not claim physical
+wake. External software writers require owner invalidation/reconciliation.
+Initialization replay uses the same rule and retains any earlier reset/VOD
+effects and cleanup obligation on rejection. Explicit software-power ownership
+and its interaction with these writers remain assigned to prompt 28.

@@ -50,6 +50,17 @@ WAKE_BLOCKED_OR_UNCONFIRMED and never triggers repeated writes. BISCR[8] reports
 active sleep only. Coordinate PHY-generated clock loss with the application;
 Q6 measures the ENHANCED pin-release hazard.
 
+Integrate the existing profile writer in
+`src/DP8382xConfiguration.cpp::_configurationBatch` (APPLY_BMCR), not only new
+power APIs. Its current preflight rejects observed bit 11 high and its atomic
+update writes zero after a low preflight establishes software request zero.
+Replace that limited active-profile policy only with explicit owned software
+power intent shared by configuration, reset replay and every other BMCR writer.
+Never infer intent from the software/pin OR readback. Test software power-down
+retention, pin assertion between preflight and atomic read, pin release after
+apply, and failed/unconfirmed clear without retries. Preserve initialization's
+accepted effects and cleanup barrier if power admission fails during replay.
+
 Preserve desired settings and extend reset/recovery/restoration for each power
 kind, using stable source-supported verification. Pin, oscillator, GPIO reset,
 power rails and application MAC/link policy remain outside core. Power delivery/

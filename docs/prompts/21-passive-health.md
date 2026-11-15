@@ -39,9 +39,12 @@ one failed MMD frame cannot produce a successful logical outcome. Local BUSY,
 IN_PROGRESS, invalid requests, no link and pending negotiation are not physical
 transport failures; actual cable-down reads still count as successful activity.
 
-Successful cleanup must not hide the primary failure or clear its consecutive
-failure evidence. Cleanup activity/errors remain visible in their appropriate
-domains. Preserve full last-error detail across later success and saturate all
+Restoration cannot change the earlier operation result or erase lastError.
+Raw/session-stop traffic and transport release do not reset managed consecutive
+failures. Separately admitted managed restoration through startInitialize follows
+the ordinary callback accounting and may reset the streak on success. Test that
+distinction explicitly; retain both operation results and their effects.
+Preserve full last-error detail across later success and saturate all
 selected counters. Zero timestamps are valid when flagged; unavailable time
 has explicit invalidity. If `resetStatistics` is part of the frozen contract,
 it clears only documented cumulative counts, never trust, pending results or

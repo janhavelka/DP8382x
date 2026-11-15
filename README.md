@@ -57,6 +57,12 @@ remain library scope. See [full-coverage requirements](docs/prompts/FULL_COVERAG
 [public-source research](docs/reference/public-research.md) and the
 [DP83826I register/feature inventory](docs/reference/dp83826i-feature-inventory.md).
 
+The [current independent-audit dispositions](docs/reports/promptset-audit-dispositions.md)
+check each historical finding against the present implementation and future
+acceptance requirements. Active-profile application rejects an existing BMCR
+power-down indication and never copies a later power-pin assertion into software
+intent. Native reusable teardown remains gated on RX lifetime safety.
+
 ## Start here
 
 - [Implementation promptset](docs/prompts/README.md): complete ordered prompts,

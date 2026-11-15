@@ -17,7 +17,7 @@ Recheck the final schematic/netlist before writing or flashing board firmware.
 | Reference clock | 25 MHz oscillator into PHY; PHY supplies 50 MHz to P4 GPIO44 |
 | MDC / MDIO / PHY reset | GPIO40 / GPIO39 / GPIO54 |
 | RMII transmit signals | TX_EN GPIO49, TXD0 GPIO41, TXD1 GPIO42; recheck final netlist |
-| RMII receive signals | GPIO51/52/53; use the final netlist for signal-to-pin mapping |
+| RMII receive signals | CRS_DV GPIO51, RXD0 GPIO52, RXD1 GPIO53; recheck final netlist |
 | PHY interrupt | Not connected; plan link polling |
 | PHY management address | Expected address 0 from existing board audit; verify straps and MDIO response during bring-up |
 

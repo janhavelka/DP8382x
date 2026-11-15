@@ -47,8 +47,10 @@ Use explicit instance ownership rather than a hidden global singleton.
 Model framework lifecycle calls as fallible sequences with partial effects.
 Installation, start, stop and deletion errors can leave callbacks/resources or
 state active. Track acquired resources and completed steps; release only after
-callbacks are quiescent. Use the public unmodified ESP-IDF route in the ownership design. An unresolved
-native teardown failure retains resources and admission closure until reboot;
+callbacks are quiescent. Use the public unmodified ESP-IDF route in the ownership
+design. The native_rx_quiescence gate blocks reusable destruction while the pinned RX
+task can retain old driver/glue/context pointers. An unresolved native teardown
+failure retains resources and admission closure until reboot;
 keep first and cleanup errors separately.
 
 ## MDIO transactions and raw access

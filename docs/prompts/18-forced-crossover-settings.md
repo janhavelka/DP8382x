@@ -34,7 +34,15 @@ Document the altered IEEE result against a forced-100 partner. With extension
 clear, parallel detection cannot gain it; never infer negotiated pause.
 
 Apply ordered writes/readback under the operation deadline, preserving reserved
-bits with source-specific neutral composition. Initialization already established
+bits with source-specific neutral composition. Before profile writes, live
+BMCR[11] must be zero while
+software-power ownership is not implemented. Otherwise reject with
+INVALID_CONFIG/POWER_STATE and retain the word. After low preflight the final
+atomic BMCR write keeps software request zero even if the ENHANCED power pin
+asserts; never echo pin readback. Prompt 28 extends this same writer with owned
+power intent. Test both initial-high rejection and a pin transition at the
+final RMW, including initialization replay and its earlier retained effects.
+Initialization already established
 `030E=4A40`; do not write it a second time here. A forced profile carries no AN
 intent and neither writes nor verifies ANAR. Returning to AN requires a new
 complete Advertisement. Forced mode provides no negotiated pause or partner

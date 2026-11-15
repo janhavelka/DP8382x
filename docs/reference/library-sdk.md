@@ -13,9 +13,10 @@ The historical findings below remain observations of their pinned files. The
 2026-11-02 audit selected the [public lifecycle route](../design-decisions.md)
 on **unmodified v6.1**, replacing the earlier requirement for an SDK fork or
 lifecycle patch. Timer fencing, explicit cleanup and retained-resource failure
-handling belong to prompts 37–39. The RX pre-handoff race and hidden HAL flush
-failure remain disclosed limits; neither source review nor a future linked image
-proves universal teardown safety. No SDK implementation is shipped at prompt 13.
+handling belong to prompts 37–39. The RX pre-handoff race blocks reusable destruction under the maintained
+`native_rx_quiescence` gate: retain referenced resources until a safe public
+quiescence route exists, or reboot. The hidden HAL flush failure remains a
+separate observation limit. No SDK implementation is shipped through prompt 20.
 
 ## Source identities
 
@@ -188,8 +189,9 @@ failure boundaries:
   MAC 715–724 resets DMA descriptors on start. A failed UP notification cannot
   be blindly retried: freeze projection until owner stop/drain/reconciliation.
 - MAC 200–207 and BASE 123–127 reject null mediators. The public route uses a
-  stable non-null stub mediator; do not invent a null setter contract. The RX
-  pre-handoff race remains disclosed. The adapter may clear its own local storage.
+  stable non-null mediator; do not invent a null setter contract. Swapping it
+  does not close the RX pre-handoff race or authorize freeing old driver/context
+  storage. See native_rx_quiescence in the maintained design.
 - MAC 1183–1190 resets module 0; deletion 745–753 disables its clock/GPIO.
   Two P4 factory objects are not two independent MACs. One physical EMAC owner,
   two instrumented MACs for SDK dispatch tests, and second-PHY bus contention

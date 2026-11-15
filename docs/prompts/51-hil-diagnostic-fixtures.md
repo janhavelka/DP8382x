@@ -66,7 +66,7 @@ other than PASS; do not rely on one hand-picked missing field per case.
 ## Acceptance
 
 Unit-test every suite's positive and negative classifications with complete
-transcripts and one missing/corrupt evidence item per case. Exercise command
+transcripts and each required evidence item missing/corrupt in turn, per case. Exercise command
 grammar, capability/admission and cleanup paths against the compiled host CLI.
 Test timeout, cancellation, serial reboot/loss and failed readback; dry-run or
 skips cannot qualify hardware. Keep actual measurements NOT RUN/BLOCKED until

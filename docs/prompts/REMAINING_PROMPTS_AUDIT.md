@@ -18,6 +18,13 @@ The opening baseline and findings below remain historical review evidence.
 The latest explicit prompt-13 request supersedes the collector deferral: its
 current acquisition and mixed-register consumers are implemented now.
 
+Current revalidation (2026-11-15): see the
+[finding-by-finding dispositions](../reports/promptset-audit-dispositions.md).
+They supersede stale application directions below, including the unsafe native
+RX teardown sequence, cached discovery-floor predicate and five-field metadata
+requirement. This file retains its original findings as historical evidence;
+use maintained prompts/contracts and the disposition record for execution.
+
 ## 1. Result
 
 The library is a framework-independent C++17 driver for TI DP8382x Ethernet PHYs,

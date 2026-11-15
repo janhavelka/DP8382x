@@ -131,8 +131,17 @@ and a second cfg table `{group, name, enumValues or min/max, unit}` for dispatch
 and help; no dynamic registration or virtual hierarchy. Discovery, dump,
 selftest, watch and stress use small fixed index/count/deadline sequencers,
 one public batch per tick, never direct MDIO or a second chip procedure.
-Discovery uses a separate probe driver on the same transport, checking the
-bound instance's RUNNING/busQuietValid admission before each ID-only batch.
+Discovery uses a separate probe driver on the same transport. Before each
+ID-only batch, the shared owner rejects RUNNING work, controller quarantine,
+a latched clock fault or an unknown reset-silence anchor. A cached
+`busQuietValid` means the anchor is valid, not that time has stopped: compare
+`busQuietUntilUs` against a fresh raw timestamp from the same nonwrapping clock
+contract, checking regression and overflow. Admit only at or after that floor;
+never use the timestamp's upper uncertainty bound to end a minimum wait early.
+Carry shared silence/quarantine across probe end/rebind. Do not clear the main
+instance's cached flag, issue an extra MDIO read to expire it, or let a fresh
+probe erase a clock fault. Test before/exactly-at/after expiry, a still-set cached
+flag, unknown anchor, clock regression and two-instance shared quarantine.
 
 The single `docs/feature-coverage.md` matrix has one row per ledger procedure
 and feature ID: exact part/mode, CLI command, owner route, record type, host test,
@@ -143,7 +152,7 @@ Keep docs/cli.md limited to grammar/records.
 
 For P4, record console type and meaningful baud. Route ESP log callbacks through
 a bounded whole-line queue using a try-lock and drop accounting; retain terminal
-record capacity, pin the supported USB Serial/JTAG V1 path, and test concurrent
-logging. ROM/panic/direct printf bypass remains an explicit corruption limit.
+record capacity, pin CONFIG_LOG_VERSION_1 independently of the selected UART or
+USB Serial/JTAG console, and test concurrent logging. ROM/panic/direct printf bypass remains an explicit corruption limit.
 The compiled host fixture links real CLI/core with only required table-driven
 MDIO behavior; it is software evidence, never hardware qualification.

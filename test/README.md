@@ -369,3 +369,8 @@ Repeat with the existing UBSan trap flags in `build/events20-ubsan`. The consume
 executes [Events.h](../examples/portable/Events.h): acquire once, format two cached
 views without MDIO or clock callbacks. The [stage report](../docs/reports/implementation/20-event-counter-acquisition.md)
 separates executing software evidence from unmeasured physical counter/error rates.
+
+The independent promptset revalidation adds `forced_power_pin`: initial
+software/pin power-down rejection, pin assertion between preflight and atomic
+BMCR update, and shared NONE/PCS/HARD/RESTART replay. It models the OR readback
+from SNLS647I table 8-19 independently; Q6 still requires hardware observation.

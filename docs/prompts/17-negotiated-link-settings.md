@@ -37,7 +37,14 @@ legal pause combination; MAC flow-control policy stays outside the core.
 Apply the complete admitted profile in source order. `startConfigure` requires
 initialized, including prompt 15's unconditional VOD_CFG3 setup; add no second
 `030E=4A40` write here. Preserve target-specific reserved bits and command-neutral
-values. Do not silently enable EEE/WoL.
+values. Before profile writes, live BMCR[11] must be zero while
+software-power ownership is not implemented. Otherwise reject with
+INVALID_CONFIG/POWER_STATE and retain the word. After low preflight the final
+atomic BMCR write keeps software request zero even if the ENHANCED power pin
+asserts; never echo pin readback. Prompt 28 extends this same writer with owned
+power intent. Test both initial-high rejection and a pin transition at the
+final RMW, including initialization replay and its earlier retained effects.
+Do not silently enable EEE/WoL.
 
 Define when admitted desired settings become authoritative and retain desired,
 observed and verified state separately. Until prompt 18, trust covers ANAR,

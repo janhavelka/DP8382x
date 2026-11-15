@@ -86,7 +86,8 @@ and infallible as above. MAC init needs an existing PHY REF_CLK and performs
 10 ms-step reset polling up to sw_reset_timeout_ms (default 100 ms). Board reset
 failure is handled before install. An install error leaves only mac->del and
 phy->del; there is no partially installed handle route. After successful install,
-typed initialization failure uses ordinary uninstall with retained evidence.
+typed initialization failure follows the same native_rx_quiescence gate below;
+no ordinary uninstall bypasses retained-resource lifetime admission.
 
 Add exact component metadata/source selection and a small real P4 firmware
 fixture, such as `test/esp_idf/adapter_link/main/main.cpp`, instantiating
@@ -105,22 +106,28 @@ Apply the pinned lifecycle order and qualify it in Q13:
    was posted but STOP was not, post ETHERNET_EVENT_STOP using &hdl,sizeof(hdl)
    and finite ticks. Then call mac->stop to observe its HAL error, with finite
    retries and no held lock; each call may busy-wait 2500 us.
-4. Stop all transmit callers. If netif attached, wait for the owner's STOP
-   handler under a finite deadline, then delete netif glue. Swap the MAC mediator
-   to a static stub: both stack-input callbacks free buffers and return OK,
-   on_state_changed returns OK, register hooks return NOT_SUPPORTED. Do not use
-   on_lowlevel_deinit_done. Wait for application RX in-flight count zero.
-5. Uninstall driver, then mac->del, phy->del, delete fence, destroy netif last.
-   Track FSM/ref-count admission since SDK exposes no public getter. A failure
-   this public route cannot resolve leaves admission closed and resources alive
-   until reboot. The HAL FIFO-flush timeout is unobservable, a documented limit.
+4. Stop transmit callers and end the RX session, keeping the callback/context
+   alive to drop/free arrivals. STOP delivery, application RX count zero and
+   a mediator swap do not establish MAC RX-task quiescence. In the pinned SDK,
+   the swap is unsynchronized and uninstall frees the driver before mac->del
+   terminates the RX task. Reject destructive teardown under the maintained
+   `native_rx_quiescence` gate; retain driver, glue, MAC, PHY, netif and borrowed
+   contexts with closed admission until system restart.
+5. Derive a safe public-API quiescence route and test it before enabling reusable
+   uninstall/delete. Do not use private storage or silently change SDK pins.
+   If no such route is established, report reusable teardown BLOCKED, preserve
+   the terminal retained-resource route, and continue independent adapter work.
+   A source-known use-after-free is not an acceptable unmeasured hardware risk.
 
-The stub swap is unsynchronized with the RX task: a task paused after loading
-emac->eth can still touch the freed driver. No public API closes this window;
-the RX counter proves application callback completion only. A pre-handoff delete
-can leak at most one frame. These are SDK limits, not claims a host fake proves
-safe concurrency. When the selected baseline includes d2ed96d2, drop the timer
-fence and re-audit the blocking-stop behavior.
+Extend the pinned-driver/MAC test harness with a scheduled RX pause after loading
+its mediator but before entering the application callback. Run stop/teardown
+with the application RX count still zero, resume RX and prove all referenced
+storage remains alive. Cover netif glue and raw handoff separately. This test
+models the source race; the existing host driver layer alone cannot prove real
+RX scheduling. Q13 qualifies hardware only after software lifetime safety.
+The HAL FIFO-flush timeout stays a separate documented observation limit.
+When the baseline includes d2ed96d2, re-audit the timer fence; it does not by
+itself resolve the RX lifetime gate.
 
 ESP-IDF tag v6.1 / commit fff9895c is installed side by side in C:\esp\v6.1. Run
 idf.py only through `scripts\idf.cmd`, which checks the pinned commit; if it is
@@ -130,7 +137,8 @@ path, commit and tool versions; later stages reuse it. Installation failure
 makes SDK evidence BLOCKED, never replaced by a header shim.
 
 Implement opt-in pinned-driver host tests (off for consumers) per VERIFICATION:
-hash-check supplied esp_eth.c and its seven public headers, compile real driver
+hash-check supplied esp_eth.c and its required public-header dependency closure,
+record every selected file, and compile real driver
 source plus adapter with small OS/event/timer fakes and an instrumented MAC.
 The timer fake preserves stop-on-unarmed INVALID_STATE. This proves driver order
 and ioctl routing, not timer concurrency/MAC timing. Acceptance needs these

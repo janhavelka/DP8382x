@@ -81,9 +81,12 @@ Exercise installation phase/journal, two independent instances, partial SDK
 effects and callback quiescence. Static raw read/write hooks always reject;
 owner-routed typed calls use direct MAC primitives under the shared transaction.
 Test pinned real SDK driver code with hash-checked host fakes as its own layer,
-then link real P4 examples. Check fenced stop, bounded STOP delivery, stub
-mediator teardown and retained boot-terminal resources. Source-reviewed RX/HAL
-limits remain explicit, with physical Q13 NOT RUN. Serialize cached access too.
+then link real P4 examples. Check fenced stop, bounded STOP delivery and retained
+boot-terminal resources. Under native_rx_quiescence, pause RX before callback
+entry and prove that zero application callbacks never authorizes freeing live
+SDK/glue/context storage. Reusable teardown stays BLOCKED until a safe public
+route is proved. HAL observation limits and physical Q13 remain separate.
+Serialize cached access too.
 
 Do not copy I2C peers' S2/S3 matrices into an EMAC example. Additional frameworks
 or targets require a working MAC/MDIO integration and their own build evidence.

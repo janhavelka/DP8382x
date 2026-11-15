@@ -11,7 +11,11 @@ namespace {
 // reset/restart and the prohibited ANAR remote-fault advertisement.
 constexpr uint16_t ANAR_PRESERVE = 0x5200;
 constexpr uint16_t ANAR_VERIFY = 0xADFF;
-constexpr uint16_t BMCR_PRESERVE = 0x4CFF;
+// Table 8-19: bit 11 reads software request OR the ENHANCED power pin.
+// READ_BMCR requires it low before mutation, proving software request zero.
+// The serialized owner excludes external software writes; a later pin assertion
+// must not be echoed into a persistent software power-down request.
+constexpr uint16_t BMCR_PRESERVE = 0x44FF;
 constexpr uint16_t BMCR_VERIFY = 0x3100;
 constexpr uint16_t ANNPTR_PRESERVE = 0x4800;
 // Tables 8-28/29/30/43: only these stable owned fields change. PHYCR14
@@ -392,7 +396,13 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
   switch (_configStep) {
     case ConfigStep::DRAIN: _setConfigStep(ConfigStep::READ_ANAR); break;
     case ConfigStep::READ_ANAR: _setConfigStep(ConfigStep::READ_BMCR); break;
-    case ConfigStep::READ_BMCR: _setConfigStep(ConfigStep::READ_CR1); break;
+    case ConfigStep::READ_BMCR:
+      if ((value & cmd::MASK_BMCR_POWER_DOWN) != 0U) {
+        return _finishOperation(Status::Error(Err::INVALID_CONFIG,
+            "Power-down prevents active profile application", static_cast<int32_t>(ConfigDetail::POWER_STATE)));
+      }
+      _setConfigStep(ConfigStep::READ_CR1);
+      break;
     case ConfigStep::READ_CR1: _setConfigStep(ConfigStep::READ_PHYCR); break;
     case ConfigStep::READ_PHYCR: _setConfigStep(ConfigStep::READ_CR3); break;
     case ConfigStep::READ_CR3: _setConfigStep(ConfigStep::READ_CR2); break;

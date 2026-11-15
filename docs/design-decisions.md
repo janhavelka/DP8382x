@@ -166,7 +166,8 @@ not the error code. Never retry UP blindly; it can rebuild DMA descriptors.
    Install errors leave owner mac->del and phy->del; the API returns no retained
    partially installed handle. No reset error is deferred until after MAC init.
 3. After install run typed startInitialize/configure through direct MAC batches.
-   Their failure follows ordinary stopped teardown, retaining primary evidence.
+   Their failure follows the same gated stopped teardown below, retaining primary
+   evidence and referenced resources.
 4. On esp_eth_start failure call esp_eth_stop. If no timer was armed it changes
    FSM to STOP then returns ESP_ERR_INVALID_STATE before DOWN or STOP publication.
    Other stop errors may also omit them. After the fence below, send missing
@@ -179,28 +180,37 @@ not the error code. Never retry UP blindly; it can rebuild DMA descriptors.
    resources. After the fence, publish DOWN if the journal still says UP; then
    call mac->stop(mac) directly to observe the HAL result set_link discards.
    Each attempt can busy-wait 2500 us; finite retry holds no instance/bus lock.
-6. Stop all transmit callers. For attached netif, wait finitely for the owner's
-   STOP handler before deleting glue. All default-loop handlers must be bounded
-   and nonblocking: glue deletion has no independent timeout and may wait for
-   their mutex. Swap MAC mediator to a static stub: stack_input and stack_input_info
-   free buffers and return OK; on_state_changed returns OK; both register hooks
-   return NOT_SUPPORTED. Do not use on_lowlevel_deinit_done for this. Drain the RX
-   callback count under a finite deadline, uninstall, mac->del, phy->del, delete
-   fence, destroy netif last. Track FSM and reference ownership before uninstall;
-   the applicable precondition errors are side-effect-free but have no public getter.
-7. Any unresolved failure is terminal for this boot: retain MAC, PHY and borrowed
-   resources, close admission, preserve first/cleanup errors and recover by system
-   restart. No unverified retry of partially completed destruction is admitted.
+6. Stop all transmit callers and end the application RX session. Keep its
+   callback/context alive and make it drop/free arrivals without blocking. For
+   attached netif, bound all default-loop handlers and STOP delivery; glue
+   deletion has no independent timeout. Neither STOP delivery, a timer fence,
+   a mediator swap nor application RX count zero proves that the MAC RX task
+   has stopped using the SDK driver or netif glue.
+7. Apply the `native_rx_quiescence` gate before any destructive teardown. The
+   pinned RX task can retain the old mediator before its application callback;
+   `set_mediator` is an unsynchronized assignment and uninstall frees that
+   mediator's driver before `mac->del` terminates the RX task. The previously
+   proposed swap/drain/uninstall/delete order is therefore not an accepted
+   teardown procedure. Do not free the driver, glue, MAC, PHY, netif or borrowed
+   callback context while that task may still reference them. Close admission,
+   retain resources and primary/cleanup evidence, and require system restart.
+8. Prompts 37 and 42 must independently derive and test a public-API quiescence
+   route before enabling reusable destruction. A changed SDK baseline requires
+   explicit source re-audit, not a private cast or fork. Until such a route is
+   established, report reusable teardown BLOCKED and the retained-resource
+   terminal route separately. No delayed callback may access released storage.
 
-The stub swap is not synchronized with the RX task: a task preempted after loading
-emac->eth but before its call may touch the freed driver. Public APIs do not close
-this window; callback-count zero proves only application callback completion.
-Deletion in the pre-handoff window can also leak at most one frame buffer. The
-HAL FIFO-flush timeout is unobservable. These are explicit SDK limitations; the
-public route is source-derived, not an assertion of universal race-free teardown.
-Q13 retains physical concurrency qualification. If a future baseline includes
-upstream d2ed96d2, remove the obsolete fence only after re-auditing blocking stop
-and the unarmed-timer failure route.
+The blocking evidence is in pinned `esp_eth_mac_esp.c`: set_mediator at 200,
+RX task at 600 (mediator call at 630), and task deletion in free_driver_obj at
+804; `esp_eth.c` uninstall at 274 frees the driver at 295. A scheduled test must
+pause RX after it selects the old mediator but before callback entry, run stop,
+and resume RX; zero application callback count must never authorize a free.
+This is a source/lifetime gate, not a physical-only Q13 limitation. Q13 measures
+stop/traffic behavior only after a safe software lifetime route is established.
+The HAL FIFO-flush timeout remains a separate unobservable SDK limitation.
+If a future baseline includes upstream d2ed96d2, re-audit the timer fence and
+unarmed-stop behavior independently; that timer change alone does not close RX
+lifetime safety.
 
 ### Failure and two-instance walkthrough
 

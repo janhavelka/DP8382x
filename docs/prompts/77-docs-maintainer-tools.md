@@ -40,9 +40,10 @@ Source/public APIs must not contain temporary prompt or milestone names.
 
 Update root agent guidance for implemented reality while retaining fresh live
 sibling audits, read-only sibling scope, preservation of concurrent work,
-explicit agent paths/contracts and lead-only Git. Preserve one newly created
-branch for each new promptset execution, its recorded original base, same-branch
-resumed work, coherent intraprompt and per-prompt commit/sync,
+explicit agent paths/contracts and lead-only Git. Follow root AGENTS: until
+version 0 is finished, use `main` for every stage and resumed session; do not
+create a branch. Preserve the recorded original base, coherent intraprompt
+and per-prompt commit/sync,
 fetch/integrate/push/equality verification and honest blocked-sync reporting.
 Keep this first set's remote CI execution/status checkpoint solely at 71; parent
 policy resumes after the first execution. Required hooks/triggers/protection

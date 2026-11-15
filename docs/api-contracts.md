@@ -278,6 +278,14 @@ evidence, set stale=true and lastRefreshStatus to the returned error. An ordinar
 caller output remains unchanged. A clock fault additionally prevents comparing
 that history to the now-invalid time domain; it never manufactures a fresh stamp.
 
+Active-profile preflight currently requires BMCR[11]=0. A high observation
+returns INVALID_CONFIG/POWER_STATE before profile writes, retaining savedBmcr.
+SNLS647I table 8-19 makes that read the software/pin OR. After low preflight,
+exclusive ownership establishes software request zero; the final atomic BMCR
+write must keep it zero even if the pin asserts. This is not physical-wake
+verification. Initialization replay retains earlier effects on this rejection.
+Prompt 28 extends the same writer with explicit owned software-power intent.
+
 Settings trust VERIFIED means every stable owned bit of this foundational tuple
 was compared successfully against validated desired intent in the current
 context. UNKNOWN means not established; DIRTY means a known possible mutation,

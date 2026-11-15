@@ -16,6 +16,7 @@ struct Controller {
   struct Phy {
     std::array<uint16_t, 32> words{};
     uint16_t selector{0}, address{0}, vod{0x8400};
+    bool powerDownPin{false}; // External level is separate from the software request.
     Phy() { words[0] = 0x3100; words[4] = 0x01E1; }
   };
   std::array<Phy, 32> phys{};
@@ -26,6 +27,8 @@ struct Controller {
   int failFrame{-1}, lateBatch{-1}, mismatchReg{-1};
   uint16_t mismatchXor{0};
   bool failAfterEffect{true}, locked{false}, enforceForcedRobust{false};
+  bool assertPowerPinAtBmcrRmw{false};
+  unsigned powerPinTransitions{0};
   std::array<bool, 32> touched{};
   Driver* competitor{nullptr};
   unsigned exclusions{0};
@@ -56,7 +59,11 @@ struct Controller {
       if (phy.address == 0x0467) return 0x1234;
       if (phy.address == 0x0468) return 0x5678;
     }
-    const auto word = phy.words[reg];
+    // SNLS647I table 8-19: a low PWRDN pin reads BMCR[11] as one.
+    // Writing zero cannot release the external pin; copying its read value
+    // into the software request would keep power-down after the pin releases.
+    const auto word = static_cast<uint16_t>(phy.words[reg] |
+        (reg == 0 && phy.powerDownPin ? 0x0800U : 0U));
     return static_cast<int>(reg) == mismatchReg && touched[reg] ?
         static_cast<uint16_t>(word ^ mismatchXor) : word;
   }
@@ -114,6 +121,14 @@ struct Controller {
       const bool fail = static_cast<int>(bus.frames++) == bus.failFrame;
       auto& receipt = result.frames[i];
       receipt.attempted = true;
+      if (bus.assertPowerPinAtBmcrRmw && i == 0 && batch.frameCount == 2 &&
+          request.kind == FrameKind::READ && request.registerAddress == 0 &&
+          batch.frames[1].kind == FrameKind::WRITE && batch.frames[1].registerAddress == 0 &&
+          batch.frames[1].readIndex == 0) {
+        phy.powerDownPin = true;
+        bus.assertPowerPinAtBmcrRmw = false;
+        ++bus.powerPinTransitions;
+      }
       if (!fail || bus.failAfterEffect) {
         if (request.kind == FrameKind::WRITE) bus.write(phy, request.registerAddress, written);
         else receipt.value = bus.read(phy, request.registerAddress);
@@ -673,13 +688,104 @@ void timing() {
   CHECK(expired.pollOperation(expToken).is(Err::OPERATION_TIMEOUT));
   CHECK(expiry.calls == calls && !take(expired, expToken).cleanupOwed);
 }
+
+void powerPin() {
+  const std::array<LinkSettings, 5> profiles{{negotiated(),
+      forced(LinkSpeed::MBPS_10, Duplex::HALF), forced(LinkSpeed::MBPS_10, Duplex::FULL),
+      forced(LinkSpeed::MBPS_100, Duplex::HALF), forced(LinkSpeed::MBPS_100, Duplex::FULL)}};
+  for (const auto& profile : profiles) {
+    // A preexisting power-down indication cannot distinguish pin assertion
+    // from a software request. Reject both before any profile mutation.
+    for (const bool external : {false, true}) {
+      Controller bus; Driver driver;
+      CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus); seed(bus);
+      auto& phy = bus.phys[1];
+      if (external) phy.powerDownPin = true;
+      else phy.words[0] = static_cast<uint16_t>(phy.words[0] | 0x0800U);
+      const auto first = bus.frames;
+      const auto token = start(driver, profile);
+      const auto status = drain(driver, bus, token);
+      CHECK(status.is(Err::INVALID_CONFIG));
+      CHECK(status.detail == static_cast<int32_t>(ConfigDetail::POWER_STATE));
+      const auto result = take(driver, token);
+      CHECK(result.savedBmcrValid && result.savedBmcr == 0x397F);
+      CHECK(!result.mutationCompleted && !result.cleanupOwed);
+      CHECK(bus.frames - first == (profile.mode == LinkMode::AUTONEGOTIATED ? 2U : 1U));
+      for (unsigned i = first; i < bus.frames; ++i) CHECK(bus.trace[i].kind == FrameKind::READ);
+      CHECK(bus.locks == bus.releases);
+    }
+
+    // Restoration uses the same preflight, but mandatory initialization/reset
+    // effects already occurred. Rejection must retain that separate obligation.
+    for (const auto reset : {ResetKind::NONE, ResetKind::PCS, ResetKind::HARD, ResetKind::RESTART}) {
+      Controller bus; Driver driver;
+      CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus);
+      const auto baseline = start(driver, profile);
+      CHECK(drain(driver, bus, baseline).ok()); take(driver, baseline);
+      bus.phys[1].powerDownPin = true;
+      OperationToken token;
+      CHECK(driver.startInitialize({reset}, budget(), token).inProgress());
+      const auto status = drain(driver, bus, token);
+      CHECK(status.is(Err::INVALID_CONFIG));
+      CHECK(status.detail == static_cast<int32_t>(ConfigDetail::POWER_STATE));
+      const auto result = take(driver, token);
+      CHECK(result.savedBmcrValid && (result.savedBmcr & 0x0800U) != 0U);
+      CHECK(result.cleanupOwed && result.mutationCompleted && !result.persistentRestored);
+      CHECK(bus.vodWrites == 2U && bus.locks == bus.releases);
+      CHECK(!driver.isInitialized());
+    }
+
+    // Inject the pin change only into the READ of the final atomic BMCR RMW,
+    // after a zero preflight. It must not become persistent software intent.
+    for (unsigned attempt = 0; attempt < 5; ++attempt) {
+      Controller bus; Driver driver;
+      CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus); seed(bus);
+      if (attempt != 0) {
+        const auto baseline = start(driver, profile);
+        CHECK(drain(driver, bus, baseline).ok()); take(driver, baseline);
+      }
+      const auto first = bus.frames;
+      bus.assertPowerPinAtBmcrRmw = true;
+      OperationToken token;
+      if (attempt == 0) token = start(driver, profile);
+      else {
+        const std::array<ResetKind, 4> resets{{ResetKind::NONE, ResetKind::PCS,
+                                             ResetKind::HARD, ResetKind::RESTART}};
+        CHECK(driver.startInitialize({resets[attempt - 1U]}, budget(), token).inProgress());
+      }
+      CHECK(drain(driver, bus, token).ok());
+      const auto result = take(driver, token);
+      CHECK(result.savedBmcrValid && (result.savedBmcr & 0x0800U) == 0U);
+      CHECK(result.persistentRestored && !result.cleanupOwed);
+      CHECK(bus.powerPinTransitions == 1U && !bus.assertPowerPinAtBmcrRmw);
+      unsigned modeWrites = 0;
+      for (unsigned i = first; i < bus.frames; ++i) {
+        const auto& wire = bus.trace[i];
+        if (wire.kind == FrameKind::WRITE && wire.reg == 0) {
+          CHECK((wire.value & 0x0800U) == 0U);
+          if (wire.value != 0x8000) ++modeWrites;
+        }
+      }
+      CHECK(modeWrites == 1U && bus.locks == bus.releases);
+      auto& phy = bus.phys[1];
+      CHECK(phy.powerDownPin && (phy.words[0] & 0x0800U) == 0U);
+      CHECK((bus.read(phy, 0) & 0x0800U) != 0U); // Pin still asserts power-down.
+      phy.powerDownPin = false;
+      CHECK((bus.read(phy, 0) & 0x0800U) == 0U); // No software latch after release.
+      CHECK((phy.words[0] & 0x3100U) ==
+          (profile.mode == LinkMode::AUTONEGOTIATED ? 0x1000U : forcedWord(profile)));
+      CHECK(driver.settingsSnapshot().bmcrValid);
+      CHECK((driver.settingsSnapshot().rawBmcr & 0x0800U) != 0U); // Retain observed pin state.
+    }
+  }
+}
 } // namespace
 
 int main(int argc, char** argv) {
   const test::Suite suites[] = {
     {"matrix", matrix}, {"admission", admission}, {"transitions", transitions},
     {"failures", failures}, {"verification_outcomes", verificationOutcomes},
-    {"replay", replay}, {"ownership", ownership}, {"timing", timing}
+    {"replay", replay}, {"ownership", ownership}, {"timing", timing}, {"power_pin", powerPin}
   };
   return test::runSuites(argc, argv, suites);
 }

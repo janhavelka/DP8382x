@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### 2026-11-15
+
+- Rechecked every independent promptset-audit finding against current code and
+  source contracts; recorded individual dispositions and corrected remaining
+  health, discovery, metadata, lifetime and source-citation instructions.
+- Fixed BMCR power-pin readback being echoed into software power-down during
+  link configuration. Active-profile preflight now rejects an existing power-down
+  indication; later pin changes cannot latch software intent. Added independent
+  AN/forced/reset-replay regressions.
+- Kept native reusable teardown gated until RX quiescence is proved, with
+  explicit retained resources and acceptance cases in prompts 37 and 42.
+
 ### 2026-11-13
 
 - Added `scripts\idf.cmd` and `scripts/idf.ps1`, which run `idf.py` with the pinned ESP-IDF v6.1

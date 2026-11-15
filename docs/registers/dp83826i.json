@@ -9669,7 +9669,7 @@
       ],
       "prerequisites": "Application owner serializes all instance calls/snapshots. Controller transaction lock covers every bus participant; active-operation admission is separate. Declared exact variant, legal values and valid clock/power history checked before mutation.",
       "steps": [
-        "Validate nonempty subset of four 10/100 half/full abilities and all four pause combinations. Force selector1 and RF0; preserve read-only/reserved bits. Pause has no negotiated effect on half-duplex resolution. Validate all intent before I/O.",
+        "Validate nonempty subset of four 10/100 half/full abilities and all four pause combinations. Force selector1 and RF0; preserve read-only/reserved bits. Pause has no negotiated effect on half-duplex resolution. Validate all intent before I/O. Live BMCR preflight must observe bit11 zero before profile writes; otherwise return INVALID_CONFIG/POWER_STATE and retain the word. Atomic activation writes software power request zero, never echoes a later ENHANCED pin assertion (table8-19). Prompt28 extends this with explicit owned power intent.",
         "Require completed initialization including unconditional initialize_10base VOD setup for every profile. Do not repeat VOD here. Apply and verify all coupled CR1/PHYCR/CR3/CR2 routing, mirror and extension settings through the shared profile procedure; preserve forced-mode robust requirement until AN activation.",
         "Save touched stable words; atomically replace the complete ANAR owned advertisement/selector fields while preserving reserved/read-only bits and RF0. The optional next_page_exchange owns transient NP and post-restart register7 loading.",
         "Enable BMCR AN, compose reset0, issue restart1 only after configuration writes succeed; speed/duplex selections ignored during AN. Verify stable desired bits without comparing self-clearing command.",
@@ -9724,7 +9724,7 @@
       ],
       "prerequisites": "Application owner serializes all instance calls/snapshots. Controller transaction lock covers every bus participant; active-operation admission is separate. Declared exact variant, legal values and valid clock/power history checked before mutation.",
       "steps": [
-        "Validate 10/100 and half/full, robust enabled for every forced route, legal automatic/MDI/MDIX and coupled port mirror. Reject every AN advertisement/pause/page/wait intent; no ANAR access. Require initialization including mandatory VOD before applying any profile; configure adds no VOD write.",
+        "Validate 10/100 and half/full, robust enabled for every forced route, legal automatic/MDI/MDIX and coupled port mirror. Reject every AN advertisement/pause/page/wait intent; no ANAR access. Require initialization including mandatory VOD before applying any profile; configure adds no VOD write. Live BMCR preflight must observe bit11 zero before profile writes; otherwise return INVALID_CONFIG/POWER_STATE and retain the word. Atomic activation writes software power request zero, never echoes a later ENHANCED pin assertion (table8-19). Prompt28 extends this with explicit owned power intent.",
         "Enable CR1 robust bit5 for forced operation per exact table; for auto set PHYCR15 and preserve manual bit; for manual clear PHYCR15 and select PHYCR14 (0MDI/1MDIX). Robust enable is retained per table even for forced manual pair policy.",
         "Apply CR3 port mirror only as coupled0060 or0000, preserving all other bits. Reject independent pair/polarity corrections. Apply requested CR2 extension under extended_link_configure before mode activation.",
         "Write BMCR AN disabled and selected speed/duplex, neutral reset/restart commands; verify stable owned settings without waiting on AN restart (ignored when AN disabled). Report configured mode separately from link resolution.",
@@ -13328,7 +13328,7 @@
       "id": "compt_reserved",
       "conflict": "COMPT15:4 are grouped reserved while table8-50 explicitly enables all10M pattern codes0..D with bit4. SNLA266B confirms0013;100M0428 composition/read effects and unrelated upper reserved bits remain unresolved.",
       "decision": "COMPT15:5 and100M0428 composition remain gated. All14 pattern0..D bit4 exceptions are eligible under exact forced10M, hard-reset and4A40 prerequisites. Ordinary COMPT owned mask remains000F; reservedMask remainsFFF0.",
-      "nextEvidence": "Exact-part clarification for other10Mpatterns,100Mstop/readback and PHYCR0021; identified instrumentfixture captures. Exact0428 preservation-read side effects and safe composition of unknown bits with DPDbit2; finite stop/reset observations before profile restoration.",
+      "nextEvidence": "Exact-part clarification for COMPT15:5 and the 100M 0428 preservation-read effects, unknown-bit composition with DPDbit2 and stop/readback. Table8-50 already admits all fourteen 10M patterns under the exact exception recipes; Q19 separately qualifies compliance with robust forced routing and identified instruments.",
       "ownerStage": 35,
       "sources": [
         {
@@ -13410,7 +13410,7 @@
         },
         {
           "source": "snla428",
-          "location": "Tables2-1,2-4,2-5; section3 pp3-8"
+          "location": "Tables2-1,2-4,2-5; section2.2 pp3-8"
         }
       ]
     },
@@ -14539,7 +14539,7 @@
   ],
   "tdrRecipe": {
     "source": "snla428",
-    "location": "Table2-1 p3; tables2-4/5 and section3 pp4-8",
+    "location": "Table2-1 p3; tables2-4/5 and section2.2 pp4-8",
     "runs": [
       "1A",
       "1B",
