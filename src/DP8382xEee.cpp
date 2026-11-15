@@ -221,7 +221,7 @@ Status DP8382x::readEeeStatus(EeeSnapshot& snapshot,const IoBudget& budget) noex
   }
   const auto quiet=_checkQuiet(); if (!quiet.ok()) { return quiet; }
   if (!_initialized || !capabilities().valid) { return Status::Error(Err::NOT_INITIALIZED,"Initialize before EEE observation"); }
-  if (_stopped) { return eeeBusy(BusyDetail::CONTROLLER_QUARANTINED); }
+  if (_stopped) { return fail(eeeBusy(BusyDetail::CONTROLLER_QUARANTINED)); }
   // Four leading and three trailing C22 reads surround six indivisible MMD
   // transactions. Reserve all eight callback bounds before consuming history.
   constexpr uint32_t frames=31,callbacks=8;

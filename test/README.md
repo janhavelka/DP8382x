@@ -573,3 +573,10 @@ suites with combined downstream replay, failure/cancel handoff boundaries,
 external-reset/POR obligation clearing, reset-only effect classification and
 interleaved reset observations. Numeric literals remain independent of production
 masks; no extra test framework or physical qualification is introduced.
+
+Prompt36 adds `verify_raw_reset_observation`: literal PCS/HARD/RESTART evidence
+through direct and vendor-alias reads in IDLE/RESULT_PENDING, including release,
+deadline and regressing-clock failure. `quality_ownership` checks the same shared
+path while an IRQ operation is running; no dependent writes may follow.
+`eee_acquisition_failures` checks stale retained EEE evidence after quarantine.
+These extend existing fixtures and registered Release suites.

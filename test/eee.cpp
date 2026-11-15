@@ -348,6 +348,22 @@ void failures() {
   }
 }
 void acquisitionFailures() {
+  {
+    Controller b; Driver d; ready(d,b); configured(d,b);
+    EeeSnapshot sample; CHECK(d.readEeeStatus(sample,{1000000,31}).ok());
+    const auto retained=d.eeeSnapshot();
+    b.badReceiptCall=static_cast<int>(b.calls);
+    uint16_t id=0xCAFE; CHECK(!d.readClause22(2,id,{1000000,1}).ok());
+    const auto frames=b.frames,clocks=b.clocks; sample.partner=0xCAFE;
+    const auto status=d.readEeeStatus(sample,{1000000,31});
+    CHECK(status.is(Err::BUSY) && status.detail==static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED));
+    const auto cached=d.eeeSnapshot();
+    CHECK(sample.partner==0xCAFE && cached.stale && !cached.negotiatedValid);
+    CHECK(cached.lastStatus.code==status.code && cached.lastStatus.detail==status.detail);
+    CHECK(cached.observedAtUs==retained.observedAtUs && cached.timeValid==retained.timeValid);
+    CHECK(cached.partner==retained.partner && cached.status==retained.status);
+    CHECK(b.frames==frames && b.clocks==clocks);
+  }
   // A valid contradictory control word remains evidence even if the next
   // transaction fails; aggregate failure cannot preserve obsolete trust.
   for(bool control:{false,true})for(bool release:{false,true}) {

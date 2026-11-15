@@ -1080,3 +1080,10 @@ adds regressions for OP-9 reset-versus-stimulus evidence, OP-15 current electric
 obligation clearing, combined-owner replay and interleaved reset observations.
 A valid raw reset observation can terminate the pending maintenance operation
 without turning that successful raw read into a transport failure.
+
+The stage-36 integration review applies reset observation to every direct and
+vendor-alias read, independent of the active feature. PCS/HARD withdraw current
+identity/readiness/configuration; RESTART retains configuration and invalidates
+link/history continuity. An interleaved operation freezes; owned reset polling
+continues through its existing bounded phases. RESULT_PENDING remains historical,
+including its identity/strap fields, after a later raw observation.

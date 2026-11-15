@@ -1487,6 +1487,8 @@ public:
   /// @param[out] snapshot Unchanged on failure; eeeSnapshot/evidenceSnapshot retain partials.
   /// @param budget Finite frame/deadline allowance; no negotiation wait or retry.
   /// @return Acquisition status, separate from negotiated success and physical qualification.
+  /// @note Controller quarantine marks cached evidence stale at its old timestamp;
+  /// the rejected refresh performs no MDIO and leaves caller output unchanged.
   Status readEeeStatus(EeeSnapshot& snapshot, const IoBudget& budget) noexcept;
   /// @brief Copy EEE intent/evidence without bus or clock I/O.
   /// @return Historical/current validity and trust; serialize with the application owner.
@@ -1794,6 +1796,8 @@ public:
   /// @note SNLS647I tables 8-19..48. Selectors, holes, consuming reads and CDCR
   /// (resistor-calibration follow-up obligation) are rejected before callbacks.
   /// Status words may change asynchronously; a raw word is not a coherent link result.
+  /// A valid active-reset observation invalidates affected current evidence even
+  /// if release/timing fails; it interrupts an interleaved operation, not a frozen result.
   Status readClause22(uint32_t registerAddress, uint16_t& value,
                       const IoBudget& budget) noexcept;
   /// @brief Write the safe maintenance subset in one terminal owned batch.
@@ -1819,6 +1823,7 @@ public:
   /// or unadmitted DEVAD/offsets. EEE mappings remain physically unqualified.
   /// @note SNLS647I 8.3.11.1/.5, tables 8-31/32. Clause 22 aliases inherit the
   /// same policy. Raw TDR/MSE/strap words do not establish freshness or units.
+  /// Vendor reset aliases retain the same invalidation effects as readClause22.
   Status readMmd(uint32_t devad, uint32_t registerAddress, uint16_t& value,
                  const IoBudget& budget) noexcept;
   /// @brief Write one admitted vendor-MMD word in one four-frame batch.

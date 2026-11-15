@@ -3,7 +3,7 @@
 The [80-prompt implementation plan](prompts/README.md) is in its first
 execution. Prompts 1–35 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 229 registered Release CTests, 103 Python tests,
+Current local checks include 230 registered Release CTests, 103 Python tests,
 two linked tests-OFF consumers, Doxygen negative checks, ledger/reference integrity
 and deterministic version validation. SDK and physical qualification remain later
 work; first-execution remote CI belongs to prompt 71.
@@ -26,6 +26,14 @@ Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
 operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+Prompt36 began on clean synchronized `main` at
+`2f64d3018179e86a11e9e747eecb1d13e75989aa`. Its bounded review and focused fixes
+are delivered; full primary closure remains BLOCKED by mandatory source-gated
+branches. The [report](reports/implementation/36-primary-feature-closure.md) records
+independent source/integration review, returned acceptance and fresh local checks.
+Native work may continue on the implemented subset; no SDK or physical completion
+is claimed. Final commit/upstream equality is recorded in the handoff.
 
 The [independent prompts34-35 audit](reports/implementation/34-35-independent-audit.md)
 starts from synchronized `main` at `c292dc75658b01d224617548d896f88fb8c6ef71`.
@@ -425,15 +433,15 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [25 Implement complete manual cable capture](prompts/25-cable-manual.md) | COMPLETE | [Report](reports/implementation/25-cable-manual.md); six-run/raw capture, partial evidence, bounded HARD restoration and pure interpretation; host/consumer PASS; physical Q7 NOT RUN |
 | [26 Implement cable autorun and shared result acquisition](prompts/26-cable-autorun.md) | COMPLETE | [Report](reports/implementation/26-cable-autorun.md); one owned enable flag, fixed raw acquisition, manual handoff, reset replay and verification; host/consumer PASS, physical timing/accuracy NOT RUN |
 | [27 Implement bounded interrupt configuration and service](prompts/27-interrupt-service.md) | COMPLETE | [Report](reports/implementation/27-interrupt-service.md), [IRQ guide](interrupts.md); all sources/policy/test/service/replay, independent literals and failure regressions. 154 Release tests, two tests-OFF consumers and source/document checks PASS. Q9 remains NOT RUN. |
-| [28 Implement active-sleep policy and explicit power states](prompts/28-power-states.md) | COMPLETE, DPD source-gated | [Report](reports/implementation/28-power-states.md), [power guide](power.md), six Release suites and portable owner example. Active-sleep/IEEE/PLL implemented; deep_power_exit and Q6 remain open. |
+| [28 Implement active-sleep policy and explicit power states](prompts/28-power-states.md) | PARTIAL: DPD source-blocked | [Report](reports/implementation/28-power-states.md), [power guide](power.md), six Release suites and portable owner example. Active-sleep/IEEE/PLL implemented; deep_power_exit and Q6 remain open. |
 | [29 Implement exact EEE negotiation and status](prompts/29-eee-negotiation.md) | COMPLETE | [Report](reports/implementation/29-eee-negotiation.md), [EEE guide](eee.md); committed/synced356320ac. Q1 physical pending. |
 | [30 Implement bounded legacy-MAC LPI sessions](prompts/30-legacy-mac-lpi.md) | COMPLETE | [Report](reports/implementation/30-legacy-mac-lpi.md), [LPI guide](lpi.md); bounded start/stop, retained OP-9 state, independent Release/consumer tests. Q1/Q2 physical pending. |
 | [31 Implement complete Wake-on-LAN controls](prompts/31-wake-on-lan.md) | COMPLETE | [Report](reports/implementation/31-wake-on-lan.md), [WoL guide](wake-on-lan.md); eight Release suites, bounded config/ACK/status, routing/replay and portable owner example. Q3 physical pending. |
-| [32 Implement all LED and GPIO controls](prompts/32-led-gpio.md) | NOT STARTED | None |
-| [33 Implement clock, interface and repeater controls](prompts/33-clock-interface-repeater.md) | NOT STARTED | None |
+| [32 Implement all LED and GPIO controls](prompts/32-led-gpio.md) | COMPLETE for source-admitted routes | [Report](reports/implementation/32-led-gpio.md), [audit](reports/implementation/32-33-independent-audit.md); typed pin profiles and shared replay with literal/failure tests. pin_fields branches and physical Q12 remain gated. |
+| [33 Implement clock, interface and repeater controls](prompts/33-clock-interface-repeater.md) | COMPLETE for source-admitted routes | [Report](reports/implementation/33-clock-interface-repeater.md), [audit](reports/implementation/32-33-independent-audit.md); interface/clock/isolation/repeater profiles and collector-safe replay. Unresolved clock routes and physical Q12/Q17 remain gated. |
 | [34 Implement quality and hardware link-loss controls](prompts/34-quality-link-loss.md) | COMPLETE | [Report](reports/implementation/34-quality-link-loss.md), [guide](quality.md), five source-admitted procedures, single collector and shared replay; 214 Release/UBSan tests, 103 Python tests, two portable consumers and local source/document checks PASS. Physical timing and derived MSE units remain gated. |
 | [35 Implement electrical controls and finite compliance procedures](prompts/35-electrical-compliance-calibration.md) | COMPLETE | [Report](reports/implementation/35-electrical-compliance-calibration.md), [guide](electrical.md); four source-admitted procedures, shared reset/replay, 289 split-field transition vectors and retained failure evidence. 229 Release/UBSan tests, 103 Python tests, two consumers and local checks PASS. Source gates and physical Q19 remain open. |
-| [36 Audit complete primary-chip feature coverage](prompts/36-primary-feature-closure.md) | NOT STARTED | None |
+| [36 Audit complete primary-chip feature coverage](prompts/36-primary-feature-closure.md) | BLOCKED: primary closure; bounded review delivered | [Report](reports/implementation/36-primary-feature-closure.md); common reset-observation and EEE freshness fixes, 230 Release/UBSan CTests, two consumers and local checks PASS. Required source-gated branches remain with owners 28/32/33/35; prompt 55 owns row closure. |
 | [37 Implement the native ESP-IDF factory and lifecycle](prompts/37-esp-idf-lifecycle.md) | NOT STARTED | None |
 | [38 Complete SDK-aware configuration and raw MDIO arbitration](prompts/38-esp-idf-state-arbitration.md) | NOT STARTED | None |
 | [39 Prove native link notifications and adapter timing contracts](prompts/39-esp-idf-link-bounds.md) | NOT STARTED | None |

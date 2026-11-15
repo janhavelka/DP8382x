@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Prompt36 integration review: all direct/vendor-alias reset observations now
+  invalidate current evidence and interrupt dependent operations, preserving
+  frozen results. Quarantined EEE refreshes retain explicitly stale evidence.
+  Primary closure remains blocked by required source-gated branches.
+
 - Audit prompts34-35: retain quality reset/mode evidence and stale MSE status;
   complete analog handoff to later owned restoration; clear electrical debt on
   external reset; distinguish reset-only effects from stimulus activation.

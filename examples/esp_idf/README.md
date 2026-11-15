@@ -36,9 +36,10 @@ The [prompt-6 decision](../../docs/design-decisions.md) now fixes these routes:
   public SDK controls and verify hardware/cache agreement before restart. Full
   advertisement and diagnostics use the shared chip procedures. MAC flow-control
   policy is separate from full portable RX/TX pause resolution.
-- Pin v6.1 source plus the required verified lifecycle correction before claiming
-  native support. Failed install may retain a cleanup-only handle under that
-  corrected contract; failed stop/uninstall never licenses freeing live contexts.
+- Pin unmodified v6.1 and implement the selected public lifecycle route before
+  claiming native support. Failed install may retain a cleanup-only handle;
+  unresolved public-route failure is terminal until restart. Failed stop/uninstall
+  never licenses freeing live contexts. See the native ownership design and prompt 37.
 - Select GPIO54 reset, MDC49, MDIO43 and REF_CLK input GPIO44 from the current
   board evidence, with declared/verified PHY address 0. Recheck actual netlist,
   R21/C24 reset pulse and power/clock readiness before firmware qualification.

@@ -7,6 +7,10 @@ framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet M
 **Status: prompts 1–35 complete for supported procedures; deep-power-down remains source-blocked. Direct/indirect access, retained evidence, identity, bounded resets, verified link profiles, observations, loopback, BIST, manual/autorun cable capture, interrupts, power, EEE, forced LPI, WoL, LED/GPIO and clock/interface/repeater and quality/link-loss profiles are implemented; SDK support and hardware qualification remain future work.**
 [EEE negotiation and status](docs/eee.md) now provide explicit reset-bearing setup,
 verified restoration and bounded retained observations; physical Q1 remains pending.
+The [prompt-36 integration review](docs/reports/implementation/36-primary-feature-closure.md)
+delivers focused corrections and confirms that full primary closure remains
+blocked by required source-gated branches. Independent native integration can
+continue on the implemented subset; prompt 55 still owns final primary row closure.
 [Power policy and observations](docs/power.md) now share explicit software intent,
 finite PLL/IEEE transitions and reset replay. Deep-power-down exit remains gated;
 physical clock and power qualification remain unmeasured.

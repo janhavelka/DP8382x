@@ -208,3 +208,13 @@ Use [typed quality operations](quality.md) for hardware link-loss policy and
 TX10/TX100 controls. Raw MSE is source-admitted; derived SNR and alternate
 address probing remain gated. Raw/external writes invalidate owned quality
 proof; they do not establish a new persistent profile.
+
+Every valid direct or vendor-alias reset observation updates current evidence,
+including in IDLE and RESULT_PENDING. BMCR PCS or PHYRCR HARD invalidates
+identity, readiness and configuration; PHYRCR RESTART retains configuration
+but interrupts link/history continuity. Interleaved observation terminates a
+running operation before further dependent work. Its raw read may still succeed;
+the operation has a separate retained result. A later release/timing failure
+does not erase a valid reset sample, and a pending historical result never changes.
+Observation alone neither accepts a command, creates a software HARD floor nor
+discharges cleanup. Explicit owner notification has its separate contract.

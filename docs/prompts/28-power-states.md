@@ -87,6 +87,13 @@ Own `power_pll_control`: PHYSCR[15] mask8000 is separate from DPD0428[2],
 admitted only in IEEE power-down with explicit application clock-loss approval.
 Active-sleep mask7000 must never alter PLL disable.
 
+Prompt 36 returns `power_deep` as required incomplete scope under
+`deep_power_exit`. Before reopening implementation, obtain exact DP83826I
+evidence for safe 0428 composition/preservation, full exit order and clock/SMI
+readiness. Then implement bounded entry, exit and separately retained restoration,
+including every partial-write/cancel/clock-loss boundary and literal traces.
+Existing zero-I/O rejection is a guarded disposition, not completion of DPD.
+
 ## Documentation, verification and checkpoint
 
 Update public Doxygen, procedure citations, affected API/user/test/tool guides,

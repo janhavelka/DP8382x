@@ -27,8 +27,9 @@ is no stage-21 silicon procedure: health is library policy. Prompt 22 adds
 existing initialization/configuration procedures without another restoration
 ledger or automatic recovery. Prompt 23 completes [loopback sessions](loopback.md):
 all four ledger procedures use one bounded operation/collector/restoration owner,
-with independent host tests. Other feature procedures are PENDING; SDK builds and hardware qualification
-are NOT RUN. Ledger tests establish their own research layer.
+with independent host tests. Stages 24-35 implement the admitted typed procedures
+described below. Source-gated branches remain incomplete; SDK builds and hardware
+qualification are NOT RUN. Ledger tests establish their own research layer.
 
 The [prompts 13-18 audit](reports/implementation/13-18-independent-audit.md)
 rechecks these completed routes and adds interrupted-verification, malformed
@@ -70,7 +71,7 @@ silicon gates remain explicit. No feature's implementation status changes here.
 | eee / EEE capability, initialization and negotiation | 5 / COMPLETE | 29 (SOFTWARE) | 29, 37, 38, 39 | eee_wire, eee_control_semantics | EEE initialization/settings/status; Local/partner capability, request and negotiated state | eee_initialize, eee_negotiation_status |
 | lpi / Legacy MAC LPI sessions | 5 / COMPLETE | 30 (SOFTWARE) | 30, 37, 38, 39, 68 | eee_wire, eee_control_semantics | Bounded legacy-MAC LPI start/stop, application-owned dwell; requested/uncertain state and masked control readback, no invented readiness event | legacy_lpi |
 | wol / Magic Packet and Secure-ON wake | 5 / COMPLETE | 31 (SOFTWARE) | 31 | wol_bit_mask, wol_live_reconfigure, rxfs_sfd_reference | Wake MAC/password, pulse/level/CRC and acknowledgement; Verified settings and retained wake/error evidence | wol_configure, wol_acknowledge |
-| power / Active-sleep policy, IEEE/deep power-down, PLL | 5 / COMPLETE | 28 (SOFTWARE) | 28, 37, 38, 39 | deep_power_exit | IEEE power, active-sleep, PLL and deep-power policy; Desired policy, observed power and exit/trust | power_ieee, power_active_sleep, power_pll_control, power_deep |
+| power / Active-sleep policy, IEEE/deep power-down, PLL | 5 / COMPLETE | 28 (PARTIAL; deep-power entry/exit BLOCKED) | 28, 37, 38, 39 | deep_power_exit | IEEE power, active-sleep, PLL and deep-power policy; Desired policy, observed power and exit/trust | power_ieee, power_active_sleep, power_pll_control, power_deep |
 | repeater / RMII repeater arrangements | 5 / COMPLETE | 33 (SOFTWARE) | 33, 68 | rmii_rc | Coordinated two-PHY topology; Both owners' results, partial effects/restoration | repeater_configure |
 | clock / Clock output and reset/power interactions | 5 / COMPLETE | 33 (SOFTWARE) | 33 | pin_fields | Clock output selection and dependencies; Configured policy and qualified observed state | clock_configure |
 | mii / MII interface controls | 5 / COMPLETE | 33 (SOFTWARE) | 33, 37, 38, 39 | rmii_rc | MII controls/isolation; Verified interface settings/isolation | mii_configure, isolation_configure |
@@ -209,3 +210,26 @@ Prompt35 implements `analog_configure`, `collision_test`, `compliance_session`
 and `calibration_recovery` through the [electrical guide](electrical.md). Source
 dispositions include gated receiver gain, IOCTRL example and100M0428 access;
 software coverage does not close Q19 or qualify hardware.
+
+## Prompt 36 bounded integration review
+
+The [review report](reports/implementation/36-primary-feature-closure.md) samples
+the existing rows rather than creating another catalogue. It corrects common
+reset observation (`access`, `reset`, `interrupts`) and stale refresh evidence
+(`eee`), with registered direct/alias, retained-result and interleaving tests.
+Admitted procedures and their physical gates remain distinct.
+
+**Primary closure is BLOCKED**, even though this bounded review and its fixes
+are delivered. `power_deep` remains incomplete under owner 28: safe shared-0428
+composition, exit order and SMI/clock readiness need exact-part evidence before
+a complete finite entry/exit/restoration procedure can be implemented and tested.
+Owners 32/33 retain the unresolved `pin_fields` branches; owner 35 retains
+`ioctrl_example`, `analog_rx_gain` and the `compt_reserved` 100M branch. Their
+exact next evidence remains in the factual ledger and owning guides. Missing
+fixtures do not make these controls optional or convert blocked source facts
+into absent silicon.
+
+Prompt 55 still owns primary row closure; CLI 44-47, runner 48-52 and SDK 37-42
+must consume these dispositions without claiming rejected branches work.
+Independent native lifecycle/transport/link integration can use the reviewed
+implemented subset while these unrelated gates remain open.

@@ -497,6 +497,45 @@ void resetObservationErrors() {
   }
 }
 
+void rawResetObservation() {
+  // Tables 8-19/48: PCS/HARD invalidate configuration; RESTART retains it.
+  // Both access namespaces must invalidate current knowledge, not frozen results.
+  for (bool alias : {false, true}) for (bool pending : {false, true})
+  for (unsigned kind = 0; kind < 3; ++kind) for (unsigned fault = 0; fault < 4; ++fault) {
+    Controller bus; Driver driver; initialize(driver, bus); configure(driver, bus, profile());
+    OperationToken token;
+    if (pending) {
+      CHECK(driver.startInitialize({ResetKind::NONE},allowance(),token).inProgress());
+      CHECK(drain(driver,bus,token).ok());
+    }
+    const auto intent = driver.settingsSnapshot();
+    const auto frames = bus.frames, calls = bus.calls, writes = bus.semanticWrites;
+    const uint16_t address = kind == 0 ? 0 : 0x1F;
+    const uint16_t expected = kind == 0 ? 0x9000 : kind == 1 ? 0x8000 : 0x4000;
+    bus.words[address] = expected; bus.holdReset = bus.holdPhyrcr = true;
+    if (fault == 1) bus.releaseCall = static_cast<int>(calls);
+    if (fault == 2) bus.lateCall = static_cast<int>(calls);
+    if (fault == 3) bus.regressCall = static_cast<int>(calls);
+    uint16_t raw = 0xCAFE;
+    const auto status = alias ? driver.readMmd(31, address, raw, io()) : driver.readClause22(address, raw, io());
+    CHECK(status.is(fault == 0 ? Err::OK : fault == 1 ? Err::MDIO_ERROR :
+                    fault == 2 ? Err::OPERATION_TIMEOUT : Err::INVALID_CONFIG));
+    CHECK(raw == (fault == 0 ? expected : 0xCAFE));
+    CHECK(driver.isInitialized() == (kind == 2));
+    CHECK(driver.capabilities().valid == (kind == 2));
+    CHECK(driver.settingsSnapshot().trust == (kind == 2 ? ConfigurationTrust::VERIFIED : ConfigurationTrust::DIRTY));
+    unchangedIntent(intent, driver.settingsSnapshot());
+    CHECK(bus.frames == frames + (alias ? 4U : 1U) && bus.calls == calls + 1U && bus.semanticWrites == writes);
+    CHECK(!driver.operationSnapshot().busQuietValid && !driver.operationSnapshot().cleanupOwed);
+    if (pending) {
+      const auto result = take(driver, token);
+      CHECK(result.status.ok() && result.persistentRestored && !result.identity.stale);
+      CHECK(result.identity.acceptance == IdentityAcceptance::ACCEPTED);
+      CHECK(!result.straps.stale && result.straps.timeValid && result.straps.sor1==0x1234U && result.straps.sor2==0x5678U);
+    }
+  }
+}
+
 void retainedBarrier() {
   Controller bus; Driver driver; initialize(driver, bus); configure(driver, bus, profile());
   OperationToken apply; CHECK(driver.startConfigure(profile(), allowance(), apply).inProgress());
@@ -567,6 +606,7 @@ void timing() {
 int main(int argc, char** argv) {
   const test::Suite suites[] = {{"traces", traces}, {"comparisons", comparisons}, {"failures", failures},
     {"admission", admission}, {"lifecycle", lifecycle}, {"recovery", recovery}, {"ownership", ownership}, {"timing", timing},
-    {"interrupted_replay", interruptedReplay}, {"reset_observation_errors", resetObservationErrors}, {"barrier", retainedBarrier}};
+    {"interrupted_replay", interruptedReplay}, {"reset_observation_errors", resetObservationErrors},
+    {"raw_reset_observation", rawResetObservation}, {"barrier", retainedBarrier}};
   return test::runSuites(argc, argv, suites);
 }

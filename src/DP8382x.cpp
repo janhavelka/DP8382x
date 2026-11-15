@@ -933,16 +933,14 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
       continue; // Distinct MMD namespace; never alias BMSR/BISCR or vendor state.
     }
     if (target && frame.kind == FrameKind::READ && completed) {
-      // Maintenance prerequisites and interleaved reads can observe a reset.
-      // Retain it even when a later frame/release fails the aggregate pass.
-      if (_qualityWorking || _analogWorking || _electricalWorking) {
-        if (address == cmd::REG_BMCR && (receipt.value & 0x8000U) != 0U) {
-          resetObserved = true; _invalidateResetEvidence(true);
-        }
-        else if (address == cmd::REG_PHYRCR && (receipt.value & 0xC000U) != 0U) {
-          resetObserved = true;
-          _invalidateResetEvidence((receipt.value & 0x8000U) != 0U);
-        }
+      // Any valid direct or vendor-alias observation can reveal active reset.
+      // Retain it before later frame/release failure, regardless of feature owner.
+      if (address == cmd::REG_BMCR && (receipt.value & 0x8000U) != 0U) {
+        resetObserved = true; _invalidateResetEvidence(true);
+      }
+      else if (address == cmd::REG_PHYRCR && (receipt.value & 0xC000U) != 0U) {
+        resetObserved = true;
+        _invalidateResetEvidence((receipt.value & 0x8000U) != 0U);
       }
       if (address == cmd::REG_BMCR && (_qualityWorking || _analogWorking || (_electricalWorking &&
           (_operation.kind == OperationKind::COLLISION_START || _operation.kind == OperationKind::COLLISION_STOP)))) {
@@ -1762,9 +1760,11 @@ void DP8382x::_invalidateResetEvidence(bool configurationLost) noexcept {
   _invalidateLink();
   if (configurationLost) {
     _invalidateEvidence();
-    _result.identity.stale = true;
-    _result.straps.stale = true;
-    _result.straps.timeValid = false;
+    if (_operation.state == OperationState::RUNNING) {
+      _result.identity.stale = true;
+      _result.straps.stale = true;
+      _result.straps.timeValid = false;
+    }
   } else {
     _markEvidenceDiscontinuous();
   }

@@ -104,6 +104,9 @@ A later link loss/change or contradictory raw advertisement withdraws cached
 negotiated validity. Valid contradictory control prefixes dirty trust even if
 release or a later read fails. No later independent policy completion can bless
 that dirty EEE proof. Cached readers cause no callbacks.
+Controller-quarantined refreshes also mark cached evidence stale and negotiated
+validity false, retaining raw words and their old timestamp. The BUSY status is
+retained without callbacks or ordinary output publication.
 
 [The portable example](../examples/portable/Eee.h) uses the shared owner-loop and
 quiet-floor helper. Check Status before using ordinary output, then render any

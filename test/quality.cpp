@@ -405,6 +405,25 @@ void collector() {
   CHECK(current.samples[static_cast<unsigned>(EvidenceSource::RECR)].sampledSum==0U);
 }
 void ownership() {
+  // Reset retention belongs to the common boundary, including a different
+  // feature owner. IRQ must not continue from pre-reset evidence.
+  for (bool alias : {false,true}) for (unsigned boundary : {1U,4U}) {
+    Controller irqBus; Driver irqDriver; ready(irqDriver,irqBus);
+    InterruptSettings irq; irq.maintenanceAdmitted=irq.pinAvailable=true;
+    OperationToken token; CHECK(irqDriver.startConfigureInterrupts(irq,budget(),token).inProgress());
+    for (unsigned step=0;step<boundary;++step) { CHECK(poll(irqDriver,irqBus,token).inProgress()); }
+    irqBus.corruptFrame=static_cast<int>(irqBus.frames+(alias?3U:0U)); irqBus.corruptMask=0x8000;
+    uint16_t raw=0xCAFE;
+    CHECK((alias?irqDriver.readMmd(31,0,raw,{1000000,4}):irqDriver.readClause22(0,raw,{1000000,1})).ok());
+    CHECK(raw==0x9000U && !irqDriver.isInitialized() && !irqDriver.capabilities().valid);
+    const auto frames=irqBus.frames,mutations=irqBus.mutations;
+    CHECK(irqDriver.operationSnapshot().state==OperationState::RESULT_PENDING);
+    CHECK(irqDriver.pollOperation(token).is(Err::INVALID_CONFIG));
+    const auto result=take(irqDriver,token);
+    CHECK(result.status.detail==static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED));
+    CHECK(!result.persistentRestored && result.cleanupOwed==result.mutationPossible);
+    CHECK(irqBus.frames==frames && irqBus.mutations==mutations);
+  }
   // An interleaved raw reset observation freezes the pass even when stable
   // mode bits still match. The consumed word remains valid to its caller.
   for (unsigned boundary=2;boundary<=3U;++boundary) {
