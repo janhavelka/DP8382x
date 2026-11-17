@@ -11,7 +11,8 @@ same-branch commit/sync obligations.
 Make `library.json` the version truth with working
 `scripts/generate_version.py sync` and `check`, generated
 `include/DP8382x/Version.h`, tests and tool documentation. Metadata describes
-existing outputs only. Later packaging adds applicable SDK/package fields;
+existing outputs only. Later packaging preserves the six-field library.json manifest and puts SDK
+dependencies in component metadata;
 this stage is a complete version workflow, not speculative publication setup.
 
 ## Work and current precedents

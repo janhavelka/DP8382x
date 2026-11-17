@@ -61,6 +61,21 @@ consumer. Do not install toolchains for this check. Keep Release checks active,
 registered WILL_FAIL probes executing, and no empty suites. Extend shared focused
 fixtures rather than duplicate harnesses or AST frameworks.
 
+## Shared harness consolidation
+
+Consolidate common transport bookkeeping, fault injection and binding setup onto
+shared FakeController/harness support and one reusable bound-driver fixture.
+Compare operations.cpp and reset.cpp first; preserve their deliberate hard-reset,
+strap-resampling and shared-silence differences. Keep separate feature wire models
+where they provide independent silicon oracles, and record which models remain
+separate and why. Do not replace literal expectations with production metadata or
+build one fake with unrelated feature policy.
+
+Record reproducible static CHECK-site counts and executing CHECK counts before
+and after, excluding the macro definition. Preserve all assertions, source
+vectors, failure boundaries and registered suites; do not use harness cleanup to
+reduce coverage. Re-measure current inputs rather than inheriting audit counts.
+
 ## Acceptance
 
 Execute affected complete host/CLI/Python suites, standalone headers and the

@@ -44,7 +44,10 @@ soft-reset interpretation as inferred; never select a recipe by its prose name.
 
 Use table 8-4 revision admission and UNKNOWN operating mode. RXFS[12] resets 0
 on DP83822 (table 8-88), unlike DP83826. Keep that selector in collector state
-and do not inherit the original part's MISR2 WoL interpretation blindly. FX
+and do not inherit the original part's MISR2 WoL interpretation blindly.
+DP83822 RXFS status bits have W1S access: unrelated writes supply zero to those
+bits, preserving the selector from its own part-specific table semantics.
+Do not copy DP83826 RXFS reset or status-write composition. FX
 procedures in 65 never write CR1[6:5], PHYCR[15:14] or CR3[6:5].
 
 ## Work and acceptance

@@ -63,6 +63,17 @@ reconciliation. Preserve portable directional RX/TX pause evidence separately
 from the SDK's narrower Boolean notification; correct locking is insufficient
 for either semantic guarantee.
 
+## Per-kind admission refactor
+
+Move reset and EEE procedure look-aheads out of the shared `_execute` body into
+per-kind admission functions. Include initialization/loopback reset, the
+calibration clear/HARD pair, and EEE's 75/71-frame and 21/20-callback floors.
+Keep the fresh callback-entry clock sample and recheck; checking only the earlier
+poll sample would miss an intervening clock jump. Preserve checked arithmetic,
+strict deadline inequality, rejection order/details, zero-I/O denials and retained
+effects. Existing independent regressions must pass unchanged. Extract actual
+responsibilities rather than meeting an arbitrary source-line quota.
+
 ## Acceptance
 
 Execute affected real core, CLI and meaningful adapter regressions using

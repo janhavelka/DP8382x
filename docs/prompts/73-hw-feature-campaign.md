@@ -85,3 +85,9 @@ no-change reasons. Run focused local checks and check final diff. Commit/sync
 verified units and available work on the recorded branch, keeping BLOCKED
 evidence visible. Preserve prompt 71's historical CI SHA; no remote
 dispatch/poll/wait occurs here.
+
+For rxfs_sfd_reference, obtain TI exact-part clarification of RXFS[7]'s reference
+to reserved RXFCFG1[13] before programming any SFD detection control. The WoL/error
+fixture records raw RXFS SFD-error evidence and the clarification's supported
+configuration; absent clarification, keep that configuration case BLOCKED and
+never probe reserved bit13 by writing it. Raw status software already exists.

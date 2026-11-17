@@ -42,7 +42,7 @@ clock_config.rmii={EMAC_CLK_EXT_IN,44}, dataif RMII tx_en49,txd0=41,txd1=42,
 crs_dv51,rxd0=52,rxd1=53, reset54. Startup checks every configured field against
 its constant and all pins for uniqueness; SDK defaults otherwise silently select
 wrong data pins. Handle a null esp_eth_mac_new_esp32 result. P4 IO_MUX restricts
-signal pads. Confirm this2026-10-27 mapping against the final netlist before
+signal pads. Confirm this 2026-10-27 mapping against the final netlist before
 flashing; older board paragraphs contain superseded pins. Keep address/clock
 inputs explicit and hardware gated when authority is missing.
 

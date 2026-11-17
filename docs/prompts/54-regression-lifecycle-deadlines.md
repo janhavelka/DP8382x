@@ -69,6 +69,22 @@ List existing named tests from43/48/49/53 before adding regressions. Add only
 missing boundaries or cross-entry cases. Exercise OP-5 short slices and stalled
 clock rules, OP-9 separate restoration results and OP-14 hard-reset silence.
 
+## Explicit OP-5 driver scenarios
+
+Execute these through real driver starts/polls and a controlled clock, not only
+through the arithmetic probes in test_operation_timing.py:
+
+- Poll every 100 us through a 2 ms wait on a 1 us clock; no early read or false
+  POLL_BUDGET, followed by valid progress.
+- Tight polling on a 100 Hz tick clock through a 5 ms wait with default
+  maxStalledPolls=100000; retain quantization and completion anchoring, prove no
+  false POLL_BUDGET and progress once the raw clock reaches the due time.
+- Short-slot terminal BOUND_ADMISSION and DEADLINE before slice yield, with no
+  callback. Preserve the existing operations timing test for expired deadline
+  with maxFrames=0 and add the missing non-fitting-bound counterpart.
+
+Keep no-I/O yield and frozen-clock cases as separate regressions.
+
 ## Acceptance
 
 Execute core/CLI/Python boundary tests with full/slow output and fragmented or

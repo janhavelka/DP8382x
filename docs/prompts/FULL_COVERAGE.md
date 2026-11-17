@@ -120,7 +120,7 @@ For every documented register/field, record:
 
 - exact part/revision/mode and address space: Clause 22 or MMD DEVAD/address;
 - canonical name, address, width, mask, reset value and reset/mode dependencies;
-- R/RW/W0C/W1C/W1S/read-clear/latch/self-clearing/reserved/write-only semantics,
+- R/RW/W0C/W1S/read-clear/latch/self-clearing/reserved/write-only semantics,
   including command-neutral write values and mixed control/status fields;
 - legal values, units/encoding, prerequisites, side effects and ownership;
 - documented sequence requirements, waits, ordering, stop/recovery behavior;

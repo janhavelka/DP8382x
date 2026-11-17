@@ -26,6 +26,22 @@ repeat whole-ledger reconciliation or previous completed behavior suites without
 changed inputs or a concrete concern. Put commands/counts in this report and
 link its progress row.
 
+## Compact retained operation results
+
+Reduce OperationResult toward the audit's approximately 256-byte target: common
+kind/status/error/timestamp/effect evidence plus one compact per-kind payload,
+or feature data in that feature's retained snapshot. A union of today's full
+feature results is insufficient; CableResult alone exceeds that target. Preserve
+frozen-result lifetime, partial/destructive evidence, primary/restoration
+separation and output validity across later operations and snapshot updates.
+Do not solve size by borrowing mutable storage or dropping required evidence.
+
+Add a meaningful sizeof regression with an explicit ceiling for each supported
+ABI, and record target and host measurements. Update every consumer, Doxygen and
+API example together, including OwnerSession's copied-result stack demand.
+Explain any justified deviation from the target. This is the assigned structural
+work; it does not authorize unrelated API redesign or a second result registry.
+
 ## Work and acceptance
 
 Walk every exported type/value/method in `include/DP8382x/Status.h`, `Config.h`,

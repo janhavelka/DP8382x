@@ -52,6 +52,11 @@ work it blocks. When a whole-set invocation permits further work, continue
 independent eligible stages and return to the blocked task. A single-stage
 invocation ends with that stage's handoff.
 
+From stages 37 onward, do not embed additional by-value feature results in
+OperationResult. Existing storage stays compatible until prompt 76 replaces it
+with a compact per-kind result contract and coordinated consumers. Retained
+feature evidence must not disappear or become a reference to mutable later state.
+
 ## Implement a complete work unit
 
 Deliver validation, behavior, failure handling, timeout/cancellation, cleanup,
