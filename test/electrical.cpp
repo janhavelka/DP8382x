@@ -68,6 +68,8 @@ struct Controller {
     if(target==0 && value==0x8000) { words[0]=0x3100;words[9]=words[10]=words[17]=0;words[23]=boardInterface==MacInterface::MII?0x0041:0x0061;return; }
     if(target==26)CHECK((value&0x0010U)==0U);
     if(target==23)CHECK((value&0x000CU)==0U);
+    // SNLS647I table 8-40: BISCR Power Mode [8] is read-only, reset one.
+    if(target==22) { words[target]=static_cast<uint16_t>((value&0xFEFFU)|(words[target]&0x0100U));return; }
     if(target==18 || target==19) { CHECK((value&0xFF00U)==0U);words[target]=static_cast<uint16_t>((words[target]&0xFF00U)|value);return; }
     if(target==0x04A1) {
       CHECK(value==0x1000 || value==0);
@@ -162,14 +164,19 @@ void vectors() {
       CHECK((b.words[25]&0x3FFFU)==1U); // No script0021/4021 imports.
       CHECK((b.words[0]&0x3F00U)==(mode==ComplianceMode::TX100?0x2100U:0x0100U));
       CHECK(writes(b,first,0x030E)==1U && b.ext[0x030E]==0x4A40);
-      if(mode==ComplianceMode::PRBS10)CHECK((b.words[22]&0x711FU)==0x7001U);
+      if(mode==ComplianceMode::PRBS10) {
+        CHECK((b.words[22]&0x701FU)==0x7001U);
+        CHECK((b.words[22]&0x0100U)==0x0100U);
+      }
       if(mode==ComplianceMode::PATTERN10)CHECK((b.ext[0x27]&0x1FU)==(0x10U|code));
       unsigned hardWrites=0,restartWrites=0;
       for(unsigned i=first;i<b.frames;++i)if(semantic(b.trace[i])) {
         const auto& w=b.trace[i];if(w.target==0)CHECK((w.value&0x0C00U)==0U);
         if(w.target==0x1F) { CHECK(w.value==0x8000 || w.value==0x4000);hardWrites+=w.value==0x8000?1U:0U;restartWrites+=w.value==0x4000?1U:0U; }
         if(w.target==0x19)CHECK((w.value&0x003FU)==1U);
-        if(w.target==0x16)CHECK(w.value==0x7001);
+        // The wire word must preserve observed RO bit 8 even though the fake ignores its writes.
+        // This literal regression fails with the old 0x8EE0 preserve mask.
+        if(w.target==0x16)CHECK(w.value==((0x0100U&0x8FE0U)|0x7001U) && w.value==0x7101U);
       }
       CHECK(hardWrites==1U && restartWrites==(mode==ComplianceMode::PATTERN10?0U:1U));
       const auto cached=b.frames;d.electricalSnapshot();d.electricalSnapshot();CHECK(b.frames==cached);

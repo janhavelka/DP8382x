@@ -2194,6 +2194,7 @@ private:
   Status _sampleTime(uint64_t& raw, uint64_t& upper) noexcept;
   enum class Traffic : uint8_t { RAW, MANAGED };
   Traffic _operationTraffic() const noexcept;
+  bool _featureProcedureActive() const noexcept;
   Status _execute(MdioBatch batch, const IoBudget& budget, bool* called = nullptr,
                   bool operation = false, Traffic traffic = Traffic::RAW,
                   uint8_t identityAddress = 32) noexcept;

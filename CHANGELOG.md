@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Preserve read-only BISCR Power Mode bit 8 during 10M compliance setup, with
+  an independent wire-value regression; consolidate the repeated private feature
+  phase predicate without changing admission behavior.
+
 - Revalidated all 30 repository audit records and197 promptset findings against
   current code, prompts and sources, with dated responses in each audit.
   Corrected stale SDK-base, IRQ-mux, initialization-replay and CLI-discovery
