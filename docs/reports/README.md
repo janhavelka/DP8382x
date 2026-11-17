@@ -1,5 +1,10 @@
 # Planning audits and later implementation evidence
 
+The [prompt 37 report](implementation/37-esp-idf-lifecycle.md) records the native
+factory/lifecycle, real pinned-driver host tests, P4 link and retained RX lifetime
+gate. Its [source audit](implementation/37-native-source-audit.md) records current
+sibling/SDK inputs separately from executing evidence.
+
 The [2026-11-15 finding-by-finding dispositions](promptset-audit-dispositions.md)
 independently check all 179 G/M/N findings and 18 contract-review mappings in the
 remaining-prompts audit, plus the earlier prompt correctness/workload reports.

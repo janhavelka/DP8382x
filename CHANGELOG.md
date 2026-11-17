@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Prompt 37: added the native ESP-IDF v6.1 PHY owner, explicit board readiness,
+  direct MAC batches, typed initialization/AN configuration, shared terminal
+  AN restart, qualified link notifications, rejecting raw ioctl hooks and bounded
+  discovery. Added hash-checked real-driver/netif-glue host tests and a linked P4
+  fixture. Stop/fence failures preserve evidence; installed resources remain
+  retained under the unresolved RX-quiescence teardown gate.
+
 - Independent prompt36 audit: quarantined link refreshes mark historical data
   stale; configuration stops on an observed active reset instead of restoring
   verified trust. Collision entry/exit also stops on reset in its RMW read.

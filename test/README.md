@@ -51,10 +51,26 @@ independent synthetic values and integer arithmetic, not a fake PHY or unused
 operation engine. The [operation scenarios](../docs/api-contracts.md#operation-acceptance-scenarios-and-examples)
 remain execution-ready call/status/effect recipes for the first real consumer.
 Together with two structural catalog/policy checks and 13 version-tool tests,
-current Python discovery contains 102 tests. These Python tests do not claim driver execution;
+current Python discovery contains 103 tests. These Python tests do not claim driver execution;
 the C++ transport suites below exercise the compiled driver separately.
 
 ## Portable C++17 foundation
+
+Prompt37 adds three terminal AN restart suites to the current **234 portable
+Release CTests**. The separate opt-in [native harness](esp_idf/CMakeLists.txt)
+compiles actual pinned `esp_eth.c` and `esp_eth_netif_glue.c`, with the native
+adapter and small platform fakes. Its **24 tests** (seven driver, 17 adapter)
+cover install/start/stop errors, raw ioctl denial, board readiness, notification
+partial effects, shared quarantine, finite discovery, and raw/glue RX lifetime.
+Assertions stay active in Release; the same suites run under UBSan. Configuration
+and each build verify the complete compiler-selected SDK dependency closure
+against [45 pinned source/header blobs](esp_idf/host/sdk-files.json).
+
+See the [native guide](../docs/esp-idf.md#reproducible-build-and-verification-layers)
+for the opt-in host command and the actual [P4 firmware fixture](esp_idf/adapter_link/README.md)
+for image-link commands. Ordinary portable consumers do not enable the SDK test
+option. Modeled timer/RX scheduling does not qualify actual hardware timing;
+installed resources remain retained under the explicit RX lifetime gate.
 
 The root `DP8382x` CMake target provides five standalone public headers and links
 the portable direct/indirect implementation. `DP8382X_BUILD_TESTS` defaults to OFF.

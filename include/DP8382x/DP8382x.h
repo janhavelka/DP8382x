@@ -1774,6 +1774,13 @@ public:
   /// @return Last observation and refresh status; caller policy decides acceptable age/mode.
   LinkSnapshot linkSnapshot() const noexcept { return _link; }
 
+  /// @brief Request AN restart in one terminal batch without waiting for negotiation.
+  /// @param[in] budget Absolute deadline and allowance for the complete three-frame batch.
+  /// @return OK proves completed command write and stable control readback only; not link-up.
+  /// @pre Initialized, verified owned AN profile, awake normal mode, no active/result/cleanup slot.
+  /// @note Failed or late writes preserve effects and invalidate trust; no retry, token or wait.
+  Status restartAutoNegotiation(const IoBudget& budget) noexcept;
+
   /// @brief Acquire and accept identity at the bound address in one two-read batch.
   /// @param[out] identity Assigned only after complete in-budget transport and identity acceptance.
   /// @param[in] budget Aggregate microsecond deadline and at least two frames.

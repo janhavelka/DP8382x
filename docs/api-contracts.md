@@ -11,6 +11,16 @@ and [native ownership design](design-decisions.md). Silicon facts belong in the
 ledger; shipped names and declarations belong in headers. Core remains C++17,
 fixed-size and application-serialized, with no allocation, SDK, clock or RTOS owner.
 
+Prompt37 adds `restartAutoNegotiation(const IoBudget&)` to the shipped core for
+the native framework's synchronous RESTART callback. It requires initialized,
+verified, awake normal AN configuration and no pending operation/result or cleanup
+barrier. One three-frame BMCR read/write/readback batch uses the existing owned-bit
+composition; it creates no operation token and never waits for negotiation/link.
+Readback verifies stable bits, not the self-clearing restart command. Partial or
+uncertain mutation withdraws trust and retains restoration debt. The
+[native guide](esp-idf.md) owns callback admission and SDK publication semantics;
+the portable header owns exact errors, outputs and timing declarations.
+
 ## Status and error details
 
 [Status.h](../include/DP8382x/Status.h) defines Status, Err and per-code details.

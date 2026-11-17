@@ -2,7 +2,8 @@
 
 `library.json` is the sole release-version source. It currently describes the
 existing portable C++17 foundation and actual MIT license/repository; it does
-not claim SDK, Arduino, PlatformIO or package publication support. The only
+not claim Arduino, PlatformIO or package publication support. Native ESP-IDF
+availability is recorded separately in the [component guide](../docs/esp-idf.md). The only
 generated output is the committed `include/DP8382x/Version.h`. Neither CMake
 nor ordinary consumers run this script.
 
@@ -50,6 +51,12 @@ paths exceed the Windows 260-character limit:
 ```bat
 scripts\idf.cmd -C <example dir> -B C:\esp\build\dp8382x set-target esp32p4 build
 ```
+
+The current linked fixture is `test/esp_idf/adapter_link`; use
+`C:\esp\build\dp8382x-adapter` for its build folder. Its application-owned Git
+identity refreshes on every build. The component's `idf_component.yml` pins IDF
+6.1 and ESP32-P4 without adding a second release-version value. Ordinary portable
+consumers do not load the component or these SDK tools.
 
 The `.cmd` launcher works from `cmd`, PowerShell and Git Bash and applies
 `-ExecutionPolicy Bypass` to its own PowerShell process only.

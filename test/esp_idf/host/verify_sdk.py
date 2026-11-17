@@ -1,0 +1,63 @@
+"""Verify the complete selected SDK dependency closure before compiling real sources."""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import shlex
+import subprocess
+
+PIN = "fff9895c82d744c7237be8847347bdd1b07c6643"
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--sdk", type=Path, required=True)
+    parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument("--compiler", required=True)
+    parser.add_argument("--cxx", required=True)
+    parser.add_argument("--include", action="append", default=[])
+    parser.add_argument("--source", action="append", default=[])
+    parser.add_argument("--write-manifest", action="store_true")
+    args = parser.parse_args()
+    sdk = args.sdk.resolve()
+    revision = subprocess.check_output(["git", "-C", str(sdk), "rev-parse", "HEAD"], text=True).strip()
+    if revision != PIN:
+        raise SystemExit(f"SDK revision mismatch: {revision}; required {PIN}")
+    selected = set()
+    for source in args.source:
+        cpp = Path(source).suffix in (".cpp", ".cc", ".cxx")
+        command = [args.cxx if cpp else args.compiler, "-std=c++17" if cpp else "-std=gnu17", "-MM", "-MT", "closure"]
+        for include in args.include:
+            command += ["-I", include]
+        command += ["-include", str(Path(__file__).parent / "platform/host_compat.h"), source]
+        output = subprocess.check_output(command, text=True)
+        for item in shlex.split(output.replace("\\\n", " ").split(": ", 1)[1]):
+            path = Path(item).resolve()
+            if path.is_relative_to(sdk):
+                selected.add(path.relative_to(sdk).as_posix())
+    entries = {}
+    tree = subprocess.check_output(
+        ["git", "-C", str(sdk), "ls-tree", "-r", PIN, "--", *sorted(selected)], text=True
+    )
+    pinned_files = {line.split("\t", 1)[1]: line.split("\t", 1)[0].split()[2] for line in tree.splitlines()}
+    for name in sorted(selected):
+        # Git's Windows checkout may expand LF to CRLF. Compare canonical blob
+        # content; no other source transformation or filter is accepted here.
+        payload = (sdk / name).read_bytes().replace(b"\r\n", b"\n")
+        digest = hashlib.sha1(f"blob {len(payload)}\0".encode() + payload).hexdigest()
+        pinned = pinned_files[name]
+        if digest != pinned:
+            raise SystemExit(f"SDK working file differs from pin: {name} ({digest}, expected {pinned})")
+        entries[name] = digest
+    if args.write_manifest:
+        args.manifest.write_text(json.dumps({"revision": PIN, "files": entries}, indent=2) + "\n", encoding="utf-8")
+    manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+    if manifest["revision"] != PIN or manifest["files"] != entries:
+        missing = sorted(entries.keys() - manifest["files"].keys())
+        extra = sorted(manifest["files"].keys() - entries.keys())
+        raise SystemExit(f"SDK dependency closure differs from manifest; unrecorded={missing}, unused={extra}")
+    print(f"Verified {len(entries)} real SDK sources/headers at {PIN}")
+
+
+if __name__ == "__main__":
+    main()

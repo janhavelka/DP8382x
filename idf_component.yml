@@ -1,0 +1,6 @@
+description: "DP83826I portable core and native ESP-IDF PHY owner"
+url: "https://github.com/janhavelka/DP8382x"
+dependencies:
+  idf: "==6.1"
+targets:
+  - esp32p4

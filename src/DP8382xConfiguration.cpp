@@ -112,10 +112,84 @@ MdioBatch updateRegister(uint8_t address, uint16_t preserve, uint16_t value) noe
   return batch;
 }
 
+MdioBatch activateProfile(const LinkSettings& settings, uint16_t softwarePower) noexcept {
+  return updateRegister(cmd::REG_BMCR, BMCR_PRESERVE,
+      static_cast<uint16_t>(modeWord(settings) | softwarePower |
+          (settings.mode == LinkMode::AUTONEGOTIATED && softwarePower == 0U ? cmd::MASK_BMCR_AN_RESTART : 0U)));
+}
+
 Status mismatchStatus() noexcept {
   return Status::Error(Err::CONFIG_MISMATCH, "Link profile verification failed");
 }
 } // namespace
+
+Status DP8382x::restartAutoNegotiation(const IoBudget& budget) noexcept {
+  if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
+  if (_active || _polling || _operation.state == OperationState::RUNNING) { return configBusy(BusyDetail::OPERATION_ACTIVE); }
+  if (_operation.state == OperationState::RESULT_PENDING) { return configBusy(BusyDetail::RESULT_PENDING); }
+  if (_transport.clockInvalid) {
+    return Status::Error(Err::INVALID_CONFIG, "Clock contract failed", static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT));
+  }
+  if (_operation.cleanupOwed || _operation.temporaryMayBeActive) { return configBusy(BusyDetail::CLEANUP_REQUIRED); }
+  if (!_initialized || !capabilities().valid) { return Status::Error(Err::NOT_INITIALIZED, "Initialize before negotiation restart"); }
+  if (!_settings.desiredValid || _settings.desired.mode != LinkMode::AUTONEGOTIATED ||
+      !_otherControlsVerified(OperationKind::NONE) || !_settings.bmcrValid ||
+      (_settings.rawBmcr & 0xFD00U) != 0x1000U) {
+    return invalidSettings("Restart requires a verified normal autonegotiated profile");
+  }
+  if (_softwarePowerWord() != 0U || (_power.desiredValid &&
+      (_power.desired.request != PowerRequest::NORMAL || _power.desired.disablePll || _power.desired.activeSleep))) {
+    return Status::Error(Err::INVALID_CONFIG, "Restart requires awake software intent", static_cast<int32_t>(ConfigDetail::POWER_STATE));
+  }
+  // Reuse profile activation without a token or wait. The last frame verifies
+  // stable control fields only: success means restart submitted, never AN done.
+  // A reset first observed by this indivisible RMW can precede its write; the
+  // shared collector invalidates it and the possible effect remains owed below.
+  auto batch = activateProfile(_settings.desired, _softwarePowerWord());
+  batch.frameCount = 3;
+  batch.frames[2] = {FrameKind::READ, cmd::REG_BMCR, 0, 0, NO_READ_INDEX};
+  bool called = false;
+  const bool observedStale = _settings.observedStale;
+  _configuring = true;
+  auto status = _execute(batch, budget, &called, false, Traffic::MANAGED);
+  _configuring = false;
+  if (!called) { return status; }
+  const auto& receipt = _transport.lastBatch;
+  bool prefix = true;
+  bool reset = false;
+  bool mismatch = false;
+  for (uint8_t i = 0; i < batch.frameCount; ++i) {
+    const auto& frame = receipt.frames[i];
+    prefix = prefix && frame.attempted && frame.completed && frame.valueValid == (i != 1U);
+    if (prefix && i != 1U) {
+      _settings.rawBmcr = frame.value;
+      _settings.bmcrValid = true;
+      reset |= (frame.value & 0x8000U) != 0U;
+      mismatch |= (frame.value & 0xFD00U) != 0x1000U;
+    }
+  }
+  if (status.ok() && reset) {
+    status = Status::Error(Err::INVALID_CONFIG, "Reset invalidated negotiation restart", static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED));
+  } else if (status.ok() && mismatch) {
+    status = mismatchStatus();
+  }
+  const auto& write = receipt.frames[1];
+  const bool possible = write.completed || write.effectPossible || write.valueValid ||
+      _transport.violation != TransportViolation::NONE;
+  if (status.ok()) {
+    // Other profile fields were already verified and were not changed. Retain
+    // their observation time; the command does not refresh negotiated evidence.
+    _settings.trust = ConfigurationTrust::VERIFIED;
+    _settings.observedStale = observedStale;
+  } else if (possible) {
+    _settings.trust = ConfigurationTrust::DIRTY;
+    _settings.observedStale = true;
+    _operation.cleanupOwed = true;
+    _cleanupOwner = OperationKind::CONFIGURE;
+  }
+  _settings.lastVerificationStatus = status;
+  return status;
+}
 
 Status DP8382x::startConfigure(const LinkSettings& settings, const ConfigureOptions& options,
                               const OperationBudget& budget, OperationToken& token) noexcept {
@@ -257,8 +331,7 @@ MdioBatch DP8382x::_configurationBatch() const noexcept {
     case ConfigStep::APPLY_BMCR:
       // Activate only after all coupled controls. Forced mode neutralizes both
       // commands; AN alone requests restart. Neither branch touches VOD.
-      return updateRegister(cmd::REG_BMCR, BMCR_PRESERVE, static_cast<uint16_t>(modeWord(_configurationTarget()) | _softwarePowerWord() |
-          (_configurationTarget().mode == LinkMode::AUTONEGOTIATED && _softwarePowerWord()==0U ? cmd::MASK_BMCR_AN_RESTART : 0U)));
+      return activateProfile(_configurationTarget(), _softwarePowerWord());
     case ConfigStep::READ_BASE: return readRegister(cmd::REG_ALNPAR);
     case ConfigStep::READ_PAGE: return readRegister(cmd::REG_ANLNPTR);
     case ConfigStep::WAIT_COMPLETE: return readRegister(cmd::REG_BMSR);

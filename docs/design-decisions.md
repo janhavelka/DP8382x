@@ -4,8 +4,9 @@ This maintained design applies the delegated remaining-prompts audit decisions.
 The [API contract](api-contracts.md) owns portable values and OP-1 through OP-17;
 headers own shipped declarations. The [architecture](architecture.md) is an
 overview, and [feature coverage](feature-coverage.md) is the single coverage map.
-Native behavior remains planned until the owning stages provide host and SDK-link
-evidence. Source-derived sequences are not physical qualification.
+Prompt 37 implements the subset listed in the [native guide](esp-idf.md), with
+real-driver host tests and a P4 SDK-linked fixture. Broader typed controls remain
+with their owning stages. Source-derived sequences are not physical qualification.
 
 ## 1. One chip implementation and one batch boundary
 
@@ -57,6 +58,14 @@ the identical address only; retarget by deletion and recreation.
 | del | Owned deletion only after completed resource/callback disposition |
 | custom_ioctl | Null; typed owner requests expose extensions |
 
+Prompt 37's owner implements AN initialization/configuration, NONE/PCS/RESTART,
+core polling/result delivery, stopped raw reads and explicit discovery (up to 64
+identity frames, never selecting an address). SDK RESTART shares the core's
+three-frame terminal AN restart/readback; it has no wait or operation token.
+EN/DIS, speed/duplex/pause/loopback control callbacks reject until prompt 38's
+SDK-state coordination is implemented. The [callback table](esp-idf.md#local-entry-and-framework-callbacks)
+is the current implementation availability map for the responsibility matrix below.
+
 No generic base reset, power, discovery, MMD or AN polling procedure executes.
 All public widths are validated before narrowing. Vendor MMD REGCR values are
 whole numeric 0x001F/0x401F words with reserved bits zero; that rule is not a
@@ -104,16 +113,16 @@ init/control needs no raw PHY hook route; a new MAC/SDK must re-audit that fact.
 
 | Responsibility | Portable owner | Native owner |
 | --- | --- | --- |
-| Board readiness | Supplies, pins, address, clocks, power/reset timing and shared silence | Complete before install; confirm REF_CLK for MAC initialization |
+| Board readiness | Supplies, pins, address, clocks, power/reset timing and shared silence | `prepareBoard` completes before `install`; confirm REF_CLK for MAC initialization |
 | Bind/end/invalidation/result | Serialized core local calls under OP rules | Same core, plus retained native resources/callback lifetime |
-| Initialization/reset/replay | startInitialize selects NONE/PCS/HARD/RESTART | Typed stopped owner runs core after install, reconciles SDK cache before start |
-| Verify/configure | startVerify and startConfigure | Same core; public stopped SDK controls own mirrored cache fields |
-| Live link and events | Explicit core collector; passive copied snapshots | Framework timer only while Running; explicit owner collection when stopped |
+| Initialization/reset/replay | startInitialize selects NONE/PCS/HARD/RESTART | Implemented stopped `startInitialize` uses NONE/PCS/RESTART after install; coordinated HARD route remains stage38 |
+| Verify/configure | startVerify and startConfigure | Implemented AN-only `startConfigure` reuses core; stage38 adds mirrored mode changes through public stopped SDK controls |
+| Live link and events | Explicit core collector; passive copied snapshots | Implemented initial STARTING and timer RUNNING `get_link`; core collector and unlocked mediator publication, event-only retry |
 | Interrupt configuration/service | Same collector owns consumed samples | No independent SDK or raw interrupt reader |
 | Diagnostics and temporary stimulus | Source-admitted sessions, later stop/restoration and barrier | Stopped/maintenance owner also coordinates MAC and fixture |
 | Power/EEE/WoL/LED/interface/clock | Exact typed procedures, configuration trust and source gates | Same procedures; no imaginary SDK commands |
-| Raw C22/MMD/CLI | Core policy, complete transactions and invalidation | Owner route to actual MAC; raw SDK hooks reject |
-| SDK lifecycle/notification | Not applicable | Public route below and one retained lifecycle record |
+| Raw C22/MMD/CLI | Core policy, complete transactions and invalidation | Implemented stopped owner reads and explicit discovery use actual MAC under shared batch lock; raw SDK hooks reject; writes/CLI remain later stages |
+| SDK lifecycle/notification | Not applicable | Implemented install/start/stop/fence/retire and one retained lifecycle record; never-installed destroy only, reusable installed teardown BLOCKED |
 | DMA, IP/EtherCAT, retry policy | Application/backend owns them | Existing MAC/framework and application stack own them |
 
 No public entry is implemented merely by appearing in this matrix. Exact source

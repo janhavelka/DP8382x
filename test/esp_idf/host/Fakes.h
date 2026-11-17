@@ -1,0 +1,46 @@
+#pragma once
+#include <cstdint>
+#include <string>
+#include <vector>
+#include "esp_eth_driver.h"
+#include "esp_eth_netif_glue.h"
+#include "esp_netif.h"
+#include "esp_timer.h"
+#include "esp_event.h"
+#include "freertos/semphr.h"
+
+namespace Host {
+struct Event { int32_t id; esp_eth_handle_t handle; TickType_t ticks; };
+struct State {
+    std::vector<std::string> calls;
+    std::vector<Event> events;
+    esp_err_t nextEventError = ESP_OK;
+    int32_t eventErrorId = -1; // -1 means the next event, otherwise only this ID.
+    esp_err_t nextTimerCreateError = ESP_OK;
+    esp_err_t nextTimerStartError = ESP_OK;
+    esp_err_t nextTimerStopError = ESP_OK;
+    bool failAllocation = false;
+    bool failSemaphore = false;
+    unsigned failSemaphoreTakes = 0;
+    bool holdOneShot = false;
+    uint64_t nowUs = 0;
+    unsigned timerCreates = 0;
+    unsigned timerDeletes = 0;
+    unsigned oneShotArms = 0;
+    unsigned appRx = 0;
+    unsigned netifRx = 0;
+    unsigned released = 0;
+};
+State& state();
+void reset();
+void deliverEvents();
+void tickTimers();
+bool isLive(const void* allocation);
+esp_netif_t* makeNetif();
+void destroyNetif(esp_netif_t* netif);
+}
+
+extern "C" {
+void hostSdkFree(void* allocation);
+void* hostSdkCalloc(size_t count, size_t size);
+}

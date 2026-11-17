@@ -28,8 +28,9 @@ existing initialization/configuration procedures without another restoration
 ledger or automatic recovery. Prompt 23 completes [loopback sessions](loopback.md):
 all four ledger procedures use one bounded operation/collector/restoration owner,
 with independent host tests. Stages 24-35 implement the admitted typed procedures
-described below. Source-gated branches remain incomplete; SDK builds and hardware
-qualification are NOT RUN. Ledger tests establish their own research layer.
+described below. Source-gated branches remain incomplete. Prompt 37 adds a real
+P4 SDK fixture link and native host tests for the [current adapter subset](esp-idf.md);
+hardware qualification is NOT RUN. Ledger tests establish their own research layer.
 
 The [prompts 13-18 audit](reports/implementation/13-18-independent-audit.md)
 rechecks these completed routes and adds interrupted-verification, malformed
@@ -37,8 +38,9 @@ receipt and complete next-page grammar/capacity coverage. No later feature or
 physical gate is closed by this software audit.
 
 Prompt 6 completes the [portable/native ownership design](design-decisions.md)
-for all these entry families. It introduces no feature support claim. The selected public native lifecycle route remains prompt-37 implementation
-work; source limitations and physical gates remain separate. Full pause evidence, SDK projection, raw access and the
+for all these entry families. It introduces no feature support claim. Prompt 37
+implements the selected public native lifecycle with terminal resource retention;
+reusable teardown, source limitations and physical gates remain separate. Full pause evidence, SDK projection, raw access and the
 single collector have explicit owners in that matrix.
 
 The single matrix below maps all 35 feature IDs and all 52 procedure IDs to

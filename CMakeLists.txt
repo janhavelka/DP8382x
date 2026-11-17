@@ -1,8 +1,19 @@
 cmake_minimum_required(VERSION 3.16)
+set(DP8382X_PORTABLE_SOURCES
+  src/DP8382x.cpp src/DP8382xConfiguration.cpp src/DP8382xLink.cpp
+  src/DP8382xDiagnostics.cpp src/DP8382xCable.cpp src/DP8382xInterrupts.cpp
+  src/DP8382xPower.cpp src/DP8382xEee.cpp src/DP8382xWake.cpp src/DP8382xPins.cpp
+  src/DP8382xInterface.cpp src/DP8382xQuality.cpp src/DP8382xAnalog.cpp src/DP8382xElectrical.cpp)
+if(ESP_PLATFORM)
+  idf_component_register(SRCS ${DP8382X_PORTABLE_SOURCES} src/esp_idf/Phy.cpp
+    INCLUDE_DIRS include REQUIRES esp_eth esp_timer freertos)
+  target_compile_features(${COMPONENT_LIB} PUBLIC cxx_std_17)
+  return()
+endif()
 project(DP8382x LANGUAGES CXX)
 
 # Portable implementation; no SDK, generated build step or optional tooling.
-add_library(DP8382x STATIC src/DP8382x.cpp src/DP8382xConfiguration.cpp src/DP8382xLink.cpp src/DP8382xDiagnostics.cpp src/DP8382xCable.cpp src/DP8382xInterrupts.cpp src/DP8382xPower.cpp src/DP8382xEee.cpp src/DP8382xWake.cpp src/DP8382xPins.cpp src/DP8382xInterface.cpp src/DP8382xQuality.cpp src/DP8382xAnalog.cpp src/DP8382xElectrical.cpp)
+add_library(DP8382x STATIC ${DP8382X_PORTABLE_SOURCES})
 add_library(DP8382x::DP8382x ALIAS DP8382x)
 target_compile_features(DP8382x PUBLIC cxx_std_17)
 set_target_properties(DP8382x PROPERTIES CXX_EXTENSIONS OFF)
@@ -16,8 +27,25 @@ target_sources(DP8382x PRIVATE
   include/DP8382x/Version.h)
 
 option(DP8382X_BUILD_TESTS "Build portable driver and foundation tests" OFF)
+option(DP8382X_BUILD_PINNED_IDF_TESTS "Build real pinned ESP-IDF driver tests on host" OFF)
+if(DP8382X_BUILD_PINNED_IDF_TESTS)
+  enable_language(C)
+  enable_testing()
+  add_subdirectory(test/esp_idf)
+endif()
 if(DP8382X_BUILD_TESTS)
   enable_testing()
+  add_executable(dp8382x_native_restart_tests test/native_restart.cpp)
+  target_link_libraries(dp8382x_native_restart_tests PRIVATE DP8382x)
+  if(MSVC)
+    target_compile_options(dp8382x_native_restart_tests PRIVATE /W4 /WX /UNDEBUG)
+  else()
+    target_compile_options(dp8382x_native_restart_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+  endif()
+  foreach(suite IN ITEMS vectors admission failures)
+    add_test(NAME native_restart_${suite} COMMAND dp8382x_native_restart_tests ${suite})
+    set_tests_properties(native_restart_${suite} PROPERTIES TIMEOUT 30)
+  endforeach()
   add_executable(dp8382x_foundation_tests test/foundation.cpp)
   target_link_libraries(dp8382x_foundation_tests PRIVATE DP8382x)
   add_executable(dp8382x_transport_tests test/transport.cpp)

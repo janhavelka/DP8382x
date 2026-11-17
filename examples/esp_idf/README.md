@@ -4,7 +4,10 @@ The first example should bring up the ESP32-P4 MAC with DP83826I, report PHY
 identity and negotiated link state, and provide bounded register diagnostics.
 It should accept board-specific pins, address, clock and advertisement policy.
 
-There is no buildable example yet. Use the [board context](../../docs/esp32p4-board.md)
+The application examples remain planned. Prompt37 supplies a buildable
+[P4 link fixture](../../test/esp_idf/adapter_link/README.md) and
+[native component guide](../../docs/esp-idf.md); its execution guard is disabled
+and no hardware result is claimed. Use the [board context](../../docs/esp32p4-board.md)
 and [official SDK references](../../docs/reference/source-code.md) when implementing
 it. Keep EtherCAT master integration in the application that owns that stack.
 
@@ -36,11 +39,12 @@ The [prompt-6 decision](../../docs/design-decisions.md) now fixes these routes:
   public SDK controls and verify hardware/cache agreement before restart. Full
   advertisement and diagnostics use the shared chip procedures. MAC flow-control
   policy is separate from full portable RX/TX pause resolution.
-- Pin unmodified v6.1 and implement the selected public lifecycle route before
-  claiming native support. Failed install may retain a cleanup-only handle;
-  unresolved public-route failure is terminal until restart. Failed stop/uninstall
-  never licenses freeing live contexts. See the native ownership design and prompt 37.
-- Select GPIO54 reset, MDC49, MDIO43 and REF_CLK input GPIO44 from the current
+- Pin unmodified v6.1 and use the implemented native owner lifecycle. A failed
+  install publishes no handle; only MAC/PHY deletion remains. After successful
+  install, reusable teardown is BLOCKED by native_rx_quiescence: retain the
+  driver/glue/netif/MAC/PHY and contexts until restart. Failed stop never licenses
+  freeing live contexts. See the native ownership design and prompt37 report.
+- Select GPIO54 reset, MDC40, MDIO39 and REF_CLK input GPIO44 from the current
   board evidence, with declared/verified PHY address 0. Recheck actual netlist,
   R21/C24 reset pulse and power/clock readiness before firmware qualification.
   Do not inherit GPIO5, auto-detection, no post-reset wait or 2000 ms polling as
@@ -63,7 +67,8 @@ copied health/link/configuration views separately. `resetStatistics` clears only
 managed cumulative totals, and a later transport success does not verify settings.
 Native examples must preserve original signed errors and release/clock faults;
 the complete stopped-driver SDK transition remains in the owner design. These
-are implementation instructions, not a firmware build result.
+are application-example instructions; the separate link fixture proves only
+the selected component's real SDK image link.
 
 Owner examples return binding failures to the caller and use the core's staged
 output contract directly. Health's last error identifies a counted transport,

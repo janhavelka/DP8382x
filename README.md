@@ -4,7 +4,13 @@ General microcontroller library workspace for Texas Instruments DP8382x Ethernet
 PHYs, starting with **DP83826IRHBR (DP83826I)**. The C++17 core is
 framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet MAC.
 
-**Status: prompts 1–35 complete for supported procedures; deep-power-down remains source-blocked. Direct/indirect access, retained evidence, identity, bounded resets, verified link profiles, observations, loopback, BIST, manual/autorun cable capture, interrupts, power, EEE, forced LPI, WoL, LED/GPIO and clock/interface/repeater and quality/link-loss profiles are implemented; SDK support and hardware qualification remain future work.**
+**Status: prompts 1–35 complete for supported procedures; prompt 37 adds a native ESP-IDF owner for the implemented subset. Deep-power-down and full primary closure remain source-blocked; hardware qualification remains future work.**
+The [native ESP-IDF guide](docs/esp-idf.md) covers explicit board readiness,
+AN initialization/configuration, link publication, owner-routed discovery and
+bounded framework start/stop. The real pinned SDK driver has executing host tests
+and the ESP32-P4 fixture links. Reusable installed teardown remains blocked by
+`native_rx_quiescence`: resources stay alive until system restart. Prompt 38
+adds broader SDK-aware configuration and control routes.
 [EEE negotiation and status](docs/eee.md) now provide explicit reset-bearing setup,
 verified restoration and bounded retained observations; physical Q1 remains pending.
 The [prompt-36 integration review](docs/reports/implementation/36-primary-feature-closure.md)
@@ -46,13 +52,13 @@ separate bounded starts/stops, retained temporary state and verified restoration
 [BIST sessions](docs/bist.md) provide generator/checker controls, bounded raw
 captures and verified stop, with inconclusive outcomes where source evidence is missing.
 Further typed features,
-SDK integration, CLI, runners and hardware qualification remain future work.
+SDK configuration coverage, CLI, runners and hardware qualification remain future work.
 
 Prompt 6 selects one shared C++17 chip implementation, a terminal batch MDIO
 boundary and explicit native lifecycle/cache/collector ownership in the
 [design decisions](docs/design-decisions.md). The selected native design uses public APIs on unmodified ESP-IDF v6.1;
-its executing adapter and SDK/physical checks remain later work, with the
-source limitations retained in the design record.
+its adapter has host and real SDK-link evidence. Source/lifetime limitations
+remain in the design record and physical checks remain later work.
 
 Prompt 7 freezes [foundational API contracts](docs/api-contracts.md): values,
 Status/details, batch transport/budgets, identity admission, passive health,

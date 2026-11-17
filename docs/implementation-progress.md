@@ -3,13 +3,14 @@
 The [80-prompt implementation plan](prompts/README.md) is in its first
 execution. Prompts 1–35 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 231 registered Release CTests, 103 Python tests,
+Current local checks include 234 registered portable Release CTests, 103 Python tests,
 two linked tests-OFF consumers, Doxygen negative checks, ledger/reference integrity
-and deterministic version validation. SDK and physical qualification remain later
-work; first-execution remote CI belongs to prompt 71.
+and deterministic version validation. Prompt 37 adds 24 pinned-driver/native host
+tests in Release and UBSan and an actual ESP32-P4 image link. Physical qualification
+remains later work; first-execution remote CI belongs to prompt 71.
 The driver now provides the restricted Clause 22/MMD subset, stable-field RMW
 and compiling portable examples. Prompt 13 adds explicit destructive acquisition,
-retained partial evidence and safe MISR/WoL updates. Further typed features, SDK, CLI, runner and hardware
+retained partial evidence and safe MISR/WoL updates. Further SDK controls, CLI, runner and hardware
 qualification remain future work. Prompt 5 closes primary-part source dispositions, including
 explicit unresolved gates. Research completion does not claim driver completion.
 
@@ -26,6 +27,17 @@ Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
 operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+Prompt37 began on clean synchronized `main` at
+`cb5ffe5b5d21e700c3e9fbef434e192a50b1aeff`. The
+[report](reports/implementation/37-esp-idf-lifecycle.md) records the native factory,
+board readiness, shared terminal transport, implemented owner/callback routes,
+partial lifecycle evidence and actual pinned SDK link. Independent ownership
+review and modeled raw/glue RX capture tests preserve the `native_rx_quiescence`
+gate: reusable installed teardown remains BLOCKED, with terminal resources
+retained until system restart. Prompts38/39 expand configuration/conformance;
+source-gated chip branches and physical Q13 remain open. Final commit/upstream
+equality is recorded in the handoff.
 
 The [independent prompt36 audit](reports/implementation/36-independent-audit.md)
 starts from clean synchronized `main` at `67e5e97cee016f57177d0496f1c47a51bd77821b`.
@@ -448,7 +460,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [34 Implement quality and hardware link-loss controls](prompts/34-quality-link-loss.md) | COMPLETE | [Report](reports/implementation/34-quality-link-loss.md), [guide](quality.md), five source-admitted procedures, single collector and shared replay; 214 Release/UBSan tests, 103 Python tests, two portable consumers and local source/document checks PASS. Physical timing and derived MSE units remain gated. |
 | [35 Implement electrical controls and finite compliance procedures](prompts/35-electrical-compliance-calibration.md) | COMPLETE | [Report](reports/implementation/35-electrical-compliance-calibration.md), [guide](electrical.md); four source-admitted procedures, shared reset/replay, 289 split-field transition vectors and retained failure evidence. 229 Release/UBSan tests, 103 Python tests, two consumers and local checks PASS. Source gates and physical Q19 remain open. |
 | [36 Audit complete primary-chip feature coverage](prompts/36-primary-feature-closure.md) | BLOCKED: primary closure; bounded review delivered | [Report](reports/implementation/36-primary-feature-closure.md); common reset-observation and EEE freshness fixes, 230 Release/UBSan CTests, two consumers and local checks PASS. Required source-gated branches remain with owners 28/32/33/35; prompt 55 owns row closure. |
-| [37 Implement the native ESP-IDF factory and lifecycle](prompts/37-esp-idf-lifecycle.md) | NOT STARTED | None |
+| [37 Implement the native ESP-IDF factory and lifecycle](prompts/37-esp-idf-lifecycle.md) | COMPLETE; reusable teardown BLOCKED | [Report](reports/implementation/37-esp-idf-lifecycle.md), [native guide](esp-idf.md), [source audit](reports/implementation/37-native-source-audit.md); 234 portable Release, 24 pinned-driver/native Release and UBSan, two tests-OFF consumers and actual pinned P4 image link PASS. Installed resources remain retained under native_rx_quiescence; physical Q13 and remote CI NOT RUN. |
 | [38 Complete SDK-aware configuration and raw MDIO arbitration](prompts/38-esp-idf-state-arbitration.md) | NOT STARTED | None |
 | [39 Prove native link notifications and adapter timing contracts](prompts/39-esp-idf-link-bounds.md) | NOT STARTED | None |
 | [40 Build the complete ESP32-P4 ordinary Ethernet example](prompts/40-p4-network-example.md) | NOT STARTED | None |
