@@ -7,6 +7,12 @@ silent; each `pollOperation` executes at most one complete admitted batch.
 `takeResult` delivers its immutable result once. The application owns scheduling,
 serialization, retry and any decision to restore or reset.
 
+The [native owner](esp-idf.md#configuration-public-reconciliation-and-raw-entry)
+adds a separate public SDK cache step after successful core configuration or
+restoration. `reconcileSdkState` acknowledges verified settings through stopped
+SDK controls; it does not rerun this chip procedure or rewrite its retained
+result. Raw/external mutation withdraws both hardware proof and SDK agreement.
+
 Verification changes no semantic register or command. Its VOD read writes only
 the three indirect selector/address frames, under the same controller ownership
 as the data read. It does not write VOD, restart AN, wait for negotiation, clear

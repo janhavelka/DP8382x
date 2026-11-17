@@ -191,6 +191,25 @@ Status DP8382x::restartAutoNegotiation(const IoBudget& budget) noexcept {
   return status;
 }
 
+Status DP8382x::modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget& budget) noexcept {
+  if (mask > 0xFFFFU || value > 0xFFFFU) {
+    return Status::Error(Err::INVALID_PARAM, "BMCR value exceeds wire width", static_cast<int32_t>(ParamDetail::VALUE_WIDTH));
+  }
+  if (!mask || (mask & ~uint32_t{0x3100}) || (value & ~mask)) {
+    return Status::Error(Err::INVALID_PARAM, "BMCR maintenance mask", static_cast<int32_t>(ParamDetail::ACCESS_POLICY));
+  }
+  const auto admission = _checkMutation();
+  if (!admission.ok()) return admission;
+  if (!_initialized || !capabilities().valid) return Status::Error(Err::NOT_INITIALIZED, "Initialize before BMCR maintenance");
+  if (_softwarePowerWord() || !_settings.bmcrValid || (_settings.rawBmcr & 0xCC00U)) {
+    return invalidSettings("BMCR maintenance requires an awake normal profile");
+  }
+  // This is an explicit raw mutation, not configuration. The ordinary collector
+  // invalidates on accepted/uncertain writes and keeps persistent desired intent.
+  return _execute(updateRegister(cmd::REG_BMCR,
+      static_cast<uint16_t>(BMCR_PRESERVE | (0x3100U & ~mask)), static_cast<uint16_t>(value)), budget);
+}
+
 Status DP8382x::startConfigure(const LinkSettings& settings, const ConfigureOptions& options,
                               const OperationBudget& budget, OperationToken& token) noexcept {
   auto status = validateLinkSettings(settings);

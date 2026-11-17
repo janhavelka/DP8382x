@@ -12,10 +12,10 @@ namespace DP8382x::EspIdf {
 static_assert(std::is_standard_layout<PhyHandle>::value && offsetof(PhyHandle, phy) == 0,
               "Public PHY must be the first handle member");
 namespace {
-Status busy() noexcept { return Status::Error(Err::BUSY, "Native owner is unavailable"); }
+Status busy() noexcept { return Status::Error(Err::BUSY, "Native owner is unavailable", static_cast<int32_t>(BusyDetail::OWNER_ADMISSION)); }
 Status busDenied(bool quarantined) noexcept {
   return Status::Error(Err::BUSY, "Shared controller unavailable", quarantined ?
-    static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED) : 0);
+    static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED) : static_cast<int32_t>(BusyDetail::OWNER_ADMISSION));
 }
 Status nativeStatus(esp_err_t error) noexcept {
   if (error == ESP_OK) return Status::Ok();
@@ -53,8 +53,8 @@ Phy::Phy(const PhyConfig& config) noexcept : _config(config) {
   phy.init = localInit; phy.deinit = localDeinit; phy.autonego_ctrl = autonego;
   phy.get_link = getLink; phy.set_link = setLink; phy.pwrctl = rejectPower;
   phy.set_addr = setAddress; phy.get_addr = getAddress;
-  phy.advertise_pause_ability = rejectPause; phy.loopback = rejectLoopback;
-  phy.set_speed = rejectSpeed; phy.set_duplex = rejectDuplex; phy.del = deletePhy;
+  phy.advertise_pause_ability = acknowledgePause; phy.loopback = rejectLoopback;
+  phy.set_speed = acknowledgeSpeed; phy.set_duplex = acknowledgeDuplex; phy.del = deletePhy;
 }
 Phy& Phy::owner(esp_eth_phy_t* phy) noexcept { return *reinterpret_cast<PhyHandle*>(phy)->owner; }
 uint64_t Phy::now(void*) noexcept { return timeNow(); }
@@ -67,6 +67,31 @@ bool Phy::enter() noexcept {
     _installed = error == ESP_OK; _ethernet = _installCandidate;
     _phase = Phase::STOPPED; record(error);
     if (!_installed) _mediator = nullptr;
+  }
+  const auto started = _deferredStart.exchange(0);
+  if (started) {
+    if (_phase == Phase::STARTING && (started & 2U)) _startPosted = true;
+    else unexpectedStart((started & 2U) != 0U);
+  }
+  // One logical control owner publishes its complete terminal receipt without
+  // needing to win a race with copied snapshots after an external callback.
+  const auto completed = _controlCompletion.exchange(ControlCompletion::NONE);
+  if (completed != ControlCompletion::NONE) {
+    _controlEntry = ControlEntry::NONE; _controlTask = nullptr;
+    if (_phase == Phase::CONTROL) _phase = _frameworkStopOwed ? Phase::STOPPING : Phase::STOPPED;
+    if (completed == ControlCompletion::SDK) {
+      _sdkState = _pendingSdk;
+      _sdkState.reconciled = _sdkState.reconciled && verifiedSettings() && !_frameworkStopOwed && _phase == Phase::STOPPED;
+      if (!_sdkState.status.ok() && _record.firstError.ok()) _record.firstError = _sdkState.status;
+    } else {
+      _flow = _pendingFlow;
+      _flow.reconciled = _flow.reconciled && !_frameworkStopOwed && _phase == Phase::STOPPED;
+      record(_pendingControlError);
+    }
+  }
+  if (_unexpectedFlowEffect.load()) {
+    _flow.macEffectPossible = true; _flow.reconciled = false;
+    _flow.phyError = ESP_ERR_INVALID_STATE;
   }
   return true;
 }
@@ -109,7 +134,7 @@ BatchResult Phy::execute(void* context, const MdioBatch& batch, const IoBudget& 
   BatchResult report{};
   report.status = Status::Ok(); report.releaseStatus = Status::Ok();
   report.controllerReusable = !bus.quarantined.load();
-  if (bus.quarantined.load() || bus.suspended.load() || timeNow() < bus.quietUntilUs.load()) {
+  if (bus.quarantined.load() || (bus.suspended.load() && !self._ownsSilence) || timeNow() < bus.quietUntilUs.load()) {
     const bool quarantined = bus.quarantined.load();
     report.status = busDenied(quarantined); report.controllerReusable = !quarantined; return report;
   }
@@ -122,7 +147,7 @@ BatchResult Phy::execute(void* context, const MdioBatch& batch, const IoBudget& 
   const auto remaining = budget.deadlineUs - before;
   const auto wait = remaining < self._config.lockWaitUs ? remaining : self._config.lockWaitUs;
   if (xSemaphoreTake(bus.mutex, ticksWithin(wait)) != pdTRUE) { report.status = busy(); return report; }
-  if (bus.quarantined.load() || bus.suspended.load() || timeNow() < bus.quietUntilUs.load()) {
+  if (bus.quarantined.load() || (bus.suspended.load() && !self._ownsSilence) || timeNow() < bus.quietUntilUs.load()) {
     report.status = busDenied(bus.quarantined.load());
   } else {
     for (uint8_t i = 0; i < batch.frameCount; ++i) {
@@ -259,10 +284,7 @@ esp_err_t Phy::localDeinit(esp_eth_phy_t* phy) noexcept {
 }
 esp_err_t Phy::rejectReset(esp_eth_phy_t*) noexcept { return ESP_ERR_NOT_SUPPORTED; }
 esp_err_t Phy::rejectPower(esp_eth_phy_t*, bool) noexcept { return ESP_ERR_NOT_SUPPORTED; }
-esp_err_t Phy::rejectPause(esp_eth_phy_t*, uint32_t) noexcept { return ESP_ERR_NOT_SUPPORTED; }
 esp_err_t Phy::rejectLoopback(esp_eth_phy_t*, bool) noexcept { return ESP_ERR_NOT_SUPPORTED; }
-esp_err_t Phy::rejectSpeed(esp_eth_phy_t*, eth_speed_t) noexcept { return ESP_ERR_NOT_SUPPORTED; }
-esp_err_t Phy::rejectDuplex(esp_eth_phy_t*, eth_duplex_t) noexcept { return ESP_ERR_NOT_SUPPORTED; }
 esp_err_t Phy::rejectRead(esp_eth_handle_t, uint32_t, uint32_t, uint32_t*) noexcept { return ESP_ERR_NOT_SUPPORTED; }
 esp_err_t Phy::rejectWrite(esp_eth_handle_t, uint32_t, uint32_t, uint32_t) noexcept { return ESP_ERR_NOT_SUPPORTED; }
 esp_err_t Phy::getAddress(esp_eth_phy_t* phy, uint32_t* address) noexcept {
@@ -275,16 +297,105 @@ esp_err_t Phy::setAddress(esp_eth_phy_t* phy, uint32_t address) noexcept {
 esp_err_t Phy::deletePhy(esp_eth_phy_t* phy) noexcept { return owner(phy).destroy(); }
 esp_err_t Phy::autonego(esp_eth_phy_t* phy, eth_phy_autoneg_cmd_t command, bool* enabled) noexcept {
   if (!enabled) return ESP_ERR_INVALID_ARG;
-  // Immutable declared AN policy, including installation before any hardware I/O.
-  if (command == ESP_ETH_PHY_AUTONEGO_G_STAT) { *enabled = true; return ESP_OK; }
   auto& self = owner(phy);
-  if (!self.enter()) return ESP_ERR_INVALID_STATE;
-  if (command != ESP_ETH_PHY_AUTONEGO_RESTART) { self.leave(); return ESP_ERR_NOT_SUPPORTED; }
-  if (self._phase != Phase::STARTING || self._notifying) { self.leave(); return ESP_ERR_INVALID_STATE; }
+  // Installer reads declared initial AN policy before any hardware I/O.
+  if (command == ESP_ETH_PHY_AUTONEGO_G_STAT && self._installing.load()) { *enabled = true; return ESP_OK; }
+  if (!self.enter()) {
+    if (command == ESP_ETH_PHY_AUTONEGO_RESTART) self.deferStart(false);
+    return ESP_ERR_INVALID_STATE;
+  }
+  const auto settings = self._core.settingsSnapshot();
+  if (command == ESP_ETH_PHY_AUTONEGO_G_STAT) {
+    const bool valid = settings.desiredValid;
+    if (valid) *enabled = settings.desired.mode == LinkMode::AUTONEGOTIATED;
+    self.leave(); return valid ? ESP_OK : ESP_ERR_INVALID_STATE;
+  }
+  if (command == ESP_ETH_PHY_AUTONEGO_EN || command == ESP_ETH_PHY_AUTONEGO_DIS) {
+    const bool requested = command == ESP_ETH_PHY_AUTONEGO_EN;
+    const bool admitted = self.admittedControl(ControlEntry::AUTONEGO) &&
+        requested == (settings.desired.mode == LinkMode::AUTONEGOTIATED);
+    if (admitted) *enabled = requested; // Public SDK owns the passed cache storage.
+    self.leave(); return admitted ? ESP_OK : ESP_ERR_INVALID_STATE;
+  }
+  if (command != ESP_ETH_PHY_AUTONEGO_RESTART) { self.leave(); return ESP_ERR_INVALID_ARG; }
+  if (self._phase != Phase::STARTING || self._notifying || !self._sdkState.reconciled || !self.verifiedSettings()) {
+    self.unexpectedStart(false); self.leave(); return ESP_ERR_INVALID_STATE;
+  }
   const auto status = self._core.restartAutoNegotiation(self.callbackBudget(3));
   if (status.ok()) *enabled = true;
   else if (self._record.firstError.ok()) self._record.firstError = status;
-  self.shareQuiet(); self.leave(); return nativeError(status);
+  self.refreshAgreement(); self.shareQuiet(); self.leave(); return nativeError(status);
+}
+
+bool Phy::verifiedSettings() const noexcept {
+  const auto settings = _core.settingsSnapshot();
+  const auto operation = _core.operationSnapshot();
+  return _core.isInitialized() && _core.capabilities().valid && settings.desiredValid &&
+      settings.trust == ConfigurationTrust::VERIFIED && operation.state == OperationState::IDLE &&
+      !operation.cleanupOwed && !operation.temporaryMayBeActive && !_config.bus->quarantined.load();
+}
+void Phy::refreshAgreement() noexcept {
+  if (!verifiedSettings()) _sdkState.reconciled = false;
+}
+bool Phy::stoppedAdmission() const noexcept {
+  return _installed && _phase == Phase::STOPPED && !_notifying && !_frameworkStopOwed;
+}
+bool Phy::admittedControl(ControlEntry entry) const noexcept {
+  return _phase == Phase::CONTROL && _controlEntry == entry && _controlTask == xTaskGetCurrentTaskHandle() &&
+      !_notifying && !_frameworkStopOwed && timeNow() < _controlDeadline && verifiedSettings();
+}
+void Phy::unexpectedStart(bool startPosted) noexcept {
+  // With cached AN disabled SDK posts START before get_link. With AN enabled
+  // its FSM already changed before RESTART. Both need a real stop, not only a fence.
+  if (_installed && (_phase == Phase::STOPPED || _phase == Phase::CONTROL)) {
+    _frameworkStopOwed = true; _startPosted = startPosted; _stopPosted = false;
+    _sdkState.reconciled = false; _record.stage = LifecycleStage::START;
+    record(ESP_ERR_INVALID_STATE);
+    if (_phase == Phase::STOPPED) _phase = Phase::STOPPING;
+  }
+}
+void Phy::deferStart(bool startPosted) noexcept {
+  // A failed try-lock must not lose earlier SDK FSM/event effects. Atomic phase
+  // inspection excludes ordinary queued RUNNING/STOPPING timer callbacks; all
+  // compound state changes still require the instance gate.
+  const auto phase = _phase.load();
+  if (phase == Phase::STOPPED || phase == Phase::CONTROL || phase == Phase::STARTING)
+    _deferredStart.fetch_or(startPosted ? uint8_t{3} : uint8_t{1});
+}
+esp_err_t Phy::acknowledgeSpeed(esp_eth_phy_t* phy, eth_speed_t speed) noexcept {
+  auto& self = owner(phy);
+  if (speed != ETH_SPEED_10M && speed != ETH_SPEED_100M) return ESP_ERR_INVALID_ARG;
+  if (!self.enter()) return ESP_ERR_INVALID_STATE;
+  const auto settings = self._core.settingsSnapshot().desired;
+  const bool accepted = self.admittedControl(ControlEntry::SPEED) && settings.mode == LinkMode::FORCED &&
+      speed == (settings.forced.speed == LinkSpeed::MBPS_100 ? ETH_SPEED_100M : ETH_SPEED_10M);
+  self.leave(); return accepted ? ESP_OK : ESP_ERR_INVALID_STATE;
+}
+esp_err_t Phy::acknowledgeDuplex(esp_eth_phy_t* phy, eth_duplex_t duplex) noexcept {
+  auto& self = owner(phy);
+  if (duplex != ETH_DUPLEX_HALF && duplex != ETH_DUPLEX_FULL) return ESP_ERR_INVALID_ARG;
+  if (!self.enter()) return ESP_ERR_INVALID_STATE;
+  const auto settings = self._core.settingsSnapshot().desired;
+  const bool accepted = self.admittedControl(ControlEntry::DUPLEX) && settings.mode == LinkMode::FORCED &&
+      duplex == (settings.forced.duplex == Duplex::FULL ? ETH_DUPLEX_FULL : ETH_DUPLEX_HALF);
+  self.leave(); return accepted ? ESP_OK : ESP_ERR_INVALID_STATE;
+}
+esp_err_t Phy::acknowledgePause(esp_eth_phy_t* phy, uint32_t ability) noexcept {
+  auto& self = owner(phy);
+  if (!self.enter()) { self._unexpectedFlowEffect.store(true); return ESP_ERR_INVALID_STATE; }
+  const auto settings = self._core.settingsSnapshot().desired;
+  const uint32_t desired = (settings.advertisement.symmetricPause ? 1U : 0U) |
+      (settings.advertisement.asymmetricPause ? 2U : 0U);
+  const bool accepted = ability <= 3U && self.admittedControl(ControlEntry::PAUSE) &&
+      settings.mode == LinkMode::AUTONEGOTIATED && ability == desired;
+  if (!accepted) {
+    // Arbitrary S_FLOW_CTRL can already have changed MAC policy before this
+    // callback rejects. A direct callback cannot prove that it did not.
+    self._flow.reconciled = false; self._flow.macEffectPossible = true;
+    self._flow.phyError = ESP_ERR_INVALID_STATE;
+    self._unexpectedFlowEffect.store(true);
+  }
+  self.leave(); return accepted ? ESP_OK : ESP_ERR_INVALID_STATE;
 }
 
 esp_err_t Phy::publish(PublishedTuple tuple, uint64_t deadlineUs) noexcept {
@@ -344,10 +455,13 @@ esp_err_t Phy::publish(PublishedTuple tuple, uint64_t deadlineUs) noexcept {
 }
 esp_err_t Phy::getLink(esp_eth_phy_t* phy) noexcept {
   auto& self = owner(phy);
-  if (!self.enter()) return ESP_ERR_INVALID_STATE;
-  if (self._phase != Phase::STARTING && self._phase != Phase::RUNNING) { self.leave(); return ESP_ERR_INVALID_STATE; }
+  if (!self.enter()) { self.deferStart(true); return ESP_ERR_INVALID_STATE; }
+  if (self._phase != Phase::STARTING && self._phase != Phase::RUNNING) {
+    self.unexpectedStart(true); self.leave(); return ESP_ERR_INVALID_STATE;
+  }
   if (self._phase == Phase::STARTING) self._startPosted = true; // SDK posts START before this callback.
-  if (self._notifying || self._record.publicationUncertain) { self.leave(); return ESP_ERR_INVALID_STATE; }
+  self.refreshAgreement();
+  if (self._notifying || self._record.publicationUncertain || !self._sdkState.reconciled) { self.leave(); return ESP_ERR_INVALID_STATE; }
   const auto budget = self.callbackBudget(16);
   const uint64_t reserve = uint64_t{self._config.notificationUs} * 5U;
   const auto current = timeNow();
@@ -356,6 +470,7 @@ esp_err_t Phy::getLink(esp_eth_phy_t* phy) noexcept {
   }
   LinkSnapshot observation{};
   const auto status = self._core.readLinkStatus(observation, {budget.deadlineUs - reserve, budget.maxFrames});
+  self.refreshAgreement();
   if (!status.ok()) {
     if (self._record.firstError.ok()) self._record.firstError = status;
     self.leave(); return nativeError(status);
@@ -365,7 +480,9 @@ esp_err_t Phy::getLink(esp_eth_phy_t* phy) noexcept {
   tuple.up = observation.linkUp;
   if (tuple.up) {
     tuple.speed = observation.speed; tuple.duplex = observation.duplex;
-    tuple.peerPause = observation.duplex == Duplex::FULL && (observation.rawAnlpar & 0x0400U) != 0U;
+    tuple.peerPause = observation.negotiation == NegotiationState::COMPLETE &&
+        observation.duplex == Duplex::FULL && (observation.rawAner & 0x0001U) != 0U &&
+        (observation.rawAnlpar & 0x0400U) != 0U;
   }
   self.leave(); return self.publish(tuple, budget.deadlineUs);
 }
@@ -381,9 +498,11 @@ esp_err_t Phy::setLink(esp_eth_phy_t* phy, eth_link_t link) noexcept {
 esp_err_t Phy::start(uint64_t deadlineUs) noexcept {
   if (!enter()) return ESP_ERR_INVALID_STATE;
   const auto settings = _core.settingsSnapshot();
-  if (!_installed || _phase != Phase::STOPPED || _notifying || _record.publicationUncertain ||
-      !_core.isInitialized() || settings.trust != ConfigurationTrust::VERIFIED ||
-      !settings.desiredValid || settings.desired.mode != LinkMode::AUTONEGOTIATED || timeNow() >= deadlineUs) {
+  refreshAgreement();
+  if (!stoppedAdmission() || _record.publicationUncertain || !_sdkState.reconciled ||
+      (_flow.macEffectPossible && !_flow.reconciled) || !verifiedSettings() ||
+      (settings.desired.mode == LinkMode::FORCED && settings.desired.extendedFullDuplex &&
+       settings.desired.forced.duplex == Duplex::HALF) || timeNow() >= deadlineUs) {
     leave(); return ESP_ERR_INVALID_STATE;
   }
   _phase = Phase::STARTING; _lifecycleDeadline = deadlineUs; _record.stage = LifecycleStage::START;
@@ -405,12 +524,13 @@ esp_err_t Phy::stop(uint64_t deadlineUs) noexcept {
     leave(); return ESP_ERR_INVALID_STATE;
   }
   if (timeNow() >= deadlineUs) { leave(); return ESP_ERR_TIMEOUT; }
-  const bool resuming = _phase == Phase::STOPPING;
+  const bool resuming = _phase == Phase::STOPPING && !_frameworkStopOwed;
   _phase = Phase::STOPPING; _record.stage = LifecycleStage::STOP; _lifecycleDeadline = deadlineUs; leave();
   return finishStop(deadlineUs, resuming ? ESP_OK : esp_eth_stop(_ethernet), !resuming);
 }
 esp_err_t Phy::finishStop(uint64_t deadlineUs, esp_err_t initial, bool stopCalled) noexcept {
   if (!enter()) return ESP_ERR_INVALID_STATE;
+  if (stopCalled) _frameworkStopOwed = false;
   if (stopCalled && initial == ESP_OK) _stopPosted = true;
   record(initial, true); _record.stage = LifecycleStage::FENCE;
   bool arm = !_fenceArmed;
@@ -491,25 +611,45 @@ void Phy::shareQuiet() noexcept {
 }
 Status Phy::startInitialize(const InitializeOptions& options, const OperationBudget& budget, OperationToken& token) noexcept {
   if (!enter()) return busy();
-  if (!_installed || _phase != Phase::STOPPED || _notifying) { leave(); return busy(); }
-  // Hard reset shared silence must already exclude every other participant;
-  // stage 38 adds the coordinated disruptive-owner route.
-  if (options.reset == ResetKind::HARD) { leave(); return Status::Error(Err::INVALID_CONFIG, "Native hard reset requires shared-board maintenance"); }
+  if (!stoppedAdmission()) { leave(); return busy(); }
+  auto& bus = *_config.bus;
+  // Reserve logical controller silence for the entire reset/replay. A zero-wait
+  // acquisition drains any old batch before closing admission; it never spans
+  // core polling or hardware waits. All reset kinds share this one route.
+  if (bus.suspended.load() || bus.quarantined.load() || xSemaphoreTake(bus.mutex, 0) != pdTRUE) {
+    leave(); return busDenied(bus.quarantined.load());
+  }
+  if (bus.suspended.load() || bus.quarantined.load()) {
+    (void)xSemaphoreGive(bus.mutex); leave(); return busDenied(bus.quarantined.load());
+  }
+  bus.suspended.store(true); _ownsSilence = true;
+  if (xSemaphoreGive(bus.mutex) != pdTRUE) {
+    bus.quarantined.store(true); _ownsSilence = false; leave(); return nativeStatus(ESP_FAIL);
+  }
   const auto status = _core.startInitialize(options, budget, token);
-  if (status.inProgress()) { _phase = Phase::CONTROL; _record.stage = LifecycleStage::INITIALIZE; }
+  if (status.inProgress()) {
+    _phase = Phase::CONTROL; _record.stage = LifecycleStage::INITIALIZE; _sdkState.reconciled = false;
+  } else { _ownsSilence = false; bus.suspended.store(false); }
   leave(); return status;
 }
 Status Phy::startConfigure(const LinkSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept {
+  return startConfigure(settings, ConfigureOptions{}, budget, token);
+}
+Status Phy::startConfigure(const LinkSettings& settings, const ConfigureOptions& options,
+                           const OperationBudget& budget, OperationToken& token) noexcept {
+  const auto valid = validateLinkSettings(settings);
+  if (!valid.ok()) return valid;
+  if (settings.mode == LinkMode::FORCED && settings.extendedFullDuplex && settings.forced.duplex == Duplex::HALF)
+    return Status::Error(Err::INVALID_CONFIG, "Extended forced half duplex cannot produce qualified native UP", static_cast<int32_t>(ConfigDetail::LINK_COMBINATION));
   if (!enter()) return busy();
-  if (!_installed || _phase != Phase::STOPPED || _notifying) { leave(); return busy(); }
-  if (settings.mode != LinkMode::AUTONEGOTIATED) { leave(); return Status::Error(Err::INVALID_CONFIG, "SDK mode transition requires stage 38 control route"); }
-  const auto status = _core.startConfigure(settings, budget, token);
-  if (status.inProgress()) _phase = Phase::CONTROL;
+  if (!stoppedAdmission()) { leave(); return busy(); }
+  const auto status = _core.startConfigure(settings, options, budget, token);
+  if (status.inProgress()) { _phase = Phase::CONTROL; _sdkState.reconciled = false; }
   leave(); return status;
 }
 Status Phy::pollOperation(OperationToken token, uint32_t maxFrames) noexcept {
   if (!enter()) return busy();
-  if (_phase != Phase::CONTROL || !_installed || _notifying) { leave(); return busy(); }
+  if (_phase != Phase::CONTROL || !_installed || _notifying || _controlEntry != ControlEntry::NONE || _frameworkStopOwed) { leave(); return busy(); }
   const auto status = _core.pollOperation(token, maxFrames); shareQuiet();
   if (!status.ok() && !status.inProgress() && _record.firstError.ok()) _record.firstError = status;
   leave(); return status;
@@ -517,7 +657,10 @@ Status Phy::pollOperation(OperationToken token, uint32_t maxFrames) noexcept {
 Status Phy::takeResult(OperationToken token, OperationResult& output) noexcept {
   if (!enter()) return busy();
   const auto status = _core.takeResult(token, output);
-  if (status.ok() && _phase == Phase::CONTROL) _phase = Phase::STOPPED;
+  if (status.ok() && _phase == Phase::CONTROL) {
+    _phase = _frameworkStopOwed ? Phase::STOPPING : Phase::STOPPED;
+    if (_ownsSilence) { shareQuiet(); _ownsSilence = false; _config.bus->suspended.store(false); }
+  }
   leave(); return status;
 }
 Status Phy::cancel(OperationToken token) noexcept {
@@ -530,13 +673,63 @@ Status Phy::operationSnapshot(OperationSnapshot& output) noexcept {
 }
 Status Phy::readClause22(uint32_t address, uint16_t& output, const IoBudget& budget) noexcept {
   if (!enter()) return busy();
-  if (!_installed || _phase != Phase::STOPPED || _notifying) { leave(); return busy(); }
-  const auto status = _core.readClause22(address, output, budget); leave(); return status;
+  if (!stoppedAdmission()) { leave(); return busy(); }
+  const auto status = _core.readClause22(address, output, budget); refreshAgreement(); leave(); return status;
 }
 Status Phy::readMmd(uint32_t devad, uint32_t address, uint16_t& output, const IoBudget& budget) noexcept {
   if (!enter()) return busy();
-  if (!_installed || _phase != Phase::STOPPED || _notifying) { leave(); return busy(); }
-  const auto status = _core.readMmd(devad, address, output, budget); leave(); return status;
+  if (!stoppedAdmission()) { leave(); return busy(); }
+  const auto status = _core.readMmd(devad, address, output, budget); refreshAgreement(); leave(); return status;
+}
+Status Phy::writeClause22(uint32_t address, uint32_t value, const IoBudget& budget) noexcept {
+  if (!enter()) return busy();
+  if (!stoppedAdmission()) { leave(); return busy(); }
+  const auto status = _core.writeClause22(address, value, budget); refreshAgreement(); leave(); return status;
+}
+Status Phy::writeMmd(uint32_t devad, uint32_t address, uint32_t value, const IoBudget& budget) noexcept {
+  if (!enter()) return busy();
+  if (!stoppedAdmission()) { leave(); return busy(); }
+  const auto status = _core.writeMmd(devad, address, value, budget); refreshAgreement(); leave(); return status;
+}
+Status Phy::modifyMmd(uint32_t devad, uint32_t address, uint32_t mask, uint32_t value, const IoBudget& budget) noexcept {
+  if (!enter()) return busy();
+  if (!stoppedAdmission()) { leave(); return busy(); }
+  const auto status = _core.modifyMmd(devad, address, mask, value, budget); refreshAgreement(); leave(); return status;
+}
+Status Phy::modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget& budget) noexcept {
+  if (!enter()) return busy();
+  if (!stoppedAdmission()) { leave(); return busy(); }
+  const auto status = _core.modifyBasicControl(mask, value, budget); refreshAgreement(); leave(); return status;
+}
+Status Phy::acquireEvidence(uint32_t mask, EvidenceSnapshot& output, const IoBudget& budget) noexcept {
+  if (!enter()) return busy();
+  if (!stoppedAdmission()) { leave(); return busy(); }
+  const auto status = _core.acquireEvidence(mask, output, budget); refreshAgreement(); leave(); return status;
+}
+Status Phy::invalidateDeviceState(InvalidationReason reason) noexcept {
+  if (!enter()) return busy();
+  if (!_installed || (_phase != Phase::STOPPED && _phase != Phase::RUNNING) || _notifying) { leave(); return busy(); }
+  const auto status = _core.invalidateDeviceState(reason); refreshAgreement(); leave(); return status;
+}
+Status Phy::sdkStateSnapshot(SdkStateSnapshot& output) noexcept {
+  if (!enter()) return busy();
+  output = _sdkState; leave(); return Status::Ok();
+}
+Status Phy::flowControlSnapshot(FlowControlRecord& output) noexcept {
+  if (!enter()) return busy();
+  output = _flow; leave(); return Status::Ok();
+}
+Status Phy::settingsSnapshot(SettingsSnapshot& output) noexcept {
+  if (!enter()) return busy();
+  output = _core.settingsSnapshot(); leave(); return Status::Ok();
+}
+Status Phy::transportSnapshot(TransportSnapshot& output) noexcept {
+  if (!enter()) return busy();
+  output = _core.transportSnapshot(); leave(); return Status::Ok();
+}
+Status Phy::evidenceSnapshot(EvidenceSnapshot& output) noexcept {
+  if (!enter()) return busy();
+  output = _core.evidenceSnapshot(); leave(); return Status::Ok();
 }
 Status Phy::discover(uint32_t addressMask, DiscoverySnapshot& output, const IoBudget& budget) noexcept {
   if (!addressMask) return Status::Error(Err::INVALID_PARAM, "Empty discovery mask");

@@ -32,6 +32,17 @@ described below. Source-gated branches remain incomplete. Prompt 37 adds a real
 P4 SDK fixture link and native host tests for the [current adapter subset](esp-idf.md);
 hardware qualification is NOT RUN. Ledger tests establish their own research layer.
 
+Prompt38 maps the existing link/initialization/access families to native
+`startConfigure`, `startInitialize`, `reconcileSdkState`, `modifyBasicControl`,
+`writeClause22`/`writeMmd`/`modifyMmd` and `acquireEvidence`. All delegate the shared
+procedures and collector; raw SDK ioctls still reject. Flow policy calls correctly
+typed MAC/PHY entries with separate effects. Native forced 10/100 half/full,
+SDK cache/getter semantics, cross-owner batch exclusion, raw invalidation and
+public reconciliation have executing pinned-driver evidence. This adds no new
+silicon procedure, part support or physical qualification; ledger source gates
+remain unchanged. The [stage report](reports/implementation/38-esp-idf-state-arbitration.md)
+records exact coverage and limits.
+
 The [prompts 13-18 audit](reports/implementation/13-18-independent-audit.md)
 rechecks these completed routes and adds interrupted-verification, malformed
 receipt and complete next-page grammar/capacity coverage. No later feature or
@@ -62,14 +73,14 @@ silicon gates remain explicit. No feature's implementation status changes here.
 
 | Feature / responsibility | Research | Primary implementation owner | Related integration/test stages | Source gates | Planned typed route / result | Ledger procedures |
 | --- | --- | --- | --- | --- | --- | --- |
-| identity / Exact identity and capabilities | 3 / COMPLETE | 14 (SOFTWARE COMPLETE; HOST PASS) | 14; SDK/physical NOT RUN | None named | readIdentity / identitySnapshot / capabilities; raw/decoded IDs and partial/admission evidence | identify |
-| access / Clause 22 and complete indirect access | 3 / COMPLETE | 11 (SOFTWARE) | 11, 12, 13 | eee_wire | C22/MMD direct access and internal side-effect-aware update; Value or retained frame/effect report | direct_access, mmd_access |
-| reset / PCS, hard reset, restart and reconciliation | 3 / COMPLETE | 15-16 (SOFTWARE COMPLETE; HOST PASS) | 15, 16 | hard_reset_straps, pcs_reset_extent | PCS/hard/circuitry reset and external-reset reconciliation; Completion, lost trust, accepted effects, cleanup | pcs_reset, hard_reset, restart, external_reset |
-| initialization / Required 10BASE-Te initialization | 3 / COMPLETE | 15 (SOFTWARE COMPLETE; HOST PASS) | 15, 17, 18 | None named | Mandatory 10BASE-Te preparation; Verified initialization evidence | initialize_10base |
-| negotiation / Advertisement, forced-compatible negotiation and pause | 3 / COMPLETE | 17 (SOFTWARE) | 17, 19, 37, 38, 39 | None named | LinkSettings, advertisement and AN controls; Desired/observed/trust, negotiation and directional pause | configure_an |
+| identity / Exact identity and capabilities | 3 / COMPLETE | 14 (SOFTWARE COMPLETE; HOST PASS) | 14; 37-38 native init host/P4 link PASS; physical NOT RUN | None named | readIdentity / identitySnapshot / capabilities; raw/decoded IDs and partial/admission evidence | identify |
+| access / Clause 22 and complete indirect access | 3 / COMPLETE | 11 (SOFTWARE) | 11, 12, 13; 38 native host/P4 link PASS | eee_wire | C22/MMD direct access, stable RMW and collector; native read/write/modify/acquireEvidence and explicit modifyBasicControl; retained frame/effect report | direct_access, mmd_access |
+| reset / PCS, hard reset, restart and reconciliation | 3 / COMPLETE | 15-16 (SOFTWARE COMPLETE; HOST PASS) | 15, 16; 38 native shared-silence host/P4 link PASS | hard_reset_straps, pcs_reset_extent | Native/core startInitialize reset choices and invalidateDeviceState; completion, lost trust, accepted effects, separate reconcileSdkState | pcs_reset, hard_reset, restart, external_reset |
+| initialization / Required 10BASE-Te initialization | 3 / COMPLETE | 15 (SOFTWARE COMPLETE; HOST PASS) | 15, 17, 18; 37-38 native host/P4 link PASS | None named | Shared startInitialize mandatory preparation; verified initialization evidence followed by native SDK reconciliation | initialize_10base |
+| negotiation / Advertisement, forced-compatible negotiation and pause | 3 / COMPLETE | 17 (SOFTWARE) | 17, 19; 37-38 native host/P4 link PASS; 39 planned | None named | LinkSettings/startConfigure, native reconcileSdkState and setFlowControl; desired/observed/trust, SDK cache agreement and separate MAC/PHY effects | configure_an |
 | next_page / Complete next-page exchange | 3 / COMPLETE | 17 (SOFTWARE) | 17, 19, 20, 29, 34 | next_page_handshake | Typed local pages and bounded exchange; Partner pages, partial handshake and completion | next_page_exchange |
-| crossover / Automatic, robust and manual crossover / port mirror | 3 / COMPLETE | 18 (SOFTWARE) | 18, 19, 34 | forced_physts | ForcedLinkSettings, crossover/mirror/extended duplex; Configured mode versus observed routing/link | configure_forced, extended_link_configure |
-| link / Live and retained link observations | 3 / COMPLETE | 19 COMPLETE (SOFTWARE; host PASS) | 19 | forced_physts (physical Q11) | readLinkStatus and cached LinkSnapshot; current/history validity, conservative age, forced/AN pause and change evidence; test/link.cpp | observe_link |
+| crossover / Automatic, robust and manual crossover / port mirror | 3 / COMPLETE | 18 (SOFTWARE) | 18, 19, 34; 38 native forced10/100 host/P4 link PASS | forced_physts | ForcedLinkSettings, crossover/mirror/extended duplex through shared startConfigure; native rejects unresolved extended forced half duplex | configure_forced, extended_link_configure |
+| link / Live and retained link observations | 3 / COMPLETE | 19 COMPLETE (SOFTWARE; host PASS) | 19; 37-38 native publication host/P4 link PASS | forced_physts (physical Q11) | readLinkStatus and cached LinkSnapshot; current/history validity, conservative age, forced/AN pause and change evidence; native framework timer uses same collector | observe_link |
 | eee / EEE capability, initialization and negotiation | 5 / COMPLETE | 29 (SOFTWARE) | 29, 37, 38, 39 | eee_wire, eee_control_semantics | EEE initialization/settings/status; Local/partner capability, request and negotiated state | eee_initialize, eee_negotiation_status |
 | lpi / Legacy MAC LPI sessions | 5 / COMPLETE | 30 (SOFTWARE) | 30, 37, 38, 39, 68 | eee_wire, eee_control_semantics | Bounded legacy-MAC LPI start/stop, application-owned dwell; requested/uncertain state and masked control readback, no invented readiness event | legacy_lpi |
 | wol / Magic Packet and Secure-ON wake | 5 / COMPLETE | 31 (SOFTWARE) | 31 | wol_bit_mask, wol_live_reconfigure, rxfs_sfd_reference | Wake MAC/password, pulse/level/CRC and acknowledgement; Verified settings and retained wake/error evidence | wol_configure, wol_acknowledge |

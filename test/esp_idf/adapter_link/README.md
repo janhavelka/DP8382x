@@ -7,14 +7,15 @@ scripts\idf.cmd -C test\esp_idf\adapter_link -B C:\esp\build\dp8382x-adapter set
 ```
 
 The final firmware links the actual ESP32-P4 EMAC, native PHY factory, framework
-installer, typed initialization/configuration and bounded start/stop route. A
+installer, typed AN/forced configuration, SDK reconciliation, correctly typed
+flow control, complete MMD access, cached getters and bounded start/stop. A
 volatile application guard defaults to false, retaining those references while
 booting only an identity/status message. This is linked-image evidence; it does
 not establish MDIO, clocks, timing, link, physical RX scheduling or Q13 results.
 The application refreshes its Git commit/tree identity on every build, independently
 of the release version read from `library.json`. Archives report `unknown`.
 
-No flashing or board operation is part of prompt 37. Before deliberately enabling
+No flashing or board operation is part of prompts 37-38. Before deliberately enabling
 `runBoardFixture`, review the final board/netlist, authorize the identified fixture,
 verify DP83826I enhanced mode/address 0, continuous valid clocks, reset circuitry,
 and measure or replace the conditional transport bounds. The source's
@@ -31,8 +32,16 @@ TXD1=42, CRS_DV51, RXD0=52 and RXD1=53. These reflect the maintained board recor
 and admitted pinned P4 IO_MUX choices. They are not reusable component defaults.
 
 The optional route prepares readiness before install, performs NONE initialization
-and verified 100/full autonegotiation configuration, starts, waits 100 ms, then
-retires. That short interval does not qualify completed negotiation or link.
+and verified 100/full autonegotiation configuration, reconciles SDK AN state,
+disables MAC flow control with the already-clear PHY pause advertisement, and
+reads MMD31 offset `0x0018` through one owner batch. It checks the SDK AN cache,
+starts, waits 100 ms and stops. It then configures forced 10/half with manual
+MDI routing, reconciles SDK state, checks cached AN is disabled, starts, waits
+100 ms and retires. The flow route avoids the pinned SDK's defective shared
+`bool*` / `uint32_t*` ioctl argument. Speed/duplex getter output is explicitly
+the SDK publication cache, which can be default or stale, not immediate
+desired-setting readback. These short
+intervals do not qualify completed negotiation, partner compatibility or link.
 Each operation and lifecycle attempt has an aggregate deadline and finite polling
 cap. A static RX callback drops/frees every received frame. After successful
 install, the driver, MAC, PHY, bus mutex and all contexts remain alive until system

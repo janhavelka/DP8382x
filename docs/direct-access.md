@@ -47,6 +47,16 @@ so a bare read is not an accepted standalone procedure. Selectors are private
 steps of the complete MMD operation. Explicit destructive acquisition and mixed maintenance use the
 [side-effect access guide](side-effect-access.md), preserving the same policy.
 
+Prompt38 adds explicit `modifyBasicControl(mask,value,budget)` maintenance.
+It requires initialized accepted silicon, an idle owner and awake normal control
+state. Only raw BMCR AN/speed/duplex bits 0x3100 may change. The two-frame RMW
+neutralizes reset/restart and never echoes the power-pin OR. It does not alter
+persistent desired settings or verify resulting link policy. Accepted/uncertain
+writes invalidate identity/readiness/trust through the collector. Replay with
+initialization before managed use; the [native owner](esp-idf.md) additionally
+requires public SDK reconciliation. Ordinary raw BMCR/selector/alias writes
+remain rejected.
+
 Identity acceptance is now available through [readIdentity](identity.md), separate
 from raw word reads. Existing maintenance exceptions remain owner-attested; a
 failed/rejected probe blocks all maintenance mutations before callbacks until

@@ -1,5 +1,10 @@
 # Planning audits and later implementation evidence
 
+The [prompt38 report](implementation/38-esp-idf-state-arbitration.md) records public
+SDK state reconciliation, native raw/collector routing, typed flow-control partial
+effects and direct-start failure cleanup. Its
+[source audit](implementation/38-native-source-audit.md) pins the live peer and SDK evidence.
+
 The [prompt 37 report](implementation/37-esp-idf-lifecycle.md) records the native
 factory/lifecycle, real pinned-driver host tests, P4 link and retained RX lifetime
 gate. Its [source audit](implementation/37-native-source-audit.md) records current

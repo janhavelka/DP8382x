@@ -72,6 +72,25 @@ void showStatus(const char* operation, Status status) {
               static_cast<long>(status.detail));
 }
 
+esp_err_t showSdkCachedSettings(bool expectedAutonegotiation) {
+  bool autonegotiation = !expectedAutonegotiation;
+  eth_speed_t speed{};
+  eth_duplex_t duplex{};
+  esp_err_t error = esp_eth_ioctl(fixture.ethernet, ETH_CMD_G_AUTONEGO, &autonegotiation);
+  if (error == ESP_OK) error = esp_eth_ioctl(fixture.ethernet, ETH_CMD_G_SPEED, &speed);
+  if (error == ESP_OK) error = esp_eth_ioctl(fixture.ethernet, ETH_CMD_G_DUPLEX_MODE, &duplex);
+  if (error == ESP_OK) {
+    // Speed/duplex are SDK publication caches, possibly default or stale.
+    // Reconfiguration does not make them desired-setting readback.
+    std::printf("SDK cached AN=%u; last published speed=%u duplex=%u\n",
+                static_cast<unsigned>(autonegotiation), static_cast<unsigned>(speed),
+                static_cast<unsigned>(duplex));
+    if (autonegotiation != expectedAutonegotiation) error = ESP_ERR_INVALID_STATE;
+  }
+  std::printf("SDK cached getter check: %s\n", esp_err_to_name(error));
+  return error;
+}
+
 void releaseBeforeInstall() {
   // Installed resources must never reach this path. Failed deletions retain
   // ownership; no later operation uses the associated borrowed context.
@@ -162,11 +181,64 @@ void runFixture() {
     showStatus("Configure 100/full AN", status);
   }
   if (error == ESP_OK && status.ok()) {
+    status = fixture.phy->reconcileSdkState(nowUs() + 1000000U);
+    showStatus("Reconcile AN SDK state", status);
+  }
+  if (error == ESP_OK && status.ok()) {
+    // Both pause advertisement bits were already verified clear above. This
+    // typed owner route avoids the pinned ioctl's bool/uint32_t width defect.
+    error = fixture.phy->setFlowControl(false, 0U, nowUs() + 1000000U);
+    std::printf("Flow control disabled, pause ability clear: %s\n", esp_err_to_name(error));
+    FlowControlRecord flow{};
+    const Status copied = fixture.phy->flowControlSnapshot(flow);
+    if (copied.ok()) {
+      std::printf("Flow receipt: MAC attempted=%u accepted=%u possible=%u error=%s; "
+                  "PHY attempted=%u accepted=%u error=%s; reconciled=%u\n",
+                  static_cast<unsigned>(flow.macAttempted), static_cast<unsigned>(flow.macAccepted),
+                  static_cast<unsigned>(flow.macEffectPossible), esp_err_to_name(flow.macError),
+                  static_cast<unsigned>(flow.phyAttempted), static_cast<unsigned>(flow.phyAccepted),
+                  esp_err_to_name(flow.phyError),
+                  static_cast<unsigned>(flow.reconciled));
+    } else showStatus("Flow receipt snapshot", copied);
+  }
+  if (error == ESP_OK && status.ok()) {
+    uint16_t configuration = 0;
+    status = fixture.phy->readMmd(31U, 0x0018U, configuration,
+                                  {nowUs() + 1000000U, 4U});
+    showStatus("Owner MMD31:0x0018 read", status);
+    if (status.ok()) std::printf("MMD value=0x%04X\n", static_cast<unsigned>(configuration));
+  }
+  if (error == ESP_OK && status.ok()) error = showSdkCachedSettings(true);
+  if (error == ESP_OK && status.ok()) {
     error = fixture.phy->start(nowUs() + 1000000U);
-    std::printf("Framework start: %s\n", esp_err_to_name(error));
+    std::printf("AN framework start: %s\n", esp_err_to_name(error));
     if (error == ESP_OK) vTaskDelay(pdMS_TO_TICKS(100));
   }
-  std::printf("RX route/start: %s\n", esp_err_to_name(error));
+  if (error == ESP_OK && status.ok()) {
+    error = fixture.phy->stop(nowUs() + 1000000U);
+    std::printf("AN framework stop: %s\n", esp_err_to_name(error));
+  }
+  if (error == ESP_OK && status.ok()) {
+    LinkSettings settings{};
+    settings.mode = LinkMode::FORCED;
+    settings.forced = {LinkSpeed::MBPS_10, Duplex::HALF};
+    settings.crossover.pairSelection = PairSelection::MDI;
+    status = fixture.phy->startConfigure(settings, operationBudget(), token);
+    if (status.inProgress()) status = finishOperation(token);
+    showStatus("Configure forced 10/half", status);
+  }
+  if (error == ESP_OK && status.ok()) {
+    status = fixture.phy->reconcileSdkState(nowUs() + 1000000U);
+    showStatus("Reconcile forced SDK state", status);
+  }
+  if (error == ESP_OK && status.ok()) error = showSdkCachedSettings(false);
+  if (error == ESP_OK && status.ok()) {
+    error = fixture.phy->start(nowUs() + 1000000U);
+    std::printf("Forced framework start: %s\n", esp_err_to_name(error));
+    if (error == ESP_OK) vTaskDelay(pdMS_TO_TICKS(100));
+  }
+  std::printf("RX/configuration/start route: %s\n", esp_err_to_name(error));
+  showStatus("Final core configuration route", status);
   error = fixture.phy->retire(nowUs() + 1000000U);
   std::printf("Retire: %s; reusable teardown remains gated\n", esp_err_to_name(error));
   LifecycleRecord record{};

@@ -49,3 +49,34 @@ notification behavior, failure journals and the modeled lifetime window.
 They do not establish real timer concurrency, MAC hardware waits, RX task
 scheduling, FIFO flush completion, physical PHY behavior or reusable teardown.
 The real SDK image link and physical qualification remain separate evidence.
+
+Prompt 38 extends this target with AN-to-forced 10/100 half/full lifecycle and
+SDK getter-cache scenarios, explicit stopped reconciliation, raw BMCR accepted
+and uncertain effects, direct framework-start rejection for both cached AN
+states, and supported flow-control calls. Flow-control uses a Boolean MAC
+argument and a separate 32-bit PHY argument; the defective SDK flow-control
+ioctl is never given a small Boolean. MAC acceptance followed by PHY failure
+remains visible and requires a later explicit successful owner call.
+
+The semaphore fake records each acquire/release, can fail a selected controller
+boundary, and exposes held state to the test harness. MAC frame callbacks try
+same-instance reentry, a second owner and raw ioctls at all four MMD boundaries;
+the five-frame LED update is tested similarly. Failure cases cover each frame,
+failed acquisition, failed release, quarantine and collector partial evidence.
+These are deterministic boundary tests, not a claim about FreeRTOS scheduling.
+The target registers 43 cases: the original 24 and 19 configuration/arbitration
+regressions. The latter include shared silence during hard reset, preserved MAC
+receipts after gate contention, a foreign flow-control effect during the PHY
+callback window, stale partner pause bits in forced mode, and a queued link poll
+during the stop fence. The foreign-flow case invokes the correctly typed public
+MAC and PHY callbacks separately, without executing the defective ioctl cast.
+Failed instance-gate acquisition after a direct framework start retains both the
+SDK FSM change and any already posted START event for the owner stop cleanup.
+
+A separate GNU undefined-behavior trap build runs the same registered cases:
+
+```powershell
+cmake -S test/esp_idf -B build/p38-native-ubsan -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_PINNED_IDF_PATH=C:/esp/v6.1/esp-idf "-DCMAKE_C_FLAGS=-fsanitize=undefined -fsanitize-undefined-trap-on-error" "-DCMAKE_CXX_FLAGS=-fsanitize=undefined -fsanitize-undefined-trap-on-error"
+cmake --build build/p38-native-ubsan
+ctest --test-dir build/p38-native-ubsan --output-on-failure --no-tests=error
+```

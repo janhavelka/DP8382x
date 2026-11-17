@@ -4,13 +4,13 @@ General microcontroller library workspace for Texas Instruments DP8382x Ethernet
 PHYs, starting with **DP83826IRHBR (DP83826I)**. The C++17 core is
 framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet MAC.
 
-**Status: prompts 1–35 complete for supported procedures; prompt 37 adds a native ESP-IDF owner for the implemented subset. Deep-power-down and full primary closure remain source-blocked; hardware qualification remains future work.**
+**Status: prompts 1–35 complete for supported procedures; prompts 37–38 add native ESP-IDF lifecycle and SDK state arbitration. Deep-power-down and full primary closure remain source-blocked; hardware qualification remains future work.**
 The [native ESP-IDF guide](docs/esp-idf.md) covers explicit board readiness,
-AN initialization/configuration, link publication, owner-routed discovery and
-bounded framework start/stop. The real pinned SDK driver has executing host tests
+AN/forced configuration, public SDK reconciliation, link publication, owner-routed
+raw/collector access and discovery, and bounded framework start/stop. The real pinned SDK driver has executing host tests
 and the ESP32-P4 fixture links. Reusable installed teardown remains blocked by
-`native_rx_quiescence`: resources stay alive until system restart. Prompt 38
-adds broader SDK-aware configuration and control routes.
+`native_rx_quiescence`: resources stay alive until system restart. Flow policy uses
+separately typed MAC/PHY calls and preserves partial effects.
 [EEE negotiation and status](docs/eee.md) now provide explicit reset-bearing setup,
 verified restoration and bounded retained observations; physical Q1 remains pending.
 The [prompt-36 integration review](docs/reports/implementation/36-primary-feature-closure.md)
@@ -52,7 +52,7 @@ separate bounded starts/stops, retained temporary state and verified restoration
 [BIST sessions](docs/bist.md) provide generator/checker controls, bounded raw
 captures and verified stop, with inconclusive outcomes where source evidence is missing.
 Further typed features,
-SDK configuration coverage, CLI, runners and hardware qualification remain future work.
+additional native feature routes, CLI, runners and hardware qualification remain future work.
 
 Prompt 6 selects one shared C++17 chip implementation, a terminal batch MDIO
 boundary and explicit native lifecycle/cache/collector ownership in the

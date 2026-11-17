@@ -25,9 +25,10 @@ the rules; this guide does not duplicate operation declarations or state tables.
 | Application/board | Pins/address/clocks/reset, supplies, controller setup, serialization, scheduling, budgets and retry/recovery policy |
 | Network/EtherCAT stack | Protocol behavior, application readiness and timing |
 
-The [native owner](esp-idf.md) now implements factory/install, explicit board
-readiness, typed AN initialization/configuration, terminal framework restart,
-link notifications and bounded stop/fencing. Real-driver host and P4 link tests
+The [native owner](esp-idf.md) implements factory/install, explicit board readiness,
+typed AN/forced configuration, all reset choices under shared logical silence,
+public SDK reconciliation, owner-routed raw/collector access, separate MAC/PHY flow
+policy, terminal framework restart, link notifications and bounded stop/fencing. Real-driver host and P4 link tests
 cover their own layers. RX task lifetime still prevents reusable destruction of
 installed resources; terminal retirement retains them through system restart.
 

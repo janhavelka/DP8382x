@@ -1781,6 +1781,16 @@ public:
   /// @note Failed or late writes preserve effects and invalidate trust; no retry, token or wait.
   Status restartAutoNegotiation(const IoBudget& budget) noexcept;
 
+  /// @brief Maintain only raw BMCR AN/speed/duplex bits in one atomic read/write.
+  /// @param[in] mask Nonzero subset of 0x3100; no reset, power, loopback or selector commands.
+  /// @param[in] value Sixteen-bit replacement subset of mask, not persistent desired intent.
+  /// @param[in] budget Absolute deadline and at least two frames.
+  /// @pre Initialized accepted exact part, awake normal profile, stopped application traffic.
+  /// @return Validation/admission/transport status; successful or uncertain write invalidates
+  /// identity/readiness/trust. Reinitialize/replay before managed use; no automatic retry.
+  /// @note SNLS647I table8-19: neutralize RESET/RESTART and never echo the power-pin OR.
+  Status modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget& budget) noexcept;
+
   /// @brief Acquire and accept identity at the bound address in one two-read batch.
   /// @param[out] identity Assigned only after complete in-budget transport and identity acceptance.
   /// @param[in] budget Aggregate microsecond deadline and at least two frames.

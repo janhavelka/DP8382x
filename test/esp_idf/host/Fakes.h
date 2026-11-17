@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 #include "esp_eth_driver.h"
@@ -11,6 +12,7 @@
 
 namespace Host {
 struct Event { int32_t id; esp_eth_handle_t handle; TickType_t ticks; };
+struct SemaphoreEvent { SemaphoreHandle_t handle; bool take; bool accepted; TickType_t ticks; };
 struct State {
     std::vector<std::string> calls;
     std::vector<Event> events;
@@ -22,6 +24,11 @@ struct State {
     bool failAllocation = false;
     bool failSemaphore = false;
     unsigned failSemaphoreTakes = 0;
+    SemaphoreHandle_t failNextTake = nullptr;
+    SemaphoreHandle_t failNextGive = nullptr;
+    std::vector<SemaphoreEvent> semaphoreEvents;
+    uintptr_t currentTask = 1;
+    std::function<void(SemaphoreHandle_t)> beforeSemaphoreTake;
     bool holdOneShot = false;
     uint64_t nowUs = 0;
     unsigned timerCreates = 0;
@@ -36,6 +43,7 @@ void reset();
 void deliverEvents();
 void tickTimers();
 bool isLive(const void* allocation);
+bool semaphoreHeld(SemaphoreHandle_t semaphore);
 esp_netif_t* makeNetif();
 void destroyNetif(esp_netif_t* netif);
 }

@@ -1,5 +1,11 @@
 # Forced modes and coupled crossover settings
 
+The [native owner](esp-idf.md#configuration-public-reconciliation-and-raw-entry)
+supports legal 10/100 half/full profiles through this same procedure, followed by
+explicit public SDK reconciliation. SDK speed/duplex getters describe the last
+published link, not immediate desired readback. Native extended forced half duplex
+rejects before mutation because it cannot produce qualified UP evidence.
+
 Prompt 18 extends the same `startConfigure` operation and initialization replay
 used by [negotiated profiles](negotiation.md). Forced mode configures the complete
 local speed/duplex/routing profile. A BMCR-only write does not establish Force

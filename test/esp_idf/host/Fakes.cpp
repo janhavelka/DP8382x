@@ -37,6 +37,7 @@ void reset() {
     delivered = 0;
 }
 bool isLive(const void* allocation) { return allocations.count(const_cast<void*>(allocation)) != 0; }
+bool semaphoreHeld(SemaphoreHandle_t semaphore) { return semaphore && semaphore->held; }
 void deliverEvents() {
     while (delivered < data.events.size()) {
         auto event = data.events[delivered++];
@@ -67,13 +68,20 @@ SemaphoreHandle_t xSemaphoreCreateMutex(void) {
     auto* semaphore = new HostSemaphore;
     semaphores.push_back(semaphore); return semaphore;
 }
-BaseType_t xSemaphoreTake(SemaphoreHandle_t semaphore, TickType_t) {
-    if (data.failSemaphoreTakes) { --data.failSemaphoreTakes; return pdFALSE; }
-    if (!semaphore || semaphore->held) return pdFALSE;
+BaseType_t xSemaphoreTake(SemaphoreHandle_t semaphore, TickType_t ticks) {
+    if (const auto callback = data.beforeSemaphoreTake) callback(semaphore);
+    bool accepted = semaphore && !semaphore->held;
+    if (data.failSemaphoreTakes) { --data.failSemaphoreTakes; accepted = false; }
+    if (semaphore && data.failNextTake == semaphore) { data.failNextTake = nullptr; accepted = false; }
+    data.semaphoreEvents.push_back({semaphore, true, accepted, ticks});
+    if (!accepted) return pdFALSE;
     semaphore->held = true; return pdTRUE;
 }
 BaseType_t xSemaphoreGive(SemaphoreHandle_t semaphore) {
-    if (!semaphore || !semaphore->held) return pdFALSE;
+    bool accepted = semaphore && semaphore->held;
+    if (semaphore && data.failNextGive == semaphore) { data.failNextGive = nullptr; accepted = false; }
+    data.semaphoreEvents.push_back({semaphore, false, accepted, 0});
+    if (!accepted) return pdFALSE;
     semaphore->held = false; return pdTRUE;
 }
 void vSemaphoreDelete(SemaphoreHandle_t semaphore) {
@@ -129,7 +137,7 @@ esp_err_t esp_timer_stop(esp_timer_handle_t timer) {
 bool esp_timer_is_active(esp_timer_handle_t timer) { return timer && timer->active; }
 int64_t esp_timer_get_time(void) { return static_cast<int64_t>(data.nowUs); }
 void vTaskDelay(TickType_t ticks) { data.nowUs += static_cast<uint64_t>(ticks) * 1000; Host::tickTimers(); }
-TaskHandle_t xTaskGetCurrentTaskHandle(void) { return reinterpret_cast<void*>(1); }
+TaskHandle_t xTaskGetCurrentTaskHandle(void) { return reinterpret_cast<void*>(data.currentTask); }
 esp_err_t esp_event_post(esp_event_base_t, int32_t id, const void* event, size_t size, TickType_t ticks) {
     data.calls.emplace_back("event." + std::to_string(id));
     if (data.eventErrorId == -1 || data.eventErrorId == id) {

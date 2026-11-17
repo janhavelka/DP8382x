@@ -7,6 +7,7 @@
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#include <freertos/task.h>
 #include <atomic>
 #include <limits>
 
@@ -52,6 +53,29 @@ struct LifecycleRecord {
   PublishedTuple publishedTuple{}; ///< Last accepted projection.
   bool publicationUncertain{false}; ///< Unknown MAC partial effect; admission closes.
   bool eventLost{false}; ///< Current accepted LINK event is pending; older failures remain in firstError.
+};
+/// @brief Last public SDK control reconciliation; cached fields are not live PHY evidence.
+struct SdkStateSnapshot {
+  bool reconciled{false}; ///< True only after verified core settings and successful public controls.
+  bool cacheValid{false}; ///< cachedAutoNegotiation was read through ETH_CMD_G_AUTONEGO.
+  bool cachedAutoNegotiation{false}; ///< SDK's cache, distinct from desired mode and raw BMCR.
+  bool autoNegotiationAccepted{false}; ///< Public S_AUTONEGO completed in the last attempt.
+  bool speedAccepted{false}; ///< Forced S_SPEED acknowledged the verified desired speed.
+  bool duplexAccepted{false}; ///< Forced S_DUPLEX_MODE acknowledged the verified desired duplex.
+  Status status{Err::NOT_INITIALIZED, 0, "SDK state not reconciled"}; ///< Last reconciliation result.
+};
+/// @brief Separate MAC policy and PHY advertisement receipts; no implicit rollback.
+struct FlowControlRecord {
+  bool requestedEnabled{false}; ///< Application MAC flow-control policy.
+  uint32_t pauseAbility{0}; ///< Bit0 symmetric, bit1 asymmetric; exact values 0..3.
+  bool macAttempted{false}; ///< enable_flow_ctrl was invoked.
+  bool macAccepted{false}; ///< MAC returned ESP_OK, even if completion was late.
+  bool macEffectPossible{false}; ///< Accepted or uncertain MAC policy change.
+  bool phyAttempted{false}; ///< Correctly typed PHY acknowledgement callback was invoked.
+  bool phyAccepted{false}; ///< Correctly typed PHY callback acknowledged verified advertisement.
+  esp_err_t macError{ESP_OK}; ///< Actual MAC callback result, including accepted late work.
+  esp_err_t phyError{ESP_OK}; ///< PHY callback or admission/deadline result.
+  bool reconciled{false}; ///< Both parts completed in the same admitted, in-budget request.
 };
 /// @brief Borrowed controller-wide exclusion and readiness shared by every PHY.
 /// @pre mutex is an application-created nonrecursive mutex. This object and mutex
@@ -140,7 +164,7 @@ public:
   /// @param[out] output Published only on success; SDK install failure has no partial handle.
   /// @return SDK error unchanged; failed install leaves only owner MAC/PHY deletion.
   esp_err_t install(esp_eth_handle_t& output) noexcept;
-  /// @brief Start only after typed initialization and verified AN configuration; callbacks do no waits.
+  /// @brief Start only after verified settings and explicit public SDK reconciliation; no hidden waits.
   /// @param[in] deadlineUs Absolute enclosing allowance, including failure stop/fence.
   /// @return Primary SDK error; failed start performs bounded stop and retains cleanup separately.
   esp_err_t start(uint64_t deadlineUs) noexcept;
@@ -160,19 +184,54 @@ public:
   /// @return OK or BUSY; no clock, MDIO or SDK callback.
   Status lifecycleSnapshot(LifecycleRecord& output) noexcept;
   /// @brief Admit the core's explicit reset/initialization while stopped; token unchanged on failure.
-  /// @param[in] options NONE/PCS/RESTART; HARD requires the later shared-board owner route.
+  /// @param[in] options Explicit core reset choice; initialization reserves shared-bus silence.
   /// @param[in] budget Original aggregate core deadline/frame/poll policy.
   /// @param[out] token Assigned only on IN_PROGRESS.
   /// @return Core admission status, BUSY or INVALID_CONFIG for unavailable native route.
   Status startInitialize(const InitializeOptions& options, const OperationBudget& budget,
                          OperationToken& token) noexcept;
-  /// @brief Admit verified AN intent while stopped; mode changes remain prompt 38.
-  /// @param[in] settings Validated persistent AN intent.
+  /// @brief Admit persistent AN or forced intent while stopped; reconcile SDK after taking success.
+  /// @param[in] settings Complete legal 10/100 profile, with application-owned policy.
   /// @param[in] budget Original aggregate core allowance.
   /// @param[out] token Assigned only on IN_PROGRESS.
   /// @return Core admission status, BUSY or INVALID_CONFIG for unavailable native route.
   Status startConfigure(const LinkSettings& settings, const OperationBudget& budget,
                         OperationToken& token) noexcept;
+  /// @brief Configure through the same core procedure, including optional finite AN/next-page waits.
+  /// @param[in] settings Complete persistent link profile.
+  /// @param[in] options Core negotiation/wait policy; no native polling loop is created.
+  /// @param[in] budget Original aggregate core allowance.
+  /// @param[out] token Assigned only on IN_PROGRESS; invalid input has no SDK/MDIO effect.
+  /// @return Core admission status or BUSY; SDK reconciliation is a separate explicit call.
+  Status startConfigure(const LinkSettings& settings, const ConfigureOptions& options,
+                        const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Reconcile already verified stopped settings through public SDK setters/getter.
+  /// @param[in] deadlineUs Exclusive absolute esp_timer allowance for all controls, microseconds.
+  /// @return Terminal status; partial/late SDK acceptance stays in sdkStateSnapshot.
+  /// @note No MDIO: callbacks attest shared core readback; stale settings require initialize/configure first.
+  Status reconcileSdkState(uint64_t deadlineUs) noexcept;
+  /// @brief Apply MAC flow policy and attest separately configured PHY pause using correctly typed calls.
+  /// @param[in] enabled Application MAC policy; never passed through defective S_FLOW_CTRL ioctl.
+  /// @param[in] pauseAbility Bit0 symmetric/bit1 asymmetric, 0..3; must match verified AN advertisement.
+  /// @param[in] deadlineUs Exclusive aggregate esp_timer allowance, microseconds.
+  /// @return Native result; local validation is effect-free, accepted/uncertain MAC effects are retained.
+  esp_err_t setFlowControl(bool enabled, uint32_t pauseAbility, uint64_t deadlineUs) noexcept;
+  /// @brief Copy last SDK reconciliation locally; output unchanged on gate contention.
+  /// @param[out] output Copied receipt on OK.
+  /// @return OK or BUSY; no clock or I/O.
+  Status sdkStateSnapshot(SdkStateSnapshot& output) noexcept;
+  /// @brief Copy retained MAC/PHY flow-control effects locally.
+  /// @param[out] output Copied receipt on OK, unchanged on BUSY.
+  /// @return OK or BUSY; no clock or I/O.
+  Status flowControlSnapshot(FlowControlRecord& output) noexcept;
+  /// @brief Copy desired/observed/trusted core settings; SDK getters have different semantics.
+  /// @param[out] output Copied snapshot on OK, unchanged on BUSY.
+  /// @return OK or BUSY; no clock or I/O.
+  Status settingsSnapshot(SettingsSnapshot& output) noexcept;
+  /// @brief Withdraw core proof and SDK agreement without I/O; pending results remain historical.
+  /// @param[in] reason Valid core invalidation reason, including external reset/writer.
+  /// @return Core status or BUSY; stopped/running owner only, close external traffic first.
+  Status invalidateDeviceState(InvalidationReason reason) noexcept;
   /// @brief Advance one admitted core operation by at most maxFrames, without sleeping.
   /// @param[in] token Exact admitted instance token.
   /// @param[in] maxFrames Physical frames allowed in this call, zero is bookkeeping only.
@@ -204,6 +263,47 @@ public:
   /// @param[in] budget Aggregate absolute deadline/frame allowance.
   /// @return Core validation/transport status or native BUSY.
   Status readMmd(uint32_t devad, uint32_t address, uint16_t& output, const IoBudget& budget) noexcept;
+  /// @brief Stopped owner raw write through the core's LEDCR-only policy.
+  /// @param[in] address C22 LEDCR (0x18); selectors/commands reject.
+  /// @param[in] value Sixteen-bit allowed field value.
+  /// @param[in] budget Whole terminal transaction allowance.
+  /// @return Core status or BUSY; accepted/uncertain mutation withdraws SDK agreement.
+  Status writeClause22(uint32_t address, uint32_t value, const IoBudget& budget) noexcept;
+  /// @brief Stopped owner complete four-frame MMD maintenance through core policy.
+  /// @param[in] devad Vendor31 only for writes.
+  /// @param[in] address LEDCR alias only (0x0018); selectors/other aliases reject.
+  /// @param[in] value Sixteen-bit permitted field word.
+  /// @param[in] budget Whole unsplit batch allowance.
+  /// @return Core terminal status or BUSY; failure preserves uncertain effects.
+  Status writeMmd(uint32_t devad, uint32_t address, uint32_t value, const IoBudget& budget) noexcept;
+  /// @brief Stopped owner atomic five-frame stable LEDCR RMW.
+  /// @param[in] devad Vendor31 only.
+  /// @param[in] address LEDCR alias 0x0018.
+  /// @param[in] mask Nonzero sixteen-bit permitted stable field mask.
+  /// @param[in] value Replacement subset of mask.
+  /// @param[in] budget Whole unsplit transaction allowance.
+  /// @return Core status or BUSY; no public selector or recursive lock path.
+  Status modifyMmd(uint32_t devad, uint32_t address, uint32_t mask, uint32_t value, const IoBudget& budget) noexcept;
+  /// @brief Explicit raw BMCR stable-field maintenance; never persistent desired configuration.
+  /// @param[in] mask Nonzero subset of AN/speed/duplex mask 0x3100.
+  /// @param[in] value Replacement subset of mask; commands/power fields reject.
+  /// @param[in] budget Complete two-frame read/write allowance.
+  /// @return Core status or BUSY; reinitialize/replay and public-reconcile before restart.
+  Status modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget& budget) noexcept;
+  /// @brief Explicit stopped destructive acquisition through the sole core collector.
+  /// @param[in] sourceMask Nonzero subset of ALL_EVIDENCE.
+  /// @param[out] output Assigned on aggregate success; consumed prefixes remain cached on error.
+  /// @param[in] budget Complete acquisition allowance.
+  /// @return Core status or BUSY; ordinary raw reads cannot bypass this collector.
+  Status acquireEvidence(uint32_t sourceMask, EvidenceSnapshot& output, const IoBudget& budget) noexcept;
+  /// @brief Copy retained destructive samples locally, without acknowledging hardware.
+  /// @param[out] output Copied history on OK, unchanged on BUSY.
+  /// @return OK or BUSY; no clock or I/O.
+  Status evidenceSnapshot(EvidenceSnapshot& output) noexcept;
+  /// @brief Copy complete frame/release/uncertainty receipt locally.
+  /// @param[out] output Copied snapshot on OK, unchanged on BUSY.
+  /// @return OK or BUSY; no clock or I/O.
+  Status transportSnapshot(TransportSnapshot& output) noexcept;
   /// @brief Explicit stopped-owner scan of selected addresses, at most 64 frames total.
   /// @param[in] addressMask Nonzero bit mask; no address is automatically selected.
   /// @param[out] output Complete scan only on OK, unchanged on failure; partial receipt stays cached.
@@ -244,10 +344,10 @@ private:
   static esp_err_t setLink(esp_eth_phy_t*, eth_link_t) noexcept;
   static esp_err_t getAddress(esp_eth_phy_t*, uint32_t*) noexcept;
   static esp_err_t setAddress(esp_eth_phy_t*, uint32_t) noexcept;
-  static esp_err_t rejectPause(esp_eth_phy_t*, uint32_t) noexcept;
+  static esp_err_t acknowledgePause(esp_eth_phy_t*, uint32_t) noexcept;
   static esp_err_t rejectLoopback(esp_eth_phy_t*, bool) noexcept;
-  static esp_err_t rejectSpeed(esp_eth_phy_t*, eth_speed_t) noexcept;
-  static esp_err_t rejectDuplex(esp_eth_phy_t*, eth_duplex_t) noexcept;
+  static esp_err_t acknowledgeSpeed(esp_eth_phy_t*, eth_speed_t) noexcept;
+  static esp_err_t acknowledgeDuplex(esp_eth_phy_t*, eth_duplex_t) noexcept;
   static esp_err_t deletePhy(esp_eth_phy_t*) noexcept;
   bool enter() noexcept;
   void leave() noexcept;
@@ -256,6 +356,25 @@ private:
   esp_err_t finishStop(uint64_t deadlineUs, esp_err_t initial, bool stopCalled = true) noexcept;
   IoBudget callbackBudget(uint32_t frames) const noexcept;
   void shareQuiet() noexcept;
+  bool verifiedSettings() const noexcept;
+  void refreshAgreement() noexcept;
+  void unexpectedStart(bool startPosted) noexcept;
+  void deferStart(bool startPosted) noexcept;
+  bool stoppedAdmission() const noexcept;
+  enum class ControlEntry : uint8_t { NONE, AUTONEGO, SPEED, DUPLEX, PAUSE };
+  enum class ControlCompletion : uint8_t { NONE, SDK, FLOW };
+  bool admittedControl(ControlEntry entry) const noexcept;
+  ControlEntry _controlEntry{ControlEntry::NONE};
+  TaskHandle_t _controlTask{nullptr};
+  uint64_t _controlDeadline{0};
+  SdkStateSnapshot _sdkState{};
+  FlowControlRecord _flow{};
+  SdkStateSnapshot _pendingSdk{};
+  FlowControlRecord _pendingFlow{};
+  esp_err_t _pendingControlError{ESP_OK};
+  std::atomic<ControlCompletion> _controlCompletion{ControlCompletion::NONE};
+  std::atomic<bool> _unexpectedFlowEffect{false};
+  bool _frameworkStopOwed{false}, _ownsSilence{false};
   PhyConfig _config;
   PhyHandle _handle{};
   DP8382x _core{};
@@ -266,7 +385,8 @@ private:
   esp_eth_handle_t _installCandidate{nullptr};
   std::atomic<int64_t> _installOutcome{std::numeric_limits<int64_t>::min()};
   std::atomic<bool> _installing{false};
-  Phase _phase{Phase::STOPPED};
+  std::atomic<Phase> _phase{Phase::STOPPED};
+  std::atomic<uint8_t> _deferredStart{0}; ///< Bit0 FSM changed; bit1 START was posted before get_link.
   LifecycleRecord _record{};
   DiscoverySnapshot _discovery{};
   bool _boardReady{false}, _installed{false}, _installAttempted{false}, _fenceArmed{false};

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Prompt38: added SDK-aware AN/forced configuration and explicit public cache
+  reconciliation, shared initialization silence, raw/collector owner routing and
+  narrow BMCR maintenance. Added separately typed MAC/PHY flow control with
+  retained partial effects; direct framework starts after invalidation now retain
+  FSM/event effects for cleanup, including gate contention. Extended real-driver
+  tests and P4 fixture while preserving the installed RX teardown gate.
+
 - Prompt 37: added the native ESP-IDF v6.1 PHY owner, explicit board readiness,
   direct MAC batches, typed initialization/AN configuration, shared terminal
   AN restart, qualified link notifications, rejecting raw ioctl hooks and bounded

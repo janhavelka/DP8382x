@@ -158,8 +158,42 @@ void failures() {
   CHECK(!driver.operationSnapshot().cleanupOwed);
   CHECK(driver.settingsSnapshot().trust==ConfigurationTrust::DIRTY);
 }
+void basicControl() {
+  // Independently enumerate BMCR13/12/8. Maintenance never rewrites desired
+  // settings, blesses the result or echoes RESET/RESTART/pin-derived power.
+  for (uint16_t value : {0x0000,0x0100,0x1000,0x1100,0x2000,0x2100,0x3000,0x3100}) {
+    Bus bus; Driver driver; ready(driver,bus); bus.holdCommand=true;
+    bus.words[0]=0x1AA5;
+    const auto calls=bus.calls;
+    CHECK(driver.modifyBasicControl(0x3100,value,{1000000,2}).ok());
+    CHECK(bus.calls==calls+1 && bus.last.frameCount==2);
+    CHECK(bus.last.frames[1].preserveMask==0x44FF);
+    CHECK(bus.written==static_cast<uint16_t>(value|0x00A5));
+    CHECK(!driver.isInitialized() && !driver.capabilities().valid);
+    CHECK(driver.settingsSnapshot().desired.mode==LinkMode::AUTONEGOTIATED);
+    CHECK(driver.settingsSnapshot().trust!=ConfigurationTrust::VERIFIED);
+  }
+  Bus bus; Driver driver; ready(driver,bus); const auto calls=bus.calls;
+  for (uint32_t mask : {0U,0x8000U,0x0200U,0x0800U,0x40U,0x10000U})
+    CHECK(driver.modifyBasicControl(mask,0,{1000000,2}).is(Err::INVALID_PARAM));
+  CHECK(driver.modifyBasicControl(0x1000,0x2000,{1000000,2}).is(Err::INVALID_PARAM));
+  CHECK(driver.modifyBasicControl(0x1000,0x10000,{1000000,2}).is(Err::INVALID_PARAM));
+  CHECK(driver.modifyBasicControl(0x1000,0,{1000000,1}).is(Err::OPERATION_TIMEOUT));
+  CHECK(bus.calls==calls && driver.isInitialized());
+  for (int index=0;index<2;++index) {
+    Bus failed; Driver target; ready(target,failed); failed.fail=index;
+    CHECK(target.modifyBasicControl(0x1000,0,{1000000,2}).is(Err::MDIO_TIMEOUT));
+    CHECK(target.isInitialized()==(index==0));
+  }
+  for (unsigned fault=0;fault<2;++fault) {
+    Bus failed; Driver target; ready(target,failed);
+    failed.late=fault==0; failed.releaseFailure=fault==1;
+    CHECK(!target.modifyBasicControl(0x1000,0,{1000000,2}).ok());
+    CHECK(!target.isInitialized());
+  }
+}
 } // namespace
 int main(int argc,char** argv) {
-  const test::Suite suites[]={{"vectors",vectors},{"admission",admission},{"failures",failures}};
+  const test::Suite suites[]={{"vectors",vectors},{"admission",admission},{"failures",failures},{"basic_control",basicControl}};
   return test::runSuites(argc,argv,suites);
 }

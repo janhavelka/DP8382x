@@ -18,7 +18,11 @@ struct InstrumentedMac {
     std::map<std::string, esp_err_t> errors;
     std::map<std::string, uint32_t> elapsedUs;
     std::vector<esp_err_t> readResults;
+    std::vector<esp_err_t> writeResults;
     std::function<void(const char*)> onCall;
+    std::function<void(const Frame&)> onFrame;
+    std::vector<bool> flowRequests;
+    bool flowEnabled = false;
     uint16_t selector = 0;
     bool dataMode = false;
     bool alive = true;

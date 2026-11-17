@@ -25,7 +25,12 @@ InstrumentedMac::InstrumentedMac() {
     native.get_addr = [](esp_eth_mac_t* mac, uint8_t* out) { for (unsigned i = 0; i < 6; ++i) out[i] = static_cast<uint8_t>(i); return self(mac).result("mac.get_addr"); };
     native.transmit = [](esp_eth_mac_t* mac, uint8_t*, uint32_t) { return self(mac).result("mac.transmit"); };
     native.set_promiscuous = [](esp_eth_mac_t* mac, bool) { return self(mac).result("mac.promiscuous"); };
-    native.enable_flow_ctrl = [](esp_eth_mac_t* mac, bool) { return self(mac).result("mac.flow"); };
+    native.enable_flow_ctrl = [](esp_eth_mac_t* mac, bool enabled) {
+        auto& m = self(mac); m.flowRequests.push_back(enabled);
+        const auto error = m.result("mac.flow");
+        if (error == ESP_OK) m.flowEnabled = enabled;
+        return error;
+    };
     native.read_phy_reg = [](esp_eth_mac_t* mac, uint32_t address, uint32_t reg, uint32_t* out) {
         auto& m = self(mac); const auto error = m.result("mac.read");
         if (error != ESP_OK) return error;
@@ -34,19 +39,31 @@ InstrumentedMac::InstrumentedMac() {
             if (scripted != ESP_OK) return scripted;
         }
         if (reg > 31 || !out) return ESP_ERR_INVALID_ARG;
-        const uint32_t value = reg == 14 && m.dataMode ? m.extended[m.selector] : m.registers[reg];
-        m.frames.push_back({false, address, reg, value}); *out = value; return ESP_OK;
+        const uint32_t value = reg == 14 && m.dataMode ?
+            (m.selector < 32 ? m.registers[m.selector] : m.extended[m.selector]) : m.registers[reg];
+        const Frame frame{false, address, reg, value};
+        m.frames.push_back(frame); *out = value;
+        if (reg == 0x14 || reg == 0x15) m.registers[reg] = 0; // Explicit counter collector model.
+        if (m.onFrame) m.onFrame(frame);
+        return ESP_OK;
     };
     native.write_phy_reg = [](esp_eth_mac_t* mac, uint32_t address, uint32_t reg, uint32_t value) {
         auto& m = self(mac); const auto error = m.result("mac.write");
         if (error != ESP_OK) return error;
+        if (!m.writeResults.empty()) {
+            const auto scripted = m.writeResults.front(); m.writeResults.erase(m.writeResults.begin());
+            if (scripted != ESP_OK) return scripted;
+        }
         if (reg > 31 || value > 0xFFFF) return ESP_ERR_INVALID_ARG;
         m.frames.push_back({true, address, reg, value});
         if (reg == 13) m.dataMode = (value & 0x4000) != 0;
         else if (reg == 14 && !m.dataMode) m.selector = static_cast<uint16_t>(value);
+        else if (reg == 14 && m.selector < 32) m.registers[m.selector] = static_cast<uint16_t>(m.selector == 0 ? value & ~0x8200U : value);
         else if (reg == 14) m.extended[m.selector] = static_cast<uint16_t>(value);
         // Terminal fake models self-clearing reset/restart commands, not silicon timing.
-        else m.registers[reg] = static_cast<uint16_t>(reg == 0 ? value & ~0x8200U : value);
+        else m.registers[reg] = static_cast<uint16_t>(reg == 0 ? value & ~0x8200U : reg == 31 ? value & ~0xC000U : value);
+        const Frame frame{true, address, reg, value};
+        if (m.onFrame) m.onFrame(frame);
         return ESP_OK;
     };
 }

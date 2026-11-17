@@ -5,14 +5,14 @@ C++17 core through the public `esp_eth_phy_t` interface. Its baseline is
 **ESP-IDF v6.1, commit `fff9895c82d744c7237be8847347bdd1b07c6643`, ESP32-P4**.
 The component metadata selects that release and target. This is a selected
 integration baseline, not a tested range of SDK releases or MACs. Executing
-results and remaining gates belong to the prompt-37 implementation report;
+results and remaining gates belong to the [prompt38 report](reports/implementation/38-esp-idf-state-arbitration.md);
 the [source audit](reports/implementation/37-native-source-audit.md) records
 the inspected inputs. A linked image does not establish physical operation.
 
 ## Component and application boundary
 
 The root CMake component explicitly includes portable source files and
-`src/esp_idf/Phy.cpp`. Ordinary host CMake includes only portable files and has
+`src/esp_idf/Phy.cpp` and `PhyControl.cpp`. Ordinary host CMake includes only portable files and has
 no ESP-IDF, Git, Python, sibling or Doxygen dependency. SDK headers stay in
 `include/DP8382x/esp_idf/`. The wrapper embeds only
 `struct PhyHandle { esp_eth_phy_t phy; Phy* owner; };`, with standard-layout and
@@ -50,27 +50,82 @@ Core typed calls preserve their `Status`, operation token and result contracts.
 | `deinit` | Failed-install local unwind; installed destructive teardown is denied | Installed teardown closes admission and returns INVALID_STATE; retain resources because the SDK may already have changed its timer/refcount. |
 | `get_addr` | Reads immutable declared address locally | INVALID_ARG for null output; no MDIO. |
 | `set_addr` | Compares locally with the immutable address | Same value returns OK; another value returns NOT_SUPPORTED. Retarget by recreation before installation or system restart after retained installation. |
-| `autonego_ctrl(G_STAT)` | Installer/local query; returns admitted desired AN | No MDIO; invalid output rejects. Prompt 37 admits AN configuration only. |
+| `autonego_ctrl(G_STAT)` | Installer returns initial AN; later query returns valid desired mode | No MDIO; invalid output or absent desired settings rejects. Public G_AUTONEGO instead reads the SDK cache. |
 | `autonego_ctrl(RESTART)` | Framework during STARTING; same core restart procedure | One terminal three-frame batch, no wait/token/poll loop; propagates controller/configuration failure. Success means submission/readback, not AN completion. |
-| Other `autonego_ctrl` commands | SDK configuration request | NOT_SUPPORTED in prompt 37; prompt 38 owns public SDK-cache reconciliation and mode transitions. |
+| `autonego_ctrl(EN/DIS)` | Scoped public-control acknowledgement after core verification | Expected command/task, CONTROL phase and finite deadline only; assigns SDK-owned cache output after matching verified desired mode. No MDIO or second configuration procedure. |
 | `get_link` | Framework initial STARTING collection or RUNNING timer; same core collector | Bounded ten-frame live observation and qualified notifications. No invented mode for down/unresolved links; unchanged tuples emit nothing. |
 | `set_link(DOWN)` | Admitted framework/owner stop projection | Administrative DOWN without PHY status reads; notification errors and accepted effects are retained. Other phases reject. |
 | `set_link(UP)` | No unsolicited administrative UP route | NOT_SUPPORTED; only qualified live evidence can publish UP. |
 | `reset`, `pwrctl` | SDK control request | NOT_SUPPORTED; use an admitted typed owner operation. These callbacks never reset or power hardware. |
-| `set_speed`, `set_duplex` | SDK configuration request | NOT_SUPPORTED at this stage; use the SDK-aware owner routes delivered by prompt 38. |
-| `advertise_pause_ability`, `loopback` | SDK control request | NOT_SUPPORTED at this stage; no partial PHY procedure or hidden wait. Later typed owner admission must coordinate these effects. |
+| `set_speed`, `set_duplex` | Scoped acknowledgement of verified forced profile | Exact legal matching speed/duplex, expected callback/task and finite deadline; no MDIO. SDK getter caches do not change here. |
+| `advertise_pause_ability` | Scoped correctly typed acknowledgement of verified AN advertisement | Exact 0..3 symmetric/asymmetric bitmask; no MDIO. Rejected callback retains possible earlier MAC effect, including gate contention. |
+| `loopback` | SDK control request | NOT_SUPPORTED; no hidden session, token or wait. |
 | Raw register read/write hooks | Static mediator-boundary rejection, including owner-task calls | Unconditional NOT_SUPPORTED; no context lookup, MAC frames or output mutation. |
 | `del` | Local never-installed destruction only | Rejects installed/active objects or a live fence. The borrowed MAC/bus are never deleted by the PHY. |
 | `custom_ioctl` | No callback installed | Null; chip extensions belong to typed owner entry points. |
 
-The owner exposes stopped `startInitialize` for `NONE`, `PCS` and `RESTART`,
-AN-only `startConfigure`, `pollOperation`, `takeResult`, `cancel`, local operation
-and lifecycle snapshots, and policy-checked stopped `readClause22`/`readMmd`.
+The owner exposes stopped `startInitialize` for `NONE`, `PCS`, `HARD` and `RESTART`,
+legal AN/forced `startConfigure` (including ConfigureOptions), `pollOperation`,
+`takeResult`, `cancel`, local snapshots and policy-checked raw/collector routes.
 These routes reuse existing procedures and retained results. Initialization
 always applies/verifies mandatory VOD settings; it can succeed with cable down.
 Core operation cleanup remains a barrier and a separately budgeted restoration,
-not implicit recovery. Native HARD initialization and forced-mode configuration
-reject until the coordinated shared-bus/SDK-cache routes are delivered.
+not implicit recovery. Extended full-duplex plus forced half-duplex rejects before
+mutation because it cannot supply qualified native UP evidence. General 10/100
+half/full modes remain available; the board's 100/full policy is external.
+
+## Configuration, public reconciliation and raw entry
+
+After successful core result delivery, call `reconcileSdkState(deadlineUs)` while
+stopped. The shared core already applied/read back the complete profile, including
+advertisement, routing and stable BMCR fields. Reconciliation calls public
+`ETH_CMD_S_AUTONEGO`, reads `ETH_CMD_G_AUTONEGO` and, for forced mode, calls
+`ETH_CMD_S_SPEED` and `ETH_CMD_S_DUPLEX_MODE`. Its scoped callbacks acknowledge
+verified configuration without another PHY write or token. They reject another
+caller/task or mismatched value. `SdkStateSnapshot` retains each accepted control,
+AN-cache readback and aggregate status separately from the immutable core result.
+
+Initialization/configuration admission and actual raw/external invalidation clear
+SDK agreement. Effect-free invalid input preserves it. Start requires hardware
+verification and public reconciliation; locking a raw write cannot certify the
+SDK cache. Failed configuration requires the existing explicit restoration route.
+SDK `G_SPEED`/`G_DUPLEX_MODE` remain last-published link caches, possibly defaults
+or old data while stopped. Use `settingsSnapshot` for desired/observed settings.
+Forced-mode UP publishes zero peer pause despite stale ANLPAR partner bits.
+
+Stopped `writeClause22`, `writeMmd` and `modifyMmd` delegate core LEDCR-only
+maintenance. Selectors, destructive reads, unsupported aliases and oversized
+values reject before MAC frames. MMD control words are fully initialized
+0x001F/0x401F in one four-frame batch (five for RMW).
+`modifyBasicControl(mask,value,budget)` explicitly permits raw BMCR AN/speed/duplex
+mask 0x3100 only, in one two-frame RMW. It neutralizes commands and never echoes
+the power-pin OR. Accepted/uncertain mutation preserves desired intent but
+withdraws identity/readiness/trust. Ordinary raw BMCR/MMD alias writes still reject.
+Run `startInitialize({NONE})`, deliver its result and reconcile before restart.
+Raw reset commands remain unavailable; typed reset uses initialization's lifecycle.
+
+`acquireEvidence` is the sole native destructive-register route. Aggregate failure
+leaves ordinary output unchanged; `evidenceSnapshot` preserves consumed prefixes,
+and `transportSnapshot` retains frame/release uncertainty. Cached readers also
+use the instance gate and never consume hardware evidence.
+
+`setFlowControl(enabled,pauseAbility,deadlineUs)` calls actual MAC flow control
+with a `bool`, then the PHY callback with a separate `uint32_t`. Ability bit0 is
+symmetric pause and bit1 asymmetric; 0..3 must match already verified AN settings.
+Change advertisement through `startConfigure` first. MAC/application policy stays
+explicit. The owner never uses defective `ETH_CMD_S_FLOW_CTRL` or passes a small
+Boolean as uint32 storage. `FlowControlRecord` separates MAC/PHY attempts, accepted
+and possible effects, and their results. Invalid input has no MAC/MDIO effect;
+MAC failure/late success or later PHY rejection may leave partial policy. Explicit
+successful retry reconciles it; there is no automatic rollback.
+
+An arbitrary flow ioctl can change MAC state before PHY rejection. An atomic
+interference latch retains that uncertainty during another owner's callback
+window or gate contention; enclosing success cannot overwrite it. Stop traffic
+and explicitly reconcile. Unrelated MAC-only ioctls remain application-owned.
+One terminal control receipt mailbox prevents post-call snapshot contention from
+losing accepted effects or stranding CONTROL. The next gated entry adopts it;
+this introduces no second operation slot or asynchronous SDK callback.
 
 `discover(addressMask, output, budget)` is an explicit read-only owner diagnostic
 while installed, stopped and free of pending operation/cleanup/temporary state.
@@ -102,7 +157,14 @@ its reset in 10 ms steps, using `sw_reset_timeout_ms` (SDK default 100 ms).
 The adapter's install callbacks do no PHY I/O. Installation failure publishes no
 handle; only MAC and never-installed PHY deletion remain. After successful
 installation, the owner runs typed initialization/configuration through direct
-MAC batches, then admits `start` only for verified normal AN settings.
+MAC batches, publicly reconciles SDK state, then admits `start` for verified normal settings.
+
+Initialization reserves shared logical silence through result delivery, after a
+zero-wait drain of the batch mutex. Only that owner executes batches during silence;
+no mutex spans polls or waits. Successful `takeResult` reopens admission while
+preserving any reset quiet floor. Cancellation does not erase the floor. Drain
+release failure quarantines the bus. The application must keep polling and deliver
+results; stopping scheduling does not provide bounded wall-clock completion.
 
 The single admission phase is STOPPED, CONTROL, STARTING, RUNNING, STOPPING or
 MAINTENANCE. Framework START changes its own state before all later steps can
@@ -110,6 +172,14 @@ succeed. Every start failure therefore attempts SDK stop and preserves the first
 error separately from stop/fence/publication cleanup. Initial `get_link` proves
 the SDK posted START before entering that callback. The unarmed-timer stop path
 changes the framework state and returns INVALID_STATE without publishing STOP.
+
+Direct framework start outside owner admission also rejects. Cached AN=true
+changes SDK FSM before RESTART rejects; cached AN=false additionally posts START
+before get_link rejects. Deferred evidence preserves these effects even when the
+callback cannot acquire its gate. Owner stop/fence repairs them; it can return the
+original unarmed-timer INVALID_STATE despite completed cleanup. Queued STOPPING
+polls reject without inventing another start/STOP. Direct vtable get_link calls
+are not an application route: STOPPED/CONTROL calls conservatively require repair.
 
 After a stop, arm the precreated ESP_TIMER_TASK one-shot fence exactly once,
 then task-delay/poll until inactive under a finite deadline, outside the timer

@@ -4,7 +4,7 @@ This maintained design applies the delegated remaining-prompts audit decisions.
 The [API contract](api-contracts.md) owns portable values and OP-1 through OP-17;
 headers own shipped declarations. The [architecture](architecture.md) is an
 overview, and [feature coverage](feature-coverage.md) is the single coverage map.
-Prompt 37 implements the subset listed in the [native guide](esp-idf.md), with
+Prompts37-38 implement the subset listed in the [native guide](esp-idf.md), with
 real-driver host tests and a P4 SDK-linked fixture. Broader typed controls remain
 with their owning stages. Source-derived sequences are not physical qualification.
 
@@ -58,12 +58,13 @@ the identical address only; retarget by deletion and recreation.
 | del | Owned deletion only after completed resource/callback disposition |
 | custom_ioctl | Null; typed owner requests expose extensions |
 
-Prompt 37's owner implements AN initialization/configuration, NONE/PCS/RESTART,
-core polling/result delivery, stopped raw reads and explicit discovery (up to 64
+The native owner implements AN/forced configuration, NONE/PCS/HARD/RESTART,
+core polling/result delivery, stopped policy-checked raw access and explicit discovery (up to 64
 identity frames, never selecting an address). SDK RESTART shares the core's
 three-frame terminal AN restart/readback; it has no wait or operation token.
-EN/DIS, speed/duplex/pause/loopback control callbacks reject until prompt 38's
-SDK-state coordination is implemented. The [callback table](esp-idf.md#local-entry-and-framework-callbacks)
+EN/DIS and speed/duplex/pause callbacks acknowledge verified shared-core settings
+only within their exact public-control owner/task reservation; loopback rejects.
+The [callback table](esp-idf.md#local-entry-and-framework-callbacks)
 is the current implementation availability map for the responsibility matrix below.
 
 No generic base reset, power, discovery, MMD or AN polling procedure executes.
@@ -115,13 +116,13 @@ init/control needs no raw PHY hook route; a new MAC/SDK must re-audit that fact.
 | --- | --- | --- |
 | Board readiness | Supplies, pins, address, clocks, power/reset timing and shared silence | `prepareBoard` completes before `install`; confirm REF_CLK for MAC initialization |
 | Bind/end/invalidation/result | Serialized core local calls under OP rules | Same core, plus retained native resources/callback lifetime |
-| Initialization/reset/replay | startInitialize selects NONE/PCS/HARD/RESTART | Implemented stopped `startInitialize` uses NONE/PCS/RESTART after install; coordinated HARD route remains stage38 |
-| Verify/configure | startVerify and startConfigure | Implemented AN-only `startConfigure` reuses core; stage38 adds mirrored mode changes through public stopped SDK controls |
+| Initialization/reset/replay | startInitialize selects NONE/PCS/HARD/RESTART | Same core after install under shared logical silence, separate public SDK reconciliation before restart |
+| Verify/configure | startVerify and startConfigure | AN/forced configure reuses core; stopped reconcileSdkState acknowledges verified mode through public controls without another chip procedure |
 | Live link and events | Explicit core collector; passive copied snapshots | Implemented initial STARTING and timer RUNNING `get_link`; core collector and unlocked mediator publication, event-only retry |
 | Interrupt configuration/service | Same collector owns consumed samples | No independent SDK or raw interrupt reader |
 | Diagnostics and temporary stimulus | Source-admitted sessions, later stop/restoration and barrier | Stopped/maintenance owner also coordinates MAC and fixture |
 | Power/EEE/WoL/LED/interface/clock | Exact typed procedures, configuration trust and source gates | Same procedures; no imaginary SDK commands |
-| Raw C22/MMD/CLI | Core policy, complete transactions and invalidation | Implemented stopped owner reads and explicit discovery use actual MAC under shared batch lock; raw SDK hooks reject; writes/CLI remain later stages |
+| Raw C22/MMD/CLI | Core policy, complete transactions and invalidation | Stopped reads/LEDCR writes/RMW, explicit BMCR maintenance and collector acquisition use core/direct MAC batches; raw SDK hooks reject; CLI remains later stages |
 | SDK lifecycle/notification | Not applicable | Implemented install/start/stop/fence/retire and one retained lifecycle record; never-installed destroy only, reusable installed teardown BLOCKED |
 | DMA, IP/EtherCAT, retry policy | Application/backend owns them | Existing MAC/framework and application stack own them |
 
@@ -135,9 +136,12 @@ callback: stage output and assign only after verified success. Speed/duplex
 controls require cached AN disabled. Native managed changes cannot bypass these
 public controls, and no full-advertisement ioctl exists.
 
-For AN-to-forced: stop/drain, validate the complete tuple, prepare chip-owned
-prerequisites, publicly disable AN, set speed/duplex, verify hardware and
-G_AUTONEGO agreement, then permit start. Reverse the dependency order for AN.
+For either mode transition: stop/drain, validate the tuple, execute shared core
+configuration and deliver its verified result. Then call public S_AUTONEGO/
+G_AUTONEGO and, for forced mode, S_SPEED/S_DUPLEX_MODE. Scoped callbacks acknowledge
+the verified matching profile without writes or waits. SDK agreement remains false
+until every public call completes in budget. G_SPEED/G_DUPLEX_MODE remain last
+published link caches, not immediate desired readback.
 An accepted/uncertain write, external reset or raw mutation invalidates agreement;
 remain stopped until re-identification/replay/readback/public cache reconciliation
 succeeds. Never patch SDK private caches or turn raw writes into desired intent.

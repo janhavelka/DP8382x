@@ -21,6 +21,13 @@ uncertain mutation withdraws trust and retains restoration debt. The
 [native guide](esp-idf.md) owns callback admission and SDK publication semantics;
 the portable header owns exact errors, outputs and timing declarations.
 
+Prompt38's `modifyBasicControl` is an explicit raw two-frame BMCR maintenance
+exception for stable mask 0x3100, with normal collector invalidation and unchanged
+persistent intent. Native `reconcileSdkState` is a separate public-control receipt
+after verified core configuration; it never creates another cooperative operation
+or rewrites the delivered core result. Native callback/task ownership and flow
+partial effects are specified in the [native guide](esp-idf.md).
+
 ## Status and error details
 
 [Status.h](../include/DP8382x/Status.h) defines Status, Err and per-code details.

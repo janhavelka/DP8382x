@@ -5,7 +5,7 @@ set(DP8382X_PORTABLE_SOURCES
   src/DP8382xPower.cpp src/DP8382xEee.cpp src/DP8382xWake.cpp src/DP8382xPins.cpp
   src/DP8382xInterface.cpp src/DP8382xQuality.cpp src/DP8382xAnalog.cpp src/DP8382xElectrical.cpp)
 if(ESP_PLATFORM)
-  idf_component_register(SRCS ${DP8382X_PORTABLE_SOURCES} src/esp_idf/Phy.cpp
+  idf_component_register(SRCS ${DP8382X_PORTABLE_SOURCES} src/esp_idf/Phy.cpp src/esp_idf/PhyControl.cpp
     INCLUDE_DIRS include REQUIRES esp_eth esp_timer freertos)
   target_compile_features(${COMPONENT_LIB} PUBLIC cxx_std_17)
   return()
@@ -42,7 +42,7 @@ if(DP8382X_BUILD_TESTS)
   else()
     target_compile_options(dp8382x_native_restart_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
   endif()
-  foreach(suite IN ITEMS vectors admission failures)
+  foreach(suite IN ITEMS vectors admission failures basic_control)
     add_test(NAME native_restart_${suite} COMMAND dp8382x_native_restart_tests ${suite})
     set_tests_properties(native_restart_${suite} PROPERTIES TIMEOUT 30)
   endforeach()

@@ -35,6 +35,11 @@ The [prompt-6 decision](../../docs/design-decisions.md) now fixes these routes:
 - Register the rejecting raw frame hooks. CLI register/feature commands submit
   typed owner requests to the shared core/batch path; destructive dumps use the
   collector. Forward batches directly to the actual MAC under one shared bus lock.
+- Prompt38 supplies stopped AN/forced configuration, shared reset silence and
+  `reconcileSdkState` after successful core result delivery. Public SDK getters
+  retain last-published link speed/duplex; expose desired settings separately.
+  Use typed `setFlowControl` and retain both MAC/PHY effects, never the defective
+  flow ioctl. The linked fixture exercises these routes behind its disabled guard.
 - Stop and drain before disruptive configuration. Apply AN/speed/duplex through
   public SDK controls and verify hardware/cache agreement before restart. Full
   advertisement and diagnostics use the shared chip procedures. MAC flow-control

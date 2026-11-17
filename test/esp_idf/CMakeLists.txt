@@ -40,6 +40,7 @@ foreach(source IN ITEMS Fakes.cpp InstrumentedMac.cpp driver.cpp native.cpp)
   list(APPEND verify_command --source "${host}/${source}")
 endforeach()
 list(APPEND verify_command --include "${host}" --source "${repo}/src/esp_idf/Phy.cpp")
+list(APPEND verify_command --source "${repo}/src/esp_idf/PhyControl.cpp")
 execute_process(COMMAND ${verify_command} RESULT_VARIABLE sdk_verified)
 if(NOT sdk_verified EQUAL 0)
   message(FATAL_ERROR "Pinned SDK file/dependency verification failed")
@@ -72,13 +73,22 @@ foreach(suite IN ITEMS install_failures raw_ioctl failed_start stop_events timer
   set_tests_properties(pinned_driver_${suite} PROPERTIES TIMEOUT 30)
 endforeach()
 
-add_library(dp8382x_native_host STATIC "${repo}/src/esp_idf/Phy.cpp")
+add_library(dp8382x_native_host STATIC "${repo}/src/esp_idf/Phy.cpp" "${repo}/src/esp_idf/PhyControl.cpp")
 target_link_libraries(dp8382x_native_host PUBLIC DP8382x dp8382x_idf_host_fakes)
 target_compile_options(dp8382x_native_host PRIVATE -Wall -Wextra -Werror -UNDEBUG)
 add_executable(dp8382x_native_host_tests host/native.cpp)
 target_link_libraries(dp8382x_native_host_tests PRIVATE dp8382x_native_host)
 target_compile_options(dp8382x_native_host_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
-foreach(suite IN ITEMS factory board_install_failures raw_routing raw_rx_retention glue_rx_retention stop_failures partial_start_fence notifications notification_failures lost_link_event shared_quarantine callback_bounds forbidden_lifecycle discovery discovery_admission terminal_event_retry installer_contention)
+foreach(suite IN ITEMS factory board_install_failures raw_routing raw_rx_retention
+    glue_rx_retention stop_failures partial_start_fence notifications
+    notification_failures lost_link_event shared_quarantine callback_bounds
+    forbidden_lifecycle discovery discovery_admission terminal_event_retry
+    installer_contention raw_read_arbitration raw_lock_failures raw_boundary_failures
+    rejected_raw_reads forced_lifecycle raw_state_reconciliation
+    direct_start_invalidation flow_control raw_mutation_arbitration
+    raw_mutation_admission collector_partial_evidence uncertain_basic_control
+    configuration_admission hard_reset_silence flow_completion_contention
+    forced_partner_pause stopping_late_poll foreign_flow_effect start_gate_failures)
   add_test(NAME native_${suite} COMMAND dp8382x_native_host_tests ${suite})
   set_tests_properties(native_${suite} PROPERTIES TIMEOUT 30)
 endforeach()
