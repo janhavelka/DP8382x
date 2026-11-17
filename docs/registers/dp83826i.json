@@ -12942,7 +12942,7 @@
       "gates": [
         "rxfs_sfd_reference"
       ],
-      "notes": "Prompt27 completes owned global/output/polarity/source policy, separate retained test start/stop, single-collector bounded service and shared reset replay. Selector-at-consumption and crossing ambiguity are retained. Pin mux writes remain prompt32; Q9 and RXFS SFD interpretation remain open."
+      "notes": "Prompt27 completes owned global/output/polarity/source policy, separate retained test start/stop, single-collector bounded service and shared reset replay. Selector-at-consumption and crossing ambiguity are retained. The interrupt owner applies/restores the selected LED1/2 mux=4 route; prompt32 owns LED profiles and dependency validation. Q9 and RXFS SFD interpretation remain open."
     },
     {
       "id": "counters",

@@ -318,3 +318,30 @@ fixture operation: **NOT RUN**. Reusable installed teardown: **BLOCKED** by
 `native_rx_quiescence`. Scheduler-inclusive numeric bounds remain conditional
 on identified workload and measured/qualified declarations. No stage completion,
 Git commit or upstream synchronization is claimed by this delegated report.
+
+## 2026-11-17 current-code response
+
+Rechecked all source/timing rows, pause/publication decisions and evidence
+limitations against `main` `77c544f415edb26a0e23de76591a0163b9b73147`.
+Actual local SDK sources were reopened; independent configure/build verified 45
+compiler-selected blobs at 1000 Hz/100 Hz against the maintained v6.1 pin.
+
+| Finding or source-table group | Current verdict and concrete evidence |
+| --- | --- |
+| Peer fake-bus/source tests are not native scheduling proof; ignored cleanup rejected | Still accurate. Adapter has its own executing real-driver harness. Sibling runner/tool conventions remain references; no peer test, board range or physical result is imported as DP qualification. |
+| All17 vtable entries including optional-null custom_ioctl | Constructor assigns16 entries and leaves custom_ioctl null. Native guide conformance table and factory/forbidden_lifecycle tests cover local install callbacks, unsupported mutators, immutable address and owner routes. Generic IEEE base is not inherited. |
+| MDIO100us/1000us loop, filter100ms mutex, MAC reset10ms loop, stop100x25us/HAL flush | Confirmed in actual MAC source. Wrapper adds complete-batch controller exclusion. Filter mutex is not charged to all notifications. Loop arithmetic remains conditional on execution/scheduling overhead; swallowed HAL flush stays unobservable. No universal wall-time maximum is established. |
+| Base reset/AN loops, timer period/stop capture and truncating ticks | Base loops are comparison only. Observation period is not detection-latency proof. finishStop uses timer fence and finite polls; host active query includes running callbacks. prepareBoard uses esp_timer elapsed comparisons plus lag and vTaskDelay(1), avoiding2ms zero ticks at100Hz. Both readiness rate tests pass. |
+| F+4W+L/F+5W+L, link8+2 reads and up to5 notifications | Current batch builders/link observation retain those frame counts. getLink reserves five notification allowances; core and native control/publication checks enforce aggregate and individual completion budgets. callback_bounds/sdk_control_callback_bounds/flow_control_callback_bounds cover accepted-late effects and specific-error precedence. Formula terms are conditional source contributions, not measured end-to-end maxima. |
+| P4 ticks/16 quantization, lag and minimum-wait anchors | Original P4 conversion remains floor-rounded. Positive clockLagUs covers quantization/source lag; waits anchor to conservative completion upper samples. Arbitrary starvation has no finite bound. native_wall_time and fixture timing declarations remain unqualified. |
+| MAC-first partial publication/cache before event error; no blind repeatedUP | publish retains accepted fields/eventLost/uncertainty in pending receipts that survive gate contention. retryLinkEvent posts only the event. Same-link tuple changes explicitly resynchronizeDOWN/UP. Native live_tuple_changes/notification_partial_receipts/notification_late_retry/event_retry/completion-contention tests pass. |
+| Boolean peer-pause versus full portable matrix | Portable IEEE matrix/PHYCR cross-check remain in DP8382xLink.cpp. Native peerPause requires completedAN/full duplex/AN-capable partner plus partner symmetric ability; forced mode emits zero despite stale partner words. pause_projection/forced_partner_pause pass. Typed0..3 advertisement is an explicit owner contract, not an SDK Boolean bitmask claim. |
+| Forced extended-full-duplex publication | Portable forced 10+extension already rejects; native forced 100/half+extension also rejects before mutation/start. Configuration_admission/forced_lifecycle cover it. Partner duplex compatibility is not inferred. |
+| Historical SDK image hashes/timestamps/dirty identity | Still evidence only for identified working-tree inputs at the recorded time. They are not rewritten or promoted to a build of the current clean commit. New SDK image link was NOT RUN here. |
+| RX captured-mediator lifetime and installed destruction | Still BLOCKED. Driver/glue/netif/MAC/PHY/borrowed contexts remain retained through restart. Scheduled raw/glue RX tests establish the source boundary; physical Q13 cannot override a known dangling-reference route. |
+
+PASS here: independent native Release configure/build63/63 CTests in
+`build/response-foundation-native` (GNU 15.1.0/Python 3.12.10),45 verified SDK blobs
+both tick rates; ledger 80 tests/checker 97/52/35 and version check. No additional
+production correction was required. NewSDK image, portable consumer, installed
+package, remote CI and physical checks were NOT RUN by this reviewer.

@@ -173,3 +173,53 @@ bounded SDK adapter calls, honest configuration/link/health snapshots, independe
 chip vectors, command/runner failures, and separately reported host, SDK link,
 CI and physical-hardware evidence. Family expansion must retain exact variant
 gates rather than flattening all DP8382x devices into one assumed register map.
+
+## 2026-11-17 Current-code response
+
+Reviewed all recommendations above against DP8382x
+`77c544f415edb26a0e23de76591a0163b9b73147`, shipped headers/core/native
+adapter, CMake, current contracts and owning prompts. Reopened relevant peer
+Status/Config/facade/source, example/runner and workflow seams. These fresh
+HEADs were clean at observation; no sibling was edited, built or operated.
+
+| Read-only repository | Current HEAD |
+| --- | --- |
+| INA228 | `8e439d6c99ece1353cd9f555deed0314794412d9` |
+| PCA9555 | `0aec2212894910e0d872c3e511fbcd740837c5f7` |
+| TCA9548A | `4a244adabf38b432cef9eb2686fc5f3e3547c0fb` |
+| MB85RC | `3ace168eb01d687ab60e9fe88cc72322e5cae260` |
+| BME280 | `899ba8f0e278480693688c099f79f78f2b452c6e` |
+| SCD41 | `4bb494cfc7ac75f3500509af864e5a4dbb120796` |
+| SHT3x-main | `7d04cd1a94a01eb9c144fd95d4ec95cff3d22ec3` |
+| TMP1x2 | `afd50889312f6e218a6a34eca687e3e8547d8b40` |
+| TUSB32x | `ff8882bff1c3a360efd6bacb43a33d6f13f33dc4` |
+| 24Cxx | `1bd9f969d1df55ca5819b0d290ff331869e7d5bc` |
+| FieldCore-node | `c40ea8341edf8d665460b902cafefbe857a7f73f` |
+
+| Finding / recommendation, including grouped original rows | Current response and evidence | Disposition |
+| --- | --- | --- |
+| Original snapshots, concurrent TUSB edits and wider inventory | Old SHAs/dirty lists are dated observations. The wider I2C/SPI/modem list was expressly inventory-only; no behavioral support follows from manifests or descriptions. TUSB32x is now implemented beyond its old passive foundation. Current stage-specific audit remains necessary. | HISTORICAL; old current-inventory claims SUPERSEDED |
+| Public layout/permanent naming | `include/DP8382x/{Status,Config,CommandTable,DP8382x,Version}.h` and `src/` exist, with PascalCase/camelCase/private underscores/uppercase values. SDK code is in `include/DP8382x/esp_idf` and `src/esp_idf`. CMake lists real responsibility modules, not generated scaffolding. | IMPLEMENTED |
+| Static Status shape and MDIO meanings | Reopened peer Status headers; DP8382x preserves code/detail/static msg and explicit helpers, with separate MDIO/operation/configuration errors. No I2C NACK aliases or diagnostic assumption of physical absence. `test/foundation.cpp`, `transport.cpp`, `identity.cpp` exercise those boundaries. | IMPLEMENTED |
+| Borrowed transport, application policy and framework boundary | `Config.h` defines one synchronous complete-batch callback and caller clock; applications own locks/controllers/board/recovery. Root portable CMake selects only framework-free C++17 sources. The actual native adapter uses public SDK interfaces and the same core. | IMPLEMENTED |
+| Side effects and primary/cleanup evidence | `BatchResult`, `OperationResult` and OP-9/OP-10 retain accepted/uncertain effects and independent release/restoration status. `test/transport.cpp`, `operations.cpp`, `reset.cpp`, `loopback.cpp` cover failures. Successful cleanup cannot erase the primary error. I2C pointer parking is not copied. | IMPLEMENTED |
+| PCA9555 passive binding, TCA9548A synchronous/no-op tick, INA228 cooperative/legacy health, BME280 trust separation | Current peer seams still show differing lifecycles/policies. DP8382x uses bus-silent bind/end, short direct calls and one operation slot only for real waits, plus passive health independent of trust/link. No compatibility begin/tick/recover aliases are required. `test/health.cpp`, `operations.cpp`, `verify.cpp` cover this chosen contract. | IMPLEMENTED adapted behavior |
+| SHT3x physical/logical accounting, SCD41 retained evidence, MB85RC sleep/health, TMP model/shared bus effects | DP8382x documents managed batch health separately from raw frame diagnostics and PHY counters; exact variant/interface declaration is independent of readable identity and board-wide silence/quarantine. `test/health.cpp`, `events.cpp`, `identity.cpp`, `mmd.cpp` cover accounting and shared-controller rules. Sensor timings/expected NACKs are excluded. | IMPLEMENTED adapted behavior |
+| Counter lifetime, saturation, reset and printable names | `docs/health.md`, shipped snapshots, `driverStateName`/`errorName` and `src/DP8382xHealth.h` define one DP8382x contract. `resetStatistics` does not repair trust or clear operation debt; source-gated RECR width stays raw. `test/health.cpp` and `events.cpp` cover these distinctions. | IMPLEMENTED; RECR derived semantics OPEN |
+| Bound/READY/MDIO/link/negotiation/IP/EtherCAT must stay distinct | Current `healthSnapshot`, `settingsSnapshot`, `linkSnapshot` and native publication snapshots remain separate. Native accepted notification is not new chip evidence; source review and fake transport do not prove packet/application readiness. | IMPLEMENTED |
+| Example-only common CLI and established `examples/esp_idf` path | Portable owner examples and a real P4 SDK-link fixture exist; common CLI/native application examples remain prompts 40-47. Directory spelling and SDK types are not imported from peers. | IMPLEMENTED existing examples; CLI/application examples OPEN |
+| Version truth and ordinary consumer portability | `library.json`, `scripts/generate_version.py`, generated `Version.h`, root CMake tests OFF and separate `test/consumer` exist. Build-tree consumers need no SDK/Python/Git. Relocatable install/export/package acceptance remains 69-70, rather than being implied by build-tree linkage. | IMPLEMENTED foundation; packaging OPEN |
+| Durable docs and declaration ownership | Public headers have source documentation, and maintained feature guides/API contracts describe lifetimes, units, bounds and effects. `tools/check_doxygen.py` checks generated output/negative fixtures. Dated prompt/review counts are historical, not release claims. | IMPLEMENTED foundation; final API/document audit OPEN at 74-77 |
+| Shared grammar, strict parsing, framing, aliases and cached/live distinction | Current INA228/TCA9548A/TMP1x2 CLI/runners remain precedents, with different actual grammars. CLI_CONTRACT chooses the DP8382x grammar/protocol. No `examples/common` implementation currently exists; prompts 43-47 own it. No I2C scan or hidden destructive status read is authorized. | OPEN future implementation |
+| Finite serial sessions, firmware identity, strict malformed/stale/incomplete classification and artifacts | Current peer runners retain finite sessions and reported identity. Prompts 48-52 own DP8382x runner behavior, interrupted cleanup and fail-closed verdicts. Host parser fixtures and dry runs must remain separate from HIL. | OPEN future implementation |
+| Real registered host tests, SDK builds and source guards | Root CMake registers actual core test executables and failure-path checks with Release assertions active. `test/esp_idf/CMakeLists.txt` compiles actual pinned `esp_eth.c`/glue plus native sources, with explicit platform substitutes; P4 fixture links the actual target SDK separately. Text guards are supplementary evidence only. | IMPLEMENTED software/build structure |
+| Exact package allowlist, path/size/member checks and clean extracted consumer | This remains the acceptance of prompts 69-70. There is no emitted release archive or package checker at this baseline. Archived vendor PDFs/ZIPs must remain excluded; a clean build-tree consumer does not close this finding. | OPEN future implementation |
+| Human ownership metadata | Existing `library.json` identifies repository/author; prompt 69 must validate distribution metadata, license and maintainer ownership against actual configured repository data. Peer CODEOWNERS values do not authorize inventing DP8382x ownership. | OPEN package/metadata audit |
+| Git/CI/hardware permissions and lead integration | Current root AGENTS requires main-only until version 0, lead-only Git mutations, complete synchronization and first-set CI at 71. Old sibling branch-per-execution descriptions do not override it. Fixture and sibling operation still need their own scope. | IMPLEMENTED rule; historical branch suggestion SUPERSEDED |
+| Repeat relevant live audits and exact-family qualification | COMMON/SOURCE_MAP mandate current relevant headers/source/examples/tests/runners/rules and revisions, with MDIO-specific adoption/rejection. `docs/variants.md`, FULL_COVERAGE and prompts 56-67 retain exact-part gates. Nothing in these peer observations broadens supported silicon. | IMPLEMENTED contract; future variants OPEN |
+
+The [stage-39 source audit](implementation/39-native-source-audit.md) supplies
+additional concrete test-to-production/native callback comparisons at the same
+four main peer revisions; those are source observations, not peer execution
+results. This response adds no new host, SDK, package, remote-CI or physical
+result. Final task verification and synchronization belong to the lead's handoff.

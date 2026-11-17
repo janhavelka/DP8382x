@@ -67,13 +67,12 @@ grammar/records, not a duplicate matrix.
 Discovery, dump, selftest, watch and stress are CLI-local sequencers over
 public calls: a small fixed index/count/deadline struct advances from tick,
 one batch per tick. They never perform uncoordinated MDIO or duplicate a chip
-procedure. Discovery uses a separate probe driver on the shared transport:
-bind each requested address, readClause22(02/03), end. Before each batch apply
-CLI_CONTRACT's shared-owner discovery admission: reject RUNNING, quarantine,
-clock faults and unknown reset anchors; compare a valid silence deadline to a
-fresh conservative raw owner timestamp. A still-set cached busQuietValid alone
-does not forbid discovery after expiry. Test exact expiry, failed reset-clock
-anchoring, regression and silence/quarantine carried across probe end/rebind.
+procedure. Discovery uses the existing `readIdentityAt` or native `discover`
+owner route, one address and complete two-ID batch per tick. Follow
+CLI_CONTRACT's aggregate budget, admission and receipt rules; do not create a
+second probe binding. Test exact quiet-floor expiry, failed reset-clock anchors,
+regression, cumulative transport counts, retained-result backpressure and
+two-instance silence/quarantine. Cached evidence is not a fresh failed-call result.
 
 ## Acceptance
 

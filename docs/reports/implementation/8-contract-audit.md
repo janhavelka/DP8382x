@@ -118,3 +118,27 @@ scope, ownership rules, counts and future implementation gates remain accurate,
 so no edits were needed. Existing source gates and the prompt-37 SDK lifecycle
 correction remain separate implementation dependencies; none blocks this audited
 contract's completion.
+
+
+## 2026-11-17 current-code response
+
+All three original findings and the timing/lifetime consequences were checked
+against `main` `77c544f415edb26a0e23de76591a0163b9b73147`, current
+`include/DP8382x/DP8382x.h`, `src/DP8382x.cpp`, native owner and OP9/OP10.
+
+| Original finding or proposal | Current disposition and concrete evidence |
+| --- | --- |
+| Invalidation could overwrite a pending result or reopen cleanup | Corrected in current `_finishOperation`, `invalidateDeviceState` and result-taking logic. RUNNING freezes DEVICE_INVALIDATED with retained effects; RESULT_PENDING does not rewrite its historical result. External reset/power-on can discharge current cleanup/session obligations separately. `test/operations.cpp` lifecycle/invalidation cases cover active and retained results. |
+| Historical four states and CLEANUP phase | Superseded by selected D9/OP9, not an implementation omission. Shipped `OperationState` is IDLE/RUNNING/RESULT_PENDING; failure/cancel terminates immediately, `cleanupOwed` blocks incompatible work, and restoration is a later operation with independent token/result/budget. `abandonCleanup` records external disposition, not successful restoration. `test/operations.cpp` admission/failures/lifecycle exercises the actual model. No second engine should be recreated from this historical report. |
+| Copyable/movable owner and arbitrary-phy token targeting | Corrected. `docs/api-contracts.md::OwnerSession` deletes copy/move and stores the exact core reference; shipped DP8382x and native Phy also delete copy/move. Deleted declarations in both shipped headers enforce stable addresses at compilation; native factory tests exercise borrowed lifetime. Tokens remain per-instance; no global registry is needed. |
+| NativeResetContext terminal status stale OK/IN_PROGRESS | The old callback sketch is superseded by the executing native owner, not shipped as an extra helper. `src/esp_idf/Phy.cpp::record`, `nativeStatus/nativeError`, operation forwarding and retained lifecycle/publication receipts preserve terminal status and backend detail. `test/esp_idf/host/native.cpp` callback_bounds, partial_start_fence, stop_failures and forbidden_lifecycle execute those mappings. |
+| Broken clock, post-write waits, bounds and live storage | Current `_sampleTime` latches regression/overflow; passive result/snapshot paths remain clock silent. Reset waits use conservative completion anchors and persistent shared silence; `_yieldOperation` bounds stalled polls without charging normal advancing waits. Release and controller faults remain separate. Current timing/operation/reset tests execute these behaviors rather than relying on historical arithmetic-only probes. |
+| SDK base reset-before-budget, AN-expiry, power verification and tick truncation | Still valid reasons to avoid inheriting the generic base. Actual wrapper assigns its vtable and uses core procedures; board readiness compares high-resolution elapsed time plus clockLagUs and passes100Hz readiness regression. MDIO/notification loops are conditional source bounds, never measured worst-case wall time. |
+| Native lifecycle correction/source gates | Timer fencing and explicit stop evidence ship37-39; `native_rx_quiescence` still blocks reusable installed destruction. STOP/count-zero/mediator swap cannot free a context RX captured earlier. Native raw/glue lifetime regressions execute the race model; physical Q13 cannot override it. |
+
+No new production fix follows from replaying these already corrected or
+superseded findings. Independent native configure/build passed 63/63 Release
+CTests, with 45 verified SDK source/header blobs at 1000 Hz/100 Hz; ledger 80/80 and
+version check passed. New SDK image, portable consumer, remote CI and physical
+operation were NOT RUN by this reviewer. The historical syntax probes are
+syntax evidence only; the current native tests are executing source-layer evidence.

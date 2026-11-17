@@ -96,3 +96,38 @@ Windows, GNU 15.1, Ninja, C++17 Release with active test assertions:
 
 The final commit and verified upstream equality are recorded in the handoff,
 avoiding a self-referencing commit ID.
+
+## Current-code response — 2026-11-17
+
+Rechecked all seven findings against `main` entry
+`77c544f415edb26a0e23de76591a0163b9b73147`, current prompts 27/28 and OP-2/OP-9.
+The original checkpoint and tests remain historical.
+
+| Finding | Current verdict and evidence |
+| --- | --- |
+| Power operation lacked admitted identity | **Confirmed implemented.** `src/DP8382x.cpp::_beginOperation` seeds `_result.identity` for every operation; `readIdentity` freezes a changed-context operation. `test/power.cpp::auditInterleavedEvidence` covers mode changes at each power boundary. |
+| Inter-poll reset left IRQ/power running | **Confirmed implemented.** `_retainEvidence` invalidates valid BMCR/PHYRCR evidence and freezes independent running work before another poll. `test/power.cpp::auditInterleavedEvidence` and `test/interrupts.cpp::auditRegressions` retain a later raw-call error independently from DEVICE_INVALIDATED. |
+| Final PLL proof concealed earlier policy contradiction | **Confirmed implemented.** `src/DP8382xPower.cpp::_advancePower`, BISCR completion, checks the full retained PHYSCR F000/BMCR 0800 tuple before trust promotion. `auditInterleavedEvidence` injects contradictory final PLL/independent control observations. |
+| IRQ test RMW lost contradictory read prefix | **Confirmed implemented.** `src/DP8382xInterrupts.cpp::_advanceInterrupt` retains each completed PHYSCR read and first mismatch before its error guard. `test/interrupts.cpp::auditRegressions` covers later write and release failures. |
+| UNKNOWN crossing window retained invalid selector proof | **Confirmed implemented.** `_retainEvidence` explicitly checks RXFS during VERIFY_SELECT through VERIFY_CONTROL, keeps raw contradiction, dirties trust and freezes an inter-poll pass. `auditRegressions` requires no later callback and ambiguous MISR2 attribution. |
+| IRQ/power completion or IRQ stop erased another policy's debt | **Confirmed implemented.** `_otherControlsVerified` is used at admission and completion in both owners; owning IRQ stop can clear test stimulus without reporting persistent restoration. `auditRegressions` and `auditInterleavedEvidence` exercise both directions. |
+| Source/zero-budget checks preceded lifecycle | **Confirmed implemented.** `startConfigurePower` and `_admitInterrupt` separate syntax/budget shape, lifecycle, capability/source and nonzero allowance. `test/power.cpp::auditAdmissionOrder` and interrupt audit cases check rejection without token/I/O changes. |
+| Complete DPD support inferred from guarded rejection | **Still open.** `_validatePower` returns UNSUPPORTED for DEEP_POWER_DOWN before I/O. Prompt 28 explicitly assigns remaining entry/exit/restoration to `deep_power_exit`; this is not completed software support. |
+
+Original SNLS647I sections 8.3.6 and tables 8-19/35/36/37/40/91 were reopened
+directly. They confirm active-sleep 7000/6000 versus BISCR8 indication, BMCR11's
+software/pin OR, PLL permission only during IEEE power-down, and RXFS selector
+with consuming MISR evidence. They supply no complete DPD exit/0428 preservation
+recipe, so reversing entry writes would be unjustified.
+
+A current prompt inconsistency was **corrected here**: prompt 27 previously
+assigned mux=4 writes to prompt 32. It now matches `_interruptBatch::PIN_APPLY`
+and `_advanceInterrupt::PIN_MUX`, which give narrow IRQ routing/restoration to the
+IRQ source owner; prompt 32 owns the LED profile and dependency validation.
+`test/interrupts.cpp::pins` and `liveModeRouting` verify this single-writer
+arrangement. The shared prompt correction was reviewed against those paths.
+
+Fresh host verification: Windows/GNU C++ 15.1/Ninja, C++17 Release,
+`build/audit-current-response-silicon`: **PASS 236/236 CTests**. SDK/package/CI and
+physical checks were **NOT RUN** by this review; Q6/Q9 remain open. No new
+production defect was confirmed in these supported procedures.

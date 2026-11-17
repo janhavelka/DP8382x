@@ -124,3 +124,29 @@ separately. Remote CI remains NOT RUN by the prompt71 policy.
 
 The final commit and verified upstream equality are recorded in the handoff;
 this report does not embed its own commit hash.
+
+## Current-code response — 2026-11-17
+
+Rechecked all three defects, the rejected raw-read proposal and retained source
+conflicts against `main` entry `77c544f415edb26a0e23de76591a0163b9b73147`, current
+prompts 32/33 and the common restoration contract.
+
+| Finding or proposal | Current verdict and evidence |
+| --- | --- |
+| Initialization ready before owned tails finished | **Confirmed implemented.** `src/DP8382x.cpp::_finishOperation` withdraws readiness before mutating interface/pin and other owned tails and publishes it only on successful complete restoration. `test/interface.cpp::replayReadiness` covers the 72 combinations, zero-frame slices and separate repair. RESTART's immediate register-retaining effect remains distinct. |
+| Pin-owned LED1 clock uncertainty absent from IRQ/WoL views | **Confirmed implemented.** `src/DP8382xInterface.cpp::_led1RouteVerified` includes `PinSettings::led1ClockOverride`; cached snapshots fold that prerequisite without altering the source owner's private proof. `test/pins.cpp::clockDependencies` covers IRQ, direct/IRQ-routed WoL, write/read errors, original timestamps, passive reads and repair. |
+| Board declaration substituted for observed MII/RMII applicability | **Confirmed implemented.** `src/DP8382xPins.cpp` reads RCSR in its mode prerequisite, `_retainPinWord` withdraws contradictory proof, and IRQ/WoL LED2 mux batches append the RCSR read. `test/pins.cpp::observedMode`, interrupt/WoL `liveModeRouting` and interface ownership tests require independent actual mode, no premature mutation and retained RC evidence. |
+| A failed raw RCSR read must erase an earlier interface word/time | **Incorrect under the raw-observation contract.** Without a completed read there is no replacement word/time. The failed pin/source acquisition is stale and consuming uncertainty is retained; `src/DP8382x.cpp::_retainEvidence` updates `_retainInterfaceWord` only for completed valid prefixes. `test/pins.cpp::observedMode` and `test/interface.cpp::collector` keep old history distinct from a fresh successful aggregate. |
+| Change LED field placement/source masks or reserved controls | **Incorrect/unsupported.** `src/DP8382xPins.cpp::_pinRowValue` and `test/pins.cpp::vectors` preserve source 0..E, reserved F, LED0's four-bit selector and LEDCFG2 reserved positions. The original tables do not justify the proposed extra controls. |
+| BASIC polarity, LED3 MII, pin31 codes5/6, PHYCR5, PLL/recovered clock and RCSR RC interpretation | **Still source/physical-gated as applicable.** Prompts 32/33, `docs/led-gpio.md`, `docs/interface-clock.md` and ledger `pin_fields`/related conflicts preserve the exact restrictions. Software rejection or raw retention is not physical qualification or a resolution of contradictory tables. |
+
+Reopened original SNLS647I table 5-1, tables 8-19/40/41/76/77/78 and the original
+page 69 rendering. Table 5-1's MII COL/CRS defaults and table 8-77's read-only
+LED3 mux support live RCSR applicability checks; reset mux zero alone cannot
+prove LED routing. The previous masks and legal-scope decisions remain justified.
+
+Fresh Windows/GNU C++ 15.1/Ninja C++17 Release build
+`build/audit-current-response-silicon`: **PASS 236/236 CTests**, including all
+pin/interface and source-owner route suites. Package/SDK/CI/physical checks were
+**NOT RUN** by this review; Q12/Q17 remain open. No new production correction was
+confirmed. Historical counts and stage limits above are not current totals.

@@ -182,3 +182,40 @@ The inspected SDK image before commit identifies entry SHA ec792d2 as dirty;
 its SHA-256 is `fc94181f93330d0d2b0f6eacad19c0c1fa46ff7c906476c1efe87980ec86e4e6`.
 Final commit/sync and the clean post-commit firmware identity belong to the
 handoff, avoiding a self-referencing commit. Hardware gates remain unchanged.
+
+## 2026-11-17 current-code response
+
+Every numbered defect, rejected finding and regression-closure row was checked
+against `main` `77c544f415edb26a0e23de76591a0163b9b73147`, current
+code/tests, owning prompts and original pinned SDK source.
+
+| Original finding | Current verdict and concrete evidence |
+| --- | --- |
+| 1: board preparation overwrites another PHY's initialization silence | Corrected. Atomic BusAdmission CAS claims BOARD_PREPARING/INITIALIZING; reservations cannot overwrite one another. prepareBoard drains/releases controller before GPIO/waits; failure stays FAILED_CLOSED after never-installed deletion. board_respects_initialization_silence/board_silence_excludes_other_owners/failed_board_silence_remains_closed pass. |
+| 2: discovery bypasses core audit/accounting/clock faults | Corrected. readIdentityAt executes one shared two-ID RAW batch with explicit invoked flag; rejects RUNNING/RESULT_PENDING/cleanup/session, never retargets/accepts identity, and leaves ordinary outputs unchanged on failure. Native discover requires installed STOPPED/IDLE and cumulative scan allowance. identity_scan and native discovery/accounting/admission cover partial words and local denial. Receipt freshness uses the explicit invocation flag, independently of cumulative counters; these tests do not force counter saturation. Future CLI should reuse this owner route rather than recreate a second probe driver that bypasses binding evidence. |
+| 3: positive timed controller wait reportedBUSY | Corrected. ticks0 contention is BUSY; positive wait expiry is MDIO_TIMEOUT/ESP_ERR_TIMEOUT, no frame or sound-controller quarantine. Managed health records transport failure, RAW does not. controller_wait_classification passes at 1000 Hz/100 Hz. |
+| 4: individual SDK/MAC/PHY bounds exceeded silently | Corrected in PhyControl return checks. Accepted effects persist, later calls stop, explicit retry is required and backend errors win. sdk_control_callback_bounds/flow_control_callback_bounds/completion-contention pass. Detection does not preempt synchronous SDK calls. |
+| 5: timeout detail0 made discovery receipts malformed | Corrected native BOUND_ADMISSION/FRAME_BUDGET/DEADLINE details and empty-mask ACCESS_POLICY. discovery_accounting/admission/raw_boundary_failures pass; genuinely malformed reports still reject. |
+| 6: dispatched host one-shot became inactive too early | Corrected fake reports armed-or-running, matching actual SDK CALLBACK_IS_RUNNING lifetime. pinned_driver_timer and partial-start/fence tests exercise it. Unarmed stop remains INVALID_STATE for this exact pin. |
+| Rejected forced 10 extension, forced 100/half, hypothetical timer errors and pre-install ownership findings | Actual validation/source retain their dispositions: forced 10+extension rejects; native forced 100/half+extension remains necessary; no invented timer behavior replaces the pin. Pre-install calls require serialized instance ownership; shared BusAdmission covers distinct PHY owners. |
+| Simplicity/no duplicate engine and pinned SDK selection | One admission enum, existing core batch boundary/identity builder, assigned vtable without base, public SDK controls and45-file dependency closure remain. No private cache, registry, duplicate chip procedure or successful production stub was added. |
+| Retained RX resources and separated evidence layers | Reusable installed teardown stays BLOCKED. STOP/fence/count-zero cannot close a pre-entry captured mediator. Host63 tests prove modeled source-layer behavior, not physical timing. Historical image/hash/dirty identity stay tied to recorded inputs; installed/exported package and physical qualification remain separate. |
+
+Independent repetition used a fresh build directory:
+
+```sh
+cmake -S test/esp_idf -B build/response-foundation-native -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_PINNED_IDF_PATH=C:/esp/v6.1/esp-idf
+cmake --build build/response-foundation-native -j2
+ctest --test-dir build/response-foundation-native --output-on-failure --no-tests=error
+```
+
+PASS: 63/63 CTests, 0.56s, GNU 15.1.0/Python 3.12.10;45 actual SDK blobs verified
+at configure/build for both tick rates. Also PASS: 80 ledger tests, 15.870s,
+checker 97/52/35 and version check. No new production defect was established.
+Portable consumer/Doxygen/new SDK-image/UBSan/installed-package/remote CI/physical
+checks were NOT RUN by this reviewer; the lead owns integrated evidence and Git.
+Earlier PASS rows remain historical, not verification of subsequent changes.
+
+Final response-link check PASS: `python tools/verify_references.py`, 29 vendor
+artifacts, 27 extracts and 1,897 local links in 239 Markdown files. Task-only
+`git diff --check` passed. No Git mutation was performed by this reviewer.

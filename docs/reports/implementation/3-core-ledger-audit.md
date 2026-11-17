@@ -66,3 +66,28 @@ implementation progress. No public C++ API was added, so the existing future
 Doxygen requirements remain unchanged. Final commit/sync identity is supplied
 in the handoff without a self-referencing commit; the same-name upstream must
 match with zero ahead/behind before reporting sync complete.
+
+
+## 2026-11-17 current-code response
+
+Every finding above was checked against current `main` at
+`77c544f415edb26a0e23de76591a0163b9b73147`. The archived original SNLS647I
+pages 15,56,84-86 were reopened; page 86 was rendered and visually checked.
+The response preserves the earlier audit rather than rewriting its history.
+
+| Original finding | Current verdict and evidence |
+| --- | --- |
+| VOD_CFG3 upper termination field incorrectly R | Corrected and retained. Original table 8-81 p86 explicitly R/W; ledger `VOD_CFG3` field `mdi_termination` is RW mask F000. `test/test_ledger.py::test_independent_mmd_and_vod_vectors` and the core access/field oracles cover it. Shipped initialization composes/verifies the mandatory 4A40 policy; `src/DP8382xAnalog.cpp::_analogVod3` supports explicit termination ownership. Reserved 5:0 remain excluded from ordinary writes. |
+| Nominal signaling/leader-clock intervals incorrectly included power-up | Corrected. Original 7.6 p15 puts0.5ms and0.2ms in reset rows. Ledger timings retain reset-only scope and NOM; independent timing oracle retains values/units/qualifiers. Native `prepareBoard` uses separately sourced50ms POR and2ms reset silence, not these nominal values as maxima. |
+| Missing defining-message/immediate-order requirement for unformatted next pages | Corrected, and now implemented under selected D8. The original IEEE 2012 PDF was retrieved with the report's identical SHA256 and printed298/732 rechecked. `src/DP8382xConfiguration.cpp` and `test/negotiation.cpp` implement bounded post-restart loading, framing/null/termination rules. Current ledger `next_page_handshake` is physical Q10, superseding this report's historical software gate. |
+| Invented MMD aliases and unresolved tuple collisions | Retained enforcement in `tools/verify_ledger.py` occupied-address/alias checks; `test_unproved_mmd_aliases_are_rejected` and tuple tests mutate aliases and printed addresses. Current source-implied EEE low-offset tuples are individually selected D2, not a general digit-stripping rule. |
+| Core procedures removable together with backlinks | Retained `CORE_PROCEDURES` twelve-ID mapping in the checker and `test_each_core_procedure_is_required`; later procedures remain permitted. |
+| Procedure could own a register outside its feature | Retained feature/register ownership cross-check and `test_procedure_owned_register_requires_feature_coverage`. Shared field owners do not bypass it. |
+| PHYSTS reset overclaim and missing independent access oracle | Current ledger resetNotes preserve strap/mode uncertainty; `test_independent_all_core_access_masks` and semantic-field literals remain independent of production masks. Forced mode uses selected D4 BMCR decoding, retaining PHYSTS raw, with physical Q11 open. |
+
+PASS in this response: ledger structure: 97 registers/52 procedures/35 features;
+all 80 ledger tests (15.870s); generated version check. These validate research
+records and source-backed arithmetic, not hardware. No additional production or
+checker correction is required for the enumerated findings. Physical, package,
+remote CI and a new SDK image link were NOT RUN here. Shared source gates retain
+the current ledger decisions rather than the historical count of fourteen.

@@ -99,3 +99,31 @@ Updated public Doxygen, OP-13, initialization/reconciliation and test guides,
 CHANGELOG, report index and progress. README/architecture/variants/feature
 coverage and tooling already describe the corrected scope; no feature, version,
 package or source-ledger change is needed. No confirmed in-scope issue remains.
+
+## Current-code response — 2026-11-17
+
+Rechecked every finding and rejected proposal above on `main`, entry
+`77c544f415edb26a0e23de76591a0163b9b73147`, against current prompts 21/22,
+ENGINEERING and the shipped implementation. The earlier stage limit is historical.
+
+| Finding or proposal | Current verdict and evidence |
+| --- | --- |
+| Active reset evidence lost when the read later failed | **Confirmed implemented.** `src/DP8382x.cpp::_retainEvidence` applies valid direct/vendor-alias BMCR/PHYRCR reset evidence before terminal error handling. `test/verify.cpp::resetObservationErrors` still covers all five reset situations and four later failures; `rawResetObservation` also checks both namespaces and frozen results. Primary transport errors remain separate from the observed reset and its domain. |
+| Initialization guide omitted profile replay and qualified frame bounds | **Original correction implemented; later stale wording corrected here.** `docs/initialization.md` now limits the 20/32-frame counts to no owned link or optional-feature settings and describes the actual shared restoration tails. Its former blanket “No RCSR mutation” sentence was removed: `src/DP8382xInterface.cpp::_interfaceRowValue` restores owned stable RCSR settings through the collector. Unowned interfaces add no RCSR write; calibration remains a separate route. `test/interface.cpp::replayReadiness` and `replay` prove the current behavior. |
+| Per-batch health accounting proposed as a defect | **Incorrect under the current contract.** `_execute` accounts at the actual callback boundary, as prompt 21 requires; `test/health.cpp::accounting` distinguishes logical transactions from frames/public calls. |
+| Successful transport followed by clock/deadline error proposed as failed MDIO | **Incorrect.** `_execute` classifies transport health before the later local time verdict. `test/health.cpp::timing` and `reports` preserve this distinction. |
+| Managed restoration resetting the failure streak | **Incorrect as a defect.** Prompt 21 expressly permits separately admitted managed restoration success to reset the streak while retaining lastError. `test/health.cpp::restoration` exercises this, including separate results. |
+| Raw calls inheriting operation classification or statistics reset erasing active evidence | **Confirmed protected.** `_execute` uses explicit managed-call classification; `resetStatistics` clears cumulative counts only. `test/health.cpp::rawAndLocal`, `cancellation`, `saturation` and `isolation` cover raw traffic, widths and state retention. OFFLINE remains passive. |
+| VERIFY clearing cleanup or duplicating recovery | **Confirmed protected.** `startVerify` and `_finishOperation` retain OP-9 cleanup debt; the ordinary initialization/configuration path performs restoration. `test/verify.cpp::retainedBarrier`, `failures`, `recovery` and `interruptedReplay` cover stable masks, partial evidence, first mismatch, new identity and bounded retry admission. |
+
+Reopened original SNLS647I tables 8-19/48 and 8-81 directly from the archived
+PDF. PCS resets PCS registers; HARD has hardware-reset effects; RESTART preserves
+registers. These definitions support retaining an observed reset before a later
+callback failure. They do not prove a hardware timing or strap outcome.
+
+Fresh host verification: Windows/GNU C++ 15.1/Ninja, C++17 Release build
+`build/audit-current-response-silicon`, **PASS 236/236 CTests**, including all
+health/verify suites. Package consumer, SDK, CI and physical checks were **NOT RUN**
+by this response review. Q5/Q11 remain open. No new health/reconciliation
+production defect was confirmed; the shared initialization guide now includes
+the current-tail qualification described above.

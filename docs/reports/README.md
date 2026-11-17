@@ -1,5 +1,12 @@
 # Planning audits and later implementation evidence
 
+The [2026-11-17 repository-wide responses](current-review-responses.md) revalidate
+all 30 audit records individually against current code/prompts and source evidence.
+Each audit now contains a dated response; the rolling promptset table covers
+all 197 G/M/N/R findings. Historical counts and stage boundaries below remain
+evidence of their own checkpoints; current progress is in the
+[execution record](../implementation-progress.md).
+
 The [prompt38 report](implementation/38-esp-idf-state-arbitration.md) records public
 SDK state reconciliation, native raw/collector routing, typed flow-control partial
 effects and direct-start failure cleanup. Its
@@ -22,8 +29,8 @@ the linked cached-health example.
 
 The [prompt 22 report](implementation/22-reconcile-recover.md) records bounded
 verification, retained mismatch and cleanup evidence, shared initialization
-recovery, independent review and interrupted-restoration tests. Current execution
-is recorded through 22 there.
+recovery, independent review and interrupted-restoration tests at its stage22
+checkpoint.
 
 The [prompt 23 report](implementation/23-loopback-modes.md) records all loopback
 session modes, verified stop/restoration, independent literal tests and retained
@@ -31,7 +38,7 @@ source/physical gates.
 
 The [prompt 24 report](implementation/24-bist-generator-checker.md) records all
 BIST controls, bounded raw acquisition and full restoration with retained
-source/physical gates. Current execution is complete through 24.
+source/physical gates at its stage24 checkpoint.
 
 The [fresh prompts 21-22 audit](implementation/21-22-independent-audit.md)
 checks actual source, tests and source evidence independently, fixes reset
@@ -71,7 +78,8 @@ original completion checkpoints.
 The [prompt 6 report](implementation/6-framework-ownership.md) records the
 2026-10-29 sibling/SDK re-audit, complete ownership design, poisoned-storage
 experiment and independent concurrency/lifetime review. It selects explicit
-SDK correction dependencies without claiming native implementation support.
+SDK correction dependencies as a historical design; the later owned wrapper
+uses unmodified public SDK APIs and retains the RX lifetime gate.
 
 The [prompt 7 report](implementation/7-value-transport-contracts.md) records the
 value/Status/transport freeze, current sibling/TI source review, complete feature

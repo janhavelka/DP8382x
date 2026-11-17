@@ -151,3 +151,27 @@ results after integration. Remote CI: **NOT RUN**, first-execution prompt 71.
 Physical operation: **NOT RUN**; the P4 execution guard remains disabled.
 Reusable installed teardown: **BLOCKED**, `native_rx_quiescence`.
 No delegated Git commit, synchronization or stage completion is claimed here.
+
+## 2026-11-17 current-code response
+
+Rechecked every routing requirement and peer/source concern against `main`
+`77c544f415edb26a0e23de76591a0163b9b73147`, current `Phy.cpp`,
+`PhyControl.cpp`, tests and original pinned SDK source.
+
+| Enumerated finding/group | Current disposition and concrete evidence |
+| --- | --- |
+| Peer preflight, retained dirty/uncertain state, finite budgets and identity | Adapted in core operation and native lifecycle/publication receipts. I2C phase/NACK meanings, sensor timing, replacement-handle leaks, ignored removals and cleanup-overwrites-primary are rejected precedents. Peer tests remain source references, not this task's execution evidence. |
+| STOP/cachedAN requirements and getter meaning | `reconcileSdkState` uses public S_AUTONEGO/G_AUTONEGO and forced S_SPEED/S_DUPLEX under exact owner/control admission. Core desired/verified state remains separate from SDK published caches. Native forced_lifecycle/raw_state_reconciliation/direct_start_invalidation cover forced modes and both cachedAN states; no private SDK layout access. |
+| Raw ioctls bypass PHY register methods; owner hooks must also reject | Both custom mediator hooks unconditionally reject. Approved owner routes call core and direct MAC primitives inside complete batches, without mediator recursion. Native raw_routing/raw_read_arbitration/raw_mutation_arbitration/raw_mutation_admission cover owner and foreign attempts. |
+| Flow ioctl Boolean/uint32 width mismatch and MAC-before-PHY effects | Confirmed in original driver491-494. `setFlowControl` uses separately typed calls; receipt preserves possible/accepted MAC effects after PHY or timing failure. Ability0..3 must match verified intent. Native flow_control/flow_completion_contention/foreign_flow_effect/flow_control_callback_bounds cover partial effects. |
+| Generic MMD partial initialization/enum checks and missing whole lock | Generic helpers do not execute. Core emits initialized001F/401F, validates width/space/alias and uses4-frame access/5-frame stableRMW under one controller mutex. Native raw_boundary_failures/raw_mutation_arbitration plus portable MMD tests retain exact traces and failure boundaries. |
+| MAC has no caller deadline/mutex; controller release/wait classification | `execute` preflights whole-batch allowance, releases on every terminal path and distinguishes positive timed expiryMDIO_TIMEOUT from zero-tickBUSY. Controller-wait test passes at 1000 Hz/100 Hz. SDK1000us loop is not a wall-clock guarantee. |
+| Raw BMCR/reset invalidation and partially effective direct framework start | Core mutation withdraws trust; `refreshAgreement` blocks owner/direct starts until verified replay and public reconciliation. Earlier FSM/event effects survive and use stop/fence cleanup. Native uncertain_basic_control/raw_state_reconciliation/direct_start_invalidation/start_gate_failures cover both AN caches. |
+| RX lifetime and reusable teardown | Intentional gate retained. `retire/destroy` never free installed resources; raw/glue RX pause tests retain all borrowed contexts. STOP/controller lock/count-zero cannot resolve a pre-entry captured mediator. |
+| Later audit: individual callback bounds, shared silence, common discovery audit | Implemented in current code: PhyControl checks every call return and retains accepted effects; BusAdmission reserves board/initialization; discover delegates readIdentityAt. Native sdk_control_callback_bounds and discovery_accounting execute these cases. They are no longer future38 work. |
+
+No new production defect was established. Independent configure/build verified 45
+SDK source/header blobs at both tick rates, then passed 63/63 Release CTests
+(GNU 15.1.0/Python 3.12.10). Ledger80/80, checker 97/52/35 and version check passed.
+NewSDK image/package/remote CI/physical operation were NOT RUN here; wall-time
+qualification and reusable installed teardown retain their open gates.

@@ -64,11 +64,13 @@ the caller token and state unchanged. Each `pollOperation` runs at most one batc
    must match every owned stable bit. A mismatch retains expected, mask and raw
    observed value in `ConfigurationMismatch`.
 
-Without a desired link profile, with clear initial commands and first completion
-read clear, NONE uses 20 frames; PCS/HARD/RESTART use 32. An admitted desired
-link profile adds the shared negotiated/forced replay and verification steps.
-No RCSR mutation or CDCR read is admitted. Raw LED/IRQ/WoL maintenance does not
-create desired intent. Later features extend this same finite replay path.
+With no owned link or optional-feature settings, clear initial commands and the
+first completion read clear, NONE uses 20 frames; PCS/HARD/RESTART use 32.
+Owned desired settings add their shared replay and verification steps in the
+finite restoration order. Interface replay may update stable RCSR fields while
+retaining its destructive samples through the collector; an unowned interface
+adds no RCSR mutation. CDCR calibration recovery is a separate explicit route.
+Raw LED/IRQ/WoL maintenance does not create desired intent.
 
 An accepted or uncertain PCS or HARD reset invalidates initialized, identity and configuration
 knowledge even when a later read fails. `commandAccepted` records command frame

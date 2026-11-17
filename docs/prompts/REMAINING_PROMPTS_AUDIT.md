@@ -1,5 +1,13 @@
 # Audit of remaining prompts 13-80
 
+Current response, 2026-11-17: [section 12](#12-current-code-response-2026-11-17)
+and the [per-finding dispositions](../reports/promptset-audit-dispositions.md)
+revalidate this historical audit against the implemented stage39 subset.
+Follow current headers/contracts/prompts, not the old work-package instructions
+below. In particular, the original RX destruction sequence is unsafe, the
+second discovery binding is superseded, and several formerly planned features
+are now implemented. Open source and physical gates remain open.
+
 Date: 2026-11-02. Baseline commit: `e105af6`, branch
 `promptset/dp8382x-implementation-20261028`. Re-audited finding by finding the same day; the
 record is in [section 11](#11-re-audit-record). Prompts 1-12 are complete; 13-80
@@ -1204,3 +1212,36 @@ Other additions are folded into their parent entries: channel-A-only TDR (G3-1),
 - The IEEE copy is a non-publisher mirror of the 2012 edition. ESP-IDF log sources were read through a fetch summary, not as raw files. The EasyEDA netlist itself was not opened, only its records, which state the netlist confirmed the pins.
 - COV, RV and AC blocks were sampled in some checks, not fully recomputed again. No real CMake 3.16 run, no ESP-IDF build, and no live `workflow_dispatch` test.
 - The state model and refactor prototypes are scratch work and are not retained in the repository.
+
+## 12. Current-code response, 2026-11-17
+
+All 172 G findings, M-1, N-1 through N-6 and R-1 through R-18 have a current
+individual row in the [disposition record](../reports/promptset-audit-dispositions.md).
+This response re-read the full audit, checked the current implementation and
+prompt owners, and compared silicon/framework claims with original TI PDFs and
+the actual pinned SDK. Fifty-two rows required current-status/evidence updates;
+retained rows were rechecked, not assumed correct from their previous verdict.
+The [repository review index](../reports/current-review-responses.md) links the
+individual audit-file responses and records verification and remaining limits.
+
+| Original proposal | Response to relevance, correctness and fix |
+| --- | --- |
+| D1; G6-1/G6-8/G6-13/G11-1; Q13 | Unmodified public SDK integration is implemented. The original step6 destruction and automatic fence-removal advice are superseded. A fence and zero callback count cannot close the RX task's pre-handoff window. Retain all installed resources until restart; a changed SDK requires a new source/lifetime proof before changing that policy. |
+| D2; G4-1/N-1; Q1/Q2 | Selected five EEE tuples and adopted controls are implemented with whole-word self-checks in the common procedure. They remain source-implied, not physically proved by passing host tests. Exact-part unknowns are not filled with family defaults. |
+| D3; G3-1/G3-2; Q7 | The explicitly selected SNLA428 recipe and matching-run derivation are implemented. Datasheet table8-56/57 disagreement remains recorded; neither audit authority nor code execution establishes which recipe performs better on hardware. |
+| D4-D8; G1-G5 | BMCR forced resolution, mandatory robust/VOD, fourteen admitted10M patterns and exchange-local NP are implemented. Scope is exact DP83826I. The remaining pin/100M compliance/DPD and physical gates do not become optional. |
+| D9-D11/D17; OP1-17; R1-18 | Current shared operation, cleanup-barrier and transport-health rules govern. Sessions and restoration now have actual consumers/tests. A clean late backend success is transport health success despite public deadline failure. Do not resurrect the old CLEANUP engine, aliases, public revision enum or token-exhaustion scaffolding. |
+| D12; G10-3/G10-4 | The actual six-field metadata schema includes authors; five-field-only text is obsolete. Version0.1.0 is unchanged. PlatformIO remains outside this execution's supported consumers. |
+| D13; G7-6/G10-11 | One coverage matrix and80 numbered stages remain appropriate. Review sampling in future stages does not reduce required feature coverage or this user's request to respond to every audit finding. |
+| D14-D16; G1-3/G12-8/G13-1 | Shared quiet floors, per-target reserved preservation and exact826 W0C remain appropriate. Five-frame RMW is an inference from selector-state prose, not a printed combined recipe. Physical Q3/Q4/Q5 remain unrun. |
+| G3-8 | Original assignment of all IRQ mux writes to32 is superseded by the implemented single IRQ owner. Prompt27 is corrected to match save/apply/restore;32 owns LED profile/dependency validation. |
+| G7-8 | The proposed fresh probe bind/read/end sequence is unnecessary and loses common diagnostics/clock history unless separately reconstructed. Prompts44-46 and CLI_CONTRACT now require existing readIdentityAt/native discover with complete two-ID batches, aggregate budgets, retained-result admission and honest historical receipts. |
+| G8/G9; N6 | Future exact-part research/implementation remains56-67. Original family tables support the recorded field/default differences, conservative825 clock limit and consuming reads,822 REGCR10 conflict, seven-bit amplitude and FX evidence limits. Inferred RMII reverse/field-restoration behavior remains explicitly unqualified. No family code/support is added by this review. |
+| WP0-WP4 and G12/G13 | Foundation, source ownership and current native implementation are present. Prototypes, line-count goals and blanket one-fake refactors are not proof of current defects. Preserve useful independent feature oracles and current real consumers. |
+| WP5-WP7 and G7/G10 | CLI/runners, package export and dedicated CI remain owned future work. Installed build-tree/native fixtures do not imply released package or remote CI success. Current matching prompts contain concrete acceptance rather than success placeholders. |
+| Q1-Q19 | Physical observations remain NOT RUN, and software lifetime gates must be resolved before any unsafe fixture operation. Q13's historical stub/delete suggestion is not an authorized test route. No physical claim is closed by this review. |
+
+The current audit found documentation/prompt drift, not a new confirmed
+production defect. Current source/test evidence and individual rejected or
+superseded fixes are recorded in the linked per-ID table and audit responses;
+historical test counts and prototype claims above retain their original date.

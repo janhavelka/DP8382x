@@ -160,3 +160,28 @@ intermediate profiles, current-state admission, per-write verification, partial
 effects and finite restoration, citing the exact two VOD tables.
 Research completion remains valid with named source gates; driver support and
 physical qualification are not inferred from passing research tests.
+
+
+## 2026-11-17 current-code response
+
+Reviewed every numbered finding and the original-source coverage/consequence
+rows against `main` at `77c544f415edb26a0e23de76591a0163b9b73147`.
+The original SNLS647I tables 8-79/80 pp84-85 were reopened, with table 8-81 p86
+visually checked. Historical gate counts and absence of implementation are
+stage-specific observations.
+
+| Finding/group | Current verdict and evidence |
+| --- | --- |
+| 1: split MDIX amplitude transition could pass undocumented intermediate code | Corrected in both research and shipped behavior. `src/DP8382xAnalog.cpp` SNAPSHOT validates current28..38, stages low nibble8 only on a high-field change, verifies BRIDGE_WRITE before high-field APPLY, and verifies every subsequent row. Invalid starting code retains cleanupOwed. Ordinary initialization/restoration use the same analog tail. `test/analog.cpp` vectors/failures/replay and `test_independent_split_amplitude_transition_prefixes` cover valid endpoints and restoration prefixes. No glitch-free physical claim is made. |
+| 2: aggregate masks miss changed field names/access or swapped fields | Retained independent semantic-name/mask/access maps for all 25 remaining detailed rows in `test/test_remaining_ledger.py::test_independent_remaining_semantic_fields_and_access`; the structural checker is not its numeric oracle. |
+| 3: erased WoL owned masks could pass | Retained exact independent 24-procedure ownership map in `test_independent_remaining_procedure_owned_masks`, plus checker feature/register cross-check. Recipe-only legacyLPI ownership remains its exact writeActions rather than invented ordinary masks. |
+| 4: optional printed-address disposition admitted nontext | Retained nonempty-text validation in `tools/verify_ledger.py` and `test_printed_eee_disposition_cannot_claim_wire_resolution`. Omission remains legal. |
+| Loopback/BIST access and freshness, event/counter consumption, TDR/quality and reserved banks | Current `DP8382xDiagnostics.cpp`, `DP8382xCable.cpp`, `DP8382xQuality.cpp` and shared collector retain per-read effects and ambiguity. Ledger gates `bist_result_semantics`, `tdr_freshness_abort`, `tdr_reserved`, `recr_width`, `rmii_rc` and `mse_address` still prevent unsupported PASS, totals, extra decoded banks or dB conversion. SelectedD3 TDR helper is implemented25 with physical Q7 separate; blanket historical source blocking is not its current status. |
+| Power/EEE/LPI/WoL, pin/electrical/compliance and variant boundaries | Shipped typed procedures are in their dedicated source files; D2 EEE tuples ship 29 with physical Q1 open. W0C neutral/ack is exact-part, not a family write1 substitution. `pin_fields`, `analog_rx_gain`, `ioctrl_example`, `compt_reserved` and deep-power-exit uncertainties remain explicit. All14 documented10M compliance patterns ship 35;100M0428 remains gated. Only exact DP83826I is admitted; shared IDs do not qualify suffixes. |
+| Vendor examples, family applicability, best-practice/failure retention | The core does not import TI code, guessed units or C2000/EtherCAT electrical assumptions. Exact tables and per-procedure recipe exceptions remain authoritative under EVIDENCE; temporary profiles restore through separate bounded operations/OP9. The numerical68/56 research allowance is historical arithmetic, not a universal current operation budget. |
+
+PASS: `python tools/verify_ledger.py` (97/52/35) and all 80 ledger tests;
+these include the semantic/ownership/disposition and289-endpoint regressions.
+Independent native host63/63 also passed, but does not establish analog hardware
+behavior. No physical/remote CI/package/new SDK-link execution was performed here.
+No additional defect was confirmed in the enumerated research corrections.

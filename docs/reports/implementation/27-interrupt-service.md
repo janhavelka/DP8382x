@@ -52,6 +52,12 @@ If HARD removes an externally established alternate mux, IRQ replay rejects and
 retains restoration debt. A regression verifies this boundary; prompt32 owns
 the missing mux programming/replay, while pin21 replay is complete here.
 
+**2026-11-17 response:** The preceding mux boundary is historical. Current
+`DP8382xInterrupts.cpp` owns LED1/2 mux=4 application and restoration through
+PIN_MUX/PIN_APPLY/PIN_VERIFY. Stage32 LED profiles validate that dependency.
+The current prompt, ledger and feature guide now agree with the single owner;
+the [27-28 audit response](27-28-independent-audit.md) records the code/tests.
+
 ## Fresh sibling audit
 
 All reviewed sibling worktrees were clean; no sibling changes or fixture actions.

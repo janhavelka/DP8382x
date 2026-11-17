@@ -132,3 +132,35 @@ Final maintainability review keeps one collector, one slot and one shared
 configuration/restoration implementation; it removes two error substitutions
 instead of adding a new result/state mechanism. All confirmed in-scope defects
 are corrected. Later features and physical qualification remain separate work.
+
+## Current-code response — 2026-11-17
+
+Revalidated every finding and additional proposed correction above against `main`
+at entry `77c544f415edb26a0e23de76591a0163b9b73147`, the shipped source/tests and
+current prompts 13–18, COMMON, ENGINEERING and EVIDENCE. The old execution branch
+and stage boundary above are historical; current work belongs on `main`.
+
+| Finding or proposal | Current verdict and evidence |
+| --- | --- |
+| Interrupted verification replaced the terminal error | **Confirmed implemented.** `src/DP8382xConfiguration.cpp::_advanceConfiguration` retains mismatch before its error guard; `src/DP8382x.cpp::_finishOperation` publishes the interrupting status without substituting CONFIG_MISMATCH. `test/forced.cpp::verificationOutcomes` covers configuration/NONE replay, transport, cancel, deadline, clock, invalidation and frame exhaustion. This meets prompt 18 and OP-9's separate mismatch/error evidence. |
+| AN replay falsely set reset protocolComplete | **Confirmed implemented.** The configuration completion path no longer assigns that reset flag; only the shared reset completion phase sets it after observing the command clear. `test/negotiation.cpp::replay` and `completion` distinguish commandRequired/commandAccepted/protocolComplete from negotiationComplete. Prompt 16's reset domain remains distinct from prompt 17 AN completion. |
+| Missing callback receipts concealed consumed reads/possible writes | **Confirmed implemented.** `src/DP8382x.cpp::_execute` classifies the report before `_retainEvidence`; that collector treats a transport violation as possible lost destructive evidence and uncertain target mutation while preserving a valid prefix. `test/access.cpp::reports` exercises direct/indirect receipts, missing suffixes and sound no-attempt denial. This implements prompt 13's partial-evidence contract without publishing incomplete ordinary outputs. |
+| Completed next-page loads lost on a later error | **Confirmed implemented.** `_advanceConfiguration` increments `transmittedPages` for a completed LOAD_PAGE before terminal status handling. `test/negotiation.cpp::pageBoundaries` checks late completion and release failure after the second load with retained partner evidence. |
+| Message-code 5/6, malformed/truncated ordering, 16-page limit and initial-toggle coverage | **Confirmed implemented.** `test/negotiation.cpp::pages`, `pageAdmission` and `pageBoundaries` retain the independent literal sequences and rejection cases required by prompt 17. No separate page engine or relaxed limit is needed. |
+| Signed-promotion warning and accidental default-PCS test setup | **Confirmed implemented.** Identity revision arithmetic uses an explicitly widened value; `verificationOutcomes` explicitly selects NONE for its restoration case and uses bounded polling. The historical draft mistake is not an open production defect. |
+| Stale identity/access wording and further suspected lifecycle/identity defects | **Superseded/closed within this finding set.** Current `docs/identity.md` and `docs/side-effect-access.md` describe initialized admission and retained effects. `test/identity.cpp`, `test/reset.cpp`, `test/operations.cpp`, `test/access.cpp` and forced/negotiation suites exercise the stated guards. This does not turn the historical review's negative findings into a claim of exhaustive future-feature correctness. |
+
+The original archived SNLS647I was reopened directly: tables 8-18/19 and 8-48
+confirm access codes and distinct PCS/HARD/RESTART effects; table 8-81 confirms
+the VOD field partition `F000|0800|0780|0040=FFC0`. The rendered timing table
+on page 15 was also checked. These findings require evidence-handling corrections,
+not new silicon encodings. The Clause 28 interpretation remains the explicitly
+recorded source selection in `17-source-review.md`; no new IEEE claim is made.
+
+Fresh verification for this response: Windows, GNU C++ 15.1, Ninja, C++17 Release;
+configure/build in `build/audit-current-response-silicon` with tests ON, then
+`ctest --test-dir build/audit-current-response-silicon --output-on-failure
+--no-tests=error`: **PASS, 236/236** registered host tests, including Release
+failure probes. This is current host evidence only. Package/SDK, remote CI and
+physical qualification were **NOT RUN** by this review; Q4/Q5/Q10/Q11 remain
+separate. No additional production correction is justified by these findings.

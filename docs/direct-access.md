@@ -38,7 +38,8 @@ drive-enable and drive-value fields; every reserved bit must be zero. This is an
 explicit pre-initialization maintenance exception, not managed configuration.
 The application establishes the physical part/address and safe LED0 wiring/pin
 use. No initialization, cached LED state, reset, link or diagnostic
-operation is implied. The complete typed LED/mux API remains prompt 32.
+operation is implied. The [typed LED/mux API](led-gpio.md) shipped at stage32;
+interrupt mux routing/restoration belongs to the [interrupt owner](interrupts.md).
 
 Other ordinary writes, holes, public selectors, consuming/latch reads and CDCR reject with
 INVALID_PARAM/ACCESS_POLICY before either callback. CDCR itself is not claimed

@@ -127,3 +127,31 @@ Portable/package consumers, host driver execution, SDK linkage and physical
 qualification remain NOT RUN. Remote CI remains NOT RUN under prompt 71's
 exception. Existing silicon gates, native lifecycle correction and prompt 8's
 clock-fault cleanup dependency remain explicit later-stage work.
+
+
+## 2026-11-17 current-code response
+
+Rechecked all four original findings and all nine focused-case rows against
+current shipped headers, implementation/tests and maintained OP contracts at
+`main` `77c544f415edb26a0e23de76591a0163b9b73147`.
+
+| Finding or case group | Current verdict and evidence |
+| --- | --- |
+| BMSR7849/7859 capability examples | Corrected. Original table 8-20 p56 was reopened and bit 6=1 confirmed. `test/test_ledger.py` independent core access/reset literals and `test/link.cpp` use source-backed capability/link words. Bit 4 remains clear-on-read evidence. |
+| New health error inherits old valid timestamp | Corrected in `src/DP8382xHealth.h::retainHealth`: replaces cause, lastErrorUs and validity together. `test/health.cpp` clock and saturation cases explicitly test zero/false on the new untimed error while retaining prior opposite-outcome evidence. Current units are microseconds, superseding this report's Ms field spellings. |
+| Clock fault overwrites specific primary/release failure | Corrected in `_execute`: normalized primary wins, then release, then post-clock/deadline outcome; raw report/clockInvalid/late remain separately retained. `test/transport.cpp` reports/timing and `test/health.cpp` clock cases cover primary detail and release preservation. |
+| Admission/health classification depended on unreported lock attempt | Corrected. `_execute` classifies actual statuses/frame/release/reuse evidence. Clean zero-frame BUSY/OPERATION_TIMEOUT and pre-existing quarantine are excluded; positive native controller-wait expiry maps MDIO_TIMEOUT, not BUSY. New release/controller faults count and quarantine. `health_reports`/`health_timing` and native controller-wait tests exercise these cases. |
+| BUSY plus release failure/backward clock; zero-frame timeout/quarantine; unexpected unusable controller | Current predicate preserves primary BUSY while retaining release health cause, invalidates the new error's time on clock failure, and excludes clean admission denial. The corresponding `test/health.cpp` table covers exact causes and counts. |
+| Historical row: successful callback returned after deadline counts managed failure | **Superseded design**, deliberately not restored. Current `docs/api-contracts.md` health predicate, `docs/health.md` and `_execute` distinguish transport success from owner timing. `test/health.cpp` lines429-433 requires one success, zero failures and public OPERATION_TIMEOUT/late. A clock fault similarly does not turn sound MDIO into OFFLINE. This reconciles the old case table with implemented stage 21/G11-7. |
+| Optional/malformed frame stamps; low BMSR followed by read failure | Current frame audit validates optional stamps/order; collectors retain validated consumed prefixes even if publication fails. `test/transport.cpp`, `test/access.cpp` and `test/link.cpp` check malformed reports, unchanged ordinary outputs and retained partial/destructive evidence. |
+| Owner example bind status and copied receipts | Current API examples retain an exact core reference and return bind Status. Shipped facade deletes copy/move; snapshots remain value copies. `test/foundation.cpp` and isolated header translation units exercise public contracts. |
+
+The 35-feature/52-procedure mapping remains guarded by the ledger checker; it
+does not imply every source-gated branch is implemented. Historical no-driver
+claims and private native sketches are not the current API. Current operation
+state and cleanup are governed by OP9 and the shipped headers.
+
+PASS here:80 ledger Python tests,97/52/35 checker, version check and independent
+native 63/63 Release CTests with 45 pinned SDK blobs. No new production defect
+was established. Portable consumer/new SDK image/remote CI/physical checks were
+NOT RUN by this reviewer; this response corrects interpretation of old evidence.

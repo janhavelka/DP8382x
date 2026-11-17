@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Revalidated all 30 repository audit records and197 promptset findings against
+  current code, prompts and sources, with dated responses in each audit.
+  Corrected stale SDK-base, IRQ-mux, initialization-replay and CLI-discovery
+  guidance; retained implemented fixes and explicit source/physical gates.
+
 - Independent prompts37-39 audit: made shared board/initialization silence an
   exclusive controller reservation, counted explicit discovery through the core
   transport path, distinguished timed lock failure from immediate contention, and

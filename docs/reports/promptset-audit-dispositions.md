@@ -1,6 +1,6 @@
 # Independent promptset audit: current dispositions
 
-Reviewed 2026-11-15 on `main`, starting from clean, synchronized
+Originally reviewed 2026-11-15 on `main`, starting from clean, synchronized
 `f576dee3b067e16f51e3a8e51d9ffe17b35924ab`. This review checks the
 [remaining-prompts audit](../prompts/REMAINING_PROMPTS_AUDIT.md), including all
 172 G findings, M-1, N-1 through N-6 and the 18 R contract-review mappings.
@@ -12,8 +12,14 @@ their dated baseline, not instructions to undo subsequent implementation.
 
 The user authorized prompt corrections, small direct code fixes, and assignment
 of larger changes to existing or new prompts. Existing owners suffice; numbering
-remains 1-80 and completed stages remain 1-20. No future-stage implementation is
-claimed by this maintenance.
+remained 1-80 and that maintenance left completed stages at 1-20.
+
+Revalidated 2026-11-17 at synchronized `main`
+`77c544f415edb26a0e23de76591a0163b9b73147`. The per-ID tables below now describe
+current code and prompts through the supported stage39 subset. The original
+review method, corrections and verification sections retain their dated evidence;
+the [current response](#current-code-response--2026-11-17) records this pass.
+Future-stage requirements and unresolved source/physical gates remain open.
 
 ## Review method and evidence
 
@@ -103,8 +109,8 @@ it to measured silicon behavior.
 | G1-5 | Corrected: P13/ENGINEERING distinguish W0C, W1S, self-clearing R/W and description-only read effects. No invented W1C field; SNLS647I table8-18. |
 | G1-6 | Implemented: identity methods and two-frame staged _readIdentity, partial diagnostics and OP14 guards; identity/reset tests. |
 | G1-7 | Implemented: EXTERNAL_POWER_ON distinct from EXTERNAL_RESET; enhanced POR-only strap distinction and silent reset tests. |
-| G1-8 | Planned33: current initialization does not write RCSR; P15 explicitly defers collector-routed replay. |
-| G1-9 | Implemented25 / planned35: CDCR14 preflight rejection, calibration_recovery owner35, raw CDCR refused; table8-47 requires clear then HARD. |
+| G1-8 | Implemented33: owned interface replay uses the RCSR collector in DP8382xInterface.cpp; interface_replay/collector cover it. Unowned initialization does not write RCSR. Current initialization-guide baseline wording corrected in this response pass. |
+| G1-9 | Implemented25/35: cable preflight rejects live CDCR14; explicit calibration recovery clears14 then HARD with retained debt. DP8382xElectrical.cpp CAL_PAIR and electrical_calibration/lifecycle; table8-47. No calibration-complete claim. |
 | G1-10 | Corrected: hard_reset_straps retains the table8-48/8.4.1 ambiguity, possible resample and Q5. |
 | G1-11 | Corrected: P15/P16 anchor external readiness to final supplies and clock-qualified reset; no inferred PCS completion maximum. |
 | G1-12 | Implemented through G11-20: no token-exhaustion machinery or unused legacy status details. |
@@ -139,25 +145,25 @@ it to measured silicon behavior.
 | G3-5 | Implemented25/26: CDCR and result words0180/0185/018A are non-destructive; tables8-47/61/66/71. |
 | G3-6 | Implemented26: autorun disable/readback is policy, not quiescence; one autorun cannot stand in for six-run interpretation. |
 | G3-7 | Implemented27 through G2-12: dependent mirrors and exact-part RXFS selector evidence. |
-| G3-8 | Implemented27 PHYSCR/pin admission and ENHANCED-only OE power meaning; LED1/2 mux writes remain32, LED0/3 read-only. |
+| G3-8 | Implemented27 with one IRQ mux writer: DP8382xInterrupts.cpp PIN_MUX/PIN_APPLY/PIN_VERIFY save, apply and restore LED1/2 mux4. P32 owns LED profile/dependency validation; P27 wording corrected here. LED0/3 read-only and ENHANCED-only OE semantics remain. |
 | G3-9 | Corrected: ledger/test owners interrupt27, autorun26, TDR calibration25; COV agrees. |
-| G4-1 | Source-implied policy implemented for three safe raw tuples; P29 owns full recipe. EEE_REGISTERS, mmd tests, 825 table7-92, 8227.4.2.9; Q1 remains. |
-| G4-2 | Planned30 start/stop/application dwell already correct; corrected stale COV readiness wording here. 8268.3.4 provides no readiness event. |
-| G4-3 | Implemented neutral W0C subset; planned31 full wake. 8268-90/A8-91 differ from8228-87; no-op suppression/collector retain evidence, Q3 remains. |
-| G4-4 | Corrected here in current profile preflight/atomic composition, with POWER_STATE and forced_power_pin tests. P28 implements owned software intent across BMCR writers and reset replay; table8-19/Q6. |
-| G4-5 | Planned31/59/67: identical asymmetric MAC/password wire packing established in prompts/catalogue; labels do not imply reversed words. |
-| G4-6 | Planned31: reset108X is not disabled WoL; unknown bit0 stays unknown and explicit disable is neutral; table8-90. |
+| G4-1 | Implemented29 under source-implied D2: DP8382xEee.cpp and eee_* tests execute both full-word self-checks, exact recipe and shared reset/replay. Three safe raw tuples remain separate from destructive collector tuples; Q1 remains open. |
+| G4-2 | Implemented30: startLpi/stopLpi share the EEE owner, bounded bit12 updates and readback, application dwell and uncertain effects; lpi_* tests. SNLS647I8.3.4 supplies no readiness event or bounded dwell. |
+| G4-3 | Implemented31: DP8382xWake.cpp uses exact826 W0C, harvest-before-write and stable no-op suppression; wol_vectors/routing/acquisition. Family write-1 recipes remain comparison evidence; Q3 is open. |
+| G4-4 | Implemented28: DP8382xPower.cpp and all BMCR writers use owned software intent, separate pin-OR observation and fail-closed preflight; power_* and forced_power_pin tests. The original correction remains valid; Q6 is open. |
+| G4-5 | Implemented31 for826: DP8382xWake.cpp packing and asymmetric wol_vectors match SNLA261A/table8-91 onward. A59/82267 remain planned; identical wire words do not imply identical control semantics. |
+| G4-6 | Implemented31: reset108X is not disabled WoL; raw validity and observed enabled state remain separate. DP8382xWake.cpp and wol_vectors/acquisition preserve unknown bit0 and neutral explicit disable. |
 | G4-7 | Implemented28: PHYSCR15 separate PLL control, IEEE-down/clock-loss admission, live pre-reset preparation and control verification; physical Q6 remains open. |
-| G4-8 | Planned30: exact826 bit12 only, no imported825 bits14:13; Q2 measures108B. |
-| G5-1 | Planned35: fourteen COMPT exceptions already present; corrected stale nextEvidence here. Table8-50 admits0..D; upper bits/100M0428 remain gated. |
-| G5-2 | Planned34: tx10/tx100 fields, squelch bounds/FIFO/preamble and collector-routed 10BTSCR explicit. |
-| G5-3 | Corrected: calibration recovery35 and link recovery34 in ledger/COV. |
-| G5-4 | Planned34: RMII zero-cause disable/FLDS allowed, nonzero causes reject, unknown CR3 reset retained. |
-| G5-5 | Planned34: conditional maxima and literal MLT3/descrambler settings retained; no unconditional detector deadline. |
-| G5-6 | Planned35: PHYCR owned fields and BISCR701F/7001, no reserved script copy; forced robust difference/Q19 explicit. |
+| G4-8 | Implemented30: EEE owner uses exact826 bit12 only, not825 bits14:13. lpi_* tests establish software effects; Q2 line observation remains NOT RUN. |
+| G5-1 | Implemented35: DP8382xElectrical.cpp accepts all fourteen COMPT10M patterns with literal vectors; electrical_traces/admission. Upper bits and100M0428 remain source-gated under compt_reserved. |
+| G5-2 | Implemented34: DP8382xQuality.cpp owns tx10/tx100 fields, squelch/FIFO/preamble and collector-routed10BTSCR. quality_vectors/collector/replay verify the source-backed fields. |
+| G5-3 | Implemented ownership: link recovery in DP8382xQuality.cpp34 and calibration in DP8382xElectrical.cpp35; ledger/COV owners match; no automatic recovery escalation. |
+| G5-4 | Implemented34: zero-cause RMII disable/FLDS remain legal, nonzero RMII causes reject before I/O, unknown CR3 reset stays unknown; quality_admission/collector. |
+| G5-5 | Implemented34: literal MLT3/descrambler settings and conditional maxima in quality procedures/tests; unsupported threshold overrides remain source-gated. No unconditional hardware deadline. |
+| G5-6 | Implemented35: electrical sessions compose owned PHYCR and BISCR701F/7001, retain forced robust policy and do not copy script reserved bits. electrical_traces; Q19 remains open. |
 | G5-7 | Implemented32, gate retained and rechecked in audit32-33: PHYCR5 exists but semantics incomplete, outside typed profile; Q12. |
-| G5-8 | Planned35: hard reset destroys state, later finite replay restores it; no impossible entry-preservation promise. |
-| G5-9 | Planned35: CDCR14 clear then HARD, reset completion only, not fabricated calibration completion; table8-47. |
+| G5-8 | Implemented35: electrical sessions reject incompatible power/isolation and restore persistent settings through the shared finite HARD/replay path. electrical_lifecycle; no entry-preservation promise across reset. |
+| G5-9 | Implemented35: CAL_PAIR clears CDCR14 with15 neutral then issues HARD; result reports reset completion and retained cleanup debt, never invented calibration completion. electrical_calibration/lifecycle. |
 | G5-10 | Implemented32 and audited32-33: per-mode mux/polarity and live RCSR admission; LED3 MII/read-only and pin31 code conflicts remain gated under tables8-76/77 and pin_fields. |
 | G5-11 | Corrected: P35 directly requires24; other originally cited omissions were transitive, not blockers. |
 
@@ -165,18 +171,18 @@ it to measured silicon behavior.
 
 | ID | Disposition and current evidence |
 | --- | --- |
-| G6-1 | Corrected here: public SDK route remains, but RX lifetime now gates destructive teardown in DD/P37/P42. Callback count/fence alone cannot authorize free. |
-| G6-2 | Planned37/38: actual pinned driver host layer plus P4 link; corrected invented seven-header count to hashed dependency closure. |
-| G6-3 | Planned37: bare wrapper, one Phase/journal, reset/pwrctl reject, one terminal callback rather than nested operation. |
-| G6-4 | Planned37/38: static unconditional raw ioctl rejection with zero MAC frames. |
-| G6-5 | Planned38: even owner-task raw hooks reject; typed owner reaches core/direct MAC batch, no recursive mediator route. |
+| G6-1 | Implemented37-39 public SDK route, with safe terminal retention. The original proposed destructive order is rejected: callback count/fence cannot close the pre-callback RX window. Phy.cpp retire/destroy and raw/glue RX tests enforce native_rx_quiescence. |
+| G6-2 | Implemented37-39: test/esp_idf compiles hash-checked real driver/glue and45-file selected SDK dependency closure at1000/100Hz;63 current host cases and actual P4 fixture link. Seven hand-picked headers/shims are not the evidence boundary. |
+| G6-3 | Implemented37: PhyHandle wrapper, Phase/journal, local installer callbacks, reset/pwrctl rejection and terminal admitted controls in Phy.cpp/PhyControl.cpp; no nested operation owner. |
+| G6-4 | Implemented37: static raw read/write hooks reject unconditionally; real pinned_driver_raw_ioctl/native_raw_routing tests observe zero MAC frames. |
+| G6-5 | Implemented38: even owner-task raw ioctls reject; native typed owner calls core policy/direct MAC batches. Native boundary/arbitration tests cover every MMD/RMW frame and second PHY. |
 | G6-6 | Planned42: TX buffer borrowed/queued not transmitted, RX free on every return; pinned esp_eth.c input/transmit paths. |
 | G6-7 | Planned40 pins correct; clarified board snapshot RX signal names here, with final-netlist caveat. |
-| G6-8 | Corrected here with G6-1: P42 no longer orders freeing despite known pre-callback RX race; scheduled lifetime test required. |
-| G6-9 | Planned37/DD2: PhyHandle first member/static_assert, no generic IEEE base dependency. |
-| G6-10 | Planned39: real MAC timing bounds, no inherited blocking base reset/AN loops. |
-| G6-11 | Planned38/DD2: immutable address, identical set_addr only. |
-| G6-12 | Planned39/DD5: factory-specific P4 eventLost handling versus other-MAC uncertainty, no blind repeated UP. |
+| G6-8 | Unsafe original deletion proposal superseded. Implemented37 retained resources and scheduled raw/glue RX capture tests protect the pre-handoff window. P42 must retain the same gate; a hypothetical one-buffer leak does not describe a safe lifetime. |
+| G6-9 | Implemented37: PhyHandle first-member esp_eth_phy_t, static_assert and owner pointer; no generic base header or storage. source-code.md former reuse advice corrected in this response pass. |
+| G6-10 | Implemented39 conformance and conditional timing table in esp-idf.md; Phy.cpp uses no base reset/AN loop. MAC nominal loops are not preemption-proof bounds; native_wall_time remains unqualified. |
+| G6-11 | Implemented37/38: set_addr accepts only the configured value; native_forbidden_lifecycle covers retarget rejection. Installed deletion is still gated, so delete/recreate is not an available installed retarget shortcut. |
+| G6-12 | Implemented39: factory-selected P4 eventLost versus generic publication uncertainty, terminal receipt and explicit event retry. native_lost_link_event/notification_* tests preserve accepted fields without replay. |
 | G6-13 | Planned future SDK re-audit through G6-1: d2ed96d2 may change timer fence; it does not resolve RX lifetime by itself. |
 | G7-1 | Planned44: ID-only finite explicit range, strap defaults, no selection/broadcast inference; all-one/zero evidence not physical absence. |
 | G7-2 | Planned47: bounded whole-line log queue. Corrected CLI_CONTRACT to separate CONFIG_LOG_VERSION_1 from USB/UART transport. |
@@ -185,7 +191,7 @@ it to measured silicon behavior.
 | G7-5 | Planned43/48: real-core CLI fixture and proper dependencies; fake protocol producer alone insufficient. |
 | G7-6 | Planned44/47/53/55: one COV matrix with field-owner tests and future CLI columns, not a false current completion claim. |
 | G7-7 | Planned43: static command/config tables, no dynamic registry. |
-| G7-8 | Corrected here: shared clock/silence/quarantine admission handles elapsed cached flag and failed anchor; P44-46/CLI tests specified. |
+| G7-8 | Corrected planned44-46: use shipped bound-core readIdentityAt or native discover, not a second probe binding. CLI_CONTRACT retains aggregate budget, shared admission, exact quiet-floor expiry, receipt freshness and cumulative accounting. No direct transport bypass. |
 | G7-9 | Planned49: finite serial-process join and explicit inconclusive result, no unbounded flush/drain/retry. |
 | G7-10 | Planned50-52: systematic evidence mutation. Clarified P50/51 acceptance to every required field in turn. |
 | G7-11 | Planned43: freeze grammar/schema only; later stages append executing commands. |
@@ -207,7 +213,7 @@ it to measured silicon behavior.
 | G8-8 | Planned61: SecureON exact-address source exception under SNLA261A, no generic raw access; Q15. |
 | G8-9 | Planned57/58: conditional Strap11, Strap8 conflict and040F preserving mirror; SDAA067A/A datasheet. |
 | G8-10 | Planned56 through G8-2: robust rule part-keyed, not imposed on825. |
-| G8-11 | Planned31/59 through G4-5: concrete common packing, per-part command semantics. |
+| G8-11 | Primary826 packing implemented31 through G4-5; A59 and82267 remain planned, with per-part acknowledgement/CRC semantics. |
 | G8-12 | Planned60: conservative20MHz and24MHz prose conflict, not a claimed resolution. |
 | G9-1 | Planned65: SOR1 encoded FX/SD sets mapped explicitly;822 tables7-10/8-84. |
 | G9-2 | Planned65: stale FX evidence and maintenance refresh, no interrupt-driven invention; SNLA437A2.3.4 and Q14. |
@@ -233,15 +239,15 @@ it to measured silicon behavior.
 
 | ID | Disposition and current evidence |
 | --- | --- |
-| G10-1 | Implemented provisioning: idf.cmd/idf.ps1 checks installed pinned checkout; no global environment change. P37 owns actual SDK build. |
+| G10-1 | Implemented provisioning and37-39 link: scripts/idf.cmd/idf.ps1 select exact installed fff9895c SDK without global environment changes; actual adapter_link P4 fixture exists and links. |
 | G10-2 | Planned71: push/PR/manual triggers and exact commit run discovery, no pre71 dispatch/status check. Main policy makes old merge concern moot. |
 | G10-3 | Corrected here: six actual fields including authors, matching generate_version.py FIELDS/AUTHORS; P69 preserves ownership. |
 | G10-4 | Planned70/77: PlatformIO explicitly unsupported this execution, no unnecessary wrapper. |
-| G10-5 | Planned69: IDF branch first, portable install/export/config helpers and generated version; no FILE_SET above minimum. Current missing install is expected. |
+| G10-5 | IDF source selection implemented37 in root CMake before project(). Portable install/export/version-config work remains planned69; a present missing install is not an earlier-stage defect. |
 | G10-6 | Planned69/70: reuse P10 tests, add new outputs/CLI rejection, missing-Git fixture belongs70. |
 | G10-7 | Planned69/72-80: explicit CONTRIBUTING owner, stage reports/tested SHA, no nonexistent validation.md/manifest requirement. |
 | G10-8 | Corrected: progress/index and AGENTS/VERIFICATION list runnable commands; historical baseline counts stay historical. |
-| G10-9 | Planned55/68/71: UBSan trap locally, other toolchains/sanitizers separate. Current GNU accepts the stated flag; no invented flag defect. |
+| G10-9 | Local GNU native UBSan trap already executes63 cases; second compiler/other sanitizers remain separate71 responsibilities. P55/68/71 preserve honest toolchain scope. |
 | G10-10 | Planned68: real two-instance application separate from registered assertions/tests-OFF consumer. |
 | G10-11 | Planned: one matrix, gap-based53/54, sampled75/78, delta79, changed-input80; sibling audit rule retained. |
 | G10-12 | Planned72/73/80: physical BLOCKED/NOT RUN and final set PARTIAL, even if final report work completes. |
@@ -252,21 +258,21 @@ it to measured silicon behavior.
 
 | ID | Disposition and current evidence |
 | --- | --- |
-| G11-1 | Planned37-42: unmodified public SDK route replaces fork requirement, but new native_rx_quiescence gate prevents unsafe destruction; see G6-1. |
+| G11-1 | Implemented37-39 public unmodified SDK integration and terminal retained resources; native_rx_quiescence still blocks reusable installed destruction. No fork or private cache patch is required. |
 | G11-2 | Implemented OP9 barrier/no CLEANUP engine; corrected P21 restoration accounting drift here. |
 | G11-3 | Implemented: abandonCleanup/external disposition, no QuiescenceDisposition or RETIRE_REQUIRED machinery. |
 | G11-4 | Implemented: clockLagUs quantization/source latency at read instant; post-callback upper wait anchor. |
 | G11-5 | Implemented: short maxFrames yields before complete batch; no split or premature operation timeout; operation/reset/negotiation tests. |
 | G11-6 | Implemented: admitReset is single reset look-ahead, ordinary admitBudget; no generic reserve-plan engine. |
-| G11-7 | Transport correction implemented; health planned21. Corrected managed-restoration streak contradiction here, preserving lastError/result. |
+| G11-7 | Implemented21: _execute classifies managed health from backend outcome before local clock/deadline publication. Clean late success counts transport success; health_* tests preserve lastError and results during restoration. |
 | G11-8 | Implemented: _yieldOperation counts no-batch/no-time-progress only; frozen/coarse clock regressions. |
 | G11-9 | Implemented through G1-3: persistent HARD silence. |
 | G11-10 | Implemented through G1-2: mandatory VOD. |
 | G11-11 | Implemented current OP14 subset in _execute/_checkMutation/collector/link; pending result reads versus reset WAIT/write denial explicit. |
-| G11-12 | Implemented initialize reset kinds; planned22 startVerify. No redundant reset/recover aliases. |
+| G11-12 | Implemented15-22: startInitialize(reset) and startVerify use one shared procedure/slot, with no reset/recover aliases; operations/reset/verify tests. |
 | G11-13 | Implemented BatchSummary/result-free snapshot; later next-page result fields have real consumers, not duplicated receipts. |
 | G11-14 | Implemented: three positive transport bounds and widened admission arithmetic. |
-| G11-15 | Implemented timestamp microseconds; planned HealthSnapshot agrees, no storedMs conversion. |
+| G11-15 | Implemented21: all stored health/evidence times use microseconds with validity; healthSnapshot has real state, not a future placeholder. |
 | G11-16 | Implemented private exact revision table, no public RevisionPolicy; future part table56. |
 | G11-17 | Corrected COMMON authority/read map; historical audit directions now point to this current record. |
 | G11-18 | Corrected: shipped declaration links and normative OP section. Reject arbitrary line-count quota as a present defect. |
@@ -287,11 +293,11 @@ it to measured silicon behavior.
 | G12-11 | Implemented ledger/address/field/policy tests and every intentional CTest failure-path registration. |
 | G12-12 | Implemented distinct DEVAD/REGCR names, direct examples without discarded receipts or redundant staging. |
 | G13-1 | Implemented per-target reserved preservation, FFAF/FFDF literals, LEDCR-specific zero policy; power pin is separately fixed under G4-4. |
-| G13-2 | Planned35: fourteen COMPT10M actions versus gated100M0428, no premature compliance support. |
+| G13-2 | Implemented35 fourteen COMPT10M actions/tests. Source-gated100M0428 remains unavailable; no broad compliance-support claim. |
 | G13-3 | Corrected COMMON owner binding, temporary FIFO23, compatibility33 and tx10/tx10034. |
 | G13-4 | Corrected calibration citation: tables8-47/48p73,8.4.1p48. |
-| G13-5 | Planned31: rxfs_sfd_reference next evidence assigned31, not29. |
-| G13-6 | Planned34/Q18: unknown FLD reset remains, physical evidence73. |
+| G13-5 | Implemented31 raw RXFS/SFD-error acquisition. rxfs_sfd_reference remains open because RXFS[7] refers to RXFCFG1[13], which the detailed table marks reserved. No programmable SFD detection or RXFCFG1[13] writes are inferred. Owner31 replaces the earlier29 citation; physical qualification remains open. |
+| G13-6 | Implemented34 software FLD policies preserve unknown reset defaults; Q18 remains physical73 work. quality_vectors/admission/collector cover supported behavior. |
 | G13-7 | Corrected RV:6100/4100 are composed examples, duplex is test choice, not printed literals. |
 
 ## Additional M/N and contract R findings
@@ -299,29 +305,29 @@ it to measured silicon behavior.
 | ID | Disposition and current evidence |
 | --- | --- |
 | M-1 | Corrected: P41/43/68 use separate existing header/source paths; actual named FieldCore/TMP paths checked. |
-| N-1 | Source-implied policy corrected in both EEE gates; P29 route-conflict preflight replaces blanket pin gate, physical Q1 retained. |
+| N-1 | Implemented29/30 under source-implied D2: both EEE gates agree, pin/clock conflict preflight before recipe and one collector for adopted fields; Q1/Q2 remain unmeasured. |
 | N-2 | Re-pin reflected in P40/DD; clarified board RX signal names here, final-netlist validation still required. |
 | N-3 | Implemented: Advertisement has no persistent nextPage; typed exchange and NP0 reset replay only. |
 | N-4 | Planned40/DD6: default-loop handlers bounded/nonblocking, glue has no own timeout; RX lifetime now additionally gates destruction. |
-| N-5 | Implemented25 / recovery35 pending: live CDCR14 rejection before cable mutation, separate clear/HARD contingency. |
+| N-5 | Implemented25/35: live CDCR14 rejection before cable writes plus separate explicit clear/HARD calibration route with retained debt; cable_admission/electrical_calibration. |
 | N-6 | Planned62: function10 REGCR contradiction retained; no-post-increment only,8227.4.2.7 versus7.4.2.1. |
 | R-1 | Implemented persistent quiet floor across cancel/take/operations; OP12 external owner duty survives end/rebind. |
-| R-2 | Implemented reset result distinction; temporary session producer planned23. |
-| R-3 | Implemented configure retry _cleanupOwner; planned22 verify cannot clear barrier; temporary stop23. |
-| R-4 | Implemented silent validated starts/staged tokens; future verify/session admission remains OP2. |
+| R-2 | Implemented23-35: reset acceptance/completion remains separate from temporaryMayBeActive; loopback/BIST/LPI/electrical session starts mark possible stimulus at attempted mutation. |
+| R-3 | Implemented22+: startVerify never clears cleanup; retry configuration requires matching owner; owning session stop restores under separate operation. verify_recovery/verify_barrier and session lifecycle tests. |
+| R-4 | Implemented silent validated starts/staged tokens across current operations. Admission does not treat passive OFFLINE as an I/O latch; operations/health/session tests. |
 | R-5 | Implemented D6 unconditional VOD. |
-| R-6 | Planned23: owning stop needs complete initialization to restore initialized evidence. |
-| R-7 | Planned23: failed session start still admits its owning stop under OP9. |
-| R-8 | Implemented current direct write _checkMutation; future session stop/acquisition extension assigned23+. |
+| R-6 | Implemented23+: owning stops restore initialized evidence only through complete identity/mandatory/profile replay; DP8382xDiagnostics.cpp and loopback/BIST lifecycle tests. |
+| R-7 | Implemented23+: failed session starts still admit their own stop; loopback/BIST/LPI/electrical lifecycle tests retain possible mutation and cleanup. |
+| R-8 | Implemented current direct writes and actual session stop/acquisition entry paths; _checkMutation and owning feature admission preserve the barrier. |
 | R-9 | Corrected COMMON/OP9: two-call owner-dwell sessions versus self-contained tests restoring before success. |
-| R-10 | Implemented link resolution suppression during semantic mutation; temporary producer awaits23+. |
-| R-11 | Implemented published busQuietUntilUs and shared-owner duty/two-instance tests; CLI planned guard corrected under G7-8. |
+| R-10 | Implemented19/23+: link resolution is suppressed during semantic mutation or possible temporary stimulus; link/session tests retain raw evidence. |
+| R-11 | Implemented core quiet floor and native exclusive BusAdmission through result delivery; two-instance/reset/native board-silence tests. Future CLI reuses these routes under corrected G7-8. |
 | R-12 | Implemented literal OP6 four-lag inequality,100Hz/exact-expiry timing tests. |
 | R-13 | Implemented maxStalledPolls100000 and finite frozen-clock behavior, advancing ticks distinguished. |
 | R-14 | Implemented _pollTimeValid and post-callback tracking; no false first-poll stall. |
 | R-15 | Implemented running invalidation freezes result, external-reset updates current cleanup evidence, pending historical result retained. |
-| R-16 | Implemented persistent cleanupOwed; temporaryMayBeActive producers and owning stop planned23+. |
-| R-17 | Implemented NONE/RESTART preservation under OP13; temporary verify rejection planned22/23. |
+| R-16 | Implemented persistent cleanupOwed and actual temporary producers/owning stops; session/restore tests prove failed stop cannot discharge unrelated debt. |
+| R-17 | Implemented NONE/RESTART preservation and temporary verification rejection; verify/session/reset tests cover OP13 and independent restoration. |
 | R-18 | Shipped API/file migration complete; future features use OP contracts, earlier stage8 reports remain history. |
 
 ## Earlier reports and decisions
@@ -399,3 +405,45 @@ P28 extends software-power ownership, P44-46 implement the corrected discovery
 guard, and other future findings remain at their existing numbered owners.
 SDK-link, installed/package consumer, remote CI and physical execution are
 NOT RUN in this maintenance. First-execution remote CI remains prompt71 only.
+
+## Current-code response — 2026-11-17
+
+This pass checked every existing G/M/N/R row against the full original audit,
+current code, current owning prompts and source evidence, rather than applying
+the historical recommendations mechanically. The tables above are the current
+response for all197 IDs:172 G, M-1, six N and18 R. Fifty-two rows now reflect
+implemented stages21-39, the actual IRQ mux owner, retained native RX resources
+and the existing discovery route. Historical verification above remains evidence
+of its own commit; current checks are recorded in the
+[repository review index](current-review-responses.md).
+
+Confirmed maintained-document corrections are the source catalogue's obsolete
+generic SDK base recommendation, prompt27's second IRQ mux writer, initialization's
+overly broad no-RCSR/baseline-frame wording, and the future CLI's separate discovery
+binding. These now match the actual source and tested owner contracts. No new
+production defect was confirmed, and no implementation change is justified merely
+to reproduce an old line count, enum name or speculative abstraction.
+
+D1's destructive order and automatic fence-removal suggestion remain rejected;
+the current unmodified SDK needs the explicit native_rx_quiescence gate. D2/D3
+are still selected source-implied EEE/TDR policies with physical questions.
+D4-D11 and D14-D17 match current implementation/contracts; D12 follows the actual
+six-field manifest; D13 preserves one matrix and current main-only workflow.
+Current OP1-17 and all R mappings have real operation/session consumers. G8/G9
+and remaining G7/G10 work stays with future owners, with uncertainty/inference
+labels preserved. The old audit's instruction not to re-audit without cause
+does not supersede the user's explicit request for this review.
+
+Original PDFs checked include SNLS647I access/reset/IRQ/RCSR/WoL tables,
+SNLA428 recipe/derivation, SNLS783A family deltas, SNLS638C role/access/timing
+conflicts and SNLS505H FX/reset/RGMII/REGCR/cable fields. The actual unmodified
+SDK remains fff9895c82d744c7237be8847347bdd1b07c6643; public source paths and
+literal regressions are in the individual source-audit responses. Whole-word
+commands, exact-part precedence, validity on failure, one collector and one
+transaction owner remain the engineering basis, not a generic best-practice
+claim that overrides a datasheet.
+
+Future CLI/runners/packages/CI and family qualification were reviewed as
+requirements, not falsely reported as shipped. Source-gated silicon branches,
+native wall time and physical Q1-Q19 remain open. This maintenance starts no
+new numbered implementation stage and changes no supported part/version.

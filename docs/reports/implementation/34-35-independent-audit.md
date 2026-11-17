@@ -124,3 +124,34 @@ electrical compliance, COL timing or resistor calibration. SDK/controller link,
 physical measurements and remote CI are NOT RUN in this audit. No fixture was
 operated. The final handoff records the verified commit and upstream equality,
 avoiding a self-referencing commit in this report.
+
+## Current-code response — 2026-11-17
+
+Revalidated all seven defects and retained source gates against `main` entry
+`77c544f415edb26a0e23de76591a0163b9b73147`, current prompts 34/35, OP-9/OP-13
+and the actual source/tests. No historical pass count is reused as a fresh result.
+
+| Finding | Current verdict and evidence |
+| --- | --- |
+| Quality reset preflight retained identity/readiness | **Confirmed implemented.** `src/DP8382x.cpp::_retainEvidence` invalidates a completed BMCR reset observation before later failure, for all owners. `test/quality.cpp::prerequisiteEvidence` checks successful read, later frame failure and release failure, with zero quality writes. |
+| Quality observed mode contradiction remained trusted | **Confirmed implemented.** The same collector calls `_retainOwnedMode` for quality/analog/electrical work; `src/DP8382xConfiguration.cpp::_retainOwnedMode` records mismatch and dirty trust. `prerequisiteEvidence` verifies the BMCR 3100 mask, pre-mutation rejection and retained intent. |
+| Quarantined MSE rejection left cached freshness | **Confirmed implemented.** `src/DP8382xQuality.cpp::readSignalQuality` routes quarantine through its failure helper, preserving word/time but setting stale/status. `test/quality.cpp::raw` verifies unchanged ordinary output and zero callback/clock activity. |
+| Completed analog pass captured later dispatch | **Confirmed implemented.** `src/DP8382x.cpp::pollOperation` clears `_analogWorking` on successful analog completion before `_finishOperation` selects the next owned tail. `test/analog.cpp::downstreamReplay` covers each later owner/all together, VERIFY without writes, every downstream frame failure and cancellation at the handoff. |
+| External reset/POR retained electrical session/HARD debt | **Confirmed implemented.** `invalidateDeviceState` clears current electrical/calibration/session obligations for the two explicit reset reasons. `test/electrical.cpp::externalResetReconciliation` checks bus-silent state reconciliation and immutable previously frozen results. The caller still owns truthful external-reset/readiness evidence. |
+| Initial compliance HARD incorrectly counted as stimulus | **Confirmed implemented.** `src/DP8382xElectrical.cpp::_retainElectricalEffects` requires an attempted non-PHYRCR companion/profile/stimulus write before marking temporary activity. `test/electrical.cpp::resetBeforeStimulus` retains reset effects, quiet floor and cleanup while excluding stimulus, and exercises later NONE reconciliation. |
+| Interleaved raw reset let maintenance use old snapshots | **Confirmed implemented.** `_retainEvidence` freezes a running operation after an independently observed reset, while the raw call retains its own transport result. `test/quality.cpp::ownership` and `test/analog.cpp::ownership` cover pre/post-effect boundaries with no later dependent writes. |
+| Broader electrical/quality scope and unsupported encodings | **Implemented for admitted procedures; named gates still open.** `DP8382xQuality.cpp`, `DP8382xAnalog.cpp`, `DP8382xElectrical.cpp` and their vectors/admission/replay suites implement all nine procedures listed above within the ledger restrictions. `mse_address`, `fld_reset_defaults`, `fld_threshold_recipe`, `ioctrl_example`, `analog_rx_gain`, `compt_reserved` and `hard_reset_straps` are not closed by tests or source-gated rejection. |
+
+Reopened original SNLS647I tables 8-19/47/48/52/53/79/80/81 and SNLA266B
+page 13 tables 5-1/2/4/5. The calibration text requires CDCR14 deassertion
+immediately followed by HARD; it does not report calibration success. The
+DP83822-only 7108 recipe remains excluded; exact DP83825/6 table 5-4 uses 7101.
+The existing source-qualified composition and split-field ranges remain justified.
+No new silicon value or generic reserved-write permission is needed.
+
+Fresh verification: Windows/GNU C++ 15.1/Ninja C++17 Release,
+`build/audit-current-response-silicon`, **PASS 236/236 CTests**, including every
+quality/analog/electrical suite and Release probes. SDK/package/remote CI and
+physical measurements were **NOT RUN** by this review. Electrical compliance,
+COL timing, calibration accuracy and MSE scaling remain unmeasured. No further
+production defect was confirmed in this finding set.

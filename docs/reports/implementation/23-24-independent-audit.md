@@ -94,3 +94,31 @@ architecture, variants and examples were reviewed: their interfaces, status and
 ownership claims remain correct, so no unrelated rewrites were made. No workflow
 exists yet and none was introduced. Final maintainability review kept fixes in
 existing phases and removed the duplicate typed-only status accumulator.
+
+## Current-code response — 2026-11-17
+
+Revalidated the four findings, coverage additions and rejected timing proposal
+against `main` entry `77c544f415edb26a0e23de76591a0163b9b73147`, current prompts
+23/24 and OP-9. Original dated results remain historical.
+
+| Finding or proposal | Current verdict and evidence |
+| --- | --- |
+| BISCR6 applied before BMCR14, or retained after BMCR14 clear | **Confirmed implemented.** `src/DP8382xDiagnostics.cpp::_beginLoopbackActivation`/`_advanceLoopback` enter SET_MII before SET_BISCR and STOP_BISCR before STOP_BMCR. `test/loopback.cpp` matrix/start/stop failure cases enforce the prerequisite at individual writes. This follows the original table 8-40, including 100-Mbit-only line transmission. |
+| BIST stop wrote before current identity acceptance | **Confirmed implemented.** `stopBist` starts `LoopStep::IDENTIFY_STOP`; PRBS disable follows accepted identity through the shared loopback stop path. `test/bist.cpp::lifecycle` includes changed ID and second-ID-read failure for normal/analog/digital sessions, with no premature writes and retained cleanup. |
+| Dwell collector loss/activity absent from typed result | **Confirmed implemented.** `src/DP8382x.cpp::_retainEvidence` folds every current-session BISCR sample into `_bistActivity`/`_bistLoss`; `_advanceBist` uses them. `test/bist.cpp::measurements` covers collector, direct and vendor alias observations and host-history clearing. A hardware RH bit is not treated as RC or as a guaranteed latched counter. |
+| HARD recovery reused completed restore tails | **Confirmed implemented.** `src/DP8382x.cpp::startInitialize` rearms retained loopback and BIST tails for every HARD. `test/bist.cpp::lifecycle` covers late restore failure/cancellation and subsequent HARD, including FIFO/BMCR/IPG/packet controls. |
+| Missing 10-Mbit BIST paths and alias fake semantics | **Confirmed implemented.** `test/bist.cpp::matrix` covers supported 10/100 paths and both interfaces; its controller's indirect vendor aliases use the direct-read behavior. Literal expected selectors remain independent of production masks. |
+| Failed acquisition must always start a new observation interval | **Incorrect as a universal requirement.** `src/DP8382xDiagnostics.cpp::startBistAcquire` uses the retained due time; `_advanceBist` advances it on complete acquisition. `docs/bist.md` and the public observation contract explicitly anchor spacing to activation/complete acquisitions and retain uncertainty after partial capture. Prompt 24 requires a finite owner interval, not an invented exact silicon measurement window. |
+| Add analog 030B=3380 or an invented unlatch recipe | **Still source-gated; not an acceptable fix.** Table 8-79 permits negative amplitude codes 28..38; 3380 yields MDI code 0E. `loopback_recipe` and `bist_result_semantics` in `docs/registers/dp83826i.json` retain the discrepancies. Zero errors/absence of lock cannot close them. |
+
+Original SNLS647I PDF tables 8-19, 8-40 and 8-45/46 were reopened, including
+the rendered page 69 prerequisite and RH notation. They confirm IPG units of
+four bytes, the `807D` capture word and separate counter-mode/generator controls.
+The original claims require no new numeric correction.
+
+Fresh Windows/GNU C++ 15.1/Ninja C++17 Release verification in
+`build/audit-current-response-silicon`: **PASS 236/236 CTests**, including the
+loopback/BIST suites and assertion probes. SDK/package/remote CI/physical
+campaigns were **NOT RUN** by this review. Q5/Q8/Q11 and the named source gates
+remain distinct from the implemented software corrections. No new production
+gap was confirmed in this finding set.

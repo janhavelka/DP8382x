@@ -117,3 +117,33 @@ unchanged broad Python/package/SDK suites were not rerun.
 The final handoff records the checked commit and fetched upstream equality,
 avoiding a self-referencing commit entry. Required source and physical gates
 remain distinct from completion of this bounded audit.
+
+## Current-code response — 2026-11-17
+
+Revalidated all three behavior findings and every remaining-gate assertion above
+against `main` entry `77c544f415edb26a0e23de76591a0163b9b73147`, prompt 36's
+bounded integration scope, current source/tests and the maintained coverage matrix.
+
+| Finding or proposal | Current verdict and evidence |
+| --- | --- |
+| Quarantined link refresh remained fresh | **Confirmed implemented.** `src/DP8382xLink.cpp::readLinkStatus` sends quarantine to the existing failure lambda; `_invalidateLink` records only one STALE transition. `test/link.cpp::failures` checks repeated rejection, original words/time, untouched ordinary output and no callback/clock/health changes. |
+| Configuration continued after its own reset read | **Confirmed implemented.** `src/DP8382xConfiguration.cpp::_advanceConfiguration` retains read evidence, returns primary transport failure first, then stops on a valid BMCR reset before phase advancement/trust promotion. `test/verify.cpp::configurationResetObservation` covers negotiated/forced preflight, RMW and readback with success/release/deadline/clock/accepted-write errors. Already accepted RMW effects retain cleanup debt. |
+| Collision RMW hid an observed reset | **Confirmed implemented.** `src/DP8382xElectrical.cpp::_advanceElectrical`, COLLISION_WRITE, checks the retained reset prefix before accepting later control proof and after primary-error handling. `test/electrical.cpp::collision` covers start/stop and all five outcome classes, retaining possible stimulus and cleanup. |
+| Remove duplicate initialization/VERIFY invalidation | **Confirmed implemented.** The common collector now owns valid read-prefix invalidation; shared init phases inspect command completion without a second independent evidence path. `test/verify.cpp::resetObservationErrors`/`rawResetObservation` and reset suites retain domain distinctions and frozen results. |
+| Claim primary closure from the bounded review | **Incorrect; closure still open.** Prompt 36 and `docs/feature-coverage.md` retain required missing DPD and unresolved pin/electrical branches; prompt 55 owns final row closure. `src/DP8382xPower.cpp::_validatePower` rejects DPD before I/O, which is safe rejection rather than a completed entry/exit implementation. |
+| Interface replay false success or further collector/IRQ defect | **Not confirmed by this finding revalidation.** `_finishOperation` performs the shared final owned-control proof; `test/interface.cpp::replayReadiness`/`replay`, interrupt audit regressions and the new reset cases pass. This does not expand the historical sampled review into an unbounded correctness claim. |
+
+Reopened original SNLS647I tables 8-19/48 and 8-37/38/39 directly from the
+archived PDF. They support the distinct reset domains and retained consuming
+evidence. RECR still states a 16-bit field with FF/7F saturation prose; no
+arithmetic resolution is invented. Section 8.3.6.3 still provides DPD entry
+without the full exit/preservation evidence required by `deep_power_exit`.
+The pin, MSE, TDR and strap gates remain source/physical questions with the
+owners and next-evidence requirements recorded in the maintained matrix.
+
+Fresh host verification on Windows/GNU C++ 15.1/Ninja, C++17 Release:
+`build/audit-current-response-silicon`, **PASS 236/236 CTests**, including all
+named corrected suites. Package/SDK/CI/physical checks were **NOT RUN** by this
+response review. No new production correction was confirmed; primary-chip
+closure remains **BLOCKED**, independently of the completed review and passing
+host evidence.

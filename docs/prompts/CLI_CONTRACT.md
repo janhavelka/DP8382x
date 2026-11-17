@@ -131,17 +131,23 @@ and a second cfg table `{group, name, enumValues or min/max, unit}` for dispatch
 and help; no dynamic registration or virtual hierarchy. Discovery, dump,
 selftest, watch and stress use small fixed index/count/deadline sequencers,
 one public batch per tick, never direct MDIO or a second chip procedure.
-Discovery uses a separate probe driver on the same transport. Before each
-ID-only batch, the shared owner rejects RUNNING work, controller quarantine,
-a latched clock fault or an unknown reset-silence anchor. A cached
+Discovery uses the bound core's `readIdentityAt` or the installed native
+owner's `discover` with a one-address mask, one complete two-ID batch per tick.
+Keep one aggregate scan deadline/frame allowance and never rebind a probe or
+call the transport directly. The existing route preserves transport accounting
+and rejects active work, retained results, cleanup/temporary state, quarantine,
+clock faults and another owner's silence reservation; native discovery also
+requires STOPPED. A cached
 `busQuietValid` means the anchor is valid, not that time has stopped: compare
 `busQuietUntilUs` against a fresh raw timestamp from the same nonwrapping clock
 contract, checking regression and overflow. Admit only at or after that floor;
 never use the timestamp's upper uncertainty bound to end a minimum wait early.
-Carry shared silence/quarantine across probe end/rebind. Do not clear the main
-instance's cached flag, issue an extra MDIO read to expire it, or let a fresh
-probe erase a clock fault. Test before/exactly-at/after expiry, a still-set cached
-flag, unknown anchor, clock regression and two-instance shared quarantine.
+Do not clear the bound instance's cached flag or issue an extra MDIO read to
+expire it. Ordinary ID outputs remain unchanged on failure. Portable `invoked`
+identifies a new batch receipt; show cached native discovery evidence separately
+without claiming a rejected call acquired it. Test before/exactly-at/after
+expiry, a still-set cached flag, unknown anchor, clock regression, cumulative
+accounting, result backpressure and two-instance shared quarantine.
 
 The single `docs/feature-coverage.md` matrix has one row per ledger procedure
 and feature ID: exact part/mode, CLI command, owner route, record type, host test,

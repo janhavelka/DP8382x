@@ -68,8 +68,11 @@ connected IRQ. Document polling equivalence, application ISR/lifetime ownership,
 source acknowledgement semantics and physical fixture limits. Pin electrical
 qualification is separate from the host tests and register-level software test.
 
-Own PHYSCR[3,1,0] and pin-conflict validation; prompt 32 owns LED1/LED2 mux=4
-writes, while LED0/LED3 mux remain read-only. OE semantics apply only in ENHANCED;
+Own PHYSCR[3,1,0], pin-conflict validation and the narrow LED1/LED2 mux=4
+apply/restore path for the selected interrupt route. Prompt 32 owns LED profiles
+and their dependency validation; it delegates an interrupt mux to this owner
+instead of creating a second writer. LED0/LED3 mux remain read-only.
+OE semantics apply only in ENHANCED;
 in BASIC report strap-selected pin role, not OE=0 as power-down. ENHANCED OE1->0
 requires declared board compatibility because low on the pin means power-down.
 

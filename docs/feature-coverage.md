@@ -168,7 +168,8 @@ Prompt27 completes `interrupt_configuration` and `interrupt_test` through
 polarity, qualified shared-source attribution, explicit test stop, finite service
 and shared reset replay. Pending half-full requests survive incomplete passes.
 Host tests cover complete procedures; Q9 pin/latching behavior and the RXFS SFD
-interpretation gate remain open. LED1/2 mux programming remains prompt32.
+interpretation gate remain open. The interrupt owner applies/restores the selected
+LED1/2 mux=4 route; stage32 LED profiles validate dependencies on that owner.
 
 ## Prompt 28 power implementation
 

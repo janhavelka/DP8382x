@@ -28,6 +28,15 @@ operations, retained temporary state and verified restoration.
 
 ## Execution record
 
+The [2026-11-17 audit-response review](reports/current-review-responses.md) starts
+from synchronized `main` at `77c544f415edb26a0e23de76591a0163b9b73147`.
+All 30 audit records now contain individual current-code responses, and all 197
+G/M/N/R dispositions were checked against current source, prompts and primary
+evidence. Corrections align SDK reference guidance, IRQ mux ownership,
+initialization replay bounds and future CLI discovery with existing behavior.
+No new production defect was confirmed. This maintenance advances no numbered
+stage and preserves unresolved silicon, physical and installed-RX lifetime gates.
+
 The [independent prompts37-39 audit](reports/implementation/37-39-independent-audit.md)
 began on clean synchronized `main` at `ec792d2ea5bee28d20092999c1ec6facad57e088`.
 It corrects shared board/initialization reservations, routes discovery through

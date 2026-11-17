@@ -60,3 +60,37 @@ Additional Arduino/MCU integrations require actual supported backends; general
 portability is demonstrated first by the C++ boundary and native IDF adapter.
 
 This review ran no sibling tests, SDK builds or hardware campaigns.
+
+## 2026-11-17 Current-code response
+
+Rechecked against `77c544f415edb26a0e23de76591a0163b9b73147`, current
+public headers/core/adapter, CMake and all owning prompts. Current sibling HEADs
+and clean states are in the [sibling response](sibling-driver-audit.md).
+In particular TMP1x2 is `afd50889312f6e218a6a34eca687e3e8547d8b40`,
+24Cxx is `1bd9f969d1df55ca5819b0d290ff331869e7d5bc`, and TUSB32x is
+`ff8882bff1c3a360efd6bacb43a33d6f13f33dc4`; all were clean when read.
+The earlier concurrent TUSB32x observations remain historical, rather than
+conflicting current identities.
+
+| Original evidence / recommendation | Current response and concrete location | Disposition |
+| --- | --- | --- |
+| TMP1x2 Status, terminal callbacks, model/address/time validation | Reopened `include/TMP1x2/Status.h` and `Config.h`. DP8382x `Status.h` and `Config.h` use static messages and borrowed bounded MDIO batches, explicit PHY address/variant, backend detail and owner clock. I2C aliases/repeated START are excluded. `test/foundation.cpp`, `transport.cpp`, `identity.cpp` exercise these differences. | IMPLEMENTED |
+| Separate configuration, operation and passive health snapshots | DP8382x shipped facade and `src/DP8382xHealth.h` maintain desired/observed/trust, retained token/result and passive health separately. `test/health.cpp`, `operations.cpp`, `forced.cpp` cover passive getters and invalid/partial evidence. | IMPLEMENTED |
+| Small responsibility files, no file per register | Current source list in root CMake uses one core plus configuration/link and actual feature modules. SDK sources are selected separately under `src/esp_idf/`. The historical proposed split names are not mandatory filenames. | IMPLEMENTED |
+| TMP1x2 shared CLI / one command grammar | Current peer CMake links common CLI sources and runner tests. DP8382x has portable owner examples but no `examples/common` CLI implementation yet. Prompts 43-47 plus CLI_CONTRACT own the shared processor, grammar and native routing. | OPEN future implementation |
+| TMP1x2 runner, identity, finite bounds and parser/verdict tests | Reopened current `tools/hil_tmp1x2_runner.py`: finite serial deadlines, firmware matching and explicit unrun outcomes remain useful precedents. DP8382x prompts 48-52 own producer-correlated sessions, artifacts and verdict failures; peer grammar is not a PHY protocol. | OPEN future implementation |
+| Text guards supplement actual compilation | `tools/check_doxygen.py`, version checks and ledger checks exist; root CMake and `test/consumer` compile/link the real portable sources. `test/esp_idf` compiles pinned SDK driver source with bounded host substitutes and separately documents that scope. A source guard cannot establish physical callback bounds. | IMPLEMENTED foundation; later tool checks OPEN |
+| TMP1x2 CI categories, no inferred EMAC board support | Reopened its workflow and registrations. DP8382x uses its own P4 SDK-linked fixture, not the peer S2/S3 matrix. No workflow exists yet; prompt 71 owns CI creation/execution. | IMPLEMENTED boundary; CI OPEN |
+| 24Cxx C++17, tests OFF and registered driver/CLI/Python/transcript tests | Reopened current `24Cxx/CMakeLists.txt`. DP8382x root CMake has tests OFF by default, explicit sources, real CTest cases and separate tests-OFF `test/consumer`. CLI/runner parity remains prompts 43-52; installed/exported consumption remains 69-70. | IMPLEMENTED build-tree consumption; later scopes OPEN |
+| 24Cxx logical versus physical outcomes / busy detail | DP8382x `BatchResult`, effects, release status, operation status and OP-9 restoration debt retain these distinctions with MDIO meanings. `test/transport.cpp`, `operations.cpp`, `reset.cpp` cover late/ambiguous/partial outcomes. No EEPROM busy timing is imported. | IMPLEMENTED |
+| 24Cxx standalone runner existed, earlier absence claim stale | Live `tools/hil_runner.py`, `hil_identity.py`, `hil_guards.py`, `hil_artifacts.py` and corresponding tests still exist. This corrects the old inventory only; no peer runner test or HIL was run here. | CONFIRMED inventory correction |
+| TUSB32x staged prompts and current-source audits | Current TMP/FieldCore/TUSB contracts remain structural references, not authoritative PHY behavior. DP8382x has 80 stages, mandatory COMMON, EVIDENCE and SOURCE_MAP, and per-stage reports. | IMPLEMENTED plan |
+| TUSB32x only passive foundation implemented at original observation | Its current README/core now show implemented driver behavior. The dated claim describes 2026-10-26 and must not describe current TUSB32x support or determine DP8382x APIs. | HISTORICAL; SUPERSEDED as current inventory |
+| TUSB32x Git/CI permissions initially excluded | DP8382x root AGENTS now provides its own explicit main-only/checkpoint/first-set-71 rules. Peer permissions still do not transfer. | SUPERSEDED by repository policy |
+| Framework-free consumer, native framework reuse and one transaction/configuration owner | `test/consumer`, `src/esp_idf/Phy.cpp`, `PhyControl.cpp` and `docs/design-decisions.md` provide the current paths. Native raw SDK hooks reject bypass; typed owner routes call the same core. Destruction after installation remains source-gated. | IMPLEMENTED subset; teardown OPEN |
+| Permanent names, typed Status, truthful diagnostics and physical/family boundaries | CONVENTIONS and shipped headers preserve permanent names and independent health/link/configuration facts. Feature matrix/progress keep future variants, runner, packet and hardware evidence separate. Optional Arduino/other-MCU backends require actual supported implementations. | IMPLEMENTED contract; future CLI/variants/qualification OPEN |
+| Do not clone task framework, sensor APIs, I2C scan, EEPROM polling or permissions | Current portable source/CMake has no FieldCore/sibling dependency, allocation, SDK scheduler or board policy. An MDIO discovery operation reads identity at explicit addresses and does not choose a board address. | IMPLEMENTED |
+
+All source/tooling observations above are read-only. Existing stage reports own
+past test results; this response does not turn source inspection into new host,
+SDK-link, package, CI or physical PASS evidence.

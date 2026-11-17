@@ -111,3 +111,33 @@ No production simplification was justified: one explicit cable phase switch and
 the shared restore path already express the responsibility directly. Source
 gates `tdr_recipe`, `tdr_calibration` and `tdr_freshness_abort` remain explicit;
 prompt 35 still owns calibration recovery. Host tests do not close those gates.
+
+## Current-code response — 2026-11-17
+
+Rechecked all findings and rejected concerns above on `main`, entry
+`77c544f415edb26a0e23de76591a0163b9b73147`, against current prompts 25/26,
+the D3 exception, source and executing tests.
+
+| Finding or proposal | Current verdict and evidence |
+| --- | --- |
+| Missing partial multi-run failure/cancel regression | **Confirmed implemented.** `test/cable.cpp::capture` interrupts row 1B after its index with row 1A complete and row 2 NOT_RUN. It asserts frozen earlier words/timestamps, exactly 14 frames/five callbacks and zero writes/triggers on explicit reacquisition, incomplete aggregate/sentinel output and separately admitted stop. `src/DP8382xCable.cpp` shares that current-trigger acquisition path. |
+| Autorun described as future work | **Superseded.** `src/DP8382xCable.cpp` contains policy and raw autorun acquisition; `test/autorun.cpp` executes it and `docs/cable.md` describes the shipped scope. The earlier changelog correction remains valid. |
+| CDSCR averaging code 7 implies shadow-average code 7 must be rejected | **Incorrect extrapolation.** Original tables 8-54 and 8-57 define different fields; only CDSCR[10:8] explicitly reserves 7. Current validation and `test/cable.cpp::raw` keep them distinct. |
+| Decode reserved result banks or replace whole-word sign interpretation | **Incorrect/unsupported proposal.** Prompt 25 and `src/DP8382xCable.cpp::interpretCable` use only 0180/0185/018A and same-row evidence. SNLA428 section 2.2/table 2-5 supports zero/nonzero sign under the selected D3 interpretation; `test/cable.cpp::interpretation` checks it independently. No bit-11 polarity inference is introduced. |
+| Equal autorun bookends establish a fresh coherent run | **Incorrect.** Prompt 26 explicitly rejects this inference. The bounded autorun path and `test/autorun.cpp` preserve unknown generation/coherence; no spin-until-stable algorithm is needed. |
+| CableWord requires optional frame timestamps | **Incorrect.** Cable acquisition uses the validated post-callback upper timestamp when per-frame time is absent. `test/cable.cpp::timing` exercises time bounds; EVIDENCE permits a conservative later anchor. |
+| Restore rearming, calibration barrier and atomic RMW | **Confirmed protected.** `startInitialize` in `src/DP8382x.cpp` rearms retained cable restoration for HARD. `test/cable.cpp::failures`, `lifecycle` and `timing`, plus autorun suites, cover accepted effects, token consumption, complete transactions and shared policy replay. |
+| “Prompt 35 still owns calibration recovery” as future implementation | **Superseded.** `src/DP8382xElectrical.cpp::startCalibrationRecovery` and its CAL_READ/CAL_PAIR phases now implement the conditional clear-then-HARD procedure; `test/electrical.cpp::calibration` verifies it. This does not close TDR distance/freshness/calibration qualification. |
+
+Reopened the original SNLS647I tables 8-47/54/56/57 and SNLA428 pages 3–7.
+The six recipe rows, their order, sample-table search order and same-row formula
+remain the selected source interpretation. The note's inconsistent example code
+is not authority to change the matching-row implementation. No vendor bytes or
+silicon encodings changed.
+
+Fresh host result: Windows/GNU C++ 15.1/Ninja C++17 Release,
+`build/audit-current-response-silicon`, **PASS 236/236 CTests**, including cable,
+autorun and electrical calibration suites. Package/SDK/CI/physical checks were
+**NOT RUN** by this review. `tdr_recipe`, `tdr_calibration`,
+`tdr_freshness_abort` and Q7 remain explicit; host success does not prove engine
+quiescence or measured distance. No new production correction was confirmed.

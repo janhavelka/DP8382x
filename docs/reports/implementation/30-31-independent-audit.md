@@ -93,3 +93,28 @@ Verification on Windows, GNU C++17 Release/Ninja with active assertions:
 
 The final checked commit and verified upstream equality are recorded in the
 handoff, avoiding a self-referencing commit in this report.
+
+## Current-code response — 2026-11-17
+
+Revalidated all three findings and the LPI no-defect conclusion against `main`
+entry `77c544f415edb26a0e23de76591a0163b9b73147`, current prompts 30/31, source
+and registered tests. The stage checkpoint above remains historical.
+
+| Finding or proposal | Current verdict and evidence |
+| --- | --- |
+| Known credential mismatch permitted another mutation | **Confirmed implemented.** `src/DP8382x.cpp::_retainEvidence` includes `_wakeWorking` in the independent-observation freeze guard. `src/DP8382xWake.cpp::_retainWakeWord` keeps the first mismatch. `test/wol.cpp::ownership` covers all ten post-credential boundaries and raw-read release/deadline errors, with no subsequent enable/frame. |
+| Disabled detector released its still-owned route | **Confirmed implemented.** `_validateInterruptSettings` checks the retained WoL route independently of enabled; EEE admission also rejects a conflicting selected route. `_validateWake` keeps STATUS_ONLY distinct from selected physical routing. `test/wol.cpp::routing`/`routeChanges` exercise disabled direct routes, IRQ delivery dependencies and EEE/LED1 conflict without intent/token mutation. |
+| Failed requested reads reused old validity | **Confirmed implemented.** `_advanceWake` clears control/credential/pin validity for an incomplete target-read prefix, retains historical words, then preserves any valid prefix before later error handling. `test/wol.cpp::failures` covers all four indirect failure positions for these words. |
+| LPI bounds, cancellation, bit12 stop and unrelated restoration debt | **Confirmed protected, no additional correction justified.** `src/DP8382xEee.cpp` implements `startLpi`, `stopLpi` and the shared LPI phases; `test/lpi.cpp` traces/admission/failures/recovery/ownership/timing suites retain accepted uncertainty, finite two-callback/nine-frame work and passive cached state. Prompt 30 leaves MAC drain, dwell and post-exit policy with the application. |
+| Use nominal EEE timings as a completion/readiness maximum | **Incorrect.** The original rendered SNLS647I page 15 places 210 us, 20 ms, 36 us and 200 us in NOM, not MAX. Section 8.3.4 gives bit12 entry/exit and says the PHY has no buffering; it does not supply a readiness event or guaranteed partner wake deadline. |
+| Replace exact-part W0C or change MAC/password order using a sibling recipe | **Incorrect/unsupported.** Reopened original tables 8-90 through 8-97 retain W0C bit11 and the distinct byte labels; current prompt 31 and `test/wol.cpp::vectors` use asymmetric literal wire words. `_wakeControlBatch` in `src/DP8382x.cpp` writes one as neutral and zero only for acknowledgement after collector harvesting. |
+
+The archived original PDF sections/tables above were read directly, including
+rendered timing columns. No changed silicon constant, source permission or vendor
+payload is warranted. Physical W0C/RH behavior and indication delivery remain Q3;
+LPI traffic/wake timing remains Q2.
+
+Fresh verification: Windows/GNU C++ 15.1/Ninja C++17 Release,
+`build/audit-current-response-silicon`, **PASS 236/236 CTests**, including all
+LPI/WoL suites. SDK/package/CI/physical campaigns were **NOT RUN** by this review.
+No new production gap was confirmed in this finding set.

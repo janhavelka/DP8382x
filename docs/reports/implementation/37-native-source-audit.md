@@ -183,3 +183,28 @@ must be recorded in the final implementation report after integration. Remote CI
 **NOT RUN**, first-execution prompt 71 policy. Physical fixture/Q13: **NOT RUN**.
 Reusable installed teardown: **BLOCKED**, native_rx_quiescence source gate.
 No Git synchronization or completion status is claimed by this delegated audit.
+
+## 2026-11-17 current-code response
+
+Rechecked the complete report and every raised limitation against `main`
+`77c544f415edb26a0e23de76591a0163b9b73147`, executing adapter/tests and
+unmodified SDK `fff9895c82d744c7237be8847347bdd1b07c6643`.
+
+| Finding/group | Current verdict and concrete evidence |
+| --- | --- |
+| Peer error mapping, removal retention, primary/cleanup and finite sessions | Retained in native `record`, core transport receipts and `retire/destroy`; borrowed contexts stay application-owned. Lost cleanup/retarget/NACK/sensor timing remain rejected precedents. CLI/runner implementation remains 43-47/48-52, not completed by a link fixture. |
+| Installer ignores mediator/reset_hw results; readiness before install | Confirmed in actual esp_eth.c. Wrapper local callbacks avoid fallible hardware work; `prepareBoard` owns reset/POR/clock readiness. Native board_install_failures/factory and pinned_driver_install_failures cover partial failure and retained storage. |
+| Explicit P4 wiring/address and bare wrapper | Factory uses application configuration. `PhyHandle` is standard-layout with phy at offset0 static_assert; constructor assigns vtable directly, no IEEE base. `setAddress` accepts only configured current address. Native raw_routing/forbidden_lifecycle/factory tests enforce this. Netlist/physical correctness is not inferred. |
+| Start/stop FSM partial effects and unarmed timer-stop | Confirmed in actual driver300-344. `start/finishStop` retain effects, fence timer work and repair required DOWN/STOP evidence. Native partial_start_fence/stop_failures/terminal_event_retry/start_gate_failures pass. Resumed fencing does not manufacture prior STOP delivery. |
+| Lost LINK event and dropped P4 MAC start/stop error; no replayUP | Driver stores LINK before event posting; actual P4 set_link drops internal result. `publish/retryLinkEvent` retain tuple/eventLost separately and retry only event delivery. Native lost_link_event/notification_late_event_retry/terminal_event_retry pass. `finishStop` explicitly observes MAC stop; hidden HAL flush remains unobservable. |
+| Missing MDIO mutex/source-loop bounds/release before waits/aggregate notifications | Actual MAC211-253 has no transaction mutex. `execute` locks a complete core batch and releases before waits/output. Callback/notification allowances retain accepted-late effects. Native callback_bounds/raw_lock_failures/raw_boundary_failures/notification_partial_receipts pass. Nominal loops remain conditional source contributions, not measured wall-time maxima. |
+| Quarantine receipt classification and DOWN admission | Existing clean quarantine remains uncounted; new release/controller faults remain distinct. Raw/collector/SDK routes use instance/phase admission. Positive controller waits map MDIO_TIMEOUT; zero-tick contention is BUSY. Native shared_quarantine/controller_wait_classification/raw_mutation_admission/forbidden_lifecycle pass. |
+| Raw-uninstall partial effects and installed RX lifetime | Still BLOCKED. RX can capture a mediator before application entry; STOP/fence/count-zero/swap cannot prove reusable quiescence. `retire` retains installed driver/glue/netif/MAC/PHY/contexts through restart; `destroy` rejects installed resources. Raw/glue scheduled capture tests execute the source-known race and retained ownership. PhysicalQ13 cannot authorize a source-known dangling reference. |
+| Hash-checked harness, Git identity and actual link evidence | Current configure/build verifies compiler-selected 45 SDK blobs at 1000 Hz/100 Hz. Firmware identity stays separate from Version.h. Historical image hashes remain tied to recorded source inputs, not promoted to a current-commit build. |
+
+PASS here: independent native Release configure/build63/63 CTests in
+`build/response-foundation-native`, GNU 15.1.0/Python 3.12.10,45 verified SDK blobs
+at both tick rates; ledger 97/52/35,80 ledger tests and version check. No new
+production correction was required. Portable consumer/new SDK-image/installed
+package/remote CI/physical checks were NOT RUN by this reviewer. Reusable installed
+teardown remains BLOCKED; physical wall-time qualification remains open.
