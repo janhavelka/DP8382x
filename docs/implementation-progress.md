@@ -5,7 +5,7 @@ execution. Prompts 1–35 are complete for supported procedures (DPD remains sou
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
 Current local checks include 235 registered portable Release CTests, 103 Python tests,
 two linked tests-OFF consumers, Doxygen negative checks, ledger/reference integrity
-and deterministic version validation. Prompts37-38 add 43 pinned-driver/native host
+and deterministic version validation. Prompts37-39 add 55 pinned-driver/native host
 tests in Release and UBSan and an actual ESP32-P4 image link. Physical qualification
 remains later work; first-execution remote CI belongs to prompt 71.
 The driver now provides the restricted Clause 22/MMD subset, stable-field RMW
@@ -27,6 +27,17 @@ Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
 operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+Prompt39 began on clean synchronized `main` at
+`456b9710095b4e1394cfb8d4acdeb90b722d981f`. The
+[report](reports/implementation/39-esp-idf-link-bounds.md) and
+[fresh audit](reports/implementation/39-native-source-audit.md) close the native
+entry, notification and conditional timing tables. Independent review corrected
+publication/start/stop/fence completion contention, late event classification,
+poll-period overflow and floor-clock readiness anchors. All55 native Release and
+UBSan cases,235 portable tests, two consumers,103 Python tests, source checks and
+actual P4 link pass. Physical wall-time qualification and reusable RX teardown
+remain explicit gates. Final commit/upstream equality is recorded in the handoff.
 
 Prompt38 began on clean synchronized `main` at
 `a744e77e3ac000be5ea12b1c4b5fdef55b50efde`. The
@@ -473,7 +484,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [36 Audit complete primary-chip feature coverage](prompts/36-primary-feature-closure.md) | BLOCKED: primary closure; bounded review delivered | [Report](reports/implementation/36-primary-feature-closure.md); common reset-observation and EEE freshness fixes, 230 Release/UBSan CTests, two consumers and local checks PASS. Required source-gated branches remain with owners 28/32/33/35; prompt 55 owns row closure. |
 | [37 Implement the native ESP-IDF factory and lifecycle](prompts/37-esp-idf-lifecycle.md) | COMPLETE; reusable teardown BLOCKED | [Report](reports/implementation/37-esp-idf-lifecycle.md), [native guide](esp-idf.md), [source audit](reports/implementation/37-native-source-audit.md); 234 portable Release, 24 pinned-driver/native Release and UBSan, two tests-OFF consumers and actual pinned P4 image link PASS. Installed resources remain retained under native_rx_quiescence; physical Q13 and remote CI NOT RUN. |
 | [38 Complete SDK-aware configuration and raw MDIO arbitration](prompts/38-esp-idf-state-arbitration.md) | COMPLETE | [Report](reports/implementation/38-esp-idf-state-arbitration.md), [native guide](esp-idf.md), [source audit](reports/implementation/38-native-source-audit.md); 235 portable Release, 43 pinned-driver/native Release and UBSan, two tests-OFF consumers, actual P4 link and local source checks PASS. Reusable installed teardown remains BLOCKED; physical and remote CI NOT RUN. |
-| [39 Prove native link notifications and adapter timing contracts](prompts/39-esp-idf-link-bounds.md) | NOT STARTED | None |
+| [39 Prove native link notifications and adapter timing contracts](prompts/39-esp-idf-link-bounds.md) | COMPLETE | [Report](reports/implementation/39-esp-idf-link-bounds.md), [conformance/timing guide](esp-idf.md), [fresh source audit](reports/implementation/39-native-source-audit.md);55 native Release/UBSan,235 portable, two consumer tests and actual pinned P4 link PASS. Physical native_wall_time qualification and native_rx_quiescence remain separate gates; remote CI NOT RUN. |
 | [40 Build the complete ESP32-P4 ordinary Ethernet example](prompts/40-p4-network-example.md) | NOT STARTED | None |
 | [41 Implement explicit application admission and maintenance ownership](prompts/41-owner-admission-example.md) | NOT STARTED | None |
 | [42 Demonstrate bounded native MAC frame handoff](prompts/42-owner-frame-boundary.md) | NOT STARTED | None |

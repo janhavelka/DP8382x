@@ -68,11 +68,29 @@ bool Phy::enter() noexcept {
     _phase = Phase::STOPPED; record(error);
     if (!_installed) _mediator = nullptr;
   }
+  if (_publicationComplete.exchange(false)) {
+    _record.publishedTuple = _pendingPublication.tuple;
+    _record.publicationUncertain = _pendingPublication.uncertain;
+    _record.eventLost = _pendingPublication.eventLost;
+    record(_pendingPublication.error, _pendingPublication.cleanup);
+    _notifying = false;
+  }
   const auto started = _deferredStart.exchange(0);
   if (started) {
     if (_phase == Phase::STARTING && (started & 2U)) _startPosted = true;
     else unexpectedStart((started & 2U) != 0U);
   }
+  // Adopt earlier START-event evidence while its STARTING phase still exists.
+  // Failed-start cleanup may need it to repair the unarmed-timer STOP path.
+  const auto startOutcome = _startOutcome.exchange(std::numeric_limits<int64_t>::min());
+  if (startOutcome != std::numeric_limits<int64_t>::min()) {
+    const auto error = static_cast<esp_err_t>(startOutcome);
+    record(error);
+    _phase = error == ESP_OK ? Phase::RUNNING : Phase::STOPPING;
+  }
+  const auto cleanupOutcome = _cleanupOutcome.exchange(std::numeric_limits<int64_t>::min());
+  if (cleanupOutcome != std::numeric_limits<int64_t>::min())
+    record(static_cast<esp_err_t>(cleanupOutcome), true);
   // One logical control owner publishes its complete terminal receipt without
   // needing to win a race with copied snapshots after an external callback.
   const auto completed = _controlCompletion.exchange(ControlCompletion::NONE);
@@ -107,7 +125,8 @@ esp_err_t Phy::create(const PhyConfig& config, Phy*& output) noexcept {
       !config.mac->set_mediator || !config.mac->init || !config.mac->deinit ||
       !config.mac->set_link || !config.mac->set_speed || !config.mac->set_duplex ||
       !config.mac->set_peer_pause_ability ||
-      !config.linkPollMs || !config.callbackBudgetUs || !config.notificationUs || !config.lockWaitUs ||
+      !config.linkPollMs || config.linkPollMs > std::numeric_limits<uint32_t>::max() / 1000U ||
+      !config.callbackBudgetUs || !config.notificationUs || !config.lockWaitUs ||
       config.core.transport.bounds.fixedUs < config.lockWaitUs ||
       !config.maxFencePolls || !config.maxStopAttempts) return ESP_ERR_INVALID_ARG;
   auto* phy = new (std::nothrow) Phy(config);
@@ -211,17 +230,20 @@ esp_err_t Phy::prepareBoard(const BoardControl& board, uint64_t deadlineUs) noex
     return timeNow() < deadlineUs ? ESP_OK : ESP_ERR_TIMEOUT;
   };
   uint64_t clockDue = 0, porDue = 0, due = 0;
-  if (!addTime(board.clockStableAtUs, 100U, clockDue) || !addTime(board.powerOnAtUs, 50000U, porDue))
+  // esp_timer's P4 counter conversion floors ticks/16. Use completion upper
+  // bounds, including event timestamps supplied in the same time domain.
+  const uint64_t lag = _config.core.transport.bounds.clockLagUs;
+  if (!addTime(board.clockStableAtUs, 100U + lag, clockDue) || !addTime(board.powerOnAtUs, 50000U + lag, porDue))
     error = ESP_ERR_INVALID_ARG;
   if (error == ESP_OK) error = waitUntil(clockDue > porDue ? clockDue : porDue);
   if (error == ESP_OK) error = board.setReset(board.context, true);
   if (error == ESP_OK) {
-    if (!addTime(timeNow(), board.assertionUs, due)) error = ESP_ERR_TIMEOUT;
+    if (!addTime(timeNow(), uint64_t{board.assertionUs} + lag, due)) error = ESP_ERR_TIMEOUT;
     else error = waitUntil(due);
   }
   if (error == ESP_OK) error = board.setReset(board.context, false);
   if (error == ESP_OK) {
-    if (!addTime(timeNow(), 2000U, due)) error = ESP_ERR_TIMEOUT;
+    if (!addTime(timeNow(), 2000U + lag, due)) error = ESP_ERR_TIMEOUT;
     else { bus.quietUntilUs.store(due); error = waitUntil(due); }
   }
   if (!enter()) return ESP_ERR_INVALID_STATE; // Admission remains closed if owner protocol was violated.
@@ -403,54 +425,50 @@ esp_err_t Phy::publish(PublishedTuple tuple, uint64_t deadlineUs) noexcept {
   if (!_mediator || _notifying || _record.publicationUncertain ||
       (tuple.up && _phase != Phase::RUNNING && _phase != Phase::STARTING)) { leave(); return ESP_ERR_INVALID_STATE; }
   if (same(tuple, _record.publishedTuple)) { leave(); return ESP_OK; }
-  _notifying = true;
-  // If reacquisition fails after an external callback, this precommitted guard
-  // retains the object and refuses subsequent publication rather than guessing.
-  _record.publicationUncertain = true;
-  const auto old = _record.publishedTuple;
+  PublicationResult receipt{};
+  receipt.tuple = _record.publishedTuple; receipt.eventLost = _record.eventLost;
+  receipt.cleanup = _phase == Phase::STOPPING;
+  const bool wasUp = receipt.tuple.up;
   if (tuple.up) {
-    _record.publishedTuple.speedAccepted = false;
-    _record.publishedTuple.duplexAccepted = false;
-    _record.publishedTuple.pauseAccepted = false;
+    receipt.tuple.speedAccepted = false;
+    receipt.tuple.duplexAccepted = false;
+    receipt.tuple.pauseAccepted = false;
   }
+  _notifying = true;
+  _record.publicationUncertain = true; // In-flight evidence, replaced by the terminal receipt.
   auto* mediator = _mediator;
   leave();
   auto notify = [&](esp_eth_state_t state, uintptr_t value, bool link) {
     const auto before = timeNow();
-    if (before >= deadlineUs || _config.notificationUs >= deadlineUs - before) {
-      if (enter()) { record(ESP_ERR_TIMEOUT, _phase == Phase::STOPPING); _notifying = false; _record.publicationUncertain = false; leave(); }
+    if (before >= deadlineUs || _config.notificationUs >= deadlineUs - before)
       return ESP_ERR_TIMEOUT;
-    }
     const auto error = mediator->on_state_changed(mediator, state, reinterpret_cast<void*>(value));
-    if (!enter()) return ESP_ERR_INVALID_STATE;
+    const auto after = timeNow();
     if (link && (error == ESP_OK || _config.pinnedP4Mac)) {
-      _record.publishedTuple.up = value == ETH_LINK_UP;
-      _record.eventLost = error != ESP_OK;
+      // On pinned P4 valid set_link always returns OK: the mediator error can
+      // only be event delivery. Never replay this accepted MAC/cache transition.
+      receipt.tuple.up = value == ETH_LINK_UP;
+      receipt.eventLost = error != ESP_OK;
     } else if (error == ESP_OK) {
-      if (state == ETH_STATE_SPEED) { _record.publishedTuple.speed = tuple.speed; _record.publishedTuple.speedAccepted = true; }
-      if (state == ETH_STATE_DUPLEX) { _record.publishedTuple.duplex = tuple.duplex; _record.publishedTuple.duplexAccepted = true; }
-      if (state == ETH_STATE_PAUSE) { _record.publishedTuple.peerPause = tuple.peerPause; _record.publishedTuple.pauseAccepted = true; }
+      if (state == ETH_STATE_SPEED) { receipt.tuple.speed = tuple.speed; receipt.tuple.speedAccepted = true; }
+      if (state == ETH_STATE_DUPLEX) { receipt.tuple.duplex = tuple.duplex; receipt.tuple.duplexAccepted = true; }
+      if (state == ETH_STATE_PAUSE) { receipt.tuple.peerPause = tuple.peerPause; receipt.tuple.pauseAccepted = true; }
     }
-    const auto terminal = error == ESP_OK && timeNow() >= deadlineUs ? ESP_ERR_TIMEOUT : error;
-    if (terminal != ESP_OK) {
-      record(terminal, _phase == Phase::STOPPING);
-      _record.publicationUncertain = error != ESP_OK && !(link && _config.pinnedP4Mac);
-      _notifying = false;
-    }
-    leave(); return terminal;
+    receipt.uncertain = error != ESP_OK && !(link && _config.pinnedP4Mac);
+    if (error != ESP_OK) return error;
+    return after < before || after >= deadlineUs || after - before > _config.notificationUs ? ESP_ERR_TIMEOUT : ESP_OK;
   };
   esp_err_t error = ESP_OK;
-  if (old.up) error = notify(ETH_STATE_LINK, ETH_LINK_DOWN, true);
+  if (wasUp) error = notify(ETH_STATE_LINK, ETH_LINK_DOWN, true);
   if (error == ESP_OK && tuple.up) {
     error = notify(ETH_STATE_SPEED, tuple.speed == LinkSpeed::MBPS_100 ? ETH_SPEED_100M : ETH_SPEED_10M, false);
     if (error == ESP_OK) error = notify(ETH_STATE_DUPLEX, tuple.duplex == Duplex::FULL ? ETH_DUPLEX_FULL : ETH_DUPLEX_HALF, false);
     if (error == ESP_OK) error = notify(ETH_STATE_PAUSE, tuple.peerPause ? 1U : 0U, false);
     if (error == ESP_OK) error = notify(ETH_STATE_LINK, ETH_LINK_UP, true);
   }
-  if (error == ESP_OK) {
-    if (!enter()) return ESP_ERR_INVALID_STATE;
-    _record.publicationUncertain = false; _notifying = false; leave();
-  }
+  // The synchronous notification owner is the only writer until this release.
+  // No post-callback try-lock can lose accepted effects or strand _notifying.
+  receipt.error = error; _pendingPublication = receipt; _publicationComplete.store(true);
   return error;
 }
 esp_err_t Phy::getLink(esp_eth_phy_t* phy) noexcept {
@@ -510,10 +528,10 @@ esp_err_t Phy::start(uint64_t deadlineUs) noexcept {
   leave();
   auto error = esp_eth_start(_ethernet);
   if (error == ESP_OK && timeNow() >= deadlineUs) error = ESP_ERR_TIMEOUT;
-  if (!enter()) return ESP_ERR_INVALID_STATE;
-  record(error);
-  if (error == ESP_OK) { _phase = Phase::RUNNING; leave(); return ESP_OK; }
-  _phase = Phase::STOPPING; leave();
+  // The SDK has armed its timer before returning. A timer callback can already
+  // own the gate; terminal start publication must not depend on winning it.
+  _startOutcome.store(error);
+  if (error == ESP_OK) return ESP_OK;
   const auto stopped = esp_eth_stop(_ethernet);
   (void)finishStop(deadlineUs, stopped);
   return error;
@@ -529,18 +547,24 @@ esp_err_t Phy::stop(uint64_t deadlineUs) noexcept {
   return finishStop(deadlineUs, resuming ? ESP_OK : esp_eth_stop(_ethernet), !resuming);
 }
 esp_err_t Phy::finishStop(uint64_t deadlineUs, esp_err_t initial, bool stopCalled) noexcept {
-  if (!enter()) return ESP_ERR_INVALID_STATE;
-  if (stopCalled) _frameworkStopOwed = false;
-  if (stopCalled && initial == ESP_OK) _stopPosted = true;
-  record(initial, true); _record.stage = LifecycleStage::FENCE;
+  // These receipt flags are owned only by the serialized lifecycle caller.
+  // A queued timer may hold the gate after the SDK already delivered STOP.
+  if (stopCalled) {
+    _frameworkStopOwed = false;
+    if (initial == ESP_OK) _stopPosted = true;
+    _cleanupOutcome.store(initial);
+  }
+  if (!enter()) return initial != ESP_OK ? initial : ESP_ERR_INVALID_STATE;
+  _record.stage = LifecycleStage::FENCE;
   bool arm = !_fenceArmed;
   leave();
   esp_err_t error = ESP_OK;
   if (arm) {
     error = esp_timer_start_once(_fence, 0);
-    if (!enter()) return ESP_ERR_INVALID_STATE;
     if (error == ESP_OK) _fenceArmed = true;
-    record(error, true); leave();
+    _cleanupOutcome.store(error);
+    if (!enter()) return error != ESP_OK ? error : ESP_ERR_INVALID_STATE;
+    leave();
   }
   uint32_t polls = 0;
   while (error == ESP_OK && esp_timer_is_active(_fence)) {
@@ -600,6 +624,10 @@ esp_err_t Phy::destroy() noexcept {
 Status Phy::lifecycleSnapshot(LifecycleRecord& output) noexcept {
   if (!enter()) return busy();
   output = _record; leave(); return Status::Ok();
+}
+Status Phy::linkSnapshot(LinkSnapshot& output) noexcept {
+  if (!enter()) return busy();
+  output = _core.linkSnapshot(); leave(); return Status::Ok();
 }
 void Phy::shareQuiet() noexcept {
   const auto progress = _core.operationSnapshot();
@@ -790,13 +818,17 @@ esp_err_t Phy::retryLinkEvent(uint64_t deadlineUs) noexcept {
   if (_phase != Phase::RUNNING && !(_phase == Phase::STOPPED && !_record.publishedTuple.up)) {
     leave(); return ESP_ERR_INVALID_STATE;
   }
-  const auto id = _record.publishedTuple.up ? ETHERNET_EVENT_CONNECTED : ETHERNET_EVENT_DISCONNECTED;
+  PublicationResult receipt{};
+  receipt.tuple = _record.publishedTuple; receipt.eventLost = true;
+  const auto id = receipt.tuple.up ? ETHERNET_EVENT_CONNECTED : ETHERNET_EVENT_DISCONNECTED;
   _notifying = true; leave();
   const auto current = timeNow();
   const auto error = current >= deadlineUs ? ESP_ERR_TIMEOUT :
     esp_event_post(ETH_EVENT, id, &_ethernet, sizeof(_ethernet), ticksWithin(deadlineUs - current));
-  if (!enter()) return ESP_ERR_INVALID_STATE;
-  if (error == ESP_OK) _record.eventLost = false;
-  _notifying = false; leave(); return error;
+  const auto after = timeNow();
+  if (error == ESP_OK) receipt.eventLost = false;
+  receipt.error = error == ESP_OK && (after < current || after >= deadlineUs) ? ESP_ERR_TIMEOUT : error;
+  _pendingPublication = receipt; _publicationComplete.store(true);
+  return receipt.error;
 }
 } // namespace DP8382x::EspIdf

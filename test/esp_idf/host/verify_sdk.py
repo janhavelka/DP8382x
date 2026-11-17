@@ -17,6 +17,7 @@ def main():
     parser.add_argument("--cxx", required=True)
     parser.add_argument("--include", action="append", default=[])
     parser.add_argument("--source", action="append", default=[])
+    parser.add_argument("--define", action="append", default=[])
     parser.add_argument("--write-manifest", action="store_true")
     args = parser.parse_args()
     sdk = args.sdk.resolve()
@@ -27,6 +28,8 @@ def main():
     for source in args.source:
         cpp = Path(source).suffix in (".cpp", ".cc", ".cxx")
         command = [args.cxx if cpp else args.compiler, "-std=c++17" if cpp else "-std=gnu17", "-MM", "-MT", "closure"]
+        for definition in args.define:
+            command += ["-D", definition]
         for include in args.include:
             command += ["-I", include]
         command += ["-include", str(Path(__file__).parent / "platform/host_compat.h"), source]

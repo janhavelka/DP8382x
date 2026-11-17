@@ -40,6 +40,11 @@ The [prompt-6 decision](../../docs/design-decisions.md) now fixes these routes:
   retain last-published link speed/duplex; expose desired settings separately.
   Use typed `setFlowControl` and retain both MAC/PHY effects, never the defective
   flow ioctl. The linked fixture exercises these routes behind its disabled guard.
+- Prompt39 exposes cached `linkSnapshot` for acquired link/full RX/TX pause,
+  separate from `lifecycleSnapshot`'s accepted SDK fields. Keep callback receipts
+  and late accepted event effects; retry only the current lost event. Declare
+  measured workload/controller bounds before enabling real-time claims; a100Hz
+  tick delay is not proof of a2ms minimum wait.
 - Stop and drain before disruptive configuration. Apply AN/speed/duplex through
   public SDK controls and verify hardware/cache agreement before restart. Full
   advertisement and diagnostics use the shared chip procedures. MAC flow-control

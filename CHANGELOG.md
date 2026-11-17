@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Prompt39: completed native PHY-entry and conditional timing conformance tables.
+  Notification and start receipts survive callback contention; late accepted
+  notifications/events preserve effects while reporting timeout. Added cached
+  native link evidence, link-period overflow validation and conservative reset
+  completion anchors. Expanded actual-driver regressions, including100Hz ticks;
+  SDK link and physical timing qualification remain separate.
+
 - Prompt38: added SDK-aware AN/forced configuration and explicit public cache
   reconciliation, shared initialization silence, raw/collector owner routing and
   narrow BMCR maintenance. Added separately typed MAC/PHY flow control with

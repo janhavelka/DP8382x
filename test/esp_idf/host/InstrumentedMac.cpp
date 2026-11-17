@@ -18,9 +18,9 @@ InstrumentedMac::InstrumentedMac() {
     native.stop = [](esp_eth_mac_t* mac) { return self(mac).result("mac.stop"); };
     native.del = [](esp_eth_mac_t* mac) { auto& m = self(mac); m.alive = false; return m.result("mac.del"); };
     native.set_link = [](esp_eth_mac_t* mac, eth_link_t link) { auto& m = self(mac); m.link = link; return m.result(link == ETH_LINK_UP ? "mac.up" : "mac.down"); };
-    native.set_speed = [](esp_eth_mac_t* mac, eth_speed_t) { return self(mac).result("mac.speed"); };
-    native.set_duplex = [](esp_eth_mac_t* mac, eth_duplex_t) { return self(mac).result("mac.duplex"); };
-    native.set_peer_pause_ability = [](esp_eth_mac_t* mac, uint32_t) { return self(mac).result("mac.pause"); };
+    native.set_speed = [](esp_eth_mac_t* mac, eth_speed_t value) { auto& m = self(mac); m.speedRequests.push_back(value); return m.result("mac.speed"); };
+    native.set_duplex = [](esp_eth_mac_t* mac, eth_duplex_t value) { auto& m = self(mac); m.duplexRequests.push_back(value); return m.result("mac.duplex"); };
+    native.set_peer_pause_ability = [](esp_eth_mac_t* mac, uint32_t value) { auto& m = self(mac); m.pauseRequests.push_back(value); return m.result("mac.pause"); };
     native.set_addr = [](esp_eth_mac_t* mac, uint8_t*) { return self(mac).result("mac.set_addr"); };
     native.get_addr = [](esp_eth_mac_t* mac, uint8_t* out) { for (unsigned i = 0; i < 6; ++i) out[i] = static_cast<uint8_t>(i); return self(mac).result("mac.get_addr"); };
     native.transmit = [](esp_eth_mac_t* mac, uint8_t*, uint32_t) { return self(mac).result("mac.transmit"); };

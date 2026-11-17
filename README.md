@@ -10,7 +10,9 @@ AN/forced configuration, public SDK reconciliation, link publication, owner-rout
 raw/collector access and discovery, and bounded framework start/stop. The real pinned SDK driver has executing host tests
 and the ESP32-P4 fixture links. Reusable installed teardown remains blocked by
 `native_rx_quiescence`: resources stay alive until system restart. Flow policy uses
-separately typed MAC/PHY calls and preserves partial effects.
+separately typed MAC/PHY calls and preserves partial effects. Acquired link evidence
+and accepted SDK publication are separate cached views. Notification/timing
+regressions include 100 Hz ticks; physical wall-time bounds remain unqualified.
 [EEE negotiation and status](docs/eee.md) now provide explicit reset-bearing setup,
 verified restoration and bounded retained observations; physical Q1 remains pending.
 The [prompt-36 integration review](docs/reports/implementation/36-primary-feature-closure.md)

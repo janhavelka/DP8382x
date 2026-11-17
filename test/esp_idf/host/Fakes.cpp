@@ -115,17 +115,22 @@ esp_err_t esp_timer_delete(esp_timer_handle_t timer) {
     timers.erase(std::remove(timers.begin(), timers.end(), timer), timers.end());
     delete timer; ++data.timerDeletes; return ESP_OK;
 }
-esp_err_t esp_timer_start_periodic(esp_timer_handle_t timer, uint64_t) {
+esp_err_t esp_timer_start_periodic(esp_timer_handle_t timer, uint64_t periodUs) {
     data.calls.emplace_back("timer.periodic");
     if (const auto error = consume(data.nextTimerStartError); error != ESP_OK) return error;
     if (!timer || timer->active) return ESP_ERR_INVALID_STATE;
-    timer->active = true; timer->periodic = true; return ESP_OK;
+    timer->active = true; timer->periodic = true;
+    data.periodicPeriodsUs.push_back(periodUs);
+    if (const auto callback = data.onTimerPeriodic) callback();
+    return ESP_OK;
 }
 esp_err_t esp_timer_start_once(esp_timer_handle_t timer, uint64_t) {
     data.calls.emplace_back("timer.once"); ++data.oneShotArms;
     if (const auto error = consume(data.nextTimerStartError); error != ESP_OK) return error;
     if (!timer || timer->active) return ESP_ERR_INVALID_STATE;
-    timer->active = true; timer->periodic = false; return ESP_OK;
+    timer->active = true; timer->periodic = false;
+    if (const auto callback = data.onTimerOnce) callback();
+    return ESP_OK;
 }
 esp_err_t esp_timer_stop(esp_timer_handle_t timer) {
     data.calls.emplace_back("timer.stop");
@@ -136,15 +141,25 @@ esp_err_t esp_timer_stop(esp_timer_handle_t timer) {
 }
 bool esp_timer_is_active(esp_timer_handle_t timer) { return timer && timer->active; }
 int64_t esp_timer_get_time(void) { return static_cast<int64_t>(data.nowUs); }
-void vTaskDelay(TickType_t ticks) { data.nowUs += static_cast<uint64_t>(ticks) * 1000; Host::tickTimers(); }
+void vTaskDelay(TickType_t ticks) {
+    const auto before = data.nowUs;
+    constexpr uint64_t tickUs = uint64_t{1000000} / CONFIG_FREERTOS_HZ;
+    // A one-tick wait may finish almost immediately just before a tick edge.
+    if (ticks) data.nowUs = (data.nowUs / tickUs + ticks) * tickUs;
+    data.delays.push_back({ticks, before, data.nowUs});
+    Host::tickTimers();
+}
 TaskHandle_t xTaskGetCurrentTaskHandle(void) { return reinterpret_cast<void*>(data.currentTask); }
 esp_err_t esp_event_post(esp_event_base_t, int32_t id, const void* event, size_t size, TickType_t ticks) {
     data.calls.emplace_back("event." + std::to_string(id));
+    data.nowUs += data.eventElapsedUs;
     if (data.eventErrorId == -1 || data.eventErrorId == id) {
         if (const auto error = consume(data.nextEventError); error != ESP_OK) return error;
     }
     if (!event || size != sizeof(esp_eth_handle_t)) return ESP_ERR_INVALID_ARG;
-    data.events.push_back({id, *static_cast<const esp_eth_handle_t*>(event), ticks}); return ESP_OK;
+    data.events.push_back({id, *static_cast<const esp_eth_handle_t*>(event), ticks});
+    if (const auto callback = data.onEventPost) callback(id);
+    return ESP_OK;
 }
 esp_err_t esp_event_handler_instance_register(esp_event_base_t base, int32_t id, esp_event_handler_t callback, void* arg, esp_event_handler_instance_t* out) {
     auto* handler = new Handler{base, id, callback, arg}; handlers.push_back(handler); *out = handler; return ESP_OK;

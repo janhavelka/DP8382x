@@ -212,3 +212,10 @@ Stage35 keeps persistent analog sequencing in `DP8382xAnalog.cpp` and finite
 electrical sessions in `DP8382xElectrical.cpp`. Both extend the existing slot,
 collector and shared reset/configuration/replay paths. No controller lock spans
 a wait; no independent job framework or raw reserved-write route is introduced.
+
+Prompt39 closes the native [entry/notification/timing table](esp-idf.md).
+Acquired core link snapshots remain independent of accepted SDK field publication;
+terminal receipts prevent callback gate contention from losing effects or stranding
+admission. No base polling or second chip procedure is introduced. Finite native
+wall time requires the explicit workload qualification described by native_wall_time;
+installed reusable destruction remains gated separately by native_rx_quiescence.

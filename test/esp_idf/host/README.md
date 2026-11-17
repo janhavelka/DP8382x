@@ -16,7 +16,8 @@ GNU or Clang is required for the unmodified SDK C17 source. Consumers leave
 `DP8382X_BUILD_PINNED_IDF_TESTS` off and need no SDK or Python.
 
 `verify_sdk.py` checks the exact SDK commit, asks the compiler for every
-compiled source's header dependencies, checks every selected SDK file against
+compiled source's header dependencies for both 1000 Hz and 100 Hz configurations,
+checks every selected SDK file against
 the pinned Git blob and compares the complete closure with `sdk-files.json`.
 Only Windows CRLF expansion is normalized. Configuration and every build
 run the check. A missing, altered or unrecorded SDK file fails the build.
@@ -64,7 +65,7 @@ same-instance reentry, a second owner and raw ioctls at all four MMD boundaries;
 the five-frame LED update is tested similarly. Failure cases cover each frame,
 failed acquisition, failed release, quarantine and collector partial evidence.
 These are deterministic boundary tests, not a claim about FreeRTOS scheduling.
-The target registers 43 cases: the original 24 and 19 configuration/arbitration
+Prompt 38 registered 43 cases: the original 24 and 19 configuration/arbitration
 regressions. The latter include shared silence during hard reset, preserved MAC
 receipts after gate contention, a foreign flow-control effect during the PHY
 callback window, stale partner pause bits in forced mode, and a queued link poll
@@ -80,3 +81,23 @@ cmake -S test/esp_idf -B build/p38-native-ubsan -G Ninja -DCMAKE_BUILD_TYPE=Rele
 cmake --build build/p38-native-ubsan
 ctest --test-dir build/p38-native-ubsan --output-on-failure --no-tests=error
 ```
+
+Prompt 39 registers 55 cases in total. Eleven additional native cases exercise
+live speed, duplex and peer-pause changes; unchanged tuples and stop/start
+resynchronization; unresolved negotiation; full portable RX/TX pause evidence
+against the narrower SDK Boolean; accepted notification prefixes; per-callback
+and aggregate deadlines; generic uncertain publication versus attested P4 lost
+events; and retained publication/start/stop receipts after callback gate
+contention, including exactly one accepted STOP event and fence arm after retry.
+The maximum accepted link poll period is passed through the actual SDK start
+implementation and checked at the timer boundary.
+
+The readiness case also runs against separately compiled copies of the same
+SDK, adapter and fake sources at 100 Hz. The FreeRTOS boundary derives tick
+conversion from that selected rate and models the earliest tick-edge wake:
+a one-tick delay started just before the boundary can last one microsecond.
+Both an early wake and an exactly aligned release retain the full 2 ms PHY
+readiness floor plus the one-microsecond floor-clock uncertainty before bus
+admission opens. These tests model quantization, not arbitrary preemption or a
+physical timing measurement. Both configurations verify the same 45-file real
+SDK dependency closure; the pinned manifest is unchanged.

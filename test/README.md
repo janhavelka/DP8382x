@@ -59,7 +59,7 @@ the C++ transport suites below exercise the compiled driver separately.
 Prompts37-38 add four terminal AN restart/BMCR maintenance suites to the current
 **235 portable Release CTests**. The separate opt-in [native harness](esp_idf/CMakeLists.txt)
 compiles actual pinned `esp_eth.c` and `esp_eth_netif_glue.c`, with the native
-adapter and small platform fakes. Its **43 tests** (seven driver, 36 adapter)
+adapter and small platform fakes. Its **55 tests** (seven driver, 47 adapter at1kHz and one readiness case at100Hz)
 cover install/start/stop errors, raw ioctl denial, board readiness, notification
 partial effects, shared quarantine, finite discovery, raw/glue RX lifetime, SDK
 configuration/cache agreement, cross-owner raw/collector access and flow interference.
@@ -606,3 +606,10 @@ stale publication, unchanged caller output/time and zero I/O/health accounting.
 `electrical_collision` injects reset into both entry/exit RMW reads with success,
 release/deadline/clock failure and accepted-write timeout; it asserts immediate
 termination, exact bounds and retained temporary-state debt.
+
+Prompt39 extends native conformance with live tuple transitions, all portable pause
+resolutions versus Boolean peer notification, per-field partial/late receipts,
+callback contention, event retry deadlines and start/timer completion contention.
+The same adapter/driver/fake sources also compile at100Hz; tick-boundary waits prove
+elapsed readiness checks rather than assuming delay(1) lasts a full tick. These are
+modeled host cases; actual P4 SDK linking and physical timing remain separate.

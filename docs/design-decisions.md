@@ -4,7 +4,7 @@ This maintained design applies the delegated remaining-prompts audit decisions.
 The [API contract](api-contracts.md) owns portable values and OP-1 through OP-17;
 headers own shipped declarations. The [architecture](architecture.md) is an
 overview, and [feature coverage](feature-coverage.md) is the single coverage map.
-Prompts37-38 implement the subset listed in the [native guide](esp-idf.md), with
+Prompts37-39 implement the subset listed in the [native guide](esp-idf.md), with
 real-driver host tests and a P4 SDK-linked fixture. Broader typed controls remain
 with their owning stages. Source-derived sequences are not physical qualification.
 
@@ -91,7 +91,10 @@ and wait from a callback invoked by that same owner.
 Notifications use an immutable acquired projection. Reserve under the instance
 gate, release locks, call the mediator, reacquire and record accepted or uncertain
 effects. Event handlers only request later work and do not wait for synchronous
-mutations. Callback counters cover adapter work; the timer fence also addresses
+mutations. Terminal publication/start receipts survive post-callback gate contention;
+the next gated entry adopts accepted effects before admission. Cached
+linkSnapshot retains full acquired evidence separately from SDK fields.
+Callback counters cover adapter work; the timer fence also addresses
 callbacks that captured the driver before entering the adapter.
 
 Portable owner -> shared core procedure -> terminal batch -> controller lock
@@ -242,7 +245,10 @@ work, frame methods and scheduling. The MAC uses 100 us MDIO steps with a nomina
 1000 us frame polling allowance, no caller deadline and no MDIO transaction mutex.
 Its 100 ms multi-register MAC mutex is not the bus lock. These are not wall-clock
 or EtherCAT real-time guarantees; adapters must prove or report missing bounds.
-Use high-resolution elapsed checks, not floor-rounded RTOS delays.
+Use high-resolution elapsed checks and completion upper bounds, not floor-rounded
+RTOS delays. The [native conformance table](esp-idf.md#local-entry-and-framework-callbacks)
+accounts for all17 vtable entries; the [timing table](esp-idf.md#timing-declarations)
+keeps the native_wall_time workload-qualification gate explicit.
 
 Current board record after the 2026-10-27 re-pin: MDC40, MDIO39, RESET54,
 TX_EN49, TXD0=41, TXD1=42, CRS_DV51, RXD0=52, RXD1=53, REF_CLK44; expected address0,

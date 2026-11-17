@@ -21,6 +21,9 @@ struct InstrumentedMac {
     std::vector<esp_err_t> writeResults;
     std::function<void(const char*)> onCall;
     std::function<void(const Frame&)> onFrame;
+    std::vector<eth_speed_t> speedRequests;
+    std::vector<eth_duplex_t> duplexRequests;
+    std::vector<uint32_t> pauseRequests;
     std::vector<bool> flowRequests;
     bool flowEnabled = false;
     uint16_t selector = 0;

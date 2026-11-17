@@ -91,8 +91,8 @@ struct BoardControl {
   void* context{nullptr}; ///< Borrowed through all calls and retained resources.
   /// @brief Finite terminal board callback; true asserts RESET_N, false releases it.
   esp_err_t (*setReset)(void*, bool){nullptr};
-  uint64_t powerOnAtUs{0}; ///< Actual power-on lower reference; time zero is valid.
-  uint64_t clockStableAtUs{0}; ///< Known beginning of uninterrupted valid REF_CLK.
+  uint64_t powerOnAtUs{0}; ///< Actual power-on sample in esp_timer us; event no later than sample+clockLagUs. Zero is valid.
+  uint64_t clockStableAtUs{0}; ///< Stable REF_CLK event sample with the same clockLagUs bound; uninterrupted thereafter.
   uint32_t assertionUs{100}; ///< At least 25 us; board RC pulse qualification remains external.
   uint32_t maxPolls{100000}; ///< Finite wait cap, including a frozen clock.
 };
@@ -116,9 +116,9 @@ struct PhyConfig {
   Config core{}; ///< Explicit part/interface/address and truthful transport bounds; callbacks replaced.
   esp_eth_mac_t* mac{nullptr}; ///< Borrowed actual MAC, never the mediator route.
   SharedBus* bus{nullptr}; ///< Borrowed bus shared by all participants.
-  uint32_t linkPollMs{2000}; ///< Explicit owner scheduling policy; not EtherCAT timing.
+  uint32_t linkPollMs{2000}; ///< 1..4294967 ms; avoids pinned SDK's 32-bit us multiplication overflow. Not a response-time guarantee.
   uint32_t callbackBudgetUs{100000}; ///< Aggregate live-link/restart callback allowance.
-  uint32_t notificationUs{0}; ///< Required owner-qualified bound per mediator notification; scheduling included.
+  uint32_t notificationUs{0}; ///< Required qualified per-notification bound, microseconds including scheduling; late return is detected, not preempted.
   uint32_t lockWaitUs{1000}; ///< Controller mutex wait cap; scheduler latency remains conditional.
   uint32_t maxFencePolls{100000}; ///< Finite timer fence polling cap.
   uint32_t maxStopAttempts{1}; ///< Finite actual MAC stop attempts.
@@ -137,6 +137,8 @@ struct PhyHandle {
 /// End TX/RX sessions before retire; retain RX drop/free callbacks and netif/glue
 /// until system restart. Installed objects cannot be destructively released on
 /// the pinned SDK (native_rx_quiescence). No method preempts an SDK callback.
+/// @note Finite wall time requires qualified controller, RTOS scheduling, logging
+/// and event-service bounds. SDK loop counts alone do not establish those bounds.
 class Phy {
 public:
   /// @brief Allocate owner/gate/fence and bind locally; no MDIO, GPIO or SDK install.
@@ -167,6 +169,8 @@ public:
   /// @brief Start only after verified settings and explicit public SDK reconciliation; no hidden waits.
   /// @param[in] deadlineUs Absolute enclosing allowance, including failure stop/fence.
   /// @return Primary SDK error; failed start performs bounded stop and retains cleanup separately.
+  /// @note The terminal receipt is adopted by the next gated entry, so an already
+  /// running timer callback cannot strand STARTING after SDK success.
   esp_err_t start(uint64_t deadlineUs) noexcept;
   /// @brief Stop, fence once, repair missing DOWN/STOP, then observe actual MAC stop status.
   /// @param[in] deadlineUs Absolute allowance; timeout retains objects and retry polls the same fence.
@@ -183,6 +187,12 @@ public:
   /// @param[out] output Value copy on OK.
   /// @return OK or BUSY; no clock, MDIO or SDK callback.
   Status lifecycleSnapshot(LifecycleRecord& output) noexcept;
+  /// @brief Copy the acquired core link evidence separately from SDK publication.
+  /// @param[out] output Value copy on OK; unchanged on gate contention.
+  /// @return OK or BUSY; no clock, MDIO, event delivery or refresh of evidence age.
+  /// @note A valid observation may precede failed/partial SDK notification. Inspect
+  /// LifecycleRecord for accepted fields, uncertainty and pending event delivery.
+  Status linkSnapshot(LinkSnapshot& output) noexcept;
   /// @brief Admit the core's explicit reset/initialization while stopped; token unchanged on failure.
   /// @param[in] options Explicit core reset choice; initialization reserves shared-bus silence.
   /// @param[in] budget Original aggregate core deadline/frame/poll policy.
@@ -318,6 +328,8 @@ public:
   /// @brief Retry only a lost link event, never replay MAC LINK UP; finite event wait.
   /// @param[in] deadlineUs Exclusive absolute esp_timer allowance in microseconds.
   /// @return SDK post error, TIMEOUT, or INVALID_STATE when no current event is pending.
+  /// @note Accepted late delivery clears eventLost but returns TIMEOUT; it must not
+  /// be replayed. The receipt survives concurrent snapshot gate contention.
   esp_err_t retryLinkEvent(uint64_t deadlineUs) noexcept;
   /// @brief Mandatory raw ioctl hooks; unconditional rejection, no context lookup or output changes.
   /// @return ESP_ERR_NOT_SUPPORTED for every input, including null/unpublished handles.
@@ -374,6 +386,13 @@ private:
   esp_err_t _pendingControlError{ESP_OK};
   std::atomic<ControlCompletion> _controlCompletion{ControlCompletion::NONE};
   std::atomic<bool> _unexpectedFlowEffect{false};
+  struct PublicationResult {
+    PublishedTuple tuple{};
+    bool uncertain{false}, eventLost{false}, cleanup{false};
+    esp_err_t error{ESP_OK};
+  };
+  PublicationResult _pendingPublication{};
+  std::atomic<bool> _publicationComplete{false};
   bool _frameworkStopOwed{false}, _ownsSilence{false};
   PhyConfig _config;
   PhyHandle _handle{};
@@ -384,6 +403,8 @@ private:
   esp_eth_handle_t _ethernet{nullptr};
   esp_eth_handle_t _installCandidate{nullptr};
   std::atomic<int64_t> _installOutcome{std::numeric_limits<int64_t>::min()};
+  std::atomic<int64_t> _startOutcome{std::numeric_limits<int64_t>::min()};
+  std::atomic<int64_t> _cleanupOutcome{std::numeric_limits<int64_t>::min()};
   std::atomic<bool> _installing{false};
   std::atomic<Phase> _phase{Phase::STOPPED};
   std::atomic<uint8_t> _deferredStart{0}; ///< Bit0 FSM changed; bit1 START was posted before get_link.

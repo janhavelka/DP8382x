@@ -266,9 +266,11 @@ void lostLinkEvent() {
     Host::state().nextEventError = ESP_ERR_TIMEOUT;
     Host::tickTimers();
     assert(f.journal().eventLost);
+    const auto downs = std::count(Host::state().calls.begin(), Host::state().calls.end(), "mac.down");
     f.mac.registers[1] = 0x786D; f.mac.registers[0x10] = 0x0015;
     Host::tickTimers();
     assert(!f.journal().eventLost);
+    assert(std::count(Host::state().calls.begin(), Host::state().calls.end(), "mac.down") == downs);
 }
 void sharedQuarantine() {
     Host::reset(); Fixture f; Fixture g;
@@ -294,6 +296,295 @@ void callbackBounds() {
     assert(record.publishedTuple.speedAccepted && record.publishedTuple.speed == LinkSpeed::MBPS_100);
     assert(!record.publishedTuple.duplexAccepted && !record.publishedTuple.up);
     assert(record.firstError.detail == ESP_ERR_TIMEOUT && Host::isLive(g.handle));
+}
+std::vector<std::string> noticesSince(size_t offset) {
+    std::vector<std::string> result;
+    for (size_t i = offset; i < Host::state().calls.size(); ++i) {
+        const auto& call = Host::state().calls[i];
+        if (call == "mac.down" || call == "mac.speed" || call == "mac.duplex" || call == "mac.pause" || call == "mac.up") result.push_back(call);
+    }
+    return result;
+}
+void liveTupleChanges() {
+    Host::reset(); Fixture f; f.install(); f.initialize(LINK_TECHNOLOGY_MASK);
+    assert(f.start() == ESP_OK);
+    struct Case { uint16_t physts; uint16_t partner; eth_speed_t speed; eth_duplex_t duplex; uint32_t pause; };
+    const Case cases[] = {
+        {0x0017, 0x01E1, ETH_SPEED_10M, ETH_DUPLEX_FULL, 0}, // Speed only.
+        {0x0013, 0x01E1, ETH_SPEED_10M, ETH_DUPLEX_HALF, 0}, // Duplex only.
+        {0x0015, 0x01E1, ETH_SPEED_100M, ETH_DUPLEX_FULL, 0},
+        {0x0015, 0x05E1, ETH_SPEED_100M, ETH_DUPLEX_FULL, 1}, // Peer pause only.
+        {0x0015, 0x01E1, ETH_SPEED_100M, ETH_DUPLEX_FULL, 0}
+    };
+    for (const auto& row : cases) {
+        f.mac.registers[0x10] = row.physts; f.mac.registers[5] = row.partner;
+        const auto offset = Host::state().calls.size();
+        Host::tickTimers();
+        assert((noticesSince(offset) == std::vector<std::string>{"mac.down", "mac.speed", "mac.duplex", "mac.pause", "mac.up"}));
+        assert(f.mac.speedRequests.back() == row.speed && f.mac.duplexRequests.back() == row.duplex && f.mac.pauseRequests.back() == row.pause);
+        auto record = f.journal();
+        assert(record.publishedTuple.up && record.publishedTuple.speedAccepted && record.publishedTuple.duplexAccepted && record.publishedTuple.pauseAccepted);
+        eth_speed_t speed; eth_duplex_t duplex;
+        assert(esp_eth_ioctl(f.handle, ETH_CMD_G_SPEED, &speed) == ESP_OK && speed == row.speed);
+        assert(esp_eth_ioctl(f.handle, ETH_CMD_G_DUPLEX_MODE, &duplex) == ESP_OK && duplex == row.duplex);
+        const auto unchanged = Host::state().calls.size();
+        Host::tickTimers();
+        assert(noticesSince(unchanged).empty());
+    }
+    const auto offset = Host::state().calls.size();
+    assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+    assert((noticesSince(offset) == std::vector<std::string>{"mac.down"}));
+    const auto restarted = Host::state().calls.size();
+    assert(f.start() == ESP_OK);
+    assert((noticesSince(restarted) == std::vector<std::string>{"mac.speed", "mac.duplex", "mac.pause", "mac.up"}));
+}
+void incompleteNegotiation() {
+    Host::reset(); Fixture f; f.install(); f.initialize();
+    f.mac.registers[1] = 0x784D; f.mac.registers[0x10] = 0x0001; // Link up, AN incomplete.
+    const auto offset = Host::state().calls.size();
+    assert(f.owner->start(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
+    assert(noticesSince(offset).empty());
+    const auto record = f.journal();
+    assert(!record.publishedTuple.up && !record.publishedTuple.speedAccepted && !record.publishedTuple.duplexAccepted);
+    assert(record.publishedTuple.speed == LinkSpeed::UNKNOWN && record.publishedTuple.duplex == Duplex::UNKNOWN);
+    LinkSnapshot observation;
+    const auto frames = f.mac.frames.size();
+    assert(f.owner->linkSnapshot(observation).ok());
+    assert(observation.valid && observation.linkUp && !observation.resolvedModeValid && observation.negotiation == NegotiationState::IN_PROGRESS);
+    assert(f.mac.frames.size() == frames); // Acquired observations and accepted SDK fields have different validity.
+}
+void pauseProjection() {
+    struct Case { bool localSym; bool localAsym; uint16_t partner; uint16_t phycr; bool rx; bool tx; uint32_t peer; };
+    const Case cases[] = {
+        {false, false, 0x0501, 0x8001, false, false, 1},
+        {true, true, 0x0901, 0xA001, true, false, 0},
+        {false, true, 0x0D01, 0x9001, false, true, 1},
+        {true, false, 0x0501, 0xB001, true, true, 1}
+    };
+    for (const auto& row : cases) {
+        Host::reset(); Fixture f; f.install(); f.initialize();
+        LinkSettings settings; settings.advertisement = {LINK_100_FULL, row.localSym, row.localAsym};
+        f.configure(settings);
+        f.mac.registers[5] = row.partner; f.mac.registers[0x19] = row.phycr;
+        assert(f.start() == ESP_OK);
+        LinkSnapshot observation;
+        assert(f.owner->linkSnapshot(observation).ok());
+        assert(observation.pauseValid && observation.pauseRx == row.rx && observation.pauseTx == row.tx);
+        assert(observation.rawAnlpar == row.partner && observation.rawPhycr == row.phycr);
+        assert(f.mac.pauseRequests.back() == row.peer && f.journal().publishedTuple.peerPause == (row.peer != 0));
+        assert(!f.mac.flowEnabled && f.mac.flowRequests.empty()); // Publication cannot choose application MAC policy.
+    }
+}
+void notificationPartialReceipts() {
+    const char* operations[] = {"mac.speed", "mac.duplex", "mac.pause", "mac.up"};
+    for (unsigned failed = 0; failed < 4; ++failed) {
+        Host::reset(); Fixture f; f.install(); f.initialize();
+        f.mac.errors[operations[failed]] = ESP_FAIL;
+        assert(f.owner->start(Host::state().nowUs + 100000) == ESP_FAIL);
+        const auto record = f.journal();
+        assert(record.publicationUncertain && !record.publishedTuple.up && !record.eventLost);
+        assert(record.publishedTuple.speedAccepted == (failed > 0));
+        assert(record.publishedTuple.duplexAccepted == (failed > 1));
+        assert(record.publishedTuple.pauseAccepted == (failed > 2));
+        LinkSnapshot acquired;
+        assert(f.owner->linkSnapshot(acquired).ok() && acquired.valid && acquired.linkUp && acquired.resolvedModeValid);
+        const auto frames = f.mac.frames.size(); const auto offset = Host::state().calls.size();
+        Host::tickTimers();
+        assert(f.mac.frames.size() == frames && noticesSince(offset).empty());
+        assert(f.owner->retryLinkEvent(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
+        assert(f.owner->destroy() == ESP_ERR_INVALID_STATE && Host::isLive(f.handle));
+    }
+    // The same event-post error has a different policy for an unqualified MAC.
+    Host::reset(); Fixture f; f.install(); f.initialize();
+    Host::state().eventErrorId = ETHERNET_EVENT_CONNECTED; Host::state().nextEventError = ESP_ERR_TIMEOUT;
+    assert(f.owner->start(Host::state().nowUs + 100000) == ESP_ERR_TIMEOUT);
+    assert(f.journal().publicationUncertain && !f.journal().eventLost);
+    assert(f.owner->retryLinkEvent(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
+}
+void notificationLateRetry() {
+    const char* operations[] = {"mac.speed", "mac.duplex", "mac.pause", "mac.up"};
+    for (unsigned late = 0; late < 4; ++late) {
+        Host::reset(); Fixture f; f.install(); f.initialize(LINK_TECHNOLOGY_MASK);
+        f.mac.elapsedUs["mac.speed"] = 10; // A completion exactly at the qualified bound remains accepted.
+        assert(f.start() == ESP_OK);
+        f.mac.registers[0x10] = 0x0017;
+        f.mac.elapsedUs[operations[late]] = 11; // Qualified limit is 10 us, aggregate still has ample time.
+        auto* phy = f.owner->nativePhy();
+        assert(phy->get_link(phy) == ESP_ERR_TIMEOUT);
+        const auto record = f.journal();
+        assert(!record.publicationUncertain && record.firstError.detail == ESP_ERR_TIMEOUT);
+        assert(record.publishedTuple.speedAccepted);
+        assert(record.publishedTuple.duplexAccepted == (late >= 1));
+        assert(record.publishedTuple.pauseAccepted == (late >= 2));
+        assert(record.publishedTuple.up == (late == 3));
+        f.mac.elapsedUs.clear();
+        const auto offset = Host::state().calls.size();
+        assert(phy->get_link(phy) == ESP_OK);
+        // Incomplete DOWN projections retry the full tuple. Accepted UP is never replayed.
+        const std::vector<std::string> retry = late == 3 ? std::vector<std::string>{} :
+            std::vector<std::string>{"mac.speed", "mac.duplex", "mac.pause", "mac.up"};
+        assert(noticesSince(offset) == retry);
+        assert(f.journal().publishedTuple.up && f.journal().publishedTuple.pauseAccepted);
+    }
+}
+void notificationCompletionContention() {
+    const char* operations[] = {"mac.speed", "mac.duplex", "mac.pause", "mac.up"};
+    for (unsigned completed = 0; completed < 4; ++completed) {
+        Host::reset(); Fixture f; f.install(); f.initialize(LINK_TECHNOLOGY_MASK);
+        assert(f.start() == ESP_OK);
+        f.mac.registers[0x10] = 0x0017;
+        bool injected = false;
+        f.mac.onCall = [&](const char* operation) {
+            if (injected || std::string(operation) != operations[completed]) return;
+            injected = true; Host::state().failSemaphoreTakes = 1;
+        };
+        const auto offset = Host::state().calls.size();
+        auto* phy = f.owner->nativePhy();
+        const auto error = phy->get_link(phy);
+        assert(injected && error == ESP_OK);
+        LifecycleRecord record;
+        auto copied = f.owner->lifecycleSnapshot(record);
+        if (copied.is(Err::BUSY)) copied = f.owner->lifecycleSnapshot(record);
+        assert(copied.ok());
+        const auto notices = noticesSince(offset);
+        const auto called = [&](const char* operation) { return std::find(notices.begin(), notices.end(), operation) != notices.end(); };
+        assert(!record.publicationUncertain && record.publishedTuple.speedAccepted == called("mac.speed"));
+        assert(record.publishedTuple.duplexAccepted == called("mac.duplex"));
+        assert(record.publishedTuple.pauseAccepted == called("mac.pause"));
+        assert(record.publishedTuple.up == called("mac.up"));
+        assert(called(operations[completed]));
+        f.mac.onCall = nullptr;
+        assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+        assert(!f.journal().publishedTuple.up && Host::isLive(f.handle));
+    }
+    Host::reset(); Fixture f; f.config.pinnedP4Mac = true;
+    f.install(); f.initialize(LINK_TECHNOLOGY_MASK); assert(f.start() == ESP_OK);
+    f.mac.registers[0x10] = 0x0017;
+    f.mac.onCall = [&](const char* operation) {
+        if (std::string(operation) == "mac.up") Host::state().failSemaphoreTakes = 1;
+    };
+    Host::state().eventErrorId = ETHERNET_EVENT_CONNECTED; Host::state().nextEventError = ESP_ERR_TIMEOUT;
+    auto* phy = f.owner->nativePhy(); (void)phy->get_link(phy);
+    LifecycleRecord record;
+    auto copied = f.owner->lifecycleSnapshot(record);
+    if (copied.is(Err::BUSY)) copied = f.owner->lifecycleSnapshot(record);
+    assert(copied.ok() && record.publishedTuple.up && record.eventLost && !record.publicationUncertain);
+    f.mac.onCall = nullptr;
+    const auto offset = Host::state().calls.size();
+    assert(f.owner->retryLinkEvent(Host::state().nowUs + 100000) == ESP_OK);
+    assert(noticesSince(offset).empty() && !f.journal().eventLost);
+}
+void notificationLateEventRetry() {
+    Host::reset(); Fixture f; f.config.pinnedP4Mac = true;
+    f.install(); f.initialize();
+    f.mac.registers[1] = 0x7849; f.mac.registers[0x10] = 0;
+    assert(f.start() == ESP_OK);
+    f.mac.registers[1] = 0x786D; f.mac.registers[0x10] = 0x0015;
+    Host::state().eventErrorId = ETHERNET_EVENT_CONNECTED; Host::state().nextEventError = ESP_ERR_TIMEOUT;
+    Host::tickTimers();
+    assert(f.journal().eventLost && f.journal().publishedTuple.up);
+    const auto offset = Host::state().calls.size(); const auto events = Host::state().events.size();
+    assert(f.owner->retryLinkEvent(Host::state().nowUs) == ESP_ERR_TIMEOUT);
+    assert(Host::state().calls.size() == offset && f.journal().eventLost);
+    Host::state().eventElapsedUs = 1001;
+    assert(f.owner->retryLinkEvent(Host::state().nowUs + 1000) == ESP_ERR_TIMEOUT);
+    assert(Host::state().events.size() == events + 1 && !f.journal().eventLost);
+    assert(noticesSince(offset).empty()); // Late accepted post is retained; no LINK callback is replayed.
+    Host::state().eventElapsedUs = 0;
+    const auto posted = Host::state().events.size();
+    assert(f.owner->retryLinkEvent(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
+    assert(Host::state().events.size() == posted);
+}
+void boardTickReadiness() {
+    for (const bool beforeTick : {true, false}) {
+        Host::reset(); Fixture f; f.create();
+        const uint64_t tickUs = uint64_t{1000000} / CONFIG_FREERTOS_HZ;
+        Host::state().nowUs = 50000 - 1; // First vTaskDelay(1) lasts only one microsecond.
+        BoardControl control;
+        struct Times { uint64_t assertedAt; uint64_t releasedAt; bool beforeTick; } times{0, 0, beforeTick};
+        control.context = &times;
+        control.setReset = [](void* context, bool asserted) {
+            auto& times = *static_cast<Times*>(context);
+            if (asserted) times.assertedAt = Host::state().nowUs;
+            else {
+                if (times.beforeTick) {
+                    const uint64_t tickUs = uint64_t{1000000} / CONFIG_FREERTOS_HZ;
+                    Host::state().nowUs = (Host::state().nowUs / tickUs + 1) * tickUs - 1;
+                }
+                times.releasedAt = Host::state().nowUs;
+            }
+            return ESP_OK;
+        };
+        assert(f.owner->prepareBoard(control, Host::state().nowUs + 100000) == ESP_OK);
+        const auto assertedAt = times.assertedAt, releasedAt = times.releasedAt;
+        // One-microsecond floor-clock uncertainty is part of the readiness anchor.
+        assert(assertedAt >= 50001 && releasedAt >= assertedAt + control.assertionUs + 1);
+        assert(Host::state().nowUs >= releasedAt + 2001 && !f.bus.suspended && f.mac.frames.empty());
+        assert(!Host::state().delays.empty() && Host::state().delays.front().afterUs - Host::state().delays.front().beforeUs == 1);
+        const auto afterRelease = std::find_if(Host::state().delays.begin(), Host::state().delays.end(), [&](const auto& delay) { return delay.beforeUs == releasedAt; });
+        assert(afterRelease != Host::state().delays.end());
+        if (beforeTick) {
+            assert(afterRelease->afterUs - afterRelease->beforeUs == 1);
+            assert(afterRelease->afterUs < releasedAt + 2000); // This wake must not open MDIO admission.
+        }
+        assert(tickUs >= 1000 && f.bus.quietUntilUs == releasedAt + 2001);
+        assert(f.owner->destroy() == ESP_OK);
+    }
+}
+void startCompletionContention() {
+    Host::reset(); Fixture f; f.install(); f.initialize();
+    bool injected = false;
+    Host::state().onTimerPeriodic = [&] { injected = true; Host::state().failSemaphoreTakes = 1; };
+    const auto deadline = Host::state().nowUs + 100000;
+    assert(f.owner->start(deadline) == ESP_OK && injected);
+    Host::state().onTimerPeriodic = nullptr;
+    LifecycleRecord record;
+    auto copied = f.owner->lifecycleSnapshot(record);
+    if (copied.is(Err::BUSY)) copied = f.owner->lifecycleSnapshot(record);
+    assert(copied.ok() && record.publishedTuple.up && !record.publicationUncertain);
+    Host::state().nowUs = deadline + 1;
+    const auto offset = Host::state().calls.size();
+    auto* phy = f.owner->nativePhy();
+    assert(phy->get_link(phy) == ESP_OK && noticesSince(offset).empty()); // RUNNING has a fresh callback budget.
+    assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+}
+void stopCompletionContention() {
+    for (const bool afterFenceArm : {false, true}) {
+        Host::reset(); Fixture f; f.install(); f.initialize(); assert(f.start() == ESP_OK);
+        const auto frames = f.mac.frames.size();
+        bool injected = false;
+        if (afterFenceArm) {
+            Host::state().onTimerOnce = [&] { injected = true; Host::state().failSemaphoreTakes = 1; };
+        } else {
+            Host::state().onEventPost = [&](int32_t id) {
+                if (id == ETHERNET_EVENT_STOP) { injected = true; Host::state().failSemaphoreTakes = 1; }
+            };
+        }
+        assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE && injected);
+        Host::state().onTimerOnce = nullptr; Host::state().onEventPost = nullptr;
+        const auto stops = [] {
+            return std::count_if(Host::state().events.begin(), Host::state().events.end(), [](const auto& event) { return event.id == ETHERNET_EVENT_STOP; });
+        };
+        assert(stops() == 1 && Host::state().oneShotArms == (afterFenceArm ? 1U : 0U));
+        assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+        assert(stops() == 1 && Host::state().oneShotArms == 1); // Accepted SDK stop and fence arm cannot be replayed.
+        assert(f.mac.frames.size() == frames && !f.journal().publishedTuple.up && Host::isLive(f.handle));
+    }
+}
+void pollPeriodBounds() {
+    Host::reset(); Fixture f;
+    Native* output = reinterpret_cast<Native*>(0x1234);
+    for (const auto period : {uint32_t{0}, uint32_t{4294968}, UINT32_MAX}) {
+        auto invalid = f.config; invalid.linkPollMs = period;
+        Host::state().failSemaphore = true;
+        assert(Native::create(invalid, output) == ESP_ERR_INVALID_ARG);
+        assert(output == reinterpret_cast<Native*>(0x1234) && Host::state().failSemaphore && Host::state().timerCreates == 0);
+        Host::state().failSemaphore = false;
+    }
+    f.config.linkPollMs = 4294967;
+    f.install(); f.initialize(); assert(f.start() == ESP_OK);
+    assert(Host::state().periodicPeriodsUs.back() == uint64_t{4294967000});
+    assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
 }
 void forbiddenLifecycle() {
     Host::reset(); Fixture f; f.create();
@@ -914,6 +1205,17 @@ int main(int argc, char** argv) {
     else if (suite == "lost_link_event") lostLinkEvent();
     else if (suite == "shared_quarantine") sharedQuarantine();
     else if (suite == "callback_bounds") callbackBounds();
+    else if (suite == "live_tuple_changes") liveTupleChanges();
+    else if (suite == "incomplete_negotiation") incompleteNegotiation();
+    else if (suite == "pause_projection") pauseProjection();
+    else if (suite == "notification_partial_receipts") notificationPartialReceipts();
+    else if (suite == "notification_late_retry") notificationLateRetry();
+    else if (suite == "notification_completion_contention") notificationCompletionContention();
+    else if (suite == "notification_late_event_retry") notificationLateEventRetry();
+    else if (suite == "board_tick_readiness") boardTickReadiness();
+    else if (suite == "poll_period_bounds") pollPeriodBounds();
+    else if (suite == "start_completion_contention") startCompletionContention();
+    else if (suite == "stop_completion_contention") stopCompletionContention();
     else if (suite == "forbidden_lifecycle") forbiddenLifecycle();
     else if (suite == "discovery") discovery();
     else if (suite == "discovery_admission") discoveryAdmission();
