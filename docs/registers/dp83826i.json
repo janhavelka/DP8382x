@@ -9407,7 +9407,7 @@
         "Preflight exact permitted DEVAD/offset and target access semantics. Vendor31 ordinary documented entries and explicit aliases only; selectors0D/0E direct-only. EEE printed offsets remain gated.",
         "Acquire one lock for entire sequence. Write C22 REGCR=001F (for vendor31); on success write ADDAR=target offset; then REGCR=401F.",
         "Read ADDAR for target read or write ADDAR=value for target write. Stop immediately on first failed frame; never continue using potentially stale selectors.",
-        "For stable ordinary RMW retain one lock across selection/read/dependent write: no-postincrement selection persists, so three setup frames plus read and write take five frames. Admit only stable readable/writable fields and the target-specific reserved policy; current LEDCR maintenance RMW preserves other documented stable bits and forces reserved bits zero. Mixed command/status, destructive and recipe-only targets require separate source-specific procedures, never generic RMW.",
+        "For stable ordinary RMW retain one lock across selection/read/dependent write: No-postincrement selector persistence is inferred from SNLS647I 8.3.11.1, not a printed combined RMW sequence; physical case Q4 remains pending. The selected sequence uses three setup frames plus read and dependent write, five frames total. Admit only stable readable/writable fields and the target-specific reserved policy; current LEDCR maintenance RMW preserves other documented stable bits and forces reserved bits zero. Mixed command/status, destructive and recipe-only targets require separate source-specific procedures, never generic RMW.",
         "Release lock before waits. No selector cleanup write is needed; next operation always reselects address and mode. Increment modes are documented0/1/2/3; ordinary helpers use nonincrement and never assume contiguous allowed banks."
       ],
       "waits": [],
@@ -13542,8 +13542,8 @@
       "id": "rxfs_sfd_reference",
       "conflict": "RXFS[7] table8-91 describes SFD error referring to RXFCFG1[13], but table8-90 declares13 reserved.",
       "decision": "Retain raw SFD-error status; do not infer programmable SFD byte/pattern support or write RXFCFG1[13].",
-      "nextEvidence": "Prompt31: TI exact-part correction of cross-reference and any supported SFD detection configuration; physical WoL/error fixture checks afterward.",
-      "ownerStage": 31,
+      "nextEvidence": "Obtain TI exact-part clarification of the RXFS[7]/reserved RXFCFG1[13] cross-reference and any supported SFD detection configuration. Prompt73 owns the subsequent WoL/error fixture case; raw status alone cannot authorize reserved-bit writes.",
+      "ownerStage": 73,
       "sources": [
         {
           "source": "snls647i",

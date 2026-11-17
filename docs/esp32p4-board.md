@@ -21,6 +21,13 @@ Recheck the final schematic/netlist before writing or flashing board firmware.
 | PHY interrupt | Not connected; plan link polling |
 | PHY management address | Expected address 0 from existing board audit; verify straps and MDIO response during bring-up |
 
+ESP32-P4 EMAC IO_MUX restricts the pads available for each RMII data/clock
+signal; they are not arbitrary GPIO-matrix choices. The selected mapping is
+listed in the pinned v6.1
+[emac_periph.c](https://github.com/espressif/esp-idf/blob/fff9895c82d744c7237be8847347bdd1b07c6643/components/esp_hal_emac/esp32p4/emac_periph.c).
+MDC and MDIO use the separate management-signal routing. A legal SDK mapping
+still needs confirmation against the final board netlist.
+
 Keep strap-related MCU pins in the required state during PHY reset. GPIO and
 clock setup, reset timing and post-reset register initialization must follow the
 actual chip datasheet and final board wiring.

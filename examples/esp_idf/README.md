@@ -55,8 +55,10 @@ The [prompt-6 decision](../../docs/design-decisions.md) now fixes these routes:
   driver/glue/netif/MAC/PHY and contexts until restart. Failed stop never licenses
   freeing live contexts. See the native ownership design and prompt37 report.
 - Select GPIO54 reset, MDC40, MDIO39 and REF_CLK input GPIO44 from the current
-  board evidence, with declared/verified PHY address 0. Recheck actual netlist,
-  R21/C24 reset pulse and power/clock readiness before firmware qualification.
+  board evidence, with declared/verified PHY address 0. RMII uses TX_EN49,
+  TXD0=41, TXD1=42, CRS_DV51, RXD0=52 and RXD1=53. Confirm against the final
+  schematic/netlist before flashing; qualify the R21/C24 reset pulse and
+  power/clock readiness before firmware qualification.
   Do not inherit GPIO5, auto-detection, no post-reset wait or 2000 ms polling as
   correct board defaults. Use elapsed-time checks for the 2 ms/50 ms SMI windows.
   Close shared-controller admission before external power-up/hardware reset and
@@ -86,12 +88,14 @@ release or timing failure; an earlier admission error can still be the public
 primary result. Copy the retained transport/collector evidence before subsequent
 requests replace the last batch receipt.
 
-The [cooperative examples](../../docs/api-contracts.md#operation-acceptance-scenarios-and-examples)
-now give exact plain-owner and native reset callback paths. Retain full primary
+The [cooperative example](../../docs/api-contracts.md#operation-acceptance-scenarios-and-examples)
+gives the plain-owner path; the [native guide](../../docs/esp-idf.md) owns the
+executing SDK callback paths. Retain full primary
 and cleanup evidence, keep a token when take fails, and budget native scheduling
 inside the existing lifecycle reservation. A cancelled/failed operation may
-still require later owner cleanup. Deletion follows disposition, successful
-result delivery, local end and actual SDK callback/resource drain. Tick sleeps
+still require later owner cleanup. A successfully installed owner cannot be deleted under native_rx_quiescence;
+stop/retire retains its resources until restart. Never infer RX quiescence from
+local end, result delivery or timer callback drain. Tick sleeps
 are scheduling only; elapsed-time admission uses the qualified monotonic clock.
 
 Owner contexts are non-copyable/non-movable and retain a reference to their exact

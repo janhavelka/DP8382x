@@ -220,8 +220,12 @@ This comparison does not change the selected v6.1 baseline:
 
 - [d2ed96d2](https://github.com/espressif/esp-idf/commit/d2ed96d2d3ab970a1eb0b61e8087b42db49badcb)
   changes Ethernet stop to `esp_timer_stop_blocking(..., portMAX_DELAY)`. It
-  addresses callback quiescence, but the unbounded wait does not meet this
-  library's finite cleanup contract.
+  waits for the active timer callback. Its finite duration depends on this
+  adapter's bounded get_link work plus qualified backend/scheduler bounds;
+  portMAX_DELAY alone neither proves an unbounded callback nor supplies a
+  wall-time guarantee. Re-audit the timer fence and inactive-timer stop behavior
+  when the pinned baseline includes d2ed96d2. This change does not close the
+  independent native_rx_quiescence gate.
 - [39d7a6a0](https://github.com/espressif/esp-idf/commit/39d7a6a022f37d046222d255cf416062bf6f6d82)
   introduces short busy waits and rounded-up tick waits for hardware reset.
   It addresses delay truncation; board timing and aggregate bounds still need

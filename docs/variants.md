@@ -73,7 +73,7 @@ Use these source anchors when establishing support:
 - DP83822 IF/HF fiber parts are identified in SNLS505H section 4; MII/RMII
   operation is described in 7.4.1.1/7.4.1.2. FX+RGMII is not explicitly stated;
   there is no documented exclusion and table 7-10 RX_ER mode 3 can encode it,
-  but physical evidence is NOT RUN. 100BASE-FX has no autonegotiation (7.4.4).
+  but physical evidence is NOT RUN. 100BASE-FX has no autonegotiation (7.4.6).
   RGMII shifts are fixed 3.5 ns with opposite RX/TX enable polarities
   (table 8-23), not a programmable tap range.
 - SDAA067A sections 2 and 3.2 disagree on whether an A-generation register
@@ -86,7 +86,7 @@ guide. Keep these later research boundaries:
 
 | Stages | Exact declared parts | Required independent work |
 | --- | --- | --- |
-| 56 | DP83826E | SNLS647I shared records plus actual temperature/electrical, mode, reset, optional-control and fixture differences; no suffix detection from shared ID. |
+| 56 | DP83826E | SNLS647I shared software records and procedures; qualify the I/E temperature range and temperature-dependent electrical limits. No suffix-conditioned reset/optional-control behavior or suffix detection from shared ID. |
 | 57–59 | DP83826AI, DP83826AE | SNLS783A/SDAA067A defaults, revision acceptance, strap11/FLD/EMC conflict and complete diagnostics/optional controls. |
 | 60–61 | DP83825I | SNLS638C RMII-only topology, identity discrepancy, package/straps and complete power/wake/EEE differences; SNLA328 remains exact-part input here. |
 | 62–67 | DP83822I, H, IF, HF | SNLS505H per-subtype media/temperature, fiber and negotiation, interfaces/fixed shifts, reset, diagnostics, electrical and WoL access differences. |

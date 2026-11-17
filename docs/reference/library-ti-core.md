@@ -213,8 +213,10 @@ when the target is mixed/read-clear. Repeating the mode write is library behavio
 not an independently established silicon-required extra frame.
 
 Prompt 12 rechecked these pinned bytes and original SNLS647I 8.3.11.1/.4/.5 on
-2026-11-01. Nonincrementing selection persists, so the implemented stable RMW is
-five frames under one uninterrupted controller owner: three selection frames,
+2026-11-01. Nonincrementing selector persistence is inferred from SNLS647I
+8.3.11.1, not a printed combined RMW sequence; physical case Q4 remains pending.
+The implemented stable RMW uses five frames under one uninterrupted controller
+owner: three selection frames,
 one read, one dependent write. It checks every reported phase and reselects fully
 on each next explicit operation. This replaces the early eight-frame project
 policy; it neither copies the vendor's unchecked six-frame helper nor exposes

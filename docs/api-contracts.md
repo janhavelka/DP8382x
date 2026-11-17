@@ -168,40 +168,10 @@ freshness needs an observation lower bound or a separately proved uncertainty.
 
 ## Passive observations, trust and accounting
 
-```cpp contract
-namespace DP8382x {
-enum class DriverState : uint8_t { UNINIT, READY, DEGRADED, OFFLINE };
-/// @return Uppercase name or "UNKNOWN"; no I/O, clock read or mutation.
-const char* driverStateName(DriverState state) noexcept;
-/// @brief Managed MDIO transaction health only; not link/configuration readiness.
-struct HealthSnapshot {
-    DriverState state{DriverState::UNINIT};
-    bool initialized{false};
-    uint32_t consecutiveFailures{0};         ///< Saturating, never an admission latch.
-    uint32_t totalFailures{0};               ///< Saturating transaction count.
-    uint32_t totalSuccess{0};                ///< Saturating transaction count.
-    uint64_t lastOkUs{0};
-    uint64_t lastErrorUs{0};
-    bool lastOkTimeValid{false};
-    bool lastErrorTimeValid{false};
-    Status lastError{Err::OK, 0, "No managed transport failure"};
-};
-// LinkSnapshot, NegotiationState and LinkChange are shipped in DP8382x.h.
-enum class ConfigurationTrust : uint8_t { UNKNOWN, VERIFIED, DIRTY };
-/// @brief Foundational link settings view; no claim to verify future feature fields.
-struct SettingsSnapshot {
-    LinkSettings desired{};
-    bool desiredValid{false};
-    LinkSettings observed{};
-    bool observedValid{false};              ///< Complete stable link-setting tuple only.
-    bool observedStale{true};
-    ConfigurationTrust trust{ConfigurationTrust::UNKNOWN};
-    uint64_t observedAtUs{0};
-    bool timeValid{false};
-    Status lastVerificationStatus{Err::NOT_INITIALIZED, 0, "No settings verification"};
-};
-}
-```
+[DP8382x.h](../include/DP8382x/DP8382x.h) owns the Doxygen declarations for
+DriverState, driverStateName, HealthSnapshot, ConfigurationTrust and
+SettingsSnapshot, including every raw-field validity flag. The rules below
+define their accounting, publication and trust semantics.
 
 Health counts **one managed batch callback invocation** as one transaction,
 not one public method or one physical frame. One four-frame MMD callback is one
@@ -338,36 +308,10 @@ returned; otherwise VERIFY returns BUSY without waiting. AN-restart is ignored
 by stable comparison. Successful VERIFY may set persistentRestored as stable
 proof while cleanupOwed remains unchanged under OP-9.
 
-```cpp contract
-namespace DP8382x {
-struct OperationToken { uint64_t value{0}; };
-constexpr OperationToken INVALID_OPERATION_TOKEN{};
-enum class OperationPhase : uint8_t {
-    NONE, PREFLIGHT, IDENTIFY, QUIESCE, COMMAND, WAIT, RESTORE, VERIFY, COMPLETE
-};
-/// @brief Captured strap words, not current pin levels or inferred reset defaults.
-struct StrapEvidence {
-    uint16_t sor1{0};
-    uint16_t sor2{0};
-    bool sor1Valid{false};
-    bool sor2Valid{false};
-    uint64_t observedAtUs{0};                ///< Conservative complete-acquisition stamp.
-    bool timeValid{false};
-};
-
-/// @brief Exact first failed stable-owned-bit comparison; value validity is explicit.
-struct ConfigurationMismatch {
-    bool valid{false};
-    bool mmd{false};                        ///< false: C22; true: MMD DEVAD/offset.
-    uint8_t devad{0};                       ///< 0..31 only when mmd.
-    uint16_t registerAddress{0};            ///< C22 0..31, MMD 0..65535.
-    uint16_t mask{0};                       ///< Stable owned bits only.
-    uint16_t expected{0};
-    uint16_t observed{0};
-};
-
-}
-```
+[DP8382x.h](../include/DP8382x/DP8382x.h) owns OperationToken, OperationPhase,
+StrapEvidence (including staleness) and ConfigurationMismatch. Its Doxygen
+defines field units, ranges and validity; the cooperative rules below govern
+retention and publication.
 
 Explicit address discovery now uses shipped `readIdentityAt` for raw PHYIDR1/2
 without accepting identity or changing the bound address. Ordinary word outputs
@@ -443,20 +387,8 @@ RECR remains raw and its arithmetic field stays zero. Discard does not access
 hardware, clear transport/managed-health counters, alter configuration trust,
 or consume a retained operation result. Running work/callbacks refuse discard.
 
-The following class-member signatures are shipped for settings/lifecycle and,
-from prompt 19, link observation. Passive health is implemented in prompt 21; the
-enclosing class is omitted from this declaration excerpt:
-
-```cpp interface
-Status readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) noexcept;
-DriverState driverState() const noexcept;
-HealthSnapshot healthSnapshot() const noexcept;
-void resetStatistics() noexcept;
-LinkSnapshot linkSnapshot() const noexcept;
-SettingsSnapshot settingsSnapshot() const noexcept;
-Status invalidateDeviceState(InvalidationReason reason) noexcept;
-Status startVerify(const OperationBudget& budget, OperationToken& token) noexcept;
-```
+The shipped header Doxygen owns live/cached observation, statistics, invalidation
+and verification signatures. These contracts add no parallel declaration surface.
 
 ### Live link result and failure examples
 
@@ -585,11 +517,24 @@ retains normalized release evidence independently of the operation status.
   terminates, within `(frames + 1) * maxStalledPolls + 1` polls. The
   default of 100000 is deliberately large, because this is a fault path: a tight loop on a 100 Hz tick clock must not trip it, while a
   frozen clock still ends in about 100 s at 1 ms polls. Lower it only if the clock's tick is shorter than poll spacing times the value.
-- **OP-6 Reset admission.** This is the only look-ahead. Before issuing a reset command, require frames for the command batch and
-  the first completion read, and `raw + 4 * clockLagUs + bound(command) + wait + bound(read) < deadline` with checked addition. `wait` is
-  `pollIntervalUs`, or `max(2000, pollIntervalUs)` us for HARD. Otherwise freeze BOUND_ADMISSION with no mutation. Every other step
-  checks only its next batch. The four lags are: upper bound at entry, anchor at completion, overshoot of the first raw sample >= Due on a quantized clock, and upper bound at the read. This assumes the raw step does not exceed
-  `clockLagUs`. It rejects budgets too small under prompt polling; a late owner poll can still time out after the command, and OP-9 covers that.
+- **OP-6 Procedure look-aheads.** Two additional reservations precede mutation:
+  - Reset admission reserves the command batch and first completion read, requiring
+    `raw + 4 * clockLagUs + bound(command) + wait + bound(read) < deadline` with checked addition.
+    `wait` is `pollIntervalUs`, or `max(2000, pollIntervalUs)` us for HARD. This applies to
+    initialization/restoration reset, loopback restart and the two-frame calibration-clear/HARD batch.
+    Insufficient frames/time returns BOUND_ADMISSION without mutation. The four lags cover entry,
+    command-completion anchoring, quantized first-due sample and completion-read admission;
+    the raw clock step must not exceed clockLagUs.
+  - EEE enable/owned-recipe replay reserves its complete recipe floor before its capability
+    check/reset: 75 frames and 21 callbacks, or 71 frames and 20 callbacks after capability was
+    checked. Require `raw + 4 * clockLagUs + frames * frameUs + callbacks * fixedUs + wait < deadline`
+    and sufficient frames, otherwise BOUND_ADMISSION. The initial floor includes both self-checks,
+    recipe rows and first reset poll; the smaller floor excludes the completed capability
+    check. Identity/profile replay needs additional allowance.
+    [EEE](eee.md) owns the exact procedure and the meaning of this source-selected recipe.
+  Other cooperative steps admit only the next batch. Direct multibatch calls have their own
+  aggregate budgets. Neither look-ahead promises completion if owner polling is late;
+  accepted effects and OP-9 obligations remain on subsequent failure.
 - **OP-7 Time.** `clockLagUs` bounds quantization and source-update latency at the instant of reading the clock; scheduling after that read is excluded. Only a raw post-sample >= deadline denies success; there is no publication reserve.
 - **OP-8 Primary and cleanup stay separate.** Each operation has one status and one result. Restoration is a later
   operation with its own token, result and budget, so its success can never rewrite the earlier failure. There is no
@@ -837,8 +782,16 @@ DP8382x::Status ownerPoll(OwnerSession& owner,
 }
 ```
 
+Current storage measurement (2026-11-17, GNU MinGW-w64 15.1.0, x64,
+entry 955ecf3): `sizeof(OperationResult)=1864` bytes,
+`sizeof(OperationSnapshot)=96`, and `sizeof(OwnerSession)=1984` for this example.
+The local result in ownerPoll adds another 1864 bytes: 3848 bytes of combined
+object storage, not measured optimized stack usage. Prompt 76 owns compact
+per-kind result storage and an ABI-specific size regression; do not embed new
+by-value feature results meanwhile. Preserve frozen evidence when changing storage.
+
 Construct one OwnerSession for each core instance; the core outlives that session.
-Neither the session nor the native owner below can be copied or moved. Only their
+Neither the session nor the [native owner](esp-idf.md) can be copied or moved. Only their
 snapshot/result values are published by copy. Equal token numbers from two driver
 instances cannot redirect these helpers to a different PHY.
 
@@ -850,273 +803,75 @@ are software evidence and do not qualify ESP-IDF or physical timings.
 
 ### Implemented negotiated operation and page contract (stage 17)
 
-The shipped [configuration API and guide](negotiation.md) define `ConfigureOptions`,
-`NextPageExchange`, `NextPage`, `SettingsSnapshot` and `NextPageResult`. Fixed page
-storage is copied on admission. All legal nonempty technology subsets and pause
-combinations are admitted. Stage 18 adds the complete forced/crossover/extension
-profile with the same admission and replay contract. Initialization replays admitted
-persistent intent only after mandatory VOD setup, using the same procedure.
-
-Raw safe reads remain available between configuration polls. During a typed
-exchange, public acquisition of ANER rejects BUSY/OPERATION_ACTIVE to protect the
-single page-event consumer; the owning operation uses the existing private
-collector. Reset WAIT and persistent hard-reset floors retain their OP-14 guard.
-A base event, returned base payload, each consumed next event, returned page and
-AN completion have separate evidence. `negotiationComplete` means observed BMSR
-completion; restart-clear in `protocolComplete` does not imply it. An earlier
-verification mismatch survives a later read/deadline failure in the primary result;
-`failingBatch` retains the separate later transport evidence.
+See [Negotiation and page exchange](negotiation.md) and the shipped header Doxygen for the
+feature-specific admission, effects, output validity, bounds and source gates.
 
 ### Complete coupled profiles (stage 18)
 
-[Forced settings](forced-settings.md) documents the matrix. Both AN and forced
-profiles save/apply/verify CR1 robust routing, PHYCR pair selection, CR3 coupled
-mirror and CR2 extension. Forced profiles never read/write/verify ANAR and reject
-AN completion/page options. Active observed settings are decoded from successful
-readbacks, not copied from desired intent. A complete mismatch publishes actual
-fields with DIRTY trust; partial failure keeps the older tuple/time stale. If a
-forced request observes AN unexpectedly enabled, no fresh ANAR exists; preserve
-any prior tuple/time as stale history, never reuse historical ANAR to complete it.
-A non-IEEE ANAR selector likewise cannot establish decoded IEEE technologies.
-
-All controls normally precede BMCR activation. Disabling robust routing for AN
-is deferred until after enabling AN, preserving robust routing throughout any
-previous forced interval. Forced readback ignores AN-restart because it has no
-meaning with AN disabled. No physical partner or pause resolution is inferred.
+See [Coupled AN and forced profiles](forced-settings.md) and the shipped header Doxygen for the
+feature-specific admission, effects, output validity, bounds and source gates.
 
 ### Shipped loopback sessions (stage 23)
 
-`startLoopback(const LoopbackOptions&, const OperationBudget&, OperationToken&)`
-and `stopLoopback(const OperationBudget&, OperationToken&)` use the same slot;
-`loopbackSnapshot()` is passive. Starts require fresh identity, initialized and
-VERIFIED desired settings, explicit maintenance and mode-specific fixture
-attestations. No callback runs on admission. Loopback start/stop are RAW traffic,
-including stop's initialization/profile replay. Explicit initialization HARD
-remains managed. The [mode/procedure guide](loopback.md) defines exact scope.
-
-OP-9 temporary state survives take/cancel/abandon. Only owning stop, complete
-HARD restoration, external reset/POR attestation or a fresh binding clears it.
-A first attempted session write sets it even if the backend reports no target
-effect; selector-only frames do not. Stop rechecks identity, clears selectors,
-replays the persistent desired profile and verifies saved ordinary fields.
-Digital uses HARD for opaque companions; no arbitrary opaque snapshots are
-replayed. Failed stop leaves the session available for a new explicit attempt.
-Each result retains mode/speed, verified-control/stop flags and any acquired
-raw PHYSTS evidence; no packet result is implied.
+See [Loopback sessions](loopback.md) and the shipped header Doxygen for the
+feature-specific admission, effects, output validity, bounds and source gates.
 
 ### Shipped BIST sessions (stage 24)
 
-`startBist`, `startBistAcquire`, `stopBist` and passive `bistSnapshot` extend
-the same OP-9 owner. All three operations are RAW traffic. Each uses a new token
-and budget; start/acquire require initialized, owning stop does not. Saved packet/
-IPG precede loopback mutation; stop/HARD reuse shared restoration. The single
-collector retains BISCR/BICSR1 partial words and capture-loss uncertainty.
-Stop rechecks identity before PRBS mutation. Dwell collector reads contribute
-to retained session activity/loss even if host history is later cleared. A new
-HARD replays both saved-field tails regardless of earlier partial stop progress.
-See [BIST](bist.md) for the typed mode matrix, exact bounds, per-field validity,
-external observation contract and source-gated INCONCLUSIVE outcome.
+See [BIST sessions](bist.md) and the shipped header Doxygen for the
+feature-specific admission, effects, output validity, bounds and source gates.
 
 ### Shipped manual cable capture (stage 25)
 
-`startCableTest`, `startCableAcquire`, `stopCableTest` and passive `cableSnapshot`
-share the operation slot and OP-9 barrier. Start validates CableSettings, exact
-initialized capability and VERIFIED profile before I/O. Live preflight precedes
-all mutations. Start executes the finite selected plan and retains temporary
-effects; success does not imply restoration. Explicit acquire rereads only the
-current accepted trigger, never retriggers or resumes unperformed rows.
-
-Stop has a new token/budget/result and requires HARD through the shared replay
-path, followed by saved documented fields. Failure/cancellation freeze the
-primary result without cleanup callbacks. Diagnostic traffic is RAW; explicit
-initialization remains managed. Nondestructive cable words retain successful
-partial reads without inventing history loss. `interpretCable` stages its output
-and accepts only complete fresh SNLA428 rows. See [cable contracts](cable.md)
-for freshness, raw controls, helper limits and the physical fixture plan.
+See [Manual cable capture](cable.md) and the shipped header Doxygen for the
+feature-specific admission, effects, output validity, bounds and source gates.
 
 ### Shipped cable autorun (stage 26)
 
-`startConfigureCableAutorun`, `startCableAutorunAcquire` and passive
-`cableAutorunSnapshot` extend the existing slot/cable phases. One explicit
-maintenance-admitted flag owns CR1 autorun. Admission copies desired intent;
-readback establishes only owned policy trust. Disable is the manual handoff and
-never proves engine quiescence. Configuration is MANAGED, acquisition RAW.
-Failed semantic effects retain OP-9; restoration is a later `startInitialize`,
-not a retry exception or hidden cleanup operation.
-
-Shared initialization replays owned policy last after saved diagnostic fields;
-failed/cancelled final replay cannot leave initialization complete. `startVerify`
-and link `startConfigure` verify the owned bit without writing. Direct/raw reset
-invalidation keeps desired policy and stales its independent trust. Unowned
-policy never adds replay writes. Power-state transitions use this owner and shared restoration.
-
-Autorun acquisition is one fourteen-frame pass with nondestructive partial words,
-no trigger and no environmental polling. `complete` means read-plan completion;
-`autorun` plus aggregate `stale` withholds fresh/coherent-measurement claims, even
-with equal bookends. No source-backed generation counter exists. The
-[cable guide](cable.md) specifies bounds, current settings, handoff and fixtures.
+See [Cable autorun](cable.md) and the shipped header Doxygen for the
+feature-specific admission, effects, output validity, bounds and source gates.
 
 ## Prompt 27 interrupt policy, stimulus and service
 
-`startConfigureInterrupts` copies complete explicit policy into the existing
-operation slot. `InterruptSettings` owns both enable bytes, PHYSCR polarity/global
-and ENHANCED output, plus the RXFS selector; BASIC OE is preserved. Pin permissions
-cover both the selected route and pin21. Stage32 adds source-owned alternate
-mux configuration/restoration after delivery disable, with masked readback.
-`interruptSnapshot` separates desired intent, independent raw validity/time,
-policy trust and temporary test effects. Initialization replays owned policy after
-other restore tails; verification/configuration only checks it. A changed mode in
-the final identity batch invalidates prior proof and rejects before IRQ mutation.
-
-`startInterruptTest` / `stopInterruptTest` are two operations with independent
-budgets/results. A possible stimulus leaves OP-9 temporary state. Cancellation
-is local; explicit stop verifies clear and preserved stable policy. Full HARD
-restoration never replays test1. Stable-policy mismatch cannot remain VERIFIED.
-
-`serviceInterrupts` reads PHYSTS/MISR1/MISR2 once and optionally FCSCR/RECR in a
-second callback: at most five samples/frames. Transaction/sample/frame/deadline
-limits are explicit. The ordinary output is staged; per-source consumed prefixes
-and history loss are retained immediately by the one collector. Nonzero events
-or exhausted allowance report morePossiblyPending. Pending half-full requests
-survive until a valid collector counter read or explicit host-history discard.
-Selector context is captured at MISR2 consumption, with separate sticky ambiguous
-history. A read alone cannot establish an old epoch. Cached service/policy getters
-do no I/O; ISR only signals the application owner. See [the complete procedure and
-board constraints](interrupts.md). Q9 is NOT RUN.
+See [Interrupt ownership and service](interrupts.md) and the shipped header Doxygen for the
+feature-specific admission, effects, output validity, bounds and source gates.
 
 ## Stage 28 power ownership
 
-`startConfigurePower`, `readPowerStatus` and passive `powerSnapshot` expose one
-complete opt-in policy, source-defined indications and retained partial evidence.
-`POWER_CONFIGURE` uses OP-1 through OP-17; starts/cancel/end/cached access remain
-bus-silent. Failed mutation requires separate `startInitialize` restoration.
-`PowerSettings` owns active-sleep policy, software power-down intent and PLL
-control. BMCR isolation remains independent. The [power guide](power.md) defines
-finite sequences, live reset/partial invalidation, profile interactions and
-non-HARD PLL preparation. DPD is explicitly rejected under `deep_power_exit`;
-control readback never proves physical wake or generated-clock readiness.
+See [Power policy and observations](power.md) and the shipped header Doxygen for the
+feature-specific admission, effects, output validity, bounds and source gates.
 
 ## Implemented EEE policy (stage29)
 
-`startConfigureEee`, `readEeeStatus` and passive `eeeSnapshot` use the existing
-slot, finite transport and single collector. [EEE](eee.md) specifies admission,
-source-implied fields and partial publication. EEE ownership is explicit; no
-ordinary initialization enables it. Enable/disable and owned EEE restoration
-select one effective HARD. This is the documented exception to NONE/PCS/RESTART
-initialization intent: `OperationResult.reset` records HARD, and the persistent
-shared-bus floor applies. The recipe precedes VOD/profile and other owned replay;
-read-only VERIFY cannot prove opaque state or discharge an interrupted recipe.
-Host next-page and hardware EEE ownership are exclusive. No TX LPI is requested.
-
+See [EEE initialization and status](eee.md) and the shipped header Doxygen for the
+feature-specific admission, effects, output validity, bounds and source gates.
 
 ## Stage30 shipped forced TX LPI
 
-[The LPI contract](lpi.md) defines synchronous `startLpi(LpiOptions, LpiResult&,
-IoBudget)` and `stopLpi(LpiResult&, IoBudget)`. These are OP-9's no-wait direct
-calls: at most9frames/2callbacks, slot IDLE, owned temporary barrier during dwell.
-No token cancellation point is invented inside a synchronous callback. Caller
-cancellation before entry performs no call; after entry it requests a separate
-stop. Admitted diagnostic results publish even on error; local rejection preserves
-output. Failed target writes retain UNCERTAIN and explicit frame-loss warning.
-The owner example and guide cover post-exit coordination and retained debt.
-
+See [Forced TX LPI](lpi.md) and the shipped header Doxygen for the
+feature-specific admission, effects, output validity, bounds and source gates.
 
 ## Stage31 shipped Wake-on-LAN
 
-[The WoL guide](wake-on-lan.md) defines `WakeSettings`, `WakeSnapshot`,
-`startConfigureWake`, cooperative `acknowledgeWake`, live `readWakeStatus` and
-passive `wakeSnapshot`. All use existing OP-1..17 lifetime and collector rules.
-Configuration and acknowledgement have distinct tokens/results. Settings never
-acknowledge pending level implicitly; source-specific neutral one and explicit
-zero share the existing RXFCFG1 composer. Quiesced change/readback and shared
-reset restoration own the narrow required mux field, with general pin controls
-remaining separate. Unsupported custom patterns and LED0/3 access remain gated.
-
+See [Wake-on-LAN](wake-on-lan.md) and the shipped header Doxygen for the
+feature-specific admission, effects, output validity, bounds and source gates.
 
 ## Stage32 shipped LED/GPIO profiles
 
-[The pin guide](led-gpio.md) defines `PinSettings`, bounded direct
-`configurePins(PinSettings, PinResult&, IoBudget)` and passive `pinsSnapshot`.
-A complete request and its full frame/deadline allowance are admitted before
-publishing desired intent. Finite prerequisite reads can still reject unsupported
-live routing. Local rejection preserves caller output; admitted partial results
-retain every successful ordinary word, first mismatch and primary/release status.
-Accepted/uncertain failure establishes OP-9 debt, restored by a separate
-`startInitialize`; no synchronous token/cancel point or automatic rollback exists.
-An empty profile releases intent without changing the old physical mux.
-
-The same fixed pass supplies initialization and diagnostic/power recovery, and
-read-only VERIFY. Shared WAKE/IRQ pin entries depend on the source owner's route
-and verification; passive views withdraw trust if that dependency is lost.
-The source owner alone writes its mux after quiescing delivery. Clock, COL and
-MAC/board availability remain explicit application attestations.
-For LED2/3, live collector-routed RCSR mode must match declared wiring before
-mutation; the mux reset value is not availability proof. Direct LED2 IRQ/WoL
-source routes enforce the same prerequisite without requiring a pin profile.
-Pin-owned and interface-owned LED1 clock uncertainty both invalidate dependent
-IRQ/WoL views. Initialization readiness waits for every owned restoration tail.
-
+See [LED/GPIO profiles](led-gpio.md) and the shipped header Doxygen for the
+feature-specific admission, effects, output validity, bounds and source gates.
 
 ## Stage33 shipped clock/interface profile
 
-[Interface and clock controls](interface-clock.md) define `InterfaceSettings`,
-bounded direct `configureInterface`, `InterfaceResult` and passive
-`interfaceSnapshot`. Requests must match `Config.interface`, the immutable
-application wiring declaration. Stopped MAC, pin availability, reference frequency
-and stability, management clock and permission for both removal/reconnection are
-explicit attestations, not measurements. The complete finite allowance is
-admitted before desired intent changes. Live preflight may still reject active
-commands or unowned power before mutation.
-
-Every RCSR read passes through the sole collector, including atomic RMW and
-readback. Observed RCSR mode has independent validity; it is never copied from
-desired mode. RC history/polarity remains raw. Failed accepted mutation leaves
-OP-9 debt with its original direct result; `startInitialize` is the separately
-budgeted restoration. Read-only VERIFY uses the same owned-mask pass.
-Isolation is optional independent ownership of BMCR[10], and writes use the
-power owner's software intent rather than the hardware/software OR readback.
-No direct-call token, scheduled silicon wait or retry is introduced.
+See [Clock/interface profiles](interface-clock.md) and the shipped header Doxygen for the
+feature-specific admission, effects, output validity, bounds and source gates.
 
 ## Quality and hardware link-loss ownership (stage34)
 
-`startConfigureQuality(QualitySettings, OperationBudget, OperationToken&)`
-uses OP-1 through OP-17 with one admitted profile, cooperative complete batches
-and separate restoration. `qualitySnapshot()` retains desired, partial raw and
-verified evidence. `readSignalQuality` stages a raw MSE word with original time
-and cached identity/link context; `signalQualitySnapshot()` is bus-silent.
-The [quality guide](quality.md) owns field admission, interface restrictions,
-read effects and physical limits. These routes complete the five stage34 ledger
-procedures without another collector or automatic recovery policy.
+See [Quality and hardware link-loss controls](quality.md) and the shipped header Doxygen for the
+feature-specific admission, effects, output validity, bounds and source gates.
 
 ## Stage35 electrical and compliance contracts
 
-`AnalogSettings` owns explicit amplitude, termination and slew groups;
-`startConfigureAnalog` uses the existing slot and keeps desired/raw/trust separate.
-Mandatory initialization setup precedes an admitted termination override; VERIFY
-compares that desired mask. `ComplianceOptions`, `CollisionOptions` and
-`CalibrationOptions` require explicit maintenance/fixture admission. Electrical
-sessions use separate starts/stops and retained results, with no automatic dwell
-or cleanup work. HARD stop/calibration completion leaves persistent restoration
-to a new `startInitialize`. See [electrical procedures](electrical.md) for
-source gates, legal transition ordering, finite bounds and physical limits.
-
-The [prompts34-35 independent audit](reports/implementation/34-35-independent-audit.md)
-adds regressions for OP-9 reset-versus-stimulus evidence, OP-15 current electrical
-obligation clearing, combined-owner replay and interleaved reset observations.
-A valid raw reset observation can terminate the pending maintenance operation
-without turning that successful raw read into a transport failure.
-
-The stage-36 integration review applies reset observation to every direct and
-vendor-alias read, independent of the active feature. PCS/HARD withdraw current
-identity/readiness/configuration; RESTART retains configuration and invalidates
-link/history continuity. An interleaved operation freezes; owned reset polling
-continues through its existing bounded phases. RESULT_PENDING remains historical,
-including its identity/strap fields, after a later raw observation.
-Configuration also stops on reset consumed by its own preflight, BMCR RMW or
-readback, before later phases can restore trust. A primary callback/clock error
-takes precedence; otherwise CONFIGURE returns INVALID_CONFIG/DEVICE_INVALIDATED
-and VERIFY retains BUSY/OPERATION_ACTIVE. Writes already accepted within the
-indivisible RMW remain effects with their restoration obligation.
-Collision entry/exit uses the same reset-observation rule for its BMCR RMW;
-neutralizing reset in the following write cannot erase consumed evidence or
-establish verified collision control.
+See [Electrical/compliance/calibration procedures](electrical.md) and the shipped header Doxygen for the
+feature-specific admission, effects, output validity, bounds and source gates.

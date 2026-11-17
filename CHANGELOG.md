@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Recheck the 17-item audit follow-up against current sources; remove drifted
+  API declaration/guide copies, correct timing/source/native/variant guidance,
+  and assign compact results, admission and harness/timing work to their owners.
+
 - Preserve read-only BISCR Power Mode bit 8 during 10M compliance setup, with
   an independent wire-value regression; consolidate the repeated private feature
   phase predicate without changing admission behavior.

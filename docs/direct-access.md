@@ -229,3 +229,7 @@ the operation has a separate retained result. A later release/timing failure
 does not erase a valid reset sample, and a pending historical result never changes.
 Observation alone neither accepts a command, creates a software HARD floor nor
 discharges cleanup. Explicit owner notification has its separate contract.
+
+An operation's own reset-completion polling continues through its bounded
+phases. Independent raw or alias reset observations still invalidate current
+state and freeze other active work; pending results remain historical.

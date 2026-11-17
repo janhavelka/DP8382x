@@ -75,6 +75,10 @@ The original error and any earlier driver-issued effects remain separate.
 | Remaining effects | Operation results and `cleanupOwed` | Successful verification never clears the obligation or changes its owner. Earlier failed results survive a later restoration as separate values. |
 | Historical mutation/consumption | Collector `configurationDirty`, samples and history-loss flags | Historical latches survive verification. They are not the current `SettingsSnapshot::trust` or health state. |
 
+A forced request that observes AN enabled has no fresh ANAR: preserve the older
+observed tuple/time as stale, rather than completing it from historical ANAR.
+A non-IEEE ANAR selector likewise cannot establish decoded IEEE technologies.
+
 The first mismatch is retained while the finite remaining stable reads execute.
 A later MDIO/release/deadline/clock failure is the terminal status, with that
 earlier mismatch still present in `OperationResult`. CONFIG_MISMATCH becomes
