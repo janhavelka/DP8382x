@@ -3,9 +3,9 @@
 The [80-prompt implementation plan](prompts/README.md) is in its first
 execution. Prompts 1–35 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
-Current local checks include 235 registered portable Release CTests, 103 Python tests,
+Current local checks include 236 registered portable Release CTests, 103 Python tests,
 two linked tests-OFF consumers, Doxygen negative checks, ledger/reference integrity
-and deterministic version validation. Prompts37-39 add 55 pinned-driver/native host
+and deterministic version validation. Prompts37-39 and their audit add 63 pinned-driver/native host
 tests in Release and UBSan and an actual ESP32-P4 image link. Physical qualification
 remains later work; first-execution remote CI belongs to prompt 71.
 The driver now provides the restricted Clause 22/MMD subset, stable-field RMW
@@ -27,6 +27,17 @@ Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
 operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+The [independent prompts37-39 audit](reports/implementation/37-39-independent-audit.md)
+began on clean synchronized `main` at `ec792d2ea5bee28d20092999c1ec6facad57e088`.
+It corrects shared board/initialization reservations, routes discovery through
+core transport accounting, distinguishes controller wait expiry from contention,
+and enforces individual SDK control/policy callback bounds with retained effects.
+Malformed timeout details and the modeled timer-active interval are also corrected.
+All236 portable,63 native Release/UBSan, two consumer and103 Python tests pass;
+actual P4 linking and source/document checks pass. Physical timing, source gates
+and reusable installed RX teardown remain separately unqualified. Final commit
+and upstream equality are recorded in the handoff.
 
 Prompt39 began on clean synchronized `main` at
 `456b9710095b4e1394cfb8d4acdeb90b722d981f`. The

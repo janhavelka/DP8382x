@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Independent prompts37-39 audit: made shared board/initialization silence an
+  exclusive controller reservation, counted explicit discovery through the core
+  transport path, distinguished timed lock failure from immediate contention, and
+  applied per-call timing bounds to SDK reconciliation and MAC/PHY flow policy.
+  Failed board readiness stays closed after adapter destruction.
+
 - Prompt39: completed native PHY-entry and conditional timing conformance tables.
   Notification and start receipts survive callback contention; late accepted
   notifications/events preserve effects while reporting timeout. Added cached

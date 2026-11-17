@@ -80,18 +80,25 @@ void stopEvents() {
 }
 void timerSemantics() {
     Host::reset();
-    unsigned callbacks = 0;
+    struct Context { unsigned callbacks = 0; esp_timer_handle_t timer = nullptr; } context;
     esp_timer_create_args_t args{};
-    args.callback = [](void* context) { ++*static_cast<unsigned*>(context); };
-    args.arg = &callbacks; args.dispatch_method = ESP_TIMER_TASK;
+    args.callback = [](void* opaque) {
+        auto& context = *static_cast<Context*>(opaque);
+        // The pinned API includes an executing callback even after a one-shot disarms.
+        assert(esp_timer_is_active(context.timer));
+        assert(esp_timer_stop(context.timer) == ESP_ERR_INVALID_STATE);
+        ++context.callbacks;
+    };
+    args.arg = &context; args.dispatch_method = ESP_TIMER_TASK;
     esp_timer_handle_t timer = nullptr;
     assert(esp_timer_create(&args, &timer) == ESP_OK);
+    context.timer = timer;
     assert(esp_timer_stop(timer) == ESP_ERR_INVALID_STATE);
     assert(esp_timer_start_once(timer, 0) == ESP_OK);
     assert(esp_timer_is_active(timer));
     assert(esp_timer_start_once(timer, 0) == ESP_ERR_INVALID_STATE);
     vTaskDelay(1);
-    assert(!esp_timer_is_active(timer) && callbacks == 1);
+    assert(!esp_timer_is_active(timer) && context.callbacks == 1);
     assert(esp_timer_stop(timer) == ESP_ERR_INVALID_STATE);
     assert(esp_timer_delete(timer) == ESP_OK);
 }

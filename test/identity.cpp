@@ -569,12 +569,126 @@ void testOwnership() {
   CHECK(first.readIdentity(firstOutput, BUDGET).ok());
   CHECK(firstOutput.mode == OperatingMode::ENHANCED);
 }
+
+void testScan() {
+  Controller bus;
+  Driver driver;
+  uint16_t id1 = 0xDEAD, id2 = 0xBEEF;
+  bool invoked = true;
+  CHECK(driver.readIdentityAt(0, id1, id2, BUDGET, &invoked).is(Err::NOT_BOUND));
+  CHECK(!invoked && id1 == 0xDEAD && id2 == 0xBEEF);
+  CHECK(driver.bind(bus.config()).ok());
+  DeviceIdentity identity;
+  CHECK(driver.readIdentity(identity, BUDGET).ok());
+  const auto accepted = driver.identitySnapshot();
+  const auto settings = driver.settingsSnapshot();
+  const auto health = driver.healthSnapshot();
+  const auto before = driver.transportSnapshot();
+  const auto clocks = bus.clocks;
+  for (const auto address : {uint32_t{32}, uint32_t{0x8000}, UINT32_MAX}) {
+    invoked = true;
+    CHECK(driver.readIdentityAt(address, id1, id2, BUDGET, &invoked).is(Err::INVALID_PARAM));
+    CHECK(!invoked && id1 == 0xDEAD && id2 == 0xBEEF);
+    CHECK(bus.callbacks == before.totalBatches && bus.clocks == clocks);
+  }
+  // Discovery returns raw words, even values that identity acceptance rejects.
+  bus.first[0] = 0; bus.second[0] = 0xFFFF;
+  bus.first[31] = 0x1234; bus.second[31] = 0x5678;
+  for (const uint32_t address : {0U, 31U}) {
+    invoked = false;
+    CHECK(driver.readIdentityAt(address, id1, id2, BUDGET, &invoked).ok());
+    CHECK(invoked && id1 == bus.first[address] && id2 == bus.second[address]);
+    CHECK(bus.lastRequest.phyAddress == address && bus.lastRequest.frameCount == 2U);
+    CHECK(bus.trace[0].reg == 2U && bus.trace[1].reg == 3U);
+    CHECK(sameIdentity(driver.identitySnapshot(), accepted));
+    acceptedCapabilities(driver);
+    CHECK(driver.settingsSnapshot().trust == settings.trust);
+  }
+  const auto scanned = driver.transportSnapshot();
+  CHECK(scanned.totalBatches == before.totalBatches + 2U);
+  CHECK(scanned.attemptedFrames == before.attemptedFrames + 4U);
+  CHECK(scanned.completedFrames == before.completedFrames + 4U);
+  CHECK(scanned.lastBatch.frames[0].value == 0x1234 && scanned.lastBatch.frames[1].value == 0x5678);
+  CHECK(driver.healthSnapshot().totalSuccess == health.totalSuccess);
+  CHECK(driver.healthSnapshot().totalFailures == health.totalFailures);
+  CHECK(driver.readIdentity(identity, BUDGET).ok());
+  CHECK(bus.lastRequest.phyAddress == 1U && identity.id2 == 0xA111);
+  invoked = true;
+  CHECK(driver.readIdentityAt(31, id1, id2, {10000, 1}, &invoked).is(Err::OPERATION_TIMEOUT));
+  CHECK(!invoked && driver.transportSnapshot().totalBatches == scanned.totalBatches + 1U);
+  CHECK(id1 == 0x1234 && id2 == 0x5678);
+
+  for (int phase = 0; phase < 2; ++phase) {
+    Controller failed;
+    Driver observed;
+    CHECK(observed.bind(failed.config()).ok());
+    failed.failAt = phase;
+    invoked = false; id1 = 0xDEAD; id2 = 0xBEEF;
+    CHECK(observed.readIdentityAt(31, id1, id2, BUDGET, &invoked).is(Err::MDIO_TIMEOUT));
+    CHECK(invoked && id1 == 0xDEAD && id2 == 0xBEEF);
+    const auto receipt = observed.transportSnapshot();
+    CHECK(receipt.totalBatches == 1U && receipt.attemptedFrames == static_cast<uint32_t>(phase + 1));
+    CHECK(receipt.completedFrames == static_cast<uint32_t>(phase));
+    CHECK(receipt.lastBatch.frames[static_cast<size_t>(phase)].effectPossible);
+    CHECK(observed.healthSnapshot().totalFailures == 0U);
+    CHECK(!failed.locked && failed.releases == 1U);
+  }
+  for (unsigned fault = 0; fault < 3U; ++fault) {
+    Controller failed;
+    Driver observed;
+    CHECK(observed.bind(failed.config()).ok());
+    if (fault == 0U) failed.expireAfter = 1;
+    if (fault == 1U) failed.regress = true;
+    if (fault == 2U) failed.identityFault = IdentityFault::SHORT;
+    invoked = false; id1 = 0xDEAD; id2 = 0xBEEF;
+    const auto status = observed.readIdentityAt(0, id1, id2, {150, 2}, &invoked);
+    CHECK(status.code == (fault == 0U ? Err::OPERATION_TIMEOUT : fault == 1U ? Err::INVALID_CONFIG : Err::MDIO_ERROR));
+    CHECK(invoked && id1 == 0xDEAD && id2 == 0xBEEF);
+    const auto receipt = observed.transportSnapshot();
+    CHECK(receipt.totalBatches == 1U && receipt.attemptedFrames == (fault == 2U ? 1U : 2U));
+    CHECK(receipt.late == (fault == 0U) && receipt.clockInvalid == (fault == 1U));
+    CHECK((receipt.violation != TransportViolation::NONE) == (fault == 2U));
+    CHECK(observed.healthSnapshot().totalSuccess == 0U && observed.healthSnapshot().totalFailures == 0U);
+    if (fault != 0U) {
+      invoked = true;
+      CHECK(!observed.readIdentityAt(0, id1, id2, BUDGET, &invoked).ok());
+      CHECK(!invoked && receipt.totalBatches == observed.transportSnapshot().totalBatches);
+    }
+  }
+
+  // Raw scans cannot bypass either an active operation or its retained result.
+  Controller owned;
+  Driver active;
+  CHECK(active.bind(owned.config()).ok());
+  OperationToken token;
+  CHECK(active.startInitialize({ResetKind::PCS}, {{10000, 64}, 10, 16}, token).inProgress());
+  invoked = true;
+  CHECK(active.readIdentityAt(31, id1, id2, BUDGET, &invoked).is(Err::BUSY));
+  CHECK(!invoked && owned.callbacks == 0U);
+  // Reach the real reset write with the existing controller, then cancel. The
+  // resulting cleanup obligation remains after its terminal result is taken.
+  for (unsigned polls = 0; active.operationSnapshot().phase != OperationPhase::COMMAND; ++polls) {
+    CHECK(polls < 16U);
+    CHECK(active.pollOperation(token).inProgress());
+  }
+  CHECK(active.pollOperation(token).inProgress());
+  CHECK(active.cancel(token).ok());
+  const auto calls = owned.callbacks;
+  invoked = true;
+  CHECK(active.readIdentityAt(31, id1, id2, BUDGET, &invoked).detail == static_cast<int32_t>(BusyDetail::RESULT_PENDING));
+  CHECK(!invoked && owned.callbacks == calls);
+  OperationResult result;
+  CHECK(active.takeResult(token, result).ok() && result.cleanupOwed);
+  invoked = true;
+  CHECK(active.readIdentityAt(31, id1, id2, BUDGET, &invoked).detail == static_cast<int32_t>(BusyDetail::CLEANUP_REQUIRED));
+  CHECK(!invoked && owned.callbacks == calls);
+}
 } // namespace
 
 int main(int argc, char** argv) {
   const test::Suite suites[] = {
     {"decode", testDecode}, {"policy", testPolicy}, {"failures", testFailures},
-    {"lifecycle", testLifecycle}, {"ownership", testOwnership}
+    {"lifecycle", testLifecycle}, {"ownership", testOwnership}, {"scan", testScan}
   };
   return test::runSuites(argc, argv, suites);
 }

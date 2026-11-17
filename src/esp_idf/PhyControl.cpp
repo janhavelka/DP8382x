@@ -53,7 +53,8 @@ Status Phy::reconcileSdkState(uint64_t deadlineUs) noexcept {
       if (command == ETH_CMD_S_SPEED) receipt.speedAccepted = true;
       if (command == ETH_CMD_S_DUPLEX_MODE) receipt.duplexAccepted = true;
     }
-    return error == ESP_OK && nowUs() >= deadlineUs ? ESP_ERR_TIMEOUT : error;
+    const auto after = nowUs();
+    return error == ESP_OK && (after < before || after >= deadlineUs || after - before > _config.notificationUs) ? ESP_ERR_TIMEOUT : error;
   };
   auto error = call(ControlEntry::AUTONEGO, ETH_CMD_S_AUTONEGO, &enabled);
   if (error == ESP_OK) error = call(ControlEntry::NONE, ETH_CMD_G_AUTONEGO, &enabled);
@@ -96,11 +97,13 @@ esp_err_t Phy::setFlowControl(bool enabled, uint32_t pauseAbility, uint64_t dead
   // Precommit the possible MAC effect before invoking external code. Callback
   // failure is not evidence that the policy remained unchanged.
   leave();
+  const auto before = nowUs();
   const auto macError = _config.mac->enable_flow_ctrl(_config.mac, enabled);
   receipt.macError = macError; receipt.macAccepted = macError == ESP_OK;
   auto error = macError;
   const auto after = nowUs();
-  if (error == ESP_OK && (after >= deadlineUs || _config.notificationUs >= deadlineUs - after))
+  if (error == ESP_OK && (after < before || after - before > _config.notificationUs ||
+      after >= deadlineUs || _config.notificationUs >= deadlineUs - after))
     error = ESP_ERR_TIMEOUT;
   if (error == ESP_OK) {
     if (!enter()) error = ESP_ERR_INVALID_STATE;
@@ -108,10 +111,15 @@ esp_err_t Phy::setFlowControl(bool enabled, uint32_t pauseAbility, uint64_t dead
   }
   if (error == ESP_OK) {
     receipt.phyAttempted = true;
+    const auto phyBefore = nowUs();
     error = _handle.phy.advertise_pause_ability(&_handle.phy, pauseAbility);
+    receipt.phyError = error; receipt.phyAccepted = error == ESP_OK;
+    const auto phyAfter = nowUs();
+    if (error == ESP_OK && (phyAfter < phyBefore || phyAfter - phyBefore > _config.notificationUs))
+      error = ESP_ERR_TIMEOUT;
+  } else {
+    receipt.phyError = error;
   }
-  receipt.phyError = error;
-  receipt.phyAccepted = error == ESP_OK;
   if (error == ESP_OK && nowUs() >= deadlineUs) error = ESP_ERR_TIMEOUT;
   if (_unexpectedFlowEffect.load() && error == ESP_OK) error = ESP_ERR_INVALID_STATE;
   receipt.reconciled = error == ESP_OK;

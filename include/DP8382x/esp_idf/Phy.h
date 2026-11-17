@@ -77,13 +77,21 @@ struct FlowControlRecord {
   esp_err_t phyError{ESP_OK}; ///< PHY callback or admission/deadline result.
   bool reconciled{false}; ///< Both parts completed in the same admitted, in-budget request.
 };
+/// @brief One controller-wide silence reservation, independent of its short mutex.
+enum class BusAdmission : uint8_t {
+  BOOT_CLOSED, ///< Initial state; only board preparation may claim the controller.
+  AVAILABLE, ///< Ordinary complete batches and a new exclusive procedure may run.
+  INITIALIZING, ///< Only the admitting PHY's initialization batches may run.
+  BOARD_PREPARING, ///< No MDIO while reset/readiness owns the controller domain.
+  FAILED_CLOSED ///< Board readiness failed; external disposition or restart required.
+};
 /// @brief Borrowed controller-wide exclusion and readiness shared by every PHY.
 /// @pre mutex is an application-created nonrecursive mutex. This object and mutex
 /// outlive all MAC/driver callbacks, including terminal retained-resource state.
 struct SharedBus {
   SemaphoreHandle_t mutex{nullptr}; ///< Serializes complete MDIO batches.
   std::atomic<bool> quarantined{false}; ///< Unknown controller completion; external repair only.
-  std::atomic<bool> suspended{true}; ///< Board reset/readiness or owner exclusion.
+  std::atomic<BusAdmission> admission{BusAdmission::BOOT_CLOSED}; ///< Sole silence authority; never overwrite another reservation.
   std::atomic<uint64_t> quietUntilUs{0}; ///< Shared nonwrapping esp_timer readiness floor.
 };
 /// @brief Explicit board reset procedure, supplied by the application.
@@ -160,7 +168,8 @@ public:
   /// @brief Assert/reset board under shared silence, then wait 2 ms release/50 ms POR and clock readiness.
   /// @param[in] board Finite borrowed pin callback and real power/clock timestamps.
   /// @param[in] deadlineUs Exclusive absolute esp_timer microsecond deadline, no renewed timeout.
-  /// @return Native error/timeout; failed reset leaves shared admission closed, no MDIO occurs.
+  /// @return Native error/timeout; another reservation rejects before GPIO. Failed
+  /// readiness leaves FAILED_CLOSED until external disposition or system restart.
   esp_err_t prepareBoard(const BoardControl& board, uint64_t deadlineUs) noexcept;
   /// @brief Install with mandatory rejecting raw hooks after board readiness; no PHY I/O.
   /// @param[out] output Published only on success; SDK install failure has no partial handle.

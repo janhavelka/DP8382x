@@ -369,6 +369,13 @@ struct ConfigurationMismatch {
 }
 ```
 
+Explicit address discovery now uses shipped `readIdentityAt` for raw PHYIDR1/2
+without accepting identity or changing the bound address. Ordinary word outputs
+publish together only on success; optional invoked is a receipt indicator set on
+every return. It shares transport accounting/clock checks, excludes managed health
+and semantic device collectors, and requires IDLE with no result/cleanup/session.
+The exact declaration and output/budget rules are in DP8382x.h.
+
 ## Exact local and direct declarations
 
 [DP8382x.h](../include/DP8382x/DP8382x.h) owns shipped signatures and preconditions;

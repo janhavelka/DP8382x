@@ -125,7 +125,7 @@ void boardAndInstallFailures() {
     Host::reset(); Fixture f; f.create();
     BoardControl control; control.setReset = [](void*, bool) { return ESP_ERR_TIMEOUT; };
     assert(f.owner->prepareBoard(control, 100000) == ESP_ERR_TIMEOUT);
-    assert(f.bus.suspended && f.mac.frames.empty());
+    assert(f.bus.admission == BusAdmission::FAILED_CLOSED && f.mac.frames.empty());
     auto sentinel = reinterpret_cast<esp_eth_handle_t>(0x1234);
     assert(f.owner->install(sentinel) == ESP_ERR_INVALID_STATE && sentinel == reinterpret_cast<void*>(0x1234));
     assert(f.owner->destroy() == ESP_OK);
@@ -519,7 +519,7 @@ void boardTickReadiness() {
         const auto assertedAt = times.assertedAt, releasedAt = times.releasedAt;
         // One-microsecond floor-clock uncertainty is part of the readiness anchor.
         assert(assertedAt >= 50001 && releasedAt >= assertedAt + control.assertionUs + 1);
-        assert(Host::state().nowUs >= releasedAt + 2001 && !f.bus.suspended && f.mac.frames.empty());
+        assert(Host::state().nowUs >= releasedAt + 2001 && f.bus.admission == BusAdmission::AVAILABLE && f.mac.frames.empty());
         assert(!Host::state().delays.empty() && Host::state().delays.front().afterUs - Host::state().delays.front().beforeUs == 1);
         const auto afterRelease = std::find_if(Host::state().delays.begin(), Host::state().delays.end(), [&](const auto& delay) { return delay.beforeUs == releasedAt; });
         assert(afterRelease != Host::state().delays.end());
@@ -632,9 +632,15 @@ void discovery() {
     assert(cached.entries[0].id1 == 0x2000 && cached.status.detail == ESP_ERR_TIMEOUT && f.bus.quarantined);
     Host::reset(); Fixture g; g.install();
     g.mac.elapsedUs["mac.read"] = 10000;
-    assert(g.owner->discover(3, output, {Host::state().nowUs + 9000, 4}).is(Err::OPERATION_TIMEOUT));
+    const auto late = g.owner->discover(3, output, {Host::state().nowUs + 9000, 4});
+    assert(late.is(Err::OPERATION_TIMEOUT) && late.detail == static_cast<int32_t>(TimeoutDetail::DEADLINE));
     assert(g.mac.frames.size() == 1);
     assert(g.owner->discoverySnapshot(cached).ok() && cached.framesAttempted == 1 && cached.entries[0].id1Valid);
+    TransportSnapshot transport;
+    assert(g.owner->transportSnapshot(transport).ok() && transport.violation == TransportViolation::NONE);
+    assert(transport.late && !transport.stopped && transport.attemptedFrames == 1 && transport.completedFrames == 1);
+    assert(transport.lastBatch.status.is(Err::OPERATION_TIMEOUT));
+    assert(transport.lastBatch.status.detail == static_cast<int32_t>(TimeoutDetail::DEADLINE));
 }
 void discoveryAdmission() {
     Host::reset(); Fixture f;
@@ -657,6 +663,66 @@ void discoveryAdmission() {
     Host::state().nowUs = 100000;
     assert(g.owner->discover(1, output, {200000, 2}).detail == static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT));
     assert(g.mac.frames.size() == before && output.requestedMask == 0xCAFE);
+}
+void discoveryAccounting() {
+    Host::reset(); Fixture f; f.install(); f.initialize();
+    TransportSnapshot base; assert(f.owner->transportSnapshot(base).ok());
+    SettingsSnapshot settings; assert(f.owner->settingsSnapshot(settings).ok());
+    assert(settings.trust == ConfigurationTrust::VERIFIED);
+    SdkStateSnapshot sdk; assert(f.owner->sdkStateSnapshot(sdk).ok() && sdk.reconciled);
+    // Discovery reads a foreign address as raw words; it cannot replace the bound part's proof.
+    f.mac.registers[2] = 0x1234; f.mac.registers[3] = 0x5678;
+    const auto frames = f.mac.frames.size();
+    DiscoverySnapshot scan;
+    assert(f.owner->discover(2, scan, {Host::state().nowUs + 100000, 2}).ok());
+    assert(scan.framesAttempted == 2 && scan.entries[1].id1 == 0x1234 && scan.entries[1].id2 == 0x5678);
+    assert(f.mac.frames[frames].address == 1 && f.mac.frames[frames].reg == 2);
+    assert(f.mac.frames[frames + 1].address == 1 && f.mac.frames[frames + 1].reg == 3);
+    TransportSnapshot receipt; assert(f.owner->transportSnapshot(receipt).ok());
+    assert(receipt.totalBatches == base.totalBatches + 1 && receipt.attemptedFrames == base.attemptedFrames + 2);
+    assert(receipt.completedFrames == base.completedFrames + 2 && receipt.lastBatch.status.ok());
+    assert(receipt.lastBatch.frames[0].value == 0x1234 && receipt.lastBatch.frames[1].value == 0x5678);
+    SettingsSnapshot after; assert(f.owner->settingsSnapshot(after).ok());
+    assert(after.trust == settings.trust && after.desiredValid == settings.desiredValid);
+    assert(after.observedValid == settings.observedValid && after.observedAtUs == settings.observedAtUs);
+    assert(f.owner->sdkStateSnapshot(sdk).ok() && sdk.reconciled);
+    uint32_t selected = 99;
+    assert(f.owner->nativePhy()->get_addr(f.owner->nativePhy(), &selected) == ESP_OK && selected == 0);
+    uint16_t id = 0;
+    assert(f.owner->readClause22(2, id, {Host::state().nowUs + 100000, 1}).ok() && id == 0x1234);
+    assert(f.owner->transportSnapshot(receipt).ok());
+    assert(receipt.totalBatches == base.totalBatches + 2 && receipt.attemptedFrames == base.attemptedFrames + 3);
+    assert(receipt.completedFrames == base.completedFrames + 3 && receipt.lastBatch.frames[0].value == 0x1234);
+    assert(receipt.lastBatch.frames[0].completed && !receipt.lastBatch.frames[1].attempted);
+    // One complete address and one failed second word retain every attempted/completed prefix.
+    f.mac.readResults = {ESP_OK, ESP_OK, ESP_OK, ESP_ERR_TIMEOUT};
+    scan.requestedMask = 0xCAFE; scan.framesAttempted = 99;
+    assert(f.owner->discover(10, scan, {Host::state().nowUs + 100000, 4}).detail == ESP_ERR_TIMEOUT);
+    assert(scan.requestedMask == 0xCAFE && scan.framesAttempted == 99);
+    assert(f.owner->transportSnapshot(receipt).ok());
+    assert(receipt.totalBatches == base.totalBatches + 4 && receipt.attemptedFrames == base.attemptedFrames + 7);
+    assert(receipt.completedFrames == base.completedFrames + 6 && receipt.lastBatch.status.detail == ESP_ERR_TIMEOUT);
+    assert(receipt.lastBatch.frames[0].completed && receipt.lastBatch.frames[0].valueValid);
+    assert(receipt.lastBatch.frames[1].attempted && !receipt.lastBatch.frames[1].completed);
+    DiscoverySnapshot cached; assert(f.owner->discoverySnapshot(cached).ok());
+    assert(cached.framesAttempted == 4 && cached.entries[1].id1Valid && cached.entries[1].id2Valid);
+    assert(cached.entries[3].id1Valid && !cached.entries[3].id2Valid);
+    const auto stoppedFrames = f.mac.frames.size(); const auto stoppedTime = Host::state().nowUs;
+    assert(f.owner->transportSnapshot(receipt).ok() && f.owner->discoverySnapshot(cached).ok());
+    assert(f.mac.frames.size() == stoppedFrames && Host::state().nowUs == stoppedTime);
+
+    Host::reset(); Fixture g; g.install(); g.initialize();
+    g.mac.onFrame = [](const Host::Frame&) { Host::state().nowUs = 1; };
+    scan.requestedMask = 0xCAFE;
+    assert(g.owner->discover(2, scan, {Host::state().nowUs + 100000, 2}).detail == static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT));
+    assert(scan.requestedMask == 0xCAFE);
+    assert(g.owner->transportSnapshot(receipt).ok() && receipt.clockInvalid);
+    const auto clockFrames = g.mac.frames.size(); const auto clockBatches = receipt.totalBatches;
+    g.mac.onFrame = nullptr; Host::state().nowUs = 1000000;
+    id = 0xCAFE;
+    assert(g.owner->readClause22(2, id, {1100000, 1}).detail == static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT));
+    assert(g.owner->transportSnapshot(receipt).ok() && receipt.clockInvalid && receipt.totalBatches == clockBatches);
+    assert(id == 0xCAFE && g.mac.frames.size() == clockFrames);
 }
 void terminalEventRetry() {
     Host::reset(); Fixture f; f.config.pinnedP4Mac = true;
@@ -732,7 +798,7 @@ void rawReadArbitration() {
         assert(f.owner->readMmd(31, 0x0467, sentinel, {Host::state().nowUs + 100000, 4}).is(Err::BUSY));
         assert(sentinel == 0xCAFE && f.mac.frames.size() == frames);
         Host::state().currentTask = 2; // Independent owner/PHY on the same controller.
-        assert(g.owner->readMmd(31, 0x0467, sentinel, {Host::state().nowUs + 100000, 4}).is(Err::BUSY));
+        assert(g.owner->readMmd(31, 0x0467, sentinel, {Host::state().nowUs + 100000, 4}).is(Err::MDIO_TIMEOUT));
         Host::state().currentTask = 1;
         assert(sentinel == 0xCAFE && g.mac.frames.empty());
         uint32_t raw = 0xCAFE;
@@ -760,7 +826,7 @@ void rawLockFailures() {
     Host::reset(); Fixture f; f.install();
     uint16_t result = 0xCAFE;
     Host::state().semaphoreEvents.clear(); Host::state().failNextTake = f.bus.mutex;
-    assert(f.owner->readMmd(31, 0x0467, result, {Host::state().nowUs + 100000, 4}).is(Err::BUSY));
+    assert(f.owner->readMmd(31, 0x0467, result, {Host::state().nowUs + 100000, 4}).is(Err::MDIO_TIMEOUT));
     auto receipts = controllerEvents(f.bus.mutex);
     assert(receipts.size() == 1 && receipts[0].take && !receipts[0].accepted);
     assert(result == 0xCAFE && f.mac.frames.empty() && !f.bus.quarantined);
@@ -774,6 +840,28 @@ void rawLockFailures() {
     const auto frames = f.mac.frames.size();
     assert(!f.owner->readMmd(31, 0x0467, result, {Host::state().nowUs + 100000, 4}).ok());
     assert(result == 0xCAFE && f.mac.frames.size() == frames);
+}
+void controllerWaitClassification() {
+    constexpr uint32_t tickUs = 1000000U / CONFIG_FREERTOS_HZ;
+    for (const uint32_t waitUs : {tickUs - 1U, tickUs, tickUs * 2U}) {
+        Host::reset(); Fixture f;
+        f.config.lockWaitUs = waitUs;
+        f.config.core.transport.bounds.fixedUs = waitUs + 1000U;
+        f.install();
+        Host::state().semaphoreEvents.clear();
+        Host::state().failNextTake = f.bus.mutex;
+        uint16_t output = 0xCAFE;
+        const auto status = f.owner->readMmd(31, 0x0467, output, {Host::state().nowUs + 100000, 4});
+        const auto receipts = controllerEvents(f.bus.mutex);
+        const bool waited = waitUs >= tickUs;
+        assert(status.is(waited ? Err::MDIO_TIMEOUT : Err::BUSY));
+        if (waited) assert(status.detail == ESP_ERR_TIMEOUT);
+        assert(receipts.size() == 1 && receipts[0].take && !receipts[0].accepted);
+        assert(receipts[0].ticks == waitUs / tickUs);
+        assert(output == 0xCAFE && f.mac.frames.empty() && !f.bus.quarantined);
+        // A timed acquisition failure has no uncertain controller effect and is retryable.
+        assert(f.owner->readMmd(31, 0x0467, output, {Host::state().nowUs + 100000, 4}).ok());
+    }
 }
 void rawBoundaryFailures() {
     for (unsigned boundary = 0; boundary < 4; ++boundary) {
@@ -927,6 +1015,57 @@ void flowControl() {
     f.mac.elapsedUs["mac.flow"] = 0;
     assert(f.owner->setFlowControl(false, 3, Host::state().nowUs + 100000) == ESP_OK);
 }
+void flowControlCallbackBounds() {
+    for (const uint32_t elapsed : {10U, 11U}) {
+        Host::reset(); Fixture f; f.install(); f.initialize();
+        LinkSettings settings; settings.advertisement = {LINK_100_FULL, true, true}; f.configure(settings);
+        f.mac.elapsedUs["mac.flow"] = elapsed;
+        const auto before = Host::state().nowUs;
+        const auto error = f.owner->setFlowControl(true, 3, before + 100000);
+        const bool late = elapsed > f.config.notificationUs;
+        assert(error == (late ? ESP_ERR_TIMEOUT : ESP_OK));
+        FlowControlRecord record; assert(f.owner->flowControlSnapshot(record).ok());
+        assert(record.macAccepted && record.macError == ESP_OK && record.macEffectPossible && f.mac.flowEnabled);
+        assert(record.phyAttempted == !late && record.phyAccepted == !late && record.reconciled == !late);
+        assert(record.phyError == (late ? ESP_ERR_TIMEOUT : ESP_OK));
+        assert(Host::state().nowUs - before == elapsed);
+        f.mac.elapsedUs["mac.flow"] = 11;
+        f.mac.errors["mac.flow"] = ESP_FAIL;
+        assert(f.owner->setFlowControl(false, 3, Host::state().nowUs + 100000) == ESP_FAIL);
+        assert(f.owner->flowControlSnapshot(record).ok());
+        assert(!record.macAccepted && record.macError == ESP_FAIL && record.macEffectPossible);
+        assert(!record.phyAttempted && !record.reconciled && f.mac.flowEnabled);
+        // Explicit successful retry repairs the retained partial/uncertain policy.
+        f.mac.elapsedUs["mac.flow"] = 0;
+        assert(f.owner->setFlowControl(false, 3, Host::state().nowUs + 100000) == ESP_OK);
+        assert(f.owner->flowControlSnapshot(record).ok() && record.reconciled && !f.mac.flowEnabled);
+    }
+}
+void sdkControlCallbackBounds() {
+    static esp_err_t (*original)(esp_eth_phy_t*, eth_phy_autoneg_cmd_t, bool*) = nullptr;
+    static uint32_t elapsed = 0;
+    for (const uint32_t duration : {10U, 11U}) {
+        Host::reset(); Fixture f; f.install(); f.initialize();
+        auto* phy = f.owner->nativePhy(); original = phy->autonego_ctrl; elapsed = duration;
+        phy->autonego_ctrl = [](esp_eth_phy_t* native, eth_phy_autoneg_cmd_t command, bool* enabled) {
+            const auto error = original(native, command, enabled);
+            Host::state().nowUs += elapsed;
+            return error;
+        };
+        const auto frames = f.mac.frames.size();
+        const auto status = f.owner->reconcileSdkState(Host::state().nowUs + 100000);
+        const bool late = duration > f.config.notificationUs;
+        assert(late ? status.is(Err::OPERATION_TIMEOUT) : status.ok());
+        SdkStateSnapshot record; assert(f.owner->sdkStateSnapshot(record).ok());
+        assert(record.autoNegotiationAccepted && record.reconciled == !late && record.cacheValid == !late);
+        bool enabled = false;
+        assert(esp_eth_ioctl(f.handle, ETH_CMD_G_AUTONEGO, &enabled) == ESP_OK && enabled);
+        assert(f.mac.frames.size() == frames);
+        phy->autonego_ctrl = original;
+        assert(f.owner->reconcileSdkState(Host::state().nowUs + 100000).ok());
+        assert(f.owner->sdkStateSnapshot(record).ok() && record.reconciled && record.cacheValid);
+    }
+}
 void rawMutationArbitration() {
     for (const bool modify : {false, true}) {
         Host::reset(); Fixture f; Fixture g; g.config.bus = &f.bus;
@@ -941,7 +1080,7 @@ void rawMutationArbitration() {
             const IoBudget budget{Host::state().nowUs + 100000, 5};
             assert(f.owner->writeMmd(31, 0x18, 0x12, budget).is(Err::BUSY));
             Host::state().currentTask = 2;
-            assert(g.owner->writeMmd(31, 0x18, 0x12, budget).is(Err::BUSY));
+            assert(g.owner->writeMmd(31, 0x18, 0x12, budget).is(Err::MDIO_TIMEOUT));
             Host::state().currentTask = 1;
             assert(g.mac.frames.empty());
         };
@@ -1049,7 +1188,7 @@ void hardResetSilence() {
     f.mac.frames.clear(); g.mac.frames.clear();
     OperationToken token;
     assert(f.owner->startInitialize({ResetKind::HARD}, {{Host::state().nowUs + 1000000, 512}, 10, 16}, token).inProgress());
-    assert(f.bus.suspended && !Host::semaphoreHeld(f.bus.mutex));
+    assert(f.bus.admission == BusAdmission::INITIALIZING && !Host::semaphoreHeld(f.bus.mutex));
     assert(f.owner->pollOperation(token, 0).inProgress() && f.mac.frames.empty());
     Status status{Err::IN_PROGRESS, 0, "Pending"};
     for (unsigned i = 0; i < 256 && status.inProgress(); ++i) {
@@ -1060,7 +1199,7 @@ void hardResetSilence() {
         assert(f.owner->operationSnapshot(operation).ok());
         if (operation.nextPollValid) Host::state().nowUs = std::max(Host::state().nowUs, operation.nextPollAtUs);
         status = f.owner->pollOperation(token);
-        assert(f.bus.suspended && !Host::semaphoreHeld(f.bus.mutex));
+        assert(f.bus.admission == BusAdmission::INITIALIZING && !Host::semaphoreHeld(f.bus.mutex));
     }
     if (!status.ok()) {
         OperationSnapshot operation;
@@ -1072,11 +1211,83 @@ void hardResetSilence() {
     assert(status.ok());
     OperationResult result;
     assert(f.owner->takeResult(token, result).ok() && result.status.ok());
-    assert(!f.bus.suspended && !Host::semaphoreHeld(f.bus.mutex));
+    assert(f.bus.admission == BusAdmission::AVAILABLE && !Host::semaphoreHeld(f.bus.mutex));
     Host::state().nowUs = std::max(Host::state().nowUs, f.bus.quietUntilUs.load());
     uint16_t id = 0;
     assert(g.owner->readClause22(2, id, {Host::state().nowUs + 100000, 1}).ok() && id == 0x2000);
     assert(f.owner->reconcileSdkState(Host::state().nowUs + 100000).ok());
+}
+void boardRespectsInitializationSilence() {
+    Host::reset(); Fixture f; Fixture g; g.config.bus = &f.bus;
+    f.install(); f.initialize(); g.create();
+    OperationToken token;
+    assert(f.owner->startInitialize({ResetKind::HARD}, {{Host::state().nowUs + 1000000, 512}, 10, 16}, token).inProgress());
+    unsigned pins = 0;
+    BoardControl control; control.context = &pins;
+    control.setReset = [](void* context, bool) { ++*static_cast<unsigned*>(context); return ESP_OK; };
+    const auto frames = f.mac.frames.size(); const auto before = Host::state().nowUs;
+    assert(g.owner->prepareBoard(control, before + 100000) == ESP_ERR_INVALID_STATE);
+    assert(pins == 0 && Host::state().nowUs == before && f.mac.frames.size() == frames && g.mac.frames.empty());
+    assert(f.bus.admission == BusAdmission::INITIALIZING && !Host::semaphoreHeld(f.bus.mutex));
+    // Rejection cannot release another owner's reset/replay reservation.
+    uint16_t sentinel = 0xCAFE;
+    assert(f.owner->readClause22(2, sentinel, {before + 100000, 1}).is(Err::BUSY) && sentinel == 0xCAFE);
+    assert(f.finish(token).status.ok() && f.bus.admission == BusAdmission::AVAILABLE);
+    assert(g.owner->prepareBoard(control, Host::state().nowUs + 100000) == ESP_OK);
+    assert(pins == 2 && f.bus.admission == BusAdmission::AVAILABLE && g.mac.frames.empty());
+    assert(g.owner->destroy() == ESP_OK);
+}
+void boardSilenceExcludesOtherOwners() {
+    Host::reset(); Fixture f; Fixture g; Fixture h;
+    g.config.bus = &f.bus; h.config.bus = &f.bus;
+    f.install(); f.initialize(); g.create(); h.create();
+    struct Context { Fixture* initialized; Fixture* otherBoard; unsigned pins = 0; unsigned otherPins = 0; } context{&f, &h};
+    BoardControl control; control.context = &context;
+    control.setReset = [](void* opaque, bool) {
+        auto& context = *static_cast<Context*>(opaque);
+        auto& first = *context.initialized; auto& other = *context.otherBoard;
+        ++context.pins;
+        assert(first.bus.admission == BusAdmission::BOARD_PREPARING && !Host::semaphoreHeld(first.bus.mutex));
+        const auto frames = first.mac.frames.size();
+        OperationToken token{}; const auto original = token;
+        assert(first.owner->startInitialize({ResetKind::NONE}, {{Host::state().nowUs + 1000000, 512}, 10, 16}, token).is(Err::BUSY));
+        assert(token.value == original.value && first.mac.frames.size() == frames);
+        BoardControl nested; nested.context = &context.otherPins;
+        nested.setReset = [](void* pins, bool) { ++*static_cast<unsigned*>(pins); return ESP_OK; };
+        assert(other.owner->prepareBoard(nested, Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
+        assert(context.otherPins == 0 && other.mac.frames.empty() && first.bus.admission == BusAdmission::BOARD_PREPARING);
+        return ESP_OK;
+    };
+    assert(g.owner->prepareBoard(control, Host::state().nowUs + 100000) == ESP_OK);
+    assert(context.pins == 2 && context.otherPins == 0 && f.bus.admission == BusAdmission::AVAILABLE);
+    // Successful board readiness releases only its own reservation.
+    OperationToken token;
+    assert(f.owner->startInitialize({ResetKind::NONE}, {{Host::state().nowUs + 1000000, 512}, 10, 16}, token).inProgress());
+    assert(f.finish(token).status.ok() && f.bus.admission == BusAdmission::AVAILABLE);
+    assert(g.owner->destroy() == ESP_OK && h.owner->destroy() == ESP_OK);
+}
+void failedBoardSilenceRemainsClosed() {
+    Host::reset(); Fixture f; Fixture g; Fixture h;
+    g.config.bus = &f.bus; h.config.bus = &f.bus;
+    f.install(); f.initialize(); g.create(); h.create();
+    unsigned pins = 0;
+    BoardControl failed; failed.context = &pins;
+    failed.setReset = [](void* context, bool) { ++*static_cast<unsigned*>(context); return ESP_FAIL; };
+    assert(g.owner->prepareBoard(failed, Host::state().nowUs + 100000) == ESP_FAIL);
+    assert(pins == 1 && f.bus.admission == BusAdmission::FAILED_CLOSED && !Host::semaphoreHeld(f.bus.mutex));
+    assert(g.owner->destroy() == ESP_OK); // Shared closure does not borrow the deleted owner's address.
+    unsigned otherPins = 0;
+    BoardControl other; other.context = &otherPins;
+    other.setReset = [](void* context, bool) { ++*static_cast<unsigned*>(context); return ESP_OK; };
+    const auto before = Host::state().nowUs; const auto frames = f.mac.frames.size();
+    assert(h.owner->prepareBoard(other, before + 100000) == ESP_ERR_INVALID_STATE);
+    OperationToken token{}; const auto original = token;
+    assert(f.owner->startInitialize({ResetKind::NONE}, {{before + 1000000, 512}, 10, 16}, token).is(Err::BUSY));
+    uint16_t sentinel = 0xCAFE;
+    assert(f.owner->readClause22(2, sentinel, {before + 100000, 1}).is(Err::BUSY) && sentinel == 0xCAFE);
+    assert(token.value == original.value && otherPins == 0 && Host::state().nowUs == before);
+    assert(f.bus.admission == BusAdmission::FAILED_CLOSED && f.mac.frames.size() == frames && h.mac.frames.empty());
+    assert(h.owner->destroy() == ESP_OK);
 }
 void flowCompletionContention() {
     Host::reset(); Fixture f; f.install(); f.initialize();
@@ -1219,22 +1430,29 @@ int main(int argc, char** argv) {
     else if (suite == "forbidden_lifecycle") forbiddenLifecycle();
     else if (suite == "discovery") discovery();
     else if (suite == "discovery_admission") discoveryAdmission();
+    else if (suite == "discovery_accounting") discoveryAccounting();
     else if (suite == "terminal_event_retry") terminalEventRetry();
     else if (suite == "installer_contention") installerContention();
     else if (suite == "raw_read_arbitration") rawReadArbitration();
     else if (suite == "raw_lock_failures") rawLockFailures();
+    else if (suite == "controller_wait_classification") controllerWaitClassification();
     else if (suite == "raw_boundary_failures") rawBoundaryFailures();
     else if (suite == "rejected_raw_reads") rejectedRawReads();
     else if (suite == "forced_lifecycle") forcedLifecycle();
     else if (suite == "raw_state_reconciliation") rawStateReconciliation();
     else if (suite == "direct_start_invalidation") directStartInvalidation();
     else if (suite == "flow_control") flowControl();
+    else if (suite == "flow_control_callback_bounds") flowControlCallbackBounds();
+    else if (suite == "sdk_control_callback_bounds") sdkControlCallbackBounds();
     else if (suite == "raw_mutation_arbitration") rawMutationArbitration();
     else if (suite == "raw_mutation_admission") rawMutationAdmission();
     else if (suite == "collector_partial_evidence") collectorPartialEvidence();
     else if (suite == "uncertain_basic_control") uncertainBasicControl();
     else if (suite == "configuration_admission") configurationAdmission();
     else if (suite == "hard_reset_silence") hardResetSilence();
+    else if (suite == "board_respects_initialization_silence") boardRespectsInitializationSilence();
+    else if (suite == "board_silence_excludes_other_owners") boardSilenceExcludesOtherOwners();
+    else if (suite == "failed_board_silence_remains_closed") failedBoardSilenceRemainsClosed();
     else if (suite == "flow_completion_contention") flowCompletionContention();
     else if (suite == "forced_partner_pause") forcedPartnerPause();
     else if (suite == "stopping_late_poll") stoppingLatePoll();

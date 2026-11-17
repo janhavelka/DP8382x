@@ -6,7 +6,7 @@
 #include <unordered_set>
 #include "esp_heap_caps.h"
 
-struct esp_timer { esp_timer_create_args_t args; bool active; bool periodic; };
+struct esp_timer { esp_timer_create_args_t args; bool active; bool periodic; bool running; };
 struct esp_netif_obj { esp_netif_driver_ifconfig_t driver{}; };
 struct HostSemaphore { bool held = false; };
 namespace {
@@ -52,7 +52,9 @@ void tickTimers() {
     for (auto* timer : current) {
         if (!timer->active || (!timer->periodic && data.holdOneShot)) continue;
         if (!timer->periodic) timer->active = false;
+        timer->running = true;
         timer->args.callback(timer->args.arg);
+        timer->running = false;
     }
 }
 esp_netif_t* makeNetif() { auto* netif = new esp_netif_obj; netifs.push_back(netif); return netif; }
@@ -106,7 +108,7 @@ esp_err_t esp_timer_create(const esp_timer_create_args_t* args, esp_timer_handle
     data.calls.emplace_back("timer.create");
     if (const auto error = consume(data.nextTimerCreateError); error != ESP_OK) return error;
     if (!args || !args->callback || !out) return ESP_ERR_INVALID_ARG;
-    auto* timer = new esp_timer{*args, false, false};
+    auto* timer = new esp_timer{*args, false, false, false};
     timers.push_back(timer); *out = timer; ++data.timerCreates; return ESP_OK;
 }
 esp_err_t esp_timer_delete(esp_timer_handle_t timer) {
@@ -139,7 +141,7 @@ esp_err_t esp_timer_stop(esp_timer_handle_t timer) {
     if (!timer || !timer->active) return ESP_ERR_INVALID_STATE;
     timer->active = false; return ESP_OK;
 }
-bool esp_timer_is_active(esp_timer_handle_t timer) { return timer && timer->active; }
+bool esp_timer_is_active(esp_timer_handle_t timer) { return timer && (timer->active || timer->running); }
 int64_t esp_timer_get_time(void) { return static_cast<int64_t>(data.nowUs); }
 void vTaskDelay(TickType_t ticks) {
     const auto before = data.nowUs;

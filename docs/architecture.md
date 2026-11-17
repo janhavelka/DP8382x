@@ -43,6 +43,10 @@ The application also serializes all instance calls, even snapshots. Release the
 controller lock before hardware waits, SDK callbacks, notifications or output.
 Shared controller quarantine and SMI silence are application-owned admission,
 distinct from passive transport health and from an operation's cleanup barrier.
+The native shared admission enum prevents board preparation and initialization
+from replacing each other's reservation. Failed board readiness stays closed
+independently of the adapter lifetime. Explicit address discovery uses the core's
+raw two-ID batch audit and counters without accepting or retargeting a device.
 
 The collector retains every validated consumed sample and possible history loss;
 ordinary aggregates publish only complete observations. Safe raw dumps exclude

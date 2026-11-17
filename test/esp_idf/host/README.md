@@ -101,3 +101,13 @@ readiness floor plus the one-microsecond floor-clock uncertainty before bus
 admission opens. These tests model quantization, not arbitrary preemption or a
 physical timing measurement. Both configurations verify the same 45-file real
 SDK dependency closure; the pinned manifest is unchanged.
+
+The independent prompts37-39 audit brings the total to63 cases. New cases prevent
+board preparation from replacing another PHY's initialization reservation, keep
+failed board readiness closed after adapter deletion, and reject other owners
+throughout GPIO callbacks. Discovery now tests the production core accounting,
+partial receipts, clock faults and ordinary-output preservation. Control and
+flow-policy callbacks retain accepted effects when their individual bound is
+exceeded. Positive controller waits return MDIO_TIMEOUT; zero-tick contention
+returns BUSY at both1000Hz and100Hz. The timer fake now reports a dispatched
+callback as active until it returns, matching the pinned public timer behavior.

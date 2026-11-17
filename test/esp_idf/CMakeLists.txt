@@ -88,12 +88,13 @@ foreach(suite IN ITEMS factory board_install_failures raw_routing raw_rx_retenti
     live_tuple_changes incomplete_negotiation pause_projection notification_partial_receipts
     notification_late_retry notification_completion_contention notification_late_event_retry
     board_tick_readiness poll_period_bounds start_completion_contention stop_completion_contention
-    forbidden_lifecycle discovery discovery_admission terminal_event_retry
-    installer_contention raw_read_arbitration raw_lock_failures raw_boundary_failures
+    forbidden_lifecycle discovery discovery_admission discovery_accounting terminal_event_retry
+    installer_contention raw_read_arbitration raw_lock_failures controller_wait_classification raw_boundary_failures
     rejected_raw_reads forced_lifecycle raw_state_reconciliation
-    direct_start_invalidation flow_control raw_mutation_arbitration
+    direct_start_invalidation flow_control flow_control_callback_bounds sdk_control_callback_bounds raw_mutation_arbitration
     raw_mutation_admission collector_partial_evidence uncertain_basic_control
-    configuration_admission hard_reset_silence flow_completion_contention
+    configuration_admission hard_reset_silence board_respects_initialization_silence
+    board_silence_excludes_other_owners failed_board_silence_remains_closed flow_completion_contention
     forced_partner_pause stopping_late_poll foreign_flow_effect start_gate_failures)
   add_test(NAME native_${suite} COMMAND dp8382x_native_host_tests ${suite})
   set_tests_properties(native_${suite} PROPERTIES TIMEOUT 30)
@@ -124,3 +125,5 @@ target_link_libraries(dp8382x_native_host_100hz_tests PRIVATE dp8382x_native_hos
 target_compile_options(dp8382x_native_host_100hz_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
 add_test(NAME native_board_tick_readiness_100hz COMMAND dp8382x_native_host_100hz_tests board_tick_readiness)
 set_tests_properties(native_board_tick_readiness_100hz PROPERTIES TIMEOUT 30)
+add_test(NAME native_controller_wait_classification_100hz COMMAND dp8382x_native_host_100hz_tests controller_wait_classification)
+set_tests_properties(native_controller_wait_classification_100hz PROPERTIES TIMEOUT 30)

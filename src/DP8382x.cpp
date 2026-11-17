@@ -208,6 +208,13 @@ MdioBatch directBatch(uint8_t address, FrameKind kind, uint16_t value = 0) noexc
   return batch;
 }
 
+MdioBatch identityBatch() noexcept {
+  auto batch = directBatch(cmd::REG_PHYIDR1, FrameKind::READ);
+  batch.frameCount = 2;
+  batch.frames[1] = {FrameKind::READ, cmd::REG_PHYIDR2, 0, 0, NO_READ_INDEX};
+  return batch;
+}
+
 // SNLS647I 8.3.11.1/.4/.5: fresh complete nonincrementing selection per call.
 // Whole words construct REGCR, so no reserved/uninitialized SDK bits can leak.
 MdioBatch makeMmdBatch(uint16_t address, FrameKind kind, uint16_t value, uint16_t devad = cmd::DEVAD_VENDOR) noexcept {
@@ -498,10 +505,24 @@ Status DP8382x::readIdentity(DeviceIdentity& identity, const IoBudget& budget) n
   return _readIdentity(identity, budget, false);
 }
 
+Status DP8382x::readIdentityAt(uint32_t phyAddress, uint16_t& id1, uint16_t& id2,
+                              const IoBudget& budget, bool* invoked) noexcept {
+  if (invoked) *invoked = false;
+  if (!isValidPhyAddress(phyAddress)) return paramError(ParamDetail::ADDRESS_RANGE);
+  if (!_bound) return Status::Error(Err::NOT_BOUND, "No transport binding");
+  if (_active || _polling || _operation.state == OperationState::RUNNING) return busy(BusyDetail::OPERATION_ACTIVE);
+  if (_operation.state == OperationState::RESULT_PENDING) return busy(BusyDetail::RESULT_PENDING);
+  if (_operation.cleanupOwed || _operation.temporaryMayBeActive) return busy(BusyDetail::CLEANUP_REQUIRED);
+  const auto status = _execute(identityBatch(), budget, invoked, false, Traffic::RAW, static_cast<uint8_t>(phyAddress));
+  if (status.ok()) {
+    id1 = _transport.lastBatch.frames[0].value;
+    id2 = _transport.lastBatch.frames[1].value;
+  }
+  return status;
+}
+
 Status DP8382x::_readIdentity(DeviceIdentity& identity, const IoBudget& budget, bool operation, bool* invoked) noexcept {
-  auto batch = directBatch(cmd::REG_PHYIDR1, FrameKind::READ);
-  batch.frameCount = 2;
-  batch.frames[1] = {FrameKind::READ, cmd::REG_PHYIDR2, 0, 0, NO_READ_INDEX};
+  const auto batch = identityBatch();
   bool called = false;
   Status status = _execute(batch, budget, &called, operation, operation ? _operationTraffic() : Traffic::RAW);
   if (invoked != nullptr) { *invoked = called; }
@@ -1181,7 +1202,7 @@ void DP8382x::resetStatistics() noexcept {
 }
 
 Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
-                        bool operation, Traffic traffic) noexcept {
+                        bool operation, Traffic traffic, uint8_t identityAddress) noexcept {
   if (called != nullptr) { *called = false; }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (_active || (!operation && (_polling || (_operation.state == OperationState::RUNNING && !_configuring && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && !_analogWorking && !_electricalWorking &&
@@ -1219,7 +1240,7 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
     return status;
   }
 
-  batch.phyAddress = static_cast<uint8_t>(_config.phyAddress);
+  batch.phyAddress = identityAddress < 32U ? identityAddress : static_cast<uint8_t>(_config.phyAddress);
   increment(_transport.totalBatches);
   if (called != nullptr) { *called = true; }
   const BatchResult result = _config.transport.executeBatch(_config.transport.context, batch, budget);
@@ -1252,8 +1273,12 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
     }
   }
   _transport.violation = report.violation;
-  _retainEvidence(batch, result, clockStatus.ok(), before, upper);
-  _retainPageEvidence(batch, result, frames.completed, clockStatus.ok(), upper);
+  if (identityAddress == 32U) {
+    // Discovery is raw ID evidence, even at the bound address. Never feed a
+    // different PHY's receipt into pending semantic collectors or acceptance.
+    _retainEvidence(batch, result, clockStatus.ok(), before, upper);
+    _retainPageEvidence(batch, result, frames.completed, clockStatus.ok(), upper);
+  }
   for (uint8_t i = 0; i < frames.attempted; ++i) { increment(_transport.attemptedFrames); }
   for (uint8_t i = 0; i < frames.completed; ++i) { increment(_transport.completedFrames); }
   if (report.violation != TransportViolation::NONE && report.violation != TransportViolation::CONTROLLER_STATE) { _stopped = true; }
@@ -1811,9 +1836,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
   else if (_configuring) { batch = _configurationBatch(); }
   else switch (_initStep) {
     case InitStep::IDENTIFY: case InitStep::REIDENTIFY:
-      batch = directBatch(2, FrameKind::READ);
-      batch.frameCount = 2;
-      batch.frames[1] = {FrameKind::READ, 3, 0, 0, NO_READ_INDEX}; break;
+      batch = identityBatch(); break;
     case InitStep::SOR1: case InitStep::RESOR1: batch = _mmdBatch(0x0467, FrameKind::READ, 0); break;
     case InitStep::SOR2: case InitStep::RESOR2: batch = _mmdBatch(0x0468, FrameKind::READ, 0); break;
     case InitStep::CHECK_RESET: case InitStep::WAIT_EXISTING:

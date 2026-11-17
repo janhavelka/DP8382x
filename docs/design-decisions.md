@@ -25,6 +25,9 @@ The five-frame sequence is inferred from SNLS647I 8.3.11.1 selector-state text,
 not printed as a combined recipe; Q4 remains a physical case. Each call reselects.
 
 All bus participants share the controller lock, quarantine and silence admission.
+One atomic BusAdmission claims board readiness or initialization across owners;
+no PHY can overwrite another reservation. Failed board readiness remains
+FAILED_CLOSED even after never-installed adapter destruction.
 Close shared admission and drain active traffic before power/reset transitions;
 release the mutex during readiness waits without admitting another PHY's frames.
 No selector state, controller lock, or caller buffer survives a terminal batch.

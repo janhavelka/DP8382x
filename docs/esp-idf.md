@@ -158,10 +158,24 @@ all 32 addresses. Each read status qualifies its own word. Failure stops the
 scan and leaves the ordinary output unchanged; `discoverySnapshot` copies the
 retained per-address partial samples, attempted-frame count, terminal status and
 last batch without MDIO. Raw ID words do not establish accepted part identity.
+Each address uses core `readIdentityAt`: the same terminal audit, cumulative
+transport counters, last batch and clock-fault handling as other traffic. This
+RAW probe never changes accepted identity/trust or managed health. `invoked`
+distinguishes a fresh callback receipt from an earlier batch after local denial.
 Discovery never selects or retargets the bound address. Normal installation uses
 the explicitly declared address; there is no default search or fallback.
 
 ## Readiness and lifecycle
+
+`SharedBus::admission` is the sole atomic silence reservation. It starts
+BOOT_CLOSED. Board preparation claims BOOT_CLOSED or AVAILABLE as BOARD_PREPARING;
+initialization claims only AVAILABLE as INITIALIZING. Another PHY cannot replace
+either reservation, even between owner polls. During INITIALIZING only its
+admitting core can issue batches; BOARD_PREPARING admits no MDIO. Successful
+board preparation/result delivery returns AVAILABLE. A failed board procedure
+leaves FAILED_CLOSED independently of that adapter's lifetime. Other PHY reset
+success cannot clear it. Only explicit application disposition after all users
+are quiescent, or system restart, may re-establish readiness.
 
 `prepareBoard` closes controller-wide admission and drains complete batches,
 then releases the mutex before GPIO callbacks or hardware waits. The application
@@ -182,8 +196,9 @@ handle; only MAC and never-installed PHY deletion remain. After successful
 installation, the owner runs typed initialization/configuration through direct
 MAC batches, publicly reconciles SDK state, then admits `start` for verified normal settings.
 
-Initialization reserves shared logical silence through result delivery, after a
-zero-wait drain of the batch mutex. Only that owner executes batches during silence;
+Initialization claims shared logical silence before a zero-wait drain of the
+batch mutex and retains it through result delivery. A failed drain releases its
+reservation without changing hardware. Only that owner executes batches during silence;
 no mutex spans polls or waits. Successful `takeResult` reopens admission while
 preserving any reset quiet floor. Cancellation does not erase the floor. Drain
 release failure quarantines the bus. The application must keep polling and deliver
@@ -298,7 +313,9 @@ frame, and releases on every return. C22 is B(1), MMD read/write B(4), MMD RMW
 B(5), BMCR maintenance B(2), and AN restart B(3). Link acquisition has two batches
 B(8)+B(2), so its bound includes two acquisitions/releases, not one ten-frame
 lock. The shared mutex excludes every other PHY from each complete indirect or
-RMW sequence. A lock failure issues no frame; uncertain controller completion or
+RMW sequence. A lock failure issues no frame: zero-tick contention returns BUSY; a positive
+requested wait that expires returns MDIO_TIMEOUT with native detail and counts
+as a managed transport failure when issued by managed traffic; uncertain controller completion or
 release quarantines the shared domain. Passive health cannot reopen it.
 
 `L` covers fixed local/gate/clock processing under the qualified workload;
@@ -307,8 +324,8 @@ mediator call including actual MAC, logging, event posting and scheduling.
 `T` covers the selected public timer-service call under that same workload.
 These are conditions supplied/qualified by the application, not constants
 proved by the SDK. Five N allowances are reserved before live acquisition;
-callback/start deadlines remain absolute. A notification exceeding N or its
-aggregate deadline returns TIMEOUT after retaining accepted effects. A late
+callback/start deadlines remain absolute. A notification, public reconciliation control or MAC/PHY policy callback
+exceeding N or its aggregate deadline returns TIMEOUT after retaining accepted effects. A late
 failed callback keeps its original error. Nothing preempts a synchronous call.
 
 | Actual source path | Finite count / requested wait | What the bound must also cover |

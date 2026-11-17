@@ -56,13 +56,16 @@ the C++ transport suites below exercise the compiled driver separately.
 
 ## Portable C++17 foundation
 
-Prompts37-38 add four terminal AN restart/BMCR maintenance suites to the current
-**235 portable Release CTests**. The separate opt-in [native harness](esp_idf/CMakeLists.txt)
+Prompts37-38 add four terminal AN restart/BMCR maintenance suites; their independent
+audit adds explicit-address identity probes to the current **236 portable Release CTests**.
+The separate opt-in [native harness](esp_idf/CMakeLists.txt)
 compiles actual pinned `esp_eth.c` and `esp_eth_netif_glue.c`, with the native
-adapter and small platform fakes. Its **55 tests** (seven driver, 47 adapter at1kHz and one readiness case at100Hz)
+adapter and small platform fakes. Its **63 tests** (seven driver, 54 adapter at1kHz and two cases at100Hz)
 cover install/start/stop errors, raw ioctl denial, board readiness, notification
 partial effects, shared quarantine, finite discovery, raw/glue RX lifetime, SDK
 configuration/cache agreement, cross-owner raw/collector access and flow interference.
+Audit regressions cover exclusive board/initialization silence, discovery accounting,
+controller wait classification and per-callback control/policy bounds.
 Assertions stay active in Release; the same suites run under UBSan. Configuration
 and each build verify the complete compiler-selected SDK dependency closure
 against [45 pinned source/header blobs](esp_idf/host/sdk-files.json).

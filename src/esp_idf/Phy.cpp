@@ -153,7 +153,11 @@ BatchResult Phy::execute(void* context, const MdioBatch& batch, const IoBudget& 
   BatchResult report{};
   report.status = Status::Ok(); report.releaseStatus = Status::Ok();
   report.controllerReusable = !bus.quarantined.load();
-  if (bus.quarantined.load() || (bus.suspended.load() && !self._ownsSilence) || timeNow() < bus.quietUntilUs.load()) {
+  const auto admitted = [&]() {
+    const auto state = bus.admission.load();
+    return state == BusAdmission::AVAILABLE || (state == BusAdmission::INITIALIZING && self._ownsSilence);
+  };
+  if (bus.quarantined.load() || !admitted() || timeNow() < bus.quietUntilUs.load()) {
     const bool quarantined = bus.quarantined.load();
     report.status = busDenied(quarantined); report.controllerReusable = !quarantined; return report;
   }
@@ -161,17 +165,23 @@ BatchResult Phy::execute(void* context, const MdioBatch& batch, const IoBudget& 
   const auto& bounds = self._config.core.transport.bounds;
   const uint64_t required = uint64_t{bounds.fixedUs} + uint64_t{batch.frameCount} * bounds.frameUs + bounds.clockLagUs;
   if (before >= budget.deadlineUs || batch.frameCount > budget.maxFrames || required >= budget.deadlineUs - before) {
-    report.status = Status::Error(Err::OPERATION_TIMEOUT, "Native batch budget expired"); return report;
+    const auto detail = before >= budget.deadlineUs ? TimeoutDetail::DEADLINE :
+        batch.frameCount > budget.maxFrames ? TimeoutDetail::FRAME_BUDGET : TimeoutDetail::BOUND_ADMISSION;
+    report.status = Status::Error(Err::OPERATION_TIMEOUT, "Native batch budget expired", static_cast<int32_t>(detail)); return report;
   }
   const auto remaining = budget.deadlineUs - before;
   const auto wait = remaining < self._config.lockWaitUs ? remaining : self._config.lockWaitUs;
-  if (xSemaphoreTake(bus.mutex, ticksWithin(wait)) != pdTRUE) { report.status = busy(); return report; }
-  if (bus.quarantined.load() || (bus.suspended.load() && !self._ownsSilence) || timeNow() < bus.quietUntilUs.load()) {
+  const auto ticks = ticksWithin(wait);
+  if (xSemaphoreTake(bus.mutex, ticks) != pdTRUE) {
+    report.status = ticks == 0 ? busy() : nativeStatus(ESP_ERR_TIMEOUT);
+    return report;
+  }
+  if (bus.quarantined.load() || !admitted() || timeNow() < bus.quietUntilUs.load()) {
     report.status = busDenied(bus.quarantined.load());
   } else {
     for (uint8_t i = 0; i < batch.frameCount; ++i) {
       if (timeNow() >= budget.deadlineUs) {
-        report.status = Status::Error(Err::OPERATION_TIMEOUT, "Native frame deadline expired"); break;
+        report.status = Status::Error(Err::OPERATION_TIMEOUT, "Native frame deadline expired", static_cast<int32_t>(TimeoutDetail::DEADLINE)); break;
       }
       const auto& frame = batch.frames[i]; auto& result = report.frames[i];
       result.attempted = true;
@@ -213,14 +223,22 @@ esp_err_t Phy::prepareBoard(const BoardControl& board, uint64_t deadlineUs) noex
   if (entry >= deadlineUs || board.powerOnAtUs > entry || board.clockStableAtUs > entry) {
     leave(); return ESP_ERR_INVALID_ARG;
   }
-  _phase = Phase::CONTROL; _boardReady = false; _record.stage = LifecycleStage::BOARD;
   auto& bus = *_config.bus;
-  bus.suspended.store(true);
+  auto admission = bus.admission.load();
+  if (bus.quarantined.load() ||
+      (admission != BusAdmission::BOOT_CLOSED && admission != BusAdmission::AVAILABLE) ||
+      !bus.admission.compare_exchange_strong(admission, BusAdmission::BOARD_PREPARING)) {
+    leave(); return ESP_ERR_INVALID_STATE;
+  }
+  _phase = Phase::CONTROL; _boardReady = false; _record.stage = LifecycleStage::BOARD;
   leave();
   // Drain existing whole batches. No mutex survives pin callbacks or waits.
   esp_err_t error = ESP_OK;
   if (xSemaphoreTake(bus.mutex, ticksWithin(deadlineUs - entry)) != pdTRUE) error = ESP_ERR_TIMEOUT;
-  else if (xSemaphoreGive(bus.mutex) != pdTRUE) { bus.quarantined.store(true); error = ESP_FAIL; }
+  else {
+    if (bus.quarantined.load()) error = ESP_ERR_INVALID_STATE;
+    if (xSemaphoreGive(bus.mutex) != pdTRUE) { bus.quarantined.store(true); error = ESP_FAIL; }
+  }
   uint32_t polls = 0;
   auto waitUntil = [&](uint64_t due) {
     while (timeNow() < due) {
@@ -248,14 +266,14 @@ esp_err_t Phy::prepareBoard(const BoardControl& board, uint64_t deadlineUs) noex
   }
   if (!enter()) return ESP_ERR_INVALID_STATE; // Admission remains closed if owner protocol was violated.
   record(error); _boardReady = error == ESP_OK; _phase = Phase::STOPPED;
-  if (_boardReady) bus.suspended.store(false);
+  bus.admission.store(_boardReady ? BusAdmission::AVAILABLE : BusAdmission::FAILED_CLOSED);
   leave(); return error;
 }
 
 esp_err_t Phy::install(esp_eth_handle_t& output) noexcept {
   if (!enter()) return ESP_ERR_INVALID_STATE;
   if (!_boardReady || _installAttempted || _phase != Phase::STOPPED || _notifying ||
-      _config.bus->suspended.load() || _config.bus->quarantined.load()) { leave(); return ESP_ERR_INVALID_STATE; }
+      _config.bus->admission.load() != BusAdmission::AVAILABLE || _config.bus->quarantined.load()) { leave(); return ESP_ERR_INVALID_STATE; }
   _phase = Phase::CONTROL; _record.stage = LifecycleStage::INSTALL; _installAttempted = true;
   _installing.store(true);
   leave();
@@ -641,23 +659,29 @@ Status Phy::startInitialize(const InitializeOptions& options, const OperationBud
   if (!enter()) return busy();
   if (!stoppedAdmission()) { leave(); return busy(); }
   auto& bus = *_config.bus;
-  // Reserve logical controller silence for the entire reset/replay. A zero-wait
-  // acquisition drains any old batch before closing admission; it never spans
-  // core polling or hardware waits. All reset kinds share this one route.
-  if (bus.suspended.load() || bus.quarantined.load() || xSemaphoreTake(bus.mutex, 0) != pdTRUE) {
+  // Claim silence before draining: another PHY's board reset cannot replace
+  // this reservation between polls. Only this core may issue its own batches.
+  auto admission = BusAdmission::AVAILABLE;
+  if (bus.quarantined.load() || !bus.admission.compare_exchange_strong(admission, BusAdmission::INITIALIZING)) {
     leave(); return busDenied(bus.quarantined.load());
   }
-  if (bus.suspended.load() || bus.quarantined.load()) {
-    (void)xSemaphoreGive(bus.mutex); leave(); return busDenied(bus.quarantined.load());
+  if (xSemaphoreTake(bus.mutex, 0) != pdTRUE) {
+    bus.admission.store(BusAdmission::AVAILABLE); leave(); return busy();
   }
-  bus.suspended.store(true); _ownsSilence = true;
+  if (bus.quarantined.load()) {
+    const bool released = xSemaphoreGive(bus.mutex) == pdTRUE;
+    bus.admission.store(released ? BusAdmission::AVAILABLE : BusAdmission::FAILED_CLOSED);
+    leave(); return released ? busDenied(true) : nativeStatus(ESP_FAIL);
+  }
+  _ownsSilence = true;
   if (xSemaphoreGive(bus.mutex) != pdTRUE) {
-    bus.quarantined.store(true); _ownsSilence = false; leave(); return nativeStatus(ESP_FAIL);
+    bus.quarantined.store(true); bus.admission.store(BusAdmission::FAILED_CLOSED);
+    _ownsSilence = false; leave(); return nativeStatus(ESP_FAIL);
   }
   const auto status = _core.startInitialize(options, budget, token);
   if (status.inProgress()) {
     _phase = Phase::CONTROL; _record.stage = LifecycleStage::INITIALIZE; _sdkState.reconciled = false;
-  } else { _ownsSilence = false; bus.suspended.store(false); }
+  } else { _ownsSilence = false; bus.admission.store(BusAdmission::AVAILABLE); }
   leave(); return status;
 }
 Status Phy::startConfigure(const LinkSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept {
@@ -687,7 +711,7 @@ Status Phy::takeResult(OperationToken token, OperationResult& output) noexcept {
   const auto status = _core.takeResult(token, output);
   if (status.ok() && _phase == Phase::CONTROL) {
     _phase = _frameworkStopOwed ? Phase::STOPPING : Phase::STOPPED;
-    if (_ownsSilence) { shareQuiet(); _ownsSilence = false; _config.bus->suspended.store(false); }
+    if (_ownsSilence) { shareQuiet(); _ownsSilence = false; _config.bus->admission.store(BusAdmission::AVAILABLE); }
   }
   leave(); return status;
 }
@@ -760,7 +784,7 @@ Status Phy::evidenceSnapshot(EvidenceSnapshot& output) noexcept {
   output = _core.evidenceSnapshot(); leave(); return Status::Ok();
 }
 Status Phy::discover(uint32_t addressMask, DiscoverySnapshot& output, const IoBudget& budget) noexcept {
-  if (!addressMask) return Status::Error(Err::INVALID_PARAM, "Empty discovery mask");
+  if (!addressMask) return Status::Error(Err::INVALID_PARAM, "Empty discovery mask", static_cast<int32_t>(ParamDetail::ACCESS_POLICY));
   if (!enter()) return busy();
   const auto operation = _core.operationSnapshot();
   if (!_installed || _phase != Phase::STOPPED || _notifying || operation.cleanupOwed ||
@@ -774,15 +798,19 @@ Status Phy::discover(uint32_t addressMask, DiscoverySnapshot& output, const IoBu
   const auto& bounds = _config.core.transport.bounds;
   const uint64_t reserve = uint64_t{count} * (uint64_t{bounds.fixedUs} + uint64_t{2} * bounds.frameUs) + bounds.clockLagUs;
   if (budget.maxFrames < count * 2U || before >= budget.deadlineUs || reserve >= budget.deadlineUs - before) {
-    leave(); return Status::Error(Err::OPERATION_TIMEOUT, "Insufficient whole discovery allowance");
+    const auto detail = budget.maxFrames < count * 2U ? TimeoutDetail::FRAME_BUDGET :
+        before >= budget.deadlineUs ? TimeoutDetail::DEADLINE : TimeoutDetail::BOUND_ADMISSION;
+    leave(); return Status::Error(Err::OPERATION_TIMEOUT, "Insufficient whole discovery allowance", static_cast<int32_t>(detail));
   }
   _discovery = {}; _discovery.requestedMask = addressMask; _discovery.status = Status::Ok();
   uint64_t previous = before;
   for (uint8_t address = 0; address < 32U; ++address) {
     if ((addressMask & (uint32_t{1} << address)) == 0U) continue;
-    MdioBatch batch{}; batch.phyAddress = address; batch.frameCount = 2;
-    batch.frames[0].registerAddress = 2; batch.frames[1].registerAddress = 3;
-    _discovery.lastBatch = execute(this, batch, {budget.deadlineUs, budget.maxFrames - _discovery.framesAttempted});
+    uint16_t id1 = 0, id2 = 0;
+    bool invoked = false;
+    auto status = _core.readIdentityAt(address, id1, id2,
+        {budget.deadlineUs, budget.maxFrames - _discovery.framesAttempted}, &invoked);
+    _discovery.lastBatch = invoked ? _core.transportSnapshot().lastBatch : BatchResult{};
     const auto& report = _discovery.lastBatch;
     auto& entry = _discovery.entries[address];
     for (uint8_t index = 0; index < 2; ++index) {
@@ -793,13 +821,13 @@ Status Phy::discover(uint32_t addressMask, DiscoverySnapshot& output, const IoBu
         else { entry.id2 = frame.value; entry.id2Valid = true; }
       }
     }
-    auto status = !report.status.ok() ? report.status : report.releaseStatus;
     const auto after = timeNow();
     if (after < previous) {
       _config.bus->quarantined.store(true);
       if (status.ok()) status = Status::Error(Err::INVALID_CONFIG, "Discovery clock regressed", static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT));
     } else if (status.ok() && (after >= budget.deadlineUs || bounds.clockLagUs >= budget.deadlineUs - after)) {
-      status = Status::Error(Err::OPERATION_TIMEOUT, "Discovery completed after allowance");
+      status = Status::Error(Err::OPERATION_TIMEOUT, "Discovery completed after allowance",
+          static_cast<int32_t>(after >= budget.deadlineUs ? TimeoutDetail::DEADLINE : TimeoutDetail::BOUND_ADMISSION));
     }
     if (!status.ok()) { _discovery.status = status; break; }
     previous = after;

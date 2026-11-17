@@ -1803,6 +1803,19 @@ public:
   /// @pre Bound, serialized owner with clock/power/reset readiness established.
   /// Uses the ordinary raw-read guard; no reset, scan, write or retry is performed.
   Status readIdentity(DeviceIdentity& identity, const IoBudget& budget) noexcept;
+  /// @brief Read raw PHYIDR1/2 at an explicit bus address without accepting or retargeting a device.
+  /// @param[in] phyAddress Clause22 address0..31; all other values reject before callbacks.
+  /// @param[out] id1 First sixteen-bit ID word, assigned only on complete success.
+  /// @param[out] id2 Second ID word, also unchanged on failure.
+  /// @param[in] budget Exclusive absolute deadline and at least two frames; one terminal batch.
+  /// @param[out] invoked Optional callback receipt flag, cleared on entry even on rejection.
+  /// True means transportSnapshot().lastBatch belongs to this attempt, including failures.
+  /// @return Validation/admission, controller, clock or deadline status; OK accepts no silicon identity.
+  /// @pre Bound, serialized and idle, without a retained result, cleanup or temporary session.
+  /// @note Counts RAW transport traffic and preserves partial backend evidence; never changes
+  /// the bound address, accepted identity, configuration trust or managed-health counters.
+  Status readIdentityAt(uint32_t phyAddress, uint16_t& id1, uint16_t& id2,
+                        const IoBudget& budget, bool* invoked = nullptr) noexcept;
   /// @brief Copy latest identity evidence without MDIO or clock access.
   /// @return Historical/partial fields with explicit validity, admission and staleness.
   DeviceIdentity identitySnapshot() const noexcept { return _identity; }
@@ -2182,7 +2195,8 @@ private:
   enum class Traffic : uint8_t { RAW, MANAGED };
   Traffic _operationTraffic() const noexcept;
   Status _execute(MdioBatch batch, const IoBudget& budget, bool* called = nullptr,
-                  bool operation = false, Traffic traffic = Traffic::RAW) noexcept;
+                  bool operation = false, Traffic traffic = Traffic::RAW,
+                  uint8_t identityAddress = 32) noexcept;
   Status _readIdentity(DeviceIdentity& identity, const IoBudget& budget, bool operation,
                        bool* called = nullptr) noexcept;
   void _retainEvidence(const MdioBatch& batch, const BatchResult& result,

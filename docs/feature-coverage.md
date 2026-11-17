@@ -43,6 +43,11 @@ silicon procedure, part support or physical qualification; ledger source gates
 remain unchanged. The [stage report](reports/implementation/38-esp-idf-state-arbitration.md)
 records exact coverage and limits.
 
+The [independent prompts37-39 audit](reports/implementation/37-39-independent-audit.md)
+adds execution evidence for board/initialization exclusion, discovery transport
+accounting and callback/lock bounds. These corrections preserve the same typed
+chip procedures, source gates and physical qualification status.
+
 The [prompts 13-18 audit](reports/implementation/13-18-independent-audit.md)
 rechecks these completed routes and adds interrupted-verification, malformed
 receipt and complete next-page grammar/capacity coverage. No later feature or

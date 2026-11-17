@@ -98,3 +98,8 @@ Owner contexts are non-copyable/non-movable and retain a reference to their exac
 core instance. Native terminal status and the full delivered result must agree.
 External invalidation changes current device snapshots without rewriting a
 pending historical result or restarting failed/discharged cleanup.
+
+The prompts37-39 audit makes SharedBus::admission the single silence authority.
+Do not overwrite INITIALIZING, BOARD_PREPARING or FAILED_CLOSED to admit another
+PHY. Explicit discovery shares core transport counts but does not retarget or
+accept identity; show its raw receipt separately from configured device evidence.

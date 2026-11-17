@@ -100,3 +100,12 @@ RESTART retains register identity while refreshing live observations. An observe
 already-active configuration reset also requires refreshed identity before the
 requested reset command. Reconciliation stays at the configured PHY address;
 changed reachability returns its actual failure without implicit scanning.
+
+Native explicit discovery uses core `readIdentityAt(address,id1,id2,budget,invoked)`.
+This raw two-word probe accepts addresses0..31, requires an idle binding without
+pending results/cleanup/temporary state, and never retargets or accepts identity.
+Both ID outputs remain unchanged on failure. The optional invoked flag is always
+set, including local rejection; only true identifies a new transport lastBatch.
+Cumulative batch/frame statistics and clock faults use the normal core boundary,
+while semantic collectors and managed health remain unchanged. Discovery may
+retain successful partial raw ID words separately from ordinary outputs.
