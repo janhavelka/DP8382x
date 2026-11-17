@@ -1,5 +1,8 @@
 # Independent promptset audit: current dispositions
 
+The [2026-11-17 follow-up addendum](#follow-up-addendum-2026-11-17) supersedes
+the named rows below. Historical table rows are preserved for traceability.
+
 Originally reviewed 2026-11-15 on `main`, starting from clean, synchronized
 `f576dee3b067e16f51e3a8e51d9ffe17b35924ab`. This review checks the
 [remaining-prompts audit](../prompts/REMAINING_PROMPTS_AUDIT.md), including all
@@ -447,3 +450,37 @@ Future CLI/runners/packages/CI and family qualification were reviewed as
 requirements, not falsely reported as shipped. Source-gated silicon branches,
 native wall time and physical Q1-Q19 remain open. This maintenance starts no
 new numbered implementation stage and changes no supported part/version.
+
+## Follow-up addendum, 2026-11-17
+
+The supplied follow-up attributed its observations to cb5ffe5 on 2026-11-16.
+This maintenance independently checked every item at 955ecf3; it does not
+reattribute that older verification to current code. The earlier response missed
+the BISCR wire-word defect and duplicated-contract drift. The corrections below
+supersede those claims without rewriting the dated table rows.
+
+Commits: **3fe72be** code/regression/helper; **681a10e** contracts/source guides;
+**380cd83** prompt acceptance. Each was fetched/pushed/refetched with equal
+upstream IDs and zero ahead/behind. The final records commit is in the handoff.
+Full item-by-item evidence and checks are in the
+[follow-up report](audit-followup-2026-11-17.md).
+
+| Finding / attached observation | Current verification and response | Current owner |
+| --- | --- | --- |
+| G5-6: BISCR preserve mask omitted RO bit 8 | Confirmed at 955ecf3 despite the earlier implemented claim. 3fe72be changes 8EE0 to 8FE0, retains verify 701F; the RO fake and literal 7101 wire regression fail with the old mask. Original SNLS647I table 8-40 p69 governs. | Fixed; Q19 physical remains 73 |
+| G11-18: copied types/feature appendices drifted | Confirmed; remove shipped declaration copies and link headers/guides in 681a10e. Preserve unique decoding/reset-polling rules in maintained guides; remove the incorrect mismatch-priority statement. No arbitrary line quota overrides normative content. | Fixed; future final documentation76 |
+| D10/OP-6 and G11-6: reset called the sole look-ahead | Confirmed;681a10e documents reset including calibration pair and EEE75/71-frame,21/20-callback floors, strict deadline and late-owner limits. | Fixed contract; extraction53 |
+| G12-3: five repeated12-flag chains; per-kind work in executor | Five exact repetitions confirmed and replaced by one equivalent private helper in 3fe72be. Larger extraction remains assigned by 380cd83, preserving fresh callback-entry resampling, error/effect order and existing regressions. Source-line counts are not correctness targets. | Helper fixed; per-kind admission53 |
+| G1-5: unqualified W1C inventory | No W1C in reviewed four exact-part PDFs;380cd83 removes the unqualified entry while retaining the prohibition on inventing access semantics. | Fixed |
+| G12-8: selector persistence stated as proved |681a10e labels the five-frame RMW selection as inferred from SNLS647I 8.3.11.1, not a printed combined sequence; no wire behavior changed. | Physical Q4 remains open |
+| G13-5: completed31 still named as next evidence owner |681a10e assigns TI clarification and73 WoL/error fixture;380cd83 prohibits reserved-bit probing while blocked. Raw RXFS status software is already implemented; this is the reserved RXFCFG1[13] cross-reference, not a timing/scale issue. | TI source clarification; fixture 73 |
+| N-2/G6-1/G6-7: stale pins/install/IO_MUX | Management pins and failed-install/installed-retention distinction were already corrected. 681a10e adds all RMII pins, pinned IO_MUX source and removes residual reusable-deletion wording;380cd83 fixes40's typo. | Docs fixed; final-netlist/physical qualification still40/72 |
+| G6-13: d2ed96d2 dismissed as unbounded |681a10e explains that blocking stop waits for the active callback; finite wall time depends on qualified callback/backend/scheduler bounds. Future-baseline fence/inactive-stop re-audit and independent RX lifetime gate remain. | Fixed interpretation; future SDK baseline owner 37 |
+| G11-13/D17: full by-value result growth |1864B OperationResult measured on GNU 15.1 x64; example 1984B plus local 1864B is 3848B object storage, not measured optimized stack. 681a10e records it;380cd83 assigns compact payload/retained evidence and ABI size ceiling, forbids new embedded feature-result copies in COMMON. | Assigned76; no current public API change |
+| G12-2: duplicated fake/setup harnesses | Current counts are 23 Controller suites and 257 same-line bind CHECKs, not 22/251. 380cd83 requires shared mechanical harness/fixture, documented independent wire oracles and before/after static/executing assertions with no coverage reduction. | Assigned55 |
+| OP-5 scenarios: arithmetic probes are insufficient | Two exact repeated-loop cases still absent. The short-slot DEADLINE test already executes;380cd83 preserves it and assigns the missing BOUND_ADMISSION counterpart plus both real driver-loop cases. | Assigned54 |
+
+Variant citation, I/E software equivalence with TA-dependent electrical limits,
+DP83822 RXFS W1S neutral-zero writes and six-field manifest guidance were also
+corrected in 681a10e/380cd83. Future work is assigned, not reported as implemented.
+No stage status, supported part, SDK baseline or hardware qualification changed.

@@ -28,6 +28,12 @@ operations, retained temporary state and verified restoration.
 
 ## Execution record
 
+The [17-item follow-up](reports/audit-followup-2026-11-17.md) starts from 955ecf3
+and changes no stage status. Checked/synchronized units are 3fe72be (BISCR/private
+helper),681a10e (contracts/source guides) and 380cd83 (prompt acceptance).
+Larger result/admission/harness/timing work stays with76/53/55/54; existing
+source, physical and native RX lifetime gates remain open.
+
 The [2026-11-17 audit-response review](reports/current-review-responses.md) starts
 from synchronized `main` at `77c544f415edb26a0e23de76591a0163b9b73147`.
 All 30 audit records now contain individual current-code responses, and all 197

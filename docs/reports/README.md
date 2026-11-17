@@ -1,5 +1,9 @@
 # Planning audits and later implementation evidence
 
+The [17-item audit follow-up](audit-followup-2026-11-17.md) corrects the BISCR
+wire mask, removes drifted contract copies, qualifies source/native claims and
+assigns remaining structural/test work. It supersedes named earlier dispositions.
+
 The [2026-11-17 repository-wide responses](current-review-responses.md) revalidate
 all 30 audit records individually against current code/prompts and source evidence.
 Each audit now contains a dated response; the rolling promptset table covers

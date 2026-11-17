@@ -1,5 +1,13 @@
 # Audit of remaining prompts 13-80
 
+Follow-up status, 2026-11-17: this file is historical. WP0-WP7 were applied
+in prompt 13; see [WP0](../reports/prerequisite-wp0.md),
+[WP3 ledger](../reports/prerequisite-wp3-ledger.md) and
+[WP3-7 prompts](../reports/prerequisite-prompts-wp3-7.md).
+Do not re-apply sections 2, 4 or 5. Use the
+[current per-finding dispositions](../reports/promptset-audit-dispositions.md)
+and their latest follow-up addendum.
+
 Current response, 2026-11-17: [section 12](#12-current-code-response-2026-11-17)
 and the [per-finding dispositions](../reports/promptset-audit-dispositions.md)
 revalidate this historical audit against the implemented stage39 subset.
