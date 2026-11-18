@@ -1346,9 +1346,40 @@ void rawLockFailures() {
     receipts = controllerEvents(f.bus.mutex);
     assert(receipts.size() == 2 && receipts[0].take && receipts[0].accepted && !receipts[1].take && !receipts[1].accepted);
     assert(result == 0xCAFE && f.bus.quarantined);
+    TransportSnapshot snapshot;
+    assert(f.owner->transportSnapshot(snapshot).ok() && snapshot.violation == TransportViolation::NONE);
+    assert(snapshot.lastBatch.status.ok() && snapshot.lastBatch.releaseStatus.is(Err::MDIO_ERROR));
+    assert(snapshot.lastBatch.releaseStatus.detail == ESP_FAIL && !snapshot.lastBatch.controllerReusable);
     const auto frames = f.mac.frames.size();
     assert(!f.owner->readMmd(31, 0x0467, result, {Host::state().nowUs + 100000, 4}).ok());
     assert(result == 0xCAFE && f.mac.frames.size() == frames);
+}
+void quarantineAfterBatchUnlock() {
+    Host::reset(); Fixture f; f.install();
+    bool peerAttempted = false;
+    Host::state().afterSemaphoreGive = [&](SemaphoreHandle_t semaphore) {
+        if (semaphore != f.bus.mutex) return;
+        Host::state().afterSemaphoreGive = nullptr;
+        assert(!Host::semaphoreHeld(semaphore) && xSemaphoreTake(semaphore, 0) == pdTRUE);
+        assert(f.bus.admission == BusAdmission::AVAILABLE && !f.bus.quarantined);
+        f.mac.readResults = {ESP_ERR_TIMEOUT};
+        uint32_t word = 0;
+        assert(f.mac.native.read_phy_reg(&f.mac.native, 1, 2, &word) == ESP_ERR_TIMEOUT);
+        f.bus.quarantined = true; // The peer cannot establish idle for its own transfer.
+        assert(xSemaphoreGive(semaphore) == pdTRUE);
+        peerAttempted = true;
+    };
+    uint16_t word = 0xCAFE;
+    const IoBudget budget{Host::state().nowUs + 100000, 1};
+    assert(f.owner->readClause22(2, word, budget).ok() && word == 0x2000 && peerAttempted);
+    TransportSnapshot snapshot;
+    assert(f.owner->transportSnapshot(snapshot).ok() && snapshot.violation == TransportViolation::NONE);
+    assert(snapshot.lastBatch.status.ok() && snapshot.lastBatch.releaseStatus.ok() && snapshot.lastBatch.controllerReusable);
+    assert(f.bus.quarantined && !Host::semaphoreHeld(f.bus.mutex) && countCall("mac.read") == 2);
+    word = 0xCAFE;
+    const auto denied = f.owner->readClause22(2, word, budget);
+    assert(denied.is(Err::BUSY) && denied.detail == static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED));
+    assert(word == 0xCAFE && countCall("mac.read") == 2);
 }
 void controllerWaitClassification() {
     constexpr uint32_t legacyTickUs = (1000U / CONFIG_FREERTOS_HZ) * 1000U;
@@ -1384,43 +1415,45 @@ void rawBoundaryFailures() {
         Host::state().semaphoreEvents.clear();
         uint16_t result = 0xCAFE;
         const auto status = f.owner->readMmd(31, 0x0467, result, {Host::state().nowUs + 100000, 4});
-        assert(status.detail == ESP_ERR_TIMEOUT && result == 0xCAFE);
+        assert(status.is(Err::MDIO_TIMEOUT) && status.detail == ESP_ERR_TIMEOUT && result == 0xCAFE);
+        TransportSnapshot snapshot;
+        assert(f.owner->transportSnapshot(snapshot).ok() && snapshot.violation == TransportViolation::NONE);
+        assert(snapshot.lastBatch.status.is(Err::MDIO_TIMEOUT) && snapshot.lastBatch.status.detail == ESP_ERR_TIMEOUT);
+        assert(snapshot.lastBatch.releaseStatus.is(Err::MDIO_ERROR) && snapshot.lastBatch.releaseStatus.detail == ESP_ERR_TIMEOUT);
+        assert(!snapshot.lastBatch.controllerReusable && snapshot.lastBatch.frames[boundary].effectPossible);
         assert(f.mac.frames.size() == boundary && f.bus.quarantined && !Host::semaphoreHeld(f.bus.mutex));
         const auto receipts = controllerEvents(f.bus.mutex);
         assert(receipts.size() == 2 && receipts[0].take && receipts[0].accepted && !receipts[1].take && receipts[1].accepted);
     }
 }
 void p4BusyBeforeCommand() {
-    for (const bool prefix : {false, true}) {
+    // Exercise each boundary in the 3-write, 1-read MMD transaction. The P4
+    // rejects the command before issue while controller ownership is uncertain.
+    for (unsigned completed = 0; completed < 4; ++completed) {
         Host::reset(); Fixture f; f.config.pinnedP4Mac = true; f.install();
-        const auto completed = prefix ? 2U : 0U;
         f.mac.writeResults.assign(completed, ESP_OK);
-        f.mac.writeResults.push_back(ESP_ERR_INVALID_STATE); // P4 busy before writing the command.
+        if (completed < 3) f.mac.writeResults.push_back(ESP_ERR_INVALID_STATE);
+        else f.mac.readResults.push_back(ESP_ERR_INVALID_STATE);
         uint16_t output = 0xCAFE;
         const IoBudget budget{Host::state().nowUs + 100000, 4};
         const auto failure = f.owner->readMmd(31, 0x0467, output, budget);
-        assert(prefix ? failure.is(Err::MDIO_ERROR) && failure.detail == ESP_ERR_INVALID_STATE : failure.is(Err::BUSY));
-        assert(output == 0xCAFE && f.mac.frames.size() == completed && !f.bus.quarantined);
+        assert(failure.is(Err::MDIO_ERROR) && failure.detail == ESP_ERR_INVALID_STATE);
+        assert(output == 0xCAFE && f.mac.frames.size() == completed && f.bus.quarantined);
+        assert(!Host::semaphoreHeld(f.bus.mutex));
         TransportSnapshot snapshot;
         assert(f.owner->transportSnapshot(snapshot).ok());
         assert(snapshot.completedFrames == completed && snapshot.attemptedFrames == completed);
-        assert(snapshot.violation == TransportViolation::NONE && snapshot.lastBatch.controllerReusable);
-        assert(snapshot.lastBatch.releaseStatus.ok() && !snapshot.lastBatch.frames[completed].attempted);
-        f.mac.extended[0x0467] = 0xBEEF;
-        assert(f.owner->readMmd(31, 0x0467, output, budget).ok() && output == 0xBEEF);
+        const auto& batch = snapshot.lastBatch;
+        assert(snapshot.violation == TransportViolation::NONE && !batch.controllerReusable);
+        assert(batch.releaseStatus.is(Err::MDIO_ERROR) && batch.releaseStatus.detail == ESP_ERR_INVALID_STATE);
+        for (unsigned i = 0; i < completed; ++i) assert(batch.frames[i].attempted && batch.frames[i].completed);
+        assert(!batch.frames[completed].attempted && !batch.frames[completed].effectPossible);
+        const auto calls = countCall("mac.read") + countCall("mac.write");
+        const auto retry = f.owner->readMmd(31, 0x0467, output, budget);
+        assert(retry.is(Err::BUSY) && retry.detail == static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED));
+        assert(readPeerIdentity(f, output) == ESP_ERR_INVALID_STATE && output == 0xCAFE);
+        assert(f.mac.frames.size() == completed && countCall("mac.read") + countCall("mac.write") == calls);
     }
-    Host::reset(); Fixture f; f.config.pinnedP4Mac = true; f.install();
-    f.mac.readResults = {ESP_ERR_INVALID_STATE};
-    uint16_t output = 0xCAFE;
-    const IoBudget budget{Host::state().nowUs + 100000, 1};
-    const auto failure = f.owner->readClause22(2, output, budget);
-    assert(failure.is(Err::BUSY) && output == 0xCAFE && !f.bus.quarantined);
-    TransportSnapshot snapshot;
-    assert(f.owner->transportSnapshot(snapshot).ok());
-    assert(snapshot.attemptedFrames == 0 && snapshot.completedFrames == 0 && snapshot.violation == TransportViolation::NONE);
-    assert(snapshot.lastBatch.controllerReusable && snapshot.lastBatch.releaseStatus.ok() && !snapshot.lastBatch.frames[0].attempted);
-    assert(f.mac.frames.empty() && countCall("mac.read") == 1);
-    assert(f.owner->readClause22(2, output, budget).ok() && output == 0x2000);
 }
 void rejectedRawReads() {
     Host::reset(); Fixture f; f.install();
@@ -1909,36 +1942,45 @@ void stoppingLatePoll() {
     assert(!f.journal().publishedTuple.up);
 }
 void timerPublicationDuringStop() {
-    Host::reset(); Fixture f; f.install(); f.initialize(LINK_TECHNOLOGY_MASK); assert(f.start() == ESP_OK);
-    f.mac.registers[0x10] = 0x0017; // Timer has a new UP tuple to publish.
-    bool armed = false;
-    bool stopped = false;
-    const auto offset = Host::state().calls.size();
-    f.mac.onFrame = [&](const Host::Frame&) {
-        if (armed) return;
-        armed = true;
-        Host::state().beforeSemaphoreTake = [&](SemaphoreHandle_t semaphore) {
-            if (semaphore == f.bus.mutex) return;
-            assert(!Host::semaphoreHeld(f.bus.mutex)); // Core observation released the complete batch.
-            Host::state().beforeSemaphoreTake = nullptr;
+    for (const bool publisherAdmitted : {false, true}) {
+        Host::reset(); Fixture f; f.install(); f.initialize(LINK_TECHNOLOGY_MASK); assert(f.start() == ESP_OK);
+        f.mac.registers[0x10] = 0x0017; // Timer has a new UP tuple to publish.
+        const auto frames = f.mac.frames.size();
+        const auto offset = Host::state().calls.size();
+        bool stopped = false;
+        const auto stopWhileTimerRuns = [&](SemaphoreHandle_t semaphore) {
+            if (stopped || semaphore == f.bus.mutex) return;
+            stopped = true;
+            assert(!Host::semaphoreHeld(f.bus.mutex));
+            assert(f.mac.frames.size() == frames + (publisherAdmitted ? 10U : 0U));
             Host::state().currentTask = 2;
             const auto before = Host::state().nowUs;
             assert(f.owner->stop(before + 20000) == ESP_ERR_TIMEOUT);
-            const auto elapsed = Host::state().nowUs;
-            assert(elapsed <= before + 20000 && f.journal().phase == Phase::STOPPING);
-            assert(Host::state().oneShotArms == 1 && f.mac.link == ETH_LINK_DOWN);
-            stopped = true;
+            assert(Host::state().nowUs <= before + 20000 && f.journal().phase == Phase::STOPPING);
+            assert(Host::state().oneShotArms == (publisherAdmitted ? 0U : 1U));
+            assert(f.mac.link == (publisherAdmitted ? ETH_LINK_UP : ETH_LINK_DOWN));
             Host::state().currentTask = 1;
         };
-    };
-    Host::tickTimers();
-    assert(armed && stopped);
-    assert((noticesSince(offset) == std::vector<std::string>{"mac.down"}));
-    assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
-    assert(f.journal().phase == Phase::STOPPED && !f.journal().publishedTuple.up);
-    assert(countCall("mac.stop") == 1 && Host::state().oneShotArms == 1);
-    assert((eventOrder() == std::vector<int32_t>{ETHERNET_EVENT_START, ETHERNET_EVENT_CONNECTED,
-                                                ETHERNET_EVENT_DISCONNECTED, ETHERNET_EVENT_STOP}));
+        // The timer either waits for initial gate admission, or already owns
+        // publication when it releases the gate to call the mediator.
+        if (publisherAdmitted) Host::state().afterSemaphoreGive = stopWhileTimerRuns;
+        else Host::state().beforeSemaphoreTake = stopWhileTimerRuns;
+        Host::tickTimers();
+        Host::state().beforeSemaphoreTake = nullptr;
+        Host::state().afterSemaphoreGive = nullptr;
+        assert(stopped && f.mac.frames.size() == frames + (publisherAdmitted ? 10U : 0U));
+        if (publisherAdmitted)
+            assert((noticesSince(offset) == std::vector<std::string>{"mac.down", "mac.speed", "mac.duplex", "mac.pause", "mac.up"}));
+        else
+            assert((noticesSince(offset) == std::vector<std::string>{"mac.down"}));
+        assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+        assert(f.journal().phase == Phase::STOPPED && !f.journal().publishedTuple.up && f.mac.link == ETH_LINK_DOWN);
+        assert(countCall("mac.stop") == 1 && Host::state().oneShotArms == 1);
+        std::vector<int32_t> events{ETHERNET_EVENT_START, ETHERNET_EVENT_CONNECTED, ETHERNET_EVENT_DISCONNECTED};
+        if (publisherAdmitted) { events.push_back(ETHERNET_EVENT_CONNECTED); events.push_back(ETHERNET_EVENT_DISCONNECTED); }
+        events.push_back(ETHERNET_EVENT_STOP);
+        assert(eventOrder() == events);
+    }
 }
 void foreignFlowEffect() {
     Host::reset(); Fixture f; f.install(); f.initialize();
@@ -1997,22 +2039,24 @@ void observationCableFlap() {
 }
 
 void observationBusContention() {
-    Host::reset(); Fixture f; f.config.pinnedP4Mac = true; f.install(); f.initialize(); assert(f.start() == ESP_OK);
     for (const auto prefix : {0U, 2U, 8U}) {
+        Host::reset(); Fixture f; f.config.pinnedP4Mac = true; f.install(); f.initialize(); assert(f.start() == ESP_OK);
         const auto frames = f.mac.frames.size();
         f.mac.readResults.assign(prefix, ESP_OK);
-        f.mac.readResults.push_back(ESP_ERR_INVALID_STATE); // The rejected P4 command was never issued.
+        f.mac.readResults.push_back(ESP_ERR_INVALID_STATE);
         Host::tickTimers();
-        const auto missed = f.journal();
-        // At the beginning of either the eight-read batch or its two-read successor the batch has no prefix.
-        const bool inBatch = prefix == 2;
-        assert(missed.lastObservationStatus.is(inBatch ? Err::MDIO_ERROR : Err::BUSY));
-        assert(missed.lastObservationStatus.detail == (inBatch ? ESP_ERR_INVALID_STATE : static_cast<int32_t>(BusyDetail::OWNER_ADMISSION)));
-        assert(f.mac.frames.size() == frames + prefix && !f.bus.quarantined);
-        assert(!missed.stopRequired && missed.publishedTuple.up && missed.consecutiveObservationMisses == 1);
+        const auto lost = f.journal();
+        assert(lost.lastObservationStatus.is(Err::MDIO_ERROR) && lost.lastObservationStatus.detail == ESP_ERR_INVALID_STATE);
+        assert(lost.stopRequired && !lost.publishedTuple.up && f.mac.link == ETH_LINK_DOWN && f.bus.quarantined);
+        assert(f.mac.frames.size() == frames + prefix && countCall("mac.down") == 1);
+        TransportSnapshot transport;
+        assert(f.owner->transportSnapshot(transport).ok());
+        const auto& rejected = transport.lastBatch.frames[prefix == 8 ? 0 : prefix]; // The final two reads are one more batch.
+        assert(!rejected.attempted && !rejected.effectPossible && !transport.lastBatch.controllerReusable);
         Host::tickTimers();
-        assert(f.mac.frames.size() == frames + prefix + 10 && f.journal().consecutiveObservationMisses == 0);
+        assert(f.mac.frames.size() == frames + prefix && f.journal().stopRequired && countCall("mac.down") == 1);
     }
+    Host::reset(); Fixture f; f.config.pinnedP4Mac = true; f.install(); f.initialize(); assert(f.start() == ESP_OK);
     const auto frames = f.mac.frames.size();
     assert(xSemaphoreTake(f.bus.mutex, 0) == pdTRUE);
     Host::tickTimers();
@@ -2029,7 +2073,7 @@ void observationBusContention() {
     f.mac.readResults = {ESP_OK, ESP_ERR_TIMEOUT}; // A command was issued and completion is uncertain.
     Host::tickTimers();
     const auto lost = f.journal();
-    assert(lost.firstError.is(Err::BUSY) && lost.lastObservationStatus.is(Err::MDIO_TIMEOUT));
+    assert(lost.firstError.is(contended.lastObservationStatus.code) && lost.lastObservationStatus.is(Err::MDIO_TIMEOUT));
     assert(lost.lastObservationStatus.detail == ESP_ERR_TIMEOUT);
     assert(lost.stopRequired && !lost.publishedTuple.up && f.bus.quarantined && f.mac.link == ETH_LINK_DOWN);
     const auto afterQuarantine = f.mac.frames.size();
@@ -2056,6 +2100,90 @@ void observationMissBound() {
     assert(recovered.phase == Phase::RUNNING && recovered.publishedTuple.up && !recovered.stopRequired && countCall("mac.up") == 2);
 }
 
+void observationResetTrust() {
+    for (const bool carrierUp : {false, true}) {
+        Host::reset(); Fixture f; f.install(); f.initialize(); assert(f.start() == ESP_OK);
+        f.mac.registers[0] = 0x9000; // PCS reset in progress, AN enabled (SNLS647I table 8-19).
+        if (!carrierUp) { f.mac.registers[1] = 0x7849; f.mac.registers[0x10] = 0; }
+        Host::tickTimers();
+        const auto lost = f.journal();
+        assert(lost.stopRequired && lost.lastObservationStatus.is(Err::NOT_INITIALIZED));
+        assert(!lost.publishedTuple.up && f.mac.link == ETH_LINK_DOWN && countCall("mac.down") == 1);
+        SdkStateSnapshot sdk;
+        SettingsSnapshot settings;
+        LinkSnapshot sample;
+        assert(f.owner->sdkStateSnapshot(sdk).ok() && !sdk.reconciled);
+        assert(f.owner->settingsSnapshot(settings).ok() && settings.trust == ConfigurationTrust::DIRTY);
+        assert(f.owner->linkSnapshot(sample).ok() && sample.valid && sample.rawBmcr == 0x9000 && sample.linkUp == carrierUp);
+        const auto frames = f.mac.frames.size();
+        f.mac.registers[0] = 0x1000; // Completion alone supplies no restored configuration evidence.
+        f.mac.registers[1] = 0x786D; f.mac.registers[0x10] = 0x0015;
+        Host::tickTimers();
+        assert(f.mac.frames.size() == frames && f.journal().stopRequired && countCall("mac.up") == 1);
+        assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+        assert(f.owner->start(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
+    }
+}
+
+void observationPublicationAdmission() {
+    Host::reset(); Fixture f; f.install(); f.initialize();
+    f.mac.registers[1] = 0x7849; f.mac.registers[0x10] = 0;
+    assert(f.start() == ESP_OK && !f.journal().publishedTuple.up);
+    const auto frames = f.mac.frames.size();
+    f.mac.registers[1] = 0x786D; f.mac.registers[0x10] = 0x0015;
+    bool raced = false;
+    Host::state().afterSemaphoreGive = [&](SemaphoreHandle_t semaphore) {
+        if (raced || semaphore == f.bus.mutex || f.mac.frames.size() != frames + 10) return;
+        raced = true; // First instance unlock after the complete rising-link observation.
+        assert(f.owner->invalidateDeviceState(InvalidationReason::EXTERNAL_RESET).is(Err::BUSY));
+    };
+    Host::tickTimers();
+    Host::state().afterSemaphoreGive = nullptr;
+    assert(raced && f.journal().publishedTuple.up && f.mac.link == ETH_LINK_UP);
+    assert(f.owner->invalidateDeviceState(InvalidationReason::EXTERNAL_RESET).ok());
+    Host::tickTimers();
+    const auto lost = f.journal();
+    assert(lost.stopRequired && !lost.publishedTuple.up && lost.lastObservationStatus.is(Err::NOT_INITIALIZED));
+    assert(f.mac.frames.size() == frames + 10 && f.mac.link == ETH_LINK_DOWN);
+    assert((eventOrder() == std::vector<int32_t>{ETHERNET_EVENT_START, ETHERNET_EVENT_CONNECTED, ETHERNET_EVENT_DISCONNECTED}));
+}
+
+void startObservationReserve() {
+    Host::reset(); Fixture f; f.install(); f.initialize();
+    f.configure(forcedSettings(LinkSpeed::MBPS_100)); // No SDK AN restart before the first get_link.
+    const auto frames = f.mac.frames.size();
+    const auto deadline = Host::state().nowUs + 5U * f.config.notificationUs;
+    assert(f.owner->start(deadline) == ESP_ERR_TIMEOUT);
+    const auto failed = f.journal();
+    assert(failed.firstError.is(Err::OPERATION_TIMEOUT));
+    assert(failed.firstError.coreStatus.detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
+    assert(failed.lastObservationStatus.is(Err::OPERATION_TIMEOUT));
+    assert(failed.lastObservationStatus.detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
+    assert(f.mac.frames.size() == frames && countCall("mac.up") == 0);
+}
+
+void observationGateDenial() {
+    Host::reset(); Fixture f; f.config.maxObservationMisses = 2; f.install(); f.initialize(); assert(f.start() == ESP_OK);
+    f.mac.registers[1] = 0x784D; f.mac.registers[0x10] = 0x0001;
+    Host::tickTimers();
+    Host::state().semaphoreEvents.clear();
+    const auto before = f.journal();
+    assert(before.consecutiveObservationMisses == 1 && before.publishedTuple.up);
+    const auto gate = Host::state().semaphoreEvents.front().handle;
+    assert(gate != f.bus.mutex && xSemaphoreTake(gate, 0) == pdTRUE);
+    const auto frames = f.mac.frames.size();
+    f.mac.registers[1] = 0x7849; f.mac.registers[0x10] = 0;
+    for (unsigned missed = 0; missed < 10; ++missed) Host::tickTimers();
+    assert(xSemaphoreGive(gate) == pdTRUE);
+    const auto denied = f.journal();
+    assert(denied.consecutiveObservationMisses == 1 && denied.publishedTuple.up && !denied.stopRequired);
+    assert(denied.lastObservationStatus.code == before.lastObservationStatus.code && f.mac.frames.size() == frames);
+    Host::tickTimers();
+    const auto admitted = f.journal();
+    assert(admitted.lastObservationStatus.ok() && admitted.consecutiveObservationMisses == 0 && !admitted.stopRequired);
+    assert(f.mac.frames.size() == frames + 10 && !admitted.publishedTuple.up && f.mac.link == ETH_LINK_DOWN);
+}
+
 void peerBoardObservation() {
     Host::reset(); Fixture f; f.config.maxObservationMisses = 32; f.install(); f.initialize(); assert(f.start() == ESP_OK);
     Fixture peer(f, 1); peer.create();
@@ -2071,6 +2199,27 @@ void peerBoardObservation() {
     assert(f.journal().lastObservationStatus.ok() && f.journal().consecutiveObservationMisses == 0);
     assert(f.mac.frames.size() == frames + 10 && countCall("mac.up") == 1 && countCall("mac.down") == 0);
     assert(peer.owner->destroy() == ESP_OK);
+}
+
+void peerBoardFailureObservation() {
+    Host::reset(); Fixture f; f.config.maxObservationMisses = 32; f.install(); f.initialize(); assert(f.start() == ESP_OK);
+    Fixture peer(f, 1); peer.create();
+    BoardControl board; board.setReset = [](void*, bool) { return ESP_FAIL; };
+    const auto frames = f.mac.frames.size();
+    assert(peer.owner->prepareBoard(board, Host::state().nowUs + 100000) == ESP_FAIL);
+    assert(f.bus.admission == BusAdmission::FAILED_CLOSED && !f.bus.quarantined);
+    Host::tickTimers();
+    const auto closed = f.journal();
+    assert(closed.stopRequired && !closed.publishedTuple.up && f.mac.link == ETH_LINK_DOWN);
+    assert(closed.lastObservationStatus.is(Err::NOT_INITIALIZED) && closed.consecutiveObservationMisses < f.config.maxObservationMisses);
+    SdkStateSnapshot sdk;
+    assert(f.owner->sdkStateSnapshot(sdk).ok() && !sdk.reconciled);
+    assert(f.mac.frames.size() == frames && countCall("mac.down") == 1);
+    assert(peer.owner->destroy() == ESP_OK);
+    Host::tickTimers();
+    assert(f.bus.admission == BusAdmission::FAILED_CLOSED && f.mac.frames.size() == frames);
+    assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+    assert(f.owner->start(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
 }
 
 void eventRetryObservation() {
@@ -2108,27 +2257,82 @@ void eventRetryObservation() {
 }
 
 void boardDeadlineDomains() {
-    enum class Failure { ENTRY, WAIT, DRAIN, PIN };
-    for (const auto failure : {Failure::ENTRY, Failure::WAIT, Failure::DRAIN, Failure::PIN}) {
+    enum class Failure { ENTRY, WAIT, DRAIN, POLL, PIN, ASSERTED, RELEASE };
+    for (const auto previous : {BusAdmission::BOOT_CLOSED, BusAdmission::AVAILABLE})
+    for (const auto failure : {Failure::ENTRY, Failure::WAIT, Failure::DRAIN, Failure::POLL,
+                               Failure::PIN, Failure::ASSERTED, Failure::RELEASE}) {
         Host::reset(); Fixture f; f.create();
+        f.bus.admission = previous;
         Host::state().nowUs = 49991; // The POR readiness floor is 50001 us.
-        BoardControl board;
-        board.setReset = [](void*, bool) { return ESP_ERR_TIMEOUT; };
+        struct Pins { unsigned calls{0}; bool fail; } pins{0, failure == Failure::PIN};
+        BoardControl board; board.context = &pins;
+        board.setReset = [](void* context, bool) {
+            auto& p = *static_cast<Pins*>(context); ++p.calls;
+            return p.fail ? ESP_ERR_TIMEOUT : ESP_OK;
+        };
+        if (failure == Failure::POLL) board.maxPolls = 1;
+        if (failure == Failure::ASSERTED) {
+            Host::state().nowUs = 50001; // POR and clock ready before the assertion callback.
+            board.maxPolls = 1;
+        }
         const auto before = Host::state().nowUs;
         const auto deadline = failure == Failure::ENTRY ? before : failure == Failure::WAIT ? 50051 : before + 100000;
         if (failure == Failure::DRAIN) assert(xSemaphoreTake(f.bus.mutex, 0) == pdTRUE);
-        assert(f.owner->prepareBoard(board, deadline) == ESP_ERR_TIMEOUT);
+        if (failure == Failure::RELEASE) Host::state().failNextGive = f.bus.mutex;
+        assert(f.owner->prepareBoard(board, deadline) == (failure == Failure::RELEASE ? ESP_FAIL : ESP_ERR_TIMEOUT));
         if (failure == Failure::DRAIN) assert(xSemaphoreGive(f.bus.mutex) == pdTRUE);
         const auto error = f.journal().firstError;
-        if (failure == Failure::PIN) {
-            assert(error.sdkError == ESP_ERR_TIMEOUT && error.coreStatus.ok());
+        if (failure == Failure::PIN || failure == Failure::RELEASE) {
+            assert(error.sdkError == (failure == Failure::PIN ? ESP_ERR_TIMEOUT : ESP_FAIL) && error.coreStatus.ok());
         } else {
             assert(error.is(Err::OPERATION_TIMEOUT) && error.sdkError == ESP_OK);
-            assert(Host::state().nowUs == before && Host::state().delays.empty());
+            const auto reason = failure == Failure::ENTRY ? TimeoutDetail::DEADLINE :
+                failure == Failure::POLL || failure == Failure::ASSERTED ? TimeoutDetail::POLL_BUDGET : TimeoutDetail::BOUND_ADMISSION;
+            assert(error.coreStatus.detail == static_cast<int32_t>(reason));
+            if (failure != Failure::ASSERTED) assert(Host::state().nowUs == before && Host::state().delays.empty());
         }
-        assert(f.bus.admission == (failure == Failure::ENTRY ? BusAdmission::BOOT_CLOSED : BusAdmission::FAILED_CLOSED));
+        const bool effect = failure == Failure::PIN || failure == Failure::ASSERTED;
+        assert(pins.calls == (effect ? 1U : 0U));
+        assert(f.bus.admission == (effect || failure == Failure::RELEASE ? BusAdmission::FAILED_CLOSED : previous));
+        assert(f.bus.quarantined == (failure == Failure::RELEASE));
+        assert(f.bus.quietUntilUs == (failure == Failure::ENTRY ? 0U : 50001U));
         assert(f.mac.frames.empty() && f.owner->destroy() == ESP_OK);
     }
+    // Restoring AVAILABLE does not waive a newly powered peer's SMI floor.
+    Host::reset(); Fixture f; Fixture peer(f, 1); f.install(); f.initialize(); peer.create();
+    BoardControl board; board.powerOnAtUs = Host::state().nowUs;
+    board.setReset = [](void*, bool) { assert(false); return ESP_FAIL; };
+    const auto before = Host::state().nowUs;
+    assert(peer.owner->prepareBoard(board, before + 1) == ESP_ERR_TIMEOUT);
+    assert(f.bus.admission == BusAdmission::AVAILABLE && f.bus.quietUntilUs == before + 50001);
+    uint16_t id = 0xCAFE; const auto frames = f.mac.frames.size();
+    assert(readPeerIdentity(f, id) == ESP_ERR_INVALID_STATE && id == 0xCAFE && f.mac.frames.size() == frames);
+    Host::state().nowUs = f.bus.quietUntilUs;
+    assert(readPeerIdentity(f, id) == ESP_OK && id == 0x2000);
+    assert(peer.owner->destroy() == ESP_OK);
+}
+
+void boardDeadlineBeforeDrain() {
+    Host::reset(); Fixture f; f.create();
+    f.bus.admission = BusAdmission::AVAILABLE;
+    Host::state().nowUs = 70000;
+    const auto deadline = Host::state().nowUs + 20000;
+    bool delayed = false;
+    Host::state().afterSemaphoreGive = [&](SemaphoreHandle_t semaphore) {
+        if (semaphore == f.bus.mutex || f.bus.admission != BusAdmission::BOARD_PREPARING) return;
+        Host::state().afterSemaphoreGive = nullptr;
+        Host::state().nowUs = deadline; // Task resumes after releasing the instance gate.
+        delayed = true;
+    };
+    BoardControl board; board.powerOnAtUs = Host::state().nowUs;
+    board.setReset = [](void*, bool) { assert(false); return ESP_FAIL; };
+    Host::state().semaphoreEvents.clear();
+    assert(f.owner->prepareBoard(board, deadline) == ESP_ERR_TIMEOUT && delayed);
+    const auto error = f.journal().firstError;
+    assert(error.is(Err::OPERATION_TIMEOUT) && error.coreStatus.detail == static_cast<int32_t>(TimeoutDetail::DEADLINE));
+    assert(controllerEvents(f.bus.mutex).empty() && f.mac.frames.empty());
+    assert(f.bus.admission == BusAdmission::AVAILABLE && f.bus.quietUntilUs == board.powerOnAtUs + 50001);
+    assert(f.owner->destroy() == ESP_OK);
 }
 
 void cancelledResetBoardFloor() {
@@ -2207,19 +2411,28 @@ void failedStartCleanupAdmission() {
 }
 
 void minimalCleanupAllowance() {
-    Host::reset(); Fixture f; f.config.cleanupBudgetUs = 1; f.install(); f.initialize();
-    const auto deadline = Host::state().nowUs + 100000;
-    Host::state().onTimerPeriodic = [&] { Host::state().nowUs = deadline; };
-    assert(f.owner->start(deadline) == ESP_ERR_TIMEOUT);
-    Host::state().onTimerPeriodic = nullptr;
-    const auto pending = f.journal();
-    assert(pending.firstError.is(Err::OPERATION_TIMEOUT) && pending.cleanupError.is(Err::OPERATION_TIMEOUT));
-    assert(pending.phase == Phase::STOPPING && pending.stopRequired && pending.publishedTuple.up);
-    assert(countCall("timer.stop") == 1 && countCall("mac.stop") == 0);
-    assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
-    const auto repaired = f.journal();
-    assert(repaired.phase == Phase::STOPPED && !repaired.stopRequired && !repaired.publishedTuple.up);
-    assert(repaired.cleanupError.is(Err::OPERATION_TIMEOUT) && countCall("mac.stop") == 1 && Host::state().oneShotArms == 1);
+    for (const uint32_t allowance : {1U, 10U, 11U}) {
+        Host::reset(); Fixture f;
+        f.config.notificationUs = 10; f.config.cleanupBudgetUs = allowance;
+        f.install(); f.initialize();
+        const auto deadline = Host::state().nowUs + 100000;
+        Host::state().onTimerPeriodic = [&] { Host::state().nowUs = deadline; };
+        assert(f.owner->start(deadline) == ESP_ERR_TIMEOUT);
+        Host::state().onTimerPeriodic = nullptr;
+        const auto pending = f.journal();
+        assert(pending.firstError.is(Err::OPERATION_TIMEOUT) && pending.cleanupError.is(Err::OPERATION_TIMEOUT));
+        assert(pending.firstError.coreStatus.detail == static_cast<int32_t>(TimeoutDetail::DEADLINE));
+        assert(pending.cleanupError.coreStatus.detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
+        const bool admittedDown = allowance > f.config.notificationUs;
+        assert(pending.phase == Phase::STOPPING && pending.stopRequired && pending.publishedTuple.up == !admittedDown);
+        assert(countCall("mac.down") == static_cast<size_t>(admittedDown));
+        assert(countCall("timer.stop") == 1 && countCall("mac.stop") == 0);
+        assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+        const auto repaired = f.journal();
+        assert(repaired.phase == Phase::STOPPED && !repaired.stopRequired && !repaired.publishedTuple.up);
+        assert(repaired.cleanupError.coreStatus.detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
+        assert(countCall("mac.down") == 1 && countCall("mac.stop") == 1 && Host::state().oneShotArms == 1);
+    }
 }
 
 void stopBeforeAdmission() {
@@ -2336,6 +2549,7 @@ void rawUninstallDuringInitialization() {
         assert(f.owner->retire(Host::state().nowUs + 100000) == ESP_ERR_NOT_SUPPORTED);
         assert(f.journal().phase == Phase::MAINTENANCE && Host::isLive(f.handle));
         assert(countCall("timer.periodic") == 0 && countCall("timer.stop") == 0);
+        assert(Host::state().oneShotArms == 1 && countCall("mac.stop") == 1 && Host::state().events.empty());
     }
 }
 
@@ -2358,22 +2572,60 @@ void retireAfterStopAdmissionTimeout() {
 }
 
 void nativeCleanupErrorDomains() {
-    Host::reset(); Fixture f; f.install(); f.initialize(); assert(f.start() == ESP_OK);
-    const auto deadline = Host::state().nowUs + 2000;
-    bool injected = false;
-    Host::state().beforeSemaphoreTake = [&](SemaphoreHandle_t semaphore) {
-        if (semaphore != f.bus.mutex && countCall("timer.stop") && !injected) {
-            Host::state().nowUs = deadline;
-            Host::state().failSemaphoreTakes = 1;
-            injected = true;
+    for (const bool gate : {false, true}) {
+        for (const auto reason : {TimeoutDetail::DEADLINE, TimeoutDetail::POLL_BUDGET, TimeoutDetail::BOUND_ADMISSION}) {
+            Host::reset(); Fixture f; f.config.maxFencePolls = 3; f.install(); f.initialize(); assert(f.start() == ESP_OK);
+            const auto deadline = Host::state().nowUs + 1000000;
+            bool injected = false;
+            const auto withholdProgress = [&] {
+                if (reason == TimeoutDetail::DEADLINE) Host::state().nowUs = deadline;
+                if (reason == TimeoutDetail::BOUND_ADMISSION) Host::state().nowUs = deadline - 1U;
+                injected = true;
+            };
+            if (gate) {
+                // The pinned SDK enters set_link after stopping its own timer.
+                Host::state().beforeSemaphoreTake = [&](SemaphoreHandle_t semaphore) {
+                    if (semaphore != f.bus.mutex && countCall("timer.stop")) {
+                        if (!injected) withholdProgress();
+                        Host::state().failNextTake = semaphore;
+                    }
+                };
+            } else {
+                Host::state().holdOneShot = true;
+                Host::state().onTimerOnce = withholdProgress;
+            }
+            assert(f.owner->stop(deadline) == ESP_ERR_TIMEOUT && injected);
+            Host::state().beforeSemaphoreTake = nullptr;
+            Host::state().onTimerOnce = nullptr;
+            Host::state().holdOneShot = false;
+            assert((Host::state().nowUs == deadline) == (reason == TimeoutDetail::DEADLINE));
+            const auto failed = f.journal();
+            assert(failed.cleanupError.is(Err::OPERATION_TIMEOUT) && failed.lastCleanupError.is(Err::OPERATION_TIMEOUT));
+            assert(failed.cleanupError.coreStatus.detail == static_cast<int32_t>(reason));
+            assert(failed.lastCleanupError.coreStatus.detail == static_cast<int32_t>(reason));
+            assert(failed.phase == Phase::STOPPING && failed.publishedTuple.up == gate);
+            assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+            assert(f.journal().phase == Phase::STOPPED && countCall("mac.stop") == 1 && Host::state().oneShotArms == 1);
         }
+    }
+
+    // A real SDK queue timeout returned at the absolute deadline is the first
+    // cleanup failure. The later owner cutoff has a separate core receipt.
+    Host::reset(); Fixture f; f.config.pinnedP4Mac = true; f.install(); f.initialize(); assert(f.start() == ESP_OK);
+    const auto deadline = Host::state().nowUs + 100000;
+    Host::state().eventErrorId = ETHERNET_EVENT_DISCONNECTED;
+    Host::state().nextEventError = ESP_ERR_TIMEOUT;
+    Host::state().onEventAttempt = [&](int32_t id) {
+        if (id == ETHERNET_EVENT_DISCONNECTED) Host::state().nowUs = deadline;
     };
-    assert(f.owner->stop(deadline) == ESP_ERR_TIMEOUT && injected);
-    Host::state().beforeSemaphoreTake = nullptr;
-    assert(Host::state().nowUs == deadline);
+    assert(f.owner->stop(deadline) == ESP_ERR_TIMEOUT);
+    Host::state().onEventAttempt = nullptr;
     const auto failed = f.journal();
-    assert(failed.cleanupError.is(Err::OPERATION_TIMEOUT) && failed.lastCleanupError.is(Err::OPERATION_TIMEOUT));
-    assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+    assert(failed.cleanupError.sdkError == ESP_ERR_TIMEOUT && failed.cleanupError.coreStatus.ok());
+    assert(failed.lastCleanupError.is(Err::OPERATION_TIMEOUT));
+    assert(failed.lastCleanupError.coreStatus.detail == static_cast<int32_t>(TimeoutDetail::DEADLINE));
+    assert(failed.eventLost && !failed.publishedTuple.up && failed.phase == Phase::STOPPING);
+    assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK && f.journal().phase == Phase::STOPPED);
 
     for (const bool alreadyQuarantined : {false, true}) {
         Host::reset(); Fixture g; g.install(); OperationToken token{};
@@ -2477,6 +2729,7 @@ int main(int argc, char** argv) {
     else if (suite == "installer_contention") installerContention();
     else if (suite == "raw_read_arbitration") rawReadArbitration();
     else if (suite == "raw_lock_failures") rawLockFailures();
+    else if (suite == "quarantine_after_batch_unlock") quarantineAfterBatchUnlock();
     else if (suite == "controller_wait_classification") controllerWaitClassification();
     else if (suite == "raw_boundary_failures") rawBoundaryFailures();
     else if (suite == "p4_busy_before_command") p4BusyBeforeCommand();
@@ -2511,9 +2764,15 @@ int main(int argc, char** argv) {
     else if (suite == "observation_cable_flap") observationCableFlap();
     else if (suite == "observation_bus_contention") observationBusContention();
     else if (suite == "observation_miss_bound") observationMissBound();
+    else if (suite == "observation_reset_trust") observationResetTrust();
+    else if (suite == "observation_publication_admission") observationPublicationAdmission();
+    else if (suite == "start_observation_reserve") startObservationReserve();
+    else if (suite == "observation_gate_denial") observationGateDenial();
     else if (suite == "peer_board_observation") peerBoardObservation();
+    else if (suite == "peer_board_failure_observation") peerBoardFailureObservation();
     else if (suite == "event_retry_observation") eventRetryObservation();
     else if (suite == "board_deadline_domains") boardDeadlineDomains();
+    else if (suite == "board_deadline_before_drain") boardDeadlineBeforeDrain();
     else if (suite == "cancelled_reset_board_floor") cancelledResetBoardFloor();
     else if (suite == "late_stop_gate") lateStopGate();
     else if (suite == "raw_uninstall_already_down") rawUninstallAlreadyDown();

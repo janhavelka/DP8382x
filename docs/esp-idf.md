@@ -7,7 +7,8 @@ The component metadata selects that release and target. This is a selected
 integration baseline, not a tested range of SDK releases or MACs. Executing
 results and remaining gates belong to the [prompt 39 report](reports/implementation/39-esp-idf-link-bounds.md)
 and [2026-11-18 corrections](reports/implementation/37-39-native-fixes-2026-11-18.md),
-followed by the [second-round review](reports/implementation/37-39-native-fixes-round2-2026-11-18.md);
+followed by the [second-round review](reports/implementation/37-39-native-fixes-round2-2026-11-18.md)
+and [third-round corrections](reports/implementation/37-39-native-fixes-round3-2026-11-18.md);
 the [source audit](reports/implementation/39-native-source-audit.md) records
 the inspected inputs. A linked image does not establish physical operation.
 
@@ -198,8 +199,13 @@ initialization claims only AVAILABLE as INITIALIZING. Installation claims AVAILA
 as INSTALLING. Another participant cannot replace these reservations, even between
 owner polls. During INITIALIZING only its admitting core can issue batches;
 BOARD_PREPARING and INSTALLING admit no MDIO. Successful
-board preparation/result delivery returns AVAILABLE. A failed board procedure
-leaves FAILED_CLOSED independently of that adapter's lifetime. Other PHY reset
+board preparation/result delivery returns AVAILABLE. A board failure before any
+GPIO invocation restores its previous BOOT_CLOSED/AVAILABLE state when timing
+and controller release are known. The shared POR floor is merged before the
+drain, so reopening AVAILABLE never waives a newly powered peer's 50 ms silence.
+Any invoked pin callback can have applied an effect even on error. Such a
+failure, unknown timing, or failed mutex release leaves FAILED_CLOSED independently
+of that adapter's lifetime; uncertain controller release also quarantines the bus. Other PHY reset
 success cannot clear it. Only explicit application disposition after all users
 are quiescent, or system restart, may re-establish readiness.
 
@@ -221,6 +227,16 @@ the remaining deadline must contain that tick at the configured rational rate.
 Scheduler delay can still exceed the requested wait; elapsed checks detect it.
 Board completion is independent of snapshot contention; its receipt publishes local readiness
 at the next gated entry without overwriting a later participant's reservation.
+
+Applications quiesce the bus before external power changes; preparation cannot
+undo earlier SMI activity. The bus has no reset-pin topology or peer registry.
+If RESET_N is shared, stop the affected peers, resolve their active operations
+and call each installed peer's `invalidateDeviceState(AMBIGUOUS_MUTATION)` under
+its owner before invoking the pin callback. After a proven completed reset,
+`EXTERNAL_RESET` may attest that reset's effects; an uncertain pin error cannot.
+Reinitialize and reconcile each affected peer before restarting it. Independent
+RESET_N nets still share SMI silence, but do not by themselves invalidate the
+other PHY's settings. This responsibility also applies to external resets.
 
 Only after readiness does `install` call the public SDK installer. The fence
 timer already exists. Installation claims silence, drains the shared controller
@@ -315,8 +331,8 @@ An in-flight snapshot may still show the previous publication with uncertainty.
 | Observation/publication outcome | Retained evidence and next action |
 | --- | --- |
 | Down, including initial cable absent | Valid acquired down; no speed/duplex invented; publish DOWN only after prior UP |
-| Running observation changes, admission/mutex is busy, P4 command is rejected before issue, own publisher is in flight, or UP mode is unresolved | Preserve the tuple for fewer than maxObservationMisses; at the limit request administrative DOWN without stopRequired. Next coherent poll may publish UP normally |
-| Bus is quarantined, clock/transport contract fails, trust/SDK agreement is lost, or publication has a terminal unknown effect | Preserve acquired/partial/stale evidence and actual cause; request administrative DOWN and latch stopRequired. Application must stop before another start. This does not claim physical cable-down |
+| Running observation changes, temporary admission/mutex contention, own publisher is in flight, or unresolved UP with trust intact | Preserve the tuple for fewer than maxObservationMisses; at the limit request administrative DOWN without stopRequired. Next coherent poll may publish UP normally |
+| Bus is FAILED_CLOSED or quarantined (including unexplained P4 busy while holding the mutex), clock/transport contract fails, trust/SDK agreement is lost, or publication has a terminal unknown effect | Preserve acquired/partial/stale evidence and actual cause; request administrative DOWN and latch stopRequired. FAILED_CLOSED preflight records NOT_INITIALIZED with shared-board-readiness context. Application must stop and resolve the shared fault before restart. This does not claim physical cable-down |
 | First resolved UP | SPEED, DUPLEX, PAUSE, UP; each field accepted separately |
 | Speed, duplex or Boolean peer pause changes while up | DOWN, SPEED, DUPLEX, PAUSE, UP; latest acquired and accepted fields stay separate |
 | Same fully published tuple | No notifications/events; a still-lost event needs explicit event retry |
@@ -336,6 +352,15 @@ an older event failure. If the limit is reached during our own publication,
 poll withdraws UP before collecting another sample, and the following good poll
 can republish. No concurrent publisher is introduced. Initial STARTING failures
 still fail start and use its separate cleanup allowance.
+Persistent gate contention can therefore retain stale UP indefinitely. An
+arbitrary upper cap on the positive counter would not solve that starvation;
+the application must enforce its own observation-age/owner scheduling policy.
+A successful physical read does not override lost settings trust: reset detected
+in that read requires stop immediately, for both unresolved UP and coherent DOWN.
+Observation validation and publication admission retain the same instance gate;
+it is released only after staging the in-flight publisher. Owner invalidation
+cannot slip between them and then allow stale UP. During notification callbacks
+invalidation returns BUSY; the application must retry before any external mutation.
 
 The application must use owner lifecycle methods. Direct `esp_eth_start`,
 `esp_eth_stop`, `esp_eth_driver_uninstall`, PHY deletion and mediator replacement
@@ -349,6 +374,11 @@ cancel/takeResult remain admitted even there: the application must cancel any
 unfinished core operation and consume its result to release INITIALIZING silence.
 Native stop completion does not claim core result delivery. Arbitrary control ioctls
 remain application-owned and can have partial MAC effects before PHY rejection.
+If a never-started core operation is still in CONTROL, this forbidden uninstall
+route conservatively uses the independent fence and direct MAC stop, even though
+the current cycle never started the MAC. SDK FSM STOP and timer deletion do not
+attest hardware idle; no START evidence means no synthetic STOP event. Accepted
+MAC-stop receipts are still retained, and no deleted SDK timer is used.
 If forbidden direct stop runs while the link is already DOWN, the SDK emits no
 PHY callback to reveal whether STOP was delivered. Cleanup after raw uninstall
 therefore conservatively posts STOP; a previously delivered raw STOP can be
@@ -402,9 +432,18 @@ RMW sequence. A lock failure issues no frame: zero-tick contention returns BUSY;
 requested wait that expires returns MDIO_TIMEOUT with native detail and counts
 as a managed transport failure when issued by managed traffic; uncertain controller completion or
 release quarantines the shared domain. The pinned P4's busy-at-entry INVALID_STATE
-proves that read/write issued no command: frame zero returns BUSY without
-quarantine; a completed prefix returns MDIO_ERROR with its exact native detail,
-successful release and a reusable controller. Generic MAC failures and actual
+proves only that this read/write issued no command. While holding the shared
+mutex, unexplained controller activity means idle is unproved; a bypassing MDIO
+user is one possible cause. Return MDIO_ERROR with exact INVALID_STATE, preserve
+the completed prefix and mark the rejected frame unattempted. The independent
+releaseStatus records missing idle assurance and controllerReusable is false;
+quarantine blocks every participant until external disposition. A mutex-release
+failure similarly uses releaseStatus MDIO_ERROR/ESP_FAIL, with its own message,
+while preserving the primary frame error. This is a terminal transport fault,
+not a fictional MDIO frame; init's pre-transaction drain instead uses BUSY and
+the native lifecycle journal. Transaction reuse evidence is captured before
+unlock, so a later owner's failure cannot corrupt this completed receipt.
+Generic MAC failures and actual
 P4 MDIO timeouts retain uncertain effects and quarantine. Passive health cannot reopen it.
 
 `L` covers fixed local/gate/clock processing under the qualified workload;
@@ -461,9 +500,21 @@ universal finite bound. `cleanupBudgetUs` is therefore a positive **attempt**
 allowance, not a completion promise. A small value can expire with effects and
 obligations retained; the owner then calls stop with a separately chosen finite
 deadline. Fence/MAC attempt counts do not turn that allowance into a minimum.
+There is a necessary lower bound for an owed DOWN: the allowance remaining at
+publication must be strictly greater than `notificationUs`. Thus a total
+`cleanupBudgetUs <= notificationUs` cannot admit that DOWN. The factory permits
+this explicitly limited attempt; it may close framework admission or retain a
+fence receipt, then requires a later owner stop to deliver DOWN. No successful
+cleanup or vanished obligation is reported. A larger total is also insufficient
+unless prior callbacks, gate waits, fence and MAC work leave enough time.
 Stop closes RUNNING admission only after acquiring the gate; an expired or
 exhausted initial admission leaves polling active. After a completed stop,
 retire admission failure cannot manufacture a cleanup error or undo completion.
+The journal distinguishes an observed exclusive deadline (`DEADLINE`), exhausted
+finite gate/fence/board polls (`POLL_BUDGET`), and insufficient remaining allowance
+for a whole tick or notification (`BOUND_ADMISSION`). These remain core
+OPERATION_TIMEOUT through SDK forwarding. An actual SDK TIMEOUT retains its
+SDK domain even if the clock has also crossed the owner's deadline.
 
 At 100Hz one tick is 10ms. `vTaskDelay(1)` can wake at the next boundary much
 sooner than 10ms; it is only a scheduling hint. Board readiness rechecks elapsed

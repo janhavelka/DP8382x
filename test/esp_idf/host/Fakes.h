@@ -34,6 +34,7 @@ struct State {
     std::vector<SemaphoreEvent> semaphoreEvents;
     uintptr_t currentTask = 1;
     std::function<void(SemaphoreHandle_t)> beforeSemaphoreTake;
+    std::function<void(SemaphoreHandle_t)> afterSemaphoreGive;
     std::function<void()> onTimerPeriodic;
     std::function<void()> onTimerOnce;
     std::vector<uint64_t> periodicPeriodsUs;

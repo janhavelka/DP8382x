@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Correct the third native review: stop on same-poll reset or failed shared board
+  readiness, quarantine unexplained P4 controller activity, and restore pre-GPIO
+  admission without waiving POR silence. Preserve deadline/poll/admission causes
+  and transaction release evidence; document cleanup attempts and shared reset ownership.
+
 - Correct the second native review: recover transient link observations, preserve
   peer quiet floors without failing completed board readiness, and continue native
   cleanup after event failure or forbidden uninstall. Expired stop admission has

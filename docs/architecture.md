@@ -32,7 +32,9 @@ policy, terminal framework restart, link notifications and bounded stop/fencing.
 cover their own layers. RX task lifetime still prevents reusable destruction of
 installed resources; terminal retirement retains them through system restart.
 Transient live-query misses use a validated count limit and recover on later
-evidence; lost trust still requires owner stop. Event repair debt cannot withhold
+evidence; reset detected by the live read, FAILED_CLOSED board readiness and
+controller quarantine require owner stop. Gate-denied polls do not advance the
+miss count or bound stale UP in wall time. Event repair debt cannot withhold
 the native hardware-stop attempt. Core result delivery remains a separate
 obligation, including after a forbidden raw uninstall closes normal admission.
 
@@ -50,8 +52,10 @@ distinct from passive transport health and from an operation's cleanup barrier.
 The native shared admission enum prevents board preparation and initialization
 from replacing each other's reservation. MAC installation has its own logical
 silence reservation across reset and CSR-clock setup, with no mutex across waits.
-Failed board readiness stays closed
-independently of the adapter lifetime. Explicit address discovery uses the core's
+A pre-GPIO failure with known timing and controller release restores prior
+admission while preserving the shared POR floor. Partial/unknown board effects
+stay closed independently of the adapter lifetime. Applications invalidate
+every peer affected by shared RESET_N through its owner. Explicit address discovery uses the core's
 raw two-ID batch audit and counters without accepting or retargeting a device.
 
 The collector retains every validated consumed sample and possible history loss;

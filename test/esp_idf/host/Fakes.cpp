@@ -86,7 +86,9 @@ BaseType_t xSemaphoreGive(SemaphoreHandle_t semaphore) {
     if (semaphore && data.failNextGive == semaphore) { data.failNextGive = nullptr; accepted = false; }
     data.semaphoreEvents.push_back({semaphore, false, accepted, 0});
     if (!accepted) return pdFALSE;
-    semaphore->held = false; return pdTRUE;
+    semaphore->held = false;
+    if (const auto callback = data.afterSemaphoreGive) callback(semaphore);
+    return pdTRUE;
 }
 void vSemaphoreDelete(SemaphoreHandle_t semaphore) {
     assert(semaphore && !semaphore->held);

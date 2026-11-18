@@ -19,6 +19,9 @@ failure and shared-controller regressions. Installed resources remain retained.
 The [second-round review](docs/reports/implementation/37-39-native-fixes-round2-2026-11-18.md)
 adds recoverable transient link misses, continued hardware cleanup after event
 failure or forbidden uninstall, and stricter admission/deadline evidence.
+The [third-round review](docs/reports/implementation/37-39-native-fixes-round3-2026-11-18.md)
+corrects immediate trust-loss handling, pre-GPIO admission recovery and P4
+controller-busy quarantine, with separate deadline and poll-limit receipts.
 [EEE negotiation and status](docs/eee.md) now provide explicit reset-bearing setup,
 verified restoration and bounded retained observations; physical Q1 remains pending.
 The [prompt-36 integration review](docs/reports/implementation/36-primary-feature-closure.md)

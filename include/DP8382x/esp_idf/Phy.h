@@ -106,7 +106,7 @@ enum class BusAdmission : uint8_t {
   INITIALIZING, ///< Only the admitting PHY's initialization batches may run.
   BOARD_PREPARING, ///< No MDIO while reset/readiness owns the controller domain.
   INSTALLING, ///< MAC reset/clock setup excludes every shared-controller participant.
-  FAILED_CLOSED ///< Board readiness failed; external disposition or restart required.
+  FAILED_CLOSED ///< Board/install effect or readiness is uncertain; external disposition or restart required.
 };
 /// @brief Borrowed controller-wide exclusion and readiness shared by every PHY.
 /// @pre mutex is an application-created nonrecursive mutex. This object and mutex
@@ -116,14 +116,17 @@ enum class BusAdmission : uint8_t {
 /// Only the INITIALIZING reservation owner may bypass that admission state.
 struct SharedBus {
   SemaphoreHandle_t mutex{nullptr}; ///< Serializes complete MDIO batches.
-  std::atomic<bool> quarantined{false}; ///< Unknown controller completion; external repair only.
+  std::atomic<bool> quarantined{false}; ///< Controller idle or release is unproved; external repair only.
   std::atomic<BusAdmission> admission{BusAdmission::BOOT_CLOSED}; ///< Sole silence authority; never overwrite another reservation.
   std::atomic<uint64_t> quietUntilUs{0}; ///< Shared nonwrapping esp_timer readiness floor.
 };
 /// @brief Explicit board reset procedure, supplied by the application.
+/// @pre Quiesce traffic before external power changes. For shared RESET_N,
+/// invalidate every affected peer under its owner; this object tracks no pin topology.
 struct BoardControl {
   void* context{nullptr}; ///< Borrowed through all calls and retained resources.
   /// @brief Finite terminal board callback; true asserts RESET_N, false releases it.
+  /// @note Any invocation can apply an effect even when it returns an error.
   esp_err_t (*setReset)(void*, bool){nullptr};
   uint64_t powerOnAtUs{0}; ///< Actual power-on sample in esp_timer us; event no later than sample+clockLagUs. Zero is valid.
   uint64_t clockStableAtUs{0}; ///< Stable REF_CLK event sample with the same clockLagUs bound; uninterrupted thereafter.
@@ -152,13 +155,20 @@ struct PhyConfig {
   SharedBus* bus{nullptr}; ///< Borrowed bus shared by all participants.
   uint32_t linkPollMs{2000}; ///< 1..4294967 ms, at least callbackBudgetUs rounded up to ms; not a response-time guarantee.
   uint32_t callbackBudgetUs{100000}; ///< Must exceed B(8)+B(2)+clockLagUs+5*notificationUs; includes local/gate/clock overhead.
-  uint32_t cleanupBudgetUs{100000}; ///< Positive failed-start attempt allowance from observed completion; may be too short to finish. No qualified fence/scheduler/MAC minimum exists; explicit stop retry supplies its own deadline.
+  /// Positive failed-start attempt allowance, us from observed completion, not guaranteed cleanup.
+  /// An owed DOWN needs remaining allowance > notificationUs even to admit that call;
+  /// smaller values retain the obligation for explicit stop with its own deadline.
+  /// No qualified fence/scheduler/MAC minimum guarantees completion.
+  uint32_t cleanupBudgetUs{100000};
   uint32_t notificationUs{0}; ///< Required qualified per-notification bound, microseconds including scheduling; late return is detected, not preempted.
   uint32_t lockWaitUs{1000}; ///< Controller mutex wait cap; scheduler latency remains conditional.
   uint32_t maxFencePolls{100000}; ///< Finite timer fence polling cap.
   uint32_t maxStopAttempts{1}; ///< Finite actual MAC stop attempts.
   bool pinnedP4Mac{false}; ///< Attests actual pinned P4 MAC, whose valid set_link always succeeds.
-  uint32_t maxObservationMisses{3}; ///< Positive consecutive admitted RUNNING misses before recoverable administrative DOWN; no wall-time bound if polling is denied.
+  /// Positive consecutive admitted RUNNING misses before recoverable administrative DOWN.
+  /// Gate-denied polls do not count: stale UP has no wall-time bound under persistent
+  /// contention or a stopped scheduler. The application owns its freshness deadline.
+  uint32_t maxObservationMisses{3};
 };
 
 class Phy;
@@ -196,8 +206,14 @@ public:
   /// @brief Assert/reset board under shared silence, then wait 2 ms release/50 ms POR and clock readiness.
   /// @param[in] board Finite borrowed pin callback and real power/clock timestamps.
   /// @param[in] deadlineUs Exclusive absolute esp_timer microsecond deadline, no renewed timeout.
-  /// @return Native error/timeout; another reservation rejects before GPIO. Failed
-  /// readiness leaves FAILED_CLOSED until external disposition or system restart.
+  /// @return Native error/timeout; another reservation rejects before GPIO.
+  /// A failure before any GPIO invocation restores prior BOOT_CLOSED/AVAILABLE
+  /// admission only when controller release and timing are known, preserving the
+  /// shared POR/quiet floor. Any attempted pin effect or uncertain release leaves
+  /// FAILED_CLOSED until external disposition or system restart.
+  /// @note Shared RESET_N requires owner-routed invalidation of every affected
+  /// peer and reinitialization/reconciliation before restart. Do not attest a
+  /// completed EXTERNAL_RESET after an uncertain pin callback.
   esp_err_t prepareBoard(const BoardControl& board, uint64_t deadlineUs) noexcept;
   /// @brief Install with mandatory rejecting raw hooks after board readiness; no PHY I/O.
   /// @param[out] output Published only on success; SDK install failure has no partial handle.
@@ -218,6 +234,8 @@ public:
   /// debt remain. STOP may precede that repaired event after a queue failure.
   /// Forbidden raw uninstall skips the deleted SDK timer, retaining native cleanup
   /// and bus-silent cancel/takeResult. Core result delivery remains independently owed.
+  /// A never-started core operation still in CONTROL can require the independent
+  /// fence and MAC stop after this forbidden route; SDK FSM STOP is no idle proof.
   /// @note Earlier cleanup errors stay in the journal even after successful repair.
   esp_err_t stop(uint64_t deadlineUs) noexcept;
   /// @brief Close admission permanently and retain installed resources under RX lifetime gate.
@@ -407,15 +425,19 @@ private:
   static esp_err_t acknowledgeDuplex(esp_eth_phy_t*, eth_duplex_t) noexcept;
   static esp_err_t deletePhy(esp_eth_phy_t*) noexcept;
   bool enter() noexcept;
-  bool enterUntil(uint64_t deadlineUs) noexcept;
+  bool enterUntil(uint64_t deadlineUs, TimeoutDetail* reason = nullptr) noexcept;
   bool enterStartCallback() noexcept;
   bool enterControlCallback() noexcept;
   void leave() noexcept;
   void record(esp_err_t error, bool cleanup = false) noexcept;
   void recordCore(Status status, bool cleanup = false) noexcept;
   esp_err_t publish(PublishedTuple tuple, uint64_t deadlineUs, bool stopping = false) noexcept;
+  // Adopts the held instance gate; releases it before every mediator callback.
+  esp_err_t publishAdmitted(PublishedTuple tuple, uint64_t deadlineUs, bool stopping = false) noexcept;
   esp_err_t finishStop(uint64_t deadlineUs, esp_err_t downError) noexcept;
-  void rememberCleanup(esp_err_t error, bool deadline = false) noexcept;
+  void rememberCleanup(esp_err_t error) noexcept;
+  void rememberCleanup(TimeoutDetail reason) noexcept;
+  void rememberCleanupReceipt(int64_t receipt) noexcept;
   IoBudget callbackBudget(uint32_t frames) const noexcept;
   void shareQuiet() noexcept;
   bool verifiedSettings() const noexcept;
@@ -461,7 +483,6 @@ private:
   std::atomic<bool> _uninstallSeen{false};
   std::atomic<TaskHandle_t> _startTask{nullptr};
   bool _preStopDownAttempted{false}; ///< Lifecycle owner tries a lost DOWN once before framework stop.
-  static constexpr int64_t OWNER_DEADLINE = std::numeric_limits<int64_t>::max();
   std::atomic<Phase> _phase{Phase::STOPPED};
   std::atomic<uint8_t> _deferredStart{0}; ///< Bit 0 FSM changed; bit 1 START was posted before get_link.
   LifecycleRecord _record{};

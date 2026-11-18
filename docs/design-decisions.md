@@ -26,8 +26,10 @@ not printed as a combined recipe; Q4 remains a physical case. Each call reselect
 
 All bus participants share the controller lock, quarantine and silence admission.
 One atomic BusAdmission claims board readiness or initialization across owners;
-no PHY can overwrite another reservation. Failed board readiness remains
-FAILED_CLOSED even after never-installed adapter destruction.
+no PHY can overwrite another reservation. Board failure after a pin invocation
+or uncertain controller release remains FAILED_CLOSED even after never-installed
+adapter destruction. Proved pre-GPIO rejection restores prior admission while
+preserving the shared POR/quiet floor; it never opens an untouched BOOT_CLOSED bus.
 Close shared admission and drain active traffic before power/reset transitions;
 release the mutex during readiness waits without admitting another PHY's frames.
 No selector state, controller lock, or caller buffer survives a terminal batch.
@@ -172,7 +174,12 @@ until the positive maxObservationMisses bound (default 3), then request DOWN wit
 automatic recovery on a later coherent observation. Last cause and deferred DOWN
 are retained independently of the first lifecycle error. Lost trust/agreement,
 quarantine or terminal publication uncertainty latches stopRequired until complete stop;
-the prior physical observation remains historical. OP-14 limits live resolution during
+the prior physical observation remains historical. This includes reset discovered
+by a successful live read, shared FAILED_CLOSED readiness, and unexplained P4
+controller activity while the complete-batch mutex is held. A refused P4 command
+is unissued, but controller idle is still unproved. Gate-denied polls do not count
+toward the miss limit; application freshness policy must account for starvation.
+OP-14 limits live resolution during
 semantic writes or temporary profiles.
 
 The P4 factory knows its pinned set_link cannot fail for a valid link argument:

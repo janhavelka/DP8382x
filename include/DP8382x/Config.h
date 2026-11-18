@@ -220,7 +220,7 @@ struct FrameResult {
 /// @brief Terminal primary/release evidence; default is deliberately failure.
 struct BatchResult {
   Status status{Err::MDIO_ERROR, 0, "Batch result not supplied"}; ///< Primary result.
-  Status releaseStatus{Err::MDIO_ERROR, 0, "Release not established"}; ///< Lock release.
+  Status releaseStatus{Err::MDIO_ERROR, 0, "Release not established"}; ///< Terminal ownership/idle assurance; a released mutex alone does not prove controller idle.
   bool controllerReusable{false}; ///< False when release or controller idle is unknown.
   std::array<FrameResult, MAX_BATCH_FRAMES> frames{}; ///< Attempted/completed prefix.
 };
