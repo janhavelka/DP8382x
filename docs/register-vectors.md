@@ -26,30 +26,30 @@ coarse default.
 
 | Register | Partial reset / known mask | Reserved mask | Source / interpretation |
 | --- | --- | --- | --- |
-| BMCR | `0000 / CAFF` | `007F` | Table8-19: unknown speed/AN/isolate/duplex `3500`. |
-| BMSR | `7849 / FFFF` | `0780` | Table8-20, capability and status defaults. |
-| PHYIDR1 | `2000 / FFFF` | `0000` | Table8-21. |
-| PHYIDR2 | `A111 / FFDF` | `0000` | Table8-22; common revision-1 bits, mode-dependent bit5 excluded. |
-| ANAR | `0001 / FE1F` | `5000` | Table8-23; unknown advertised technology bits `01E0`. |
-| ALNPAR | `0000 / FFFF` | `1000` | Table8-24. |
-| ANER | `0004 / FFFF` | `FFE0` | Table8-25. |
-| ANNPTR | `2001 / FFFF` | `4000` | Table8-26. |
-| ANLNPTR | `0000 / FFFF` | `0000` | Table8-27. |
-| CR1 | `0000 / FFFF` | `FE5D` | Table8-28. |
-| CR2 | `0100 / FFFD` | `FFD9` | Table8-29, unknown odd-nibble bit1. |
-| CR3 | `0000 / FFF0` | `FB90` | Table8-30 versus feature/strap text; full FLD nibble conservatively unknown. |
-| REGCR | `0000 / FFFF` | `3FE0` | Table8-31. Reset DEVAD0 does not grant access. |
-| ADDAR | `0000 / FFFF` | `0000` | Table8-32; selected role controls meaning. |
-| PHYSTS | `0002 / FFFF` | `8000` | Table8-34 published reset; dynamic fields are not persistent verification targets. |
-| PHYCR | `0000 / 3FE0` | `0740` | Table8-43; unknown crossover/address `C01F`. |
-| PHYRCR | `0000 / FFFF` | `3FFF` | Table8-48. |
-| VOD_CFG3 | `8400 / FFFF` | `003F` | Table8-81; recipe supersedes initial value. |
-| SOR1 | `0000 / F800` | `F800` | Table8-87, fixed reserved bits only; printed zero is not universal straps. |
-| SOR2 | `0000 / A040` | `A040` | Table8-88, fixed reserved bits only; printed `0287` is not universal straps. |
+| BMCR | `0000 / CAFF` | `007F` | Table 8-19: unknown speed/AN/isolate/duplex `3500`. |
+| BMSR | `7849 / FFFF` | `0780` | Table 8-20, capability and status defaults. |
+| PHYIDR1 | `2000 / FFFF` | `0000` | Table 8-21. |
+| PHYIDR2 | `A111 / FFDF` | `0000` | Table 8-22; common revision-1 bits, mode-dependent bit 5 excluded. |
+| ANAR | `0001 / FE1F` | `5000` | Table 8-23; unknown advertised technology bits `01E0`. |
+| ALNPAR | `0000 / FFFF` | `1000` | Table 8-24. |
+| ANER | `0004 / FFFF` | `FFE0` | Table 8-25. |
+| ANNPTR | `2001 / FFFF` | `4000` | Table 8-26. |
+| ANLNPTR | `0000 / FFFF` | `0000` | Table 8-27. |
+| CR1 | `0000 / FFFF` | `FE5D` | Table 8-28. |
+| CR2 | `0100 / FFFD` | `FFD9` | Table 8-29, unknown odd-nibble bit 1. |
+| CR3 | `0000 / FFF0` | `FB90` | Table 8-30 versus feature/strap text; full FLD nibble conservatively unknown. |
+| REGCR | `0000 / FFFF` | `3FE0` | Table 8-31. Reset DEVAD 0 does not grant access. |
+| ADDAR | `0000 / FFFF` | `0000` | Table 8-32; selected role controls meaning. |
+| PHYSTS | `0002 / FFFF` | `8000` | Table 8-34 published reset; dynamic fields are not persistent verification targets. |
+| PHYCR | `0000 / 3FE0` | `0740` | Table 8-43; unknown crossover/address `C01F`. |
+| PHYRCR | `0000 / FFFF` | `3FFF` | Table 8-48. |
+| VOD_CFG3 | `8400 / FFFF` | `003F` | Table 8-81; recipe supersedes initial value. |
+| SOR1 | `0000 / F800` | `F800` | Table 8-87, fixed reserved bits only; printed zero is not universal straps. |
+| SOR2 | `0000 / A040` | `A040` | Table 8-88, fixed reserved bits only; printed `0287` is not universal straps. |
 
 ## Address and command distinction
 
-Section8.3.11 and tables8-31/32/48 yield:
+Section 8.3.11 and tables 8-31/32/48 yield:
 
 - C22 integer register range is `0x00..0x1F`; `0x20`, `0x8000`, `0xFFFF`, negative
   and noninteger values fail before I/O. Range success does not permit holes or
@@ -69,7 +69,7 @@ Section8.3.11 and tables8-31/32/48 yield:
 The following remains an initialization-owned transaction; `writeMmd` is not
 an arbitrary bootstrap route to VOD configuration.
 
-Section8.3.13 p40 and tables8-31/32/81 independently give this literal trace:
+Section 8.3.13 p40 and tables 8-31/32/81 independently give this literal trace:
 
 ```text
 write C22 0x0D = 0x001F
@@ -79,7 +79,7 @@ write C22 0x0E = 0x4A40
 ```
 
 Hold one transaction lock over all four frames. The value decomposes into MDI
-termination4, MDI enable1, MDIX termination4, MDIX enable1 under masks
+termination 4, MDI enable 1, MDIX termination 4, MDIX enable 1 under masks
 `F000/0800/0780/0040`. Table 8-81 marks all four fields **R/W**, so their combined
 writable mask is `0xFFC0`; no access exception is needed. Inject failure before and after
 each accepted frame in the future driver suite. No later phase may execute after
@@ -114,7 +114,7 @@ Its simulated register storage does not establish electrical timing or silicon b
 
 ## Negotiation, next page and crossover
 
-Tables8-19/23/26/28/30/43 yield independent useful extremes:
+Tables 8-19/23/26/28/30/43 yield independent useful extremes:
 
 - Advertisement selector is exactly `0x0001`; 100/full only is `0x0101`, all
   four 10/100 abilities are `0x01E1`. Symmetric/asymmetric fields are `0x0400`
@@ -127,8 +127,8 @@ Tables8-19/23/26/28/30/43 yield independent useful extremes:
   `0x4000` cannot be overwritten. Local null message is `0x2001`; unformatted
   code may span `0x0000..0x07FF`, while message interpretation needs IEEE context.
   Reserved message codes cannot be transmitted in message mode. Initial page
-  receipt is BASE, not automatically an ANLNPTR payload; a register7 write before
-  restart does not prove page-loaded state survives. Continue null message1 with
+  receipt is BASE, not automatically an ANLNPTR payload; a register 7 write before
+  restart does not prove page-loaded state survives. Continue null message 1 with
   MP1/NP0 if local data ends before the peer; require bilateral termination.
   Exact DP83826I event/load sequencing retains `next_page_handshake`.
   Every unformatted series must follow a message page defining its use, with
@@ -141,14 +141,14 @@ Tables8-19/23/26/28/30/43 yield independent useful extremes:
   clear. CR3 port mirror combines `0x0020 | 0x0040 = 0x0060`.
 - CR2 odd-nibble **disable** is `0x0002`; setting it must not be exposed as
   detection enabled. Extended duplex is independent `0x0020` and opt-in.
-- PHYSTS speed bit1 uses zero100/one10, unlike BMCR speed selection. Its
+- PHYSTS speed bit 1 uses zero 100/one 10, unlike BMCR speed selection. Its
   forced-mode wording remains gated, not normalized away by a test fake.
 
 ## Complete pause resolution oracle
 
-Original IEEE802.3-2012 Section Two, printed p732 Table28B-3, independently
+Original IEEE 802.3-2012 Section Two, printed p732 Table 28B-3, independently
 visually checked; full provenance and mirror limitation are recorded in the
-[source audit](reports/implementation/3-source-audit.md). TI table8-43 applies
+[source audit](reports/implementation/3-source-audit.md). TI table 8-43 applies
 the result only to AN's highest common full-duplex technology. Matrix values
 are local PHYCR RX/TX status (`RX=2000`, `TX=1000`). Rows are local ANAR
 pause/asymmetric fields; columns are partner fields.
@@ -165,8 +165,8 @@ result; do not replace invalidity with a claimed successful zero resolution.
 
 ## Prompt 19 link observation vectors
 
-Independent original-source review: SNLS647I tables8-19/20/23/24/25/29/34/43 and
-IEEE Table28B-3, recorded in the [review](reports/implementation/19-source-review.md).
+Independent original-source review: SNLS647I tables 8-19/20/23/24/25/29/34/43 and
+IEEE Table 28B-3, recorded in the [review](reports/implementation/19-source-review.md).
 The production ten-read plan executes these literal addresses in two callbacks:
 `R(01), R(01), R(10), R(00), R(04), R(05), R(06), R(19)`;
 then `R(01), R(10)`. No production constant derives the test oracle.
@@ -175,23 +175,23 @@ then `R(01), R(10)`. No production constant derives the test oracle.
   `0011`. Cross-register link is BMSR `0004` versus PHYSTS `0001`; AN complete
   is BMSR `0020` versus PHYSTS `0010`. Resolved AN mode compares PHYSTS `0006`.
 - First BMSR `0020`, second/final `0024`, PHYSTS `0015` means historical low
-  followed by coherent current100/full. First `0024`, second `0020` is a current
+  followed by coherent current 100/full. First `0024`, second `0020` is a current
   low; it is publishable DOWN only when final BMSR/PHYSTS also agree on low.
   A current/final mismatch rejects publication; all consumed history survives.
 - With AN enabled and complete, PHYSTS low words `0001/0005/0003/0007` mean
   100/half,100/full,10/half,10/full. Completion evidence is separate from these
   low words. ANER `0010` invalidates mode through parallel-detection fault.
-- BMCR `2000` plus raw PHYSTS `0007` still means forced100/half when verified
+- BMCR `2000` plus raw PHYSTS `0007` still means forced 100/half when verified
   CR2 `0020` is clear. Otherwise duplex is UNKNOWN. BMCR `2100`, `0000`, `0100`
-  establish local forced100/full,10/half,10/full respectively. Pause is invalid.
+  establish local forced 100/full,10/half,10/full respectively. Pause is invalid.
 - ANER partner-AN `0001` is absent on parallel detection. Verified CR2 `0020`
-  and coherent AN-complete PHYSTS `0015` qualify extended100/full; `0017` does
+  and coherent AN-complete PHYSTS `0015` qualify extended 100/full; `0017` does
   not qualify a 10/full extension. Both parallel paths have invalid pause.
 - The 16 pause cells above apply only after IEEE selectors `0001` and a
   matching highest-common full-duplex technology. Common `0100` outranks `0080`,
-  which outranks `0040`. Local/partner `0141/0041` at10/full qualify; `00C1/00C1`
-  at10/full do not because common100/half has priority. Local/partner `0141/0141`
-  observed at10/full also do not qualify pause. Mode remains independently raw/
+  which outranks `0040`. Local/partner `0141/0041` at 10/full qualify; `00C1/00C1`
+  at 10/full do not because common 100/half has priority. Local/partner `0141/0141`
+  observed at 10/full also do not qualify pause. Mode remains independently raw/
   qualified; no invented pause result repairs inconsistent advertisements.
 
 Clock regression and `raw+lag` overflow retain the old aggregate interval as
@@ -203,8 +203,8 @@ bound, not the completion upper bound; unchanged cached reads consume nothing.
 
 ### Prompt 20 event and counter vectors
 
-Independently reviewed original SNLS647I tables8-33/34/36..39/41/44/91 are
-identified in the [stage20 review](reports/implementation/20-source-review.md).
+Independently reviewed original SNLS647I tables 8-33/34/36..39/41/44/91 are
+identified in the [stage 20 review](reports/implementation/20-source-review.md).
 The literal default trace is `R(10), R(0F), R(12), R(13), R(14), R(15)` in one
 six-frame transaction. No source is read again to prove an empty interrupt bank.
 
@@ -216,12 +216,12 @@ six-frame transaction. No source is read again to prove an empty interrupt bank.
   RXFS `1000` selection does not enter its event union. RCSR `000C` remains raw.
 - FCSCR samples `0000,0001,007F,0080,00FE,00FF` are literal boundary cases.
   `0080` first exceeds the half-full threshold; `00FF` is saturation and a lower
-  bound. Samples `0003` then `0002` sum to5; after `00FF`, the sum is260 with
+  bound. Samples `0003` then `0002` sum to 5; after `00FF`, the sum is 260 with
   sticky hardware-saturation/lower-bound evidence, not wraparound.
 - RECR `0080,0100,8123,FFFF` can be retained raw without asserting effective
-  width. Its host arithmetic field stays0 as an explicit gate, not zero errors.
-- Host sum `FFFFFFFFFFFFFFFE` plus1 reaches the exact limit without overflow;
-  another1 saturates with the overflow flag. Zero cannot erase that flag.
+  width. Its host arithmetic field stays 0 as an explicit gate, not zero errors.
+- Host sum `FFFFFFFFFFFFFFFE` plus 1 reaches the exact limit without overflow;
+  another 1 saturates with the overflow flag. Zero cannot erase that flag.
   Sample count `FFFFFFFE` advances to `FFFFFFFF`; another sample leaves the
   count saturated and explicitly sets `samplesSaturated`.
 - MISR1 `4000` followed by a MISR2 after-effect timeout retains MISR1's new
@@ -233,8 +233,8 @@ These literals execute in `test/events.cpp` and the retained `access_counters`
 suite. Clock/metadata failure, reset discontinuity, host-history discard and
 shared MMD contention are software evidence, not physical event qualification.
 
-Table8-34 independently names clearing relationships: PHYSTS receive error to
-RECR, polarity to10BTSCR, false carrier toFCSCR, page toANER, interrupt toMISR,
+Table 8-34 independently names clearing relationships: PHYSTS receive error to
+RECR, polarity to 10BTSCR, false carrier toFCSCR, page toANER, interrupt toMISR,
 remote fault toBMSR. Its jabber and current-link mirrors explicitly do not clear
 on PHYSTS read. ANER's RH page annotation does not override the clearing prose.
 Acquire through one collector, retaining individual samples/timestamps. Test a
@@ -390,8 +390,8 @@ expected values from the JSON. These are research tests, not executing PHY code.
   EEECFG3 bypass bits are set with mask/value `0x0009/0x0009`;
   LPI start/stop uses `0x1000/0x1000` and `0x1000/0`.
   Opaque recipe actions grant no generic read/snapshot permission; exact-part
-  EEECFG3 bits0/3/12 permit bounded masked control and readback.
-- D2 selects MMD3 wire 0001/0014/0016 and MMD7 wire 003C/003D as
+  EEECFG3 bits 0/3/12 permit bounded masked control and readback.
+- D2 selects MMD 3 wire 0001/0014/0016 and MMD 7 wire 003C/003D as
   source-implied, not physically qualified. Only 0014/003C/003D allow safe raw
   reads; 0001/0016 belong to the collector. Reject high-prefix wire addresses.
   EEE sleep 210 us, wake 36 us, quiet 20 ms and refresh 200 us are all
@@ -401,8 +401,8 @@ expected values from the JSON. These are research tests, not executing PHY code.
   `0x0428[5]` into count 0..31; zero clears the shift register.
   Disable/enable actions touch only `0x0010`, count actions only
   `0x0020`, preserving DPD `0x0004` once composition is proved.
-  Table8-50 admits fourteen actions with mask `0x001F`, values `0x0010..0x001D`;
-  `0x0013` is SNLA266B's repeated-one example. Preserve bits15:5. Stop/reset
+  Table 8-50 admits fourteen actions with mask `0x001F`, values `0x0010..0x001D`;
+  `0x0013` is SNLA266B's repeated-one example. Preserve bits 15:5. Stop/reset
   must precede profile restore.
 
 Future host acceptance must reject unsupported pin/mode/code combinations with
@@ -421,19 +421,19 @@ production constants or the ledger. Host arithmetic does not qualify silicon.
 - SNLS638C tables 7-99..103 and SNLS505H 7.4.2.9 support the selected EEE
   inference: wire read `(7,003D)` is `0D=0007,0E=003D,0D=4007,read0E`.
   Capability `(3,0014)` must equal whole word `0002`; `FFFF` must fail even
-  though bit1 is set. Advertisement `(7,003C)=0002` must read back `0002`.
+  though bit 1 is set. Advertisement `(7,003C)=0002` must read back `0002`.
   These add eight frames to the 66-frame printed recipe floor: 74 before
   reset polls/restoration. EEECFG3 LPI `008B -> 108B -> 008B` preserves bypass.
-- D4: AN-disabled BMCR `2100` with link up gives 100/full; `0100` gives10/full.
-  BMCR `2000` with CR2 extended bit known zero gives100/half. With extended
-  enabled or unverified, retain100, duplexUNKNOWN and mode invalid. Forced
+- D4: AN-disabled BMCR `2100` with link up gives 100/full; `0100` gives 10/full.
+  BMCR `2000` with CR2 extended bit known zero gives 100/half. With extended
+  enabled or unverified, retain 100, duplexUNKNOWN and mode invalid. Forced
   pause remains invalid. Ordinary ANAR ownership is `0DFF`; next-page `8000`
   is transient and clears on successful exchange without another restart.
 - SNLA423A reverse/analog scripts require `001F=4000`; MII/PCS do not.
   Analog script `030B=3380` decodes low field `(3380 & 0FC0)>>6 = 0E`,
   outside the detailed legal interval `28..38`; reject it.
 
-SNLA428 table2-1 p3, columns **1A, 1B, 2, 3, 4, 5**, in write order:
+SNLA428 table 2-1 p3, columns **1A, 1B, 2, 3, 4, 5**, in write order:
 
 | Address | 1A | 1B | 2 | 3 | 4 | 5 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -451,16 +451,16 @@ selection, not a correction of those tables. GENCFG owns exception `0600`:
 old `0008 -> 0608`; old `0000 -> 0600` is inferred composition pending Q7.
 Never claim opaque 0411/0416 readback or inverse restoration.
 
-SNLA428 table2-5 p6 gives rows2/3/4 zero, row5 `(78,11,0000)`,
-row1B `(0C,06,0800)`, row1A `(06,44,0000)` in location/amplitude/peak-word hex.
-Scan2,3,4,5,1B,1A; amplitude masked7F must exceed decimal10 (rows2..5) or24
-(rows1A/1B). Row5 qualifies first. Its whole peak word is zero (source-implied
-open), and `abs((0x78-5)*8/(2*4.6)) = 100 m` within1e-9. Use the same row's
-location and peak word; do not use the previous row or bit11 alone. Preserve
-raw bit11/bit5 separately. Positive caller propagation delay is mandatory;
-Table2-4 gives5.35ns/m Cat5/5e,5 Cat6,4.6 Cat7. No peak is NO_PEAK, not zero
+SNLA428 table 2-5 p6 gives rows 2/3/4 zero, row 5 `(78,11,0000)`,
+row 1B `(0C,06,0800)`, row 1A `(06,44,0000)` in location/amplitude/peak-word hex.
+Scan 2,3,4,5,1B,1A; amplitude masked 7F must exceed decimal 10 (rows 2..5) or 24
+(rows 1A/1B). Row 5 qualifies first. Its whole peak word is zero (source-implied
+open), and `abs((0x78-5)*8/(2*4.6)) = 100 m` within 1e-9. Use the same row's
+location and peak word; do not use the previous row or bit 11 alone. Preserve
+raw bit 11/bit 5 separately. Positive caller propagation delay is mandatory;
+Table 2-4 gives 5.35ns/m Cat5/5e, 5 Cat6, 4.6 Cat7. No peak is NO_PEAK, not zero
 metres or good cable. This derives only transmit-A; raw B/cross capture is separate.
-The note's MATLAB indexing, undefined temporary and5.2/5.35 discrepancy are not
+The note's MATLAB indexing, undefined temporary and 5.2/5.35 discrepancy are not
 copied as implementation. Q7 fixtures must compare recipes and physical distance.
 
 ## Stage 15 independent initialization regressions
@@ -468,7 +468,7 @@ copied as implementation. Q7 fixtures must compare recipes and physical distance
 Original SNLS647I table 8-19 (pp54–55), 8.3.13 (p40), table 8-81 (p86) and
 8-87/88 (pp89–90) were independently reopened for prompt 15. These literal
 expectations originated in `test/operations.cpp`, not generated from driver masks;
-stage16 adds the PHYRCR precheck described below:
+stage 16 adds the PHYRCR precheck described below:
 
 - PCS command is exactly `W(00,8000)` after a separate BMCR check. Completion
   requires a later `R(00)` with bit `8000` clear. Sticky `8000` ends by caller
@@ -486,9 +486,9 @@ stage16 adds the PHYRCR precheck described below:
 Independent OP-6 policy arithmetic is separate from silicon facts. With fixed
 50 us, per-frame 100 us, lag 10000 us and poll interval 1000 us, one-frame bound
 is 150 us and reset reservation is `40000+150+1000+150=41300` us. Deadline equal
-to raw+41300 rejects; one us more admits. After command return at raw10000,
-completion upper bound is20000 and next due21000: raw20000 cannot poll,
-raw30000 can. Tests also advance the pre-callback clock after the earlier poll
+to raw+41300 rejects; one us more admits. After command return at raw 10000,
+completion upper bound is 20000 and next due 21000: raw 20000 cannot poll,
+raw 30000 can. Tests also advance the pre-callback clock after the earlier poll
 sample to prove reset look-ahead is rechecked at actual submission.
 
 No arithmetic vector establishes controller timing or physical reset domains.
@@ -498,16 +498,16 @@ The source/implementation review and qualification limits are in the
 ## Stage 16 independent reset vectors
 
 Original SNLS647I table 8-48 (p73) independently gives HARD `W(1F,8000)` and
-RESTART `W(1F,4000)`, reserved13:0 neutral zero. Read `1F`, never address8000;
-requested bit clear with the other command set is not readiness. C22 address8000
+RESTART `W(1F,4000)`, reserved 13:0 neutral zero. Read `1F`, never address 8000;
+requested bit clear with the other command set is not readiness. C22 address 8000
 still rejects before callbacks. Full current no-wait traces are NONE20 and
-PCS/HARD/RESTART32 frames: stage16 adds one PHYRCR precheck to stage15's historical
+PCS/HARD/RESTART 32 frames: stage 16 adds one PHYRCR precheck to stage 15's historical
 19/31 counts above. `test/reset.cpp` compares actual literals and all failure positions.
 
-For fixed50us/frame100us/lag10000us with requested polling1000us, HARD OP-6
+For fixed 50us/frame 100us/lag 10000us with requested polling 1000us, HARD OP-6
 reservation is `40000+150+2000+150=42300us`; equality rejects, one us more admits.
 RESTART retains the PCS41300us arithmetic and has no HARD floor. For HARD
-completion raw10000 and lag10000, the floor is22000; raw21000 cannot issue any
+completion raw 10000 and lag 10000, the floor is 22000; raw 21000 cannot issue any
 frame, even after cancel/take/abandon or through another owner-routed PHY. A clock
 regression or unrepresentable floor retains uncertainty and closes timed access.
 
@@ -519,86 +519,86 @@ contract regressions, not physical reset measurements. Q5 remains NOT RUN.
 ## Stage 17 independent negotiation and page vectors
 
 Original SNLS647I tables 8-19/23 independently map the four API choices to
-wire 0020/0040/0080/0100. Selector is always0001. For 100/full alone the four
-pause cases are0101/0501/0901/0D01; all four technologies without pause are01E1.
-Prior ANAR F21F becomes5301 for100/full: preserve5200, replace selector, clear
-prohibited2000 and transient8000. BMCR prior217F becomes127F on restart, then
-stable readback107F; owned3100 compares1000, commands8200 are not sampled/replayed.
-The tests independently enumerate all15 nonempty subsets times4 pause choices.
+wire 0020/0040/0080/0100. Selector is always 0001. For 100/full alone the four
+pause cases are 0101/0501/0901/0D01; all four technologies without pause are 01E1.
+Prior ANAR F21F becomes 5301 for 100/full: preserve 5200, replace selector, clear
+prohibited 2000 and transient 8000. BMCR prior 217F becomes 127F on restart, then
+stable readback 107F; owned 3100 compares 1000, commands 8200 are not sampled/replayed.
+The tests independently enumerate all 15 nonempty subsets times 4 pause choices.
 
 Mandatory initialization remains the literal sequence
-`W(0D,001F) W(0E,030E) W(0D,401F) W(0E,4A40)`, verified underFFC0.
+`W(0D,001F) W(0E,030E) W(0D,401F) W(0E,4A40)`, verified under FFC0.
 Configure issues no such sequence. Initialization replay adds the same negotiated
 procedure after mandatory setup for NONE/PCS/HARD/RESTART, always with NP0.
 
-IEEE802.3-2012 Figure28-18 and original tables8-25..27 distinguish the first
-fresh ANER event (read partner BASE at05) from subsequent NEXT events (read08).
-With BASE toggle0, first accepted NEXT toggle is1. For a remote-fault message4
-followed by unformatted3 with ACK2, local register7 words are B804 then1803 when
-hardware toggle is0800 then0. Writes preserve4800 and ownB7FF. Generated null
-is2001 plus hardware-owned toggle. A duplicate toggle consumes a retained event
+IEEE 802.3-2012 Figure 28-18 and original tables 8-25..27 distinguish the first
+fresh ANER event (read partner BASE at 05) from subsequent NEXT events (read 08).
+With BASE toggle 0, first accepted NEXT toggle is 1. For a remote-fault message 4
+followed by unformatted 3 with ACK2, local register 7 words are B804 then 1803 when
+hardware toggle is 0800 then 0. Writes preserve 4800 and own B7FF. Generated null
+is 2001 plus hardware-owned toggle. A duplicate toggle consumes a retained event
 slot but cannot advance the local page. MP5/OUI and MP6/PHYID require four ordered
 unformatted pages. Null followed by substantive information is rejected as a
-semantic inference from Clause28's end-of-information meaning.
+semantic inference from Clause 28's end-of-information meaning.
 
-Bilateral last pages still require BMSR0020 before epoch success; then ANAR8101
-becomes0101 without another BMCR restart. Refusal retains its own flag and waits
+Bilateral last pages still require BMSR 0020 before epoch success; then ANAR 8101
+becomes 0101 without another BMCR restart. Refusal retains its own flag and waits
 for ordinary AN completion. Timeout/cancel/read-after-effect failure retains
 consumed evidence and possible NP without an extra write. Independent literal
-controller tests prove software traces, not physical Clause28 handshake or wire
+controller tests prove software traces, not physical Clause 28 handshake or wire
 timing. [The source review](reports/implementation/17-source-review.md) records
 original evidence and Q10 qualification boundaries.
 
 ## Stage 18 independent forced/crossover vectors
 
-Original SNLS647I tables8-19/28/29/30/43 yield forced BMCR owned3100 values
-0000/0100/2000/2100 for10half/10full/100half/100full. Preserve4CFF, neutralize
-reset/restart8200, and compare only3100. The ignored AN-restart readback bit does
-not impose a forced completion wait. No forced frame targets ANAR04.
+Original SNLS647I tables 8-19/28/29/30/43 yield forced BMCR owned 3100 values
+0000/0100/2000/2100 for 10 half/10 full/100 half/100 full. Preserve 4CFF, neutralize
+reset/restart 8200, and compare only 3100. The ignored AN-restart readback bit does
+not impose a forced completion wait. No forced frame targets ANAR 04.
 
-CR1 robust0020 is required for all forced routes. Automatic PHYCR changes8000
-only (preserve7FFF); manual changesC000 to0000/4000 (preserve3FFF). From40E5,
-automatic yieldsC0E5, MDI00E5 and MDIX40E5. CR3 mirror owns0060 (preserveFF9F),
-not separate arbitrary corrections. CR2 extension owns0020 (preserveFFDF), never
-0060; A5DF becomesA5FF on enable and preserves reserved0040. Both mirror flags
-must agree; forced10 plus extension and forced with any AN intent reject.
+CR1 robust 0020 is required for all forced routes. Automatic PHYCR changes 8000
+only (preserve 7FFF); manual changes C000 to 0000/4000 (preserve 3FFF). From 40E5,
+automatic yields C0E5, MDI 00E5 and MDIX 40E5. CR3 mirror owns 0060 (preserve FF9F),
+not separate arbitrary corrections. CR2 extension owns 0020 (preserve FFDF), never
+0060; A5DF becomes A5FF on enable and preserves reserved 0040. Both mirror flags
+must agree; forced 10 plus extension and forced with any AN intent reject.
 
 A forced profile has five saved reads, five two-frame atomic RMWs and five
-stable readbacks:20frames. Ordinary AN has six of each:24frames. Save order is
+stable readbacks: 20 frames. Ordinary AN has six of each: 24 frames. Save order is
 BMCR/CR1/PHYCR/CR3/CR2, with ANAR first only forAN. Apply routing/mirror/extension
 before activation. If AN requests robust=false, defer the CR1 clear until after
 BMCR enables AN; no write may clear robust during the previous forced interval.
-Verify ANAR when active, thenCR1/PHYCR/CR3/CR2/BMCR. Stable mismatch evidence is
+Verify ANAR when active, then CR1/PHYCR/CR3/CR2/BMCR. Stable mismatch evidence is
 retained even when a later field read fails. These counts exclude optional AN
 waits/pages and the separate initialization/VOD procedure.
 
-`test/forced.cpp` independently checks36 forced and24 AN routing profiles,
+`test/forced.cpp` independently checks 36 forced and 24 AN routing profiles,
 transitions, every-frame faults/cancellation, reset replay, actual observed
 mismatches and owner exclusion. Existing next-page vectors remain unchanged;
-additional owned controls increase the two-page trace from23 to39frames and the
-duplicate-page trace from25 to41. Physical robust-manual/mirror interaction and
-partner compatibility remain Q11 NOT RUN; loopback restore tests execute at23.
+additional owned controls increase the two-page trace from 23 to 39 frames and the
+duplicate-page trace from 25 to 41. Physical robust-manual/mirror interaction and
+partner compatibility remain Q11 NOT RUN; loopback restore tests execute at 23.
 
 ## Executing loopback vectors (stage 23)
 
-Independent SNLS647I 8.3.14/table8-19/table8-40 vectors: BISCR low5 is01 PCS
-input10,02 PCS output,04 digital100,08 analog,10 reverse (hex). MII combines
-BMCR4000 with01 at10 or04 at100. BISCR0040 line transmission is only MII100.
-Table8-40 requires BMCR14 active before BISCR6: from forced100/full and inactive
-BISCR4100, enable W(00,6100) then W(16,4144); stop W(16,4100) then W(00,2100).
-The companion10/full pair is W(00,4100), W(16,4101), with no line-transmit bit.
+Independent SNLS647I 8.3.14/table 8-19/table 8-40 vectors: BISCR low 5 is 01 PCS
+input 10, 02 PCS output, 04 digital 100, 08 analog, 10 reverse (hex). MII combines
+BMCR 4000 with 01 at 10 or 04 at 100. BISCR 0040 line transmission is only MII 100.
+Table 8-40 requires BMCR 14 active before BISCR 6: from forced 100/full and inactive
+BISCR 4100, enable W(00,6100) then W(16,4144); stop W(16,4100) then W(00,2100).
+The companion 10/full pair is W(00,4100), W(16,4101), with no line-transmit bit.
 External uses no internal selector. Digital's contiguous target sequence is
-W(00,2100), W(16,0104), vendor31 W(0122,2000), W(0123,2000), W(0130,47FF),
+W(00,2100), W(16,0104), vendor 31 W(0122,2000), W(0123,2000), W(0130,47FF),
 W(1F,4000); each vendor word uses the independent four-frame selector trace.
-No opaque prior-value read or030B3380 write is permitted. Analog/reverse add
+No opaque prior-value read or 030B3380 write is permitted. Analog/reverse add
 W(1F,4000) per the selected SNLA423A scripts; MII/PCS have no such command.
 
-PHYSCR FIFO codes0/1/2/3 own0300, so0B55 becomes0855/0955/0A55/0B55.
-Inactive BISCR4100 may retain counter policy4000; digital0104 clears that
-policy temporarily, then its HARD exit restores4100 after initialization.
-The tail preserves8FA0 while restoring705F, and preservesFCFF around FIFO0300.
-HARD may reload BMCR isolation0400: restore ordinary extras0480 with preserve
-317F and commands/power neutral0, then verify7D80 against the saved/profile
+PHYSCR FIFO codes 0/1/2/3 own 0300, so 0B55 becomes 0855/0955/0A55/0B55.
+Inactive BISCR 4100 may retain counter policy 4000; digital 0104 clears that
+policy temporarily, then its HARD exit restores 4100 after initialization.
+The tail preserves 8FA0 while restoring 705F, and preserves FCFF around FIFO 0300.
+HARD may reload BMCR isolation 0400: restore ordinary extras 0480 with preserve
+317F and commands/power neutral 0, then verify 7D80 against the saved/profile
 intent. This is not a general BMCR or opaque-register raw-write permission.
 
 `test/loopback.cpp` independently pins every semantic write for every legal
@@ -609,12 +609,12 @@ These are host protocol vectors; Q8/Q5/Q11 measured traces remain NOT RUN.
 
 ## Executing BIST vectors (stage 24)
 
-SNLS647I tables8-40/45/46 independently give modes0000/1000/2000/3000;
-wrap4000 is separate. IPG7D means500bytes, capture807D preserves it, and
-rawFF7D means255errorbytes with the same IPG. Packet05EE means1518bytes;
-field limits are07FF and gapFF*4=1020bytes. No Ethernet minimum is inferred.
-Analog control3108 with lock0800/active0200 reads3B08, not the note typo3B04;
-loss0400 gives3F08. RH is hardware set/clear, not RC. Counter80 in807D is
+SNLS647I tables 8-40/45/46 independently give modes 0000/1000/2000/3000;
+wrap 4000 is separate. IPG 7D means 500 bytes, capture 807D preserves it, and
+raw FF7D means 255 error bytes with the same IPG. Packet 05EE means 1518 bytes;
+field limits are 07FF and gap FF*4=1020 bytes. No Ethernet minimum is inferred.
+Analog control 3108 with lock 0800/active 0200 reads 3B08, not the note typo 3B04;
+loss 0400 gives 3F08. RH is hardware set/clear, not RC. Counter 80 in 807D is
 read data, never a pending command. Zero/wrap and unproved repeat-latch intervals
 remain inconclusive. `test/bist.cpp` uses independent literals for every mode,
 field boundary, indivisible capture, fault and restoration.
@@ -624,10 +624,10 @@ field boundary, indivisible capture, fault and restoration.
 `test/cable.cpp` independently transcribes SNLA428 table 2-1 and SNLS647I
 tables 8-54/56..60, rather than deriving expectations from production arrays.
 It checks all six rows and subsets, all A/B channel combinations, legal extrema,
-prohibited average7 and saved segment0/6/7, reserved preservation and GENCFG
-old0008 ->0608 / old0000 ->0600. Datasheet per-segment tuning remains separate.
-The complete SNLA428 table 2-5 sample selects run5/open/100m at4.6 ns/m;
-strict thresholds, same-row indexing, whole peak word, raw bits11/5 and NO_PEAK
+prohibited average 7 and saved segment 0/6/7, reserved preservation and GENCFG
+old 0008 ->0608 / old 0000 ->0600. Datasheet per-segment tuning remains separate.
+The complete SNLA428 table 2-5 sample selects run 5/open/100m at 4.6 ns/m;
+strict thresholds, same-row indexing, whole peak word, raw bits 11/5 and NO_PEAK
 are literal regressions. No host vector establishes physical accuracy.
 
 One-busy/one-done fixtures prove 426 frames/128 callbacks for all six rows,
@@ -638,28 +638,28 @@ including partial nonconsuming result reads, explicit reread and failed HARD tai
 
 ## Executing autorun vectors (prompt 26)
 
-Independent table8-28 literals in `test/autorun.cpp` verify old00A2 ->01A2 on
-enable and old03F3 ->02F3 on disable; preserveFEFF, compare0100 only. Policy
-preflight plus one RMW/readback uses10 frames/eight callbacks. No manual trigger
-is written. Raw R1E, MMD31 R0180/R0185/R018A, R1E uses14 frames/five callbacks.
-Initial0102 done, identical results and equal bookends remain uncorrelated.
+Independent table 8-28 literals in `test/autorun.cpp` verify old 00A2 ->01A2 on
+enable and old 03F3 ->02F3 on disable; preserve FEFF, compare 0100 only. Policy
+preflight plus one RMW/readback uses 10 frames/eight callbacks. No manual trigger
+is written. Raw R1E, MMD 31 R0180/R0185/R018A, R1E uses 14 frames/five callbacks.
+Initial 0102 done, identical results and equal bookends remain uncorrelated.
 Hardware updates at every read/handoff position never become a generation proof.
-Owned reset replay adds3 frames/two callbacks last; verify adds one read only.
+Owned reset replay adds 3 frames/two callbacks last; verify adds one read only.
 No policy ownership adds no frames. These are software bounds, not silicon times.
 
 ## Prompt 27 independent interrupt vectors
 
-Original SNLS647I tables8-35..37/91 and pin tables, independently checked against
+Original SNLS647I tables 8-35..37/91 and pin tables, independently checked against
 the original PDF by the source reviewer:
 
-- PHYSCR0108 ->010B is active-low global/output enabled; active-high is0103.
-  Test010B ->010F ->010B. ENHANCED stablemask000B; BASIC stablemask000A preservesOE
-  without claiming a power-down role. UnrelatedE310 plusowned000B becomesE31B.
-- MISR1 enable01/02/04/08/10/20/40/80 maps to RECR-half/FCSCR-half/AN-complete/
-  duplex/speed/link/energy/quality events0100/0200/0400/0800/1000/2000/4000/8000.
+- PHYSCR 0108 ->010B is active-low global/output enabled; active-high is 0103.
+  Test 010B ->010F ->010B. ENHANCED stablemask 000B; BASIC stablemask 000A preservesOE
+  without claiming a power-down role. Unrelated E310 plus owned 000B becomes E31B.
+- MISR1 enable 01/02/04/08/10/20/40/80 maps to RECR-half/FCSCR-half/AN-complete/
+  duplex/speed/link/energy/quality events 0100/0200/0400/0800/1000/2000/4000/8000.
 - MISR2 the same enable ladder maps jabber/shared-polarity-or-WoL/sleep/MDIX/FIFO/
-  page/AN-error/EEE-error. Read-clearFF00 is never echoed as a control byte.
-- RXFS whole-word0000 selects polarity,1000 selects wake. The four-frame write
+  page/AN-error/EEE-error. Read-clear FF00 is never echoed as a control byte.
+- RXFS whole-word 0000 selects polarity, 1000 selects wake. The four-frame write
   is W(0D,001F),W(0E,04A1),W(0D,401F),W(0E,0000or1000); no preceding RXFS read
   builds the word. Both pre-change and ambiguous crossing MISR2 evidence survive.
 - Service always R(10),R(12),R(13); MISR1raw0300 requests R(14),R(15) in one
@@ -671,7 +671,7 @@ production masks. Q9 must independently qualify wire/pin latching and delivery.
 
 ## Prompt 28 independent power vectors
 
-Original SNLS647I p29 section8.3.6, p55 table8-19, p65 table8-35 and p69 table8-40
+Original SNLS647I p29 section 8.3.6, p55 table 8-19, p65 table 8-35 and p69 table 8-40
 were reviewed independently of production constants. PHYSCR `0108 -> 6108`
 enables active sleep while BISCR `0100` still indicates normal; BISCR `0000`
 indicates sleep only in the applicable active-sleep context. With IEEE down
@@ -683,40 +683,40 @@ power-down becomes `3D00`; requested normal becomes `3500`. Isolation `0400`
 survives both. A valid reset-bearing sampled word also invalidates readiness,
 even if the already indivisible write completed. Readback `0800` after a clear
 is blocked/unconfirmed, not an instruction to write again. PLL exit orders
-PHYSCR bit15 clear/readback before BMCR bit11 clear/readback. `test/power.cpp`
+PHYSCR bit 15 clear/readback before BMCR bit 11 clear/readback. `test/power.cpp`
 checks independent literal frames, pin assertion during RMW and accepted-write
 failure before separate PCS preparation. No DPD inverse vector is invented.
 
 
-## Prompt29 independent EEE oracles
+## Prompt 29 independent EEE oracles
 
-Re-derived from original SNLS647I pp26-27 and35, with the source-implied
+Re-derived from original SNLS647I pp26-27 and 35, with the source-implied
 field comparisons identified below. These literals are independent of production
 constants and the JSON ledger. They do not qualify Q1 silicon behavior.
 
 The five selected tuples form an explicit allowlist, not an address translation
-algorithm. SNLS638C table7-92 p77 names low offsets in prose; SNLS505H7.4.2.9
-p37 demonstrates MMD7/003D on the wire. SNLS603D p47 is notation analogy on a
+algorithm. SNLS638C table 7-92 p77 names low offsets in prose; SNLS505H 7.4.2.9
+p37 demonstrates MMD 7/003D on the wire. SNLS603D p47 is notation analogy on a
 different part. SNLS647I and SNLS783A still print full prefixed addresses, and
-SNLA328 tables4-6 print MMD03 beside1001/1014/1016. Those counter-readings remain
+SNLA328 tables 4-6 print MMD 03 beside 1001/1014/1016. Those counter-readings remain
 recorded under `eee_wire`; host checks cannot resolve physical ambiguity.
 
 | Printed address | Selected DEVAD/wire offset | Literal read selector/address/data-mode | Route and source-implied meaning |
 | --- | --- | --- | --- |
-| 1001 | 3/0001 | W(0D,0003), W(0E,0001), W(0D,4003), R(0E) | Collector; received-history0800/0400, current0200/0100 |
-| 1014 | 3/0014 | W(0D,0003), W(0E,0014), W(0D,4003), R(0E) | Safe raw read;100BASE-TX capability0002 |
+| 1001 | 3/0001 | W(0D,0003), W(0E,0001), W(0D,4003), R(0E) | Collector; received-history 0800/0400, current 0200/0100 |
+| 1014 | 3/0014 | W(0D,0003), W(0E,0014), W(0D,4003), R(0E) | Safe raw read; 100BASE-TX capability 0002 |
 | 1016 | 3/0016 | W(0D,0003), W(0E,0016), W(0D,4003), R(0E) | Collector;16-bit RC wake-error word |
-| 203C | 7/003C | W(0D,0007), W(0E,003C), W(0D,4007), R(0E) | Safe raw read;100BASE-TX advertisement0002 |
-| 203D | 7/003D | W(0D,0007), W(0E,003D), W(0D,4007), R(0E) | Safe raw read;100BASE-TX partner advertisement0002 |
+| 203C | 7/003C | W(0D,0007), W(0E,003C), W(0D,4007), R(0E) | Safe raw read; 100BASE-TX advertisement 0002 |
+| 203D | 7/003D | W(0D,0007), W(0E,003D), W(0D,4007), R(0E) | Safe raw read; 100BASE-TX partner advertisement 0002 |
 
-Reject raw writes at every tuple; reject raw reads of latched0001/RC0016,
-all other3/7 offsets, full prefixed offsets and DEVAD31 aliases. Capability
-preflight accepts whole word0002 only:0000,0001,0003,0006 andFFFF all reject
+Reject raw writes at every tuple; reject raw reads of latched 0001/RC 0016,
+all other 3/7 offsets, full prefixed offsets and DEVAD 31 aliases. Capability
+preflight accepts whole word 0002 only: 0000,0001,0003,0006 and FFFF all reject
 before the HARD target write. Selector/address writes used to read capability
 are access primitives, not EEE target mutations.
 
-All18 rows below come directly from SNLS647I8.3.3.1 p26. Each W/R refers to a
-Clause22 frame; indirect rows remain one indivisible four-frame transaction.
+All 18 rows below come directly from SNLS647I 8.3.3.1 p26. Each W/R refers to a
+Clause 22 frame; indirect rows remain one indivisible four-frame transaction.
 
 | Row | Independent literal wire write |
 | --- | --- |
@@ -739,188 +739,188 @@ Clause22 frame; indirect rows remain one indivisible four-frame transaction.
 | 17 | W(0D,001F), W(0E,04F4), W(0D,401F), W(0E,0800) |
 | 18 | W(00,3300) |
 
-After any attempted row1, apply the shared persistent HARD floor before every
-next frame, then poll1F/8000 clear. After row2, repeat its selector/address/
-data-mode writes then R(0E), accepting whole word0002 only. Failure prevents
-row3 onward and retains the hard-reset/advertisement effects. Arithmetic:
-2direct +16*4indirect =66recipe frames; capability/readback adds8 =74before
+After any attempted row 1, apply the shared persistent HARD floor before every
+next frame, then poll 1F/8000 clear. After row 2, repeat its selector/address/
+data-mode writes then R(0E), accepting whole word 0002 only. Failure prevents
+row 3 onward and retains the hard-reset/advertisement effects. Arithmetic:
+2direct +16*4indirect =66 recipe frames; capability/readback adds 8 =74 before
 reset polling, identity, masked verification and persistent restoration. A slice
-below4frames cannot split an indirect row. No nominal EEE timing is a deadline.
+below 4 frames cannot split an indirect row. No nominal EEE timing is a deadline.
 
-Exact-part04D1 verification is mask1009/value0009 after recipe008B. Thus008B
-passes,108B fails forcedLPI-clear,0083 fails bit3,008A fails bit0. Changes to
+Exact-part 04D1 verification is mask 1009/value 0009 after recipe 008B. Thus 008B
+passes, 108B fails forcedLPI-clear, 0083 fails bit 3, 008A fails bit 0. Changes to
 opaque bits are not evidence that documented controls mismatch. Only documented
-bits0/3/12 permit typed masked composition; no generic recipe snapshot/restore.
-The preserve mask is EFF6, the complement of1009. Starting from008B, the
-bit0/bit3 bypass combinations produce008B,008A,0083,0082; opaque bit1 remains
+bits 0/3/12 permit typed masked composition; no generic recipe snapshot/restore.
+The preserve mask is EFF6, the complement of 1009. Starting from 008B, the
+bit 0/bit 3 bypass combinations produce 008B,008A,0083,0082; opaque bit 1 remains
 one in all four words. EFF4 would unjustifiably clear that bit. These are
 capability-bypass controls, not independently sourced TX/RX direction switches.
-SNLA328's DP83825 bits0/3=0 polarity is rejected. Disable has one HARD plus
-persistent replay and never a synthesized inverse of these15 opaque vendor rows.
+SNLA328's DP83825 bits 0/3=0 polarity is rejected. Disable has one HARD plus
+persistent replay and never a synthesized inverse of these 15 opaque vendor rows.
 
-SNLS638C tables7-99..103 pp80-81 and SNLA328 tables4-6 pp11-12 supply the
-source-implied observations. Status0800 and0400 are distinct historical TX/RX
-received indications;0200 and0100 are distinct current TX/RX indications.
+SNLS638C tables 7-99..103 pp80-81 and SNLA328 tables 4-6 pp11-12 supply the
+source-implied observations. Status 0800 and 0400 are distinct historical TX/RX
+received indications; 0200 and 0100 are distinct current TX/RX indications.
 FFFF wake-error is saturated/lower-bound, not an exact overflowing interval;
 FFFE remains an unsaturated raw count. Successful samples survive a later
 failure; an uncertain destructive read means possible history loss. PCS clears
 the silicon counter by the cross-part inference, while retained host history
 stays explicitly discontinuous. No timing/rate result is inferred.
 
-Capability/advertisement/partner bit1 tuples000/001/010/011/100/101/110 do not
-establish eligible100BASE-TX EEE. Tuple111 still needs current applicable full
+Capability/advertisement/partner bit 1 tuples 000/001/010/011/100/101/110 do not
+establish eligible 100BASE-TX EEE. Tuple 111 still needs current applicable full
 link, completed AN, verified bypass controls and coherent source evidence;
 incomplete/stale/transport-failed acquisition cannot publish negotiated success.
 10BASE-Te reduced amplitude from exact-part p26 is a different fact, not an
-invented10Mbps EEE advertisement bit. Current link and prior LPI history also
+invented 10Mbps EEE advertisement bit. Current link and prior LPI history also
 remain different evidence. All physical Q1/Q2 checks remain NOT RUN.
 
 
-## Stage30 independent forced TX LPI vectors
+## Stage 30 independent forced TX LPI vectors
 
-Derived from original SNLS647I p27 section8.3.4 and p15 NOM timing column,
-independently of production constants. DEVAD31, wire04D1:
+Derived from original SNLS647I p27 section 8.3.4 and p15 NOM timing column,
+independently of production constants. DEVAD 31, wire 04D1:
 
 - Entry: W(0D,001F),W(0E,04D1),W(0D,401F),R(0E)=008B,W(0E)=108B.
-- Readback: W(0D,001F),W(0E,04D1),W(0D,401F),R(0E)=108B; compare1000.
-- Exit repeats the five-frame RMW with108B ->008B and four-frame readback;
-  compare1000==0000 only. PreserveEFFF, including opaque bit1 and bits14:13.
+- Readback: W(0D,001F),W(0E,04D1),W(0D,401F),R(0E)=108B; compare 1000.
+- Exit repeats the five-frame RMW with 108B ->008B and four-frame readback;
+  compare 1000==0000 only. Preserve EFFF, including opaque bit 1 and bits 14:13.
 - Other preserved words: EFFF->FFFF->EFFF;0009->1009->0009;
   A00B->B00B->A00B. These are preservation oracles, not alternate recipe authority.
-- Stop1080->0080 succeeds for bit12, but observed bits0/3 contradict owned0009:
+- Stop 1080->0080 succeeds for bit 12, but observed bits 0/3 contradict owned 0009:
   persistent EEE trust stays DIRTY and cleanup remains owed.
-- For callback bounds8us+4us/frame and clockLag1us, rawNow+53us rejects the
-  full9frame/two-callback exclusive admission. No nominal PHY wait is appended.
-- Fail each frame0..8, late completion, malformed receipt and release: no retry,
-  at most2callbacks; any attempted target mutation retains uncertain state.
+- For callback bounds 8us+4us/frame and clockLag 1us, rawNow+53us rejects the
+  full 9 frame/two-callback exclusive admission. No nominal PHY wait is appended.
+- Fail each frame 0..8, late completion, malformed receipt and release: no retry,
+  at most 2 callbacks; any attempted target mutation retains uncertain state.
 
 [The LPI guide](lpi.md) owns the software/physical evidence distinction and Q2 plan.
 
 
-## Stage31 independent Wake-on-LAN literals
+## Stage 31 independent Wake-on-LAN literals
 
-Original SNLS647I tables8-90..97 pp91-93 establish these vectors independently
-of production codecs and the ledger. API octet0 is first transmitted:
+Original SNLS647I tables 8-90..97 pp91-93 establish these vectors independently
+of production codecs and the ledger. API octet 0 is first transmitted:
 
 - MAC11:22:33:44:55:66 ->04A2=2211,04A3=4433,04A4=6655.
 - Secure-ON2A:2B:2C:2D:2E:2F ->04A5=2B2A,04A6=2D2C,04A7=2F2E.
-- CRC+level+enabled+magic =1181, Secure-ON adds0020 ->11A1.
-  Unrelated write neutral words are1981/19A1; explicit acknowledgement1181/11A1.
-- Disable owns00A1, not a reset assumption:1FA1 ->1F00 understable bits,
-  with0800 command-neutral retained on the wire. Preserveunknown0040/reservedE01E.
-- Pulse code0/1/2/3 contributes0000/0200/0400/0600 and means8/16/32/64cycles;
-  at125MHz the independent arithmetic is64/128/256/512ns.
-- Stable no-change comparison17E1 includes the preserved unnamed flag; writes
-  own17A1 and preserve that flag. W0C0800 is never in stable verification.
-- Direct LED mux update owns0007 only: preserveFFF8 and write0002; the owned
-  IRQ route uses0004. DetectorA1 must be verified clear before route/match writes.
-- Full status-only change111frames/28callbacks; unchanged35/10; explicit
-  acknowledgement25/7; live status33/8. No repeat-until-clear loop exists.
+- CRC+level+enabled+magic =1181, Secure-ON adds 0020 ->11A1.
+  Unrelated write neutral words are 1981/19A1; explicit acknowledgement 1181/11A1.
+- Disable owns 00A1, not a reset assumption: 1FA1 ->1F00 under stable bits,
+  with 0800 command-neutral retained on the wire. Preserveunknown 0040/reserved E01E.
+- Pulse code 0/1/2/3 contributes 0000/0200/0400/0600 and means 8/16/32/64 cycles;
+  at 125MHz the independent arithmetic is 64/128/256/512ns.
+- Stable no-change comparison 17E1 includes the preserved unnamed flag; writes
+  own 17A1 and preserve that flag. W0C 0800 is never in stable verification.
+- Direct LED mux update owns 0007 only: preserve FFF8 and write 0002; the owned
+  IRQ route uses 0004. Detector A1 must be verified clear before route/match writes.
+- Full status-only change 111 frames/28 callbacks; unchanged 35/10; explicit
+  acknowledgement 25/7; live status 33/8. No repeat-until-clear loop exists.
 
-[The fixture plan](wake-on-lan.md) retains exact-part W0C/RH-bit0 and live-change
+[The fixture plan](wake-on-lan.md) retains exact-part W0C/RH-bit 0 and live-change
 qualification; neither fake acknowledgements nor pulse arithmetic prove host wake.
 
 
 ## Stage32 independent LED/GPIO literals
 
-SNLS647I detailed tables8-42/43/49/73..78/85/89, independently reviewed from the
+SNLS647I detailed tables 8-42/43/49/73..78/85/89, independently reviewed from the
 original PDF, supply the test oracles. `test/pins.cpp` does not derive expectations
 from the production field catalogue.
 
-- LED0 sources0..E contribute0000,0008,...,0070 at0025, preservingFF86 and
-  forcing route0001; sources8..E contribute0040..0070. SourceF rejects.
-- At0460, LED1=A,LED2=B,LED3=C with prior low nibble5 givesCBA5.
-  Independent masks00F0/0F00/F000 preserveFF0F/F0FF/0FFF.
-- LEDCR owned force/polarity/blink0692 preservesF96D. Blink0/1/2/3 contributes
-  0000/0200/0400/0600 and selects50/100/200/500ms. ForceHIGH is0012;LOW0010.
+- LED0 sources 0..E contribute 0000,0008,...,0070 at 0025, preserving FF86 and
+  forcing route 0001; sources 8..E contribute 0040..0070. SourceF rejects.
+- At 0460, LED1=A,LED2=B,LED3=C with prior low nibble 5 gives CBA5.
+  Independent masks 00F0/0F00/F000 preserve FF0F/F0FF/0FFF.
+- LEDCR owned force/polarity/blink 0692 preserves F96D. Blink 0/1/2/3 contributes
+  0000/0200/0400/0600 and selects 50/100/200/500ms. ForceHIGH is 0012; LOW 0010.
 - LEDCFG2 LED1forceHIGH0003,LOW0001;LED2HIGH0030,LOW0010.
-  Polarity0004/0040 combines into0077, preservingFF88 including reserved0700.
+  Polarity 0004/0040 combines into 0077, preserving FF88 including reserved 0700.
   No LED3 drive or polarity word is legal.
-- MLED swap0200 is separately owned; full0279 preservesFD86. PHYCR stretch0080
-  preservesFF7F, including undocumented LED Configuration0020.
-- LED1 mux0/2/4 and LED2 mux0/2/3/4/5/6/7 preserveFFF8. LED2 MII LED requires
-  explicit write0 and readback, even from reset0. Pin31 codes5/6 reject.
-- IO_CFG1 clock release0040 preservesFFBF; verify0040 then observe0308 bit0
-  with mask0001. No write to0308 or claim of POR resampling.
+- MLED swap 0200 is separately owned; full 0279 preserves FD86. PHYCR stretch 0080
+  preserves FF7F, including undocumented LED Configuration 0020.
+- LED1 mux 0/2/4 and LED2 mux 0/2/3/4/5/6/7 preserve FFF8. LED2 MII LED requires
+  explicit write 0 and readback, even from reset 0. Pin 31 codes 5/6 reject.
+- IO_CFG1 clock release 0040 preserves FFBF; verify 0040 then observe 0308 bit 0
+  with mask 0001. No write to 0308 or claim of POR resampling.
 - Each MMD update is literal W(0D,001F),W(0E,address),W(0D,401F),R(0E),W(0E),
-  then a separately owned four-frame readback. C22 update/readback takes3frames.
+  then a separately owned four-frame readback. C22 update/readback takes 3 frames.
   Never split the five-frame RMW under a short poll slice.
 
 The test models BMSR consumption clearing LINK_LOST and BICSR1 capture/clear
 changing PRBS indication. These are source-effect oracles, not measured LEDs.
 
 
-## Stage33 independent interface and isolation literals
+## Stage 33 independent interface and isolation literals
 
-Audit32-33 adds the independent pin prerequisite R(17): mask0020 must be0020
-for declared RMII or0000 for MII before an LED2/3 profile can mutate. GPIO3's
-reset0008 (mux0) does not replace this check. Raw RC000C is consumed once by the
-collector. The full pin plan is now85frames/24callbacks; LED2 IRQ/WoL append
-R(17) as frame5 after their four-frame mux read, with no additional callback.
+Audit 32-33 adds the independent pin prerequisite R(17): mask 0020 must be 0020
+for declared RMII or 0000 for MII before an LED2/3 profile can mutate. GPIO3's
+reset 0008 (mux 0) does not replace this check. Raw RC 000C is consumed once by the
+collector. The full pin plan is now 85 frames/24 callbacks; LED2 IRQ/WoL append
+R(17) as frame 5 after their four-frame mux read, with no additional callback.
 
-Original SNLS647I tables8-19/28/29/35/41/73/84 supply these independent vectors:
+Original SNLS647I tables 8-19/28/29/35/41/73/84 supply these independent vectors:
 
-- RCSR stable mask01B3, consumed status000C, preserveFE40. OldFFFF with
-  follower+shift+revision1.0+elasticity2 writesFFF2. Reserved0040 survives.
-  MII owns0020 only; old01FF becomes01D3 after RC consumption and mode clear.
-- RMII leader0020/follower00A0; follower shift0100; revision1.0 adds0010.
-  Codes0/1/2/3 mean14/2/6/10bits and16800/2400/7200/12000packet bytes at
+- RCSR stable mask 01B3, consumed status 000C, preserve FE40. Old FFFF with
+  follower+shift+revision 1.0+elasticity 2 writes FFF2. Reserved 0040 survives.
+  MII owns 0020 only; old 01FF becomes 01D3 after RC consumption and mode clear.
+- RMII leader 0020/follower 00A0; follower shift 0100; revision 1.0 adds 0010.
+  Codes 0/1/2/3 mean 14/2/6/10 bits and 16800/2400/7200/12000 packet bytes at
   +/-50ppm; +/-100ppm halves those lengths without changing electrical limits.
-- IO_CFG1 RX_DV0100 plus optional clock route0040 uses0140 and preserveFEBF.
-  ENHANCED clock route0 selects CLKOUT availability;1 selects LED1 availability.
-  Read0308 mask0001 confirms selection, not frequency or timing.
-- CR1fastRXDV0002; CR2odd-nibble DISABLE0002, preserveFFFD. GENCFG IPG0008
-  selects120ns when set or200ns when clear; CR2RX_ER-idle0004 is preserved.
-  PHYSCRfull-duplexCOL0010 preservesFFEB, neutralizing test0004.
-- BMCR isolation RMW uses preserve71FF, owned0400 and software power0800,
-  neutral commands8200. With power intent asserted, a sampledBB00 composes3D00
-  for isolation and3900 for release. A live active command is preflight-rejected;
+- IO_CFG1 RX_DV 0100 plus optional clock route 0040 uses 0140 and preserve FEBF.
+  ENHANCED clock route 0 selects CLKOUT availability; 1 selects LED1 availability.
+  Read 0308 mask 0001 confirms selection, not frequency or timing.
+- CR1 fast RXDV 0002; CR2 odd-nibble DISABLE 0002, preserve FFFD. GENCFG IPG 0008
+  selects 120ns when set or 200ns when clear; CR2 RX_ER-idle 0004 is preserved.
+  PHYSCR full-duplex COL 0010 preserves FFEB, neutralizing test 0004.
+- BMCR isolation RMW uses preserve 71FF, owned 0400 and software power 0800,
+  neutral commands 8200. With power intent asserted, a sampled BB00 composes 3D00
+  for isolation and 3900 for release. A live active command is preflight-rejected;
   these are composition vectors, not permission to mutate an active reset.
-- Default RMII pass32frames/13callbacks; full clock+isolation39/16; full
-  read-only pass19/9. MMD RMW is five indivisible frames then four-frame readback.
-  RC values0000/000C stay raw history and do not establish a fault count.
+- Default RMII pass 32 frames/13 callbacks; full clock+isolation 39/16; full
+  read-only pass 19/9. MMD RMW is five indivisible frames then four-frame readback.
+  RC values 0000/000C stay raw history and do not establish a fault count.
 
-## Stage34 independently transcribed quality vectors
+## Stage 34 independently transcribed quality vectors
 
-Original SNLS647I tables8-28/29/30/35/44/51/52/53/72 give these
+Original SNLS647I tables 8-28/29/30/35/44/51/52/53/72 give these
 independent literals, checked by `test/quality.cpp` without production masks:
 
-- CR3 causes040F preserve mirror0060; unknown0010 rejects.
-- FLD_CFG1 minimum codes1/1 yield0410, with reserved7 giving0417;
-  maximum63/63 yieldFFF0, reserved7 givesFFF7. Zero codes reject.
-- Descrambler old2284 with six-bit8 becomes2288.
-- TX100 bypass plus far-end-loopback FIFOcode3 yields owned0B00.
-- TX10 lowerthreshold/NLPdisable/jabberdisable and squelch8 yield3081;
-  code9 is illegal. Preamble7998 becomes3998 forlong,7998 forshort.
-- A consumed10BTSCR0010 polarity sample survives later transport failure;
-  its PHYSTS1000 mirror is captured first when requested.
-- MSE is literal vendor31:0218, not0225; raw0 remains0 without SNR inference.
+- CR3 causes 040F preserve mirror 0060; unknown 0010 rejects.
+- FLD_CFG1 minimum codes 1/1 yield 0410, with reserved 7 giving 0417;
+  maximum 63/63 yield FFF0, reserved 7 gives FFF7. Zero codes reject.
+- Descrambler old 2284 with six-bit 8 becomes 2288.
+- TX100 bypass plus far-end-loopback FIFO code 3 yields owned 0B00.
+- TX10 lowerthreshold/NLPdisable/jabberdisable and squelch 8 yield 3081;
+  code 9 is illegal. Preamble 7998 becomes 3998 for long, 7998 for short.
+- A consumed 10BTSCR 0010 polarity sample survives later transport failure;
+  its PHYSTS 1000 mirror is captured first when requested.
+- MSE is literal vendor 31:0218, not 0225; raw 0 remains 0 without SNR inference.
 
-Physical maxima10us modes1-4/11us mode5 require footnote5's energy/RX condition
-for modes2/3/5 and the source recipe. Override codes are explicit raw settings,
+Physical maxima 10us modes 1-4/11us mode 5 require footnote 5's energy/RX condition
+for modes 2/3/5 and the source recipe. Override codes are explicit raw settings,
 not a closed `fld_threshold_recipe` gate or measured latency.
 
-## Stage35 independent electrical literals
+## Stage 35 independent electrical literals
 
-Original SNLS647I tables8-19/47/48/50/73/76/79..83/86 and SNLA266B
-tables5-1/2/4/5 independently establish these vectors:
+Original SNLS647I tables 8-19/47/48/50/73/76/79..83/86 and SNLA266B
+tables 5-1/2/4/5 independently establish these vectors:
 
-- Negative amplitude28..38 runs150..50%; positive08..18 runs50..150%,
-  in6.25% steps. Negative MDIX2F->30 passes2F,28,38,30; reverse passes
-  30,38,28,2F. Both2F->3F->30 and30->20->2F are prohibited intermediates.
-- VOD1 high2|MDInegative30|zero0 gives3C00 at MDIX30; VOD2 positive10/10
-  with MDIXlow0 gives0410. Reserved VOD1C000 is preserved.
-- VOD3 mdi4/enable1/mdix4/enable1 gives4A40; codes0..F and both enables
-  are explicit tuning, not inferred impedance units. MACslew10/11, IOslew0/1.
-- Manual MDI/MDIX updates onlyPHYCRC000; CR1robust0020 applies in forced
-  mode. TX100BMCR2100; NLP10/PRBS10BMCR0100. PRBS BISCR701F=7001,
-  preserving observed0100 instead of writing script7101 as a constant.
-- COMPT10M writes0010..001D under the fourteen named recipe exceptions;
-  001E/001F reject. COUNT1000..31 remains typed but source-gated before0428.
-- Collision BMCR0080; unrelated commands/power/isolation compose neutral0,
-  stop clears0080. Explicit COL mux codes3/5/6 at0305 require MII.
-- CDCR4102 becomes0102 then PHYRCR8000 in the same batch; CDCR0102
-  requires no reset. Any attempted HARD enforces at least2000us silence
+- Negative amplitude 28..38 runs 150..50%; positive 08..18 runs 50..150%,
+  in 6.25% steps. Negative MDIX 2F->30 passes 2F,28,38,30; reverse passes
+  30,38,28,2F. Both 2F->3F->30 and 30->20->2F are prohibited intermediates.
+- VOD1 high 2|MDI negative 30|zero 0 gives 3C00 at MDIX 30; VOD2 positive 10/10
+  with MDIX low 0 gives 0410. Reserved VOD1 C000 is preserved.
+- VOD3 mdi 4/enable 1/mdix 4/enable 1 gives 4A40; codes 0..F and both enables
+  are explicit tuning, not inferred impedance units. MAC slew 10/11, IO slew 0/1.
+- Manual MDI/MDIX updates only PHYCR C000; CR1 robust 0020 applies in forced
+  mode. TX100 BMCR 2100; NLP10/PRBS10 BMCR 0100. PRBS BISCR 701F=7001,
+  preserving observed 0100 instead of writing script 7101 as a constant.
+- COMPT10M writes 0010..001D under the fourteen named recipe exceptions;
+  001E/001F reject. COUNT100 0..31 remains typed but source-gated before 0428.
+- Collision BMCR 0080; unrelated commands/power/isolation compose neutral 0,
+  stop clears 0080. Explicit COL mux codes 3/5/6 at 0305 require MII.
+- CDCR 4102 becomes 0102 then PHYRCR 8000 in the same batch; CDCR 0102
+  requires no reset. Any attempted HARD enforces at least 2000us silence
   after completion upper bound. This is no calibration-completion deadline.
 
 Host tests use literal words and independent fake register effects, not values

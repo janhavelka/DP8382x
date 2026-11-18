@@ -10,8 +10,8 @@ using namespace DP8382x;
 using Driver = ::DP8382x::DP8382x;
 struct Wire { FrameKind kind; uint8_t reg; uint16_t value, target; };
 
-// Independent SNLS647I original tables8-90..97, pp91..93. RXFCFG1 W0C is
-// modelled separately from its read word; the bit0 RH stability remains Q3.
+// Independent SNLS647I original tables 8-90..97, pp91..93. RXFCFG1 W0C is
+// modelled separately from its read word; the bit 0 RH stability remains Q3.
 // This fake proves protocol/evidence handling, never packet matching or MCU wake.
 struct Controller {
   std::array<uint16_t,32> words{};
@@ -57,7 +57,7 @@ struct Controller {
     if(target==31 && value==0x8000) { ++hard;defaults();return; }
     if(target==0 && value==0x8000) { words[0]=0x3100;return; }
     if(target==0x04A0) {
-      if(w1cInterpretation?((value&0x0800U)!=0U):((value&0x0800U)==0U))pendingWake=false; // Default original table8-90 W0C; alternate interpretation is Q3 stress only.
+      if(w1cInterpretation?((value&0x0800U)!=0U):((value&0x0800U)==0U))pendingWake=false; // Default original table 8-90 W0C; alternate interpretation is Q3 stress only.
       ext[target]=static_cast<uint16_t>(value&0xF7FFU);
       if((value&0x0080U)!=0U)ext[0x04A1]|=0x1000; // Enabling selects WoL.
       return;
@@ -154,8 +154,8 @@ void harvestBeforeWrites(const Controller& b,unsigned first) {
 void vectors() {
   {
     Controller b;Driver d;ready(d,b);const auto first=b.frames,calls=b.calls;configured(d,b);
-    // Identity2 + control4 + six comparisons24 + disable14 + six writes24 +
-    // six verifies24 + enable14 + selector4/drain1 =111, in28 owned callbacks.
+    // Identity 2 + control 4 + six comparisons 24 + disable 14 + six writes 24 +
+    // six verifies 24 + enable 14 + selector 4/drain 1 =111, in 28 owned callbacks.
     CHECK(b.frames==first+111U && b.calls==calls+28U);
     const auto next=b.frames,nextCalls=b.calls;configured(d,b);
     CHECK(b.frames==next+35U && b.calls==nextCalls+10U);
@@ -313,7 +313,7 @@ void routing() {
     const auto calls=b.calls,clocks=b.clocks;OperationToken token{999};
     CHECK(!d.startConfigureWake(s,budget(),token).inProgress());CHECK(token.value==999 && b.calls==calls && b.clocks==clocks);
   }
-  // Existing IRQ policy owns pin21 routing; a polarity epoch cannot be silently relabelled.
+  // Existing IRQ policy owns pin 21 routing; a polarity epoch cannot be silently relabelled.
   for(bool polarity:{false,true}) {
     Controller b;Driver d;ready(d,b);InterruptSettings irq;irq.maintenanceAdmitted=irq.pinAvailable=true;
     irq.globalEnable=true;irq.misr2Mask=2;irq.sharedSource=polarity?InterruptSharedSource::POLARITY:InterruptSharedSource::WAKE;
@@ -512,7 +512,7 @@ void replay() {
     const uint16_t irqAddress=wakeLed1?uint16_t{0x0305}:uint16_t{0x0304};
     unsigned writeIndex=first;for(unsigned i=first;i<reference.frames;++i)if(semantic(reference.trace[i]) && reference.trace[i].target==irqAddress)writeIndex=i;
     CHECK(writeIndex>=first+4U);
-    // The IRQ tail's new whole RMW5 + verify4 are bounded independently of WoL.
+    // The IRQ tail's new whole RMW 5 + verify 4 are bounded independently of WoL.
     for(unsigned phase=writeIndex-4U;phase<=writeIndex+4U;++phase) {
       Controller b;Driver d;combinedRoutes(d,b,wakeLed1);b.failFrame=static_cast<int>(b.frames+phase-first);
       CHECK(d.startInitialize({ResetKind::HARD},budget(),token).inProgress());CHECK(drain(d,b,token).is(Err::MDIO_TIMEOUT));

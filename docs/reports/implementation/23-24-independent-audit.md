@@ -29,7 +29,7 @@ No sibling or vendor payload was changed.
 
 | Finding | Evidence against original implementation | Correction and regression |
 | --- | --- | --- |
-| MII line transmission violated its prerequisite during transitions | Table 8-40 permits BISCR6 only with BMCR14 set. Start set BISCR6 first; stop cleared BMCR14 first. | Enable BMCR14 before the final BISCR word; clear BISCR before BMCR on exit. Independent literals and a per-write prerequisite assertion cover both interfaces, fault/cancel boundaries and retries. No extra frames. |
+| MII line transmission violated its prerequisite during transitions | Table 8-40 permits BISCR 6 only with BMCR 14 set. Start set BISCR 6 first; stop cleared BMCR 14 first. | Enable BMCR 14 before the final BISCR word; clear BISCR before BMCR on exit. Independent literals and a per-write prerequisite assertion cover both interfaces, fault/cancel boundaries and retries. No extra frames. |
 | BIST stop mutated before validating current identity | A session followed by ID2 `A141` performed one BISCR write before DEVICE_MISMATCH. | Reuse the existing stop identity phase before PRBS disable. Six normal/analog/digital regressions cover mismatch and second-ID timeout, two reads and zero writes, retained barriers and a later explicit stop. |
 | Dwell collector evidence was omitted from typed BIST observations | A permitted BISCR read saw loss `0400`; later clear-loss bookends returned `syncLossObserved=false` and ERRORS_OBSERVED. Only typed acquisition accumulated session flags. | Accumulate current-session activity/loss in the single collector. Six cases cover explicit collector, direct C22 and vendor alias reads, subsequent RH changes and bus-silent host-history clearing. |
 | HARD recovery skipped a previously completed restore tail | Stop failed after restoring loopback fields but before completing BIST controls. Later HARD reloaded FIFO/isolation yet reused the completed-tail flag, reporting VERIFIED with FIFO `0000` and BMCR `1400`. | Every admitted HARD with a retained session rearms both tails. Twenty-seven late-frame-failure/cancellation cases across normal/analog/digital require saved FIFO, BMCR extras, IPG/packet and profile restoration. Independent reproduction now returns FIFO `0300`, BMCR `1000` and complete restoration. |
@@ -52,7 +52,7 @@ defect or an exact-interval implementation.
 ## Fresh sources and boundaries
 
 Reopened original SNLS647I PDF pages 41-42, 54, 68-69 and 72-73, including
-tables 8-19/40/45/46. Direct original-PDF extraction confirmed the BISCR6
+tables 8-19/40/45/46. Direct original-PDF extraction confirmed the BISCR 6
 prerequisite. The current official [datasheet](https://www.ti.com/lit/ds/symlink/dp83826i.pdf)
 remains SNLS647I, August 2025; the current [troubleshooting note](https://www.ti.com/lit/pdf/snla423)
 remains SNLA423A, June 2025. Independent review confirmed mode fields, the exact
@@ -103,7 +103,7 @@ against `main` entry `77c544f415edb26a0e23de76591a0163b9b73147`, current prompts
 
 | Finding or proposal | Current verdict and evidence |
 | --- | --- |
-| BISCR6 applied before BMCR14, or retained after BMCR14 clear | **Confirmed implemented.** `src/DP8382xDiagnostics.cpp::_beginLoopbackActivation`/`_advanceLoopback` enter SET_MII before SET_BISCR and STOP_BISCR before STOP_BMCR. `test/loopback.cpp` matrix/start/stop failure cases enforce the prerequisite at individual writes. This follows the original table 8-40, including 100-Mbit-only line transmission. |
+| BISCR 6 applied before BMCR 14, or retained after BMCR 14 clear | **Confirmed implemented.** `src/DP8382xDiagnostics.cpp::_beginLoopbackActivation`/`_advanceLoopback` enter SET_MII before SET_BISCR and STOP_BISCR before STOP_BMCR. `test/loopback.cpp` matrix/start/stop failure cases enforce the prerequisite at individual writes. This follows the original table 8-40, including 100-Mbit-only line transmission. |
 | BIST stop wrote before current identity acceptance | **Confirmed implemented.** `stopBist` starts `LoopStep::IDENTIFY_STOP`; PRBS disable follows accepted identity through the shared loopback stop path. `test/bist.cpp::lifecycle` includes changed ID and second-ID-read failure for normal/analog/digital sessions, with no premature writes and retained cleanup. |
 | Dwell collector loss/activity absent from typed result | **Confirmed implemented.** `src/DP8382x.cpp::_retainEvidence` folds every current-session BISCR sample into `_bistActivity`/`_bistLoss`; `_advanceBist` uses them. `test/bist.cpp::measurements` covers collector, direct and vendor alias observations and host-history clearing. A hardware RH bit is not treated as RC or as a guaranteed latched counter. |
 | HARD recovery reused completed restore tails | **Confirmed implemented.** `src/DP8382x.cpp::startInitialize` rearms retained loopback and BIST tails for every HARD. `test/bist.cpp::lifecycle` covers late restore failure/cancellation and subsequent HARD, including FIFO/BMCR/IPG/packet controls. |

@@ -92,13 +92,13 @@ No remaining confirmed defect was found in the resulting code review.
 Under a later explicit assignment, adapted only `test/negotiation.cpp` to the
 expanded complete profile. The independent controller now retains CR1, PHYCR,
 CR3 and CR2. Literal standard AN count is 24 frames and the two-page trace is
-39, or 41 with duplicate evidence. Existing next-page, all60 advertisement/pause,
+39, or 41 with duplicate evidence. Existing next-page, all 60 advertisement/pause,
 partial evidence, failure/cancel and timing assertions remain active. Obsolete
 stage-17 rejection cases now test invalid enum, incomplete forced, contradictory
 inactive intent or uncoupled mirror requests; legal stage-18 profiles are covered
 by the new forced test file owned by another agent.
 
-Strict GNU15.1 C++17 Release build in `build/forced18-peers` passed, followed by
+Strict GNU 15.1 C++17 Release build in `build/forced18-peers` passed, followed by
 all 12 registered negotiation CTests (11 suites plus executing negative probe).
 The example header passed standalone strict C++17 syntax compilation. Reference
 and scoped whitespace checks passed. The lead owns final full-suite, linked

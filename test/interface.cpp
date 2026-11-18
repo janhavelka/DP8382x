@@ -10,7 +10,7 @@ using namespace DP8382x;
 using Driver = ::DP8382x::DP8382x;
 struct Wire { FrameKind kind; uint8_t reg; uint16_t value, target, devad; uint64_t at; };
 
-// Independent SNLS647I tables8-19/28/29/35/41/73/84. The numeric
+// Independent SNLS647I tables 8-19/28/29/35/41/73/84. The numeric
 // assertions below come from the original tables; fake RC consumption is not
 // proof of RCSR status polarity or physical clock/repeater operation.
 struct Controller {
@@ -178,7 +178,7 @@ void vectors() {
     CHECK(b.words[10]==static_cast<uint16_t>(0xFFFDU|(s.oddNibbleDisable?2U:0U)));
     CHECK(b.words[17]==static_cast<uint16_t>(0x0FEBU|(s.collisionFullDuplex?0x10U:0U)));
     CHECK(b.ext[0x456]==static_cast<uint16_t>(0xFFF7U|(s.shortIpg?8U:0U)));
-    CHECK(b.words[23]==0x01D3U); // Only mode20 and RC0C clear in MII.
+    CHECK(b.words[23]==0x01D3U); // Only mode 20 and RC 0C clear in MII.
     CHECK((b.words[10]&4U)!=0U); // RX_ER-idle is not minimum IPG.
   }
   for(auto output:{ClockOutput::CLKOUT25,ClockOutput::LED1})for(bool isolate:{false,true}) {
@@ -591,7 +591,7 @@ void timing() {
   }
   for(uint64_t margin:{uint64_t{0},uint64_t{233},uint64_t{234}}) {
     Controller b;Driver d;ready(d,b);const auto start=b.frames;InterfaceResult out;out.attemptedFrames=999;
-    // 13callbacks*8us +32frames*4us +1us clock lag =233us.
+    // 13 callbacks*8us +32 frames*4us +1us clock lag =233us.
     const auto status=d.configureInterface(settings(),out,{b.now+margin,32});
     if(margin==234U)CHECK(status.ok());else CHECK(status.is(Err::OPERATION_TIMEOUT) && b.frames==start && out.attemptedFrames==999);
   }

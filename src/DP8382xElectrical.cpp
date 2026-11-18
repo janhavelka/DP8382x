@@ -129,14 +129,14 @@ MdioBatch DP8382x::_electricalBatch() const noexcept {
       return batch;
     case ElectricalStep::COLLISION_WRITE:
       batch=electricalRead(0); batch.frameCount=2;
-      // BMCR command neutral8000/0200; do not enable power-down or isolation.
+      // BMCR command neutral 8000/0200; do not enable power-down or isolation.
       batch.frames[1]={FrameKind::WRITE,0,static_cast<uint16_t>(_operation.kind==OperationKind::COLLISION_START?0x0080:0),0x717F,0};
       return batch;
     case ElectricalStep::COLLISION_VERIFY: return electricalRead(0);
     case ElectricalStep::STIMULUS_WRITE:
       if (_electrical.compliance.mode==ComplianceMode::PRBS10) {
         batch=electricalRead(0x16); batch.frameCount=2;
-        // SNLA266B table5-4 adapted to table8-40: bit8 is observed only.
+        // SNLA266B table 5-4 adapted to table 8-40: bit 8 is observed only.
         batch.frames[1]={FrameKind::WRITE,0x16,0x7001,0x8FE0,0};
       } else {
         batch=_mmdBatch(0x0027,FrameKind::READ,0);

@@ -41,7 +41,7 @@ activation and final power policy. Re-observe current VOD words on every replay.
 whole-profile trust, timestamp and stale evidence. Full application uses at most
 70 frames in 18 callbacks: two prerequisite reads, five four-frame snapshots,
 six writes and six readbacks, including the optional split-code bridge. A
-read-only pass uses at most22 frames in six callbacks. Reset/profile restoration
+read-only pass uses at most 22 frames in six callbacks. Reset/profile restoration
 adds its own bounded work under the same operation budget. Short poll slices
 yield before the entire next batch. Failure/cancel stops immediately; a later
 `startInitialize` has its own token, budget and result, preserving the earlier
@@ -57,11 +57,11 @@ or implicit retry claimed.
 
 | Session | Admitted behavior | Stop and evidence |
 | --- | --- | --- |
-| TX100 | SNLA266B table5-1, shared forced100/full and selected manual pair, then restart | HARD stop; later initialization restores persistent ownership |
-| NLP10 | Table5-2, forced10/full and selected manual pair, then restart | Same |
-| PRBS10 | Table5-4, speed-specific digital loopback/generator fields and restart | Same; traffic is not a passing measurement |
-| PATTERN10 | Fourteen exact table8-50 patterns; recipe-specific COMPT bit4 exception | HARD stop; no generic reserved-bit permission |
-| COUNT100 | Typed count0..31, including E/F in that distinct context | Rejects before I/O under `compt_reserved`; no speculative0428 read |
+| TX100 | SNLA266B table 5-1, shared forced 100/full and selected manual pair, then restart | HARD stop; later initialization restores persistent ownership |
+| NLP10 | Table 5-2, forced 10/full and selected manual pair, then restart | Same |
+| PRBS10 | Table 5-4, speed-specific digital loopback/generator fields and restart | Same; traffic is not a passing measurement |
+| PATTERN10 | Fourteen exact table 8-50 patterns; recipe-specific COMPT bit 4 exception | HARD stop; no generic reserved-bit permission |
+| COUNT100 | Typed count 0..31, including E/F in that distinct context | Rejects before I/O under `compt_reserved`; no speculative 0428 read |
 | Collision | MII, explicit COL mux and owner-declared TX_EN stimulus/frequency | Clear/verify collision bit; incomplete stop retains possible stimulus |
 
 Compliance uses the existing forced profile sequence, including robust crossover
@@ -75,7 +75,7 @@ separately admitted initialization replays the persistent profile. Application
 dwell does not hold the operation slot after its result has been consumed.
 
 Collision verifies an explicit COL route; the ambiguous default mux label is
-not treated as proof. The requested10/100 rate is an owner fixture-frequency
+not treated as proof. The requested 10/100 rate is an owner fixture-frequency
 policy, not an additional datasheet restriction. Forced speed comes from BMCR;
 AN status is used only with observed link/completion. The documented COL
 assert/deassert bounds require measured TX_EN and COL traces. Normal stop can

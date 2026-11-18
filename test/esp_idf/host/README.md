@@ -16,7 +16,7 @@ GNU or Clang is required for the unmodified SDK C17 source. Consumers leave
 `DP8382X_BUILD_PINNED_IDF_TESTS` off and need no SDK or Python.
 
 `verify_sdk.py` checks the exact SDK commit, asks the compiler for every
-compiled source's header dependencies for1000Hz,100Hz and333Hz configurations,
+compiled source's header dependencies for 1000Hz, 100Hz and 333Hz configurations,
 checks every selected SDK file against
 the pinned Git blob and compares the complete closure with `sdk-files.json`.
 Only Windows CRLF expansion is normalized. Configuration and every build
@@ -102,19 +102,19 @@ admission opens. These tests model quantization, not arbitrary preemption or a
 physical timing measurement. Both configurations verify the same 45-file real
 SDK dependency closure; the pinned manifest is unchanged.
 
-The independent prompts37-39 audit brings the total to63 cases. New cases prevent
+The independent prompts 37-39 audit brings the total to 63 cases. New cases prevent
 board preparation from replacing another PHY's initialization reservation, keep
 failed board readiness closed after adapter deletion, and reject other owners
 throughout GPIO callbacks. Discovery now tests the production core accounting,
 partial receipts, clock faults and ordinary-output preservation. Control and
 flow-policy callbacks retain accepted effects when their individual bound is
 exceeded. Positive controller waits return MDIO_TIMEOUT; zero-tick contention
-returns BUSY at both1000Hz and100Hz. The timer fake now reports a dispatched
+returns BUSY at both 1000Hz and 100Hz. The timer fake now reports a dispatched
 callback as active until it returns, matching the pinned public timer behavior.
 
 The [2026-11-18 corrections](../../../docs/reports/implementation/37-39-native-fixes-2026-11-18.md)
-bring the registered total to144:68 native cases at each of1000Hz and100Hz,
-seven actual SDK driver cases, and a333Hz rational-wait case. All suites retain
+bring the registered total to 144: 68 native cases at each of 1000Hz and 100Hz,
+seven actual SDK driver cases, and a 333Hz rational-wait case. All suites retain
 assertions in Release. They add failed/cancelled initialization/configuration,
 retryable retirement, independent failed-start cleanup, discarded-timer admission,
 first/latest native cleanup domains, DOWN-before-STOP repair, lost observations,

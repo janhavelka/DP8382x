@@ -87,7 +87,7 @@ guide. Keep these later research boundaries:
 | Stages | Exact declared parts | Required independent work |
 | --- | --- | --- |
 | 56 | DP83826E | SNLS647I shared software records and procedures; qualify the I/E temperature range and temperature-dependent electrical limits. No suffix-conditioned reset/optional-control behavior or suffix detection from shared ID. |
-| 57–59 | DP83826AI, DP83826AE | SNLS783A/SDAA067A defaults, revision acceptance, strap11/FLD/EMC conflict and complete diagnostics/optional controls. |
+| 57–59 | DP83826AI, DP83826AE | SNLS783A/SDAA067A defaults, revision acceptance, strap 11/FLD/EMC conflict and complete diagnostics/optional controls. |
 | 60–61 | DP83825I | SNLS638C RMII-only topology, identity discrepancy, package/straps and complete power/wake/EEE differences; SNLA328 remains exact-part input here. |
 | 62–67 | DP83822I, H, IF, HF | SNLS505H per-subtype media/temperature, fiber and negotiation, interfaces/fixed shifts, reset, diagnostics, electrical and WoL access differences. |
 

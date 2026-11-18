@@ -10,7 +10,7 @@ using namespace DP8382x;
 using Driver = ::DP8382x::DP8382x;
 struct Wire { FrameKind kind; uint8_t reg; uint16_t value, target, devad; uint64_t at; };
 
-// Independent SNLS647I tables8-28..30/35/44/51..53/72 original PDF literals.
+// Independent SNLS647I tables 8-28..30/35/44/51..53/72 original PDF literals.
 // The fake models consumption, not physical latency, thresholds or SNR.
 struct Controller {
   std::array<uint16_t,32> words{};
@@ -206,7 +206,7 @@ void vectors() {
       configured(d,b,s);CHECK(b.ext[0x117]==static_cast<uint16_t>((uint32_t{code}<<10)|(uint32_t{threshold}<<4)|7U));
       CHECK((b.ext[0x131]&0x3FU)==descrambler && !d.qualitySnapshot().fldMaximumApplicable);
     }
-  // An unexpected reserved readback is preserved, without claiming the exact0417 recipe.
+  // An unexpected reserved readback is preserved, without claiming the exact 0417 recipe.
   {
     Controller unexpected;Driver phy;ready(phy,unexpected);unexpected.ext[0x117]=0x0413;
     configured(phy,unexpected,settings(false));
@@ -373,8 +373,8 @@ void collector() {
   CHECK(!drain(d,b,token).ok());take(d,token);const auto saved=d.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::BTSCR)];
   CHECK(saved.valid && saved.samples==1U && saved.raw==0x10U && !saved.historyLost);
   const auto calls=b.calls,clocks=b.clocks;d.qualitySnapshot();d.qualitySnapshot();d.evidenceSnapshot();CHECK(b.calls==calls && b.clocks==clocks);
-  // Original PDF table8-20p56: BMSR[1] is jabber evidence for10BASE-T.
-  // Table8-34p64 mirrors it at PHYSTS[5]; its prose says PHYSTS reads do not
+  // Original PDF table 8-20p56: BMSR[1] is jabber evidence for 10BASE-T.
+  // Table 8-34p64 mirrors it at PHYSTS[5]; its prose says PHYSTS reads do not
   // clear it despite the RC label. Retain raw evidence without inventing rearm.
   Controller jabber;Driver jabberPhy;ready(jabberPhy,jabber);
   jabber.words[0]=0;jabber.words[1]=0x0006;jabber.words[16]=0x0023;

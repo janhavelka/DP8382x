@@ -135,7 +135,7 @@ void policy() {
   {
     Controller b;Driver d;ready(d,b);const auto frames=b.frames,calls=b.calls;
     configured(d,b);
-    // Pin21: identity, control admission, disable/drain, whole MMD selector
+    // Pin 21: identity, control admission, disable/drain, whole MMD selector
     // write/readback, crossing drain, two masks, output/global and three verifies.
     CHECK(b.frames==frames+26U && b.calls==calls+14U);
   }
@@ -175,7 +175,7 @@ void service() {
     const uint16_t event=static_cast<uint16_t>(0x0100U<<bit);
     b.words[18]=bank==0U?static_cast<uint16_t>(event|0x20U):0x20;
     b.words[19]=bank==1U?static_cast<uint16_t>(event|2U):2;
-    b.words[20]=0xFF;b.words[21]=0x8123;b.words[16]=0; // PHYSTS7 is deliberately clear.
+    b.words[20]=0xFF;b.words[21]=0x8123;b.words[16]=0; // PHYSTS 7 is deliberately clear.
     const auto first=b.frames,calls=b.calls;InterruptServiceSnapshot out;
     CHECK(d.serviceInterrupts(out,serviceBudget()).ok());
     const unsigned counters=bank==0U && bit<2U?1U:0U;
@@ -452,7 +452,7 @@ void pins() {
     CHECK(driver.startConfigureInterrupts(denied,budget(),sentinel).is(Err::INVALID_CONFIG));
     CHECK(sentinel.value==999 && bus.calls==count && bus.clocks==clocks);
   }
-  // Stage32's source-owned route mutation is one complete five-frame RMW,
+  // Stage 32's source-owned route mutation is one complete five-frame RMW,
   // then four-frame readback; fail every new phase before/after acceptance.
   Controller reference;Driver model;ready(model,reference);auto led=settings();led.pin=InterruptPin::LED2;
   reference.ext[0x305]=0xA5A8;const auto first=reference.frames;configured(model,reference,led);
@@ -586,7 +586,7 @@ void replay() {
   }
 }
 
-// Fresh prompt27/28 audit: a valid prefix and an observation between owner
+// Fresh prompt 27/28 audit: a valid prefix and an observation between owner
 // turns can withdraw earlier proof; a later successful read cannot restore it.
 void auditRegressions() {
   for(bool stopping:{false,true}) {

@@ -23,19 +23,19 @@ global-disabled combinations. A source enable is not a current condition or proo
 of a physical edge.
 
 Maintenance and pin ownership must be explicitly declared before any callback.
-`pinAvailable` authorizes both the selected route and pin21's electrical role:
+`pinAvailable` authorizes both the selected route and pin 21's electrical role:
 selecting an alternate LED mux does not disconnect the dedicated interrupt pin.
 
 | Route/mode | Admission and live proof |
 | --- | --- |
-| BASIC pin21 | Observed BASIC identity means strap-selected INT. PHYSCR OE is preserved and has no power-down meaning. |
-| ENHANCED pin21 | OE enables open-drain IRQ output. Requesting OE clear always requires `powerDownInputSafe`; low on the resulting input asserts power-down. |
+| BASIC pin 21 | Observed BASIC identity means strap-selected INT. PHYSCR OE is preserved and has no power-down meaning. |
+| ENHANCED pin 21 | OE enables open-drain IRQ output. Requesting OE clear always requires `powerDownInputSafe`; low on the resulting input asserts power-down. |
 | BASIC LED1 | Owner declares availability; source-owned mux setup and readback select IRQ. |
 | ENHANCED LED1 | Also requires `led1ClockUnused` and live GPIO availability from the clock/LED status register. |
 | ENHANCED LED2 | Source-owned mux setup/readback; MII also requires `colUnused`. RMII has no MII COL consumer. |
 | BASIC LED2, LED0/LED3 mux mutation | BASIC LED2 rejects. No LED0/LED3 mux write API exists; their tables mark mux read-only. |
 
-Stage32 integrates [pin dependencies](led-gpio.md). The IRQ source owner now
+Stage 32 integrates [pin dependencies](led-gpio.md). The IRQ source owner now
 configures/restores its low mux field after disabling global delivery, with one
 masked readback. A matching pin-profile entry never writes the route twice.
 Configuration rejects a different retained pin owner, and cannot move away from
@@ -57,8 +57,8 @@ polarity/output, enables global delivery last, and verifies the owned stable
 fields. MISR RMW reads retain events immediately and never echo high status bits
 as writable controls. PHYSCR unrelated power and loopback fields survive.
 
-For pin21 this is 26 frames in 14 callbacks. LED1/LED2 checks add one four-frame
-callback; ENHANCED LED1 adds another. A changed mux adds9frames/2callbacks for
+For pin 21 this is 26 frames in 14 callbacks. LED1/LED2 checks add one four-frame
+callback; ENHANCED LED1 adds another. A changed mux adds 9 frames/2 callbacks for
 the complete RMW and readback. A short poll slice yields before a whole
 batch. No selector or dependent RMW is split. Aggregate deadlines, frame counts,
 clock contracts and stalled-poll bounds follow the shared operation contract.

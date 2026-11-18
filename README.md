@@ -14,7 +14,7 @@ separately typed MAC/PHY calls and preserves partial effects. Acquired link evid
 and accepted SDK publication are separate cached views. Notification/timing
 regressions include 100 Hz ticks; physical wall-time bounds remain unqualified.
 The [native correction review](docs/reports/implementation/37-39-native-fixes-2026-11-18.md)
-records all17 auditor findings, lifecycle retry/error fixes and additional timing,
+records all 17 auditor findings, lifecycle retry/error fixes and additional timing,
 failure and shared-controller regressions. Installed resources remain retained.
 The [second-round review](docs/reports/implementation/37-39-native-fixes-round2-2026-11-18.md)
 adds recoverable transient link misses, continued hardware cleanup after event

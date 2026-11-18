@@ -12,7 +12,7 @@ inline DP8382x::Status readStrapWord(DP8382x::DP8382x& phy,
 }
 
 // Application must establish safe LED0 electrical use and exclude reset/other
-// writers. This changes blink to the table8-42 code1 (100 ms) in one batch,
+// writers. This changes blink to the table 8-42 code 1 (100 ms) in one batch,
 // preserving other documented controls. It does not verify the physical LED.
 inline DP8382x::Status setLedBlink100ms(DP8382x::DP8382x& phy,
                                       const DP8382x::IoBudget& budget) noexcept {

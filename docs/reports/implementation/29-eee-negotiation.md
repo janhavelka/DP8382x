@@ -1,18 +1,18 @@
-# Prompt29: exact EEE negotiation and status
+# Prompt 29: exact EEE negotiation and status
 
 Implemented `eee_initialize` and `eee_negotiation_status` using the existing
 operation slot, shared HARD primitive, configuration replay and destructive
 collector. [EEE guide](../../eee.md) owns API/use/failure details. Explicit legacy
-MAC TX LPI sessions remain prompt30; Q1 is physical-check pending.
+MAC TX LPI sessions remain prompt 30; Q1 is physical-check pending.
 
 ## Rules, scope and checkpoint
 
 Started on clean fetched `main` at `ce3df832c334c68e23a824333c9e5c86908b5ab8`,
-equal to `origin/main`. Re-read the full attachment and repository prompt29,
+equal to `origin/main`. Re-read the full attachment and repository prompt 29,
 COMMON, shared API/OP contracts, evidence/coverage conventions, architecture,
-variants and current source/feature records. Prerequisites consumed: stage18
-complete AN/forced profiles, stage20 single collector, stage5 EEE source
-associations/actions and stage28 owned power/shared restoration.
+variants and current source/feature records. Prerequisites consumed: stage 18
+complete AN/forced profiles, stage 20 single collector, stage 5 EEE source
+associations/actions and stage 28 owned power/shared restoration.
 
 Names follow existing PascalCase/camelCase and Status conventions. The lead owns
 public/shared headers, integration, guides, progress and Git. `DP8382xEee.cpp`
@@ -39,8 +39,8 @@ timing columns. Fresh official TI PDF downloads exactly match archived bytes:
 
 The selected low-offset interpretation remains source-implied: SNLS638C p77
 low-offset prose and pp80-81 tables, SNLS505H p37 worked indirect trace and
-SNLS603D p47 notation analogy support it. Exact26 printed high-prefix addresses,
-AI/AE's different recipe/MMD7 notation and SNLA328 full-address wording remain
+SNLS603D p47 notation analogy support it. Exact 26 printed high-prefix addresses,
+AI/AE's different recipe/MMD 7 notation and SNLA328 full-address wording remain
 recorded counter-readings. `eee_wire` and `eee_control_semantics` retain their
 IDs and Q1 physical-check status. The ledger owns one selected tuple table;
 [original-source vectors](../../register-vectors.md) independently spell every
@@ -84,7 +84,7 @@ literal expectations from original sources. Separate ignored build directories
 were used; lead reviewed every contribution and performed all Git work.
 
 The eighteen-row prefix executes once. Whole-word pre-HARD capability and
-post-row2 advertisement checks fail closed; opaque rows cannot pass by guessed
+post-row 2 advertisement checks fail closed; opaque rows cannot pass by guessed
 readback. Desired fields are applied before the final owned-profile restart.
 Disable and owned-policy initialization use one effective HARD; result.reset
 reports the explicit upgrade from NONE/PCS/RESTART. Final shared verification
@@ -100,7 +100,7 @@ contradictions survive later transport errors. Ordinary outputs remain staged.
 Confirmed review corrections integrated with regressions:
 
 - Replace unsupported directional bypass names with honest per-bit controls.
-- Preserve opaque EEECFG3 bit1; only mask1009 is owned, forced TX LPI stays clear.
+- Preserve opaque EEECFG3 bit 1; only mask 1009 is owned, forced TX LPI stays clear.
 - Keep initialized false until all EEE restoration proof is complete.
 - Withdraw EEE trust on contradictory valid prefixes despite later failure.
 - Withdraw cached negotiated validity after link loss/change or contradictory
@@ -124,7 +124,7 @@ and status/cached usage. Enable's full recipe executes in the independent host
 fake with distinct DEVAD banks. Variant admission is unchanged; no new family
 support is implied. Tool invocation/version/SDK contracts need no change.
 
-Windows, GNU15.1, Ninja, C++17 Release with assertions and strict warnings active:
+Windows, GNU 15.1, Ninja, C++17 Release with assertions and strict warnings active:
 
 - PASS: `cmake -S . -B build/host -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON`,
   build and all 171 registered CTests, including nine EEE suites plus its deliberate
@@ -135,8 +135,8 @@ Windows, GNU15.1, Ninja, C++17 Release with assertions and strict warnings activ
   deterministic version check; `git diff --check`.
 - NOT RUN: SDK/controller and installed-package qualification; SDK support is a
   later owner, ordinary portable consumers are the layer exercised here.
-- NOT RUN: remote CI (prompt71 only); physical Q1 wire/control/interoperability,
+- NOT RUN: remote CI (prompt 71 only); physical Q1 wire/control/interoperability,
   timing and energy qualification. Existing unrelated DPD and other gates remain.
 
-All stage29 software outputs and local checks are complete. Final commit and
+All stage 29 software outputs and local checks are complete. Final commit and
 upstream equality are recorded in the handoff, avoiding a self-referencing hash.

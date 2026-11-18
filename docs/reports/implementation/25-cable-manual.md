@@ -85,7 +85,7 @@ Confirmed corrections made before handoff:
 
 The pure helper checks every selected row before publication, uses matching
 index/amplitude/whole peak, and searches 2,3,4,5,1B,1A. The complete table 2-5
-sample gives run5/open/100m at 4.6 ns/m. NO_PEAK has no distance/health claim.
+sample gives run 5/open/100m at 4.6 ns/m. NO_PEAK has no distance/health claim.
 Maximum amplitude is flagged without inventing saturation semantics. Raw bits
 11/5 remain visible; arbitrary raw/B-pair data have no derived interpretation.
 

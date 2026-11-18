@@ -5,7 +5,7 @@
 using InterruptAttempt = InitializeAttempt;
 
 // Pin permissions must come from the application board plan. Alternate LED
-// routing does not disconnect pin21. The initial board has no assumed wired IRQ.
+// routing does not disconnect pin 21. The initial board has no assumed wired IRQ.
 inline DP8382x::Status beginInterruptPolicy(DP8382x::DP8382x& phy,
                                             const DP8382x::InterruptSettings& settings,
                                             const DP8382x::OperationBudget& budget,

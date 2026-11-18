@@ -7,7 +7,7 @@
   cleanup after event failure or forbidden uninstall. Expired stop admission has
   no new effects; owner deadlines remain separate from actual SDK errors.
 
-- Correct all17 native adapter audit findings: retry incomplete stops/retirement,
+- Correct all 17 native adapter audit findings: retry incomplete stops/retirement,
   retain contended completion and cancellation evidence, use independent start
   cleanup, close admission after forbidden uninstall, and repair DOWN before STOP.
   Separate SDK/portable failures, withdraw stale running UP, project resolved pause,
@@ -21,25 +21,25 @@
   an independent wire-value regression; consolidate the repeated private feature
   phase predicate without changing admission behavior.
 
-- Revalidated all 30 repository audit records and197 promptset findings against
+- Revalidated all 30 repository audit records and 197 promptset findings against
   current code, prompts and sources, with dated responses in each audit.
   Corrected stale SDK-base, IRQ-mux, initialization-replay and CLI-discovery
   guidance; retained implemented fixes and explicit source/physical gates.
 
-- Independent prompts37-39 audit: made shared board/initialization silence an
+- Independent prompts 37-39 audit: made shared board/initialization silence an
   exclusive controller reservation, counted explicit discovery through the core
   transport path, distinguished timed lock failure from immediate contention, and
   applied per-call timing bounds to SDK reconciliation and MAC/PHY flow policy.
   Failed board readiness stays closed after adapter destruction.
 
-- Prompt39: completed native PHY-entry and conditional timing conformance tables.
+- Prompt 39: completed native PHY-entry and conditional timing conformance tables.
   Notification and start receipts survive callback contention; late accepted
   notifications/events preserve effects while reporting timeout. Added cached
   native link evidence, link-period overflow validation and conservative reset
-  completion anchors. Expanded actual-driver regressions, including100Hz ticks;
+  completion anchors. Expanded actual-driver regressions, including 100Hz ticks;
   SDK link and physical timing qualification remain separate.
 
-- Prompt38: added SDK-aware AN/forced configuration and explicit public cache
+- Prompt 38: added SDK-aware AN/forced configuration and explicit public cache
   reconciliation, shared initialization silence, raw/collector owner routing and
   narrow BMCR maintenance. Added separately typed MAC/PHY flow control with
   retained partial effects; direct framework starts after invalidation now retain
@@ -53,17 +53,17 @@
   fixture. Stop/fence failures preserve evidence; installed resources remain
   retained under the unresolved RX-quiescence teardown gate.
 
-- Independent prompt36 audit: quarantined link refreshes mark historical data
+- Independent prompt 36 audit: quarantined link refreshes mark historical data
   stale; configuration stops on an observed active reset instead of restoring
   verified trust. Collision entry/exit also stops on reset in its RMW read.
   Primary failures and accepted-write effects remain retained.
 
-- Prompt36 integration review: all direct/vendor-alias reset observations now
+- Prompt 36 integration review: all direct/vendor-alias reset observations now
   invalidate current evidence and interrupt dependent operations, preserving
   frozen results. Quarantined EEE refreshes retain explicitly stale evidence.
   Primary closure remains blocked by required source-gated branches.
 
-- Audit prompts34-35: retain quality reset/mode evidence and stale MSE status;
+- Audit prompts 34-35: retain quality reset/mode evidence and stale MSE status;
   complete analog handoff to later owned restoration; clear electrical debt on
   external reset; distinguish reset-only effects from stimulus activation.
   Stop maintenance after an interleaved reset observation before dependent writes.
@@ -104,7 +104,7 @@
   Quiesced detector updates preserve pending W0C evidence and restore owned
   credentials/routes before IRQ and power policy. Physical Q3 remains unqualified.
 
-- Added bounded forced TX LPI entry/exit, bit12-only RMW/readback, retained
+- Added bounded forced TX LPI entry/exit, bit 12-only RMW/readback, retained
   REQUESTED/UNCERTAIN evidence and OP-9 dwell protection without occupying a job.
   Stop preserves unrelated EEE uncertainty; MAC drain and wake readiness remain
   application-owned. Independent failure/restoration tests and owner example added.
@@ -217,7 +217,7 @@
 
 ### 2026-11-10
 
-- Implemented prompt20 typed event/counter acquisition through the existing
+- Implemented prompt 20 typed event/counter acquisition through the existing
   collector, with complete and partial cached views, explicit coalescing,
   FCSCR saturation/overflow/lower bounds and bus-silent host-history discard.
   Removed unqualified RECR summation; raw acquisition remains available.

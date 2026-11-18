@@ -72,13 +72,13 @@ class DiagnosticLedgerTests(unittest.TestCase):
                 self.assertEqual(actual, access)
         for field in self.register('FLD_CFG1')['fields']:
             self.assertEqual(field['prohibited'], ['0x0'])
-        # Section8.3.17's literal cannot be confused with prose20errors/10us.
+        # Section 8.3.17's literal cannot be confused with prose 20 errors/10us.
         self.assertEqual((0x0417 & 0xFC00) >> 10, 1)
         self.assertEqual((0x0417 & 0x03F0) >> 4, 1)
         self.assertIn('fld_threshold_recipe', self.register('FLD_CFG1')['gates'])
 
     def test_independent_fast_drop_timing_qualifiers(self):
-        # Original p15 MAX column, p17 footnote5; these are not host deadlines.
+        # Original p15 MAX column, p17 footnote 5; these are not host deadlines.
         timings = {t['id']: t for t in self.data['timings']}
         for name, value in (('fld_strap_150m', 10), ('fld_energy', 10), ('fld_snr', 10),
                             ('fld_mlt3', 10), ('fld_rx_error', 10), ('fld_descrambler', 11)):
@@ -222,7 +222,7 @@ class DiagnosticLedgerTests(unittest.TestCase):
             self.assertEqual((int(action['mask'], 16), int(action['value'], 16)), (mask, value))
 
     def test_independent_diagnostic_field_partitions(self):
-        # Original tables8-33/35..41/44..47/52..72/91, not aggregate access alone.
+        # Original tables 8-33/35..41/44..47/52..72/91, not aggregate access alone.
         expected = {
             'FLDS': {0x01F0}, 'FLD_CFG1': {0xFC00, 0x03F0}, 'FLD_CFG2': {0x003F},
             'BISCR': {0x4000, 0x3000, 0x0800, 0x0400, 0x0200, 0x0100, 0x0040, 0x001F},
@@ -251,7 +251,7 @@ class DiagnosticLedgerTests(unittest.TestCase):
     def test_diagnostic_procedures_own_changed_controls(self):
         # Original-table masks applied to the independently reviewed procedure
         # actions. Whole-word digital recipe changes more than the loop selector.
-        # Prompt23's shared forced-profile override also owns CR2[5]/CR3[6:5];
+        # Prompt 23's shared forced-profile override also owns CR2[5]/CR3[6:5];
         # the common saved-field exit restores PHYSCR[9:8] after reset/replay.
         expected = {
             'configure_fast_drop': {('CR3', 0x040F), ('FLD_CFG1', 0xFFF0), ('FLD_CFG2', 0x003F)},
@@ -289,7 +289,7 @@ class DiagnosticLedgerTests(unittest.TestCase):
 
 
     def test_snla428_independent_six_run_matrix(self):
-        # Original SNLA428 table2-1 p3, not production/ledger-generated values.
+        # Original SNLA428 table 2-1 p3, not production/ledger-generated values.
         expected = [
             [0x5C12, 0x5C12, 0x5C22, 0x5E32, 0x5E42, 0x5E52],
             [0x0D00, 0x0D0C, 0x0D13, 0x1A20, 0x343A, 0x8F6E],
@@ -300,7 +300,7 @@ class DiagnosticLedgerTests(unittest.TestCase):
             [0x0608] * 6, [0x8102] * 6]
         self.assertEqual([[int(v, 16) for v in row]
                           for row in self.data['tdrRecipe']['words']], expected)
-        # Table2-5 p6: first qualifying row in scan order is segment5.
+        # Table 2-5 p6: first qualifying row in scan order is segment 5.
         samples = [(0, 0, 0), (0, 0, 0), (0, 0, 0),
                    (0x78, 0x11, 0), (0x0C, 0x06, 0x0800), (0x06, 0x44, 0)]
         selected = next((i, row) for i, row in enumerate(samples)

@@ -348,7 +348,7 @@ Status DP8382x::_advancePins(Status status,bool called,const MdioBatch& batch) n
   };
   switch (_pinStep) {
     case PinStep::INTERFACE:
-      // Tables5-1/8-41: a board declaration or read-only mux default cannot
+      // Tables 5-1/8-41: a board declaration or read-only mux default cannot
       // prove current LED2/3 availability. RC status enters the sole collector.
       if ((receipt.frames[readIndex].value&0x0020U)!=(_config.interface==MacInterface::RMII?0x0020U:0U)) {
         return _finishPins(pinConfig("Observed interface differs from pin-profile wiring"));

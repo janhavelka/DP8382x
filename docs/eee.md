@@ -3,7 +3,7 @@
 `startConfigureEee` owns a complete, explicit `EeeSettings` policy in the existing
 operation slot. `readEeeStatus` acquires bounded live evidence;
 `eeeSnapshot` and `evidenceSnapshot` are passive. No default initialization
-activates EEE. The exact DP83826I procedure is SNLS647I8.3.3.1, with the
+activates EEE. The exact DP83826I procedure is SNLS647I 8.3.3.1, with the
 [source-implied mapping and independent literals](register-vectors.md).
 The `eee_wire` and `eee_control_semantics` gates remain physical-check pending
 under Q1. Host success does not qualify the wire mapping or interoperability.
@@ -20,7 +20,7 @@ only zero or 100BASE-TX EEE; reserved technologies reject before I/O.
 True clears the respective bit; false disables bypass by setting it. The source
 does not establish independent TX/RX directional meanings for these controls.
 Only the admitted control mask is modified; opaque recipe bits are preserved.
-EEE configuration keeps forced TX LPI clear. [Explicit LPI calls](lpi.md) own its temporary bit12 session.
+EEE configuration keeps forced TX LPI clear. [Explicit LPI calls](lpi.md) own its temporary bit 12 session.
 
 Host-controlled next-page exchange cannot run while EEE is enabled. Forced link
 profiles, explicit active-sleep/IEEE-down/PLL-disable policies, alternate LED IRQ
@@ -41,7 +41,7 @@ owner includes every PHY and observes the persistent HARD silence floor.
    frames are physical writes, but this check performs no target mutation.
 3. Issue the single literal HARD command, wait cooperatively through its minimum
    silence, poll completion and reselect identity/straps.
-4. Execute row2 and require its whole advertisement word to match before the
+4. Execute row 2 and require its whole advertisement word to match before the
    other sixteen rows. Every row uses its exact DEVAD and a complete fresh
    selector/address/data sequence. Opaque words are not individually certified by
    invented readback masks.
@@ -95,7 +95,7 @@ separate from hardware clearing and MDIO/managed-health counters.
 | desired/trust | Requested policy and stable owned verification; opaque setup additionally needs a completed recipe. |
 | capability/local/partner raw words and validity | Distinct observed support/advertisements, including valid negative evidence. |
 | status/wakeErrors | Source-implied current/latched/RC words with history retained by the collector. |
-| negotiatedValid/negotiated | Applicable coherent AN100/full proof and local/partner EEE agreement; no current-LPI or power-saving guarantee. |
+| negotiatedValid/negotiated | Applicable coherent AN 100/full proof and local/partner EEE agreement; no current-LPI or power-saving guarantee. |
 | stale/timeValid/observedAtUs | Freshness is explicit; old words and time survive incomplete acquisition. |
 
 Observed reset, loopback, isolation, restart-pending state, disabled AN, unknown
@@ -113,7 +113,7 @@ quiet-floor helper. Check Status before using ordinary output, then render any
 number of passive copies. Applications coordinate MAC queues, latency and clock
 ownership before explicit LPI entry; the PHY has no implied packet buffer.
 
-Q1 remains NOT RUN: record exact part/revision/straps and real DEVAD3/7 traces,
+Q1 remains NOT RUN: record exact part/revision/straps and real DEVAD 3/7 traces,
 self-check words, partner agreement, bypass behavior and wake-error access.
 Measure MAC/PHY interoperability, wake latency and energy separately. SDK/package
 and physical evidence are separate from portable protocol tests.

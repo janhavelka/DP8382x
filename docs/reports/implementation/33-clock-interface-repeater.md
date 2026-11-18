@@ -1,4 +1,4 @@
-# Prompt33: clock, interface and repeater controls
+# Prompt 33: clock, interface and repeater controls
 
 Implemented the six source-admitted interface, clock, compatibility, repeater
 and isolation ledger procedures through `configureInterface`, with passive
@@ -9,20 +9,20 @@ The [guide](../../interface-clock.md) defines legal settings and board admission
 
 Started on clean fetched `main` at
 `3e6e0bfb86d6ed681ba3dde191ff9973078ba31e`, equal to `origin/main`.
-Read the full pasted/repository prompt33, COMMON and shared evidence, convention,
+Read the full pasted/repository prompt 33, COMMON and shared evidence, convention,
 coverage and verification contracts, parent/root instructions, architecture,
 variants and reference index. The lead owns public values, integration, shared
 documentation, ledger and Git. Siblings are read-only; vendor bytes are unchanged.
 One application owner serializes each instance and complete MDIO transactions.
 Board clocks, MAC stop, wiring, scheduling and physical qualification remain
-application responsibilities. No workflow exists; remote CI remains prompt71.
+application responsibilities. No workflow exists; remote CI remains prompt 71.
 
 ## Fresh source and sibling audit
 
-Original SNLS647I August2025 SHA256
+Original SNLS647I August 2025 SHA256
 `4e440fb8bd1cd44ee9ab0773944bef4f0605884f25c4ab96ea55d0ed859fd9c3`,
-sections8.3.7-10 and tables8-19/28/29/35/41/73/84, establish the independent
-literal vectors. RCSR RC bits remain collector-owned, reserved bit6 is preserved,
+sections 8.3.7-10 and tables 8-19/28/29/35/41/73/84, establish the independent
+literal vectors. RCSR RC bits remain collector-owned, reserved bit 6 is preserved,
 elasticity encodings are non-monotonic and GENCFG IPG is distinct from CR2's
 RX_ER-idle control. BMCR isolation preserves software power intent, rather than
 copying a pin-OR power observation. ENHANCED-only clock override does not imply
@@ -33,7 +33,7 @@ separate from the documented +/-100ppm elasticity arithmetic.
 Current TI Ethernet software main remains
 `450af1144b8caeb58724bcbae081b409f6bf5c3a`.
 `zephyr_drivers/dp83826a_driver/driver_files/drivers/ethernet/phy/phy_ti_dp83826x.c`
-(Apache-2.0), lines381-426, provides a comparison for MII/leader/follower masks.
+(Apache-2.0), lines 381-426, provides a comparison for MII/leader/follower masks.
 Its mode switch does not establish collector retention or verified application;
 no vendor implementation was copied. Existing SDK defects remain catalogued.
 
@@ -67,8 +67,8 @@ separate build directories prevented verification collisions. The lead reviewed
 their actual code and diffs and integrated shared state, tests registration and Git.
 
 Whole-profile and complete-budget admission precede intent changes. Default RMII
-uses32frames/13callbacks; full clock/isolation uses39/16; full read-only verification
-uses19/9. Each C22 or five-frame MMD RMW remains indivisible. There are no silicon
+uses 32 frames/13 callbacks; full clock/isolation uses 39/16; full read-only verification
+uses 19/9. Each C22 or five-frame MMD RMW remains indivisible. There are no silicon
 waits, retries, hidden rollback, clock switching or two-PHY registries.
 
 The shared tail restores interface before dependent pins/IRQ/WoL and final power.
@@ -92,7 +92,7 @@ progress and [portable owner example](../../../examples/portable/Interface.h).
 Variants and version truth need no change: no additional family is supported.
 Future CLI uses the same typed owners and passive evidence.
 
-Windows GNU15.1/Ninja, C++17 Release with strict warnings and active checks:
+Windows GNU 15.1/Ninja, C++17 Release with strict warnings and active checks:
 
 - PASS: `cmake -S . -B build/host -G Ninja -DCMAKE_BUILD_TYPE=Release
   -DDP8382X_BUILD_TESTS=ON`, build and registered CTest:205 tests including eight
@@ -108,7 +108,7 @@ Windows GNU15.1/Ninja, C++17 Release with strict warnings and active checks:
   `git diff --check`.
 
 SDK/controller and installed-package qualification are NOT RUN; this stage checks
-portable source consumption. Remote CI is NOT RUN, reserved for71. Physical
+portable source consumption. Remote CI is NOT RUN, reserved for 71. Physical
 Q12 clock/mux and Q17 RMII RC polarity/clear semantics remain NOT RUN, as do board
 clock edges, repeater traffic and electrical timing. PLL/recovered-clock mux
 activation remains source-gated; no guessed permission closes that conflict.

@@ -60,10 +60,10 @@ keep actual SDK/controller timing separate from host protocol evidence.
 
 Reopen the [pinned TI MMD procedures](../reference/library-ti-core.md#transport-and-mmd-procedure-audit)
 and [SDK comparison](../reference/library-sdk.md) against current source and
-SNLS647I 8.3.11.1-.5/tables 8-31/32. Vendor DEVAD31 read is literally writes
+SNLS647I 8.3.11.1-.5/tables 8-31/32. Vendor DEVAD 31 read is literally writes
 `0x0D=0x001F`, `0x0E=address`, `0x0D=0x401F`, then read `0x0E`; a write replaces
 the last read with target data. Keep REGCR reserved bits 13:5 zero, including
-when SDK bitfields contain poisoned/uninitialized storage. Keep EEE DEVAD3/7 wire offsets gated until their source mapping is established.
+when SDK bitfields contain poisoned/uninitialized storage. Keep EEE DEVAD 3/7 wire offsets gated until their source mapping is established.
 Check every RMW frame result and stop after the first failed phase; prove stale
 addressing cannot produce a trusted target update. Select the minimum complete
 source-backed RMW sequence and test its actual frame count, including any

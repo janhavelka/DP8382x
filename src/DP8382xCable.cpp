@@ -5,11 +5,11 @@
 
 namespace DP8382x {
 namespace {
-// SNLS647I tables8-54/56..60; GENCFG0600 is the named SNLA428 exception.
+// SNLS647I tables 8-54/56..60; GENCFG 0600 is the named SNLA428 exception.
 constexpr uint16_t addresses[] = {0x0170,0x0173,0x0175,0x0176,0x0177,0x0178,0x0456};
 constexpr uint16_t masks[] = {0x7770,0xFFFF,0x380F,0x001F,0x1F00,0x0007,0x0600};
 constexpr uint8_t recipeFields[] = {0,1,2,5,6};
-// Independently transcribed data from SNLA428 table2-1, not its sample code.
+// Independently transcribed data from SNLA428 table 2-1, not its sample code.
 constexpr uint16_t recipeWords[][6] = {
   {0x5C12,0x5C12,0x5C22,0x5E32,0x5E42,0x5E52},
   {0x0D00,0x0D0C,0x0D13,0x1A20,0x343A,0x8F6E},

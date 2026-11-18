@@ -17,7 +17,7 @@ constexpr uint16_t ANAR_VERIFY = 0xADFF;
 constexpr uint16_t BMCR_PRESERVE = 0x44FF;
 constexpr uint16_t BMCR_VERIFY = 0x3100;
 constexpr uint16_t ANNPTR_PRESERVE = 0x4800;
-// Tables 8-28/29/30/43: only these stable owned fields change. PHYCR14
+// Tables 8-28/29/30/43: only these stable owned fields change. PHYCR 14
 // is inactive in automatic routing and must be preserved rather than cleared.
 constexpr uint16_t MIRROR_MASK = cmd::MASK_CR3_PAIR_SWAP | cmd::MASK_CR3_POLARITY_SWAP;
 constexpr uint16_t BASE_CAPABILITIES = cmd::MASK_ANER_LOCAL_NEXT | cmd::MASK_ANER_PARTNER_NEXT |
@@ -359,7 +359,7 @@ MdioBatch DP8382x::_configurationBatch() const noexcept {
       const auto count = _configureOptions.nextPages.pageCount;
       const NextPage page = _pageIndex < count ? _configureOptions.nextPages.pages[_pageIndex] : NextPage{1, true, false};
       const bool more = _pageIndex + 1U < count;
-      // Table 8-26: hardware controls toggle11; bit14 is read-only reserved.
+      // Table 8-26: hardware controls toggle 11; bit 14 is read-only reserved.
       return updateRegister(cmd::REG_ANNPTR, ANNPTR_PRESERVE, static_cast<uint16_t>(page.data |
           (page.message ? cmd::MASK_ANNPTR_MESSAGE : 0U) |
           (page.acknowledge2 ? cmd::MASK_ANNPTR_ACK2 : 0U) | (more ? cmd::MASK_ANNPTR_NEXT_PAGE : 0U)));

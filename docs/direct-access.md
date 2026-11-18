@@ -38,7 +38,7 @@ drive-enable and drive-value fields; every reserved bit must be zero. This is an
 explicit pre-initialization maintenance exception, not managed configuration.
 The application establishes the physical part/address and safe LED0 wiring/pin
 use. No initialization, cached LED state, reset, link or diagnostic
-operation is implied. The [typed LED/mux API](led-gpio.md) shipped at stage32;
+operation is implied. The [typed LED/mux API](led-gpio.md) shipped at stage 32;
 interrupt mux routing/restoration belongs to the [interrupt owner](interrupts.md).
 
 Other ordinary writes, holes, public selectors, consuming/latch reads and CDCR reject with
@@ -48,7 +48,7 @@ so a bare read is not an accepted standalone procedure. Selectors are private
 steps of the complete MMD operation. Explicit destructive acquisition and mixed maintenance use the
 [side-effect access guide](side-effect-access.md), preserving the same policy.
 
-Prompt38 adds explicit `modifyBasicControl(mask,value,budget)` maintenance.
+Prompt 38 adds explicit `modifyBasicControl(mask,value,budget)` maintenance.
 It requires initialized accepted silicon, an idle owner and awake normal control
 state. Only raw BMCR AN/speed/duplex bits 0x3100 may change. The two-frame RMW
 neutralizes reset/restart and never echoes the power-pin OR. It does not alter
@@ -110,8 +110,8 @@ counts. Bad timestamp metadata alone does not erase independent physical counts.
 ## Complete indirect transactions
 
 `readMmd` and `writeMmd` validate DEVAD and the sixteen-bit offset before any
-callback. Vendor DEVAD31 uses the documented mapping. The source-implied EEE read tuples (3,0014), (7,003C), (7,003D) are also admitted
-under the recorded D2 decision and physical case Q1. Other DEVAD3/7 offsets and
+callback. Vendor DEVAD 31 uses the documented mapping. The source-implied EEE read tuples (3,0014), (7,003C), (7,003D) are also admitted
+under the recorded D2 decision and physical case Q1. Other DEVAD 3/7 offsets and
 all raw EEE writes reject with INVALID_PARAM/ACCESS_POLICY. Opaque recipe-only
 addresses also reject; their named recipes own exceptional access. Indirect REGCR/ADDAR accesses
 are explicitly unavailable in SNLS647I 8.3.11.1 and cannot establish a public
@@ -211,7 +211,7 @@ reads, the collector and later operations. A timed call can sample the clock to
 reject or expire the floor before MDIO. Cached access remains clock-silent; the
 shared owner must also exclude other PHY addresses. See [initialization](initialization.md).
 
-Stage29's [EEE owner](eee.md) executes the exact recipe and masked controls;
+Stage 29's [EEE owner](eee.md) executes the exact recipe and masked controls;
 this does not broaden raw write permissions. Latched status and wake errors
 are named collector sources with DEVAD-qualified identity.
 

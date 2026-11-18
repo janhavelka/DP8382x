@@ -10,7 +10,7 @@ using namespace DP8382x;
 using Driver = ::DP8382x::DP8382x;
 struct Wire { FrameKind kind; uint8_t reg; uint16_t value, target; };
 
-// Independent SNLS647I tables8-42/43/49/75/76/85/89. Numeric oracles below
+// Independent SNLS647I tables 8-42/43/49/75/76/85/89. Numeric oracles below
 // come from the original PDF, not production masks. The fake models shared
 // latch consumption, never physical light, electrical drive or pulse timing.
 struct Controller {
@@ -50,7 +50,7 @@ struct Controller {
     if(target==18 || target==19) { words[target]&=0x00FF;words[16]&=0xFF7F; }
     if(target==20) { words[20]&=0xFF00;words[16]&=0xF7FF; }
     if(target==21) { words[21]=0;words[16]&=0xDFFF; }
-    if(target==23)words[23]&=0xFFF3; // Table8-41 raw RC bits; no fault-polarity claim.
+    if(target==23)words[23]&=0xFFF3; // Table 8-41 raw RC bits; no fault-polarity claim.
     if(target==0x04A1)ext[target]&=0xFF00;
     return value;
   }
@@ -61,7 +61,7 @@ struct Controller {
     if(target==31 && value==0x8000) { ++hard;defaults();return; }
     if(target==0 && value==0x8000) { words[0]=0x3100;words[24]=0x0400;words[25]=0x8001;return; }
     if(target==0x04A0) {
-      if((value&0x0800U)==0U)pendingWake=false; // Original table8-90 W0C.
+      if((value&0x0800U)==0U)pendingWake=false; // Original table 8-90 W0C.
       ext[target]=static_cast<uint16_t>(value&0xF7FFU);
       if((value&0x0080U)!=0U)ext[0x04A1]|=0x1000; // Enabling selects WoL.
       return;
@@ -505,7 +505,7 @@ void ownership() {
       source.ext[0x305]^=1;uint16_t raw=0;CHECK(phy.readMmd(31,0x305,raw,{1000000,4}).ok());
       CHECK(phy.wakeSnapshot().trust==ConfigurationTrust::DIRTY);
     } else {
-      // Identity2, mux plus RCSR5, test admission1, then disable RMW's write.
+      // Identity 2, mux plus RCSR 5, test admission 1, then disable RMW's write.
       source.failFrame=static_cast<int>(source.frames+9U);
       CHECK(phy.startConfigureInterrupts(phy.interruptSnapshot().desired,budget(),operation).inProgress());
       CHECK(drain(phy,source,operation).is(Err::MDIO_TIMEOUT));const auto failed=take(phy,operation);

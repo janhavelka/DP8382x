@@ -105,7 +105,7 @@ that floor. RESET_N/POR table values are 2 ms/50 ms MAX readiness limits used as
 waiting windows, whereas 25 us is a MIN pulse and FLP 1500 ms is NOM.
 
 If clock arrives after the ramp, Figure 7-1 recommends holding RESET_N low and
-releasing at least 100 us after clock stabilization. Alternatively §7.6 footnote2
+releasing at least 100 us after clock stabilization. Alternatively §7.6 footnote 2
 requires an additional reset after POR, initiated at least 100 us after both
 clock stabilization and POR completion. Apply the 2 ms release-to-SMI wait too.
 Notification has zero callbacks and cannot establish these physical conditions.
@@ -416,7 +416,7 @@ are rejected, and received raw codes never activate features implicitly.
 Stage 18 executes [complete forced and coupled profiles](forced-settings.md)
 through the same operation/replay path. AN robust-disable follows AN activation
 so a prior forced interval remains robust. CR2 extension is explicit owner intent
-without a peer-evidence preflight; forced10 rejects it. Forced mode does not
+without a peer-evidence preflight; forced 10 rejects it. Forced mode does not
 access ANAR, wait for ignored AN-restart, or establish negotiated pause. Q11 remains
 physical evidence for manual robust routing, port mirror and forced observations.
 
@@ -430,7 +430,7 @@ survive failed refresh; copied snapshots and retained changes perform no I/O.
 No host observation establishes simultaneous sampling, partner duplex in forced
 mode, physical timing or application readiness.
 
-Stage20 executes [typed event/counter capture](event-counters.md) once through the
+Stage 20 executes [typed event/counter capture](event-counters.md) once through the
 single collector. FCSCR saturation, host overflow and unknown loss are distinct;
 RECR and RMII RC conflicts remain raw-only. Reset retains earlier host history
 with discontinuity/staleness rather than assigning it to a new exact interval.
@@ -463,13 +463,13 @@ bookends detect some changes but cannot establish an atomic/fresh generation;
 shadow tuning is not a result latch. No physical completion maximum is invented.
 See [manual and autorun ownership](cable.md) for the shared acquisition/restoration.
 
-Stage27 implements the interrupt procedure with opt-in owned policy, separate
+Stage 27 implements the interrupt procedure with opt-in owned policy, separate
 software-test start/stop and at most one MISR pair plus requested counters per
 service call. Each MISR2 sample records known prior selector context or UNKNOWN;
 crossing events are never relabelled from a new RXFS word. Consumed half-full
 requests survive failed/short service until the single collector reads their
-counters. PHYSCR OE has electrical meaning only in ENHANCED; BASIC pin21 is INT.
-Alternate IRQ mux selection does not disconnect pin21. See [interrupts](interrupts.md)
+counters. PHYSCR OE has electrical meaning only in ENHANCED; BASIC pin 21 is INT.
+Alternate IRQ mux selection does not disconnect pin 21. See [interrupts](interrupts.md)
 for board permissions, restoration and unmeasured Q9 limits.
 
 ## Implemented power boundary (stage 28)
@@ -480,44 +480,44 @@ is separate from DPD and ordered under IEEE down. Non-HARD initialization prepar
 PLL using live reads before reset, then replays power last. DPD exit remains
 source-blocked, and all physical power/clock claims remain NOT RUN.
 
-Stage29 implements the [exact EEE procedure](eee.md) with two whole-word checks,
+Stage 29 implements the [exact EEE procedure](eee.md) with two whole-word checks,
 one HARD and acyclic persistent restoration. Requested bypass controls keep
 opaque bits intact and TX LPI clear. Owned EEE initialization reports effective
 HARD for every requested reset kind; unowned defaults never activate EEE.
 The ledger's wire/control Q1 gates remain physical-check pending.
 
-Stage30 implements [forced TX LPI](lpi.md) with bit12-only bounded start/stop,
+Stage 30 implements [forced TX LPI](lpi.md) with bit 12-only bounded start/stop,
 retained uncertainty and application-owned MAC drain/dwell/wake coordination.
-Both bypass controls must be disabled at entry. The100M/normal-power restriction
+Both bypass controls must be disabled at entry. The 100M/normal-power restriction
 is library policy; nominal timing is never a software completion guarantee.
 
 
-Stage31 [WoL controls](wake-on-lan.md) preserve reset-loaded enable/unknown magic
+Stage 31 [WoL controls](wake-on-lan.md) preserve reset-loaded enable/unknown magic
 state until explicit policy ownership. Quiesced disable/verify precedes match or
 route changes, and enable follows verification. Exact W0C acknowledgement is
 separate from neutral configuration; pending samples remain in one collector.
 
 
-Stage32 implements source-admitted [LED/GPIO profiles](led-gpio.md), including
+Stage 32 implements source-admitted [LED/GPIO profiles](led-gpio.md), including
 shared blink/stretch and fixed-mode restrictions. Collector acknowledgement can
 change a latched LED without a pin write. Register verification proves configured
 controls only; Q12 still owns waveform, electrical and contradictory-route evidence.
 
 
 [Interface profiles](interface-clock.md) own the documented MII/RMII controls
-without changing application wiring. BMCR isolation stops the RMII-leader50MHz
+without changing application wiring. BMCR isolation stops the RMII-leader 50MHz
 output while preserving SMI and the independently owned power request. Readback
 proves register state only. BASIC missing repeater bootstrap does not prohibit
 the documented runtime RX_DV override; ENHANCED POR-only straps remain distinct.
 
-Stage34's [quality procedure](quality.md) implements source-admitted Fast Link
+Stage 34's [quality procedure](quality.md) implements source-admitted Fast Link
 Drop and hardware recovery policy, TX100 scrambler/far-end-loopback FIFO/idle
 error controls and TX10 threshold/squelch/NLP/jabber/preamble. FLD prerequisites
 are applied with causes disabled, then enabled and verified. Mandatory VOD
-remains initialization-owned. All10BTSCR reads consume polarity through the
+remains initialization-owned. All 10BTSCR reads consume polarity through the
 single collector. Raw MSE is separate from derived units and link coherence.
 
-Stage35 implements [electrical maintenance](electrical.md): legal amplitude
+Stage 35 implements [electrical maintenance](electrical.md): legal amplitude
 bridging, explicitly owned termination/slew, source-specific compliance, MII
 collision test and the conditional CDCR clear/HARD pair. Reset completion is
 not calibration accuracy. HARD stop leaves a separately admitted persistent

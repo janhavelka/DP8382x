@@ -14,7 +14,7 @@ gates under COMMON.
 ## Scope, current evidence and work
 
 Deliver forced TX LPI control as two bounded calls, `startLpi()` and `stopLpi()`,
-under OP-9. Each performs04D1 bit 12 RMW and masked readback; after the recipe,
+under OP-9. Each performs 04D1 bit 12 RMW and masked readback; after the recipe,
 008B->108B->008B. Application owns dwell, MAC drain and post-exit delay. Keep the
 operation slot free during dwell while the temporary-state barrier protects it.
 
@@ -34,8 +34,8 @@ Reopen the exact DP83826I legacy-MAC EEE recipe, LPI control/status and wait
 definitions alongside the mapping/procedure evidence settled in task 29.
 
 Validate explicit MAC/owner admission and cached EEE/link/power prerequisites.
-The PHY sends LPI and does not buffer MAC frames. Restricting below100M is an
-explicit policy inference:8.3.4 is silent and7.6 provides100M timings only.
+The PHY sends LPI and does not buffer MAC frames. Restricting below 100M is an
+explicit policy inference: 8.3.4 is silent and 7.6 provides 100M timings only.
 Do not import DP83825 bits 14:13; DP83826 section 8.3.4 establishes bit 12 only. Q2 tests
 108B on the line and retains the neighboring-part difference if it fails.
 

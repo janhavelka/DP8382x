@@ -143,7 +143,7 @@ and the actual source/tests. No historical pass count is reused as a fresh resul
 | Broader electrical/quality scope and unsupported encodings | **Implemented for admitted procedures; named gates still open.** `DP8382xQuality.cpp`, `DP8382xAnalog.cpp`, `DP8382xElectrical.cpp` and their vectors/admission/replay suites implement all nine procedures listed above within the ledger restrictions. `mse_address`, `fld_reset_defaults`, `fld_threshold_recipe`, `ioctrl_example`, `analog_rx_gain`, `compt_reserved` and `hard_reset_straps` are not closed by tests or source-gated rejection. |
 
 Reopened original SNLS647I tables 8-19/47/48/52/53/79/80/81 and SNLA266B
-page 13 tables 5-1/2/4/5. The calibration text requires CDCR14 deassertion
+page 13 tables 5-1/2/4/5. The calibration text requires CDCR 14 deassertion
 immediately followed by HARD; it does not report calibration success. The
 DP83822-only 7108 recipe remains excluded; exact DP83825/6 table 5-4 uses 7101.
 The existing source-qualified composition and split-field ranges remain justified.

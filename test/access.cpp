@@ -272,7 +272,7 @@ void compositions() {
   CHECK(cmd::composeWakeControl(0xFFFF, 0x1000, 0, true) == 0xE7FFU);
   CHECK(evidenceBit(static_cast<EvidenceSource>(255)) == 0U);
   CHECK(evidenceBit(EvidenceSource::COUNT) == 0U);
-  CHECK(ALL_EVIDENCE == 0x7FFFU); // Prompt29 adds DEVAD-qualified EEE status/error evidence.
+  CHECK(ALL_EVIDENCE == 0x7FFFU); // Prompt 29 adds DEVAD-qualified EEE status/error evidence.
 
   // Re-derived from rendered SNLS647I table 8-49 p74, table 8-85 pp87-88,
   // and table 8-89 pp90-91. These literals do not use the ledger as an oracle.
@@ -317,7 +317,7 @@ void compositions() {
       cmd::MASK_LEDCFG2_LED2_POLARITY | cmd::MASK_LEDCFG2_LED2_DRIVE_VALUE |
       cmd::MASK_LEDCFG2_LED2_DRIVE_ENABLE;
   CHECK(ledcfg2Owned == 0x0077U && (ledcfg2Owned & 0xFF88U) == 0U);
-  // Bit10 is reserved RH/W with unknown reset, not an LED3 polarity control.
+  // Bit 10 is reserved RH/W with unknown reset, not an LED3 polarity control.
   CHECK(((0x0488U & ~ledcfg2Owned) | 0x0041U) == 0x04C9U);
   CHECK(((0xFFFFU & ~uint32_t{0x0007}) | 0x0001U) == 0xFFF9U);
   CHECK(((0xFFFFU & ~uint32_t{0x0070}) | 0x0050U) == 0xFFDFU);
@@ -696,7 +696,7 @@ void wake() {
     BoundDriver fixture;
     fixture.bus.words[0x04A0] = 0xFFFF;
     CHECK(fixture.driver.modifyWakeControl(0x1000, 0, false, BUDGET).ok());
-    CHECK(fixture.bus.trace[13].word == 0xEFFFU); // Reserved poison and unknown bit6 preserved.
+    CHECK(fixture.bus.trace[13].word == 0xEFFFU); // Reserved poison and unknown bit 6 preserved.
     CHECK(fixture.bus.pendingWake);
   }
   for (int failed = 0; failed < 14; ++failed) {

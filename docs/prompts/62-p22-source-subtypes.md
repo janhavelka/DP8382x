@@ -42,7 +42,7 @@ revision admission; `DeviceIdentity.mode` is UNKNOWN. Record REGCR function 10
 conflict: section 7.4.2.1 rejects it, table 8-13 and sections 7.4.2.6/.7 use it.
 Admit no-post-increment 01 only until physical evidence resolves 10.
 Printed `0xDnnn` maps to DEVAD D and offset `0x0nnn` under section 7.4.2.9;
-use part-keyed DEVAD3/7 policy, e.g. literal `0x0007,0x003D,0x4007`, then read.
+use part-keyed DEVAD 3/7 policy, e.g. literal `0x0007,0x003D,0x4007`, then read.
 Do not share DP83826's printed-address convention.
 
 Distinguish five literal reset mechanisms: POR/RESET_N latch straps and reset
@@ -50,8 +50,8 @@ all; `0x001F=0x8000` is pin-equivalent and treated as relatching straps despite
 BMCR table 8-1's contradiction; `0x001F=0x4000` restarts digital logic while
 retaining registers (the prose's ambiguous software/soft reset); BMCR[15]
 resets PCS, retains vendor registers and does not latch straps, with the exact
-PCS set unspecified so re-read owned direct fields; MMD3 `0x3000[15]` resets
-MMD3/MMD7/PCS while retaining vendor registers. Label the section 7.4.4.2
+PCS set unspecified so re-read owned direct fields; MMD 3 `0x3000[15]` resets
+MMD 3/MMD 7/PCS while retaining vendor registers. Label the section 7.4.4.2
 soft-reset interpretation as inferred; never select a recipe by its prose name.
 
 Section 4 establishes FX parts; sections 7.4.1.1/.2 establish MII/RMII. FX with

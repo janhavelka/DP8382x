@@ -1,14 +1,14 @@
-# Prompt38: SDK-aware configuration and raw arbitration
+# Prompt 38: SDK-aware configuration and raw arbitration
 
-Prompt38 began on clean, fetched, synchronized `main` at
+Prompt 38 began on clean, fetched, synchronized `main` at
 `a744e77e3ac000be5ea12b1c4b5fdef55b50efde`. It completes the requested SDK
-configuration and raw-entry scope while preserving prompt37's lifecycle and
+configuration and raw-entry scope while preserving prompt 37's lifecycle and
 terminal installed-resource retention. Final commit/upstream equality is recorded
 in the handoff, avoiding a self-referencing commit in this report.
 
 ## Inputs and ownership
 
-The inputs are prompt37's actual factory/driver harness/P4 fixture, the shared
+The inputs are prompt 37's actual factory/driver harness/P4 fixture, the shared
 core configuration/reset/transport/collector implementation, the frozen single
 owner matrix and OP-1 through OP-17. Fresh reads include root/parent AGENTS,
 COMMON, CONVENTIONS, ENGINEERING, VERIFICATION, EVIDENCE, current architecture,
@@ -22,7 +22,7 @@ exact revisions and clean states. Actual ESP-IDF v6.1 remains unmodified at
 `fff9895c82d744c7237be8847347bdd1b07c6643`; driver/header/base/MAC source was
 reopened for cache ownership, control order, raw bypasses and flow argument width.
 No sibling, SDK or archived vendor payload changed. No workflow exists yet;
-first-execution remote CI remains prompt71.
+first-execution remote CI remains prompt 71.
 
 The lead owns public/shared headers, core/native integration, architecture,
 progress, final report and Git. gpt-6.1-sol/high agents owned the disjoint native
@@ -33,7 +33,7 @@ Build folders were separate; the lead checked each contribution and final diff.
 
 ## Implemented routes and decisions
 
-- Native `startConfigure` now accepts complete legal AN and forced10/100 half/full
+- Native `startConfigure` now accepts complete legal AN and forced 10/100 half/full
   settings, including the core's ConfigureOptions. Pure invalid arguments preserve
   tokens and SDK agreement and perform no MAC/MDIO mutation. Extended full duplex
   with forced half duplex rejects because native UP cannot be qualified.
@@ -53,14 +53,14 @@ Build folders were separate; the lead checked each contribution and final diff.
   delivery reopens admission while preserving any quiet floor/quarantine.
 - Native raw C22/MMD writes and MMD RMW reuse core policy, complete batches and
   collector invalidation. Ordinary BMCR/selector/destructive aliases stay denied.
-  Explicit `modifyBasicControl` permits only raw stable BMCR mask0x3100 in one
+  Explicit `modifyBasicControl` permits only raw stable BMCR mask 0x3100 in one
   two-frame RMW, preserving desired intent and neutralizing commands/power-pin OR.
   Accepted/uncertain changes withdraw readiness/trust and SDK agreement; restore
   via initialization then reconcile. `acquireEvidence` retains consumed prefixes;
   cached evidence and transport receipts perform no I/O.
 - Raw SDK hooks remain unconditional zero-frame rejection, including owner calls.
   There is no private SDK cache patch, generic registry, selector permit or second
-  configuration state machine. MMD31 uses initialized 0x001F/0x401F selectors with
+  configuration state machine. MMD 31 uses initialized 0x001F/0x401F selectors with
   all four frames under one shared bus lock; RMW uses five.
 - `setFlowControl` calls MAC(bool) and PHY(uint32_t) separately after matching the
   verified AN pause profile. The defective S_FLOW_CTRL ioctl is never used by the
@@ -83,21 +83,21 @@ guarded. All findings have executing regressions and independent review closure.
 
 ## Local verification
 
-Environment: Windows/PowerShell, CMake4.0.1/Ninja, GNU host15.1.0, Python3.12.10;
-SDK path `C:\esp\v6.1\esp-idf`, P4 GCC15.2.0 (`esp-15.2.0_20251204`).
+Environment: Windows/PowerShell, CMake 4.0.1/Ninja, GNU host 15.1.0, Python 3.12.10;
+SDK path `C:\esp\v6.1\esp-idf`, P4 GCC 15.2.0 (`esp-15.2.0_20251204`).
 The actual pinned checkout and all 45 compiler-selected SDK source/header blobs
 were verified. No SDK public Ethernet headers were replaced by shims.
 
 | Layer | Result | Scope |
 | --- | --- | --- |
 | Portable host | PASS | 235/235 Release CTests; new literal BMCR maintenance vectors, rejection, failure/late/release outcomes; assertions active |
-| Native pinned-driver host | PASS | 43/43 Release and 43/43 GNU UBSan trap CTests; original24 plus19 new; real esp_eth.c/glue and adapter |
+| Native pinned-driver host | PASS | 43/43 Release and 43/43 GNU UBSan trap CTests; original 24 plus 19 new; real esp_eth.c/glue and adapter |
 | Portable consumer | PASS | Separate tests-OFF build, 2/2 linked CTests, no native dependency |
 | Actual SDK image | PASS | Final P4 fixture image links all current native sources and actual SDK MAC/driver; `0x5c080` bytes before final identity refresh |
-| Research/tooling | PASS | 103 Python tests; ledger97 registers/52 procedures/35 features; version generation check |
-| Source documentation | PASS | Doxygen289 pages plus2 negative fixtures; reference/local-link and diff checks |
-| Installed/exported package | NOT RUN | Build-tree consumer only; package stages remain68-71 |
-| Remote CI | NOT RUN | First-execution prompt71 policy |
+| Research/tooling | PASS | 103 Python tests; ledger 97 registers/52 procedures/35 features; version generation check |
+| Source documentation | PASS | Doxygen 289 pages plus 2 negative fixtures; reference/local-link and diff checks |
+| Installed/exported package | NOT RUN | Build-tree consumer only; package stages remain 68-71 |
+| Remote CI | NOT RUN | First-execution prompt 71 policy |
 | Physical | NOT RUN | Guard remains false; no flashing, board operation or timing measurement |
 | Reusable installed teardown | BLOCKED | Unchanged native_rx_quiescence source gate; retain resources until restart |
 
@@ -109,7 +109,7 @@ silence, flow widths/partial effects/interference, post-callback contention, and
 direct-start failures with AN true/false including failed callback admission.
 Correctly typed MAC/PHY calls model the known defective flow ioctl's mutation
 ordering without deliberately invoking its unsafe bool-pointer width behavior.
-CLI grammar belongs to43; these tests prove the pure validation/owner boundary
+CLI grammar belongs to 43; these tests prove the pure validation/owner boundary
 that a CLI must call, not a currently nonexistent CLI implementation.
 
 Commands run from the repository root:

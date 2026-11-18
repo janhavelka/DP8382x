@@ -46,10 +46,10 @@ prerequisites, ordered steps, wait/deadline rules, accepted/uncertain effects,
 finite cleanup and persistent restoration. Next-page exchange explicitly contains
 an implementation gate for exact-part handshake confirmation; its IEEE-derived
 phase order is recorded without claiming measured silicon behavior. Exact API
-signatures remain prompts7–8.
+signatures remain prompts 7–8.
 
 Fields shared with diagnostics/LED/interface controls have complete core numeric
-partitions but their feature procedures stay assigned to prompts4–5. No partial
+partitions but their feature procedures stay assigned to prompts 4–5. No partial
 feature is reclassified as unsupported merely because it is not implemented.
 Hardware-only straps and outside-PHY work are separately classified. All-reserved
 entries are retained without writable permission.
@@ -59,11 +59,11 @@ entries are retained without writable permission.
 The independent PDF reviewer used **gpt-6-astra, high reasoning**: stronger
 reasoning was explicitly requested for original silicon arithmetic/access review.
 It was read-only and derived its oracle before reading the new ledger. Original
-PDF pages were rendered and visually checked: access/core tables8-18..34
-(pp54–65), PHYCR8-43 (p71), PHYRCR8-48 (p73), VOD8-81 (pp85–86), SOR8-87/88
+PDF pages were rendered and visually checked: access/core tables 8-18..34
+(pp54–65), PHYCR 8-43 (p71), PHYRCR 8-48 (p73), VOD 8-81 (pp85–86), SOR 8-87/88
 (pp89–90), plus feature/reset/strap/timing sections. Its pause oracle came from
 the original IEEE table identified in the source audit. The review subsequently
-matched all20 core address/field/reserved/access records against that oracle.
+matched all 20 core address/field/reserved/access records against that oracle.
 
 The source auditor and validator implementer used the inherited capable model:
 source comparison and part-specific Python validation were disjoint bounded
@@ -77,7 +77,7 @@ Review corrections integrated:
 
 - Excluded prohibited local remote-fault bit from advertisement ownership.
 - Corrected partner next-page reset prose, distinct from local null-message code.
-- Rechecked SNLA261A front page and corrected its revision date to March2024.
+- Rechecked SNLA261A front page and corrected its revision date to March 2024.
 - Preserved separate delayed-clock timing statements and explicit CR3 default gate.
 - Added independent assertions for every root identity number, not just field masks.
 - Rejected enormous timing JSON integers cleanly without float-conversion overflow;
@@ -106,7 +106,7 @@ source audit. Archived vendor payloads/provenance were not changed.
 | Diff/format | PASS | `git diff --check`; final task-only diff and new files reviewed. |
 | Portable/package consumer | NOT RUN | No portable implementation/package exists at this research stage. |
 | Native SDK link | NOT RUN | ESP-IDF v6.1 source baseline retained; source review is not compilation/linking. |
-| Remote CI | NOT RUN | First-execution exception: prompt71 owns this evidence. No historical CI SHA invented. |
+| Remote CI | NOT RUN | First-execution exception: prompt 71 owns this evidence. No historical CI SHA invented. |
 | Physical | NOT RUN | No identified/admitted fixture, flashing, reset-pin operation, MDIO trace or electrical measurement. |
 
 Unittest assertions are active independently of Python's plain `assert` removal;
@@ -124,11 +124,11 @@ sequencing). The selected conservative behavior permits independent
 implementation work while withholding the disputed claims. Exact TI clarification
 or identified measurements are needed to close the affected ambiguity.
 
-Prompt4 owns diagnostic access/procedures, CR3 defaults, MSE, counter saturation,
-RMII RC polarity, TDR reserved results, loopback and calibration. Prompt5 owns
+Prompt 4 owns diagnostic access/procedures, CR3 defaults, MSE, counter saturation,
+RMII RC polarity, TDR reserved results, loopback and calibration. Prompt 5 owns
 EEE wire notation/recipe completion, power/wake, per-pin controls, IOCTRL/compliance
 exceptions and remaining interfaces/analog fields. Physical qualification remains
-prompts72–73. These are genuine remaining gates, not missing prompt-3 outputs.
+prompts 72–73. These are genuine remaining gates, not missing prompt-3 outputs.
 
 Reviewed and updated README, CHANGELOG, variants, architecture, source-navigation
 guides, verification instructions, future Doxygen citation requirements and

@@ -56,11 +56,11 @@ the C++ transport suites below exercise the compiled driver separately.
 
 ## Portable C++17 foundation
 
-Prompts37-38 add four terminal AN restart/BMCR maintenance suites; their independent
+Prompts 37-38 add four terminal AN restart/BMCR maintenance suites; their independent
 audit adds explicit-address identity probes to the current **236 portable Release CTests**.
 The separate opt-in [native harness](esp_idf/CMakeLists.txt)
 compiles actual pinned `esp_eth.c` and `esp_eth_netif_glue.c`, with the native
-adapter and small platform fakes. Its **63 tests** (seven driver, 54 adapter at1kHz and two cases at100Hz)
+adapter and small platform fakes. Its **63 tests** (seven driver, 54 adapter at 1kHz and two cases at 100Hz)
 cover install/start/stop errors, raw ioctl denial, board readiness, notification
 partial effects, shared quarantine, finite discovery, raw/glue RX lifetime, SDK
 configuration/cache agreement, cross-owner raw/collector access and flow interference.
@@ -230,7 +230,7 @@ ctest --test-dir build/init15-consumer --output-on-failure --no-tests=error
 python tools/check_doxygen.py
 ```
 
-The stage15 checkpoint registered 40 tests; stage16 extends this to 47,
+The stage 15 checkpoint registered 40 tests; stage 16 extends this to 47,
 including seven intentional failure probes. [Initialize.h](../examples/portable/Initialize.h) is linked and executed
 by the tests-OFF consumer for NONE/PCS and separate failed restoration/abandon.
 Doxygen requires the public operation/evidence pages and rejects undocumented
@@ -248,8 +248,8 @@ separate observations. A successful callback with a missing command receipt
 cannot erase possible mutation or the shared-bus floor.
 
 The universal PHYRCR precheck updates earlier operation traces to NONE20 and
-PCS32 frames; HARD/RESTART use32 each. Existing operation coverage remains active.
-Reset tests cover 1000us polling with a 2000us floor, strict100Hz OP-6 arithmetic,
+PCS 32 frames; HARD/RESTART use 32 each. Existing operation coverage remains active.
+Reset tests cover 1000us polling with a 2000us floor, strict 100Hz OP-6 arithmetic,
 clock regression, unrepresentable floor, late accepted command, sticky/overlapping
 commands, zero budgets, every cancellation boundary, mode/strap changes, stale
 results, two PHYs and full transaction exclusion. External reset/POR notifications
@@ -271,14 +271,14 @@ qualification remain NOT RUN; no fixture action or remote CI was invoked.
 
 ## Negotiated configuration and Clause 28 exchange
 
-`negotiation.cpp` adds registered Release suites for all60 technology/pause
+`negotiation.cpp` adds registered Release suites for all 60 technology/pause
 vectors, admission, replay, faults, ownership, pages, page faults/grammar,
 completion, every-page-frame/cancel boundaries and timing. Independent literals
 exercise selector replacement, RF prohibition, reserved preservation, no extra
 VOD, every reset replay, first-error retention, partial read-clear evidence,
 BASE/NEXT distinction, toggle, null continuation, refusal and finite budgets.
 No production masks generate expected wire values. Failure probes remain active
-in Release. The tests-OFF linked consumer runs both generic and100/full examples.
+in Release. The tests-OFF linked consumer runs both generic and 100/full examples.
 
 ```sh
 cmake -S . -B build/an17-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON
@@ -291,13 +291,13 @@ python tools/check_doxygen.py
 ```
 
 Host traces do not qualify physical Q10, MDC timing or SDK integration. See the
-[stage17 report](../docs/reports/implementation/17-negotiated-link-settings.md).
+[stage 17 report](../docs/reports/implementation/17-negotiated-link-settings.md).
 
 ## Forced and coupled profile verification
 
 `forced.cpp` registers matrix, admission, transitions, failures, replay, ownership
 and timing suites plus an active Release failure probe. Stage 18 checkpoint:67 CTests.
-Independent literals cover all36 forced and24 negotiated routing combinations,
+Independent literals cover all 36 forced and 24 negotiated routing combinations,
 20/24-frame traces, every-frame failure/cancel boundaries, all reset kinds,
 late accepted writes, small indivisible poll slices and two-PHY exclusion.
 Observed tuples are decoded from actual readbacks on complete mismatch; partial
@@ -324,7 +324,7 @@ deadline, invalidation or frame exhaustion, both in CONFIGURE and initialization
 replay. The original mismatch survives separately from the terminal status.
 Existing access suites now reject missing whole/suffix receipts while preserving
 valid prefix samples and possible history loss; sound zero-frame denials remain
-effect-free. Negotiation tests cover NONE reset flags, message5/6 grammar,
+effect-free. Negotiation tests cover NONE reset flags, message 5/6 grammar,
 16-page limits, inverted initial toggle, and completed loads before late/release
 failures. The [audit report](../docs/reports/implementation/13-18-independent-audit.md)
 records source review and final checks.
@@ -446,7 +446,7 @@ successful frame/callback totals; exhaustive failure injection follows every
 actual frame and release boundary. Tests cover effect-free attempted mutation,
 partial stop/retry, hard-reset strap reload, retained mismatch/primary errors,
 FIFO/routing overlap, sticky restart, clocks and cross-PHY exclusion.
-Line-enabled MII cases check table8-40's BMCR14 prerequisite at each write,
+Line-enabled MII cases check table 8-40's BMCR 14 prerequisite at each write,
 including every injected failure and restoration retry.
 
 Run `ctest --test-dir build/host -R "loopback_|dp8382x_loopback_tests_failure_path" --output-on-failure --no-tests=error`.
@@ -517,7 +517,7 @@ all transition/readback failure phases, accepted effects, partial/reset invalida
 pin OR races, PLL preparation, cancellation, clocks and reset replay. The tests-OFF
 consumer executes `examples/portable/Power.h`. Q6 clock/power tests remain NOT RUN.
 
-Stage29 registers `eee_raw`, `eee_recipe`, `eee_settings`, `eee_admission`,
+Stage 29 registers `eee_raw`, `eee_recipe`, `eee_settings`, `eee_admission`,
 `eee_status`, `eee_failures`, `eee_acquisition_failures`, `eee_replay` and
 `eee_ownership_timing`, plus the active Release failure-path check. Independent
 literal tests use separate DEVAD banks, exact recipe and self-check words,
@@ -526,7 +526,7 @@ latched/RC partials, owner contention and persistent HARD floors. They qualify
 host protocol behavior, not physical EEE interoperability or power savings.
 
 
-Stage30 registers `lpi_traces`, `lpi_admission`, `lpi_failures`, `lpi_timing`,
+Stage 30 registers `lpi_traces`, `lpi_admission`, `lpi_failures`, `lpi_timing`,
 `lpi_ownership`, `lpi_recovery` plus its active Release failure-path probe.
 Run `ctest --test-dir build/host -R lpi --output-on-failure --no-tests=error`.
 Independent literals cover every start/stop frame, accepted errors, malformed
@@ -537,7 +537,7 @@ the tests-OFF consumer compiles/links and exercises rejection. See [Q2](../docs/
 for physical traffic/timing/energy checks that a fake cannot establish.
 
 
-Stage31 registers `wol_vectors`, `wol_admission`, `wol_routing`,
+Stage 31 registers `wol_vectors`, `wol_admission`, `wol_routing`,
 `wol_acquisition`, `wol_failures`, `wol_replay`, `wol_ownership`, `wol_timing`
 and the active Release failure probe. Run `ctest --test-dir build/host -R wol
 --output-on-failure --no-tests=error`. Literal byte/pulse/W0C vectors are independent
@@ -548,7 +548,7 @@ executes normal/failed acknowledgement; tests-OFF consumption links its public A
 Physical Q3 remains [unmeasured](../docs/wake-on-lan.md).
 
 
-Stage32 registers `pins_vectors`, `pins_admission`, `pins_routing`,
+Stage 32 registers `pins_vectors`, `pins_admission`, `pins_routing`,
 `pins_failures`, `pins_replay`, `pins_ownership`, `pins_timing`, `pins_collector`
 and `dp8382x_pins_tests_failure_path` with Release-active checks. The fixed fake exercises
 all fifteen sources on every admitted pin, modes/reserved bits, source-owner
@@ -559,7 +559,7 @@ paths in the host suite and links in the tests-OFF consumer. Physical Q12 stays
 [NOT RUN](../docs/led-gpio.md).
 
 
-Stage33 registers `interface_vectors`, `interface_admission`,
+Stage 33 registers `interface_vectors`, `interface_admission`,
 `interface_failures`, `interface_replay`, `interface_ownership`,
 `interface_collector`, `interface_timing`, `interface_repeater` and the deliberate
 Release failure-path probe. Independent literals cover all RMII role/shift/
@@ -569,39 +569,39 @@ frame, accepted writes, release, RC history loss, raw contradictions and cancel.
 The [example](../examples/portable/Interface.h) compiles in the tests-OFF consumer
 and executes admitted/rejected owner sequences in the host suite.
 
-The prompts32-33 audit extends these registered suites with premature-readiness
+The prompts 32-33 audit extends these registered suites with premature-readiness
 failure/cancellation cases, pin-owned clock uncertainty, and declared-versus-live
 interface mismatches. LED2 IRQ/WoL tests exercise the same collector prerequisite
 without a separate pin profile. Full Release and UBSan trap runs are recorded
 in the [audit report](../docs/reports/implementation/32-33-independent-audit.md).
 
-Stage34 `test/quality.cpp` registers quality vector/admission/failure/replay/
+Stage 34 `test/quality.cpp` registers quality vector/admission/failure/replay/
 collector/ownership/timing/raw suites with active Release checks. The fixture
 uses original-PDF literals, injected effects before errors, and shared-owner
 contention; it does not establish physical Fast Link Drop latency or MSE scale.
 The portable Quality example is compiled in the tests-OFF consumer.
 
-Stage35 registers `analog_*` and `electrical_*` Release-active suites. They
-exercise independent electrical literals, all289 split-amplitude endpoint pairs,
+Stage 35 registers `analog_*` and `electrical_*` Release-active suites. They
+exercise independent electrical literals, all 289 split-amplitude endpoint pairs,
 source-gated zero-I/O requests, failure/cancel prefixes, explicit stop and shared
 replay, calibration adjacency and HARD quiet floors. The portable consumer
 compiles the maintenance owner example. Host fakes do not qualify analog output,
 COL timing or calibration accuracy.
 
-The prompts34-35 audit extends existing registered quality/analog/electrical
+The prompts 34-35 audit extends existing registered quality/analog/electrical
 suites with combined downstream replay, failure/cancel handoff boundaries,
 external-reset/POR obligation clearing, reset-only effect classification and
 interleaved reset observations. Numeric literals remain independent of production
 masks; no extra test framework or physical qualification is introduced.
 
-Prompt36 adds `verify_raw_reset_observation`: literal PCS/HARD/RESTART evidence
+Prompt 36 adds `verify_raw_reset_observation`: literal PCS/HARD/RESTART evidence
 through direct and vendor-alias reads in IDLE/RESULT_PENDING, including release,
 deadline and regressing-clock failure. `quality_ownership` checks the same shared
 path while an IRQ operation is running; no dependent writes may follow.
 `eee_acquisition_failures` checks stale retained EEE evidence after quarantine.
 These extend existing fixtures and registered Release suites.
 
-The independent prompt36 audit adds `verify_configuration_reset_observation`:
+The independent prompt 36 audit adds `verify_configuration_reset_observation`:
 literal BMCR reset during negotiated/forced preflight, atomic RMW and final
 readback, including release/deadline/clock failure and accepted-write timeout.
 `link_failures` now checks controller quarantine after a valid sample, repeated
@@ -610,16 +610,16 @@ stale publication, unchanged caller output/time and zero I/O/health accounting.
 release/deadline/clock failure and accepted-write timeout; it asserts immediate
 termination, exact bounds and retained temporary-state debt.
 
-Prompt39 extends native conformance with live tuple transitions, all portable pause
+Prompt 39 extends native conformance with live tuple transitions, all portable pause
 resolutions versus Boolean peer notification, per-field partial/late receipts,
 callback contention, event retry deadlines and start/timer completion contention.
-The same adapter/driver/fake sources also compile at100Hz; tick-boundary waits prove
+The same adapter/driver/fake sources also compile at 100Hz; tick-boundary waits prove
 elapsed readiness checks rather than assuming delay(1) lasts a full tick. These are
 modeled host cases; actual P4 SDK linking and physical timing remain separate.
 
 The [native audit corrections](../docs/reports/implementation/37-39-native-fixes-2026-11-18.md)
-run the complete68 native suites at both1000Hz and100Hz plus seven actual-driver
-tests and a333Hz rational-tick test (144 total). Failure/cancellation, incomplete
+run the complete 68 native suites at both 1000Hz and 100Hz plus seven actual-driver
+tests and a 333Hz rational-tick test (144 total). Failure/cancellation, incomplete
 retirement, receipt contention, late cleanup, deleted-timer rejection, ordered
 events, resolved pause and one-controller peer exclusion all execute production
 adapter code. Physical timing, stack headroom and reusable RX teardown remain gates.

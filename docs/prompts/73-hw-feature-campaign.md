@@ -90,4 +90,4 @@ For rxfs_sfd_reference, obtain TI exact-part clarification of RXFS[7]'s referenc
 to reserved RXFCFG1[13] before programming any SFD detection control. The WoL/error
 fixture records raw RXFS SFD-error evidence and the clarification's supported
 configuration; absent clarification, keep that configuration case BLOCKED and
-never probe reserved bit13 by writing it. Raw status software already exists.
+never probe reserved bit 13 by writing it. Raw status software already exists.

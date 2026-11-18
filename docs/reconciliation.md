@@ -23,7 +23,7 @@ reset/power changes through `invalidateDeviceState`.
 
 ## Exact bounded read plan
 
-The plan is identity (two C22 reads), VOD_CFG3 (one complete four-frame DEVAD31
+The plan is identity (two C22 reads), VOD_CFG3 (one complete four-frame DEVAD 31
 read), then ANAR/CR1/PHYCR/CR3/CR2/BMCR for negotiated intent or
 CR1/PHYCR/CR3/CR2/BMCR for forced intent. There are no hidden retries or resamples.
 
@@ -45,7 +45,7 @@ Only stable, active owned fields participate. AN intent includes the IEEE
 selector, legal technologies/pause, prohibited local fault clear and persistent
 NP clear. Forced intent ignores inactive advertisement. Automatic crossover
 does not compare the preserved manual-routing bit. BMCR restart and unowned
-fields are excluded. VOD compares `FFC0` with `4A40`, or the explicitly owned stage35 termination override; reserved low bits remain
+fields are excluded. VOD compares `FFC0` with `4A40`, or the explicitly owned stage 35 termination override; reserved low bits remain
 unknown/unowned. The ledger and [independent vectors](register-vectors.md) own
 the field catalogue; this guide does not create another register map.
 
@@ -136,7 +136,7 @@ Initialization replays it last after diagnostic restoration. Policy trust is
 separate in `cableAutorunSnapshot`; a raw capture does not verify policy or clear
 cleanup. Disabled policy never supplies engine-quiescence evidence.
 
-Prompt27 extends the same verification with owned IRQ policy and pin prerequisites.
+Prompt 27 extends the same verification with owned IRQ policy and pin prerequisites.
 It consumes MISR/RXFS evidence through the collector, reads without selector or
 control writes, and keeps crossing attribution unknown until a bounded drain.
 A contradictory RXFS word withdraws prior selector context even if release later

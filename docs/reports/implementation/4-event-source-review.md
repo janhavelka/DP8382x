@@ -110,10 +110,10 @@ reset zero, with **0 fault / 1 normal**. `000C` thus represents both normal in
 the printed encoding; `0000` is both fault encodings, but reset-zero alone is
 not a newly observed fault. Clear/rearm timing remains unexplained. Keep
 `rmii_rc`; do not reverse polarity to make a fake convenient.
-The reset header `00X1` is refined only from explicit table rows: reserved bit6
-is one, elasticity is code1, while strap-loaded bits7/5 stay unknown. Thus
-partial reset `0041`, known mask `FF5F`. Elasticity codes0/1/2/3 give14/2/6/10
-bits and16800/2400/7200/12000 bytes at +/-50ppm; halve the stated lengths at
+The reset header `00X1` is refined only from explicit table rows: reserved bit 6
+is one, elasticity is code 1, while strap-loaded bits 7/5 stay unknown. Thus
+partial reset `0041`, known mask `FF5F`. Elasticity codes 0/1/2/3 give 14/2/6/10
+bits and 16800/2400/7200/12000 bytes at +/-50ppm; halve the stated lengths at
 +/-100ppm. Clock shift is follower-only; physical clock wiring remains required.
 
 RECR preserves all 16 raw bits, including `0100`, `8000`, `FFFF`, without
@@ -244,16 +244,16 @@ Retain the exact recipe and explicit gate; do not promise the prose detector
 calibration from that literal. Table says the counter runs in steady state.
 
 Independent diagnostics-fragment cross-review also checked original pp54,
-68–73 and76–81: all BISCR/BICSR/CDCR/TDR reset, reserved and access partitions
+68–73 and 76–81: all BISCR/BICSR/CDCR/TDR reset, reserved and access partitions
 match the tables, including entirely reserved result banks. Segment words
 `0D07/0D14/1A21/343B/8F6F`, shadow words `1004/1004/1005/1008/100B` and pulse
-codes `2/2/2/2/6` agree. The separate BICSR1 write15 action correctly avoids
+codes `2/2/2/2/6` agree. The separate BICSR1 write 15 action correctly avoids
 making the read-only error byte generally writable. Review requested explicit
 PHYRCR restart ownership for digital loopback, BMCR loopback exclusion for
 reverse mode, and internal-loop exclusion before external fixture claims.
 The lead integrated these procedure clarifications. Readback review confirmed
 digital ownership `BMCR 7D80 / BISCR 705F / PHYRCR 4000`, reverse exclusion of
-BMCR bit14, and external-path exclusion of BMCR bit14 and BISCR low5/bit6.
+BMCR bit 14, and external-path exclusion of BMCR bit 14 and BISCR low 5/bit 6.
 Autorun records possible contamination by continued partner activity. No
 blocking review findings remain; raw TDR freshness/abort and BIST capture-lifecycle
 gates remain necessary.

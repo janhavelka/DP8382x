@@ -9,7 +9,7 @@ using namespace DP8382x;
 using Driver = ::DP8382x::DP8382x;
 struct Wire { FrameKind kind; uint8_t reg; uint16_t value, target; };
 
-// Independent SNLS647I tables8-19/35/40 model: BMCR11 reads software OR pin.
+// Independent SNLS647I tables 8-19/35/40 model: BMCR 11 reads software OR pin.
 // The fake deliberately keeps software intent and pin separate; it cannot prove
 // physical clock availability, supply current or partner-dependent sleep timing.
 struct Controller {
@@ -203,7 +203,7 @@ void transitions() {
     if(pll)CHECK(lastWrite(b,first,17)<lastWrite(b,first,0));
   }
   // Toggling only active-sleep policy must never transiently enable a PLL
-  // the owner deliberately disabled. PHYSCR7000 and8000 are separate fields.
+  // the owner deliberately disabled. PHYSCR 7000 and 8000 are separate fields.
   {
     Controller b;Driver d;ready(d,b);auto down=settings(PowerRequest::IEEE_POWER_DOWN);down.disablePll=true;
     configured(d,b,down);
@@ -216,7 +216,7 @@ void transitions() {
       CHECK((b.words[17]&0xF000U)==(activeSleep?0xE000:0x8000));
     }
   }
-  // Poison commands only at the atomic BMCR read: exact independent table8-19
+  // Poison commands only at the atomic BMCR read: exact independent table 8-19
   // neutral compositions are B700 ->3D00 (down), B700 ->3500 (normal).
   for(bool down:{false,true}) {
     Controller b;Driver d;ready(d,b);b.words[0]=0x3500;

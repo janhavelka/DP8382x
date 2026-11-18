@@ -56,7 +56,7 @@ struct Controller {
   void write(uint8_t reg, uint16_t value) noexcept {
     if (reg == 13) { selector = value; return; }
     if (reg == 14 && selector == 0x001F) { address = value; return; }
-    // Table 8-40: line transmission is legal only while BMCR14 is set.
+    // Table 8-40: line transmission is legal only while BMCR 14 is set.
     if (reg == 22 && (value & 0x0040U) != 0U) CHECK((words[0] & 0x4000U) != 0U);
     if (reg == 0 && (value & 0xC000U) == 0U) CHECK((words[22] & 0x0040U) == 0U);
     CHECK(semanticWrites < writes.size());
@@ -329,8 +329,8 @@ void matrix() {
         CHECK(bus.writes[stopWrites+1].address == 0 && bus.writes[stopWrites+1].value == 0x2100);
       }
       // Stop identity+two RMWs=6/3, initialization NONE20/7 or HARD32/12,
-      // AN replay24/18, two saved-extra RMWs + three checks=7/5. HARD also
-      // restores BMCR ordinary extras in one2-frame RMW after strap reload.
+      // AN replay 24/18, two saved-extra RMWs + three checks=7/5. HARD also
+      // restores BMCR ordinary extras in one 2-frame RMW after strap reload.
       CHECK(bus.frames-stopFrames==(mode.mode==LoopbackMode::DIGITAL?71U:57U));
       CHECK(bus.calls-stopCalls==(mode.mode==LoopbackMode::DIGITAL?39U:33U));
       CHECK((bus.words[0]&0x0480U)==0U);
@@ -574,7 +574,7 @@ void barriers() {
     CHECK(bus.calls==calls && bus.clocks==clocks);
     uint16_t raw=0; CHECK(driver.readClause22(2,raw,io()).ok() && raw==0x2000);
     EvidenceSnapshot evidence; CHECK(driver.acquireEvidence(evidenceBit(EvidenceSource::PHYSTS),evidence,io()).ok());
-    bus.words[1]=0x0004; // Coherent link-up, AN-not-complete bookends with PHYSTS0005.
+    bus.words[1]=0x0004; // Coherent link-up, AN-not-complete bookends with PHYSTS 0005.
     LinkSnapshot link; CHECK(driver.readLinkStatus(link,io()).ok());
     CHECK(link.temporaryMayBeActive && !link.resolvedModeValid && !link.pauseValid);
     const auto stopToken=stop(driver,bus); CHECK(drain(driver,bus,stopToken).ok());
@@ -658,7 +658,7 @@ void timing() {
   const auto restartCount=changed.resets;
   const auto change=begin(partner,changed,options(LoopbackMode::REVERSE));
   while(changed.resets==restartCount) CHECK(pollOne(partner,changed,change).inProgress());
-  changed.words[16]=0x0007; // New negotiation resolves10/full after100 admission.
+  changed.words[16]=0x0007; // New negotiation resolves 10/full after 100 admission.
   CHECK(!drain(partner,changed,change).ok());
   const auto changedResult=take(partner,change);
   CHECK(changedResult.cleanupOwed && !changedResult.loopback.controlsVerified && changedResult.loopback.rawPhysts==0x0007);

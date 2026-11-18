@@ -10,7 +10,7 @@ using namespace DP8382x;
 using Driver = ::DP8382x::DP8382x;
 struct Wire { FrameKind kind; uint8_t reg; uint16_t value, target, devad; uint64_t at; };
 
-// Independent SNLS647I tables8-19/40/46/50/76 and SNLA266B5-1/2/4/5 literals.
+// Independent SNLS647I tables 8-19/40/46/50/76 and SNLA266B 5-1/2/4/5 literals.
 // The fake models consumption, not physical latency, thresholds or SNR.
 struct Controller {
   std::array<uint16_t,32> words{};
@@ -161,7 +161,7 @@ void vectors() {
       CHECK(d.electricalSnapshot().complianceSession && !d.isInitialized());
       CHECK(b.hard==1U && (b.words[9]&0x20U)!=0U);
       CHECK((b.words[25]&0xC000U)==(pair==PairSelection::MDI?0U:0x4000U));
-      CHECK((b.words[25]&0x3FFFU)==1U); // No script0021/4021 imports.
+      CHECK((b.words[25]&0x3FFFU)==1U); // No script 0021/4021 imports.
       CHECK((b.words[0]&0x3F00U)==(mode==ComplianceMode::TX100?0x2100U:0x0100U));
       CHECK(writes(b,first,0x030E)==1U && b.ext[0x030E]==0x4A40);
       if(mode==ComplianceMode::PRBS10) {
@@ -364,7 +364,7 @@ void collision() {
       complete(d,b,token);
     }
     const auto first=b.frames,calls=b.calls;
-    // Table8-19: an active reset returned by the RMW read cannot authorize
+    // Table 8-19: an active reset returned by the RMW read cannot authorize
     // verified collision control even when the following write neutralizes it.
     const unsigned prefix=stop?0U:8U;
     b.corruptFrame=static_cast<int>(first+prefix); b.corruptMask=0x8000;

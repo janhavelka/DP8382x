@@ -226,7 +226,7 @@ arbitrary recipe/mixed-register mutation. See the
 The source hardcodes DEVAD 31, so it does not implement the complete DEVAD 3/7 EEE
 access contract. Nor does the presence of postincrement constants prove tested
 incrementing operations. Keep Q1 physical qualification visible for the explicit D2 source-implied tuples;
-no generic translation from printed addresses or DEVAD31 alias is admitted.
+no generic translation from printed addresses or DEVAD 31 alias is admitted.
 
 ## Initialization, reset and recovery procedure audit
 
@@ -271,7 +271,7 @@ gigabit bit 6) and values 10/half=`0`, 10/full=`0x0100`, 100/half=`0x2000`,
 speed/duplex fields, explicitly disable AN within the owned procedure, neutralize
 commands and handle crossover policy. CR1 robust Auto-MDIX `0x0020` is required
 for every forced route, including manual MDI/MDIX (table 8-28). PHYCR routing
-and coupled CR3 port mirror0060 are separate controls; single swap requests
+and coupled CR3 port mirror 0060 are separate controls; single swap requests
 are not independently justified. Test a failure after each accepted write.
 
 C 395-450 reads PHYSTS `0x10` once, returns invalid link if bit 0 clear, otherwise
@@ -380,16 +380,16 @@ These are review results, not hardware observations or implemented fixes.
 ## WP3 core interpretation refinements
 
 D4 publishes forced mode from coherent AN-disabled BMCR and current link-up,
-while retaining PHYSTS2:1 raw. Forced100half with extended duplex not known disabled
-keeps speed100 but duplexUNKNOWN/mode invalid. Pause remains invalid in forced
-operation; completed AN uses ANAR/ALNPAR IEEE28B.3 and PHYCR cross-check, with
+while retaining PHYSTS 2:1 raw. Forced 100 half with extended duplex not known disabled
+keeps speed 100 but duplexUNKNOWN/mode invalid. Pause remains invalid in forced
+operation; completed AN uses ANAR/ALNPAR IEEE 28B.3 and PHYCR cross-check, with
 mismatch invalidating pause. Q11 remains a physical comparison, not a local
 publication blocker. Ordinary ANAR ownership excludes next-page; its flag is
 transient to the owned exchange and never reset-replayed.
 
-After any attempted PHYRCR8000 write the shared owner enforces a frame-free2ms
+After any attempted PHYRCR 8000 write the shared owner enforces a frame-free 2ms
 floor (or longer poll interval) from the completion upper bound, across all PHY
-addresses. Ambiguous writes retain this obligation. BMCR8000/PHYRCR4000 do not
+addresses. Ambiguous writes retain this obligation. BMCR 8000/PHYRCR 4000 do not
 inherit it. Q5 must measure readiness and eligible-strap re-latch; ENHANCED1/6
 remain POR-only. Release timing needs a backend bound, not post-return measurement.
 
@@ -412,11 +412,11 @@ procedure. Physical timing/reset-domain gates remain open.
 
 ## Prompt 16 current reset and timing review
 
-The [stage16 report](../reports/implementation/16-hard-reset-restart.md) records
+The [stage 16 report](../reports/implementation/16-hard-reset-restart.md) records
 fresh TI source/PDF identities, per-file licenses and original table checks.
 HARD/RESTART share the implemented initialization path. The 2ms hard-command
-silence floor is conservative software policy; source table reset-to-SMI2ms and
-POR-to-SMI50ms are MAX readiness windows, RESET_N25us is MIN and FLP1500ms NOM.
+silence floor is conservative software policy; source table reset-to-SMI 2ms and
+POR-to-SMI 50ms are MAX readiness windows, RESET_N 25us is MIN and FLP 1500ms NOM.
 Eligible hard-reset strap resampling remains possible, not unconditionally proved;
 Q5 must establish exact physical behavior. Vendor payloads/hashes are unchanged.
 
@@ -434,7 +434,7 @@ still reading current link. Generic first-low success without assigning output
 and unqualified forced PHYSTS decoding are rejected. PHYCR is a pause cross-check,
 not the algorithm. Physical Q11 and measured MDIO/partner behavior remain NOT RUN.
 
-## Prompt20 current destructive-source review
+## Prompt 20 current destructive-source review
 
 [Original-table review](../reports/implementation/20-source-review.md) confirms
 unchanged SNLS647I and current TI RTOS sources, with exact field literals and

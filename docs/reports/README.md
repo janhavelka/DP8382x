@@ -11,7 +11,7 @@ all 197 G/M/N/R findings. Historical counts and stage boundaries below remain
 evidence of their own checkpoints; current progress is in the
 [execution record](../implementation-progress.md).
 
-The [prompt38 report](implementation/38-esp-idf-state-arbitration.md) records public
+The [prompt 38 report](implementation/38-esp-idf-state-arbitration.md) records public
 SDK state reconciliation, native raw/collector routing, typed flow-control partial
 effects and direct-start failure cleanup. Its
 [source audit](implementation/38-native-source-audit.md) pins the live peer and SDK evidence.
@@ -33,7 +33,7 @@ the linked cached-health example.
 
 The [prompt 22 report](implementation/22-reconcile-recover.md) records bounded
 verification, retained mismatch and cleanup evidence, shared initialization
-recovery, independent review and interrupted-restoration tests at its stage22
+recovery, independent review and interrupted-restoration tests at its stage 22
 checkpoint.
 
 The [prompt 23 report](implementation/23-loopback-modes.md) records all loopback
@@ -42,7 +42,7 @@ source/physical gates.
 
 The [prompt 24 report](implementation/24-bist-generator-checker.md) records all
 BIST controls, bounded raw acquisition and full restoration with retained
-source/physical gates at its stage24 checkpoint.
+source/physical gates at its stage 24 checkpoint.
 
 The [fresh prompts 21-22 audit](implementation/21-22-independent-audit.md)
 checks actual source, tests and source evidence independently, fixes reset

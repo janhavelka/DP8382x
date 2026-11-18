@@ -80,14 +80,14 @@ Checked all four findings against current `main`
 | Finding | Current verdict and evidence |
 | --- | --- |
 | Public-header/isolated-TU count stale | Historical correction to four was right then; current count is five. Root CMake lists Status/Config/DP8382x/CommandTable/Version and compiles the five corresponding `test/header_*.cpp` translation units. Current test guide explicitly says five. Native `esp_idf/Phy.h` is a separate SDK boundary, not a sixth portable header. |
-| Bare CTest succeeds with no registered tests | Fixed. README/test/AGENTS verification commands include `--no-tests=error`; consumer CMake registers two executing linked tests with root tests OFF. Historical4/1 suite counts are not present suite totals. |
-| CMake target minimum conflated with CTest CLI minimum | Fixed. Root/test target supports CMake3.16; current instructions require CTest3.26 for guarded commands. Current source does not raise ordinary consumer dependencies to Python/Git/SDK. |
+| Bare CTest succeeds with no registered tests | Fixed. README/test/AGENTS verification commands include `--no-tests=error`; consumer CMake registers two executing linked tests with root tests OFF. Historical 4/1 suite counts are not present suite totals. |
+| CMake target minimum conflated with CTest CLI minimum | Fixed. Root/test target supports CMake 3.16; current instructions require CTest 3.26 for guarded commands. Current source does not raise ordinary consumer dependencies to Python/Git/SDK. |
 | Test guide described implementation as documentation-only | Fixed. Current test guide records executing portable transport/features/native tests and links implementation evidence; planning reports remain historical. |
 | No C++/version/Doxygen defect found; import side effects and preservation requirements | Rechecked `generate_version.py`: guarded entry, strict JSON/ASCII version validation, changed-only atomic header replacement, read-only check and no Git identity in Version.h. `test/test_version_tool.py` retains preservation/import/negative cases. Doxygen checker retains generated-page/member/warning checks and two negative fixtures. No new behavior defect was identified by this review. |
 
 `python scripts/generate_version.py check` passed for the committed generated
-header. Independent native Release configure/build and63/63 CTests passed on
-GNU 15.1.0 with pinned SDK closure45 blobs; all 80 ledger tests/checker passed.
+header. Independent native Release configure/build and 63/63 CTests passed on
+GNU 15.1.0 with pinned SDK closure 45 blobs; all 80 ledger tests/checker passed.
 These are the commands actually run by this reviewer, not a repetition of the
 historical Debug/consumer/Doxygen/127573-check claims. Portable foundation and
 consumer/Doxygen execution belongs to the lead's integrated verification; new SDK

@@ -170,8 +170,8 @@ enum class EvidenceSource : uint8_t {
   RXFS, ///< WoL/filter history and routing; table 8-91.
   BISCR, ///< BIST current activity/lock and hardware-controlled sync-loss; table 8-40.
   BICSR1, ///< BIST captured error byte and IPG; capture/clear is owner-only, table 8-45.
-  EEE_STATUS, ///< MMD3.1 current and latched LPI evidence; source-implied Q1.
-  EEE_ERRORS, ///< MMD3.22 read-clear wake-error word; source-implied Q1.
+  EEE_STATUS, ///< MMD 3.1 current and latched LPI evidence; source-implied Q1.
+  EEE_ERRORS, ///< MMD 3.22 read-clear wake-error word; source-implied Q1.
   COUNT ///< Number of supported sources, not a readable source.
 };
 
@@ -222,11 +222,11 @@ struct EvidenceSnapshot {
   uint32_t lastRequested{0}; ///< Sources requested by the latest admitted acquisition.
   Status lastStatus{Err::RESULT_NOT_AVAILABLE, 0, "No evidence acquisition"}; ///< Latest acquisition or admitted mixed update result; comparison-only wake exit leaves it unchanged.
   bool configurationDirty{false}; ///< Historical mutation/uncertainty latch; not the initialized-state flag.
-  uint8_t pendingInterruptCounters{0}; ///< Consumed MISR1 requests awaiting a valid counter read: bit0 FCSCR, bit1 RECR.
+  uint8_t pendingInterruptCounters{0}; ///< Consumed MISR1 requests awaiting a valid counter read: bit 0 FCSCR, bit 1 RECR.
 };
 
 /// @brief Complete six-source acquisition, separate from immediately retained partial evidence.
-/// @note SNLS647I tables8-33..39. No atomic silicon snapshot, event multiplicity,
+/// @note SNLS647I tables 8-33..39. No atomic silicon snapshot, event multiplicity,
 /// RECR count or physical error rate is inferred. History survives reset as stale.
 struct CounterSnapshot {
   bool valid{false}; ///< A complete successful acquisition exists.
@@ -237,12 +237,12 @@ struct CounterSnapshot {
   uint16_t rawPhysts{0}; ///< Mirror/status word captured before dependent clearers; not resolved link.
   uint16_t rawFlds{0}; ///< Full fast-link-drop cause word.
   uint16_t rawMisr1{0}; ///< Current returned events plus enables, not lifetime OR.
-  uint16_t rawMisr2{0}; ///< Current events/enables; bit0200 remains polarity-or-WoL.
+  uint16_t rawMisr2{0}; ///< Current events/enables; bit 0200 remains polarity-or-WoL.
   uint16_t rawFcscr{0}; ///< Full returned false-carrier word including reserved bits.
   uint16_t rawRecr{0}; ///< Raw receive-error word; width/saturation conflict forbids arithmetic.
   uint16_t misr1Events{0}; ///< This pass's high-byte MISR1 events, with named cmd masks.
   uint16_t misr2Events{0}; ///< This pass's high-byte MISR2 events; shared source is unclassified.
-  uint16_t fldCauses{0}; ///< This pass's FLDS causes under mask01F0.
+  uint16_t fldCauses{0}; ///< This pass's FLDS causes under mask 01F0.
   uint64_t falseCarrierTotal{0}; ///< Sum of returned FCSCR low bytes in the retained host window.
   bool falseCarrierLowerBound{false}; ///< Saturation, lost read or discontinuity prevents an exact total.
   bool falseCarrierOverflow{false}; ///< Host arithmetic saturated at UINT64_MAX.
@@ -333,7 +333,7 @@ struct InitializeOptions {
 };
 /// @brief SNLS647I 8.3.14 paths; the historical MII name also admits RMII.
 enum class LoopbackMode : uint8_t {
-  MII, ///< BMCR14 plus speed-specific BISCR companion.
+  MII, ///< BMCR 14 plus speed-specific BISCR companion.
   PCS_INPUT, ///< 10 Mbit/s PCS input path.
   PCS_OUTPUT, ///< PCS output path at 10 or 100 Mbit/s.
   DIGITAL, ///< 100/full exact companion recipe; hard-reset exit required.
@@ -345,7 +345,7 @@ enum class LoopbackMode : uint8_t {
 struct LoopbackOptions {
   LoopbackMode mode{LoopbackMode::MII}; ///< Requested path, never enabled implicitly.
   LinkSpeed speed{LinkSpeed::MBPS_100}; ///< Required 10/100 speed; internal paths use full duplex.
-  bool transmitOnLine{false}; ///< Only MII100; enable after BMCR14, clear before disabling it (table8-40).
+  bool transmitOnLine{false}; ///< Only MII 100; enable after BMCR 14, clear before disabling it (table 8-40).
   bool maintenanceAdmitted{false}; ///< Owner quiesced normal MAC/SDK traffic and admits disruption.
   bool termination100Ohm{false}; ///< Required for ANALOG; electrical setup stays with application.
   bool partnerReady{false}; ///< Required for REVERSE; live link is also checked.
@@ -370,14 +370,14 @@ struct LoopbackSnapshot {
   bool controlsVerified{false}; ///< Activation completed; invalidation clears this evidence.
   bool temporaryMayBeActive{false}; ///< Hardware may remain overridden; stop/HARD required.
 };
-/// @brief All table8-40 PRBS encodings; counter wrapping is independent.
+/// @brief All table 8-40 PRBS encodings; counter wrapping is independent.
 enum class BistMode : uint8_t {
   OFF, ///< Generator and checker disabled; no traffic result.
   SINGLE_PACKET, ///< One constant-data packet; no checker.
   CHECKER, ///< Checker only, with application-provided stimulus.
   GENERATOR_CHECKER ///< Continuous pseudo-random generator and checker.
 };
-/// @brief Table8-40 error-byte counter policy, not generator selection.
+/// @brief Table 8-40 error-byte counter policy, not generator selection.
 enum class BistCounterMode : uint8_t {
   SATURATE, ///< Counter stops at FF; the sample is then a lower bound.
   WRAP ///< Counter restarts at zero; any sample has possible unobserved wraps.
@@ -386,8 +386,8 @@ enum class BistCounterMode : uint8_t {
 struct BistOptions {
   BistMode mode{BistMode::GENERATOR_CHECKER}; ///< Exact hardware encoding.
   BistCounterMode counterMode{BistCounterMode::SATURATE}; ///< FF saturation or modulo wrapping.
-  uint16_t packetBytes{1518}; ///< Table8-46 raw field 0..2047; no minimum Ethernet-frame claim.
-  uint16_t interPacketGapBytes{500}; ///< Table8-45: multiples of four, 0..1020 bytes.
+  uint16_t packetBytes{1518}; ///< Table 8-46 raw field 0..2047; no minimum Ethernet-frame claim.
+  uint16_t interPacketGapBytes{500}; ///< Table 8-45: multiples of four, 0..1020 bytes.
   uint64_t observationUs{1000}; ///< Minimum us after activation/complete acquisition; failed captures do not rearm it.
   bool useLoopback{false}; ///< Otherwise normal line operation, without claiming an external-loop fixture.
   LoopbackOptions loopback{}; ///< Maintenance/speed admission; optional DIGITAL, ANALOG or EXTERNAL only.
@@ -441,14 +441,14 @@ enum class CableRecipe : uint8_t {
   SNLA428, ///< Selected exact-part six-run recipe, with transmit A and capture A.
   RAW ///< One caller-configured capture without derived distance.
 };
-/// @brief Table8-54 transmitter/capture channel selections.
+/// @brief Table 8-54 transmitter/capture channel selections.
 enum class CableChannel : uint8_t {
   A_TO_B, ///< Transmit A, capture B.
   B_TO_A, ///< Transmit B, capture A.
   A_TO_A, ///< Transmit A, capture A.
   B_TO_B ///< Transmit B, capture B.
 };
-/// @brief Fixed row identity; ordering is SNLA428 table2-1, never a distance bin.
+/// @brief Fixed row identity; ordering is SNLA428 table 2-1, never a distance bin.
 enum class CableRun : uint8_t {
   RUN_1A, ///< First segment-1 tuning; also the RAW result slot.
   RUN_1B, ///< Second segment-1 tuning.
@@ -457,24 +457,24 @@ enum class CableRun : uint8_t {
   RUN_4, ///< Segment-4 tuning.
   RUN_5 ///< Segment-5 tuning.
 };
-/// @brief Raw controls from SNLS647I tables8-54/56..60, preserving reserved bits.
+/// @brief Raw controls from SNLS647I tables 8-54/56..60, preserving reserved bits.
 struct CableControls {
   CableChannel channel{CableChannel::A_TO_A}; ///< Transmit/capture combination.
-  bool dcNoInit{true}; ///< CDSCR12 DC-removal no-initialization policy.
-  uint8_t averaging{4}; ///< CDSCR code0..6 means1..64;7 is reserved.
-  uint8_t segment{1}; ///< Documented code1..5; not measured length.
-  uint8_t duration{13}; ///< CDSCR3 high byte, raw code0..255.
-  uint8_t initialSkip{7}; ///< CDSCR3 low byte, raw code0..255.
-  uint8_t shadowAverage{2}; ///< TDR175 code0..7; no inferred time unit.
-  uint8_t forwardShadow{4}; ///< TDR175 code0..15.
-  uint8_t locationThreshold{0}; ///< TDR176 code0..31.
-  uint8_t shortThreshold{0}; ///< CDSCR4 code0..31.
-  uint8_t pulseWidth{2}; ///< TDR178 code0..7.
+  bool dcNoInit{true}; ///< CDSCR 12 DC-removal no-initialization policy.
+  uint8_t averaging{4}; ///< CDSCR code 0..6 means 1..64; 7 is reserved.
+  uint8_t segment{1}; ///< Documented code 1..5; not measured length.
+  uint8_t duration{13}; ///< CDSCR3 high byte, raw code 0..255.
+  uint8_t initialSkip{7}; ///< CDSCR3 low byte, raw code 0..255.
+  uint8_t shadowAverage{2}; ///< TDR175 code 0..7; no inferred time unit.
+  uint8_t forwardShadow{4}; ///< TDR175 code 0..15.
+  uint8_t locationThreshold{0}; ///< TDR176 code 0..31.
+  uint8_t shortThreshold{0}; ///< CDSCR4 code 0..31.
+  uint8_t pulseWidth{2}; ///< TDR178 code 0..7.
 };
 /// @brief Copied manual plan with explicit disruptive-maintenance admission.
 struct CableSettings {
   CableRecipe recipe{CableRecipe::SNLA428}; ///< Exact six-run recipe or raw single capture.
-  uint8_t runMask{0x3F}; ///< SNLA428 subset bits in CableRun order; RAW requires1.
+  uint8_t runMask{0x3F}; ///< SNLA428 subset bits in CableRun order; RAW requires 1.
   CableControls controls{}; ///< Used only for RAW; SNLA428 owns its exact controls.
   bool maintenanceAdmitted{false}; ///< Normal MAC/EtherCAT traffic is quiesced.
   bool peerQuiet{false}; ///< Owner disconnected or silenced the peer; link-down is also checked.
@@ -498,12 +498,12 @@ enum class CableRunState : uint8_t {
 struct CableSample {
   CableRunState state{CableRunState::NOT_RUN}; ///< Request progress, not cable quality.
   CableWord cdcr{}; ///< Full CDCR completion/fail word.
-  CableWord index{}; ///< Full0180 location word.
-  CableWord amplitude{}; ///< Full0185 amplitude word.
-  CableWord peak{}; ///< Full018A peak word.
+  CableWord index{}; ///< Full 0180 location word.
+  CableWord amplitude{}; ///< Full 0185 amplitude word.
+  CableWord peak{}; ///< Full 018A peak word.
   bool triggerAccepted{false}; ///< Trigger frame completed successfully.
   bool triggerPossible{false}; ///< Trigger may have affected hardware despite error.
-  bool freshnessObserved{false}; ///< Post-trigger start1 or done0 was actually observed.
+  bool freshnessObserved{false}; ///< Post-trigger start 1 or done 0 was actually observed.
   bool failed{false}; ///< CDCR fail bit; captured data remains raw evidence.
 };
 /// @brief Fixed retained capture plan; raw data has no hardware-history-loss semantics.
@@ -543,15 +543,15 @@ struct CableDiagnosis {
   CableRun run{CableRun::RUN_1A}; ///< Meaningful only with distanceValid.
   double metres{0}; ///< Source-implied value, not calibrated accuracy.
   bool distanceValid{false}; ///< False for NO_PEAK; zero numeric default is not a distance.
-  bool amplitudeAtLimit{false}; ///< Raw7F; saturation behavior is not inferred.
-  bool rawBit11{false}; ///< Raw018A bit11 without invented polarity.
-  bool rawBit5{false}; ///< Raw018A bit5 without invented polarity.
+  bool amplitudeAtLimit{false}; ///< Raw 7F; saturation behavior is not inferred.
+  bool rawBit11{false}; ///< Raw 018A bit 11 without invented polarity.
+  bool rawBit5{false}; ///< Raw 018A bit 5 without invented polarity.
 };
-/// @brief Validate settings without I/O; source tables8-54..60 and SNLA428 table2-1.
+/// @brief Validate settings without I/O; source tables 8-54..60 and SNLA428 table 2-1.
 /// @param[in] settings Complete request, including maintenance/peer/HARD admission.
 /// @return OK or INVALID_PARAM/INVALID_CONFIG; no state changes.
 Status validateCableSettings(const CableSettings& settings) noexcept;
-/// @brief Independently derived SNLA428 table2-5 helper over complete retained samples.
+/// @brief Independently derived SNLA428 table 2-5 helper over complete retained samples.
 /// @param[in] result Fresh complete selected-recipe capture; failed/incomplete/raw plans reject.
 /// @param[in] propagationDelayNsPerM Positive finite ns/m; Cat5/5e5.35,Cat6 5,Cat7 4.6 are note examples.
 /// @param[out] diagnosis Unchanged on failure; NO_PEAK has no valid distance.
@@ -585,14 +585,14 @@ enum class ConfigurationTrust : uint8_t {
 /// @brief Explicit software power request, never inferred from the power pin.
 enum class PowerRequest : uint8_t {
   NORMAL, ///< Clear software power-down once; a pin can still block wake.
-  IEEE_POWER_DOWN, ///< Assert BMCR11; no separate actual-state register exists.
+  IEEE_POWER_DOWN, ///< Assert BMCR 11; no separate actual-state register exists.
   DEEP_POWER_DOWN ///< Source-gated: no proved exit/clock-ready procedure; rejects before I/O.
 };
-/// @brief Complete opt-in policy. SNLS647I 8.3.6 and tables8-19/35/40.
+/// @brief Complete opt-in policy. SNLS647I 8.3.6 and tables 8-19/35/40.
 struct PowerSettings {
   PowerRequest request{PowerRequest::NORMAL}; ///< Software intent, distinct from BMCR's software/pin OR.
-  bool activeSleep{false}; ///< PHYSCR14:12=110; successful policy need not enter sleep.
-  bool disablePll{false}; ///< PHYSCR15, allowed only with IEEE_POWER_DOWN.
+  bool activeSleep{false}; ///< PHYSCR 14:12=110; successful policy need not enter sleep.
+  bool disablePll{false}; ///< PHYSCR 15, allowed only with IEEE_POWER_DOWN.
   bool maintenanceAdmitted{false}; ///< Application permits link/power disruption.
   bool clockLossApproved{false}; ///< Application permits loss of PHY-generated clocks.
   bool managementClockAvailable{false}; ///< Board guarantees the reference/MDIO access needed through transition.
@@ -600,16 +600,16 @@ struct PowerSettings {
 /// @brief Read indications only, not measured clock, supply or partner readiness.
 enum class PowerState : uint8_t {
   UNKNOWN, ///< Incomplete or stale observation.
-  NORMAL_INDICATED, ///< BMCR11=0 and BISCR8=1; no clock/partner qualification.
-  ACTIVE_SLEEP_INDICATED, ///< BMCR11=0 and BISCR8=0 under enabled active-sleep policy.
-  POWER_DOWN_INDICATED, ///< BMCR11=1, a software/pin OR rather than actual-state proof.
-  WAKE_BLOCKED_OR_UNCONFIRMED ///< Owner requested normal but BMCR11 remains high.
+  NORMAL_INDICATED, ///< BMCR 11=0 and BISCR 8=1; no clock/partner qualification.
+  ACTIVE_SLEEP_INDICATED, ///< BMCR 11=0 and BISCR 8=0 under enabled active-sleep policy.
+  POWER_DOWN_INDICATED, ///< BMCR 11=1, a software/pin OR rather than actual-state proof.
+  WAKE_BLOCKED_OR_UNCONFIRMED ///< Owner requested normal but BMCR 11 remains high.
 };
 /// @brief Passive power intent and independently valid raw evidence.
 struct PowerSnapshot {
   PowerSettings desired{}; ///< Last admitted request, retained on failure/cancellation.
   bool desiredValid{false}; ///< Explicit policy ownership; no default power activation.
-  bool requestedPowerDown{false}; ///< Owner software intent, never sampled BMCR11.
+  bool requestedPowerDown{false}; ///< Owner software intent, never sampled BMCR 11.
   bool observedBmcrPowerDown{false}; ///< Hardware software/pin OR when bmcrValid.
   uint16_t rawBmcr{0}; ///< Latest returned BMCR.
   uint16_t rawPhyscr{0}; ///< Latest returned PHYSCR.
@@ -638,23 +638,23 @@ struct CableAutorunSnapshot {
 };
 /// @brief Selected interrupt output route; mux writes belong to the later pin owner.
 enum class InterruptPin : uint8_t {
-  INTR_PWRDN, ///< Pin21: BASIC INT or ENHANCED direction selected by OE.
-  LED1, ///< Requires live mux0304=4; ENHANCED also requires GPIO availability.
+  INTR_PWRDN, ///< Pin 21: BASIC INT or ENHANCED direction selected by OE.
+  LED1, ///< Requires live mux 0304=4; ENHANCED also requires GPIO availability.
   LED2 ///< ENHANCED only; MII additionally requires declared unused COL.
 };
 /// @brief Complete opt-in policy; masks use named cmd::MASK_MISR*_ENABLE fields.
-/// @note SNLS647I tables8-35..37/74..78/91. Board declarations are permissions,
+/// @note SNLS647I tables 8-35..37/74..78/91. Board declarations are permissions,
 /// not measurements. No mux, GPIO, MCU ISR or scheduler is configured here.
 struct InterruptSettings {
-  uint16_t misr1Mask{0}; ///< Eight enable bits; reject bits outside00FF before I/O.
+  uint16_t misr1Mask{0}; ///< Eight enable bits; reject bits outside 00FF before I/O.
   uint16_t misr2Mask{0}; ///< Eight enable bits, distinct source map from MISR1.
   InterruptSharedSource sharedSource{InterruptSharedSource::WAKE}; ///< POLARITY or WAKE; UNKNOWN is not a setting.
   InterruptPin pin{InterruptPin::INTR_PWRDN}; ///< Pin route to verify before mutation.
-  bool activeLow{true}; ///< PHYSCR3; external electrical levels remain unqualified.
-  bool globalEnable{false}; ///< PHYSCR1; disabled delivery does not clear evidence.
-  bool outputEnable{true}; ///< PHYSCR0 in ENHANCED; ignored/preserved in BASIC.
+  bool activeLow{true}; ///< PHYSCR 3; external electrical levels remain unqualified.
+  bool globalEnable{false}; ///< PHYSCR 1; disabled delivery does not clear evidence.
+  bool outputEnable{true}; ///< PHYSCR 0 in ENHANCED; ignored/preserved in BASIC.
   bool maintenanceAdmitted{false}; ///< Application admits disruptive pin/mask changes.
-  bool pinAvailable{false}; ///< Application owns selected route AND pin21's role; alternate mux does not disconnect pin21.
+  bool pinAvailable{false}; ///< Application owns selected route AND pin 21's role; alternate mux does not disconnect pin 21.
   bool led1ClockUnused{false}; ///< Required board declaration for ENHANCED LED1.
   bool colUnused{false}; ///< Required board declaration for ENHANCED MII LED2.
   bool powerDownInputSafe{false}; ///< Required whenever ENHANCED OE=0 is requested.
@@ -675,7 +675,7 @@ struct InterruptSnapshot {
   bool observedStale{true}; ///< Incomplete verification or external/reset uncertainty.
   bool timeValid{false}; ///< Complete verification timestamp validity.
   uint64_t observedAtUs{0}; ///< Microsecond upper bound; zero is valid.
-  bool basicStrapInterrupt{false}; ///< Observed BASIC mode gives pin21 its INT role; OE has no direction meaning.
+  bool basicStrapInterrupt{false}; ///< Observed BASIC mode gives pin 21 its INT role; OE has no direction meaning.
   InterruptSharedSource selector{InterruptSharedSource::UNKNOWN}; ///< Current attribution context; unknown through transitions.
   bool testMayBeActive{false}; ///< Accepted/uncertain stimulus until explicit clear or reset restoration.
   Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No interrupt configuration"}; ///< Last policy/stimulus outcome.
@@ -785,14 +785,14 @@ enum class PinFunction : uint8_t {
   LED, ///< Normal LED source with optional documented force controls.
   WAKE, ///< Matching existing WoL route only; source configuration remains with WoL.
   INTERRUPT, ///< Matching existing IRQ pin only; masks and source remain with IRQ.
-  COLLISION3, ///< LED2 table8-76 COL code3, MII only.
-  COLLISION5, ///< LED2 table8-76 COL code5, MII only.
-  COLLISION6, ///< LED2 table8-76 COL code6, MII only.
-  HIGH, ///< LED2 constant-high mux7.
-  TX_ERROR, ///< Pin31 figure/table contradiction; source-gated, never guessed.
+  COLLISION3, ///< LED2 table 8-76 COL code 3, MII only.
+  COLLISION5, ///< LED2 table 8-76 COL code 5, MII only.
+  COLLISION6, ///< LED2 table 8-76 COL code 6, MII only.
+  HIGH, ///< LED2 constant-high mux 7.
+  TX_ERROR, ///< Pin 31 figure/table contradiction; source-gated, never guessed.
   CLOCK ///< Clock mux permissions remain source-gated; no generic clock recipe.
 };
-/// @brief Source encodings from SNLS647I tables8-49/85; reserved15 is rejected.
+/// @brief Source encodings from SNLS647I tables 8-49/85; reserved 15 is rejected.
 enum class LedSource : uint8_t {
   LINK, ///< Link indication.
   RX_TX, ///< Receive or transmit activity.
@@ -824,7 +824,7 @@ enum class LedDrive : uint8_t {
 };
 /// @brief One pin's source-backed settings; no independent object or bus owner.
 struct PinSetting {
-  PinFunction function{PinFunction::UNOWNED}; ///< Selected role; pin0/3 admit LED only.
+  PinFunction function{PinFunction::UNOWNED}; ///< Selected role; pin 0/3 admit LED only.
   LedSource source{LedSource::LINK}; ///< Used only with LED; shared collector owns latch acknowledgements.
   LedPolarity polarity{LedPolarity::PRESERVE}; ///< Optional polarity override on LED0/1/2.
   LedDrive drive{LedDrive::NORMAL}; ///< Physical low/high override on LED0/1/2.
@@ -833,7 +833,7 @@ struct PinSetting {
 struct PinSettings {
   PinSetting pins[4]{}; ///< Array index is LED0..3, not physical package pin number.
   bool blinkOwned{false}; ///< Own common LEDCR blink period when true.
-  uint8_t blinkCode{2}; ///< Codes0..3 mean50/100/200/500ms; no measured timing claim.
+  uint8_t blinkCode{2}; ///< Codes 0..3 mean 50/100/200/500ms; no measured timing claim.
   bool stretchOwned{false}; ///< Own common PHYCR pulse-stretch bypass bit.
   bool stretchBypass{false}; ///< True bypasses pulse stretching.
   bool led0SwapOwned{false}; ///< Own separate MLEDCR polarity-swap bit, ENHANCED only.
@@ -842,7 +842,7 @@ struct PinSettings {
   bool maintenanceAdmitted{false}; ///< Owner permits disruptive pin reconfiguration.
   bool macStopped{false}; ///< Owner stopped MAC use while changing interface-shared pins.
   bool outputsQuiesced{false}; ///< Owner admits output transitions; no silicon glitch-free promise.
-  uint8_t availableMask{0}; ///< Bits0..3 release board consumers; LED2/3 also require matching live RCSR mode.
+  uint8_t availableMask{0}; ///< Bits 0..3 release board consumers; LED2/3 also require matching live RCSR mode.
   bool led1ClockUnused{false}; ///< No consumer depends on LED1/CLKOUT during this profile.
   bool colUnused{false}; ///< Required for non-COL roles on ENHANCED MII LED2.
 };
@@ -855,7 +855,7 @@ struct PinSnapshot {
   bool timeValid{false}; ///< Completion timestamp validity; zero may be valid.
   uint64_t observedAtUs{0}; ///< Conservative completion upper bound, microseconds.
   uint16_t raw[10]{}; ///< LEDCR, PHYCR, MLEDCR, LEDCFG, LEDCFG2, IO_CFG1, GPIO0..3 in that order.
-  uint16_t validMask{0}; ///< Bits0..9 identify successfully retained words; stale values remain historical.
+  uint16_t validMask{0}; ///< Bits 0..9 identify successfully retained words; stale values remain historical.
   Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No pin observation"}; ///< Last apply/replay result.
 };
 /// @brief One bounded direct pin application; restoration uses a separate initialize result.
@@ -889,14 +889,14 @@ enum class ClockOutput : uint8_t {
 /// @brief Persistent exact-part electrical intent; SNLS647I tables 8-73/79..81/86.
 struct AnalogSettings {
   bool amplitudeOwned{false}; ///< Own both 100M VOD words; legal split-code transition is mandatory.
-  uint8_t minusMdi{0x30}; ///< Negative codes28..38:150..50 percent in6.25 percent steps.
-  uint8_t minusMdix{0x30}; ///< Negative codes28..38:150..50 percent in6.25 percent steps.
-  uint8_t plusMdi{0x10}; ///< Positive codes08..18:50..150 percent in6.25 percent steps.
-  uint8_t plusMdix{0x10}; ///< Positive codes08..18:50..150 percent in6.25 percent steps.
+  uint8_t minusMdi{0x30}; ///< Negative codes 28..38:150..50 percent in 6.25 percent steps.
+  uint8_t minusMdix{0x30}; ///< Negative codes 28..38:150..50 percent in 6.25 percent steps.
+  uint8_t plusMdi{0x10}; ///< Positive codes 08..18:50..150 percent in 6.25 percent steps.
+  uint8_t plusMdix{0x10}; ///< Positive codes 08..18:50..150 percent in 6.25 percent steps.
   uint8_t zeroCode{0}; ///< Raw six-bit zero DAC, no physical scale.
-  bool terminationOwned{false}; ///< Explicitly tune after mandatory4A40 initialization.
-  uint8_t mdiTermination{4}; ///< Independent raw codes0..15; table units are unspecified.
-  uint8_t mdixTermination{4}; ///< Independent raw codes0..15; table units are unspecified.
+  bool terminationOwned{false}; ///< Explicitly tune after mandatory 4A40 initialization.
+  uint8_t mdiTermination{4}; ///< Independent raw codes 0..15; table units are unspecified.
+  uint8_t mdixTermination{4}; ///< Independent raw codes 0..15; table units are unspecified.
   bool mdiTerminationEnable{true}; ///< Independent override enables.
   bool mdixTerminationEnable{true}; ///< Independent override enables.
   bool macSlewOwned{false}; ///< Own IOCTRL low five bits only.
@@ -908,7 +908,7 @@ struct AnalogSettings {
   bool maintenanceAdmitted{false}; ///< Owner authorizes temporary intermediate amplitudes.
   bool macStopped{false}; ///< MAC drained/stopped; does not imply analog transmitter disabled.
   bool fixtureAdmitted{false}; ///< Identified load/board/measurement conditions accepted by owner.
-  bool terminationOverrideAdmitted{false}; ///< Explicit departure from initialization4A40 permitted by owner.
+  bool terminationOverrideAdmitted{false}; ///< Explicit departure from initialization 4A40 permitted by owner.
 };
 /// @brief Passive electrical profile proof; partial words do not establish a complete profile.
 struct AnalogSnapshot {
@@ -924,17 +924,17 @@ struct AnalogSnapshot {
 };
 /// @brief Source-qualified compliance stimulus; instrument verdict is outside the PHY.
 enum class ComplianceMode : uint8_t {
-  TX100, ///< SNLA266B table5-1 forced100/full line stimulus.
-  NLP10, ///< Table5-2 forced10/full normal link pulses.
-  PRBS10, ///< Table5-4 PCS/BIST with owned BISCR701F=7001.
-  PATTERN10, ///< Table5-5 COMPT exception:0010|pattern0..D.
-  COUNT100 ///< Typed count0..31;0428 source gate rejects before I/O.
+  TX100, ///< SNLA266B table 5-1 forced 100/full line stimulus.
+  NLP10, ///< Table 5-2 forced 10/full normal link pulses.
+  PRBS10, ///< Table 5-4 PCS/BIST with owned BISCR 701F=7001.
+  PATTERN10, ///< Table 5-5 COMPT exception: 0010|pattern 0..D.
+  COUNT100 ///< Typed count 0..31; 0428 source gate rejects before I/O.
 };
 /// @brief Explicit compliance fixture admission; dwell belongs to the application.
 struct ComplianceOptions {
   ComplianceMode mode{ComplianceMode::TX100}; ///< Exact source procedure.
   PairSelection pair{PairSelection::MDI}; ///< Manual MDI/MDIX only; preserve PHYCR reserved/read-only fields.
-  uint8_t pattern{0}; ///<10M0..D;100M count0..31 retains separate E/F meaning.
+  uint8_t pattern{0}; ///< 10M 0..D; 100M count 0..31 retains separate E/F meaning.
   bool maintenanceAdmitted{false}; ///< Owner permits disruptive reset and stimulus.
   bool macStopped{false}; ///< No production traffic during the test.
   bool fixtureAdmitted{false}; ///< Operator accepted termination/probes/reference conditions.
@@ -942,7 +942,7 @@ struct ComplianceOptions {
 };
 /// @brief MII collision test admission; external TX_EN drives the actual timing stimulus.
 struct CollisionOptions {
-  LinkSpeed speed{LinkSpeed::UNKNOWN}; ///< Owner fixture-frequency policy: expected local10/100, checked before entry; not a silicon prerequisite.
+  LinkSpeed speed{LinkSpeed::UNKNOWN}; ///< Owner fixture-frequency policy: expected local 10/100, checked before entry; not a silicon prerequisite.
   bool maintenanceAdmitted{false}; ///< Owner excludes production traffic.
   bool macStopped{false}; ///< Owner excludes production traffic.
   bool colAvailable{false}; ///< Board mux and external generator admitted by owner.
@@ -1021,7 +1021,7 @@ struct QualitySnapshot {
 };
 /// @brief Raw MSE observation with cached link context; no SNR or calibrated units.
 struct SignalQualitySnapshot {
-  uint16_t rawMse{0}; ///< DEVAD31:0218 word; 0225 alternative remains source-gated.
+  uint16_t rawMse{0}; ///< DEVAD 31:0218 word; 0225 alternative remains source-gated.
   bool valid{false}; ///< A complete terminal read succeeded.
   bool stale{true}; ///< Failed refresh or known device/link change.
   bool timeValid{false}; ///< Observed timestamp is available; zero is valid.
@@ -1035,26 +1035,26 @@ struct InterfaceSettings {
   MacInterface interface{MacInterface::UNKNOWN}; ///< Must equal the binding's declared MII/RMII wiring.
   RmiiClock rmiiClock{RmiiClock::LEADER_25MHZ}; ///< RMII reference direction; dormant default in MII.
   bool txClockShift{false}; ///< RCSR[8], admitted only in RMII follower mode.
-  bool revision10{false}; ///< True selects RMII1.0; false selects RMII1.2.
-  uint8_t elasticityCode{0}; ///< Codes0/1/2/3 mean14/2/6/10bits, not increasing depth.
+  bool revision10{false}; ///< True selects RMII 1.0; false selects RMII 1.2.
+  uint8_t elasticityCode{0}; ///< Codes 0/1/2/3 mean 14/2/6/10 bits, not increasing depth.
   uint32_t maxFrameBytes{1518}; ///< Declared maximum packet bytes for the elasticity bound.
-  uint16_t clockTolerancePpm{50}; ///< Per-clock +/- tolerance: admitted source cases50 or100ppm.
+  uint16_t clockTolerancePpm{50}; ///< Per-clock +/- tolerance: admitted source cases 50 or 100ppm.
   bool rxDv{false}; ///< RMII output RX_DV instead of CRS_DV; required for repeater wiring.
   bool repeater{false}; ///< One side of an explicitly wired two-PHY repeater, not pair readiness.
   bool fastRxDv{false}; ///< CR1[1]: assert on /J/ rather than /JK/.
   bool oddNibbleDisable{false}; ///< CR2[1]: one DISABLES odd-nibble detection.
   bool collisionFullDuplex{false}; ///< PHYSCR[4]: also generate COL in full duplex, MII only.
-  bool shortIpg{false}; ///< GENCFG[3]:120ns rather than200ns minimum IPG.
+  bool shortIpg{false}; ///< GENCFG[3]: 120ns rather than 200ns minimum IPG.
   ClockOutput clockOutput{ClockOutput::UNOWNED}; ///< Optional ENHANCED clock/LED1 route ownership.
   bool isolationOwned{false}; ///< Explicitly own BMCR[10], separately from power-down.
-  bool isolate{false}; ///< Isolate MAC; stops RMII-leader50MHz output, not SMI.
+  bool isolate{false}; ///< Isolate MAC; stops RMII-leader 50MHz output, not SMI.
   bool maintenanceAdmitted{false}; ///< Owner permits disruptive interface transitions.
   bool macStopped{false}; ///< MAC traffic and interface consumers are stopped.
   bool pinsAvailable{false}; ///< Board/interface pin assignments permit the complete request.
   bool referenceClockStable{false}; ///< Owner has established the required reference externally.
   bool managementClockAvailable{false}; ///< MDIO controller/reference remains usable through changes.
   bool clockChangeApproved{false}; ///< Owner approves clock removal AND reconnection; neither is implicit.
-  uint8_t referenceClockMHz{0}; ///< Actual declared reference25MHz or50MHz, matching the requested role.
+  uint8_t referenceClockMHz{0}; ///< Actual declared reference 25MHz or 50MHz, matching the requested role.
   bool repeaterWiringAdmitted{false}; ///< Crossed data/RX_DV and single-driver clock wiring are application-owned.
 };
 /// @brief Retained interface words and intent, distinct from observed working traffic.
@@ -1090,9 +1090,9 @@ struct InterfaceResult {
 /// @brief Exact-part wake indication route; board wiring is separately admitted.
 enum class WakeRoute : uint8_t {
   STATUS_ONLY, ///< Matching/status without a physical output requirement.
-  INTERRUPT, ///< Existing verified task27 WAKE interrupt policy and pin route.
-  LED1, ///< Own LED1 mux2; receiver stays disabled while routing changes.
-  LED2, ///< Own ENHANCED LED2 mux2; MII COL must be unused.
+  INTERRUPT, ///< Existing verified task 27 WAKE interrupt policy and pin route.
+  LED1, ///< Own LED1 mux 2; receiver stays disabled while routing changes.
+  LED2, ///< Own ENHANCED LED2 mux 2; MII COL must be unused.
   LED0, ///< Read-only mux contradiction; rejected until source authority exists.
   LED3 ///< Read-only mux contradiction; rejected until source authority exists.
 };
@@ -1102,9 +1102,9 @@ struct WakeSettings {
   bool secureOn{false}; ///< Require the password when enabled; disable always clears the hardware flag.
   bool crcGate{true}; ///< Suppress indication on bad CRC when true.
   bool levelMode{true}; ///< Level-change indication; false selects a pulse.
-  uint8_t pulseWidth{0}; ///< Codes0..3 select8/16/32/64 cycles at125MHz; only applies in pulse mode.
-  uint8_t mac[6]{}; ///< Octet0 is first transmitted; all48-bit values are representable.
-  uint8_t password[6]{}; ///< Secure-ON octet0 first; no cryptographic security claim.
+  uint8_t pulseWidth{0}; ///< Codes 0..3 select 8/16/32/64 cycles at 125MHz; only applies in pulse mode.
+  uint8_t mac[6]{}; ///< Octet 0 is first transmitted; all 48-bit values are representable.
+  uint8_t password[6]{}; ///< Secure-ON octet 0 first; no cryptographic security claim.
   WakeRoute route{WakeRoute::STATUS_ONLY}; ///< Owned even while disabled; STATUS_ONLY releases the route requirement, not the physical mux.
   bool maintenanceAdmitted{false}; ///< Owner permits disruptive detector configuration.
   bool receiveTrafficQuiesced{false}; ///< Owner coordinated traffic; disable readback cannot prove quiescence.
@@ -1130,20 +1130,20 @@ struct WakeSnapshot {
   bool controlValid{false}; ///< Current retained control word is valid.
   bool rxfsValid{false}; ///< Latest requested RXFS read succeeded.
   bool misr2Valid{false}; ///< Latest requested MISR2 read succeeded.
-  uint8_t credentialValidMask{0}; ///< Bits0..2 MAC words,3..5 password words; independent partial validity.
-  bool enabled{false}; ///< Observed bit7 when controlValid; reset does not mean disabled.
-  bool secureOn{false}; ///< Observed bit5 when controlValid.
-  bool magicMatch{false}; ///< Observed RH/W bit0; stability remains physical Q3.
-  bool crcGate{false}; ///< Observed bit12 when controlValid.
-  bool levelMode{false}; ///< Observed bit8 when controlValid.
-  uint8_t pulseWidth{0}; ///< Observed code0..3 when controlValid.
+  uint8_t credentialValidMask{0}; ///< Bits 0..2 MAC words, 3..5 password words; independent partial validity.
+  bool enabled{false}; ///< Observed bit 7 when controlValid; reset does not mean disabled.
+  bool secureOn{false}; ///< Observed bit 5 when controlValid.
+  bool magicMatch{false}; ///< Observed RH/W bit 0; stability remains physical Q3.
+  bool crcGate{false}; ///< Observed bit 12 when controlValid.
+  bool levelMode{false}; ///< Observed bit 8 when controlValid.
+  uint8_t pulseWidth{0}; ///< Observed code 0..3 when controlValid.
   Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No wake observation"}; ///< Last operation/acquisition result.
 };
 
 /// @brief Software request evidence, never PHY or partner readiness.
 enum class ForcedLpi : uint8_t {
-  OFF, ///< No owned request, or bit12 cleared and verified/reset reconciled.
-  REQUESTED, ///< Bit12 set and verified; MAC traffic must stay drained.
+  OFF, ///< No owned request, or bit 12 cleared and verified/reset reconciled.
+  REQUESTED, ///< Bit 12 set and verified; MAC traffic must stay drained.
   UNCERTAIN ///< Forced LPI may remain active; frames sent now can be lost.
 };
 /// @brief Explicit owner admission for disruptive legacy-MAC LPI entry.
@@ -1177,8 +1177,8 @@ struct LpiSnapshot {
 struct EeeSettings {
   bool enabled{false}; ///< Enable the exact eighteen-row recipe; disable uses HARD/replay.
   uint16_t advertisement{0x0002}; ///< Only 0 or 2 (100BASE-TX EEE); no other technologies.
-  bool bypassBit0{false}; ///< Capability bypass control at EEECFG3 bit0; true encodes zero.
-  bool bypassBit3{false}; ///< Capability bypass control at EEECFG3 bit3; true encodes zero.
+  bool bypassBit0{false}; ///< Capability bypass control at EEECFG3 bit 0; true encodes zero.
+  bool bypassBit3{false}; ///< Capability bypass control at EEECFG3 bit 3; true encodes zero.
   bool maintenanceAdmitted{false}; ///< Application admits link disruption and shared-bus silence.
 };
 /// @brief EEE policy and bounded observation; source-implied fields await physical Q1.
@@ -1190,19 +1190,19 @@ struct EeeSnapshot {
   bool valid{false}; ///< Complete ordered observation exists, not simultaneous silicon sampling.
   bool timeValid{false}; ///< observedAtUs may legitimately be zero.
   uint64_t observedAtUs{0}; ///< Microseconds at last complete observation.
-  uint16_t capability{0}; ///< Raw MMD3.20.
-  uint16_t advertisement{0}; ///< Raw MMD7.60.
-  uint16_t partner{0}; ///< Raw MMD7.61.
-  uint16_t status{0}; ///< Raw MMD3.1; bits11:10 latched, 9:8 current (source-implied).
-  uint16_t wakeErrors{0}; ///< Raw saturating RC MMD3.22; FFFF is a lower bound.
-  uint16_t control{0}; ///< Vendor04D1; only mask1009 has admitted field meaning.
+  uint16_t capability{0}; ///< Raw MMD 3.20.
+  uint16_t advertisement{0}; ///< Raw MMD 7.60.
+  uint16_t partner{0}; ///< Raw MMD 7.61.
+  uint16_t status{0}; ///< Raw MMD 3.1; bits 11:10 latched, 9:8 current (source-implied).
+  uint16_t wakeErrors{0}; ///< Raw saturating RC MMD 3.22; FFFF is a lower bound.
+  uint16_t control{0}; ///< Vendor 04D1; only mask 1009 has admitted field meaning.
   bool capabilityValid{false}; ///< Latest capability word returned successfully.
   bool advertisementValid{false}; ///< Latest local word returned successfully.
   bool partnerValid{false}; ///< Latest partner word returned successfully.
   bool statusValid{false}; ///< Latest status word returned successfully; collector owns history.
   bool wakeErrorsValid{false}; ///< Latest counter word returned successfully.
   bool controlValid{false}; ///< Latest admitted masked-control read returned successfully.
-  bool negotiatedValid{false}; ///< Complete coherent AN100/full observation and known controls.
+  bool negotiatedValid{false}; ///< Complete coherent AN 100/full observation and known controls.
   bool negotiated{false}; ///< Local/partner EEE100 advertised; does not prove current LPI.
   Status lastStatus{}; ///< Latest operation or acquisition outcome.
 };
@@ -1334,9 +1334,9 @@ public:
   /// @param[in] token Exact occupied token; stale/foreign tokens cannot access new results.
   /// @param[in] maxFrames Per-poll allowance; zero/short slices yield without splitting a batch.
   /// @return IN_PROGRESS or frozen terminal status; token/lifetime errors perform no I/O.
-  /// @note SNLS647I table8-19 PCS uses literal 00=8000; completion polls that bit clear.
-  /// Every initialization writes 31:030E=4A40 and verifies FFC0 (table8-81).
-  /// HARD/RESTART use literal 1F=8000/4000 (table8-48), never sampled-word RMW.
+  /// @note SNLS647I table 8-19 PCS uses literal 00=8000; completion polls that bit clear.
+  /// Every initialization writes 31:030E=4A40 and verifies FFC0 (table 8-81).
+  /// HARD/RESTART use literal 1F=8000/4000 (table 8-48), never sampled-word RMW.
   /// Any attempted HARD write publishes a persistent max(2000, interval) us floor
   /// anchored after callback return; the bus owner also excludes other PHYs.
   /// Waits use conservative post-callback time; no controller lock spans polls.
@@ -1403,7 +1403,7 @@ public:
   /// @return Current temporary flag and retained start identity/options; no packet proof.
   LoopbackSnapshot loopbackSnapshot() const noexcept;
 
-  /// @brief Admit BIST setup with no bus/clock calls; tables8-40/45/46 and section8.3.15.
+  /// @brief Admit BIST setup with no bus/clock calls; tables 8-40/45/46 and section 8.3.15.
   /// @param[in] options Legal fields, maintenance and optional source-backed loopback prerequisites.
   /// @param[in] budget Finite setup deadline/frame/poll allowance.
   /// @param[out] token Assigned only on admission; consume result before acquisition.
@@ -1416,7 +1416,7 @@ public:
   /// @param[out] token New token on admission; result.bist retains partial samples on failure.
   /// @return IN_PROGRESS or local error; requires active initialized session.
   /// @note Uses one atomic snapshot-write/read batch and the single collector. Zero errors
-  /// remain inconclusive under bist_result_semantics; bit15-zero unlatch is never invented.
+  /// remain inconclusive under bist_result_semantics; bit 15-zero unlatch is never invented.
   Status startBistAcquire(const BistObservation& observation, const OperationBudget& budget, OperationToken& token) noexcept;
   /// @brief Admit PRBS disable and full shared restoration, even after failed start/acquire.
   /// @param[in] budget New finite stop allowance; no hidden retry or automatic cleanup.
@@ -1435,7 +1435,7 @@ public:
   /// @param[out] token Assigned only on admission; consume result exactly once.
   /// @return IN_PROGRESS or local rejection; requires initialized VERIFIED desired profile.
   /// @note CR1 autorun, active modes, live link and CDCR calibration reject before mutation.
-  /// Tables8-47/54..71 and SNLA428 table2-1; no maximum completion time is invented.
+  /// Tables 8-47/54..71 and SNLA428 table 2-1; no maximum completion time is invented.
   Status startCableTest(const CableSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept;
   /// @brief Admit a bounded nondestructive reread of this session's last triggered row.
   /// @param[in] budget New finite allowance; no repeated trigger or automatic retry.
@@ -1446,7 +1446,7 @@ public:
   /// @param[in] budget Independent restoration allowance; failure retains the OP-9 barrier.
   /// @param[out] token New token only on admission.
   /// @return IN_PROGRESS or local rejection; allowed after failed/cancelled start.
-  /// @note Opaque0411/0416 are never read for replay. Live CDCR14 rejects clear here (prompt35).
+  /// @note Opaque 0411/0416 are never read for replay. Live CDCR 14 rejects clear here (prompt 35).
   Status stopCableTest(const OperationBudget& budget, OperationToken& token) noexcept;
   /// @brief Copy partial/historical cable evidence without MDIO or clock calls.
   /// @return Fixed capture storage and outstanding temporary-state flag.
@@ -1456,17 +1456,17 @@ public:
   /// @param[in] budget Finite aggregate deadline/frame/stall allowance.
   /// @param[out] token Assigned only on admission; take the retained result before reuse.
   /// @return IN_PROGRESS or syntax, lifecycle, cleanup, initialization or budget error.
-  /// @note SNLS647I 8.3.16.1/table8-28. Apply only0100, preserveFEFF, verify0100.
+  /// @note SNLS647I 8.3.16.1/table 8-28. Apply only 0100, preserve FEFF, verify 0100.
   /// Desired intent becomes authoritative at admission. Failure/cancel retains
   /// effects behind OP-9; startInitialize replays it with a new budget/result.
   /// Disable is the manual handoff; engine quiescence remains unknown.
   Status startConfigureCableAutorun(const CableAutorunOptions& options, const OperationBudget& budget,
                                    OperationToken& token) noexcept;
   /// @brief Admit one bounded raw autorun observation using the shared cable result path.
-  /// @param[in] budget Finite allowance for14 frames in5 indivisible callbacks.
+  /// @param[in] budget Finite allowance for 14 frames in 5 indivisible callbacks.
   /// @param[out] token Assigned only on admission; words are retained in result.cable.
   /// @return IN_PROGRESS or lifecycle, temporary-session, initialization or budget error.
-  /// @note SNLS647I tables8-47/61/66/71: read CDCR,0180,0185,018A,CDCR once.
+  /// @note SNLS647I tables 8-47/61/66/71: read CDCR,0180,0185,018A,CDCR once.
   /// No trigger, wait or retry. Even equal
   /// bookends leave freshness/coherence unknown and aggregate stale. Each returned
   /// nondestructive word has independent validity/time; failures imply no history loss.
@@ -1480,7 +1480,7 @@ public:
   /// @param budget Aggregate reset/recipe/replay bound; short poll slices yield whole batches.
   /// @param[out] token Changed only on admission.
   /// @return IN_PROGRESS or local error; accepted effects retain OP-9 debt on failure.
-  /// @note SNLS647I8.3.3.1 eighteen rows and Q1 self-checks. Disable uses HARD;
+  /// @note SNLS647I 8.3.3.1 eighteen rows and Q1 self-checks. Disable uses HARD;
   /// all owned EEE restoration selects HARD once, then shared VOD/profile replay.
   Status startConfigureEee(const EeeSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept;
   /// @brief Acquire EEE words and coherent AN bookends; destructive words use the collector.
@@ -1499,11 +1499,11 @@ public:
   /// @param[out] result Unchanged on preflight rejection; retained partial result after admitted I/O.
   /// @param[in] budget Aggregate deadline/frames covers every complete RMW/readback.
   /// @return Terminal validation/transport/verification status; no retry or implicit restoration.
-  /// @note SNLS647I8.3.18/tables8-42/49/73..78/85/89. Slot must be idle; cancellation
+  /// @note SNLS647I 8.3.18/tables 8-42/49/73..78/85/89. Slot must be idle; cancellation
   /// cannot interrupt a synchronous callback. Failed effects retain OP-9 debt. Shared
   /// initialization replays the same procedure; physical output remains unqualified.
   /// LED2/3 first consume RCSR through the collector and require its current mode
-  /// to match declared wiring (tables5-1/8-41); a mux reset value is not proof.
+  /// to match declared wiring (tables 5-1/8-41); a mux reset value is not proof.
   Status configurePins(const PinSettings& settings, PinResult& result, const IoBudget& budget) noexcept;
   /// @brief Bus/clock-silent retained pin settings and observed values.
   /// @return Separate desired, valid and trusted evidence; serialize under the owner.
@@ -1513,7 +1513,7 @@ public:
   /// @param[in] budget Finite total deadline, frames and stalled-poll limit.
   /// @param[out] token Published only on successful admission.
   /// @return IN_PROGRESS or local rejection; source-gated requests perform no I/O.
-  /// @note Split MDIX codes use a verified low8 bridge; cancellation retains OP-9 debt.
+  /// @note Split MDIX codes use a verified low 8 bridge; cancellation retains OP-9 debt.
   Status startConfigureAnalog(const AnalogSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept;
   /// @brief Passive electrical configuration; no bus or clock calls.
   /// @return Desired, partial raw and verified state.
@@ -1529,7 +1529,7 @@ public:
   /// @param[out] token New retained stop token.
   /// @return IN_PROGRESS on admission; later startInitialize replays persistent state.
   Status stopCompliance(const OperationBudget& budget, OperationToken& token) noexcept;
-  /// @brief Start MII collision-test session; SNLS647I table8-19, external TX_EN required.
+  /// @brief Start MII collision-test session; SNLS647I table 8-19, external TX_EN required.
   /// @note Reset observed during the BMCR RMW stops with DEVICE_INVALIDATED
   /// unless a primary failure already occurred; possible stimulus retains debt.
   /// @param[in] options Expected speed and board/traffic admission.
@@ -1543,7 +1543,7 @@ public:
   /// @param[out] token New retained stop token.
   /// @return IN_PROGRESS or local failure; uncertain exit retains OP-9 debt.
   Status stopCollisionTest(const OperationBudget& budget, OperationToken& token) noexcept;
-  /// @brief Read CDCR once; if14 is high, submit adjacent clear/HARD writes then prove reset completion.
+  /// @brief Read CDCR once; if 14 is high, submit adjacent clear/HARD writes then prove reset completion.
   /// @param[in] options Explicit maintenance and reset admission.
   /// @param[in] budget Finite aggregate contingency/reset allowance.
   /// @param[out] token New retained result token.
@@ -1559,7 +1559,7 @@ public:
   /// @param[in] budget Finite total deadline/frames and stall allowance.
   /// @param[out] token Published only after full local validation.
   /// @return IN_PROGRESS on admission; invalid/source-gated requests perform no I/O.
-  /// @note SNLS647I8.3.17/tables8-28..30/35/44/51..53. Cancellation freezes effects;
+  /// @note SNLS647I 8.3.17/tables 8-28..30/35/44/51..53. Cancellation freezes effects;
   /// later startInitialize restores behind OP-9. No silicon latency or link claim.
   Status startConfigureQuality(const QualitySettings& settings, const OperationBudget& budget, OperationToken& token) noexcept;
   /// @brief Passive owned quality configuration; caller serializes all access.
@@ -1570,7 +1570,7 @@ public:
         snapshot.trust == ConfigurationTrust::VERIFIED;
     return snapshot;
   }
-  /// @brief One complete four-frame vendor MMD read, SNLS647I table8-72.
+  /// @brief One complete four-frame vendor MMD read, SNLS647I table 8-72.
   /// @param[out] snapshot Unchanged unless the complete terminal read succeeds.
   /// @param[in] budget Aggregate lock/controller allowance, minimum four frames.
   /// @return Transport/admission status; failure leaves cached sample stale at its old time.
@@ -1586,7 +1586,7 @@ public:
   /// @param[out] result Unchanged on local rejection; partial evidence after an invoked callback.
   /// @param[in] budget Aggregate deadline and frames for the complete synchronous pass.
   /// @return OK, local admission error, CONFIG_MISMATCH or terminal transport/budget failure.
-  /// @note SNLS647I8-19/28/29/35/41/73/84. RCSR reads consume RC through the
+  /// @note SNLS647I 8-19/28/29/35/41/73/84. RCSR reads consume RC through the
   /// single collector. Failed accepted writes leave OP-9 debt; restoration uses
   /// a separately admitted startInitialize. No clock-source switch or retry is automatic.
   Status configureInterface(const InterfaceSettings& settings, InterfaceResult& result, const IoBudget& budget) noexcept;
@@ -1599,7 +1599,7 @@ public:
   /// @param[in] budget Aggregate operation deadline/frames and finite stalled-poll limit.
   /// @param[out] token Assigned only on admission; poll and take the retained result.
   /// @return IN_PROGRESS or local validation/ownership error without mutation.
-  /// @note SNLS647I8.3.5/tables8-90..97. Disable/verify before credential changes,
+  /// @note SNLS647I 8.3.5/tables 8-90..97. Disable/verify before credential changes,
   /// verify all words, then enable last. Q3 gates physical live-reconfiguration safety.
   /// Owned settings extend shared reset restoration; no default WoL-off assumption.
   Status startConfigureWake(const WakeSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept;
@@ -1619,17 +1619,17 @@ public:
   /// @return Historical/partial values; trust includes any owned LED1 clock dependency.
   WakeSnapshot wakeSnapshot() const noexcept;
 
-  /// @brief Set forced TX LPI bit12 and verify it; SNLS647I8.3.4/7.6, OP-9.
+  /// @brief Set forced TX LPI bit 12 and verify it; SNLS647I 8.3.4/7.6, OP-9.
   /// @param[in] options Explicit MAC drain and maintenance admission.
   /// @param[out] result Unchanged on preflight rejection; diagnostic output on admitted failure too.
   /// @param[in] budget Aggregate exclusive deadline and at least nine frames.
-  /// @return OK proves bit12 readback only; failures preserve accepted/uncertain effects.
-  /// @note Requires current cached EEE100 negotiation, resolved100M link and normal power.
+  /// @return OK proves bit 12 readback only; failures preserve accepted/uncertain effects.
+  /// @note Requires current cached EEE 100 negotiation, resolved 100M link and normal power.
   /// One five-frame RMW and one four-frame readback; no wait, retry or operation token.
   /// Slot stays idle during dwell; OP-9 blocks unrelated mutations. Owner cancellation
   /// before entry means not calling; after entry use a separately budgeted stopLpi.
   Status startLpi(const LpiOptions& options, LpiResult& result, const IoBudget& budget) noexcept;
-  /// @brief Clear and verify bit12 only, preserving all other EEECFG3 bits.
+  /// @brief Clear and verify bit 12 only, preserving all other EEECFG3 bits.
   /// @param[out] result Diagnostic result, with the same publication rule as startLpi.
   /// @param[in] budget Separate nine-frame/two-callback aggregate allowance.
   /// @return OK proves the request cleared, not partner wake or MAC readiness.
@@ -1649,7 +1649,7 @@ public:
   /// @return IN_PROGRESS or local validation/ownership error. Poll uses one complete batch;
   /// failed/uncertain writes retain OP9 debt. Wake writes once, then reports blocked readback.
   /// @note Other owned persistent controls must stay verified through completion.
-  /// SNLS647I 8.3.6/table8-19/35/40. Isolation is preserved. No GPIO/rail operation.
+  /// SNLS647I 8.3.6/table 8-19/35/40. Isolation is preserved. No GPIO/rail operation.
   Status startConfigurePower(const PowerSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept;
   /// @brief Acquire BMCR/PHYSCR/BISCR once in one three-frame owned batch.
   /// @param[out] snapshot Unchanged on failure; passive snapshot retains partial words as stale.
@@ -1668,16 +1668,16 @@ public:
   /// @return IN_PROGRESS or local syntax/lifecycle/capability error, unchanged token on rejection.
   /// @note Polls preserve consumed events and verify all owned controls. Initialize
   /// replays owned policy; startVerify reads only. Needed LED mux changes occur
-  /// after disabling global delivery, with masked readback (SNLS647I8-75/76).
+  /// after disabling global delivery, with masked readback (SNLS647I 8-75/76).
   /// Other owned policies must stay verified; contradictory inter-poll selector,
   /// reset or identity observations prevent obsolete proof from completing.
   Status startConfigureInterrupts(const InterruptSettings& settings, const OperationBudget& budget,
                                   OperationToken& token) noexcept;
-  /// @brief Start retained PHYSCR2 software stimulus; requires verified owned IRQ policy.
+  /// @brief Start retained PHYSCR 2 software stimulus; requires verified owned IRQ policy.
   /// @param[in] budget Finite operation allowance; application owns observation duration.
   /// @param[out] token New token only on admission.
   /// @return IN_PROGRESS or local error. No callbacks during start.
-  /// @note Table8-35. Success proves register readback, not pin or MCU delivery.
+  /// @note Table 8-35. Success proves register readback, not pin or MCU delivery.
   /// Cancel is bus-silent; separately call stopInterruptTest after taking the result.
   Status startInterruptTest(const OperationBudget& budget, OperationToken& token) noexcept;
   /// @brief Admit explicit clear/readback of retained test stimulus, with a new budget/result.
@@ -1719,7 +1719,7 @@ public:
   void resetStatistics() noexcept;
 
   /// @brief Admit a complete negotiated or forced profile without MDIO or clock callbacks.
-  /// @param[in] settings AN advertisement or forced10/100 half/full, coupled routing/mirror and extension.
+  /// @param[in] settings AN advertisement or forced 10/100 half/full, coupled routing/mirror and extension.
   /// @param[in] options Optional bounded Clause 28 exchange/completion wait.
   /// @param[in] budget Exclusive aggregate deadline, frame and stall allowances.
   /// @param[out] token Assigned only on admission; result must be taken before reuse.
@@ -1727,8 +1727,8 @@ public:
   /// operation/barrier, initialization or budget errors otherwise, with no changes.
   /// @note SNLS647I 8.3.1/.2, tables 8-19/23..30/43; IEEE 802.3 Clause 28.
   /// Forced requires robust routing, no AN intent/options, and never accesses
-  /// ANAR. Automatic routing preserves PHYCR14; mirror sets both CR3 bits0060.
-  /// Extension owns CR2 bit0020 only, rejects forced10 and proves no partner agreement.
+  /// ANAR. Automatic routing preserves PHYCR 14; mirror sets both CR3 bits 0060.
+  /// Extension owns CR2 bit 0020 only, rejects forced 10 and proves no partner agreement.
   /// Admission copies desired intent and marks trust DIRTY. NP belongs only to
   /// this exchange. Failure/cancel stops without cleanup writes; restoration is
   /// a new initialization or eligible configuration operation. No VOD write here.
@@ -1760,7 +1760,7 @@ public:
   /// @return OK also for cable down, BUSY/OBSERVATION_CHANGED for inconsistent bookends,
   /// or binding, initialization, owner, clock, budget or exact transport error/detail.
   /// @pre Serialize all instance access and all bus participants; initialized accepted identity required.
-  /// @note SNLS647I tables8-19/20/23..25/29/34/43 and IEEE802.3 Table28B-3.
+  /// @note SNLS647I tables 8-19/20/23..25/29/34/43 and IEEE 802.3 Table 28B-3.
   /// Reads BMSR twice, PHYSTS, BMCR, ANAR, ALNPAR, ANER, PHYCR, BMSR, PHYSTS.
   /// Destructive words belong to the existing collector, even on partial failure.
   /// No retry or implicit configuration. OP-14 reset waits/quiet floors and an
@@ -1788,7 +1788,7 @@ public:
   /// @pre Initialized accepted exact part, awake normal profile, stopped application traffic.
   /// @return Validation/admission/transport status; successful or uncertain write invalidates
   /// identity/readiness/trust. Reinitialize/replay before managed use; no automatic retry.
-  /// @note SNLS647I table8-19: neutralize RESET/RESTART and never echo the power-pin OR.
+  /// @note SNLS647I table 8-19: neutralize RESET/RESTART and never echo the power-pin OR.
   Status modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget& budget) noexcept;
 
   /// @brief Acquire and accept identity at the bound address in one two-read batch.
@@ -1804,7 +1804,7 @@ public:
   /// Uses the ordinary raw-read guard; no reset, scan, write or retry is performed.
   Status readIdentity(DeviceIdentity& identity, const IoBudget& budget) noexcept;
   /// @brief Read raw PHYIDR1/2 at an explicit bus address without accepting or retargeting a device.
-  /// @param[in] phyAddress Clause22 address0..31; all other values reject before callbacks.
+  /// @param[in] phyAddress Clause 22 address 0..31; all other values reject before callbacks.
   /// @param[out] id1 First sixteen-bit ID word, assigned only on complete success.
   /// @param[out] id2 Second ID word, also unchanged on failure.
   /// @param[in] budget Exclusive absolute deadline and at least two frames; one terminal batch.
@@ -1851,7 +1851,7 @@ public:
   Status writeClause22(uint32_t registerAddress, uint32_t value,
                        const IoBudget& budget) noexcept;
   /// @brief Read one admitted nonconsuming MMD word in one four-frame batch.
-  /// @param[in] devad Device selector; vendor31 plus the three source-implied EEE reads.
+  /// @param[in] devad Device selector; vendor 31 plus the three source-implied EEE reads.
   /// @param[in] registerAddress Sixteen-bit documented offset; no indirect selectors.
   /// @param[out] value Unchanged unless all frames, release and timing succeed.
   /// @param[in] budget Original exclusive deadline and at least four frames.
@@ -1933,7 +1933,7 @@ public:
   /// @param[in] budget Exclusive aggregate deadline and at least six frames.
   /// @return Same admission/errors as acquireEvidence; partial receipts remain immediately cached.
   /// @pre Serialized exact-part diagnostic owner, including all other controller users.
-  /// @note Tables8-33..39. No implicit RXFS read, drain, retry or counter reset.
+  /// @note Tables 8-33..39. No implicit RXFS read, drain, retry or counter reset.
   /// FCSCR FF is a lower bound; RECR remains raw under Q16. No MDIO-health accounting claim.
   Status collectEvents(CounterSnapshot& snapshot, const IoBudget& budget) noexcept;
   /// @brief Copy last complete event/counter aggregate without bus/clock callbacks.

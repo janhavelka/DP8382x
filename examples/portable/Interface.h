@@ -10,7 +10,7 @@ inline DP8382x::InterfaceSettings rmiiFollowerProfile() noexcept {
   s.referenceClockMHz=50;
   s.maintenanceAdmitted=s.macStopped=s.pinsAvailable=true;
   s.referenceClockStable=s.managementClockAvailable=s.clockChangeApproved=true;
-  s.elasticityCode=1; // Table8-41: code 1 selects the two-bit tolerance.
+  s.elasticityCode=1; // Table 8-41: code 1 selects the two-bit tolerance.
   s.maxFrameBytes=1518;s.clockTolerancePpm=50;
   return s;
 }

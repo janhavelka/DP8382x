@@ -232,7 +232,7 @@ void comparisons() {
   const auto token = verify(driver, bus); CHECK(drain(driver, bus, token).ok());
   CHECK(take(driver, token).status.ok()); CHECK(driver.settingsSnapshot().rawVod == 0x4A7F);
   CHECK(driver.settingsSnapshot().vodValid && driver.settingsSnapshot().rawBmcr == 0x1200);
-  // Automatic routing owns bit15 only: retained bit14 is not a mismatch.
+  // Automatic routing owns bit 15 only: retained bit 14 is not a mismatch.
   bus.holdRestart = false;
   auto automatic = profile(); automatic.crossover.pairSelection = PairSelection::AUTOMATIC;
   configure(driver, bus, automatic); bus.words[25] ^= 0x4000;

@@ -19,7 +19,7 @@ Status wakeSyntax(const WakeSettings& settings) noexcept {
 uint16_t credentialWord(const WakeSettings& settings,uint8_t index) noexcept {
   const auto* octets=index<3U?settings.mac:settings.password;
   const auto offset=static_cast<uint8_t>((index%3U)*2U);
-  // SNLS647I8-92..97: API octet0 is transmitted first (datasheet MAC byte5).
+  // SNLS647I 8-92..97: API octet 0 is transmitted first (datasheet MAC byte 5).
   return static_cast<uint16_t>(uint16_t{octets[offset]}|(uint16_t{octets[offset+1U]}<<8U));
 }
 MdioBatch wakeRead(uint8_t address) noexcept {

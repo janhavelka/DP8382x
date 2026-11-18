@@ -10,8 +10,8 @@ Read the original prompt and attachment, COMMON, CONVENTIONS, ENGINEERING,
 EVIDENCE, FULL_COVERAGE, operation contracts, README, architecture, variants and
 reference index. Rechecked current collector, verification/reset replay, source
 ledger and parent/root agent rules. Owned procedures are
-`interrupt_configuration` and `interrupt_test`. Existing stage20 consumed-prefix
-retention and stage22 reconciliation remain the only implementations of those
+`interrupt_configuration` and `interrupt_test`. Existing stage 20 consumed-prefix
+retention and stage 22 reconciliation remain the only implementations of those
 responsibilities.
 
 The lead owns shared headers/lifecycle/collector, the new cohesive
@@ -31,30 +31,30 @@ evidence, application pin/ISR obligations and physical limitations.
 ## Exact source evidence
 
 Independent review used original SNLS647I pages 3, 6, 8, 46, 65-68, 81-83 and
-92, including tables8-35..37/74..78/91 and the BASIC/ENHANCED pin tables.
+92, including tables 8-35..37/74..78/91 and the BASIC/ENHANCED pin tables.
 The current official [TI datasheet](https://www.ti.com/lit/ds/symlink/dp83826i.pdf)
 still serves revision I, August 2025, 114 pages. Vendor payloads/hashes/licenses
 remain unchanged and no vendor implementation was copied.
 
-Selected facts: PHYSCR stable mask000B in ENHANCED,000A in BASIC preserving OE;
-separate retained test0004; both full MISR maps with FF00 RC and00FF enables;
+Selected facts: PHYSCR stable mask 000B in ENHANCED, 000A in BASIC preserving OE;
+separate retained test 0004; both full MISR maps with FF00 RC and 00FF enables;
 whole-word RXFS0000/1000 selector writes and consuming readback. A crossing drain
 does not retrospectively label pending events. Contradictory RXFS observations,
 WoL writes and reset/external uncertainty withdraw attribution.
 
-BASIC pin21 is strap-selected INT; ENHANCED OE0 exposes a power-down input and
-needs explicit board safety. Alternate LED routing does not disconnect pin21.
-LED1 live GPIO availability and mux4 are verified; ENHANCED MII LED2 requires
-declared unused COL. BASIC LED2 rejects. Prompt32 owns mux writes; LED0/3 mux
+BASIC pin 21 is strap-selected INT; ENHANCED OE 0 exposes a power-down input and
+needs explicit board safety. Alternate LED routing does not disconnect pin 21.
+LED1 live GPIO availability and mux 4 are verified; ENHANCED MII LED2 requires
+declared unused COL. BASIC LED2 rejects. Prompt 32 owns mux writes; LED0/3 mux
 remain read-only. No unsupported LED drive conflict was invented from the
 pre-mux LED generator. Q9, RXFS SFD and remaining pin-source gates stay open.
 If HARD removes an externally established alternate mux, IRQ replay rejects and
-retains restoration debt. A regression verifies this boundary; prompt32 owns
-the missing mux programming/replay, while pin21 replay is complete here.
+retains restoration debt. A regression verifies this boundary; prompt 32 owns
+the missing mux programming/replay, while pin 21 replay is complete here.
 
 **2026-11-17 response:** The preceding mux boundary is historical. Current
 `DP8382xInterrupts.cpp` owns LED1/2 mux=4 application and restoration through
-PIN_MUX/PIN_APPLY/PIN_VERIFY. Stage32 LED profiles validate that dependency.
+PIN_MUX/PIN_APPLY/PIN_VERIFY. Stage 32 LED profiles validate that dependency.
 The current prompt, ledger and feature guide now agree with the single owner;
 the [27-28 audit response](27-28-independent-audit.md) records the code/tests.
 
@@ -92,7 +92,7 @@ Confirmed integration corrections, with independent regressions:
 - A changed BASIC/ENHANCED identity during final IRQ replay rejects before further
   mutation. Earlier configuration proof cannot be promoted back to initialized.
   The independent reproducer now returns DEVICE_INVALIDATED and incomplete restore.
-- Clarified that pin permission covers pin21 as well as any alternate selected
+- Clarified that pin permission covers pin 21 as well as any alternate selected
   route, and corrected old ledger automatic-cleanup wording to separate OP-9 work.
 
 Final review keeps the procedure in one source file and the shared restore tail.
@@ -120,7 +120,7 @@ and registered intentional failure probes.
 | `python tools/verify_references.py` | PASS: vendor hashes, extracted references and local links |
 | `python scripts/generate_version.py check`, `git diff --check` | PASS |
 | SDK link / exported package | NOT RUN; portable implementation and consumer evidence only |
-| Remote CI | NOT RUN; first execution reserves it for prompt71 |
+| Remote CI | NOT RUN; first execution reserves it for prompt 71 |
 | Q9 physical IRQ latching, electrical role, pin delivery and timing | NOT RUN; identified admitted board/analyzer measurements still required |
 
 Host suites cover all sources/simultaneous events, pin/mode combinations, live

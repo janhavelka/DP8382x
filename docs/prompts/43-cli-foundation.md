@@ -47,7 +47,7 @@ lifetime, feed/tick budgets and owner routing.
 
 Application setup supplies a nonconstant u32 boot ID. `session <nonce>` passively
 prints nonce verbatim, boot, current req, identity and schema. Every complete
-input line, including rejected lines, increments a u64 firmware req from1;
+input line, including rejected lines, increments a u64 firmware req from 1;
 there is no exhaustion branch. Every record includes boot/req. The runner has
 one outstanding command and seeds its count from its own nonce reply; other
 boot/req values are stale. After command timeout only `session <new nonce>` may
@@ -68,7 +68,7 @@ Distinguish boot from sequence reuse, local/firmware time and library/firmware
 identity; archives stay unknown when provenance is unavailable. Pending
 admission is never terminal success.
 
-Records are single uncolored lines at column0 with the fixed prefix. Track the
+Records are single uncolored lines at column 0 with the fixed prefix. Track the
 console cursor and queue CR LF first when prompt/partial human output is open.
 Runner strips nothing from candidate records and discards non-record lines.
 Queue records as indivisible units; prompt 47 routes ESP_LOGx through the same

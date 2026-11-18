@@ -65,7 +65,7 @@ unrelated reads do not repair configuration. Exercise saturating health
 counters, valid timestamp zero and independent instances without hidden
 platform timing or hot-path allocation.
 
-List existing named tests from43/48/49/53 before adding regressions. Add only
+List existing named tests from 43/48/49/53 before adding regressions. Add only
 missing boundaries or cross-entry cases. Exercise OP-5 short slices and stalled
 clock rules, OP-9 separate restoration results and OP-14 hard-reset silence.
 

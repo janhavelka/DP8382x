@@ -4,7 +4,7 @@ The first example should bring up the ESP32-P4 MAC with DP83826I, report PHY
 identity and negotiated link state, and provide bounded register diagnostics.
 It should accept board-specific pins, address, clock and advertisement policy.
 
-The application examples remain planned. Prompt37 supplies a buildable
+The application examples remain planned. Prompt 37 supplies a buildable
 [P4 link fixture](../../test/esp_idf/adapter_link/README.md) and
 [native component guide](../../docs/esp-idf.md); its execution guard is disabled
 and no hardware result is claimed. Use the [board context](../../docs/esp32p4-board.md)
@@ -35,16 +35,16 @@ The [prompt-6 decision](../../docs/design-decisions.md) now fixes these routes:
 - Register the rejecting raw frame hooks. CLI register/feature commands submit
   typed owner requests to the shared core/batch path; destructive dumps use the
   collector. Forward batches directly to the actual MAC under one shared bus lock.
-- Prompt38 supplies stopped AN/forced configuration, shared reset silence and
+- Prompt 38 supplies stopped AN/forced configuration, shared reset silence and
   `reconcileSdkState` after successful core result delivery. Public SDK getters
   retain last-published link speed/duplex; expose desired settings separately.
   Use typed `setFlowControl` and retain both MAC/PHY effects, never the defective
   flow ioctl. The linked fixture exercises these routes behind its disabled guard.
-- Prompt39 exposes cached `linkSnapshot` for acquired link/full RX/TX pause,
+- Prompt 39 exposes cached `linkSnapshot` for acquired link/full RX/TX pause,
   separate from `lifecycleSnapshot`'s accepted SDK fields. Keep callback receipts
   and late accepted event effects; retry only the current lost event. Declare
-  measured workload/controller bounds before enabling real-time claims; a100Hz
-  tick delay is not proof of a2ms minimum wait.
+  measured workload/controller bounds before enabling real-time claims; a 100Hz
+  tick delay is not proof of a 2ms minimum wait.
 - Stop and drain before disruptive configuration. Apply AN/speed/duplex through
   public SDK controls and verify hardware/cache agreement before restart. Full
   advertisement and diagnostics use the shared chip procedures. MAC flow-control
@@ -53,7 +53,7 @@ The [prompt-6 decision](../../docs/design-decisions.md) now fixes these routes:
   install publishes no handle; only MAC/PHY deletion remains. After successful
   install, reusable teardown is BLOCKED by native_rx_quiescence: retain the
   driver/glue/netif/MAC/PHY and contexts until restart. Failed stop never licenses
-  freeing live contexts. See the native ownership design and prompt37 report.
+  freeing live contexts. See the native ownership design and prompt 37 report.
 - Select GPIO54 reset, MDC40, MDIO39 and REF_CLK input GPIO44 from the current
   board evidence, with declared/verified PHY address 0. RMII uses TX_EN49,
   TXD0=41, TXD1=42, CRS_DV51, RXD0=52 and RXD1=53. Confirm against the final
@@ -103,7 +103,7 @@ core instance. Native terminal status and the full delivered result must agree.
 External invalidation changes current device snapshots without rewriting a
 pending historical result or restarting failed/discharged cleanup.
 
-The prompts37-39 audit makes SharedBus::admission the single silence authority.
+The prompts 37-39 audit makes SharedBus::admission the single silence authority.
 Do not overwrite INITIALIZING, BOARD_PREPARING or FAILED_CLOSED to admit another
 PHY. Explicit discovery shares core transport counts but does not retarget or
 accept identity; show its raw receipt separately from configured device evidence.

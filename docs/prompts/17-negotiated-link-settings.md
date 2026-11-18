@@ -15,7 +15,7 @@ open gates under COMMON.
 
 Deliver autonegotiated advertisement/pause and IEEE Clause 28 next-page exchange,
 which SNLS647I 8.3.1 designates. Implement ledger `next_page_exchange`; freeze
-its typed page API here, including message/unformatted data, Acknowledge2,
+its typed page API here, including message/unformatted data, Acknowledge 2,
 read-only toggle, partner refusal and finite page/time budgets. Extend prompt
 13's collector for ANER page evidence. `next_page_handshake` is physical Q10,
 not a software block. `startConfigure` uses the existing operation slot;

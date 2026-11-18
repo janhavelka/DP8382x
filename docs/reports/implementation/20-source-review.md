@@ -127,7 +127,7 @@ RXFS table 8-91 prints selector `0x1000`, reset one: zero selects polarity,
 one WoL; enabling WoL automatically selects WoL. Named RCH status bits are
 SFD error `0x0080`, bad CRC `0x0040`, invalid Secure-On password `0x0020`,
 and magic-packet status `0x0001`. Status bits 4:1 remain reserved even though
-their access cells also say RCH. The SFD description points to RXFCFG1 bit13,
+their access cells also say RCH. The SFD description points to RXFCFG1 bit 13,
 which that register calls reserved: retain the existing `rxfs_sfd_reference`
 gate and avoid inventing an enabling/configuration meaning.
 

@@ -21,7 +21,7 @@ def checked_add(left, right):
 
 class OperationTimingDesignTests(unittest.TestCase):
     def test_reset_admission_four_lags_and_hard_floor(self):
-        # OP-6: literal one-frame command/read, fixed50 + frame100, lag1.
+        # OP-6: literal one-frame command/read, fixed 50 + frame 100, lag 1.
         bound = 150
         self.assertEqual(4 * 1 + bound + 2000 + bound, 2304)
         self.assertFalse(2304 < 2304)

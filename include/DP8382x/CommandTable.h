@@ -805,7 +805,7 @@ constexpr uint16_t REG_EEE_04E0 = 0x04E0;
 constexpr uint16_t REG_EEE_031F = 0x031F;
 /// @brief EEE_04F4 MMD address; 8.3.3.1.
 constexpr uint16_t REG_EEE_04F4 = 0x04F4;
-/// @brief RECIPE_0428 MMD address; 8.3.6.3 p29; table8-50 p75.
+/// @brief RECIPE_0428 MMD address; 8.3.6.3 p29; table 8-50 p75.
 constexpr uint16_t REG_RECIPE_0428 = 0x0428;
 /// @brief LOOP_0122 MMD address; 8.3.14.4.
 constexpr uint16_t REG_LOOP_0122 = 0x0122;

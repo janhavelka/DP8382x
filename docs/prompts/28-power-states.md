@@ -45,7 +45,7 @@ For IEEE/deep power transitions document prerequisite access/clock state, effect
 and bounded source-defined waits. BMCR[11] reads the software/pin OR, so report
 `requestedPowerDown` from owner intent and `observedBmcrPowerDown` from hardware;
 there is no separate actual-state register. Compose bit 11 from desired intent,
-never sampled readback. After one clear write, observed1 means
+never sampled readback. After one clear write, observed 1 means
 WAKE_BLOCKED_OR_UNCONFIRMED and never triggers repeated writes. BISCR[8] reports
 active sleep only. Coordinate PHY-generated clock loss with the application;
 Q6 measures the ENHANCED pin-release hazard.
@@ -83,9 +83,9 @@ Compile policy and explicit-transition owner examples. Document source-bounded
 software operations separately from unbounded environmental link/wake outcomes
 and unperformed physical clock/power measurements.
 
-Own `power_pll_control`: PHYSCR[15] mask8000 is separate from DPD0428[2],
+Own `power_pll_control`: PHYSCR[15] mask 8000 is separate from DPD0428[2],
 admitted only in IEEE power-down with explicit application clock-loss approval.
-Active-sleep mask7000 must never alter PLL disable.
+Active-sleep mask 7000 must never alter PLL disable.
 
 Prompt 36 returns `power_deep` as required incomplete scope under
 `deep_power_exit`. Before reopening implementation, obtain exact DP83826I

@@ -36,14 +36,14 @@ Read-plan completion does not establish freshness/coherence or SNLA428 context.
 
 Original archived SNLS647I (August 2025) and the current official
 [DP83826I datasheet](https://www.ti.com/lit/ds/symlink/dp83826i.pdf) agree.
-Reviewed section8.3.16.1 p43, table8-28 pp60-61, table8-47 p73 and
-tables8-54 through71 pp76-81. Fresh exact-part TI support searches found no
+Reviewed section 8.3.16.1 p43, table 8-28 pp60-61, table 8-47 p73 and
+tables 8-54 through 71 pp76-81. Fresh exact-part TI support searches found no
 stronger generation, result-latch, quiescence or completion-maximum evidence.
 Shadow controls suppress peak artifacts; they do not provide atomic snapshots.
 Vendor payloads, hashes and licenses remain unchanged; no source code was copied.
 
-Independent literals: enable00A2 ->01A2, disable03F3 ->02F3, preserveFEFF and
-compare0100. Initial CDCR0102 already has done set. Only result banks0180/185/18A
+Independent literals: enable 00A2 ->01A2, disable 03F3 ->02F3, preserve FEFF and
+compare 0100. Initial CDCR 0102 already has done set. Only result banks 0180/185/18A
 are admitted; reserved banks do not become peaks. Raw bookends can detect a
 change but cannot prove a single silicon generation, even with identical data.
 PCS/restart retain vendor state; HARD defaults it. Explicit desired policy is
@@ -80,7 +80,7 @@ Confirmed review corrections:
   clear bookend cannot prove the required HARD occurred. Mutation starts and
   initialization retain the gate; raw reads remain available. Only an owning
   manual stop that observes clear and still owes HARD, or external reset/POR
-  notification, can release that gate before prompt35's explicit recovery.
+  notification, can release that gate before prompt 35's explicit recovery.
 - Correct ledger language that implied automatic cleanup, hardware generation
   tracking or proven engine quiescence.
 - Mark cached tuning context invalid for autorun. Default manual control values
@@ -103,7 +103,7 @@ checks and registered failure probes.
 | Portable | PASS: two tests-OFF consumer CTests. Cable consumer executes explicit enable, passive views, later raw capture, explicit disable and manual/HARD flow. |
 | Python / source checks | PASS: 103 Python tests; ledger, vendor/reference/local links, Doxygen with negative fixtures, deterministic version and diff checks. |
 | SDK/package | NOT RUN: no native controller or release package changed; portable linkage is not SDK evidence. |
-| Remote CI | NOT RUN: first-execution checkpoint remains prompt71. |
+| Remote CI | NOT RUN: first-execution checkpoint remains prompt 71. |
 | Physical | NOT RUN: actual link-down trigger timing, engine quiescence, result coherence and Q7 distance accuracy require identified admitted measurements. |
 
 Commands: configure/build `build/host` with Release and tests ON, then
@@ -120,5 +120,5 @@ reconciliation/health/device guides, vectors, ledger/coverage, audit disposition
 test guide and progress are updated. The [cable guide](../../cable.md) separates
 manual/autorun ownership, fixed work bounds, retained raw validity and planned
 fixture scenarios. `tdr_freshness_abort`, `tdr_recipe`, `tdr_calibration` and Q7
-remain explicit; calibration recovery belongs to prompt35. Later power features
+remain explicit; calibration recovery belongs to prompt 35. Later power features
 extend the shared replay rather than assuming they are already implemented.

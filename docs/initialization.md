@@ -55,8 +55,8 @@ the caller token and state unchanged. Each `pollOperation` runs at most one batc
    a restoration from proceeding while an earlier failed HARD is still active.
 4. Issue the selected single literal command: PCS `W(00,8000)`, HARD
    `W(1F,8000)` or RESTART `W(1F,4000)`. There is no sampled-word RMW.
-   After the appropriate wait, PCS polls BMCR bit8000; HARD/RESTART poll PHYRCR
-   bitsC000 so neither PHYRCR command may remain active. Refresh identity and
+   After the appropriate wait, PCS polls BMCR bit 8000; HARD/RESTART poll PHYRCR
+   bits C000 so neither PHYRCR command may remain active. Refresh identity and
    straps at the configured address. An already-active configuration reset also
    requires fresh identity acceptance before issuing the requested command.
 5. Always issue the complete mandatory VOD write and separate verification read.
@@ -204,12 +204,12 @@ cancelled final replay keeps initialization incomplete and prior effects visible
 `startVerify` checks this policy without changing it. Future power transitions
 extend the same path; no enable operation authorizes automatic reset or recovery.
 
-Prompt27 adds explicitly owned interrupt policy as the final shared replay tail,
+Prompt 27 adds explicitly owned interrupt policy as the final shared replay tail,
 after diagnostic saved state and autorun. Unowned IRQ policy adds no frames.
-BASIC preserves PHYSCR OE; ENHANCED validates the declared pin21 role. Replay
-never restores transient test1. Readback or identity failure leaves initialization
+BASIC preserves PHYSCR OE; ENHANCED validates the declared pin 21 role. Replay
+never restores transient test 1. Readback or identity failure leaves initialization
 incomplete and the original effects/result intact. Alternate pin muxes are
-validated, not implicitly programmed; prompt32 extends the same dependency order.
+validated, not implicitly programmed; prompt 32 extends the same dependency order.
 See [interrupt ownership](interrupts.md).
 
 ## Owned power replay
@@ -263,14 +263,14 @@ before causes and preserves unrelated settings. Read-only verification performs
 no detector disable or threshold write. [Quality controls](quality.md) retain
 partial effects and require a separately admitted restoration after failure.
 
-Stage35 analog replay follows mandatory VOD setup, interface and quality replay.
+Stage 35 analog replay follows mandatory VOD setup, interface and quality replay.
 Explicit termination tuning may then replace the owned baseline fields; every
 initialization still writes/verifies the baseline first. `startVerify` compares
 the admitted desired override. Compliance HARD stop and calibration recovery
 leave readiness false and cleanup owed until a separate initialization completes
 all persistent tails. See [electrical controls](electrical.md).
 
-The [prompts34-35 audit](reports/implementation/34-35-independent-audit.md)
+The [prompts 34-35 audit](reports/implementation/34-35-independent-audit.md)
 verifies analog handoff to each later owner and their combined profile. A
 finished analog phase no longer remains selected while pin/WoL/IRQ/power replay
 is pending. External reset/POR notifications clear current electrical session

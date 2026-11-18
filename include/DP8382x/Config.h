@@ -90,7 +90,7 @@ struct CrossoverSettings {
   PairSelection pairSelection{PairSelection::AUTOMATIC}; ///< Routing policy.
   bool robust{true};       ///< Required for every forced mode.
   bool swapPair{false};    ///< Coupled CR3 port mirror; must equal swapPolarity.
-  bool swapPolarity{false};///< Both true select table 8-30 mirror0060; single-bit requests reject.
+  bool swapPolarity{false};///< Both true select table 8-30 mirror 0060; single-bit requests reject.
 };
 
 /// @brief Persistent desired link settings, not verified hardware state.
@@ -99,7 +99,7 @@ struct LinkSettings {
   Advertisement advertisement{};        ///< Active only for AN.
   ForcedLinkSettings forced{};           ///< Active only for forced mode.
   CrossoverSettings crossover{};         ///< Coupled routing intent.
-  bool extendedFullDuplex{false};        ///< CR2[5] opt-in; incompatible with forced10, no partner preflight.
+  bool extendedFullDuplex{false};        ///< CR2[5] opt-in; incompatible with forced 10, no partner preflight.
 };
 
 /// @brief Check exact supported part membership without I/O or a clock.

@@ -4,7 +4,7 @@ This maintained design applies the delegated remaining-prompts audit decisions.
 The [API contract](api-contracts.md) owns portable values and OP-1 through OP-17;
 headers own shipped declarations. The [architecture](architecture.md) is an
 overview, and [feature coverage](feature-coverage.md) is the single coverage map.
-Prompts37-39 implement the subset listed in the [native guide](esp-idf.md), with
+Prompts 37-39 implement the subset listed in the [native guide](esp-idf.md), with
 real-driver host tests and a P4 SDK-linked fixture. Broader typed controls remain
 with their owning stages. Source-derived sequences are not physical qualification.
 
@@ -268,11 +268,11 @@ Its 100 ms multi-register MAC mutex is not the bus lock. These are not wall-cloc
 or EtherCAT real-time guarantees; adapters must prove or report missing bounds.
 Use high-resolution elapsed checks and completion upper bounds, not floor-rounded
 RTOS delays. The [native conformance table](esp-idf.md#local-entry-and-framework-callbacks)
-accounts for all17 vtable entries; the [timing table](esp-idf.md#timing-declarations)
+accounts for all 17 vtable entries; the [timing table](esp-idf.md#timing-declarations)
 keeps the native_wall_time workload-qualification gate explicit.
 
 Current board record after the 2026-10-27 re-pin: MDC40, MDIO39, RESET54,
-TX_EN49, TXD0=41, TXD1=42, CRS_DV51, RXD0=52, RXD1=53, REF_CLK44; expected address0,
+TX_EN49, TXD0=41, TXD1=42, CRS_DV51, RXD0=52, RXD1=53, REF_CLK44; expected address 0,
 PHY-supplied 50 MHz, no wired PHY IRQ. Explicitly set every P4 RMII pin because
 SDK defaults differ, verify unique pin assignments and confirm final netlist before
 flashing. P4 IO_MUX constrains the pads. R21/C24 reset circuitry requires measured
@@ -305,7 +305,7 @@ literal core tests, adverse lifecycle cases and exact result identities. The
 2026-11-07 draft re-opened pinned source: esp_eth.c blob
 76dab829d2099a574a07aeceeaa82491950fe07c, esp_timer.h blob
 e48a213634d3e2cd6ba1dec657687a756d48c291, esp_eth_mac_esp.c blob
-6448fcd6de4669ddf1e836c992ca8a1accc9dd96. Install lines200-271, stop323-344,
-uninstall274-298, MAC set_link401-419/stop727-742 and timer activity430-444 were
+6448fcd6de4669ddf1e836c992ca8a1accc9dd96. Install lines 200-271, stop 323-344,
+uninstall 274-298, MAC set_link 401-419/stop 727-742 and timer activity 430-444 were
 re-read. The rest of this route retains the audit's source-reviewed decision;
 no native build, execution or board measurement was performed for these drafts.

@@ -350,10 +350,10 @@ int evidenceIndex(uint16_t address, uint16_t devad = 31) noexcept {
 // Sourced occurrence bits only. Ambiguous current/RC words remain raw evidence.
 uint16_t eventMask(uint16_t address) noexcept {
   switch (address) {
-    case cmd::REG_MISR1: case cmd::REG_MISR2: return 0xFF00; // Tables8-36/37; exclude enables.
+    case cmd::REG_MISR1: case cmd::REG_MISR2: return 0xFF00; // Tables 8-36/37; exclude enables.
     case cmd::REG_FLDS: return cmd::MASK_FLDS_CAUSES;
     case cmd::REG_ANER: return cmd::MASK_ANER_PAGE;
-    case cmd::REG_10BTSCR: return cmd::MASK_10BTSCR_POLARITY; // Table8-44; clears mirrored history.
+    case cmd::REG_10BTSCR: return cmd::MASK_10BTSCR_POLARITY; // Table 8-44; clears mirrored history.
     case cmd::REG_RXFS: return cmd::MASK_RXFS_SFD_ERROR | cmd::MASK_RXFS_BAD_CRC |
         cmd::MASK_RXFS_SECURE_ON_ERROR | cmd::MASK_RXFS_MAGIC_PACKET;
     default: return 0;
@@ -887,7 +887,7 @@ Status DP8382x::modifyWakeControl(uint32_t mask, uint32_t value, bool acknowledg
 MdioBatch DP8382x::_wakeControlBatch(uint16_t mask, uint16_t value, bool acknowledge) const noexcept {
   auto batch = _mmdBatch(0x04A0, FrameKind::READ, 0);
   batch.frameCount = 5;
-  // Table8-90: W0C one is neutral; preserve reserved bits and the unexplained bit6.
+  // Table 8-90: W0C one is neutral; preserve reserved bits and the unexplained bit 6.
   batch.frames[4] = {FrameKind::WRITE, cmd::REG_ADDAR,
                     static_cast<uint16_t>(value | (acknowledge ? 0U : 0x0800U)),
                     static_cast<uint16_t>(~(mask | uint16_t{0x0800})), 3};
@@ -1102,7 +1102,7 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
         if (_operation.kind != OperationKind::WOL_ACKNOWLEDGE) { _wake.trust = ConfigurationTrust::DIRTY; }
         _wake.observedStale = true;
       } else if (_lpiWorking && address == 0x04D1U) {
-        // Exact bit12 temporary owner preserves persistent EEE/identity proof.
+        // Exact bit 12 temporary owner preserves persistent EEE/identity proof.
         _lpiSession = true; _lpi.forcedLpi = ForcedLpi::UNCERTAIN;
         _operation.temporaryMayBeActive = _operation.cleanupOwed = true;
       } else if (_eeeWorking) {
@@ -1119,7 +1119,7 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
         _autorun.trust = ConfigurationTrust::DIRTY;
         _autorun.observedStale = true;
       } else if (address == 0x001FU && frame.value == 0x4000U) {
-        // Table8-48 circuitry restart keeps registers, identity and initialized state.
+        // Table 8-48 circuitry restart keeps registers, identity and initialized state.
         _markEvidenceDiscontinuous();
       } else if (((_loopWorking || _bistWorking || _cableWorking) && address != cmd::REG_PHYRCR) || (_configuring && (address == cmd::REG_BMCR || address == cmd::REG_ANAR || address == cmd::REG_ANNPTR ||
           address == cmd::REG_CR1 || address == cmd::REG_PHYCR || address == cmd::REG_CR3 || address == cmd::REG_CR2))) {
@@ -1711,7 +1711,7 @@ void DP8382x::_setInitStep(InitStep step) noexcept {
   }
   _eeeWorking = false; _wakeWorking = false; _pinsWorking = false; _interfaceWorking = false; _qualityWorking = false; _analogWorking = false; _electricalWorking = false;
   // PLL may be retained by PCS. Restore its control before that reset (or
-  // a no-reset replay), while IEEE down still permits the PHYSCR15 change.
+  // a no-reset replay), while IEEE down still permits the PHYSCR 15 change.
   // HARD reloads it directly; VERIFY never writes.
   if ((step == InitStep::COMMAND || step == InitStep::APPLY) &&
       !_result.commandAccepted && !_powerPreparingReset && !_powerPreparationDone && _power.desiredValid &&

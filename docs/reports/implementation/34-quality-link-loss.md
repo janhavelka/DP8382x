@@ -1,4 +1,4 @@
-# Prompt34: quality and hardware link-loss controls
+# Prompt 34: quality and hardware link-loss controls
 
 Implemented the five owned ledger procedures: `configure_fast_drop`,
 `signal_quality_sample`, `tx100_configure`, `tx10_configure` and
@@ -11,12 +11,12 @@ Started on clean, fetched `main` at
 `e3c25db71c8520d83b997a04c5d107d64b69c707`, equal to `origin/main`.
 Read the full attachment/repository prompt, COMMON and shared convention,
 engineering, API/operation, coverage, evidence and verification rules, root and
-parent instructions, architecture, variants and reference index. Stages18/20/33
+parent instructions, architecture, variants and reference index. Stages 18/20/33
 provide verified link profiles, the sole collector and interface ownership.
 The lead owns public headers, integration, shared guides, ledger and Git.
 One application owner serializes instance access and complete controller batches.
 Siblings remain read-only; vendor bytes and provenance are unchanged. Remote
-CI is reserved for71; no workflow definition exists at this checkpoint.
+CI is reserved for 71; no workflow definition exists at this checkpoint.
 
 Three parallel agents used the current capable model: `quality34_sources` for
 independent original-PDF/sibling review and later ownership review,
@@ -27,9 +27,9 @@ against actual source and changes, not accepted from summaries alone.
 
 ## Source and sibling audit
 
-Original SNLS647I August2025, SHA256
+Original SNLS647I August 2025, SHA256
 `4e440fb8bd1cd44ee9ab0773944bef4f0605884f25c4ab96ea55d0ed859fd9c3`,
-sections7.6/8.3.12/8.3.13/8.3.17/8.4.1.1 and tables8-28..30/35/44/51..53/72
+sections 7.6/8.3.12/8.3.13/8.3.17/8.4.1.1 and tables 8-28..30/35/44/51..53/72
 establish the field partitions and independent literals. The current
 [TI datasheet URL](https://www.ti.com/lit/ds/symlink/dp83826i.pdf) still resolves
 to that revision. Targeted exact-part MSE/MLT3 clarification searches did not
@@ -42,7 +42,7 @@ Fresh clean sibling revisions and inspected paths (relative to Projects):
 - INA228 `4de84f2564eb6382835ca9a72d8688377657dcb4`:
   `include/INA228/INA228.h` DiagAlert/snapshot declarations;
   `src/INA228.cpp` readDiagAlert and retained raw evidence;
-  `test/test_basic.cpp` cases2034/2070/2920/3136 and registrations;
+  `test/test_basic.cpp` cases 2034/2070/2920/3136 and registrations;
   `examples/esp_idf/basic/main/main.cpp` cached diagsnap versus live diag;
   `tools/test_run_i2c_hil_parser.py` partial-health rejection.
 - TMP1x2 `afd50889312f6e218a6a34eca687e3e8547d8b40`:
@@ -69,9 +69,9 @@ no SDK code is introduced in this portable stage.
 `startConfigureQuality` copies a completely validated owned profile without
 I/O/clock reads. The explicit quality phase switch uses the existing slot,
 tokens, poll/deadline/stall rules and shared restore tail. Every complete RMW
-stays under one controller transaction. A full profile uses at most52frames in
-19callbacks; its read-only quality pass uses23frames in9callbacks. A sole
-zero-cause disable uses8frames/3callbacks, avoiding a duplicate CR3 write.
+stays under one controller transaction. A full profile uses at most 52 frames in
+19 callbacks; its read-only quality pass uses 23 frames in 9 callbacks. A sole
+zero-cause disable uses 8 frames/3 callbacks, avoiding a duplicate CR3 write.
 
 The MII-only nonzero cause policy checks both declared and live interface.
 Source threshold prerequisites are applied with causes disabled, then selected
@@ -104,21 +104,21 @@ the [portable owner example](../../../examples/portable/Quality.h).
 Variant and generated-version declarations need no change: no new silicon
 family or release version is supported. Tool commands remain unchanged.
 
-Windows GNU15.1/Ninja, C++17 Release, strict warnings and active checks:
+Windows GNU 15.1/Ninja, C++17 Release, strict warnings and active checks:
 
 - PASS: `cmake -S . -B build/host -G Ninja -DCMAKE_BUILD_TYPE=Release
   -DDP8382X_BUILD_TESTS=ON`, build and
   `ctest --test-dir build/host --output-on-failure --no-tests=error`:214 tests,
   including eight quality suites and their deliberately failing assertion probe.
-- PASS: the same214 tests in `build/quality34-ubsan`, configured with
+- PASS: the same 214 tests in `build/quality34-ubsan`, configured with
   `-fsanitize=undefined -fsanitize-undefined-trap-on-error`.
 - PASS: separately configured `test/consumer` in `build/quality34-consumer`,
   tests OFF, build and two registered consumer tests, including compilation of
   the quality owner example without SDK dependencies.
 - PASS: `python -m unittest discover -s test -p "test_*.py" -v`:103 tests.
-- PASS: `python tools/verify_ledger.py`:97registers/52procedures/35features.
+- PASS: `python tools/verify_ledger.py`: 97 registers/52 procedures/35 features.
 - PASS: `python tools/verify_references.py`:29 vendor artifacts,27 text extracts
-  and all local links; vendor byte total46,886,437 unchanged.
+  and all local links; vendor byte total 46,886,437 unchanged.
 - PASS: `python tools/check_doxygen.py`:250 HTML pages and two rejected negative
   fixtures; `python scripts/generate_version.py check`; `git diff --check`.
 
@@ -130,12 +130,12 @@ shared-field restoration, and withheld MLT3 maximum applicability for unexpected
 preserved reserved readback. Those corrections are covered by executed tests.
 
 SDK/controller link, installed-package qualification and physical hardware
-remain NOT RUN in this portable stage. Remote CI is NOT RUN, reserved for71.
+remain NOT RUN in this portable stage. Remote CI is NOT RUN, reserved for 71.
 `mse_address`, `fld_threshold_recipe`, `fld_reset_defaults`, `analog_rx_gain`,
 RECR arithmetic and RMII RC interpretation remain explicit gates. Missing MII
 fixtures do not remove the implemented controls. Final commit/upstream equality
 is recorded in the handoff, avoiding a self-referencing commit.
 
-The later [independent prompts34-35 audit](34-35-independent-audit.md) adds
+The later [independent prompts 34-35 audit](34-35-independent-audit.md) adds
 reset/mode-evidence and quarantined-MSE regressions and corrections. The results
 above describe the original checkpoint; the audit records its own verification.

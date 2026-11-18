@@ -45,7 +45,7 @@ class RemainingLedgerTests(unittest.TestCase):
                 self.assertIsNone(row['reservedMask'])
 
     def test_independent_remaining_field_and_reset_partitions(self):
-        # Original SNLS647I tables8-42,49-51,73-80,82-86,89-90,92-97;
+        # Original SNLS647I tables 8-42,49-51,73-80,82-86,89-90,92-97;
         # literals independently reviewed before integration, not generated from JSON.
         # name: reset value, known mask, reserved mask, ordinary writable mask
         expected = {
@@ -101,7 +101,7 @@ class RemainingLedgerTests(unittest.TestCase):
             self.assertEqual(self.field(name, 7)['access'], 'R')
 
     def test_independent_remaining_semantic_fields_and_access(self):
-        # Original PDF tables8-42/49-51/73-80/82-86/89-90/92-97.
+        # Original PDF tables 8-42/49-51/73-80/82-86/89-90/92-97.
         # A fresh source-first reviewer transcribed each field, then matched its
         # semantic name. Aggregated writable masks cannot detect swapped fields
         # or loss of strap-dependent RHW access.
@@ -151,9 +151,9 @@ class RemainingLedgerTests(unittest.TestCase):
                 self.assertEqual({f['name']: (int(f['mask'], 16), f['access']) for f in actual}, fields)
 
     def test_independent_split_amplitude_transition_prefixes(self):
-        # Tables8-79/80: the ONLY supported six-bit minus codes are28..38.
-        # Neither direct order is valid for2F->30:3F or20. Low nibble8 is
-        # legal with both high fields2/3; use it in application and restoration.
+        # Tables 8-79/80: the ONLY supported six-bit minus codes are 28..38.
+        # Neither direct order is valid for 2F->30:3F or 20. Low nibble 8 is
+        # legal with both high fields 2/3; use it in application and restoration.
         self.assertEqual((0x2F & 0x0F) | (0x30 & 0x30), 0x3F)
         self.assertEqual((0x2F & 0x30) | (0x30 & 0x0F), 0x20)
         literals = {(0x2F, 0x30): [0x2F, 0x28, 0x38, 0x30],
@@ -161,7 +161,7 @@ class RemainingLedgerTests(unittest.TestCase):
         for start in range(0x28, 0x39):
             for target in range(0x28, 0x39):
                 # Independent research arithmetic, not an executing driver:
-                # write low8, write desired high, then desired low.
+                # write low 8, write desired high, then desired low.
                 path = [start, (start & 0x30) | 8, (target & 0x30) | 8, target]
                 self.assertTrue(all(0x28 <= code <= 0x38 for code in path))
                 self.assertTrue(all((a & 0x30) == (b & 0x30) or
@@ -210,8 +210,8 @@ class RemainingLedgerTests(unittest.TestCase):
         self.assertEqual([8 * (2 ** code) * 8 for code in range(4)], [64, 128, 256, 512])
 
     def test_independent_wol_octet_mapping(self):
-        # Table8-92 explicitly calls TI byte5 MSB: API octet0 is first MAC octet.
-        # Secure-ON tables8-95..97 instead number the first password octet byte0.
+        # Table 8-92 explicitly calls TI byte 5 MSB: API octet 0 is first MAC octet.
+        # Secure-ON tables 8-95..97 instead number the first password octet byte 0.
         mac = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66]
         password = [0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F]
         for name, high, low, value in (
@@ -245,7 +245,7 @@ class RemainingLedgerTests(unittest.TestCase):
             self.assertEqual((timing['value'], timing['unit'], timing['qualifier']), (value, unit, 'NOM'))
 
     def test_independent_eee_and_compliance_action_literals(self):
-        # SNLS647I8.3.3.2 and table8-50; SNLA266Btable5-5.
+        # SNLS647I 8.3.3.2 and table 8-50; SNLA266B table 5-5.
         expected = {
             'EEECFG3_eee': (0x04D1, 0xFFFF, 0x008B),
             'EEE_04D3_eee': (0x04D3, 0xFFFF, 0x4F12),
@@ -341,7 +341,7 @@ class RemainingLedgerTests(unittest.TestCase):
             'wol_configure': {'RXFPMD1': 0xFFFF, 'RXFPMD2': 0xFFFF, 'RXFPMD3': 0xFFFF,
                               'RXFSOP1': 0xFFFF, 'RXFSOP2': 0xFFFF, 'RXFSOP3': 0xFFFF,
                               'RXFCFG1': 0x17A1,
-                              # Tables8-75/76: bits2:0 select WoL2 or IRQ4.
+                              # Tables 8-75/76: bits 2:0 select WoL 2 or IRQ 4.
                               'LED1_GPIO_CFG': 0x0007, 'LED2_GPIO_CFG': 0x0007},
             'wol_acknowledge': {'RXFCFG1': 0x0800},
             'led_configure': {'LEDCR': 0x0692, 'MLEDCR': 0x0279, 'LEDCFG': 0xFFF0,
@@ -422,7 +422,7 @@ class RemainingLedgerTests(unittest.TestCase):
 
 
     def test_selected_eee_wire_and_read_routes(self):
-        # SNLS638C7-99..103 and SNLS505H7.4.2.9, selected inference D2.
+        # SNLS638C 7-99..103 and SNLS505H 7.4.2.9, selected inference D2.
         expected = [(3, 0x1001, 0x0001, 'COLLECTOR'),
                     (3, 0x1014, 0x0014, 'SAFE_READ'),
                     (3, 0x1016, 0x0016, 'COLLECTOR'),

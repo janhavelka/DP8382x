@@ -298,7 +298,7 @@ class LedgerTests(unittest.TestCase):
                 self.assertEqual(id2 & 0x000F, 1)
 
     def test_independent_reset_polling_arithmetic_vector(self):
-        # Table8-48 p73: register number and command mask are different namespaces.
+        # Table 8-48 p73: register number and command mask are different namespaces.
         # This tests the research oracle; no driver polling implementation exists.
         register = self.register("PHYRCR")
         self.assertEqual(int(register["address"], 16), 0x001F)
@@ -314,7 +314,7 @@ class LedgerTests(unittest.TestCase):
             self.assertEqual(int(field["neutral"], 16), 0)
 
     def test_independent_reset_known_masks(self):
-        # Tables8-19,20,23,25-29,31/32,43,48,81. Unknown strap bits stay unknown.
+        # Tables 8-19,20,23,25-29,31/32,43,48,81. Unknown strap bits stay unknown.
         expected = {"BMCR": (0x0000, 0xCAFF), "BMSR": (0x7849, 0xFFFF),
                     "ANAR": (0x0001, 0xFE1F), "ALNPAR": (0x0000, 0xFFFF),
                     "ANER": (0x0004, 0xFFFF), "ANNPTR": (0x2001, 0xFFFF),
@@ -334,7 +334,7 @@ class LedgerTests(unittest.TestCase):
                                   int(register["resetKnownMask"], 16)), pair)
 
     def test_independent_all_core_field_partitions(self):
-        # Original PDF tables8-19..32,34,43,48,81,87/88. Masks were derived by
+        # Original PDF tables 8-19..32,34,43,48,81,87/88. Masks were derived by
         # the independent reviewer before inspecting the ledger; source names
         # are mapped to these documented semantic names. Do not generate this
         # table from the ledger. Reserved fields are aggregated, never writable.
@@ -400,7 +400,7 @@ class LedgerTests(unittest.TestCase):
                 self.assertEqual({f["name"]: int(f["mask"], 16) for f in actual["fields"]}, fields)
 
     def test_independent_prohibited_advertisement_and_crossover(self):
-        # Table8-23: named R/W RF is nevertheless application-prohibited.
+        # Table 8-23: named R/W RF is nevertheless application-prohibited.
         fault = self.field("ANAR", 0x2000)
         self.assertEqual(fault["access"], "RW")
         self.assertIn(1, [int(v, 16) for v in fault["prohibited"]])
@@ -412,7 +412,7 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(self.field("PHYCR", 0x1000)["access"], "R")
 
     def test_independent_mmd_and_vod_vectors(self):
-        # Sections8.3.11.1-.5 and8.3.13. Literal full transaction writes4A40.
+        # Sections 8.3.11.1-.5 and 8.3.13. Literal full transaction writes 4A40.
         self.assertEqual(int(self.register("REGCR")["address"], 16), 0x0D)
         self.assertEqual(int(self.register("ADDAR")["address"], 16), 0x0E)
         register = self.register("VOD_CFG3")
@@ -459,7 +459,7 @@ class LedgerTests(unittest.TestCase):
                 self.assertEqual(timing["start"], "reset (table does not specify edge)")
 
     def test_independent_pause_matrix(self):
-        # IEEE802.3-2012 Table28B-3, TI Table8-43: RX2000/TX1000.
+        # IEEE 802.3-2012 Table 28B-3, TI Table 8-43: RX 2000/TX 1000.
         # Rows are local advertisements; columns are partner advertisements.
         pause = self.data["pauseResolution"]
         self.assertEqual([int(v, 16) for v in pause["fields"]], [0x0000, 0x0400, 0x0800, 0x0C00])

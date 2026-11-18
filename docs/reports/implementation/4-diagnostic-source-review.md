@@ -42,16 +42,16 @@ an executed test. Original URL: [TI SNLU262](https://www.ti.com/lit/pdf/snlu262)
 [SNLA330A, January 2020](../../reference/source/TI-Cable-Diagnostics-SNLA330A.pdf),
 2-3 pp3-4, explicitly targets DP83825I. Its
 [official source](https://www.ti.com/lit/pdf/SNLA330) is not exact DP83826I
-calibration authority. SNLS647I independently gives segment3 `0173=1A21`,
+calibration authority. SNLS647I independently gives segment 3 `0173=1A21`,
 `0175=1005`; the DP83825 note prints different words and adds analog settings
-at0456/0411/0416/0190. Do not transfer those settings or its no-peak/fault-length
+at 0456/0411/0416/0190. Do not transfer those settings or its no-peak/fault-length
 algorithm. SNLS647I has no ALCD register/active-link cable-length facility:
 CDLAR means cable diagnostic amplitude result, not ALCD.
 
 [SNLA344C, October 2023](../../reference/source/TI-DP83826-EtherCAT-SNLA344C.pdf)
-introduction/section2, [SNLA494, February 2026](../../reference/source/TI-DP83826-EtherCAT-Frame-Errors-SNLA494.pdf)
-abstract/sections1-2 and [SNLA495, February 2026](../../reference/source/TI-DP83826-EtherCAT-Link-Down-SNLA495.pdf)
-abstract/sections1-3 establish EtherCAT ESC/C2000 context. Original URLs:
+introduction/section 2, [SNLA494, February 2026](../../reference/source/TI-DP83826-EtherCAT-Frame-Errors-SNLA494.pdf)
+abstract/sections 1-2 and [SNLA495, February 2026](../../reference/source/TI-DP83826-EtherCAT-Link-Down-SNLA495.pdf)
+abstract/sections 1-3 establish EtherCAT ESC/C2000 context. Original URLs:
 [SNLA344](https://www.ti.com/lit/pdf/SNLA344),
 [SNLA494](https://www.ti.com/lit/pdf/SNLA494),
 [SNLA495](https://www.ti.com/lit/pdf/SNLA495). ESC loopback/error policy, reset
@@ -72,14 +72,14 @@ Literals were transcribed from original tables before the integration fragment;
 they are independent of proposed fields and future production constants. Values
 below are hex, register-aligned. Every ordinary row has reset-known maskFFFF.
 Access columns describe the actual table/read effects, not generic permissions.
-C22 words have the established DEVAD31 aliases; extended offsets use DEVAD31.
+C22 words have the established DEVAD 31 aliases; extended offsets use DEVAD 31.
 
 | Register/offset | Reset | Reserved | Ordinary RW | R | RH | Explicit write exception |
 | --- | --- | --- | --- | --- | --- | --- |
 | BISCR C22/0016 | 0100 | 80A0 | 705F | 0B00 | 0400 | none |
-| BICSR1 C22/001B | 007D | 0000 | 00FF | FF00 | 0000 | write8000 snapshot/clear, overlaps read counter |
+| BICSR1 C22/001B | 007D | 0000 | 00FF | FF00 | 0000 | write 8000 snapshot/clear, overlaps read counter |
 | BICSR2 C22/001C | 05EE | F800 | 07FF | 0000 | 0000 | none |
-| CDCR C22/001E | 0102 | 3FFC | C000 | 0003 | 0000 | RW start8000 self-clears; neutral0 |
+| CDCR C22/001E | 0102 | 3FFC | C000 | 0003 | 0000 | RW start 8000 self-clears; neutral 0 |
 | CDSCR/0170 | 0C12 | 888F | 7770 | 0000 | 0000 | none |
 | CDSCR2/0171 | C850 | FFFF | 0000 | 0000 | 0000 | none; reserved despite tableR/W |
 | CDSCR3/0173 | 0D04 | 0000 | FFFF | 0000 | 0000 | none |
@@ -100,40 +100,40 @@ C22 words have the established DEVAD31 aliases; extended offsets use DEVAD31.
 | CDLAR6/018A | 0000 | F7DF | 0000 | 0820 | 0000 | none |
 
 No above register has a documented read-clear effect. BICSR1 clearing happens
-on its explicit write action, not read. Recipe-only0122,0123,0130 have no known
+on its explicit write action, not read. Recipe-only 0122,0123,0130 have no known
 reset/field masks and no ordinary writable permission; only exact literal
-actions2000,2000,47FF respectively are established for digital loopback.
+actions 2000,2000,47FF respectively are established for digital loopback.
 
-BISCR fields: counter mode4000, joint PRBS mode3000, checker lock0800,
-hardware sync-loss0400, generator0200, normal-power0100, MII-line transmit0040,
-loopback001F. Low-five legal codes0,1,2,4,8,10(hex) only; combinations are
-unsupported. PRBS bits13:12 jointly encode0 off,1 single constant packet with
-checker off,2 checker only,3 continuous generator plus checker. Bit14 separately
+BISCR fields: counter mode 4000, joint PRBS mode 3000, checker lock 0800,
+hardware sync-loss 0400, generator 0200, normal-power 0100, MII-line transmit 0040,
+loopback 001F. Low-five legal codes 0,1,2,4,8,10(hex) only; combinations are
+unsupported. PRBS bits 13:12 jointly encode 0 off, 1 single constant packet with
+checker off, 2 checker only, 3 continuous generator plus checker. Bit 14 separately
 selects counter saturation/rollover; it does not select traffic duration.
-SNLA423A5000 thus selects single generator plus rollover, not both paths.
+SNLA423A 5000 thus selects single generator plus rollover, not both paths.
 
-BICSR1 high byte is errored-byte count: saturates255 or wraps by selected mode.
-Low IPG code7D means500 bytes; FF means1020. BICSR2 raw field07FF is packet
-bytes; reset05EE=1518. Zero is field-representable but no minimum useful/accepted
+BICSR1 high byte is errored-byte count: saturates 255 or wraps by selected mode.
+Low IPG code 7D means 500 bytes; FF means 1020. BICSR2 raw field 07FF is packet
+bytes; reset 05EE=1518. Zero is field-representable but no minimum useful/accepted
 packet length or valid arbitrary-gap traffic policy is specified. Raw bounds
 do not certify all combinations as valid Ethernet frames.
 
-Capture with desired IPG7D writes807D; desiredA5 writes80A5. ReadingFFA5 must
-not cause an FFA5 write: high bits are counter data and write15 is destructive.
-Preserve desired low byte and send zero bits14:8. Read15 is counterMSB, not
+Capture with desired IPG 7D writes 807D; desired A5 writes 80A5. Reading FFA5 must
+not cause an FFA5 write: high bits are counter data and write 15 is destructive.
+Preserve desired low byte and send zero bits 14:8. Read 15 is counterMSB, not
 command state. Unknown capture/read effects may lose a window; blind repetition
 cannot recover it. Full repeat-capture latch lifecycle remains unestablished.
 
-CDCR start8000 is RW/self-clearing, with neutral0 outside deliberate trigger.
-Done0002 is already1 after reset0102; it cannot establish a fresh measurement.
-Reserved reset field13:2 code40 produces0100. Fail0001=0 without fresh done is
-not a pass. Rescal4000 normally0; if observed1, deassert then immediately
+CDCR start 8000 is RW/self-clearing, with neutral 0 outside deliberate trigger.
+Done 0002 is already 1 after reset 0102; it cannot establish a fresh measurement.
+Reserved reset field 13:2 code 40 produces 0100. Fail 0001=0 without fresh done is
+not a pass. Rescal 4000 normally 0; if observed 1, deassert then immediately
 PHYRCR hard reset. Other reviewer owns this recovery; cable code cannot bypass it.
 
-CDSCR cross-disable4000 and TX-channel2000 give combined bits14:13:
-A->B=0, B->A=1, A->A=2, B->B=3. DC-no-init1000 preserves DC-removal state,
-but preparation/settling prerequisites are unspecified. Average0700 codes0..6
-mean1,2,4,8,16,32,64 cycles;7 reserved. Segment0070 codes1..5 mean0-10,10-20,
+CDSCR cross-disable 4000 and TX-channel 2000 give combined bits 14:13:
+A->B=0, B->A=1, A->A=2, B->B=3. DC-no-init 1000 preserves DC-removal state,
+but preparation/settling prerequisites are unspecified. Average 0700 codes 0..6
+mean 1,2,4,8,16,32,64 cycles; 7 reserved. Segment 0070 codes 1..5 mean 0-10,10-20,
 20-40,40-80,80+ metres;0,6,7 reserved.
 
 | Segment | 0173 duration/skip | 0175 shadow | 0178 pulse code |
@@ -144,16 +144,16 @@ mean1,2,4,8,16,32,64 cycles;7 reserved. Segment0070 codes1..5 mean0-10,10-20,
 | 4 | 343B | 1008 | 2 |
 | 5 | 8F6F | 100B | 6 |
 
-CDSCR3 reset0D04 differs from recipe0D07; preserve both. Duration fieldFF00,
-skip00FF; shadow average3800 always code2, forward000F codes4,4,5,8,B.
-TDR176001F has a name/default5 without physical scaling. CDSCR41F00 defaults
+CDSCR3 reset 0D04 differs from recipe 0D07; preserve both. Duration field FF00,
+skip 00FF; shadow average 3800 always code 2, forward 000F codes 4,4,5,8,B.
+TDR176001F has a name/default 5 without physical scaling. CDSCR4 1F00 defaults
 1E and compensates strong short-cable reflections, without physical scaling.
 TDR1780007 has no established ns/code. The duration expression uses length
-times2 times5.2 divided by8; it does not establish a calibrated returned
+times 2 times 5.2 divided by 8; it does not establish a calibrated returned
 location conversion. The feature's1-V pulse does not scale amplitude codes.
 
-CDLRR1 low8 and CDLAR1 low7 are raw first peak location/amplitude. CDLAR6
-polarity0800 lacks a defined positive/negative bit encoding; cross0020 describes
+CDLRR1 low 8 and CDLAR1 low 7 are raw first peak location/amplitude. CDLAR6
+polarity 0800 lacks a defined positive/negative bit encoding; cross 0020 describes
 cross reflection/short between TD+ and TD-. Do not infer calibrated fault type
 from that wording. All other result banks are wholly reserved despite names.
 
@@ -165,33 +165,33 @@ MDIO selector/RMW transactions, and are released between waits and before output
 Primary and cleanup deadlines include admission, locks, terminal callbacks and
 polling. No nominal or example duration becomes a guaranteed completion maximum.
 
-MII loopback uses BMCR14 with BISCRlow5=4 at100 or1 at10, per table8-19;
-forced-full BMCR literals6100/4100 respectively. Qualified10BASE-Te setup still
-applies. All-speed bit2 prose does not override this. MII-line transmit bit6 is
-100-only. PCS input is10-only/code1; PCS output code2; analog code8 supports
-10/100 with100-ohm termination. Disable AN before internal near-end modes.
+MII loopback uses BMCR 14 with BISCR low 5=4 at 100 or 1 at 10, per table 8-19;
+forced-full BMCR literals 6100/4100 respectively. Qualified 10BASE-Te setup still
+applies. All-speed bit 2 prose does not override this. MII-line transmit bit 6 is
+100-only. PCS input is 10-only/code 1; PCS output code 2; analog code 8 supports
+10/100 with 100-ohm termination. Disable AN before internal near-end modes.
 The name MII loopback does not exclude a configured RMII MAC interface.
 
-Standalone digital is100-only, exact ordered sequence: BMCR2100, BISCR0104,
-MMD31/0122=2000,/0123=2000,/0130=47FF,PHYRCR4000. Last action is digital
+Standalone digital is 100-only, exact ordered sequence: BMCR 2100, BISCR 0104,
+MMD 31/0122=2000,/0123=2000,/0130=47FF,PHYRCR 4000. Last action is digital
 restart preserving registers. Opaque words are exact actions, never general
 field permissions;0123 is also used by EEE. Stopping selector alone does not
 restore opaque settings. Explicitly admitted reset/reinitialize/persistent
 replay is a conservative cleanup plan; otherwise restoration stays unverified.
 
-Reverse code10 returns partner traffic at the MAC interface, ignoring local
+Reverse code 10 returns partner traffic at the MAC interface, ignoring local
 MAC TX. Save/restore requested PHYSCR FIFO depth, observe finite partner payloads
 and clear selector. External cable loopback has no internal selector, requires
 an identified authorized fixture and is exempt from internal AN-disable rule.
 Observe correlated MAC/partner traffic; configuration readback is not path proof.
 
-SNLA423A reverse0020 writes reserved bit5; status address0017 is RCSR, not
-BISCR0016. Analog script3108 plus lock/generator status would retain selector8
-and read3B08 under those conditions, not its printed3B04. Its030B3380 aid is
+SNLA423A reverse 0020 writes reserved bit 5; status address 0017 is RCSR, not
+BISCR 0016. Analog script 3108 plus lock/generator status would retain selector 8
+and read 3B08 under those conditions, not its printed 3B04. Its 030B3380 aid is
 not imported as generic prerequisite; reconcile VOD ownership/previous settings
-before any such diagnostic action. BMCR15 is PCS reset, not PHYRCR hard reset.
+before any such diagnostic action. BMCR 15 is PCS reset, not PHYRCR hard reset.
 
-BIST uses15-bit PRBS and independent generator/checker paths. Admit legal
+BIST uses 15-bit PRBS and independent generator/checker paths. Admit legal
 loopback/fixture, safely set packet/IPG, record baseline capture, select mode,
 observe finite window, capture error count, stop both paths and restore settings.
 Retain lock, sync-loss, generator, coverage, capture failure and wrap/saturation
@@ -203,19 +203,19 @@ results can exist while pass criteria and capture lifecycle remain gated.
 Manual cable test requires disconnected/quiet partner, no competing
 BIST/loopback/reset and disabled autorun while setting finite segment/channel
 iterations. Preserve threshold defaults absent exact-part tuning evidence.
-Set CDCR15 once, retain acceptance/uncertainty, then poll with released lock.
-Freshness needs observed post-trigger start/busy or done0 followed by
-start0/done1, or stronger exact-part correlation evidence. If very fast completion
+Set CDCR 15 once, retain acceptance/uncertainty, then poll with released lock.
+Freshness needs observed post-trigger start/busy or done 0 followed by
+start 0/done 1, or stronger exact-part correlation evidence. If very fast completion
 hides progress, report freshness unknown rather than reuse reset/previous done.
 No diagnostic completion MAX is provided.
 
 Retain completed request/event generation, fail/status and per-word validity
-for0180/0185/018A. Failed later reads preserve prior words but invalidate the
+for 0180/0185/018A. Failed later reads preserve prior words but invalidate the
 complete composite. Include segment/channel/average/DC context and reset identity.
 Do not decode reserved banks, import DP83825 zero-amplitude/no-fault rules or
 claim metres, volts, polarity/fault classes or active-link cable diagnosis.
 
-Autorun CR1bit8 enables TDR on link-down; enable is not a trigger or sample.
+Autorun CR1 bit 8 enables TDR on link-down; enable is not a trigger or sample.
 Link flaps may replace results; before/after equal status cannot prove atomic
 capture or no intervening run. Exact latching/retrigger behavior remains needed.
 Cancellation stops primary work between callbacks and retains partial results.
@@ -258,20 +258,20 @@ Fragment:22 ordinary registers,three recipe-only records,10 procedures,five gate
 four write actions and independent vectors. Local fragment partition/reset checks:
 PASS. Lead integration owns ledger/unit/reference/diff checks and final Git sync.
 Host driver, portable/package consumer, SDK link, remote CI and physical:
-NOT RUN in this source-only review. Remote CI remains reserved for prompt71.
+NOT RUN in this source-only review. Remote CI remains reserved for prompt 71.
 
 ## Independent event-review cross-check
 
 After integration, independently compared the event review's nine-register
-matrix and five procedure contracts against original PDF pages64-70 and92,
-rendered directly in memory, plus previously inspected72/73/81. PASS: PHYSCR
-reserved04E0; MISR RCFF00/RW00FF; FCSCRRC00FF; RECRRCFFFF with unresolved width;
+matrix and five procedure contracts against original PDF pages 64-70 and 92,
+rendered directly in memory, plus previously inspected 72/73/81. PASS: PHYSCR
+reserved 04E0; MISR RC FF00/RW 00FF; FCSCR RC 00FF; RECR RC FFFF with unresolved width;
 10BTSCR polarityR0010 with explicit destructive-read prose; RCSR
-reset0041/knownFF5F/reservedFE40; RXFSreservedEF1E/RCH00E1; MSErawFFFF.
+reset 0041/known FF5F/reserved FE40; RXFS reserved EF1E/RCH 00E1; MSE raw FFFF.
 Collector preserves partial and late-success consumed words, distinguishes
 selector failure from possible target consumption, retains source/reset epochs
 and avoids destructive retry as proof. Calibration deassert/reset adjacency,
-trigger neutral0, retained primary error and finite owed cleanup are consistent
-with table8-47. No blocking numeric or procedure defect found. Suggested a
+trigger neutral 0, retained primary error and finite owed cleanup are consistent
+with table 8-47. No blocking numeric or procedure defect found. Suggested a
 wording correction to clarify that retained host history survives reset until
 explicit consumption/acknowledgement; the lead owns that shared contract edit.

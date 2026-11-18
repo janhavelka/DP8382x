@@ -38,8 +38,8 @@ all; `0x001F=0x8000` is pin-equivalent and treated as relatching straps despite
 BMCR table 8-1's contradiction; `0x001F=0x4000` restarts digital logic while
 retaining registers (the prose's ambiguous software/soft reset); BMCR[15]
 resets PCS, retains vendor registers and does not latch straps, with the exact
-PCS set unspecified so re-read owned direct fields; MMD3 `0x3000[15]` resets
-MMD3/MMD7/PCS while retaining vendor registers. Label the section 7.4.4.2
+PCS set unspecified so re-read owned direct fields; MMD 3 `0x3000[15]` resets
+MMD 3/MMD 7/PCS while retaining vendor registers. Label the section 7.4.4.2
 soft-reset interpretation as inferred; never select a recipe by its prose name.
 
 Use table 8-4 revision admission and UNKNOWN operating mode. RXFS[12] resets 0

@@ -89,7 +89,7 @@ struct SdkStateSnapshot {
 /// @brief Separate MAC policy and PHY advertisement receipts; no implicit rollback.
 struct FlowControlRecord {
   bool requestedEnabled{false}; ///< Application MAC flow-control policy.
-  uint32_t pauseAbility{0}; ///< Bit0 symmetric, bit1 asymmetric; exact values 0..3.
+  uint32_t pauseAbility{0}; ///< Bit 0 symmetric, bit 1 asymmetric; exact values 0..3.
   bool macAttempted{false}; ///< enable_flow_ctrl was invoked.
   bool macAccepted{false}; ///< MAC returned ESP_OK, even if completion was late.
   bool macEffectPossible{false}; ///< Accepted or uncertain MAC policy change.
@@ -266,7 +266,7 @@ public:
   NativeStatus reconcileSdkState(uint64_t deadlineUs) noexcept;
   /// @brief Apply MAC flow policy and attest separately configured PHY pause using correctly typed calls.
   /// @param[in] enabled Application MAC policy; never passed through defective S_FLOW_CTRL ioctl.
-  /// @param[in] pauseAbility Bit0 symmetric/bit1 asymmetric, 0..3; must match verified AN advertisement.
+  /// @param[in] pauseAbility Bit 0 symmetric/bit 1 asymmetric, 0..3; must match verified AN advertisement.
   /// @param[in] deadlineUs Exclusive aggregate esp_timer allowance, microseconds.
   /// @return Native result; local validation is effect-free, accepted/uncertain MAC effects are retained.
   esp_err_t setFlowControl(bool enabled, uint32_t pauseAbility, uint64_t deadlineUs) noexcept;
@@ -324,14 +324,14 @@ public:
   /// @return Core status or BUSY; accepted/uncertain mutation withdraws SDK agreement.
   Status writeClause22(uint32_t address, uint32_t value, const IoBudget& budget) noexcept;
   /// @brief Stopped owner complete four-frame MMD maintenance through core policy.
-  /// @param[in] devad Vendor31 only for writes.
+  /// @param[in] devad Vendor 31 only for writes.
   /// @param[in] address LEDCR alias only (0x0018); selectors/other aliases reject.
   /// @param[in] value Sixteen-bit permitted field word.
   /// @param[in] budget Whole unsplit batch allowance.
   /// @return Core terminal status or BUSY; failure preserves uncertain effects.
   Status writeMmd(uint32_t devad, uint32_t address, uint32_t value, const IoBudget& budget) noexcept;
   /// @brief Stopped owner atomic five-frame stable LEDCR RMW.
-  /// @param[in] devad Vendor31 only.
+  /// @param[in] devad Vendor 31 only.
   /// @param[in] address LEDCR alias 0x0018.
   /// @param[in] mask Nonzero sixteen-bit permitted stable field mask.
   /// @param[in] value Replacement subset of mask.
@@ -462,7 +462,7 @@ private:
   bool _preStopDownAttempted{false}; ///< Lifecycle owner tries a lost DOWN once before framework stop.
   static constexpr int64_t OWNER_DEADLINE = std::numeric_limits<int64_t>::max();
   std::atomic<Phase> _phase{Phase::STOPPED};
-  std::atomic<uint8_t> _deferredStart{0}; ///< Bit0 FSM changed; bit1 START was posted before get_link.
+  std::atomic<uint8_t> _deferredStart{0}; ///< Bit 0 FSM changed; bit 1 START was posted before get_link.
   LifecycleRecord _record{};
   DiscoverySnapshot _discovery{};
   std::atomic<bool> _installed{false};

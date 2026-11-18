@@ -64,7 +64,7 @@ success. On error use the cached snapshot and its per-source validity/staleness;
 `lastRequested` identifies the acquisition, not which sources succeeded.
 
 Each source retains the latest exact word, sample count and unions of observed
-ones and zeros. The zero union preserves latched-low history. Stage20 adds sourced
+ones and zeros. The zero union preserves latched-low history. Stage 20 adds sourced
 event unions/coalescing and explicit sample-count overflow. Only FCSCR's low byte
 contributes to `sampledSum`, with separate hardware saturation, host overflow and
 lower-bound flags. RECR remains raw-only with a zero arithmetic field; repeated
@@ -158,15 +158,15 @@ never replayed into writes: capture uses a literal command plus owned IPG.
 Public acquisition cannot interleave those sources with an executing BIST
 operation; cached evidence remains available. See [BIST](bist.md).
 
-Stage29 adds `EEE_STATUS` and `EEE_ERRORS` to the same collector. Their MMD3
+Stage 29 adds `EEE_STATUS` and `EEE_ERRORS` to the same collector. Their MMD 3
 namespace is distinct from vendor aliases; safe dumps must not consume them.
 See [EEE acquisition](eee.md) for current/latched/RC interpretation, retained
 partial words, possible history loss and source-implied Q1 qualification.
 
-Stage31 uses the same RXFCFG1 W0C composer for typed [WoL procedures](wake-on-lan.md)
+Stage 31 uses the same RXFCFG1 W0C composer for typed [WoL procedures](wake-on-lan.md)
 and raw maintenance. Every control write harvests RXFS/MISR2 first. Raw changes
 withdraw typed trust; unchanged stable settings skip writes, explicit acknowledgement
-does not. The bit6 name remains no permission for custom pattern matching.
+does not. The bit 6 name remains no permission for custom pattern matching.
 
 
 [Pin profiles](led-gpio.md) reuse the stable-field transaction path and exclude
@@ -177,8 +177,8 @@ capture/clear command affects the PRBS_ERROR indication; an ordinary BICSR1 read
 is not that command. No LED-owned destructive reader is introduced.
 
 
-Stage33 [interface updates](interface-clock.md) route both RCSR RMW reads and
+Stage 33 [interface updates](interface-clock.md) route both RCSR RMW reads and
 masked readback through the single collector. RC[3:2] are retained before a later
-error and written as zero, while reserved bit6 remains preserved. A timeout after
+error and written as zero, while reserved bit 6 remains preserved. A timeout after
 a possibly consuming read records history loss. Raw samples never become decoded
 FIFO faults merely because the printed polarity or fake seems convenient.

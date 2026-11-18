@@ -100,7 +100,7 @@ the unresolved per-mode polarity, clock and mux interpretations; no reserved
 field becomes writable through the typed API.
 
 
-Stage33's six interface/clock/compatibility procedures share
+Stage 33's six interface/clock/compatibility procedures share
 [one typed application and replay pass](interface-clock.md). RCSR read effects
 still belong to the collector. Source-gated selector routes are not generic
 write permissions, and runtime mode evidence does not rewrite captured straps.

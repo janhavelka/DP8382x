@@ -67,7 +67,7 @@ Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) n
     return fail(linkTimeout(TimeoutDetail::BOUND_ADMISSION));
   }
 
-  // SNLS647I tables8-20/34: first BMSR consumes historical latch-low; second
+  // SNLS647I tables 8-20/34: first BMSR consumes historical latch-low; second
   // establishes current state. PHYSTS precedes the clearing ANER dependency.
   constexpr uint8_t addresses[] = {cmd::REG_BMSR, cmd::REG_BMSR, cmd::REG_PHYSTS,
       cmd::REG_BMCR, cmd::REG_ANAR, cmd::REG_ALNPAR, cmd::REG_ANER, cmd::REG_PHYCR,
@@ -127,20 +127,20 @@ Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) n
       next.speed = (next.rawPhystsFinal & cmd::MASK_PHYSTS_SPEED) != 0U ? LinkSpeed::MBPS_10 : LinkSpeed::MBPS_100;
       next.duplex = (next.rawPhystsFinal & cmd::MASK_PHYSTS_DUPLEX) != 0U ? Duplex::FULL : Duplex::HALF;
       const bool partnerAn = (next.rawAner & cmd::MASK_ANER_PARTNER_AN) != 0U;
-      // Table8-29: parallel detection can become 100/full only through extension.
+      // Table 8-29: parallel detection can become 100/full only through extension.
       if (!partnerAn && next.duplex == Duplex::FULL && !(extension && next.speed == LinkSpeed::MBPS_100)) {
         next.duplex = Duplex::UNKNOWN;
       }
       next.resolvedModeValid = next.duplex != Duplex::UNKNOWN;
       const uint16_t common = next.rawAnar & next.rawAnlpar;
-      // Table28B-3 applies only when the highest common technology is full duplex.
+      // Table 28B-3 applies only when the highest common technology is full duplex.
       // A plausible PHYSTS word alone cannot qualify inconsistent base pages.
       const bool commonFull = (common & cmd::MASK_ANAR_FULL100) != 0U ? next.speed == LinkSpeed::MBPS_100 :
           (common & cmd::MASK_ANAR_HALF100) == 0U && (common & cmd::MASK_ANAR_FULL10) != 0U &&
           next.speed == LinkSpeed::MBPS_10;
       if (next.resolvedModeValid && partnerAn && next.duplex == Duplex::FULL && commonFull &&
           (next.rawAnar & cmd::MASK_ANAR_SELECTOR) == 1U && (next.rawAnlpar & cmd::MASK_ALNPAR_SELECTOR) == 1U) {
-        // IEEE802.3 Table28B-3. Asymmetric RX/TX is resolved in local orientation.
+        // IEEE 802.3 Table 28B-3. Asymmetric RX/TX is resolved in local orientation.
         const bool localPause = (next.rawAnar & cmd::MASK_ANAR_SYMMETRIC_PAUSE) != 0U;
         const bool remotePause = (next.rawAnlpar & cmd::MASK_ALNPAR_PAUSE) != 0U;
         const bool asymmetric = (next.rawAnar & cmd::MASK_ANAR_ASYM_PAUSE) != 0U &&

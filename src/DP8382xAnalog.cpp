@@ -1,5 +1,5 @@
 /// @file DP8382xAnalog.cpp
-/// @brief Bounded owned analog profiles; SNLS647I tables8-73/79..83/86.
+/// @brief Bounded owned analog profiles; SNLS647I tables 8-73/79..83/86.
 #include <DP8382x/DP8382x.h>
 
 namespace DP8382x {

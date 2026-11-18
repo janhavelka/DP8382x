@@ -11,7 +11,7 @@ namespace {
 using namespace DP8382x;
 using Driver = ::DP8382x::DP8382x;
 
-// Literal SNLS647I C22/DEVAD31 model. Failure placement is a physical frame
+// Literal SNLS647I C22/DEVAD 31 model. Failure placement is a physical frame
 // ordinal, independent of production health classification and register masks.
 struct Controller {
   std::array<uint16_t, 32> words{};

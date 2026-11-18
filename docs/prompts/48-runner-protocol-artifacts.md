@@ -2,7 +2,7 @@
 
 Prerequisite: shared producer, schema and compiled fixture from
 [43](43-cli-foundation.md) through [46](46-cli-diagnostics-controls.md).
-SDK integration at47 does not block offline runner work48-52. Serial follows49.
+SDK integration at 47 does not block offline runner work 48-52. Serial follows 49.
 
 ## Current evidence and ownership
 

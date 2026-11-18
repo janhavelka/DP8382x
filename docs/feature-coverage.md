@@ -18,7 +18,7 @@ reconciliation. Prompt 17 completes [negotiated profiles and typed next pages](n
 with shared replay and partial-evidence tests. Prompt 18 completes [forced and coupled controls](forced-settings.md) through
 the same configuration/replay path. Prompt 19 completes [live/cached link observation](link-observation.md)
 with ten-read consistency, forced/pause qualification and retained change evidence.
-Prompt20 completes [typed events/counters](event-counters.md), per-source partial
+Prompt 20 completes [typed events/counters](event-counters.md), per-source partial
 history and source-qualified FCSCR accumulation. RECR/RMII derived interpretations
 remain gated. Prompt 21 completes [passive health](health.md), with separate
 managed transaction counts, state projection and retained error evidence. There
@@ -32,7 +32,7 @@ described below. Source-gated branches remain incomplete. Prompt 37 adds a real
 P4 SDK fixture link and native host tests for the [current adapter subset](esp-idf.md);
 hardware qualification is NOT RUN. Ledger tests establish their own research layer.
 
-Prompt38 maps the existing link/initialization/access families to native
+Prompt 38 maps the existing link/initialization/access families to native
 `startConfigure`, `startInitialize`, `reconcileSdkState`, `modifyBasicControl`,
 `writeClause22`/`writeMmd`/`modifyMmd` and `acquireEvidence`. All delegate the shared
 procedures and collector; raw SDK ioctls still reject. Flow policy calls correctly
@@ -43,7 +43,7 @@ silicon procedure, part support or physical qualification; ledger source gates
 remain unchanged. The [stage report](reports/implementation/38-esp-idf-state-arbitration.md)
 records exact coverage and limits.
 
-The [independent prompts37-39 audit](reports/implementation/37-39-independent-audit.md)
+The [independent prompts 37-39 audit](reports/implementation/37-39-independent-audit.md)
 adds execution evidence for board/initialization exclusion, discovery transport
 accounting and callback/lock bounds. These corrections preserve the same typed
 chip procedures, source gates and physical qualification status.
@@ -84,7 +84,7 @@ silicon gates remain explicit. No feature's implementation status changes here.
 | initialization / Required 10BASE-Te initialization | 3 / COMPLETE | 15 (SOFTWARE COMPLETE; HOST PASS) | 15, 17, 18; 37-38 native host/P4 link PASS | None named | Shared startInitialize mandatory preparation; verified initialization evidence followed by native SDK reconciliation | initialize_10base |
 | negotiation / Advertisement, forced-compatible negotiation and pause | 3 / COMPLETE | 17 (SOFTWARE) | 17, 19; 37-39 native host/P4 link PASS; physical timing unqualified | None named | LinkSettings/startConfigure, native reconcileSdkState and setFlowControl; desired/observed/trust, SDK cache agreement and separate MAC/PHY effects | configure_an |
 | next_page / Complete next-page exchange | 3 / COMPLETE | 17 (SOFTWARE) | 17, 19, 20, 29, 34 | next_page_handshake | Typed local pages and bounded exchange; Partner pages, partial handshake and completion | next_page_exchange |
-| crossover / Automatic, robust and manual crossover / port mirror | 3 / COMPLETE | 18 (SOFTWARE) | 18, 19, 34; 38 native forced10/100 host/P4 link PASS | forced_physts | ForcedLinkSettings, crossover/mirror/extended duplex through shared startConfigure; native rejects unresolved extended forced half duplex | configure_forced, extended_link_configure |
+| crossover / Automatic, robust and manual crossover / port mirror | 3 / COMPLETE | 18 (SOFTWARE) | 18, 19, 34; 38 native forced 10/100 host/P4 link PASS | forced_physts | ForcedLinkSettings, crossover/mirror/extended duplex through shared startConfigure; native rejects unresolved extended forced half duplex | configure_forced, extended_link_configure |
 | link / Live and retained link observations | 3 / COMPLETE | 19 COMPLETE (SOFTWARE; host PASS) | 19; 37-38 native publication host/P4 link PASS | forced_physts (physical Q11) | readLinkStatus and cached LinkSnapshot; current/history validity, conservative age, forced/AN pause and change evidence; native framework timer uses same collector | observe_link |
 | eee / EEE capability, initialization and negotiation | 5 / COMPLETE | 29 (SOFTWARE) | 29, 37, 38, 39 | eee_wire, eee_control_semantics | EEE initialization/settings/status; Local/partner capability, request and negotiated state | eee_initialize, eee_negotiation_status |
 | lpi / Legacy MAC LPI sessions | 5 / COMPLETE | 30 (SOFTWARE) | 30, 37, 38, 39, 68 | eee_wire, eee_control_semantics | Bounded legacy-MAC LPI start/stop, application-owned dwell; requested/uncertain state and masked control readback, no invented readiness event | legacy_lpi |
@@ -136,13 +136,13 @@ Run the [ledger checks](registers/README.md) on every extension. Retain separate
 source, driver-host, package, SDK and physical evidence; campaigns 72–73 own
 actual qualification. Future family research is assigned in [variants](variants.md).
 
-WP3 retains research completeness with97 register records (79 detailed,18 opaque)
+WP3 retains research completeness with 97 register records (79 detailed, 18 opaque)
 and five source-implied EEE associations. D2's stable reads, collector routes and
 fail-closed checks do not qualify physical offsets. D3's SNLA428 transmit-A helper,
-D4 forced-mode interpretation, D7 all14 10M compliance actions and D8 transient
+D4 forced-mode interpretation, D7 all 14 10M compliance actions and D8 transient
 next-page ownership are selected research policies. Their physical questions
 remain Q1/Q7/Q11/Q19/Q10 respectively; full feature implementation stays with its
-assigned later prompt. The current prompt13 collector has real destructive-read
+assigned later prompt. The current prompt 13 collector has real destructive-read
 and mixed-mutation consumers; it is not deferred by this research update.
 
 Prompt 24 completes `bist_run` and `bist_capture` control/raw-acquisition scope
@@ -163,13 +163,13 @@ software procedures now have host/portable evidence; unknown freshness/coherence
 engine quiescence and Q7 physical accuracy remain explicit source/fixture limits.
 Calibration recovery still belongs to its separate prompt-35 procedure.
 
-Prompt27 completes `interrupt_configuration` and `interrupt_test` through
+Prompt 27 completes `interrupt_configuration` and `interrupt_test` through
 [owned IRQ policy and service](interrupts.md): all source enables, global/output/
 polarity, qualified shared-source attribution, explicit test stop, finite service
 and shared reset replay. Pending half-full requests survive incomplete passes.
 Host tests cover complete procedures; Q9 pin/latching behavior and the RXFS SFD
 interpretation gate remain open. The interrupt owner applies/restores the selected
-LED1/2 mux=4 route; stage32 LED profiles validate dependencies on that owner.
+LED1/2 mux=4 route; stage 32 LED profiles validate dependencies on that owner.
 
 ## Prompt 28 power implementation
 
@@ -180,26 +180,26 @@ BLOCKED by `deep_power_exit`. Thus the whole power feature remains PARTIAL in th
 ledger, despite completion of its independently supported procedures. Host tests
 and portable examples do not close Q6 or establish SDK support.
 
-Stage29 implements `eee_initialize` and `eee_negotiation_status` through the
+Stage 29 implements `eee_initialize` and `eee_negotiation_status` through the
 [EEE guide](eee.md), exact eighteen-row recipe, shared restoration and single
 DEVAD-qualified collector. Host coverage is in `test/eee.cpp`; Q1 physical wire,
-control and interoperability qualification remains pending. Explicit LPI is implemented separately in stage30.
+control and interoperability qualification remains pending. Explicit LPI is implemented separately in stage 30.
 
 
-Stage30 implements `legacy_lpi`: two bounded bit12 calls, persistent OP-9 session
+Stage 30 implements `legacy_lpi`: two bounded bit 12 calls, persistent OP-9 session
 barrier, passive request evidence and separate explicit stop/restoration.
 [Guide](lpi.md) and [report](reports/implementation/30-legacy-mac-lpi.md) record
 host tests; physical Q1/Q2 and SDK/controller results remain NOT RUN.
 
 
-Stage31 implements `wol_configure` and `wol_acknowledge` with exact-part MAC/
+Stage 31 implements `wol_configure` and `wol_acknowledge` with exact-part MAC/
 Secure-ON matching, CRC/pulse/level controls, typed status, shared collection,
 quiesced route/configuration and reset replay. [Guide](wake-on-lan.md) and
 [report](reports/implementation/31-wake-on-lan.md) separate host protocol tests
 from Q3 live-reconfiguration, W0C/RH-bit and physical wake qualification.
 
 
-Stage32 implements `led_configure` and `pin_configure` through one typed
+Stage 32 implements `led_configure` and `pin_configure` through one typed
 `PinSettings` profile and shared reset/power restoration. All admitted source,
 force/polarity, blink/stretch and mux values have independent literal/failure
 tests. [The guide](led-gpio.md) lists source-gated routes and
@@ -207,7 +207,7 @@ tests. [The guide](led-gpio.md) lists source-gated routes and
 Q12. IRQ/WoL source owners retain their own mux writes and collector.
 
 
-Stage33 implements `clock_configure`, `mii_configure`, `rmii_configure`,
+Stage 33 implements `clock_configure`, `mii_configure`, `rmii_configure`,
 `repeater_configure`, `compatibility_configure` and `isolation_configure` through
 one `InterfaceSettings`/`configureInterface` pass. Independent host vectors and
 failure/restore tests are in `test/interface.cpp`; the
@@ -215,19 +215,19 @@ failure/restore tests are in `test/interface.cpp`; the
 keep Q12 clock-mux, Q17 raw-RCSR and physical repeater evidence separate.
 Clock selectors without an established activation route remain rejected.
 
-Stage34 completes `configure_fast_drop`, `signal_quality_sample`,
+Stage 34 completes `configure_fast_drop`, `signal_quality_sample`,
 `tx100_configure`, `tx10_configure` and `link_recovery_configure` through
 [quality controls](quality.md). `startConfigureQuality` owns explicit grouped
 settings; `readSignalQuality` returns unscaled raw MSE. `test/quality.cpp` covers
 independent literals, collector retention, failure/cancellation, shared replay
-and exact bounds. CLI remains owner-routed work in44-46. Physical MII detector
+and exact bounds. CLI remains owner-routed work in 44-46. Physical MII detector
 latency, MSE calibration and partner/traffic evidence remain NOT RUN. The
 `mse_address`, `fld_threshold_recipe`, `fld_reset_defaults` and `analog_rx_gain`
 gates remain visible; no raw interpretation or fixture result is invented.
 
-Prompt35 implements `analog_configure`, `collision_test`, `compliance_session`
+Prompt 35 implements `analog_configure`, `collision_test`, `compliance_session`
 and `calibration_recovery` through the [electrical guide](electrical.md). Source
-dispositions include gated receiver gain, IOCTRL example and100M0428 access;
+dispositions include gated receiver gain, IOCTRL example and 100M 0428 access;
 software coverage does not close Q19 or qualify hardware.
 
 ## Prompt 36 bounded integration review

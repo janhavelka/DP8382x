@@ -16,9 +16,9 @@ explicit unresolved gates. Research completion does not claim driver completion.
 
 Prompt 15 adds [caller-driven initialization](initialization.md), cancellation,
 retained results and separately admitted restoration. Prompt 17 adds negotiated
-profile replay; prompt18 adds forced modes and coupled routing/extension.
+profile replay; prompt 18 adds forced modes and coupled routing/extension.
 Prompt 19 adds [live/cached link observations](link-observation.md), qualified
-mode/pause and retained change evidence. Prompt20 adds [typed event/counter acquisition](event-counters.md)
+mode/pause and retained change evidence. Prompt 20 adds [typed event/counter acquisition](event-counters.md)
 and explicit retained-history semantics. Prompt 21 adds [passive health](health.md),
 exact managed batch accounting and cached state without an offline admission latch.
 Prompt 22 adds [explicit reconciliation](reconciliation.md): bounded verification,
@@ -37,16 +37,16 @@ Prompt 40 remains unstarted and native_rx_quiescence remains BLOCKED. Final
 verification totals and synchronized checkpoints are recorded in the handoff.
 
 The [2026-11-18 native correction review](reports/implementation/37-39-native-fixes-2026-11-18.md)
-rechecks all17 findings at1a8bc8e and fixes lifecycle retry/completion, error domains,
+rechecks all 17 findings at 1a8bc8e and fixes lifecycle retry/completion, error domains,
 running-state withdrawal, pause/tick/budget validation and shared installation
-admission. Regression coverage includes68 native suites at both1000/100Hz and a
-333Hz timing case. Prompt40 remains unstarted; RX lifetime and physical timing/
+admission. Regression coverage includes 68 native suites at both 1000/100Hz and a
+333Hz timing case. Prompt 40 remains unstarted; RX lifetime and physical timing/
 stack qualification remain separate gates. Final checked commit is in the handoff.
 
 The [17-item follow-up](reports/audit-followup-2026-11-17.md) starts from 955ecf3
 and changes no stage status. Checked/synchronized units are 3fe72be (BISCR/private
 helper),681a10e (contracts/source guides) and 380cd83 (prompt acceptance).
-Larger result/admission/harness/timing work stays with76/53/55/54; existing
+Larger result/admission/harness/timing work stays with 76/53/55/54; existing
 source, physical and native RX lifetime gates remain open.
 
 The [2026-11-17 audit-response review](reports/current-review-responses.md) starts
@@ -58,29 +58,29 @@ initialization replay bounds and future CLI discovery with existing behavior.
 No new production defect was confirmed. This maintenance advances no numbered
 stage and preserves unresolved silicon, physical and installed-RX lifetime gates.
 
-The [independent prompts37-39 audit](reports/implementation/37-39-independent-audit.md)
+The [independent prompts 37-39 audit](reports/implementation/37-39-independent-audit.md)
 began on clean synchronized `main` at `ec792d2ea5bee28d20092999c1ec6facad57e088`.
 It corrects shared board/initialization reservations, routes discovery through
 core transport accounting, distinguishes controller wait expiry from contention,
 and enforces individual SDK control/policy callback bounds with retained effects.
 Malformed timeout details and the modeled timer-active interval are also corrected.
-All236 portable,63 native Release/UBSan, two consumer and103 Python tests pass;
+All 236 portable, 63 native Release/UBSan, two consumer and 103 Python tests pass;
 actual P4 linking and source/document checks pass. Physical timing, source gates
 and reusable installed RX teardown remain separately unqualified. Final commit
 and upstream equality are recorded in the handoff.
 
-Prompt39 began on clean synchronized `main` at
+Prompt 39 began on clean synchronized `main` at
 `456b9710095b4e1394cfb8d4acdeb90b722d981f`. The
 [report](reports/implementation/39-esp-idf-link-bounds.md) and
 [fresh audit](reports/implementation/39-native-source-audit.md) close the native
 entry, notification and conditional timing tables. Independent review corrected
 publication/start/stop/fence completion contention, late event classification,
-poll-period overflow and floor-clock readiness anchors. All55 native Release and
+poll-period overflow and floor-clock readiness anchors. All 55 native Release and
 UBSan cases,235 portable tests, two consumers,103 Python tests, source checks and
 actual P4 link pass. Physical wall-time qualification and reusable RX teardown
 remain explicit gates. Final commit/upstream equality is recorded in the handoff.
 
-Prompt38 began on clean synchronized `main` at
+Prompt 38 began on clean synchronized `main` at
 `a744e77e3ac000be5ea12b1c4b5fdef55b50efde`. The
 [report](reports/implementation/38-esp-idf-state-arbitration.md) records complete
 AN/forced SDK state reconciliation, native raw/collector routes, shared reset
@@ -91,24 +91,24 @@ consumer, source-document checks and actual P4 link pass. The installed RX lifet
 gate, physical qualification and source-gated chip branches remain unchanged;
 final commit/upstream equality belongs to the handoff.
 
-Prompt37 began on clean synchronized `main` at
+Prompt 37 began on clean synchronized `main` at
 `cb5ffe5b5d21e700c3e9fbef434e192a50b1aeff`. The
 [report](reports/implementation/37-esp-idf-lifecycle.md) records the native factory,
 board readiness, shared terminal transport, implemented owner/callback routes,
 partial lifecycle evidence and actual pinned SDK link. Independent ownership
 review and modeled raw/glue RX capture tests preserve the `native_rx_quiescence`
 gate: reusable installed teardown remains BLOCKED, with terminal resources
-retained until system restart. Prompts38/39 expand configuration/conformance;
+retained until system restart. Prompts 38/39 expand configuration/conformance;
 source-gated chip branches and physical Q13 remain open. Final commit/upstream
 equality is recorded in the handoff.
 
-The [independent prompt36 audit](reports/implementation/36-independent-audit.md)
+The [independent prompt 36 audit](reports/implementation/36-independent-audit.md)
 starts from clean synchronized `main` at `67e5e97cee016f57177d0496f1c47a51bd77821b`.
 It corrects quarantined link freshness and reset handling inside configuration
 and collision batches. Required source gates and BLOCKED primary closure remain unchanged;
 the audit report records fresh focused checks separately from historical totals.
 
-Prompt36 began on clean synchronized `main` at
+Prompt 36 began on clean synchronized `main` at
 `2f64d3018179e86a11e9e747eecb1d13e75989aa`. Its bounded review and focused fixes
 are delivered; full primary closure remains BLOCKED by mandatory source-gated
 branches. The [report](reports/implementation/36-primary-feature-closure.md) records
@@ -116,14 +116,14 @@ independent source/integration review, returned acceptance and fresh local check
 Native work may continue on the implemented subset; no SDK or physical completion
 is claimed. Final commit/upstream equality is recorded in the handoff.
 
-The [independent prompts34-35 audit](reports/implementation/34-35-independent-audit.md)
+The [independent prompts 34-35 audit](reports/implementation/34-35-independent-audit.md)
 starts from synchronized `main` at `c292dc75658b01d224617548d896f88fb8c6ef71`.
 It corrects quality evidence handling, combined-owner analog replay, electrical
 reset/session reconciliation and interleaved reset invalidation. Existing source
 and physical gates remain open; its report records fresh local verification and
 the final handoff records commit/upstream equality.
 
-Prompt35 began on clean synchronized `main` at
+Prompt 35 began on clean synchronized `main` at
 `a4ee2d4f18b12dc577ed52e75387ab936b8bfc3d`. It implements source-admitted
 analog profiles, compliance/collision sessions and conditional calibration
 recovery through the shared operation/reset/collector paths. The
@@ -132,7 +132,7 @@ independent PDF/code review, failure-prefix corrections and local verification.
 SDK, remote CI and physical qualification remain separate; final commit and
 upstream equality are recorded in the handoff.
 
-Prompt34 began on clean synchronized `main` at
+Prompt 34 began on clean synchronized `main` at
 `e3c25db71c8520d83b997a04c5d107d64b69c707`. It completes the five source-admitted
 quality/TX/link-loss procedures through one cooperative profile, the existing
 collector and shared restore path, plus raw MSE snapshots. The
@@ -141,14 +141,14 @@ source/code review, tests and physical/source limits. SDK, remote CI and
 hardware results remain separate; the final commit and upstream equality are
 recorded in the handoff.
 
-The [independent prompts32-33 audit](reports/implementation/32-33-independent-audit.md)
+The [independent prompts 32-33 audit](reports/implementation/32-33-independent-audit.md)
 starts from synchronized `main` at `2938ed718725b834fc1da105d93a3370d77f2e28`.
 It corrects premature restoration readiness, pin-owned clock dependency proof
 and live interface admission for shared LED2/3 routes. Existing source and
 physical gates remain open; final check and synchronization evidence is in
 the audit report and handoff.
 
-Prompt33 began on clean fetched `main` at
+Prompt 33 began on clean fetched `main` at
 `3e6e0bfb86d6ed681ba3dde191ff9973078ba31e`, synchronized with upstream.
 [The report](reports/implementation/33-clock-interface-repeater.md) records the
 complete source-admitted interface/clock/compatibility and isolation profile,
@@ -156,7 +156,7 @@ per-PHY repeater configuration, collector-safe RCSR access and shared replay.
 Physical Q12/Q17 and board clock/repeater qualification remain NOT RUN.
 Final verified commit and sync equality are recorded in the handoff.
 
-Prompt32 began on clean fetched `main` at
+Prompt 32 began on clean fetched `main` at
 `328b5edbfe3b33c45d680aa34327bd96ef79b4a0`. The
 [stage report](reports/implementation/32-led-gpio.md) records bounded typed pin
 profiles, exact source/mode restrictions, dependency ownership and shared replay.
@@ -169,26 +169,26 @@ Fresh prompts 30-31 audit began on clean synchronized `main` at
 confirmed WoL corrections, independent LPI review and final local verification.
 Physical Q2/Q3 qualification remains NOT RUN.
 
-Prompt31 began on clean synchronized `main` at
-`519c3aa51479c3c6c23f8c22d9a4c55154980986` (completed prompt30).
+Prompt 31 began on clean synchronized `main` at
+`519c3aa51479c3c6c23f8c22d9a4c55154980986` (completed prompt 30).
 [The report](reports/implementation/31-wake-on-lan.md) records complete WoL
 matching/indication, bounded status and acknowledgement, pending-event preservation,
 narrow route ownership and shared restoration. All local checks pass; physical
-Q3 and SDK qualification remain NOT RUN. Remote CI stays prompt71. Final commit
+Q3 and SDK qualification remain NOT RUN. Remote CI stays prompt 71. Final commit
 and upstream equality are recorded in the handoff.
 
 
-Prompt30 began on clean synchronized `main` at
-`356320ac645f7fad405ff35b8ca3e7c853423ea4` (completed prompt29).
-The [stage30 report](reports/implementation/30-legacy-mac-lpi.md) records bounded
+Prompt 30 began on clean synchronized `main` at
+`356320ac645f7fad405ff35b8ca3e7c853423ea4` (completed prompt 29).
+The [stage 30 report](reports/implementation/30-legacy-mac-lpi.md) records bounded
 forced-TX-LPI start/stop, slot-free dwell with OP-9 protection, cached prerequisites,
 retained uncertain effects and separate stop/HARD restoration. Local Release,
 portable consumer and documentation checks pass. Q1/Q2 physical evidence and SDK
-qualification remain NOT RUN; remote CI stays prompt71. Final commit and verified
+qualification remain NOT RUN; remote CI stays prompt 71. Final commit and verified
 upstream equality are recorded in the handoff.
 
 
-Prompt29 began on clean, fetched and synchronized `main` at
+Prompt 29 began on clean, fetched and synchronized `main` at
 `ce3df832c334c68e23a824333c9e5c86908b5ab8`. The
 [stage report](reports/implementation/29-eee-negotiation.md) records complete
 explicit EEE recipe/disable, fail-closed mapping checks, one effective HARD,
@@ -205,7 +205,7 @@ proof and OP-2 admission order. Prompts 1-28 retain their existing scope; DPD,
 Q6/Q9, SDK and physical gates remain separate. Final verified audit commit and
 upstream equality are recorded in the handoff.
 
-Prompt28 began on clean, fetched and synchronized `main` at
+Prompt 28 began on clean, fetched and synchronized `main` at
 `ced8b1ce5418aec044eb156b507ea78573302576`. The
 [stage report](reports/implementation/28-power-states.md) records active-sleep,
 IEEE software intent, separate PLL control, shared profile/reset integration and
@@ -215,7 +215,7 @@ DPD rejects before I/O. Q6 and SDK/physical qualification remain NOT RUN.
 Final commit and upstream equality are recorded in the handoff.
 
 
-Prompt27 began on clean, fetched and synchronized `main` at
+Prompt 27 began on clean, fetched and synchronized `main` at
 `87aafc01c959d5f811fb7342a037e26c105acac4`. The
 [stage report](reports/implementation/27-interrupt-service.md) records complete
 [interrupt policy and deferred service](interrupts.md), separate test start/stop,
@@ -301,9 +301,9 @@ and current verification. Stage completion remains 1-20; larger native/power/CLI
 work stays with its named owner, and physical evidence remains NOT RUN. Final
 verified commit/upstream equality is recorded in the handoff.
 
-Prompt20 entry / synchronized prompt19 checkpoint:
+Prompt 20 entry / synchronized prompt 19 checkpoint:
 `0d176b555c7fb35c1836041d9b7499ac5e9d5304`. The same execution branch/base is
-retained. [Stage20 report](reports/implementation/20-event-counter-acquisition.md)
+retained. [Stage 20 report](reports/implementation/20-event-counter-acquisition.md)
 records source/peer audits, collector completion and local verification. Final
 commit/upstream equality is recorded in the handoff rather than self-reference.
 
@@ -515,7 +515,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [26 Implement cable autorun and shared result acquisition](prompts/26-cable-autorun.md) | COMPLETE | [Report](reports/implementation/26-cable-autorun.md); one owned enable flag, fixed raw acquisition, manual handoff, reset replay and verification; host/consumer PASS, physical timing/accuracy NOT RUN |
 | [27 Implement bounded interrupt configuration and service](prompts/27-interrupt-service.md) | COMPLETE | [Report](reports/implementation/27-interrupt-service.md), [IRQ guide](interrupts.md); all sources/policy/test/service/replay, independent literals and failure regressions. 154 Release tests, two tests-OFF consumers and source/document checks PASS. Q9 remains NOT RUN. |
 | [28 Implement active-sleep policy and explicit power states](prompts/28-power-states.md) | PARTIAL: DPD source-blocked | [Report](reports/implementation/28-power-states.md), [power guide](power.md), six Release suites and portable owner example. Active-sleep/IEEE/PLL implemented; deep_power_exit and Q6 remain open. |
-| [29 Implement exact EEE negotiation and status](prompts/29-eee-negotiation.md) | COMPLETE | [Report](reports/implementation/29-eee-negotiation.md), [EEE guide](eee.md); committed/synced356320ac. Q1 physical pending. |
+| [29 Implement exact EEE negotiation and status](prompts/29-eee-negotiation.md) | COMPLETE | [Report](reports/implementation/29-eee-negotiation.md), [EEE guide](eee.md); committed/synced 356320ac. Q1 physical pending. |
 | [30 Implement bounded legacy-MAC LPI sessions](prompts/30-legacy-mac-lpi.md) | COMPLETE | [Report](reports/implementation/30-legacy-mac-lpi.md), [LPI guide](lpi.md); bounded start/stop, retained OP-9 state, independent Release/consumer tests. Q1/Q2 physical pending. |
 | [31 Implement complete Wake-on-LAN controls](prompts/31-wake-on-lan.md) | COMPLETE | [Report](reports/implementation/31-wake-on-lan.md), [WoL guide](wake-on-lan.md); eight Release suites, bounded config/ACK/status, routing/replay and portable owner example. Q3 physical pending. |
 | [32 Implement all LED and GPIO controls](prompts/32-led-gpio.md) | COMPLETE for source-admitted routes | [Report](reports/implementation/32-led-gpio.md), [audit](reports/implementation/32-33-independent-audit.md); typed pin profiles and shared replay with literal/failure tests. pin_fields branches and physical Q12 remain gated. |

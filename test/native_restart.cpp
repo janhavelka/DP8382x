@@ -159,7 +159,7 @@ void failures() {
   CHECK(driver.settingsSnapshot().trust==ConfigurationTrust::DIRTY);
 }
 void basicControl() {
-  // Independently enumerate BMCR13/12/8. Maintenance never rewrites desired
+  // Independently enumerate BMCR 13/12/8. Maintenance never rewrites desired
   // settings, blesses the result or echoes RESET/RESTART/pin-derived power.
   for (uint16_t value : {0x0000,0x0100,0x1000,0x1100,0x2000,0x2100,0x3000,0x3100}) {
     Bus bus; Driver driver; ready(driver,bus); bus.holdCommand=true;

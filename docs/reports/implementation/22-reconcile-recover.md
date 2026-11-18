@@ -96,10 +96,10 @@ is byte-identical SNLS647I August 2025, 3,366,322 bytes, SHA-256
 `4e440fb8bd1cd44ee9ab0773944bef4f0605884f25c4ab96ea55d0ed859fd9c3`.
 Original tables 8-19 (pp54-55), 8-23 (57-58), 8-28/29/30 (60-62), 8-43 (71)
 and 8-81 (85-86) establish the independently checked masks. VOD arithmetic is
-F000|0800|0780|0040=FFC0; value4/enable/value4/enable gives
+F000|0800|0780|0040=FFC0; value 4/enable/value 4/enable gives
 4000|0800|0200|0040=4A40. Thus 4A7F passes, while 8400 and 4A00 fail.
-Independent tests use literal BMCR3100, ANARADFF, CR1/CR2 0020, CR3 0060 and
-PHYCR8000/C000; no production register constants form their oracle.
+Independent tests use literal BMCR 3100, ANAR ADFF, CR1/CR2 0020, CR3 0060 and
+PHYCR 8000/C000; no production register constants form their oracle.
 
 ## Acceptance, documentation and verification
 

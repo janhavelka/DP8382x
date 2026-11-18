@@ -42,7 +42,7 @@ a multistep feature procedure.
 Validate arity, units, ranges, enums and cross-fields before admission. Discovery
 reads only PHYIDR1/2 over an inclusive requested range with one deadline/frame
 budget. Default upper strap address: DP83826/A7, DP83825=3, DP83822=31; other
-0..31 ranges need explicit argument. Address0 is ordinary, with no invented
+0..31 ranges need explicit argument. Address 0 is ordinary, with no invented
 broadcast behavior. FFFF/0000 means no response evidence; transport errors are
 per-address. Candidates never select/initialize a profile. Isolation/power-down
 still answer MDIO and cannot be inferred from discovery.
@@ -70,7 +70,7 @@ incomplete software and unavailable backend/fixture.
 Use `docs/feature-coverage.md` as the one matrix: one row per ledger procedure
 and feature ID, exact part/mode, command or cfg path, owner route, record,
 host test name and physical case or reasoned N/A. Require every ID and field
-owner to resolve to a complete row. Prompts44/46/47 append CLI cells,47 closes
+owner to resolve to a complete row. Prompts 44/46/47 append CLI cells, 47 closes
 those cells,55 closes primary coverage;53 adds only gaps. `docs/cli.md` owns
 grammar/records, not a duplicate matrix.
 

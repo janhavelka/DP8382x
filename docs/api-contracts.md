@@ -11,7 +11,7 @@ and [native ownership design](design-decisions.md). Silicon facts belong in the
 ledger; shipped names and declarations belong in headers. Core remains C++17,
 fixed-size and application-serialized, with no allocation, SDK, clock or RTOS owner.
 
-Prompt37 adds `restartAutoNegotiation(const IoBudget&)` to the shipped core for
+Prompt 37 adds `restartAutoNegotiation(const IoBudget&)` to the shipped core for
 the native framework's synchronous RESTART callback. It requires initialized,
 verified, awake normal AN configuration and no pending operation/result or cleanup
 barrier. One three-frame BMCR read/write/readback batch uses the existing owned-bit
@@ -21,7 +21,7 @@ uncertain mutation withdraws trust and retains restoration debt. The
 [native guide](esp-idf.md) owns callback admission and SDK publication semantics;
 the portable header owns exact errors, outputs and timing declarations.
 
-Prompt38's `modifyBasicControl` is an explicit raw two-frame BMCR maintenance
+Prompt 38's `modifyBasicControl` is an explicit raw two-frame BMCR maintenance
 exception for stable mask 0x3100, with normal collector invalidation and unchanged
 persistent intent. Native `reconcileSdkState` is a separate public-control receipt
 after verified core configuration; it never creates another cooperative operation
@@ -95,7 +95,7 @@ automatic and manual pair policy, and an inactive advertisement of mask zero,
 pause false/false. This canonical inactive form prevents
 accidental interpretation as negotiated policy. The swap Booleans must match: both
 true select coupled CR3 port mirror, both false disable it. Extended full duplex
-is an owner opt-in with no partner-evidence preflight; forced10 plus extension
+is an owner opt-in with no partner-evidence preflight; forced 10 plus extension
 rejects. No Config Boolean proves the partner. Next-page NP=1 belongs only to one admitted exchange epoch; it is not a persistent Advertisement field. Source-gated operations reject before mutation.
 Every startInitialize writes and verifies VOD_CFG3=0x4A40 for every ResetKind, including NONE; binding does not apply it.
 
@@ -272,7 +272,7 @@ caller output remains unchanged. A clock fault additionally prevents comparing
 that history to the now-invalid time domain; it never manufactures a fresh stamp.
 
 Active-profile preflight requires BMCR[11]=0 only when software power intent is
-unowned. With explicit `PowerSettings`, every BMCR writer replaces bit11 from
+unowned. With explicit `PowerSettings`, every BMCR writer replaces bit 11 from
 that owned intent, never the software/pin OR. Owned IEEE down is retained across
 profile application; negotiation wait/page exchange rejects while down and AN
 restart is suppressed. Power reset/replay uses the same intent. See [power
@@ -365,11 +365,11 @@ by the shipped header. Acquisition accepts only the eleven explicit source bits,
 orders PHYSTS before requested mirror-clearing sources and retains partial results.
 MISR changes read and modify the low enable byte atomically while retaining the
 consumed high event byte. Wake changes first harvest RXFS and MISR2; unrelated
-updates preserve the W0C indication and bit6, and explicit acknowledge uses zero.
+updates preserve the W0C indication and bit 6, and explicit acknowledge uses zero.
 Both maintenance routes require the owner's exact-part/address and safe-use
 admission even before typed initialization; raw access remains restricted.
 
-Stage20 ships `collectEvents(CounterSnapshot&, const IoBudget&)`, passive
+Stage 20 ships `collectEvents(CounterSnapshot&, const IoBudget&)`, passive
 `counterSnapshot()` and bus-silent `clearEvidence()`. Public headers own the
 value declarations; the [event/counter guide](event-counters.md) owns their
 partial-history and reset/discard contract. Collection reuses `acquireEvidence`
@@ -841,37 +841,37 @@ feature-specific admission, effects, output validity, bounds and source gates.
 See [Power policy and observations](power.md) and the shipped header Doxygen for the
 feature-specific admission, effects, output validity, bounds and source gates.
 
-## Implemented EEE policy (stage29)
+## Implemented EEE policy (stage 29)
 
 See [EEE initialization and status](eee.md) and the shipped header Doxygen for the
 feature-specific admission, effects, output validity, bounds and source gates.
 
-## Stage30 shipped forced TX LPI
+## Stage 30 shipped forced TX LPI
 
 See [Forced TX LPI](lpi.md) and the shipped header Doxygen for the
 feature-specific admission, effects, output validity, bounds and source gates.
 
-## Stage31 shipped Wake-on-LAN
+## Stage 31 shipped Wake-on-LAN
 
 See [Wake-on-LAN](wake-on-lan.md) and the shipped header Doxygen for the
 feature-specific admission, effects, output validity, bounds and source gates.
 
-## Stage32 shipped LED/GPIO profiles
+## Stage 32 shipped LED/GPIO profiles
 
 See [LED/GPIO profiles](led-gpio.md) and the shipped header Doxygen for the
 feature-specific admission, effects, output validity, bounds and source gates.
 
-## Stage33 shipped clock/interface profile
+## Stage 33 shipped clock/interface profile
 
 See [Clock/interface profiles](interface-clock.md) and the shipped header Doxygen for the
 feature-specific admission, effects, output validity, bounds and source gates.
 
-## Quality and hardware link-loss ownership (stage34)
+## Quality and hardware link-loss ownership (stage 34)
 
 See [Quality and hardware link-loss controls](quality.md) and the shipped header Doxygen for the
 feature-specific admission, effects, output validity, bounds and source gates.
 
-## Stage35 electrical and compliance contracts
+## Stage 35 electrical and compliance contracts
 
 See [Electrical/compliance/calibration procedures](electrical.md) and the shipped header Doxygen for the
 feature-specific admission, effects, output validity, bounds and source gates.

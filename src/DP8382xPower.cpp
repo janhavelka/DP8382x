@@ -92,7 +92,7 @@ MdioBatch DP8382x::_powerBatch() const noexcept {
     case PowerStep::CLEAR_PLL: return powerUpdate(0x11,0x7FFB,0);
     // Active sleep never owns PLL. Test is neutral zero; other IRQ controls stay intact.
     case PowerStep::POLICY: return powerUpdate(0x11,0x8FFB,_power.desired.activeSleep?0x6000:0);
-    // Table8-19: software/pin OR is not software intent. Keep isolation independent.
+    // Table 8-19: software/pin OR is not software intent. Keep isolation independent.
     case PowerStep::BMCR: return powerUpdate(0,0x75FF,_softwarePowerWord());
     case PowerStep::PLL: return powerUpdate(0x11,0x7FFB,0x8000);
     case PowerStep::BISCR: return powerRead(0x16);

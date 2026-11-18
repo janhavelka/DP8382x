@@ -1,4 +1,4 @@
-# Independent audit of prompts32 and33
+# Independent audit of prompts 32 and 33
 
 Re-read both complete original prompts and audited their current implementation
 and actual `328b5ed..2938ed7` changes, independently of the previous handoff.
@@ -12,7 +12,7 @@ Started on clean fetched `main` at
    Mandatory VOD/link proof set initialized before the new pin/interface tails.
    A failed HARD replay could leave initialized true with unverified settings
    and cleanup debt. Mutating tails now withhold readiness until full successful
-   restoration. Tests cover72 combinations of pin/interface/both ownership,
+   restoration. Tests cover 72 combinations of pin/interface/both ownership,
    link/no-link profiles, NONE/PCS/HARD/RESTART, success/failure/cancellation,
    zero poll slices and separate repair. The RESTART command itself still
    preserves readiness; mandatory setup and replay are separate obligations.
@@ -26,21 +26,21 @@ Started on clean fetched `main` at
    live detector acquisition and explicit initialization repair.
 3. **Declared interface substituted for current pin applicability.**
    Actual MII with declared RMII could admit LED3 or waive LED2 COL admission.
-   Original SNLS647I table5-1 and table8-77 show why read-only mux reset0 is
+   Original SNLS647I table 5-1 and table 8-77 show why read-only mux reset 0 is
    insufficient. Pin LED2/3 profiles now check RCSR[5] through the collector
    before mutation. Direct LED2 IRQ/WoL routes enforce the same rule in the fifth
    frame of their existing mux-read batch. Later contradictory mode observations
    withdraw trust and freeze an active pass before another mutation. Tests model
    actual strap/reset mode independently from board declaration, both mismatch
    directions, exact bounds, consumed RC samples, read-after-effect failure and
-   later contradictions. Full pin bounds become85frames/24callbacks; GPIO
+   later contradictions. Full pin bounds become 85 frames/24 callbacks; GPIO
    source acquisition gains one frame without another callback.
 
 No field mask, source encoding, polarity or reserved-bit correction was needed.
-Existing tests independently cover every LED source0..E per admitted pin,
+Existing tests independently cover every LED source 0..E per admitted pin,
 drive/polarity/blink extrema, RCSR elasticity/shift/revision, clock selection,
 compatibility and isolation/power composition. Exact source conflicts remain
-explicit gates: BASIC polarity, LED3 MII, pin31 codes5/6, PHYCR[5], PLL/recovered
+explicit gates: BASIC polarity, LED3 MII, pin 31 codes 5/6, PHYCR[5], PLL/recovered
 clock activation and RMII RC interpretation. No unsupported permission was added.
 
 A reviewer also questioned whether a failed raw RCSR prerequisite should erase
@@ -56,7 +56,7 @@ API OP1-17, architecture, variants and reference index. Lead owns public headers
 integration, documentation/progress and Git. One application/controller owner,
 bounded terminal batches, the sole collector and existing restoration remain.
 Siblings and vendor payloads are read-only. No workflow exists; first-set remote
-CI remains prompt71. No new framework, registry or alternative procedure was added.
+CI remains prompt 71. No new framework, registry or alternative procedure was added.
 
 `audit32_pins` reviewed pin implementation/tests and sibling uncertainty patterns;
 `audit33_lifecycle` reviewed deadlines, shared restoration, integration and tests;
@@ -67,12 +67,12 @@ scope; the first two subsequently received disjoint test-only assignments.
 Independent build directories isolated verification. The lead checked the actual
 findings, code, tests and diff and implemented the small production corrections.
 
-Original SNLS647I August2025, archived SHA256
+Original SNLS647I August 2025, archived SHA256
 `4e440fb8bd1cd44ee9ab0773944bef4f0605884f25c4ab96ea55d0ed859fd9c3`,
-pages6/69/83 and tables5-1,8-19/41/42/43/49/73-78/84/85/89 were rechecked.
+pages 6/69/83 and tables 5-1, 8-19/41/42/43/49/73-78/84/85/89 were rechecked.
 The current [TI datasheet](https://www.ti.com/lit/ds/symlink/dp83826i.pdf)
 still identifies revisionI. Reopened the Apache-2.0
-[TI driver at450af114](https://github.com/TexasInstruments/ti-ethernet-software/blob/450af1144b8caeb58724bcbae081b409f6bf5c3a/zephyr_drivers/dp83826a_driver/driver_files/drivers/ethernet/phy/phy_ti_dp83826x.c).
+[TI driver at 450af114](https://github.com/TexasInstruments/ti-ethernet-software/blob/450af1144b8caeb58724bcbae081b409f6bf5c3a/zephyr_drivers/dp83826a_driver/driver_files/drivers/ethernet/phy/phy_ti_dp83826x.c).
 No vendor implementation was copied.
 
 Fresh read-only sibling checks, all clean:
@@ -100,11 +100,11 @@ examples remain linked and tested; SDK and CLI implementation stay with later st
 
 ## Final verification
 
-Windows GNU15.1/Ninja, C++17 Release with strict warnings and active assertions:
+Windows GNU 15.1/Ninja, C++17 Release with strict warnings and active assertions:
 
 - PASS: `cmake -S . -B build/host -G Ninja -DCMAKE_BUILD_TYPE=Release
   -DDP8382X_BUILD_TESTS=ON`, build and CTest:205 registered tests.
-- PASS: same full205 tests in `build/audit32-33-ubsan` with
+- PASS: same full 205 tests in `build/audit32-33-ubsan` with
   `-fsanitize=undefined -fsanitize-undefined-trap-on-error`. Strict compilation
   exposed signed-promotion warnings in two pre-existing IRQ/WoL test literals;
   explicit unsigned arithmetic fixes them without changing expected values.
@@ -120,7 +120,7 @@ Windows GNU15.1/Ninja, C++17 Release with strict warnings and active assertions:
 Physical clocks, LEDs,
 IRQ/WoL delivery, repeater traffic and Q12/Q17 remain NOT RUN. SDK/controller and
 installed-package qualification remain NOT RUN; source consumption is tested
-separately. Remote CI remains NOT RUN by the prompt71 policy.
+separately. Remote CI remains NOT RUN by the prompt 71 policy.
 
 The final commit and verified upstream equality are recorded in the handoff;
 this report does not embed its own commit hash.
@@ -138,7 +138,7 @@ prompts 32/33 and the common restoration contract.
 | Board declaration substituted for observed MII/RMII applicability | **Confirmed implemented.** `src/DP8382xPins.cpp` reads RCSR in its mode prerequisite, `_retainPinWord` withdraws contradictory proof, and IRQ/WoL LED2 mux batches append the RCSR read. `test/pins.cpp::observedMode`, interrupt/WoL `liveModeRouting` and interface ownership tests require independent actual mode, no premature mutation and retained RC evidence. |
 | A failed raw RCSR read must erase an earlier interface word/time | **Incorrect under the raw-observation contract.** Without a completed read there is no replacement word/time. The failed pin/source acquisition is stale and consuming uncertainty is retained; `src/DP8382x.cpp::_retainEvidence` updates `_retainInterfaceWord` only for completed valid prefixes. `test/pins.cpp::observedMode` and `test/interface.cpp::collector` keep old history distinct from a fresh successful aggregate. |
 | Change LED field placement/source masks or reserved controls | **Incorrect/unsupported.** `src/DP8382xPins.cpp::_pinRowValue` and `test/pins.cpp::vectors` preserve source 0..E, reserved F, LED0's four-bit selector and LEDCFG2 reserved positions. The original tables do not justify the proposed extra controls. |
-| BASIC polarity, LED3 MII, pin31 codes5/6, PHYCR5, PLL/recovered clock and RCSR RC interpretation | **Still source/physical-gated as applicable.** Prompts 32/33, `docs/led-gpio.md`, `docs/interface-clock.md` and ledger `pin_fields`/related conflicts preserve the exact restrictions. Software rejection or raw retention is not physical qualification or a resolution of contradictory tables. |
+| BASIC polarity, LED3 MII, pin 31 codes 5/6, PHYCR 5, PLL/recovered clock and RCSR RC interpretation | **Still source/physical-gated as applicable.** Prompts 32/33, `docs/led-gpio.md`, `docs/interface-clock.md` and ledger `pin_fields`/related conflicts preserve the exact restrictions. Software rejection or raw retention is not physical qualification or a resolution of contradictory tables. |
 
 Reopened original SNLS647I table 5-1, tables 8-19/40/41/76/77/78 and the original
 page 69 rendering. Table 5-1's MII COL/CRS defaults and table 8-77's read-only

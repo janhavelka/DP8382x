@@ -54,7 +54,7 @@ and reset-bearing power/EEE recovery share the same quality pass, after interfac
 restoration and before output activation/final power policy. `startVerify` reads
 owned fields without writing controls and cannot discharge a cleanup obligation.
 
-`readSignalQuality` performs one bounded, four-frame DEVAD31 read of the
+`readSignalQuality` performs one bounded, four-frame DEVAD 31 read of the
 datasheet's MSE word. It stages ordinary output; failure leaves it unchanged and
 marks the retained prior sample stale at its original timestamp. The snapshot
 includes cached identity and link context, whose own validity/time remain

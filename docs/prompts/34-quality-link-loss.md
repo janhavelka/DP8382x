@@ -15,7 +15,7 @@ open gates under COMMON.
 ## Scope, current evidence and work
 
 Deliver remaining raw quality/MSE, polarity/jabber, link-loss recovery and
-MII Fast Link Drop settings. Reconcile tasks17-20 and33 so controls and collector
+MII Fast Link Drop settings. Reconcile tasks 17-20 and 33 so controls and collector
 have one owner.
 
 Re-open the [FLD/quality source facts](../reference/library-ti-features.md#led-interface-and-link-quality-controls)
@@ -45,9 +45,9 @@ unsupported interpretations stay gated.
 
 Fast Link Drop nonzero cause sets are MII-only and reject on RMII before I/O.
 A zero-cause disable and FLDS collection stay legal on RMII. CR3's reset low
-nibble is unknown; observe rather than assert a constant. Modes2,3,5 claim their
-maxima only with RX-error or energy-loss enabled (footnote5); accept other legal
-profiles without that maximum claim. MLT3 selects0117=0417; descrambler selects
+nibble is unknown; observe rather than assert a constant. Modes 2,3,5 claim their
+maxima only with RX-error or energy-loss enabled (footnote 5); accept other legal
+profiles without that maximum claim. MLT3 selects 0117=0417; descrambler selects
 0131[5:0]=08. Other thresholds are explicit raw overrides under
 `fld_threshold_recipe`. Hardware link recovery is not software retry policy.
 
@@ -71,11 +71,11 @@ ownership and physical latency/quality measurement limits. Unwired or unavailabl
 MII fixtures remain an open physical gate, not omitted software functionality.
 
 Own `tx100_configure`: PHYSCR[11] scrambler bypass, [9:8] FIFO codes 0/1/2/3
-for4/5/6/8 nibbles, andCR2[2]. Own `tx10_configure`:10BTSCR[13] threshold,
-[12:9] squelch codes 0..8 for200..600mV in50mV steps (reject9..F),[7]NLP
-disable,[0]jabber disable and002A[14] short1/long0 preamble. Every10BTSCR read,
+for 4/5/6/8 nibbles, and CR2[2]. Own `tx10_configure`:10BTSCR[13] threshold,
+[12:9] squelch codes 0..8 for 200..600mV in 50mV steps (reject 9..F),[7]NLP
+disable,[0]jabber disable and 002A[14] short 1/long 0 preamble. Every 10BTSCR read,
 RMW and readback collects bit 4 and its PHYSTS[12] dependency. VOD_CFG3 owned
-maskFFC0 keeps the mandatory4A40 contract; ANA_RX10BT_CTRL stays raw under its
+mask FFC0 keeps the mandatory 4A40 contract; ANA_RX10BT_CTRL stays raw under its
 gate. Reuse prompt 33's CR2[1] setter and add only interaction tests; CR2[2]
 RX_ER-during-IDLE remains separate from GENCFG IPG.
 

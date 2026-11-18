@@ -73,7 +73,7 @@ returns, record published=x and never replay it. An error with valid argument
 sets eventLost and the owner may re-post. For another MAC, including instrumented
 tests, a notification error means publication uncertain and requires stop.
 The factory selects this policy; the mixed error code cannot distinguish it.
-Reject forced100/half plus extendedFullDuplex before mutation because the adapter
+Reject forced 100/half plus extendedFullDuplex before mutation because the adapter
 cannot publish a resolved tuple. Keep PHY entry conformance free of base methods.
 
 ## Acceptance

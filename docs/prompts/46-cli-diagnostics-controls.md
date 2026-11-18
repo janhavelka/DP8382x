@@ -60,7 +60,7 @@ procedures.
 Use `docs/feature-coverage.md` as the one matrix: one row per ledger procedure
 and feature ID, exact part/mode, command or cfg path, owner route, record,
 host test name and physical case or reasoned N/A. Require every ID and field
-owner to resolve to a complete row. Prompts44/46/47 append CLI cells,47 closes
+owner to resolve to a complete row. Prompts 44/46/47 append CLI cells, 47 closes
 those cells,55 closes primary coverage;53 adds only gaps. `docs/cli.md` owns
 grammar/records, not a duplicate matrix.
 

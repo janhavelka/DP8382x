@@ -37,8 +37,8 @@ pin new evidence and respect per-file licenses/vendor provenance.
   observes state. Enabling policy may succeed while linked/awake. Do not
   invent a forced-entry or partner wake deadline.
 - Cover EEE capability/advertisement/partner/status/bypass and legacy-MAC LPI
-  controls, with reset/power interactions. SNLS647I prints MMD3
-  1001/1014/1016 and MMD7 203C/203D; other TI material also mentions lower
+  controls, with reset/power interactions. SNLS647I prints MMD 3
+  1001/1014/1016 and MMD 7 203C/203D; other TI material also mentions lower
   offsets. A printed address/selector association does not prove its wire
   offset or a digit-stripping convention. Keep exact access traces/clarification
   as an explicit gate; do not import DP83825I's SNLA328 recipe by analogy.

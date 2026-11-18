@@ -201,7 +201,7 @@ MdioBatch DP8382x::_loopbackBatch() const noexcept {
     case LoopStep::READ_BISCR: case LoopStep::VERIFY_BISCR: case LoopStep::VERIFY_STOP_BISCR: return readWord(0x16);
     case LoopStep::READ_PHYSCR: case LoopStep::VERIFY_ACTIVE_FIFO: case LoopStep::VERIFY_FIFO: return readWord(0x11);
     case LoopStep::CHECK_LINK: case LoopStep::RELINK: return readWord(0x10);
-    // Table8-19 commands neutral0; never echo the power-pin OR bit into software.
+    // Table 8-19 commands neutral 0; never echo the power-pin OR bit into software.
     case LoopStep::CLEAR_BMCR: case LoopStep::STOP_BMCR: return updateWord(0, 0x35FF, _softwarePowerWord());
     case LoopStep::CLEAR_BISCR: case LoopStep::STOP_BISCR: return updateWord(0x16, 0xFFA0, 0);
     case LoopStep::SET_FIFO: return updateWord(0x11, 0xFCFF, static_cast<uint16_t>(uint16_t{options.reverseFifoDepth} << 8U));
@@ -328,7 +328,7 @@ Status DP8382x::_advanceLoopback(Status status, bool called, const MdioBatch& ba
       else if (options.mode == LoopbackMode::ANALOG || options.mode == LoopbackMode::REVERSE) { _setLoopStep(LoopStep::RESTART); }
       else { _setLoopStep(LoopStep::VERIFY_BMCR); }
       break;
-    // Table 8-40 permits BISCR6 only while BMCR14 is set. Establish MII
+    // Table 8-40 permits BISCR 6 only while BMCR 14 is set. Establish MII
     // loopback before enabling line transmission, and remove it in reverse order.
     case LoopStep::SET_MII: _setLoopStep(LoopStep::SET_BISCR); break;
     case LoopStep::DIGITAL_0122: _setLoopStep(LoopStep::DIGITAL_0123); break;
@@ -470,7 +470,7 @@ MdioBatch DP8382x::_bistBatch() const noexcept {
     case BistStep::APPLY_IPG: return writeWord(0x1B, ipg); // High bits neutral; never echo counter MSB as command.
     case BistStep::APPLY_PACKET: return updateWord(0x1C, 0xF800, _bist.options.packetBytes);
     case BistStep::BASELINE: case BistStep::CAPTURE: {
-      // Table8-45 capture/clear + successive read, indivisible under the bus owner.
+      // Table 8-45 capture/clear + successive read, indivisible under the bus owner.
       auto batch = writeWord(0x1B, static_cast<uint16_t>(0x8000U | ipg));
       batch.frameCount = 2; batch.frames[1] = {FrameKind::READ, 0x1B, 0, 0, NO_READ_INDEX}; return batch;
     }

@@ -54,8 +54,8 @@ permissions precede zero-allowance rejection under OP-2.
 
 ## Finite control procedure
 
-Source authority is SNLS647I pp28-29 section8.3.6, p55 table8-19, p65 table8-35
-and p69 table8-40. The [ledger](registers/dp83826i.json) owns field values;
+Source authority is SNLS647I pp28-29 section 8.3.6, p55 table 8-19, p65 table 8-35
+and p69 table 8-40. The [ledger](registers/dp83826i.json) owns field values;
 [independent vectors](register-vectors.md) give literal arithmetic.
 
 1. Read BMCR and PHYSCR. Reject active reset or unowned interrupt stimulus.
@@ -82,7 +82,7 @@ Application disposition through `abandonCleanup` makes no hardware wake claim.
 
 ## Configuration and restoration
 
-Every semantic BMCR writer composes bit11 from owned software intent, including
+Every semantic BMCR writer composes bit 11 from owned software intent, including
 profile application and diagnostic restoration. Without explicit power ownership,
 the earlier active-profile preflight still requires observed power-down zero.
 Pin assertion between that preflight and the atomic read cannot become software

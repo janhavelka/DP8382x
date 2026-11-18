@@ -10,7 +10,7 @@ using Driver = ::DP8382x::DP8382x;
 struct Wire { FrameKind kind; uint8_t reg; uint16_t value, target, devad; uint64_t at; };
 
 // Independent SNLS647I p26/27 recipe plus source-implied SNLS638C p80 fields.
-// DEVAD3/7 storage is separate from vendor31 and direct C22; successful fake
+// DEVAD 3/7 storage is separate from vendor 31 and direct C22; successful fake
 // reads do not establish Q1 wire mapping or physical EEE interoperability.
 struct Controller {
   std::array<uint16_t,32> words{};

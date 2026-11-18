@@ -5,7 +5,7 @@ C++17 core through the public `esp_eth_phy_t` interface. Its baseline is
 **ESP-IDF v6.1, commit `fff9895c82d744c7237be8847347bdd1b07c6643`, ESP32-P4**.
 The component metadata selects that release and target. This is a selected
 integration baseline, not a tested range of SDK releases or MACs. Executing
-results and remaining gates belong to the [prompt39 report](reports/implementation/39-esp-idf-link-bounds.md)
+results and remaining gates belong to the [prompt 39 report](reports/implementation/39-esp-idf-link-bounds.md)
 and [2026-11-18 corrections](reports/implementation/37-39-native-fixes-2026-11-18.md),
 followed by the [second-round review](reports/implementation/37-39-native-fixes-round2-2026-11-18.md);
 the [source audit](reports/implementation/39-native-source-audit.md) records
@@ -86,9 +86,9 @@ entries do not acquire a bus lock. No row delegates to the IEEE base.
 | `pwrctl` | Rejected; no implicit power procedure | None | NOT_SUPPORTED | L |
 | `set_addr` | Immutable declared address; no transaction | None | Identical address OK; any other NOT_SUPPORTED | L |
 | `get_addr` | Immutable declared address; no transaction | Copies address | Null output INVALID_ARG, otherwise OK | L |
-| `advertise_pause_ability` | Exact task/CONTROL PAUSE reservation; no transaction | Attests already verified AN bits0/1; rejection retains possible preceding MAC policy mutation | Matching0..3 OK, otherwise INVALID_STATE (including interference on busy gate) | L |
+| `advertise_pause_ability` | Exact task/CONTROL PAUSE reservation; no transaction | Attests already verified AN bits 0/1; rejection retains possible preceding MAC policy mutation | Matching 0..3 OK, otherwise INVALID_STATE (including interference on busy gate) | L |
 | `loopback` | Rejected; typed session owns stimulus | None | NOT_SUPPORTED | L |
-| `set_speed` | Exact task/CONTROL SPEED reservation; no transaction | Acknowledges verified forced10/100; SDK link cache changes only on notification | Illegal enum INVALID_ARG; mismatch/unadmitted INVALID_STATE | L |
+| `set_speed` | Exact task/CONTROL SPEED reservation; no transaction | Acknowledges verified forced 10/100; SDK link cache changes only on notification | Illegal enum INVALID_ARG; mismatch/unadmitted INVALID_STATE | L |
 | `set_duplex` | Exact task/CONTROL DUPLEX reservation; no transaction | Acknowledges verified forced half/full; no link-cache publication | Illegal enum INVALID_ARG; mismatch/unadmitted INVALID_STATE | L |
 | `custom_ioctl` | Null optional PHY entry | No PHY callback | Commands >=0x1FFF fall through to the P4 MAC custom handler, which returns INVALID_ARG for that range | MAC custom dispatch only |
 | `del` | Never-installed idle owner only; local core end and timer delete | Deletes adapter/gate/fence, never borrowed MAC/bus | Installed/active/fence-live INVALID_STATE; actual timer error retained by return; OK destroys pointer | L+T; no installed destruction bound is claimed |
@@ -145,8 +145,8 @@ and `transportSnapshot` retains frame/release uncertainty. Cached readers also
 use the instance gate and never consume hardware evidence.
 
 `setFlowControl(enabled,pauseAbility,deadlineUs)` calls actual MAC flow control
-with a `bool`, then the PHY callback with a separate `uint32_t`. Ability bit0 is
-symmetric pause and bit1 asymmetric; 0..3 must match already verified AN settings.
+with a `bool`, then the PHY callback with a separate `uint32_t`. Ability bit 0 is
+symmetric pause and bit 1 asymmetric; 0..3 must match already verified AN settings.
 Change advertisement through `startConfigure` first. MAC/application policy stays
 explicit. The owner never uses defective `ETH_CMD_S_FLOW_CTRL` or passes a small
 Boolean as uint32 storage. `FlowControlRecord` separates MAC/PHY attempts, accepted
@@ -414,15 +414,15 @@ failed callback keeps its original error. Nothing preempts a synchronous call.
 
 | Actual source path | Finite count / requested wait | What the bound must also cover |
 | --- | --- | --- |
-| MAC read/write PHY | 100us busy-delay steps, at most ten, nominal1000us/frame; initial busy can reject immediately | Register access, delay accuracy, interrupts/preemption, logging; no internal MDIO mutex and no caller deadline |
-| Complete backend batch | At most n MAC calls; controller mutex waits floor(lockWaitUs*configTICK_RATE_HZ/1000000) ticks, capped below portMAX_DELAY | Rational conversion also applies at rates such as333Hz. fixedUs covers acquisition/release/overhead; frameUs covers each actual call. Subtick wait is a zero-wait try |
-| MAC initialization | floor(sw_reset_timeout_ms/10) reset checks/delays in10ms steps (default100ms) | Clock setup, efuse/PM and init/unwind work, quantization and dispatch; `install` has no aggregate timeout and is not a real-time API |
-| MAC stop | At most100 HAL stop attempts with25us busy delays, nominal2500us | Each HAL call and possible1000-read FIFO flush, scheduler/logging; hidden flush error remains an observation limit |
-| MAC multi-register mutex |100ms requested wait for destination-filter add/remove | Separate MAC filter API only. Not used by MDIO or SPEED/DUPLEX/PAUSE/LINK notification paths |
+| MAC read/write PHY | 100us busy-delay steps, at most ten, nominal 1000us/frame; initial busy can reject immediately | Register access, delay accuracy, interrupts/preemption, logging; no internal MDIO mutex and no caller deadline |
+| Complete backend batch | At most n MAC calls; controller mutex waits floor(lockWaitUs*configTICK_RATE_HZ/1000000) ticks, capped below portMAX_DELAY | Rational conversion also applies at rates such as 333Hz. fixedUs covers acquisition/release/overhead; frameUs covers each actual call. Subtick wait is a zero-wait try |
+| MAC initialization | floor(sw_reset_timeout_ms/10) reset checks/delays in 10ms steps (default 100ms) | Clock setup, efuse/PM and init/unwind work, quantization and dispatch; `install` has no aggregate timeout and is not a real-time API |
+| MAC stop | At most 100 HAL stop attempts with 25us busy delays, nominal 2500us | Each HAL call and possible 1000-read FIFO flush, scheduler/logging; hidden flush error remains an observation limit |
+| MAC multi-register mutex | 100ms requested wait for destination-filter add/remove | Separate MAC filter API only. Not used by MDIO or SPEED/DUPLEX/PAUSE/LINK notification paths |
 | SDK START/STOP/LINK event posts | Zero requested queue wait on framework paths | Event allocation/internal critical sections, dispatch/logging; a full queue can fail after prior MAC/cache effects |
 | Owner event retry/STOP repair | Running explicit retry uses floor(remainingUs*Hz/1000000) ticks; cleanup retry and STOP repair request zero queue wait | Scheduling and event internals, then elapsed check. Subtick allowance requests zero ticks |
 | Timer fence | One precreated timer arm; at most maxFencePolls checks, delay(1) between | Prior timer callbacks, timer-task dispatch and owner wake latency; timer active includes executing callback |
-| Running link polls | check_link_period_ms, accepted1..4294967ms (32-bit SDK ms*1000 limit) | Serial timer-task backlog, callback execution, owner admission. Period is not response time or EtherCAT timing |
+| Running link polls | check_link_period_ms, accepted 1..4294967ms (32-bit SDK ms*1000 limit) | Serial timer-task backlog, callback execution, owner admission. Period is not response time or EtherCAT timing |
 
 An operation spanning owner polls has the sum of admitted B(n), actual minimum
 waits, local/clock work and application dispatch gaps, all within its original
@@ -454,11 +454,11 @@ Stop closes RUNNING admission only after acquiring the gate; an expired or
 exhausted initial admission leaves polling active. After a completed stop,
 retire admission failure cannot manufacture a cleanup error or undo completion.
 
-At100Hz one tick is10ms. `vTaskDelay(1)` can wake at the next boundary much
-sooner than10ms; it is only a scheduling hint. Board readiness rechecks elapsed
+At 100Hz one tick is 10ms. `vTaskDelay(1)` can wake at the next boundary much
+sooner than 10ms; it is only a scheduling hint. Board readiness rechecks elapsed
 esp_timer microseconds after every wake and anchors minimum waits after pin
 callback completion plus clockLagUs (P4 converts counter ticks by floor division).
-Power-on/clock event samples must have that same bounded uncertainty. A2ms reset-release floor therefore needs another tick
+Power-on/clock event samples must have that same bounded uncertainty. A 2ms reset-release floor therefore needs another tick
 when the first wake is early. Budgets shorter than the next wake may time out
 with admission still closed; there is no early MDIO to make them fit. MAC-init's
 10ms tick delays are SDK polling behavior, not DP83826 readiness evidence.

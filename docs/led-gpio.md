@@ -38,7 +38,7 @@ on those pins. LED1's documented writable LED, WoL and interrupt selections are
 admitted. Its reserved encodings and TX_ERROR/CLOCK choices remain rejected:
 figure 8-10 and table 8-75 disagree about the latter functions. LED2 supports three
 documented COL encodings plus constant HIGH; its reserved clock encoding is
-rejected. No TX_ER encoding exists in the pin28 mux table. No general input or
+rejected. No TX_ER encoding exists in the pin 28 mux table. No general input or
 tri-state setting is invented.
 
 The clock selector fields on LED0/1 name PLL and recovered clocks, but their

@@ -64,7 +64,7 @@ Status DP8382x::_validateInterface(const InterfaceSettings& settings) const noex
     if (settings.clockTolerancePpm!=50U && settings.clockTolerancePpm!=100U) {
       return interfaceConfig("RMII packet bound requires the documented 50ppm or 100ppm case");
     }
-    // SNLS647I table8-41: encoding order is14,2,6,10bits, not ascending.
+    // SNLS647I table 8-41: encoding order is 14, 2, 6, 10 bits, not ascending.
     constexpr uint32_t maximumBytes[]={16800,2400,7200,12000};
     const auto maximum=maximumBytes[settings.elasticityCode]/(settings.clockTolerancePpm==100U?2U:1U);
     if (settings.maxFrameBytes==0U || settings.maxFrameBytes>maximum) { return interfaceConfig("Declared packet exceeds RMII elasticity allowance"); }
@@ -105,7 +105,7 @@ Status DP8382x::_validateInterface(const InterfaceSettings& settings) const noex
 
 bool DP8382x::_interfaceRowValue(uint8_t row,uint16_t& address,uint16_t& mask,uint16_t& value) const noexcept {
   const auto& settings=_interface.desired; mask=value=0;
-  // SNLS647I8-19/28/29/35/41/73/84. Fields are owned independently of
+  // SNLS647I 8-19/28/29/35/41/73/84. Fields are owned independently of
   // power, link routing, IRQ, and LED masks in the same registers.
   switch (row) {
     case 0: address=0x0009; mask=2; value=settings.fastRxDv?2:0; break;

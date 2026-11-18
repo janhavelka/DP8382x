@@ -6,7 +6,7 @@
 namespace DP8382x {
 namespace {
 struct RecipeWord { uint16_t address; uint16_t value; };
-// SNLS647I 8.3.3.1. Row 1 uses the shared HARD primitive, row 2 MMD7.60;
+// SNLS647I 8.3.3.1. Row 1 uses the shared HARD primitive, row 2 MMD 7.60;
 // the middle opaque words authorize this sequence only, never generic writes.
 constexpr RecipeWord RECIPE[] = {
   {0x001F,0x8000},{0x003C,0x0002},{0x04D1,0x008B},{0x04D3,0x4F12},
@@ -102,7 +102,7 @@ Status DP8382x::startConfigureEee(const EeeSettings& settings,const OperationBud
 }
 
 uint16_t DP8382x::_eeeControl() const noexcept {
-  // 8.3.3.2: one disables bypass. Stage 30 owns forced TX LPI bit12.
+  // 8.3.3.2: one disables bypass. Stage 30 owns forced TX LPI bit 12.
   return static_cast<uint16_t>((_eee.desired.bypassBit0?0U:1U)|(_eee.desired.bypassBit3?0U:8U));
 }
 void DP8382x::_setEeeStep(EeeStep step) noexcept {
@@ -130,7 +130,7 @@ MdioBatch DP8382x::_eeeBatch() const noexcept {
     case EeeStep::SET_CONTROL: {
       auto batch=_mmdBatch(0x04D1,FrameKind::READ,0);
       batch.frameCount=5;
-      // Only 0/3/12 have exact-part field authority; bit1 remains opaque.
+      // Only 0/3/12 have exact-part field authority; bit 1 remains opaque.
       batch.frames[4]={FrameKind::WRITE,0x0E,_eeeControl(),0xEFF6,3};
       return batch;
     }
@@ -327,7 +327,7 @@ Status DP8382x::_setLpi(bool enabled,const LpiOptions& options,LpiResult& result
     if (!_otherControlsVerified(OperationKind::NONE) || !_eeeOpaqueValid || !_eee.desiredValid || !_eee.desired.enabled ||
         _eee.desired.bypassBit0 || _eee.desired.bypassBit3 || !_eee.valid || _eee.stale || !_eee.timeValid ||
         !_eee.negotiatedValid || !_eee.negotiated) { return eeeConfig("Verified negotiated EEE with both bypass controls disabled is required"); }
-    // 100M restriction is library policy: section7.6 supplies timings only at100M.
+    // 100M restriction is library policy: section 7.6 supplies timings only at 100M.
     if (!_link.valid || _link.stale || !_link.timeValid || !_link.linkUp || !_link.resolvedModeValid ||
         _link.speed!=LinkSpeed::MBPS_100) { return eeeConfig("Current resolved 100M link is required"); }
     if (_power.observedStale || !_power.timeValid || !_power.bmcrValid || !_power.physcrValid || !_power.biscrValid ||
@@ -351,7 +351,7 @@ Status DP8382x::_setLpi(bool enabled,const LpiOptions& options,LpiResult& result
     auto batch=_mmdBatch(0x04D1,FrameKind::READ,0);
     if (phase==0U) {
       batch.frameCount=5;
-      // SNLS647I8.3.4: only bit12. In particular, never import neighbor bits14:13.
+      // SNLS647I 8.3.4: only bit 12. In particular, never import neighbor bits 14:13.
       batch.frames[4]={FrameKind::WRITE,0x0E,expected,0xEFFF,3};
     }
     bool called=false;
@@ -374,7 +374,7 @@ Status DP8382x::_setLpi(bool enabled,const LpiOptions& options,LpiResult& result
           _eee.control=frame.value; _eee.controlValid=true;
           _eee.stale=true; _eee.negotiatedValid=false;
           // Both acquisitions can disprove persistent bypass controls. Stop still
-          // succeeds on bit12 alone, but must not forgive this independent debt.
+          // succeeds on bit 12 alone, but must not forgive this independent debt.
           if (_eee.desiredValid && _eee.desired.enabled && (frame.value&0x0009U)!=_eeeControl()) {
             _eee.trust=ConfigurationTrust::DIRTY;
           }

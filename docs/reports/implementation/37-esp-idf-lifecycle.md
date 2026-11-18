@@ -1,7 +1,7 @@
 # Prompt 37: native ESP-IDF factory and lifecycle
 
 Execution began on clean, fetched, synchronized `main` at
-`cb5ffe5b5d21e700c3e9fbef434e192a50b1aeff`. Prompt37 is complete for the selected
+`cb5ffe5b5d21e700c3e9fbef434e192a50b1aeff`. Prompt 37 is complete for the selected
 native implementation, with reusable installed teardown **BLOCKED** by the
 required `native_rx_quiescence` gate. The terminal retained-resource route is
 implemented and tested. Final commit/upstream equality belongs to the handoff,
@@ -11,7 +11,7 @@ avoiding a self-referencing commit in this report.
 
 The prerequisites are the current ownership design, OP-1 through OP-17, the
 implemented portable transport/collector/identity/initialization/reset/configuration/
-link procedures and prompt36's bounded closure. Prompt36's source-gated branches
+link procedures and prompt 36's bounded closure. Prompt 36's source-gated branches
 remain blocked; they do not block the implemented native subset. The full
 [source audit](37-native-source-audit.md) records fresh peer paths, revisions,
 dirty state, SDK functions, actual tool identities and adopted/rejected behavior.
@@ -43,7 +43,7 @@ against actual code and SDK source. Separate build folders avoided interference.
   BMCR composition with configuration and performs one three-frame batch without
   a token/wait. Uncertain mutation withdraws trust and retains restoration debt.
   Native HARD and mirrored mode transitions remain explicitly unavailable until
-  stage38; no success stub or second chip implementation was introduced.
+  stage 38; no success stub or second chip implementation was introduced.
 - Initial/running live link uses the same collector. DOWN/unresolved observations
   never invent speed/duplex. Qualified UP publishes speed, duplex, narrow peer
   pause and link; changed UP first projects DOWN. Identical tuples emit nothing.
@@ -91,7 +91,7 @@ Environment: Windows/PowerShell, GNU host compiler 15.1.0, Ninja/CMake 4.0.1; SD
 | Research/tool tests | PASS | 103 Python unittest tests; ledger validates 97 registers, 52 procedures and 35 feature families |
 | Documentation/version | PASS | Doxygen public-contract/negative checks, deterministic version check, local reference/link and diff checks |
 | Installed/exported package | NOT RUN | The tested portable consumer uses add_subdirectory; no package-publication claim |
-| Remote CI | NOT RUN | First-execution prompt71 policy; no dispatch/status/waiting |
+| Remote CI | NOT RUN | First-execution prompt 71 policy; no dispatch/status/waiting |
 | Physical/Q13 | NOT RUN | No authorized fixture execution, timing measurement, real RX scheduling or cable/link result |
 | Reusable installed teardown | BLOCKED | Pinned source RX lifetime gate; resources remain retained until restart |
 
@@ -138,6 +138,6 @@ Conditional fixture transport/notification bounds are explicitly unmeasured.
 SDK nominal 1000 us MDIO polling, 100 ms MAC mutex waits and 2500 us stop polling
 are contributions, not scheduling-inclusive guarantees. Synchronous SDK calls
 cannot be preempted; late effects remain retained. HAL FIFO-flush timeout
-visibility and physical timer/RX behavior remain separate limits. Stage38 owns
-SDK-cache mode reconciliation and expanded raw/control routes; stage39 adds
+visibility and physical timer/RX behavior remain separate limits. Stage 38 owns
+SDK-cache mode reconciliation and expanded raw/control routes; stage 39 adds
 conformance depth. Neither future stage is claimed complete here.

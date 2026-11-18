@@ -278,7 +278,7 @@ void finishStop(Driver& driver,Controller& bus,const SettingsSnapshot& intent) {
   restored(driver,bus,intent);
 }
 void matrix() {
-  // Table8-40 analog selection is independent of the supported 10-Mbit
+  // Table 8-40 analog selection is independent of the supported 10-Mbit
   // forced speed. Normal line and external fixture keep that exact profile.
   for(auto interface:{MacInterface::MII,MacInterface::RMII}) for(unsigned path=0;path<3;++path) {
     Controller bus; Driver driver; ready(driver,bus,interface);
@@ -314,7 +314,7 @@ void matrix() {
         bus.liveErrors=0xA5; const auto first=bus.semanticWrites;
         const auto startFrames=bus.frames,startCalls=bus.calls;
         activate(driver,bus,o);
-        // Normal-line loopback clear/verify12frames9calls + BIST setup13/10.
+        // Normal-line loopback clear/verify 12 frames 9 calls + BIST setup 13/10.
         CHECK(bus.frames-startFrames==25U && bus.calls-startCalls==19U);
         const auto target=static_cast<uint16_t>((static_cast<uint32_t>(mode)<<12U)|(policy==BistCounterMode::WRAP?0x4000U:0U));
         CHECK((bus.words[22]&0x7000U)==target);
@@ -342,7 +342,7 @@ void matrix() {
         sameHealth(health,driver.healthSnapshot());
         const auto stopFrames=bus.frames,stopCalls=bus.calls;
         finishStop(driver,bus,intent);
-        // Disable+verify3/2 + shared stop57/33 + saved packet/IPG5/4.
+        // Disable+verify 3/2 + shared stop 57/33 + saved packet/IPG 5/4.
         CHECK(bus.frames-stopFrames==65U && bus.calls-stopCalls==39U);
       }
     }
@@ -405,8 +405,8 @@ void fields() {
   CHECK(!driver.startBistAcquire({},allowance(),sentinel).inProgress());
   CHECK(!driver.stopBist(allowance(),sentinel).inProgress());
   CHECK(bus.calls==calls && bus.clocks==clocks && sentinel.value==555);
-  // Mode bits off are insufficient: table8-40 generator-active0200 must also
-  // be quiescent before the first mutation (literal readback0300).
+  // Mode bits off are insufficient: table 8-40 generator-active 0200 must also
+  // be quiescent before the first mutation (literal readback 0300).
   Controller active; Driver subject; ready(subject,active);
   active.words[22]=0x0100; active.holdGeneratorActive=true;
   const auto mutations=active.semanticWrites;
@@ -549,8 +549,8 @@ void operationFailures() {
     if(stopping) activate(driver,bus);
     const auto base=bus.calls;
     const auto token=stopping?stop(driver,bus):begin(driver,bus);
-    // Literal phase counts: saves2 + normal-path9 + apply2 => IPG read13,
-    // packet read14; stop saved-field verifications are callbacks37/38.
+    // Literal phase counts: saves 2 + normal-path 9 + apply 2 => IPG read 13,
+    // packet read 14; stop saved-field verifications are callbacks 37/38.
     bus.corruptCall=static_cast<int>(base+(stopping?(packet?38U:37U):(packet?14U:13U)));
     bus.corruptRegister=packet?28:27; bus.corruptValue=packet?0xA122:0x007C;
     if(late) bus.lateCall=bus.corruptCall; else bus.releaseCall=bus.corruptCall;
@@ -722,7 +722,7 @@ void timingOwnership() {
     const auto completed=b.now;
     const auto token=acquire(d,b);
     const auto due=d.operationSnapshot().nextPollAtUs;
-    CHECK(due==completed+101U); // options100us + binding clock lag1us.
+    CHECK(due==completed+101U); // options 100us + binding clock lag 1us.
     const auto calls=b.calls;
     b.now=due-1;
     CHECK(d.pollOperation(token).inProgress() && b.calls==calls);

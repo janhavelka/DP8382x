@@ -126,7 +126,7 @@ hooks; cached access has no callbacks. [Link observation](link-observation.md)
 keeps current link, consumed history, mode/pause validity and application age
 policy distinct. There is no core notification scheduler or second collector.
 
-Stage20 extends that same collector in `DP8382x.cpp`: `collectEvents` publishes
+Stage 20 extends that same collector in `DP8382x.cpp`: `collectEvents` publishes
 one six-source aggregate, while per-source evidence survives partial failure.
 `DP8382xEvidence.h` is a private arithmetic helper used by the collector and
 independent limit tests; it owns no transport or storage. Explicit host-history
@@ -182,7 +182,7 @@ feeding the same slot/transport/collector. One software power intent is shared
 by every BMCR writer; live pre-reset PLL preparation and final power replay
 extend initialization. There is no second power engine, scheduler or clock owner.
 
-Stage29 adds `DP8382xEee.cpp` for [EEE](eee.md). Its exact recipe is a once-only
+Stage 29 adds `DP8382xEee.cpp` for [EEE](eee.md). Its exact recipe is a once-only
 prefix to shared initialization; it never re-enters reset from a replay tail.
 The existing collector gains DEVAD-qualified EEE history, with no second event
 owner. Ordinary profile/VERIFY tails compare EEE stable controls without reset.
@@ -207,23 +207,23 @@ fields. Pin dependencies precede WoL/IRQ replay and final power completion.
 There is no pin registry, independent collector, scheduler or per-pin object.
 
 
-Stage33 adds `DP8382xInterface.cpp` for one fixed interface/clock/compatibility
+Stage 33 adds `DP8382xInterface.cpp` for one fixed interface/clock/compatibility
 pass. The direct call and existing cooperative restoration share its rows; no
 new operation engine or bus owner exists. It runs before pin/source/power replay
 and uses the existing collector for RCSR. Repeater coordination is two explicit
 application calls with independent results, not a core device registry.
 
-Stage34 adds one explicit quality/TX/link-loss pass in the existing operation
+Stage 34 adds one explicit quality/TX/link-loss pass in the existing operation
 slot. It shares controller transactions, destructive collector and initialization/
 verification tails; no scheduler or second diagnostic reader is introduced.
 See [quality controls](quality.md) for independent raw MSE and profile evidence.
 
-Stage35 keeps persistent analog sequencing in `DP8382xAnalog.cpp` and finite
+Stage 35 keeps persistent analog sequencing in `DP8382xAnalog.cpp` and finite
 electrical sessions in `DP8382xElectrical.cpp`. Both extend the existing slot,
 collector and shared reset/configuration/replay paths. No controller lock spans
 a wait; no independent job framework or raw reserved-write route is introduced.
 
-Prompt39 closes the native [entry/notification/timing table](esp-idf.md).
+Prompt 39 closes the native [entry/notification/timing table](esp-idf.md).
 Acquired core link snapshots remain independent of accepted SDK field publication;
 terminal receipts prevent callback gate contention from losing effects or stranding
 admission. No base polling or second chip procedure is introduced. Finite native
@@ -232,4 +232,4 @@ installed reusable destruction remains gated separately by native_rx_quiescence.
 The [2026-11-18 correction review](reports/implementation/37-39-native-fixes-2026-11-18.md)
 adds retryable failed retirement, independent failed-start cleanup, typed native
 error receipts, administrative DOWN after lost observation, resolved pause
-projection and validated callback/period bounds. This changes no stage40 scope.
+projection and validated callback/period bounds. This changes no stage 40 scope.

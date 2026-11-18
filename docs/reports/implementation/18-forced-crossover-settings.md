@@ -22,7 +22,7 @@ No new production source file, SDK code, sibling change or fixture action.
 profiles and all documented automatic/robust/manual routing combinations. Both
 negotiated and forced profiles own CR1 robust, PHYCR route, coupled CR3 mirror
 and CR2 extension fields. Pure validation rejects contradictory inactive intent,
-independent mirror-bit requests, forced10 plus extension, forced robust=false,
+independent mirror-bit requests, forced 10 plus extension, forced robust=false,
 and forced AN advertisement/pause/page/completion-wait requests before I/O or
 desired-state change. Forced manual plus robust is legal. Extension is explicit
 owner intent with no invented peer-evidence preflight.
@@ -33,7 +33,7 @@ activates BMCR and verifies every owned stable field. Normally controls precede
 activation; when entering AN with robust disabled, the clear follows AN enable
 so the previous forced interval remains robust. Forced never accesses ANAR and
 ignores AN-restart readback, which has no meaning with AN disabled. Automatic
-PHYCR routing preserves bit14; CR2 changes only its extension bit. No additional
+PHYCR routing preserves bit 14; CR2 changes only its extension bit. No additional
 VOD write occurs in configuration. Every initialization reset kind uses the same
 profile replay after mandatory VOD setup, including 10 Mbit/s profiles.
 
@@ -85,11 +85,11 @@ not measured DP83826I hardware.
 | Layer | Result |
 | --- | --- |
 | Host implementation | PASS: 67 registered CTests, including seven forced suites, all existing negotiated/page suites, and nine executing negative Release probes. |
-| Portable consumer | PASS: tests-OFF linked consumer runs generic AN, application100/full AN and manual-MDI forced100/full owner examples plus previous transport/identity/reset examples. No SDK dependency. |
-| Research/tools | PASS: 102 Python tests; ledger97 registers/52 procedures/35 features; reference/vendor-hash/local-link and diff checks. |
-| Public API/version | PASS: Doxygen153 HTML pages with two rejected negative fixtures; deterministic version read-only check. Version remains0.1.0. |
+| Portable consumer | PASS: tests-OFF linked consumer runs generic AN, application 100/full AN and manual-MDI forced 100/full owner examples plus previous transport/identity/reset examples. No SDK dependency. |
+| Research/tools | PASS: 102 Python tests; ledger 97 registers/52 procedures/35 features; reference/vendor-hash/local-link and diff checks. |
+| Public API/version | PASS: Doxygen 153 HTML pages with two rejected negative fixtures; deterministic version read-only check. Version remains 0.1.0. |
 | SDK/package release | NOT RUN: SDK linking and release-package campaigns retain their later owners; portable linkage does not imply them. |
-| Remote CI | NOT RUN: first execution reserves dispatch/status checks for prompt71; no workflow changes. |
+| Remote CI | NOT RUN: first execution reserves dispatch/status checks for prompt 71; no workflow changes. |
 | Physical | NOT RUN: Q11 routing/mirror, actual partner agreement, electrical timing and physical link/duplex qualification require admitted identified fixtures. |
 
 Commands:
@@ -109,9 +109,9 @@ python tools/verify_references.py
 git diff --check
 ```
 
-Independent tests cover 36 forced and24 negotiated routing profiles, automatic
-manual-bit preservation, extension/mirror clearing, literal20/24-frame sequences,
-AN/forced and10/100 transitions, live robust state after each transition write,
+Independent tests cover 36 forced and 24 negotiated routing profiles, automatic
+manual-bit preservation, extension/mirror clearing, literal 20/24-frame sequences,
+AN/forced and 10/100 transitions, live robust state after each transition write,
 every-frame failure/cancellation, accepted/late writes, per-field mismatch and
 later failure, actual observed tuple/history, every reset replay, two PHYs and
 short indivisible poll slices. Existing page/pause regressions retain their
@@ -128,5 +128,5 @@ Doxygen/CLI/SDK routes must use the same owned profile procedure. The initial
 board's100/full AN advertisement remains application data, separate from forced
 operation. Configuration proves local stable controls, not partner duplex,
 negotiated pause, link-up or electrical compatibility. Live link resolution and
-managed health remain later stages; loopback restoration tests belong to prompt23.
-Stage18 software is complete with Q11 physical evidence explicitly NOT RUN.
+managed health remain later stages; loopback restoration tests belong to prompt 23.
+Stage 18 software is complete with Q11 physical evidence explicitly NOT RUN.

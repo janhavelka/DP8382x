@@ -9,7 +9,7 @@ inline void retainSampleCount(EvidenceSample& sample) noexcept {
   else { ++sample.samples; }
 }
 
-// SNLS647I table8-38: FF saturates in hardware; software must not wrap either.
+// SNLS647I table 8-38: FF saturates in hardware; software must not wrap either.
 inline void retainFalseCarriers(EvidenceSample& sample, uint8_t count) noexcept {
   sample.counterSaturated = sample.counterSaturated || count == 0xFFU;
   if (count > std::numeric_limits<uint64_t>::max() - sample.sampledSum) {

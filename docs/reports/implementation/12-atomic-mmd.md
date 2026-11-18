@@ -32,7 +32,7 @@ actual in-flight failure terminates/releases rather than suspending a sequence.
 One canonical target policy serves direct registers and vendor aliases. Thirty-
 eight original-table nonconsuming extended words join the existing direct read
 subset. All-reserved banks, destructive RXFS, holes, indirect selectors and
-procedure-only offsets remain denied. DEVAD3/7 and opaque EEE mappings are
+procedure-only offsets remain denied. DEVAD 3/7 and opaque EEE mappings are
 explicit SOURCE_GATE failures. Raw TDR/MSE/straps do not establish freshness,
 calibration, SNR, interpreted mode or successful resampling.
 
@@ -62,7 +62,7 @@ siblings or Git. The lead reviewed actual code/tests/diffs and owns shared guide
 Original archived SNLS647I pages 35–36, 63 and 70 establish the protocol, reserved
 control bits and LEDCR composition. Pages 74–93 establish the extended read
 allowlist from detailed field tables. Independent derivation from
-8.3.11.1/.4/.5: in function01 the selected address remains unchanged through a
+8.3.11.1/.4/.5: in function 01 the selected address remains unchanged through a
 read followed by a write. Therefore a complete stable RMW takes **five** frames,
 not the early project's eight-frame reselection policy. Updated API/design
 contracts and timing probes together. Other research procedure counts remain
@@ -71,8 +71,8 @@ conservative finite upper bounds, not permission to split ownership.
 The [transport guide](../../direct-access.md#complete-indirect-transactions)
 contains complete independent read/write/RMW traces. Control words are full
 literal 001F/401F, with reserved bits zero; no poisoned SDK storage can enter
-production construction. Independent examples include prior FFFF, mask0012,
-value0002 yielding0682, and prior0492/mask0600/value0200 yielding0292. The
+production construction. Independent examples include prior FFFF, mask 0012,
+value 0002 yielding 0682, and prior 0492/mask 0600/value 0200 yielding 0292. The
 [vector guide](../../register-vectors.md#atomic-stable-mmd-modification) records
 their source and limitations. Initialization-owned VOD writes remain a separate
 procedure; the raw API cannot bypass that ownership.
@@ -104,8 +104,8 @@ Fresh clean sibling revisions and paths:
 
 | Reference | Revision | Reopened implementation/tests |
 | --- | --- | --- |
-| PCA9555 | `498178e4d9e4acb6fab7d8b816ad5021efe8806a` | `src/PCA9555.cpp` mapping/raw/tracked/cleanup wrappers at149–268; `include/PCA9555/Config.h`; `test/test_basic.cpp` pointer cleanup/primary retention at2044/2120/2194, short read2461, aggregate grants2495 and RUN_TEST registration. |
-| MB85RC | `1bf7c293549b1038b2d8f3b7a8d655fa74201e6e` | `src/MB85RC.cpp::_mapTransportResult` at1449; `test/test_basic.cpp` completion/ambiguous failure cases5426/5841 and registrations; `examples/common/I2cTransport.h` scoped timeout/readiness/reset safety. |
+| PCA9555 | `498178e4d9e4acb6fab7d8b816ad5021efe8806a` | `src/PCA9555.cpp` mapping/raw/tracked/cleanup wrappers at 149–268; `include/PCA9555/Config.h`; `test/test_basic.cpp` pointer cleanup/primary retention at 2044/2120/2194, short read 2461, aggregate grants 2495 and RUN_TEST registration. |
+| MB85RC | `1bf7c293549b1038b2d8f3b7a8d655fa74201e6e` | `src/MB85RC.cpp::_mapTransportResult` at 1449; `test/test_basic.cpp` completion/ambiguous failure cases 5426/5841 and registrations; `examples/common/I2cTransport.h` scoped timeout/readiness/reset safety. |
 | TMP1x2 | `bafc34067530eb340e55c42dae3fad4eb795b6e9` | `src/TMP1x2.cpp` read/write/track; `src/TMP1x2Operations.cpp` timing allowances; `test/jobs/test_jobs.cpp`228 expiry/callback duration; `test/test_core.cpp`, `CMakeLists.txt` active test registration. |
 
 Also reopened each AGENTS/workflow and relevant example adapters/runners
@@ -118,7 +118,7 @@ target. Sibling tests were NOT RUN and no sibling was changed.
 
 ## Verification and maintainability
 
-Environment: Windows PowerShell, GNU C++15.1.0 WinLibs, CMake/CTest4.0.1,
+Environment: Windows PowerShell, GNU C++ 15.1.0 WinLibs, CMake/CTest 4.0.1,
 Python3.12.10 and installed Doxygen. Commands:
 
 ```sh
@@ -143,7 +143,7 @@ deadlines between frames, complete next-call reselection, original allowance
 forwarding, minimum full budget, stable masks, all canonical aliases, extended
 read policy, gates, malformed prefixes/timestamps, release/quarantine and
 competing accesses after every frame across two PHY addresses. The explicit
-failure probe exits1 with NDEBUG, proving checks remain active.
+failure probe exits 1 with NDEBUG, proving checks remain active.
 
 Portable build-tree consumer PASS: tests OFF, real library linked, direct/MMD
 read/write/RMW examples execute using an explicitly synthetic controller. No
@@ -157,7 +157,7 @@ fixtures. All 98 Python tests PASS. Version generation check, ledger validation
 (96 registers, 52 procedures, 35 features), references (27 vendor artifacts,
 25 extracts, 1,359 local links in 158 Markdown files) and diff whitespace checks
 PASS. Vendor archive inventory and numeric silicon facts are preserved;
-access evidence remains PARTIAL because task13 and EEE gates still apply.
+access evidence remains PARTIAL because task 13 and EEE gates still apply.
 
 Final maintainability review keeps one explicit access policy, one batch builder
 and one common transport normalization path. No new generic framework or source

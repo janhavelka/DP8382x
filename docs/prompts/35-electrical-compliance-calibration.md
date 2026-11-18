@@ -22,11 +22,11 @@ configuration, diagnostic engine and restoration; no autonomous calibration/
 reset loop or class per register.
 
 Use [electrical/compliance sources](../reference/library-ti-features.md#electrical-and-compliance-anchors)
-and original SNLS647I/SNLA266B. Retain VOD negative28..38=150..50%, positive
-08..18=50..150%,6.25% steps, split MDIX fields and exact mandatory4A40 setup.
-Eligible compliance is SNLA266B5-1/5-2/5-4 through shared crossover/BIST/loopback,
-and COMPT10M codes 10..1D, each with HARD stop. Reject10M E/F. Keep codeE/F
-legal in their separate 100M count context. The100M0428 branch keeps typed
+and original SNLS647I/SNLA266B. Retain VOD negative 28..38=150..50%, positive
+08..18=50..150%, 6.25% steps, split MDIX fields and exact mandatory 4A40 setup.
+Eligible compliance is SNLA266B 5-1/5-2/5-4 through shared crossover/BIST/loopback,
+and COMPT10M codes 10..1D, each with HARD stop. Reject 10M E/F. Keep code E/F
+legal in their separate 100M count context. The 100M 0428 branch keeps typed
 validation/literal vectors but rejects before I/O under `compt_reserved`.
 Other gates are `ioctrl_example`, `analog_rx_gain`, `hard_reset_straps`.
 Do not expose generic reserved writes.
@@ -45,8 +45,8 @@ arbitrary undocumented write escape. Reuse task 23's correct speed-specific
 loopback where a procedure requires it.
 
 Persistent controls use whole-profile validation and stable readback. Calibration
-contingency reads CDCR once: if bit 14 high, clear only4000 with bit 15=0 and
-immediately issue PHYRCR8000 in the same bounded owner step. The HARD procedure
+contingency reads CDCR once: if bit 14 high, clear only 4000 with bit 15=0 and
+immediately issue PHYRCR 8000 in the same bounded owner step. The HARD procedure
 provides completion evidence; nothing proves calibration completed. A second
 command failure preserves the first effect and OP-14's floor applies whenever
 HARD is attempted. No reset-until-good loop.
@@ -71,12 +71,12 @@ require actual suitable measurements and remain unqualified until then. Missing
 fixtures do not excuse missing documented software controls.
 
 Forced MDI/MDIX composes PHYCR[15:14], preserves bit 7 and does not import
-undocumented bit 5 or RH[4:0] from script0021/4021. ScriptBISCR7101 becomes
-owned mask701F/value7001; bit 8 is observed, not written. Forced profiles go
+undocumented bit 5 or RH[4:0] from script 0021/4021. Script BISCR 7101 becomes
+owned mask 701F/value 7001; bit 8 is observed, not written. Forced profiles go
 through `configure_forced`, including CR1[5]=1 though scripts omit it; Q19
-qualifies that difference. The ledger keeps14 exact actions
+qualifies that difference. The ledger keeps 14 exact actions
 `compliance_10_pattern_0`..`compliance_10_pattern_D` under the sourced COMPT
-bit 4 exception, with normal ownedmask000F and reservedmaskFFF0 preserved.
+bit 4 exception, with normal owned mask 000F and reserved mask FFF0 preserved.
 
 ## Documentation, verification and checkpoint
 

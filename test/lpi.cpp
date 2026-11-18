@@ -10,9 +10,9 @@ using namespace DP8382x;
 using Driver = ::DP8382x::DP8382x;
 struct Wire { FrameKind kind; uint8_t reg; uint16_t value, target, devad; uint64_t at; };
 
-// Independent SNLS647I p27 section8.3.4 literals: preserve EFFF; set/clear1000.
+// Independent SNLS647I p27 section 8.3.4 literals: preserve EFFF; set/clear 1000.
 // Shared setup independently models the p26 EEE recipe; no production masks.
-// DEVAD3/7 storage is separate from vendor31 and direct C22; successful fake
+// DEVAD 3/7 storage is separate from vendor 31 and direct C22; successful fake
 // reads do not establish Q1 wire mapping or physical EEE interoperability.
 struct Controller {
   std::array<uint16_t,32> words{};
@@ -167,8 +167,8 @@ void trace(const Controller& b,unsigned first,uint16_t value) {
   }
 }
 void traces() {
-  // Every surrounding bit is preserved, including opaque recipe bit1 and
-  // DP83825's unrelated bits14:13. Only exact DP83826 bit12 is owned.
+  // Every surrounding bit is preserved, including opaque recipe bit 1 and
+  // DP83825's unrelated bits 14:13. Only exact DP83826 bit 12 is owned.
   for(uint16_t before:{uint16_t{0x008B},uint16_t{0xEFFF},uint16_t{0x0009},uint16_t{0xA00B}}) {
     Controller b;Driver d;available(d,b);b.ext[0x04D1]=before;
     const auto first=b.frames,calls=b.calls;const auto health=d.healthSnapshot();LpiResult enter;
@@ -295,7 +295,7 @@ void timing() {
   for(unsigned fault=0;fault<4U;++fault) {
     Controller b;Driver d;available(d,b);LpiResult r;r.control=0xCAFE;const auto calls=b.calls;IoBudget allowed=io();
     if(fault==0U)allowed.deadlineUs=b.now;
-    if(fault==1U)allowed.deadlineUs=b.now+53U; // 9*4 + 2*8 + quantization1; strict exclusive bound.
+    if(fault==1U)allowed.deadlineUs=b.now+53U; // 9*4 + 2*8 + quantization 1; strict exclusive bound.
     if(fault==2U)b.now=std::numeric_limits<uint64_t>::max();
     if(fault==3U)b.now=0;
     CHECK(!d.startLpi(admitted(),r,allowed).ok());CHECK(b.calls==calls && r.control==0xCAFE);

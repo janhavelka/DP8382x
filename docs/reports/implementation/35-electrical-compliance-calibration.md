@@ -1,4 +1,4 @@
-# Prompt35: electrical controls and finite compliance procedures
+# Prompt 35: electrical controls and finite compliance procedures
 
 Implemented source-admitted `analog_configure`, `collision_test`,
 `compliance_session` and `calibration_recovery`. See the
@@ -11,7 +11,7 @@ Started on clean fetched `main` at
 `a4ee2d4f18b12dc577ed52e75387ab936b8bfc3d`, equal to `origin/main`.
 Read the full attachment/repository prompt, COMMON, shared conventions,
 engineering/evidence/coverage/operation contracts, architecture/variants,
-reference index and parent/root agent rules. Prerequisites23/24/33/22 supply
+reference index and parent/root agent rules. Prerequisites 23/24/33/22 supply
 the operation slot, diagnostics, shared forced profile, collector and restoration.
 One application owner serializes every instance access and complete MDIO batch;
 controller locks never span waits or application dwell. Siblings stayed read-only,
@@ -28,12 +28,12 @@ contributions against actual code/diff before integration.
 
 ## Source and sibling audit
 
-Original SNLS647I August2025, SHA256
+Original SNLS647I August 2025, SHA256
 `4e440fb8bd1cd44ee9ab0773944bef4f0605884f25c4ab96ea55d0ed859fd9c3`,
-tables8-19/47/48/50/73/76/79..83/86 and section8.3.11.6 establish the exact
-fields, commands and access limits. SNLA266B April2025, SHA256
+tables 8-19/47/48/50/73/76/79..83/86 and section 8.3.11.6 establish the exact
+fields, commands and access limits. SNLA266B April 2025, SHA256
 `74af41cba6912b8734097332b7e766105feaa8fb015321f47d345b7596aa13d5`,
-page13 tables5-1/2/4/5 supplies applicable DP83826 scripts. DP83822-only5-3 is
+page 13 tables 5-1/2/4/5 supplies applicable DP83826 scripts. DP83822-only 5-3 is
 inapplicable. Current targeted TI clarification search found no evidence closing
 `ioctrl_example`, `analog_rx_gain` or `compt_reserved`; no vendor implementation
 was copied and existing per-file source licensing/provenance remains unchanged.
@@ -59,28 +59,28 @@ PHY procedure authority. SDK/controller timing remains a separate layer.
 ## Implemented behavior and acceptance
 
 `DP8382xAnalog.cpp` validates complete owned profiles, snapshots current words,
-uses the legal low8 bridge for split MDIX negative amplitude and verifies every
-write before continuation. All289 legal current/target endpoint pairs retain
+uses the legal low 8 bridge for split MDIX negative amplitude and verifies every
+write before continuation. All 289 legal current/target endpoint pairs retain
 legal intermediate codes, including accepted-error prefixes and restoration.
 It exposes all legal negative/positive/zero DAC, termination/enables and slew
 encodings; explicit gain requests and reserved examples reject before I/O.
-The full analog pass is at most70frames/18callbacks, read-only22/6. Restoration
+The full analog pass is at most 70 frames/18 callbacks, read-only 22/6. Restoration
 reobserves all owned words instead of trusting pre-reset reserved-bit snapshots.
-Mandatory initialization4A40 remains first; admitted termination overrides follow,
+Mandatory initialization 4A40 remains first; admitted termination overrides follow,
 and VERIFY compares the owned desired value.
 
 `DP8382xElectrical.cpp` uses the existing operation switch, HARD/restart waits,
-shared forced profile and collector. It implements both manual pairs for100M,
-10M NLP and10M PRBS scripts, all14 COMPT10M patterns, explicit MII COL test and
+shared forced profile and collector. It implements both manual pairs for 100M,
+10M NLP and 10M PRBS scripts, all 14 COMPT10M patterns, explicit MII COL test and
 conditional CDCR recovery. COUNT1000..31, including E/F, is representable but
-rejects before0428 access. Forced routing ownsC000, preserves reserved/strap
-fields and uses CR1robust; BISCR uses701F=7001 without importing script RO bits.
+rejects before 0428 access. Forced routing owns C000, preserves reserved/strap
+fields and uses CR1 robust; BISCR uses 701F=7001 without importing script RO bits.
 Live and desired power/isolation prerequisites prevent accidental entry.
 
 Start/stop each have finite independent budgets and retained results. HARD stop
 proves stopped/reset state but leaves persistent initialization owed. Collision
 stop can discharge its own barrier only with unchanged unrelated proof. CDCR is
-read once; high14 admits adjacent clear/HARD writes in one batch. First-frame
+read once; high 14 admits adjacent clear/HARD writes in one batch. First-frame
 failure stops the batch; accepted/possible clear retains a specific HARD debt,
 and any attempted HARD retains the bus-wide quiet floor. Calibration accuracy
 or completion is never inferred from reset completion.
@@ -118,19 +118,19 @@ corrections; unresolved silicon facts remain unresolved.
 
 Windows, GNU C++15.1.0, Ninja, C++17 Release, warnings-as-errors:
 
-- PASS: configure/build `build/host`, all229 registered CTests, including active
+- PASS: configure/build `build/host`, all 229 registered CTests, including active
   assertion failure probes and complete previous-stage regression suites.
-- PASS: separate `build/electrical35-ubsan`, all229 CTests with undefined-behavior
+- PASS: separate `build/electrical35-ubsan`, all 229 CTests with undefined-behavior
   sanitizer and trap-on-error.
 - PASS: tests-OFF `build/electrical35-consumer`, both linked registered consumers;
   the maintenance example compiles without SDK dependencies.
 - PASS:103 Python unit tests, `verify_ledger.py`, `verify_references.py`,
   deterministic version check and `git diff --check`.
-- PASS: Doxygen264 generated HTML pages, local assets/links and two deliberately
+- PASS: Doxygen 264 generated HTML pages, local assets/links and two deliberately
   rejected negative fixtures.
 - NOT RUN: SDK/controller link and physical timing/compliance/calibration/EMC.
   No SDK code is introduced; later adapter/package stages retain those checks.
-- NOT RUN: remote CI, reserved for prompt71 under the first-execution rule.
+- NOT RUN: remote CI, reserved for prompt 71 under the first-execution rule.
 
 Tests inject every primary/stop/replay frame failure, accepted-write timeout,
 release failure, malformed receipt, readback mismatch, cancellation boundaries,
@@ -146,7 +146,7 @@ updated. Version/manifests/licenses need no change: this is unreleased feature
 work with no imported code. Commit and upstream-equality evidence is recorded
 in the final handoff to avoid a self-referencing report commit.
 
-The later [independent prompts34-35 audit](34-35-independent-audit.md) corrects
+The later [independent prompts 34-35 audit](34-35-independent-audit.md) corrects
 combined-owner replay, external-reset reconciliation, reset-only session
 classification and interleaved reset handling. It records separate verification
 without changing this original checkpoint's historical evidence.

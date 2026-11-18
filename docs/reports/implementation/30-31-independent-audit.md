@@ -15,14 +15,14 @@ failure handling and tests independent while the lead owned all fixes and Git.
 `audit30` built seven LPI suites in `build/audit30`; `audit31` reproduced route
 conflicts; `audit_cross` built separate executable probes in `build/audit-cross`.
 Agents edited no tracked files or siblings. No workflow exists yet; remote CI
-remains prompt71. One MDIO owner, collector, operation slot and shared restoration
+remains prompt 71. One MDIO owner, collector, operation slot and shared restoration
 path remain unchanged.
 
-Source review reopened original SNLS647I section8.3.4/page27, timing table7.6
-and tables8-90 through8-97, plus the GPIO mux tables. The current
+Source review reopened original SNLS647I section 8.3.4/page 27, timing table 7.6
+and tables 8-90 through 8-97, plus the GPIO mux tables. The current
 [official TI PDF](https://www.ti.com/lit/ds/symlink/dp83826i.pdf) still identifies
-SNLS647I, August2025. Independent table checks found no numeric correction:
-LPI owns only bit12; all four EEE timing values are nominal; WoL bit11 is W0C;
+SNLS647I, August 2025. Independent table checks found no numeric correction:
+LPI owns only bit 12; all four EEE timing values are nominal; WoL bit 11 is W0C;
 MAC/password packing and route masks agree with the existing independent literals.
 Original vendor files and provenance were not changed.
 
@@ -67,7 +67,7 @@ memory wake delays and sensor timing remain inapplicable to the PHY.
    phases for control, credential and pin reads; all failed before the fix.
 
 No confirmed LPI defect was found. Review covered nine-frame/two-callback bounds,
-cached admission, no-wait cancellation semantics, bit12-only stop verification,
+cached admission, no-wait cancellation semantics, bit 12-only stop verification,
 uncertain accepted writes, unrelated restoration debt, reset reconciliation,
 quiet floors, link invalidation and passive snapshots. Q2 remains physical work.
 
@@ -89,7 +89,7 @@ Verification on Windows, GNU C++17 Release/Ninja with active assertions:
 - NOT RUN: SDK/controller, installed package and physical qualification.
   Physical W0C/RH-bit behavior, live traffic races, pulse routing, partner wake
   and actual application wake remain Q2/Q3 evidence, not host-test conclusions.
-- NOT RUN: remote CI, reserved for prompt71.
+- NOT RUN: remote CI, reserved for prompt 71.
 
 The final checked commit and verified upstream equality are recorded in the
 handoff, avoiding a self-referencing commit in this report.
@@ -105,9 +105,9 @@ and registered tests. The stage checkpoint above remains historical.
 | Known credential mismatch permitted another mutation | **Confirmed implemented.** `src/DP8382x.cpp::_retainEvidence` includes `_wakeWorking` in the independent-observation freeze guard. `src/DP8382xWake.cpp::_retainWakeWord` keeps the first mismatch. `test/wol.cpp::ownership` covers all ten post-credential boundaries and raw-read release/deadline errors, with no subsequent enable/frame. |
 | Disabled detector released its still-owned route | **Confirmed implemented.** `_validateInterruptSettings` checks the retained WoL route independently of enabled; EEE admission also rejects a conflicting selected route. `_validateWake` keeps STATUS_ONLY distinct from selected physical routing. `test/wol.cpp::routing`/`routeChanges` exercise disabled direct routes, IRQ delivery dependencies and EEE/LED1 conflict without intent/token mutation. |
 | Failed requested reads reused old validity | **Confirmed implemented.** `_advanceWake` clears control/credential/pin validity for an incomplete target-read prefix, retains historical words, then preserves any valid prefix before later error handling. `test/wol.cpp::failures` covers all four indirect failure positions for these words. |
-| LPI bounds, cancellation, bit12 stop and unrelated restoration debt | **Confirmed protected, no additional correction justified.** `src/DP8382xEee.cpp` implements `startLpi`, `stopLpi` and the shared LPI phases; `test/lpi.cpp` traces/admission/failures/recovery/ownership/timing suites retain accepted uncertainty, finite two-callback/nine-frame work and passive cached state. Prompt 30 leaves MAC drain, dwell and post-exit policy with the application. |
-| Use nominal EEE timings as a completion/readiness maximum | **Incorrect.** The original rendered SNLS647I page 15 places 210 us, 20 ms, 36 us and 200 us in NOM, not MAX. Section 8.3.4 gives bit12 entry/exit and says the PHY has no buffering; it does not supply a readiness event or guaranteed partner wake deadline. |
-| Replace exact-part W0C or change MAC/password order using a sibling recipe | **Incorrect/unsupported.** Reopened original tables 8-90 through 8-97 retain W0C bit11 and the distinct byte labels; current prompt 31 and `test/wol.cpp::vectors` use asymmetric literal wire words. `_wakeControlBatch` in `src/DP8382x.cpp` writes one as neutral and zero only for acknowledgement after collector harvesting. |
+| LPI bounds, cancellation, bit 12 stop and unrelated restoration debt | **Confirmed protected, no additional correction justified.** `src/DP8382xEee.cpp` implements `startLpi`, `stopLpi` and the shared LPI phases; `test/lpi.cpp` traces/admission/failures/recovery/ownership/timing suites retain accepted uncertainty, finite two-callback/nine-frame work and passive cached state. Prompt 30 leaves MAC drain, dwell and post-exit policy with the application. |
+| Use nominal EEE timings as a completion/readiness maximum | **Incorrect.** The original rendered SNLS647I page 15 places 210 us, 20 ms, 36 us and 200 us in NOM, not MAX. Section 8.3.4 gives bit 12 entry/exit and says the PHY has no buffering; it does not supply a readiness event or guaranteed partner wake deadline. |
+| Replace exact-part W0C or change MAC/password order using a sibling recipe | **Incorrect/unsupported.** Reopened original tables 8-90 through 8-97 retain W0C bit 11 and the distinct byte labels; current prompt 31 and `test/wol.cpp::vectors` use asymmetric literal wire words. `_wakeControlBatch` in `src/DP8382x.cpp` writes one as neutral and zero only for acknowledgement after collector harvesting. |
 
 The archived original PDF sections/tables above were read directly, including
 rendered timing columns. No changed silicon constant, source permission or vendor

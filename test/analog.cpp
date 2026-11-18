@@ -10,7 +10,7 @@ using namespace DP8382x;
 using Driver = ::DP8382x::DP8382x;
 struct Wire { FrameKind kind; uint8_t reg; uint16_t value, target, devad; uint64_t at; };
 
-// Independent SNLS647I tables8-73/79..83/86 original PDF literals.
+// Independent SNLS647I tables 8-73/79..83/86 original PDF literals.
 // The fake models consumption, not physical latency, thresholds or SNR.
 struct Controller {
   std::array<uint16_t,32> words{};

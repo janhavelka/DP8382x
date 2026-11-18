@@ -35,8 +35,8 @@ configuration: full duplex, robust manual MDI, no mirror or duplex extension.
 The persistent desired profile is never overwritten. Reverse and external
 retain it. Start does not rewrite mandatory VOD; initialization already proved
 it. Every stop reuses initialization, so VOD is rewritten and verified there.
-For MII loopback, BMCR14 is set before optional BISCR6 line transmission;
-stop clears BISCR6 before clearing BMCR14 (SNLS647I table 8-40).
+For MII loopback, BMCR 14 is set before optional BISCR 6 line transmission;
+stop clears BISCR 6 before clearing BMCR 14 (SNLS647I table 8-40).
 
 The source ledger owns field encodings. [Independent vectors](register-vectors.md)
 and `test/loopback.cpp` contain literal recipes and bounds derived from the

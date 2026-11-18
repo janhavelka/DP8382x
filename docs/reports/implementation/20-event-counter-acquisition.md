@@ -1,4 +1,4 @@
-# Prompt20 - complete event and counter acquisition
+# Prompt 20 - complete event and counter acquisition
 
 Date: 2026-11-10. Branch: `promptset/dp8382x-implementation-20261028`.
 Execution base: `5e148fffde074b85fadc15d8ff66fe2c77111036`.
@@ -8,11 +8,11 @@ final commit and upstream equality are recorded in the handoff without self-refe
 
 ## Rules, owned procedure and behavior
 
-Applied root/parent AGENTS, COMMON, prompt20, CONVENTIONS, EVIDENCE,
+Applied root/parent AGENTS, COMMON, prompt 20, CONVENTIONS, EVIDENCE,
 FULL_COVERAGE, ENGINEERING, SOURCE_MAP, VERIFICATION, OP-14 and the remaining
 prompt audit. Reopened current entry implementation, README, architecture,
 variants, reference index and ledger. Prerequisites are the single collector
-from13, source research from4 and live link integration from19. Owned ledger
+from 13, source research from 4 and live link integration from 19. Owned ledger
 procedure: `collect_event_counters`. The lead owns public values, existing
 driver/collector source, shared documentation, registration, integration and Git.
 One application owner still serializes instance calls and all controller users.
@@ -80,11 +80,11 @@ NDEBUG. Controller/event behavior below is an identified host fake.
 | --- | --- |
 | Host Release | PASS:84 registered CTests, including five new event suites and eleven active negative Release probes. Five standalone public-header translation units compile. |
 | UBSan trap | PASS:84 CTests in a separate build. Other sanitizers/second compiler NOT RUN locally under the Windows verification policy. |
-| Portable consumer | PASS: tests-OFF real core link and1/1 executing consumer. Acquires once and formats two copied event views with no extra bus or clock calls. |
-| Research/tool checks | PASS:102 Python tests; ledger97 registers/52 procedures/35 features; vendor hashes, reference/local links and diff checks. |
-| Public documentation/version | PASS: Doxygen157 HTML pages, public coverage and two rejected negative fixtures; deterministic version check. Version remains0.1.0. |
+| Portable consumer | PASS: tests-OFF real core link and 1/1 executing consumer. Acquires once and formats two copied event views with no extra bus or clock calls. |
+| Research/tool checks | PASS: 102 Python tests; ledger 97 registers/52 procedures/35 features; vendor hashes, reference/local links and diff checks. |
+| Public documentation/version | PASS: Doxygen 157 HTML pages, public coverage and two rejected negative fixtures; deterministic version check. Version remains 0.1.0. |
 | SDK/exported package | NOT RUN: SDK integration and release-package campaigns retain their later owners. Portable linkage is a separate layer. |
-| Remote CI | NOT RUN: first execution reserves remote dispatch/status checks for prompt71; no workflow change. |
+| Remote CI | NOT RUN: first execution reserves remote dispatch/status checks for prompt 71; no workflow change. |
 | Physical | NOT RUN: event/counter traces, invalid-symbol injection, error rates and Q16/Q17 require separately admitted identified fixtures. |
 
 Commands:
@@ -126,8 +126,8 @@ CounterSnapshot coverage. Reviewed variants/version/tool interfaces without
 changing support or versions: only the declared exact primary part is admitted.
 
 Global IRQ routing/selection and source-qualified session diagnostics retain
-their later complete procedures. Managed health is prompt21; chip error counts
+their later complete procedures. Managed health is prompt 21; chip error counts
 are not MDIO activity or application readiness. Source-blocked RECR arithmetic,
 RMII RC polarity and physical verification remain named gates while independently
-documented raw acquisition is complete. Prompt20 software is complete within
+documented raw acquisition is complete. Prompt 20 software is complete within
 those explicit evidence boundaries.

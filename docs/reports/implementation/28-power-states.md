@@ -9,9 +9,9 @@ the ledger. SDK and physical power/clock qualification remain NOT RUN.
 ## Rules, ownership and checkpoint
 
 Started on clean, fetched `main`, equal to `origin/main`, at
-`ced8b1ce5418aec044eb156b507ea78573302576` (prompt27). Read the full attached
-prompt and repository prompt28, COMMON, shared contracts, API, architecture,
-variants and reference index. Prior stage22 reconciliation and stage5 ledger
+`ced8b1ce5418aec044eb156b507ea78573302576` (prompt 27). Read the full attached
+prompt and repository prompt 28, COMMON, shared contracts, API, architecture,
+variants and reference index. Prior stage 22 reconciliation and stage 5 ledger
 are the consumed prerequisites. Current procedures owned here:
 `power_ieee`, `power_active_sleep`, `power_pll_control`, `power_deep`.
 
@@ -21,14 +21,14 @@ slot, transport and collector. Names follow existing Status/PascalCase/camelCase
 contracts. The application owns instance serialization, all-bus atomic RMW,
 clocks/pins and scheduling. No SDK, allocations, background work or new framework.
 Siblings and archived vendor bytes were read-only. No remote CI dispatch/status
-was performed; first-set CI remains prompt71 and no workflow was added.
+was performed; first-set CI remains prompt 71 and no workflow was added.
 
 ## Exact source and independent vectors
 
-Independent reviewer reopened original SNLS647I pp28-29 section8.3.6, p55
-table8-19, p65 table8-35 and p69 table8-40, plus p3/p6 mode/pin tables and p75
-table8-50 for the opaque DPD/compliance overlap. The current official TI
-`dp83826i.pdf` is byte-identical to the archived RevI August2025, 114-page PDF:
+Independent reviewer reopened original SNLS647I pp28-29 section 8.3.6, p55
+table 8-19, p65 table 8-35 and p69 table 8-40, plus p3/p6 mode/pin tables and p75
+table 8-50 for the opaque DPD/compliance overlap. The current official TI
+`dp83826i.pdf` is byte-identical to the archived RevI August 2025, 114-page PDF:
 SHA256 `4e440fb8bd1cd44ee9ab0773944bef4f0605884f25c4ab96ea55d0ed859fd9c3`.
 Targeted current TI/E2E searches found no inspected exact-part DPD exit
 clarification; this is a bounded negative search, not proof of nonexistence.
@@ -36,7 +36,7 @@ clarification; this is a bounded negative search, not proof of nonexistence.
 The reviewer derived active-sleep, software/pin OR and PLL arithmetic directly
 from original tables. `B700 -> 3D00/3500` preserves isolation and neutralizes
 commands; reset-bearing samples still invalidate readiness. `8108 -> E108`
-preserves PLL during a policy update. BISCR0100 means normal despite enabled
+preserves PLL during a policy update. BISCR 0100 means normal despite enabled
 policy. No 1.4-second partner deadline or PLL-ready delay was imported.
 The [vectors](../../register-vectors.md), [power guide](../../power.md) and ledger
 record the interpretation. No unlicensed implementation was copied.
@@ -107,18 +107,18 @@ version files need no changes: this stage adds no SDK dependency or version bump
 
 ## Verification
 
-Environment: Windows PowerShell, GNU15.1, Ninja, C++17 Release, Python3.12.
+Environment: Windows PowerShell, GNU 15.1, Ninja, C++17 Release, Python 3.12.
 
 | Layer/check | Result |
 | --- | --- |
-| Host configure/build: `cmake -S . -B build/host -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON`; build; `ctest --test-dir build/host --output-on-failure --no-tests=error` | PASS161/161, including six power suites and the Release failure probe. |
-| Separate portable consumer: `cmake -S test/consumer -B build/power28-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF`; build; CTest | PASS2/2. Executes policy, IEEE/PLL down, explicit wake and repeated cached views after diagnostic restoration. |
-| `python -m unittest discover -s test -p "test_*.py" -v` | PASS103. |
-| `python tools/verify_ledger.py` | PASS97 registers,52 procedures,35 features; structure/source coverage only. |
-| `python tools/check_doxygen.py` | PASS205 HTML pages and two rejected negative fixtures. |
+| Host configure/build: `cmake -S . -B build/host -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON`; build; `ctest --test-dir build/host --output-on-failure --no-tests=error` | PASS 161/161, including six power suites and the Release failure probe. |
+| Separate portable consumer: `cmake -S test/consumer -B build/power28-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF`; build; CTest | PASS 2/2. Executes policy, IEEE/PLL down, explicit wake and repeated cached views after diagnostic restoration. |
+| `python -m unittest discover -s test -p "test_*.py" -v` | PASS 103. |
+| `python tools/verify_ledger.py` | PASS 97 registers, 52 procedures, 35 features; structure/source coverage only. |
+| `python tools/check_doxygen.py` | PASS 205 HTML pages and two rejected negative fixtures. |
 | `python tools/verify_references.py`, version check, `git diff --check` | PASS; archived payloads unchanged, local links checked, generated version current. |
 | SDK link / installed-exported package | NOT RUN; no SDK or packaging changes in this portable stage. Separate tests-OFF source consumer is PASS. |
-| Remote CI | NOT RUN; reserved for prompt71. |
+| Remote CI | NOT RUN; reserved for prompt 71. |
 | Q6 power/pin/generated-clock qualification | NOT RUN; no fixture operation authorized or claimed. |
 
 Power tests cover all transition frame/release failures, accepted writes followed

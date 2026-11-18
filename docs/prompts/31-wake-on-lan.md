@@ -18,11 +18,11 @@ indication, status/acknowledgement and routing, with readback and restoration.
 Do not import DP83822 custom pattern matching or claim an application/MAC has
 actually awakened because the PHY indication is set.
 
-Revalidate SNLS647I tables8-90..97 and the
+Revalidate SNLS647I tables 8-90..97 and the
 [WoL comparison](../reference/library-ti-features.md#interrupts-power-eee-and-wol).
-RXFCFG1[11] is exact-part W0C. Pulse[10:9] gives8/16/32/64 cycles at125MHz
-(64/128/256/512ns). DS MAC byte5 is API octet0:11:22:33:44:55:66 packs
-04A2=2211,04A3=4433,04A4=6655; SecureON2A..2F packs2B2A/2D2C/2F2E.
+RXFCFG1[11] is exact-part W0C. Pulse[10:9] gives 8/16/32/64 cycles at 125MHz
+(64/128/256/512ns). DS MAC byte 5 is API octet 0:11:22:33:44:55:66 packs
+04A2=2211,04A3=4433,04A4=6655; SecureON 2A..2F packs 2B2A/2D2C/2F2E.
 SNLA261A and TI Linux yield the same wire words despite different byte labels;
 the different custom-pattern feature is not imported.
 
@@ -33,13 +33,13 @@ tables, especially 8-90 and 8-92 through 8-94; compare SNLA261A only to identify
 part-specific differences.
 
 Define typed MAC/SecureON/CRC/pulse-level settings and pin conflicts with
-whole-request validation. API octet0 is first transmitted; asymmetric literals
+whole-request validation. API octet 0 is first transmitted; asymmetric literals
 must match the original tables independently of codec round trips.
 
 Keep exact-part W0C: one neutral, zero acknowledgement. SNLA261A/DP83822/TI Linux
-use write1 on family paths, so qualify with Q3. Before any RXFCFG1 write harvest
+use write 1 on family paths, so qualify with Q3. Before any RXFCFG1 write harvest
 RXFS and MISR2 through the collector; skip unrelated updates unchanged under
-stable mask17E1. Explicit acknowledgement still writes. This retains evidence
+stable mask 17E1. Explicit acknowledgement still writes. This retains evidence
 under either physical polarity without importing the DP83822 recipe.
 
 For reconfiguration of an already enabled detector, source and test the disable,
@@ -68,7 +68,7 @@ Compile configuration and event-handling examples. Document exact-part matching
 scope, pending-event preservation and how PHY indication differs from measured
 application wake; absent board wiring never removes the software feature.
 
-Reset is not WoL-off: RXFCFG1 resets108X with enable bit 7 set and bit 0 unknown;
+Reset is not WoL-off: RXFCFG1 resets 108X with enable bit 7 set and bit 0 unknown;
 RXFS[12] selectsWoL. Initialization writes RXFCFG1 only when owned settings
 require it. Publish observed fields. Explicit disable clears bits 7,5,0 with W0C
 neutral; bit 0 is RH and its stability is part of Q3 qualification.

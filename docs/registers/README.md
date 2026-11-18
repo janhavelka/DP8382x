@@ -133,7 +133,7 @@ matrix), `eligibility` and `sources`.
 sources, gates, feature, status, controls}` records and explanatory `disposition`.
 Status is SOURCE_IMPLIED, retaining the Q1 physical gate. The validator admits only
 the five selected printed-to-wire associations and their safe-read/collector routes;
-no generic digit-stripping convention or DEVAD31 alias follows. These are cross-part
+no generic digit-stripping convention or DEVAD 31 alias follows. These are cross-part
 inferences, not new exact-part detailed field records. A disputed MSE address stays
 in its gate, not an established alias.
 
@@ -149,7 +149,7 @@ The validator requires the exact core register set and the complete 79-entry
 summary inventory, the feature-only address entries and all 12 core procedures
 with their assigned features. Removing a row cannot
 make coverage pass. It checks the seeded feature families and their stage owners.
-Prompt 4 originally required37 diagnostic rows (34 detailed and three opaque);
+Prompt 4 originally required 37 diagnostic rows (34 detailed and three opaque);
 WP3 adds the SNLA428 TDR opaque row. Eight diagnostic feature families and
 16 procedures remain required.
 Prompt 5 requires the final 39 rows (25 detailed and 14 opaque recipe records),

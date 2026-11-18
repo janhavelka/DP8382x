@@ -9,11 +9,11 @@ and verified upstream equality are recorded in the handoff, avoiding self-refere
 
 ## Scope, rules and outcome
 
-Reopened root/parent AGENTS, COMMON, prompt19, relevant shared source/engineering/
+Reopened root/parent AGENTS, COMMON, prompt 19, relevant shared source/engineering/
 verification contracts, OP-14, remaining-prompts audit, README, architecture,
 variants and reference index. Prerequisites are the executing collector, exact
 identity and initialization, and complete negotiated/forced profile paths from
-13-18, with original diagnostic access facts from4. Owned ledger procedure:
+13-18, with original diagnostic access facts from 4. Owned ledger procedure:
 `observe_link`. Names remain PascalCase values/camelCase methods in DP8382x.
 The lead owns public driver headers, transport invalidation hooks, the cohesive
 link source, shared guides/ledger/progress, integration and Git.
@@ -40,7 +40,7 @@ retain first, changed, repeated, stale and regained evidence.
 [Original-source review](19-source-review.md) pins fresh unchanged SNLS647I,
 TI RTOS `94bf4343004732983b0b8e1eec123d88ff70453b`, selected ESP-IDF v6.1 and the
 identified IEEE 2012 original-document mirror. It visually checks original
-register tables and Table28B-3, with per-file licenses and independent literals.
+register tables and Table 28B-3, with per-file licenses and independent literals.
 Vendor payloads/hashes remain unchanged; no comparison implementation was copied.
 TI first-low output omission and unqualified forced PHYSTS helpers were rejected.
 
@@ -51,7 +51,7 @@ TMP1x2 `db7687a5b2dfeee29df75a5b559ae6dd02baa8bb`, INA228
 tests, CLI rendering, runners and agent rules were reopened. Staged publication,
 separate destructive capture and passive copying were adopted; sensor freshness,
 CONFIG bookends and I2C assumptions were not used as PHY coherence evidence.
-No workflow exists here yet; remote CI remains prompt71 and no workflow was added.
+No workflow exists here yet; remote CI remains prompt 71 and no workflow was added.
 
 Delegation used gpt-6-astra/high for silicon, destructive semantics and independent
 coherence review; the current capable model handled disjoint test/example work
@@ -75,13 +75,13 @@ CHECKs under NDEBUG. Hardware/controller behavior below is a host fake.
 
 | Layer | Result and limit |
 | --- | --- |
-| Host Release | PASS: all78 registered CTests, including nine link suites and ten executing negative Release probes. Five public-header translation units compile independently. |
-| UBSan trap | PASS: all78 CTests in a separate instrumented build. Second compiler and other sanitizers NOT RUN locally under the Windows verification policy. |
+| Host Release | PASS: all 78 registered CTests, including nine link suites and ten executing negative Release probes. Five public-header translation units compile independently. |
+| UBSan trap | PASS: all 78 CTests in a separate instrumented build. Second compiler and other sanitizers NOT RUN locally under the Windows verification policy. |
 | Portable consumer | PASS: separate tests-OFF C++17 build/link,1/1 CTest, including live sampling and no-I/O cached policy plus existing owner examples. |
-| Research/tools | PASS:102 Python tests; ledger97 registers/52 procedures/35 features; reference/vendor-hash/local-link and diff checks. |
-| Public API/version | PASS: Doxygen155 generated HTML pages and two rejected negative fixtures; generated version read-only check. Version remains0.1.0. |
+| Research/tools | PASS: 102 Python tests; ledger 97 registers/52 procedures/35 features; reference/vendor-hash/local-link and diff checks. |
+| Public API/version | PASS: Doxygen 155 generated HTML pages and two rejected negative fixtures; generated version read-only check. Version remains 0.1.0. |
 | SDK and release package | NOT RUN: adapter/SDK and exported-package campaigns retain later owners; portable linkage does not prove those layers. |
-| Remote CI | NOT RUN: first-execution dispatch/status checking belongs only to71. |
+| Remote CI | NOT RUN: first-execution dispatch/status checking belongs only to 71. |
 | Physical | NOT RUN: Q11 forced/strap/extension behavior, actual partner agreement, cable transitions and MDIO timing need an identified admitted fixture. |
 
 Commands executed from the repository root:
@@ -104,9 +104,9 @@ python tools/verify_references.py
 git diff --check
 ```
 
-Independent test oracles cover the literal8+2 read plan, every failed frame,
+Independent test oracles cover the literal 8+2 read plan, every failed frame,
 both-direction transitions at every read boundary, latch-low/current distinction,
-mode/AN bookend conflicts, all16 pause cells, highest-common priority and raw
+mode/AN bookend conflicts, all 16 pause cells, highest-common priority and raw
 cross-check disagreement, all forced speed/duplex and extension gates. They also
 cover repeated readers, change/stale/regained evidence, resets/external changes,
 zero/missing frame timestamps, frozen clock, lag-aware age, uint64 overflow and
@@ -127,4 +127,4 @@ The `forced_physts` question remains a nonblocking raw-value gate; forced mode
 does not decode those bits. Coherent host observations do not prove simultaneous
 sampling or partner duplex in forced mode. Managed health, expanded event/counter
 acquisition, SDK notification and application network readiness retain their
-later owners. Prompt19 software is complete; physical qualification is NOT RUN.
+later owners. Prompt 19 software is complete; physical qualification is NOT RUN.

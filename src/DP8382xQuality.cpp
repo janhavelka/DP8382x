@@ -99,7 +99,7 @@ bool DP8382x::_qualityRowValue(uint8_t row,uint16_t& address,uint16_t& mask,uint
   const auto& settings=_quality.desired;
   const auto& fld=settings.fastDrop;
   mask=value=0;
-  // SNLS647I8.3.17: disable detectors before their threshold recipes; restore
+  // SNLS647I 8.3.17: disable detectors before their threshold recipes; restore
   // only explicitly owned stable fields, then enable the selected cause set.
   switch (row) {
     case 0: address=0x000B; if (fld.owned && fld.causeMask!=0U && !_qualityVerifyOnly) { mask=0x040F; } break;
@@ -190,12 +190,12 @@ void DP8382x::_retainQualityWord(uint16_t address,uint16_t value) noexcept {
   const int index=qualityWord(address); if (index<0) { return; }
   _quality.raw[static_cast<unsigned>(index)]=value; _quality.validMask|=static_cast<uint8_t>(1U<<index);
   if (!_quality.desiredValid) { return; }
-  // The source recipe prints the whole word0417. Preserve its RO nibble even
+  // The source recipe prints the whole word 0417. Preserve its RO nibble even
   // when unexpected, but do not claim that a different word met that recipe.
   if (address==0x0117U && value!=0x0417U && (_quality.desired.fastDrop.causeMask&4U)!=0U) {
     _quality.fldMaximumApplicable=false;
   }
-  // CR3 row0 is an intentional transient disable. Its final proof is row8;
+  // CR3 row 0 is an intentional transient disable. Its final proof is row 8;
   // later observations during threshold work must instead retain disable proof.
   const uint8_t row=index==0?uint8_t{8}:static_cast<uint8_t>(index);
   uint16_t target=0,mask=0,expected=0;
@@ -220,7 +220,7 @@ Status DP8382x::_finishQuality(Status status) noexcept {
   _quality.lastStatus=status; _quality.trust=status.ok()?ConfigurationTrust::VERIFIED:ConfigurationTrust::DIRTY;
   _quality.observedStale=!status.ok();
   const auto& fld=_quality.desired.fastDrop;
-  //7.6 footnote5: SNR/MLT3/descrambler maxima also require RX-error or energy.
+  // 7.6 footnote 5: SNR/MLT3/descrambler maxima also require RX-error or energy.
   _quality.fldMaximumApplicable=status.ok() && fld.owned && fld.causeMask!=0U && !fld.rawThresholdOverride &&
       ((fld.causeMask&0x0406U)==0U || (fld.causeMask&0x0009U)!=0U) &&
       ((fld.causeMask&4U)==0U || _quality.raw[1]==0x0417U);

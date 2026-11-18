@@ -120,7 +120,7 @@ these reviewed sources; caller budgets remain software policy.
 | D, tables 8-37, 8-91 | MISR2 high-to-low: EEE error, AN error, page received, loopback FIFO OF/UF, MDI crossover, sleep, polarity/WoL, jabber. RXFS `0x04A1[12]` selects polarity=0/WoL=1 for the shared source | Do not emit both source labels without the selector evidence. WoL enable automatically selects WoL per the table. |
 | D, 8.3.6; table 8-40 | Active-sleep policy PHYSCR `[14:12]=6`, mask/value `0x7000/0x6000`; BISCR bit 8 = 0 sleeping, 1 normal; sleep checks partner with NLP about every 1.4 s | Policy accepted is not asleep. 1.4 s is the documented behavior, not a deadline for external partner appearance. |
 | D/C, 8.3.6.2; MCU-C 749-778 | BMCR bit 11 `0x0800` requests IEEE power-down; SMI and internal clocks remain. DPD enters by setting `0x0428[2]` first, then IEEE power-down by pin or BMCR | DPD also stops PLL. The entry order does not establish an arbitrary wake delay or prove a reverse-order exit. Pin ownership and clock availability matter. |
-| D/X, 8.3.3.2 | EEE bypass-disabling controls are `0x04D1[0]=1` and `[3]=1` (combined `0x0009`); advertisement is printed MMD7 `0x203C[1]` | DS prints MMD3 `1001/1014/1016`, MMD7 `203C/203D`. D2 selects only the five source-implied low tuples in the ledger, with whole-word capability/advertisement checks and Q1 physical gate. No generic digit stripping or DEVAD31 alias. |
+| D/X, 8.3.3.2 | EEE bypass-disabling controls are `0x04D1[0]=1` and `[3]=1` (combined `0x0009`); advertisement is printed MMD 7 `0x203C[1]` | DS prints MMD 3 `1001/1014/1016`, MMD 7 `203C/203D`. D2 selects only the five source-implied low tuples in the ledger, with whole-word capability/advertisement checks and Q1 physical gate. No generic digit stripping or DEVAD 31 alias. |
 | D, 8.3.4 | Legacy MAC sequence: enable controls/advertisement, restart AN with BMCR bit 9 `0x0200`, request TX LPI with `0x04D1[12]=1`, stop with bit 12=0 | No PHY frame buffering. Application must coordinate transmit silence/wake; control readback is not proof of partner wake or safe frame delivery. |
 | D/U, 7.6 p15 | 100-Mbit EEE sleep **210 us**, quiet **20 ms**, wake Tw_sys_tx **36 us**, refresh **200 us** are in the **NOM** column | Do not present these as worst-case timeout/guaranteed readiness. Actual MAC/partner timing needs appropriate bounds and measurements. |
 | D, table 8-90 | RXFCFG1 `0x04A0`: CRC gate bit 12; W0C level acknowledgement bit 11; pulse selector `[10:9]`; level/pulse bit 8; WoL enable bit 7; Secure-ON bit 5; Magic Packet bit 0 | Unrelated writes keep W0C neutral. Pulse codes 0-3 = 8/16/32/64 cycles at 125 MHz, derived 64/128/256/512 ns. Do not promote bit 6's bare bit-mask label into unsupported DP83826 custom pattern matching. |
@@ -179,53 +179,53 @@ evidence. No catalogue row closes an implementation or hardware gate.
 
 ## WP3 source decisions
 
-[SNLA428](source/TI-DP83826-TDR-SNLA428.pdf) table2-1 is selected for the six-run
-transmit-A derived helper; its tuning differs from datasheet tables8-56/57, which
-remain legal raw tuning. The original matrix and table2-5 example are independently
+[SNLA428](source/TI-DP83826-TDR-SNLA428.pdf) table 2-1 is selected for the six-run
+transmit-A derived helper; its tuning differs from datasheet tables 8-56/57, which
+remain legal raw tuning. The original matrix and table 2-5 example are independently
 transcribed in [vectors](../register-vectors.md#wp3-independent-source-regressions).
 The recipe-only 0411 and shared 0416 words, GENCFG exception, whole peak word,
 matching-row formula, positive caller propagation delay and Q7 gate are explicit
 ledger records. Reserved banks stay reserved; no pair-B diagnosis is inferred.
 
-EEE's selected D2 inference uses SNLS638C tables7-99..103 low-offset descriptions,
-SNLS505H7.4.2.9's literal read trace, exact-part DEVAD association and the
+EEE's selected D2 inference uses SNLS638C tables 7-99..103 low-offset descriptions,
+SNLS505H 7.4.2.9's literal read trace, exact-part DEVAD association and the
 SNLS603D p47 notation analogy on a different part. Counter-readings remain:
-SNLS647I8.3.3.1 prints7h/203Ch and SNLA328 prints03/1001 and1014. No exact-part
-trace was found. Require capability whole-word0002 before reset and advertisement
-whole-word0002 after reset, before continuing. Status/counter use the collector;
-Q1 remains NOT RUN. Exact04D1 bits0/3/12 permit masked readback; opaque recipes
+SNLS647I 8.3.3.1 prints 7h/203Ch and SNLA328 prints 03/1001 and 1014. No exact-part
+trace was found. Require capability whole-word 0002 before reset and advertisement
+whole-word 0002 after reset, before continuing. Status/counter use the collector;
+Q1 remains NOT RUN. Exact 04D1 bits 0/3/12 permit masked readback; opaque recipes
 have no invented inverse. Host-controlled LPI start/stop return independently;
 application dwell is not a PHY timeout.
 
-Table8-50 authorizes all14 10M patterns under mask001F; SNLA266B's0013 is one
-example. Keep ordinary COMPTmask000F and reservedFFF0; the named action alone
-ownsbit4. The opaque100M0428 branch stays gated before I/O. Fixture scripts do
-not authorize PHYCRbit5 or RO address bits; composeC000 and preservebit7. BISCR
-7101 includes RO0100: compose mask701F/value7001. Refuse power-down/isolation,
+Table 8-50 authorizes all 14 10M patterns under mask 001F; SNLA266B's 0013 is one
+example. Keep ordinary COMPT mask 000F and reserved FFF0; the named action alone
+owns bit 4. The opaque 100M 0428 branch stays gated before I/O. Fixture scripts do
+not authorize PHYCR bit 5 or RO address bits; compose C000 and preserve bit 7. BISCR
+7101 includes RO 0100: compose mask 701F/value 7001. Refuse power-down/isolation,
 stop with hard reset and require later initialization/reapply.
 
-SNLS647Itable8-90 W0C remains selected despite SNLA261A/DP83822 and shared Linux
+SNLS647I table 8-90 W0C remains selected despite SNLA261A/DP83822 and shared Linux
 write-one intent; Q3 tests neutral versus acknowledgement on exact silicon. Both
-families pack conventional MAC11:22:33:44:55:66 as2211/4433/6655. Reset WoL is
-not off; bit7=1,bit0unknown,RXFS12=1. Retain RXFS/MISR2 before configuration writes.
+families pack conventional MAC 11:22:33:44:55:66 as 2211/4433/6655. Reset WoL is
+not off; bit 7=1, bit 0 unknown, RXFS 12=1. Retain RXFS/MISR2 before configuration writes.
 
-SNLA423A reverse and analog scripts include digital restart. Its analog3380
+SNLA423A reverse and analog scripts include digital restart. Its analog 3380
 word is rejected because the detailed amplitude field range excludes it. BASIC
 LED polarity stays fixed-low, ENHANCED MII pin availability remains constrained,
-and SNLA344C's PHYCRbit5 label is evidence of a named control, not permission to
+and SNLA344C's PHYCR bit 5 label is evidence of a named control, not permission to
 copy its contradictory script. These physical questions remain Q8/Q12.
 
 
-Stage31 fresh comparison: TI Linux `ti-linux-6.18.y` commit
+Stage 31 fresh comparison: TI Linux `ti-linux-6.18.y` commit
 `fe51a7637cfb7c37e90778949da9338daac552f7`, `drivers/net/phy/dp83822.c`
-(GPL-2.0), lines212-270, retains the same asymmetric MAC/Secure-ON wire words,
+(GPL-2.0), lines 212-270, retains the same asymmetric MAC/Secure-ON wire words,
 three-bit disable and shared-family write-one indication handling. Exact SNLS647I
 W0C remains selected, with Q3 pending. No implementation was copied. The
-[stage31 report](../reports/implementation/31-wake-on-lan.md) records fresh official
+[stage 31 report](../reports/implementation/31-wake-on-lan.md) records fresh official
 PDF hashes, original-table review and the quiesced procedure/route boundaries.
 
 
-Stage32 reopens original SNLS647I tables8-42/43/49/73..78/85/89 and8.3.18.
+Stage 32 reopens original SNLS647I tables 8-42/43/49/73..78/85/89 and 8.3.18.
 [The pin guide](../led-gpio.md) selects the exact mode/mux permissions and records
 all reserved/conflicting branches. IO_CFG1[6] is a runtime override;0308[0] is
 a legitimate read-only resulting CLKOUT/LED status, not a writable strap.
@@ -234,29 +234,29 @@ indication. Independent pin masks and source extrema are in
 [the vectors](../register-vectors.md#stage32-independent-ledgpio-literals).
 
 
-Stage33 rechecked original SNLS647I tables8-19/41/73/84 visually and the current
+Stage 33 rechecked original SNLS647I tables 8-19/41/73/84 visually and the current
 TI Zephyr source at `450af1144b8caeb58724bcbae081b409f6bf5c3a` (Apache-2.0).
 Its MII/leader/follower masks agree, but it validates after a read and lacks RC
 retention/readback; no implementation was copied. [The report](../reports/implementation/33-clock-interface-repeater.md)
 records exact paths, current revision and independent source vectors. RCSR's
-100ppm packet arithmetic does not relax table7.6 electrical clock requirements.
+100ppm packet arithmetic does not relax table 7.6 electrical clock requirements.
 
-Stage34 re-audit checked SNLS647I tables8-28..30/35/44/51..53/72 directly.
+Stage 34 re-audit checked SNLS647I tables 8-28..30/35/44/51..53/72 directly.
 The FIFO in PHYSCR is specifically far-end-loopback buffering. Independent
 implementation vectors and current source/sibling evidence are recorded in
 [the stage report](../reports/implementation/34-quality-link-loss.md); source
 gates and vendor payloads remain unchanged.
 
-### Stage35 implementation reconciliation
+### Stage 35 implementation reconciliation
 
 The source-admitted analog, compliance, collision and calibration procedures
 now execute through [electrical controls](../electrical.md). SNLS647I original
-field tables and SNLA266B5-1/2/4/5 were independently rechecked. The prior ledger
+field tables and SNLA266B 5-1/2/4/5 were independently rechecked. The prior ledger
 instruction to continue HARD after a failed calibration clear conflicted with
 the frozen stop-on-first-failure transport: the complete pair is now admitted
 as one batch, with explicit HARD-required debt after an ambiguous clear instead
 of an automatic continuation. Restoration re-snapshots all owned analog words,
-so the full analog replay bound is70frames rather than relying on stale saved
+so the full analog replay bound is 70 frames rather than relying on stale saved
 reserved fields. These are software-contract corrections, not new silicon facts.
-COUNT1000428, IOCTRLexample0400, receiver-gain mapping and hard-reset strap
+COUNT100 0428, IOCTRL example 0400, receiver-gain mapping and hard-reset strap
 qualification retain their existing gates. Vendor payloads/hashes are unchanged.

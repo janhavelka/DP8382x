@@ -43,8 +43,8 @@ section 8.3.15 p42, table 8-18 p54, table 8-40 pp68-69, 8-45 p72 and 8-46 p73.
 Reopened [SNLA423A](https://www.ti.com/lit/an/snla423a/snla423a.pdf), June 2025,
 2.5.3 pp19-20. Fresh official searches did not find exact-part latch clarification.
 Vendor payloads/provenance/hashes remain unchanged. Independent literals include
-capture807D, saturatedFF7D, packet05EE, IPG7D*4=500 and analog status3B08.
-The note's3B04/status-address17/reverse20 examples do not override exact tables.
+capture 807D, saturated FF7D, packet 05EE, IPG7D*4=500 and analog status 3B08.
+The note's 3B04/status-address 17/reverse 20 examples do not override exact tables.
 RH sync-loss is hardware-controlled, not RC. `030B=3380` stays rejected.
 
 Manufacturer main remains `94bf4343004732983b0b8e1eec123d88ff70453b` in
@@ -56,8 +56,8 @@ Both sibling worktrees were clean and their agent rules reopened:
 
 | Read-only source / revision | Actual paths and adaptation |
 | --- | --- |
-| PCA9555 `8b461b2afe9910b5b15fe32cc049d52e3b498970` | `include/PCA9555/PCA9555.h` OperationResult, `src/PCA9555.cpp` cleanup, `test/test_basic.cpp:2120` primary/cleanup failure and registration2729. Retain distinct primary/cleanup evidence; reject automatic I2C pointer parking as PHY restoration. |
-| TMP1x2 `afd50889312f6e218a6a34eca687e3e8547d8b40` | `examples/common/Tmp1x2CliDiagnostics.cpp:84/150/157` result/restore handling; `tools/test_hil_tmp1x2_runner.py:326/1429/1450` token/partial-write/cleanup cases and CMake registration58. Adopt correlated retained results and cached rendering. Reject automatic restore/rebind and sensor timing for DP OP-9. |
+| PCA9555 `8b461b2afe9910b5b15fe32cc049d52e3b498970` | `include/PCA9555/PCA9555.h` OperationResult, `src/PCA9555.cpp` cleanup, `test/test_basic.cpp:2120` primary/cleanup failure and registration 2729. Retain distinct primary/cleanup evidence; reject automatic I2C pointer parking as PHY restoration. |
+| TMP1x2 `afd50889312f6e218a6a34eca687e3e8547d8b40` | `examples/common/Tmp1x2CliDiagnostics.cpp:84/150/157` result/restore handling; `tools/test_hil_tmp1x2_runner.py:326/1429/1450` token/partial-write/cleanup cases and CMake registration 58. Adopt correlated retained results and cached rendering. Reject automatic restore/rebind and sensor timing for DP OP-9. |
 
 `bist_result_semantics` still gates exact counter intervals, repeat-latch release,
 continuous lock history and PASS. Explicit capture/read yields raw evidence;
@@ -97,7 +97,7 @@ sessions, stale tokens, clock/budget edges, cached readers and cross-PHY content
 [BIST guide](../../bist.md) records the full matrix, procedure, partial-evidence
 and source-gated outcome contracts. Public Doxygen, API, architecture, collector,
 health, initialization, loopback, device behavior, vectors, feature/ledger owners,
-README/CHANGELOG, test guide and progress are updated. Version remains0.1.0;
+README/CHANGELOG, test guide and progress are updated. Version remains 0.1.0;
 exact supported variant and SDK/tool/CLI plans have no new implementation claims.
 The tests-OFF portable consumer compiles the bounded owner example, acquires once,
 copies two cached views without I/O, then separately stops.
@@ -108,14 +108,14 @@ Environment: Windows, GNU C++15.1, Ninja, C++17, Release, active CHECK assertion
 | --- | --- |
 | Host CTest, `build/bist24` | PASS,127/127 |
 | UBSan trap build/CTest, `build/bist24-ubsan` | PASS,127/127 |
-| Focused BIST suites/failure probe | PASS,9/9; eight suites528,009 checks |
+| Focused BIST suites/failure probe | PASS, 9/9; eight suites 528,009 checks |
 | Independent reviewer build | PASS,127/127 before final review fixes; final fixes covered by lead/focused suites |
 | Separate portable consumer, `build/bist24-consumer` | PASS,1/1 |
 | Python research/tool tests | PASS,103/103 |
 | Doxygen | PASS,175 generated pages and two rejected negative fixtures |
 | Ledger and version checks | PASS,97 registers/52 procedures/35 features; generated version current |
 | References and diff | PASS,29 vendor artifacts/27 extracts, local links and whitespace |
-| SDK/controller link, remote CI | NOT RUN; no SDK implementation change, first CI at71 |
+| SDK/controller link, remote CI | NOT RUN; no SDK implementation change, first CI at 71 |
 | Physical BIST qualification, routing/packet/termination/electrical qualification | NOT RUN; source gates explicit |
 
 Maintainability review: one diagnostics source, existing loopback/profile/reset

@@ -115,7 +115,7 @@ The original checkpoint and tests remain historical.
 | Complete DPD support inferred from guarded rejection | **Still open.** `_validatePower` returns UNSUPPORTED for DEEP_POWER_DOWN before I/O. Prompt 28 explicitly assigns remaining entry/exit/restoration to `deep_power_exit`; this is not completed software support. |
 
 Original SNLS647I sections 8.3.6 and tables 8-19/35/36/37/40/91 were reopened
-directly. They confirm active-sleep 7000/6000 versus BISCR8 indication, BMCR11's
+directly. They confirm active-sleep 7000/6000 versus BISCR 8 indication, BMCR 11's
 software/pin OR, PLL permission only during IEEE power-down, and RXFS selector
 with consuming MISR evidence. They supply no complete DPD exit/0428 preservation
 recipe, so reversing entry writes would be unjustified.

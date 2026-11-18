@@ -82,7 +82,7 @@ void testTraces() {
     CHECK(bus.trace[3].reg == 0x0EU && bus.trace[3].kind == FrameKind::READ);
     CHECK(driver.end().ok());
   }
-  // Every legal stable LEDCR mask/value pair, using original table8-42 literals.
+  // Every legal stable LEDCR mask/value pair, using original table 8-42 literals.
   for (uint32_t mask = 1; mask <= 0x0692U; ++mask) {
     if ((mask & ~uint32_t{0x0692}) != 0U) continue;
     for (uint32_t value = 0; value <= mask; ++value) {
@@ -193,7 +193,7 @@ void testAdmission() {
       CHECK(bounded.launches == (allowance == frames ? frames : 0U));
       CHECK(target.end().ok());
     }
-    // raw100 + lag1 + acquire3 + n*frame4 + release2 + overhead3.
+    // raw 100 + lag 1 + acquire 3 + n*frame 4 + release 2 + overhead 3.
     const uint64_t equality = 109U + uint64_t{frames} * 4U;
     for (uint64_t deadline : {equality, equality + 1U}) {
       Controller bounded; Driver target; CHECK(target.bind(bounded.config()).ok());

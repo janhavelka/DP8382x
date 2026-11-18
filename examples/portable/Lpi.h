@@ -29,7 +29,7 @@ inline DP8382x::Status exitOwnerLpi(DP8382x::DP8382x& phy,
 }
 
 // Call only after the application has separately established post-exit readiness.
-// The nominal36us wake time alone is not that evidence. Failed exit remains visible
+// The nominal 36us wake time alone is not that evidence. Failed exit remains visible
 // in attempt.exit; explicit HARD initialization is an alternative restoration,
 // with its own operation result, never an automatic action in this example.
 inline bool permitMacAfterLpi(const DP8382x::DP8382x& phy,

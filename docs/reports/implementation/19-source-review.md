@@ -135,8 +135,8 @@ is insufficient resolution evidence. For normal negotiated pause, require a
 full-duplex common technology and valid IEEE base-page interpretation; stale
 partner bits must not manufacture a pause result for a non-AN partner.
 
-With AN disabled, use observed BMCR for local speed/duplex, never PHYSTS2:1.
-The forced100/half exception remains unresolved if CR2[5] is requested one or
+With AN disabled, use observed BMCR for local speed/duplex, never PHYSTS 2:1.
+The forced 100/half exception remains unresolved if CR2[5] is requested one or
 whole-profile trust is not VERIFIED: speed can be 100, duplex UNKNOWN, mode
 invalid. A desired false alone is not known-zero hardware. Because the ten-read
 plan does not include CR2, only prior valid verified configuration evidence can

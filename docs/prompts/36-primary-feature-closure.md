@@ -29,7 +29,7 @@ width, REGCR reserved zeros, conversion units, retained IRQ samples and mandator
 VOD. Review unresolved TDR/MSE/GPIO/IOCTRL/timing claims. Substantial missing
 features return to their owner; this stage does not reconcile every row.
 
-Perform a bounded integration review of prompts11-35 with focused corrections.
+Perform a bounded integration review of prompts 11-35 with focused corrections.
 Use the one maintained matrix in `docs/feature-coverage.md`; prompt 55 closes its
 primary-part rows. Own the review report and identified fixes, not another
 coverage catalogue.

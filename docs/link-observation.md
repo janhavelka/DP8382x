@@ -15,7 +15,7 @@ persistent hard-reset quiet floor and an active typed next-page exchange. The
 last restriction prevents stealing ANER page evidence from the exchange owner.
 The backend must honor the shared controller owner across every PHY address.
 
-Stage20 [event/counter acquisition](event-counters.md) extends the same collector.
+Stage 20 [event/counter acquisition](event-counters.md) extends the same collector.
 A link read can update per-source partial history and stale a previously complete
 counter aggregate; cached link/counter readers consume neither. Chip error counts
 remain separate from MDIO activity and [passive managed health](health.md).

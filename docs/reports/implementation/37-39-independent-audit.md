@@ -1,7 +1,7 @@
 # Independent audit of prompts 37-39
 
 The [2026-11-18 follow-up](37-39-native-fixes-2026-11-18.md) rechecks the later
-17-item review against1a8bc8e, corrects missed native defects and records current
+17-item review against 1a8bc8e, corrects missed native defects and records current
 verification. The conclusions and counts below describe the earlier checkpoint.
 
 Audit date: 2026-11-17. Entry was clean `main`, synchronized after fetch at
@@ -20,7 +20,7 @@ operation contracts. Preserve one chip implementation, application ownership,
 whole MDIO batches, separate logical admission and physical locks, accepted
 effects, retained cleanup and core isolation from SDK headers/allocation/time.
 No new chip procedure belongs to these adapter stages. No sibling, SDK or vendor
-payload was edited. Remote CI remains first-execution prompt71 only.
+payload was edited. Remote CI remains first-execution prompt 71 only.
 
 The lead owns production code, shared headers/contracts, documentation, integration
 and Git. Parallel gpt-6.1-sol/high reviews covered requirements/source coverage
@@ -62,7 +62,7 @@ native mapping/removal handles and TMP1x2's `mapError`, `finish` and console
 startup were compared with their actual tests. Retain precise errors and effects;
 reject I2C transaction granularity/NACK semantics and ignored cleanup returns as
 MDIO precedents. No sibling tests or fixtures were executed. No repository CI
-workflow exists yet; creation and remote execution remain prompt71.
+workflow exists yet; creation and remote execution remain prompt 71.
 
 ## Confirmed defects and corrections
 
@@ -107,8 +107,8 @@ boundary and a small common identity-batch builder. No registry, alternate chip
 implementation, private SDK cache access, duplicate engine or success stub was
 added. The new direct probe has a current native consumer and executable tests.
 
-Rejected findings were also checked: forced10 with extendedFullDuplex is already
-illegal in the portable source-backed validation; the native forced100/half
+Rejected findings were also checked: forced 10 with extendedFullDuplex is already
+illegal in the portable source-backed validation; the native forced 100/half
 restriction remains necessary for resolved publication. Hypothetical SDK timer
 stop errors outside the pinned implementation are not evidence of a production
 failure. Pre-install application calls still obey the documented single-owner
@@ -121,14 +121,14 @@ serialization contract; the new shared reservation covers distinct PHY owners.
 | 37 factory, board readiness, installation and lifetime | `Phy.cpp`, pinned driver tests, raw/glue RX pause tests and real P4 fixture retain the declared address, local install callbacks, explicit 2ms/50ms readiness and terminal retained resources. New board reservation regressions cover competing owners, failed readiness and never-installed deletion. |
 | 37 explicit discovery | `DP8382x.cpp::readIdentityAt`, `Phy.cpp::discover`, `identity_scan`, `native_discovery*`: address/mask/frame admission, two-word output preservation, partial receipt, transport accounting, late return, malformed report and clock faults. The scan never chooses an address. |
 | 38 SDK state and raw arbitration | Existing AN/forced lifecycle, getter/cache, raw-BMCR, both cached-AN direct-start, four/five-frame boundary, release, collector and flow interference tests remain active. New callback-bound tests cover accepted then late controls and MAC policy, backend-error precedence and explicit retry. |
-| 38 controller waits | `native_controller_wait_classification` at1000Hz and100Hz distinguishes timed expiry, zero-tick contention and managed health without illegal frames or quarantine. |
+| 38 controller waits | `native_controller_wait_classification` at 1000Hz and 100Hz distinguishes timed expiry, zero-tick contention and managed health without illegal frames or quarantine. |
 | 39 notifications and timing | All existing UP/DOWN and live-tuple, unresolved negotiation, full pause versus Boolean projection, partial publication, event loss, stop/start/fence and 100Hz readiness cases remain active. The method-by-method native conformance table is maintained in the adapter guide. |
 
-The new portable scan suite makes285 checks, including address boundaries0/31,
+The new portable scan suite makes 285 checks, including address boundaries 0/31,
 invalid inputs before callbacks, output sentinels, active/result/cleanup admission,
 partial and malformed reports, late return and clock latching. Existing identity
 and transport suites retain release-failure and backend-error precedence coverage.
-Eight new native CTests raise the native total from55 to63; existing cases also
+Eight new native CTests raise the native total from 55 to 63; existing cases also
 gain malformed-timeout and correct timer-active assertions. Assertions remain
 active in Release. Deterministic scheduling models the selected boundaries; it
 does not establish physical concurrency or unconditional wall-clock bounds.
@@ -141,20 +141,20 @@ no new silicon feature, support pin or packaging behavior is introduced.
 
 ## Final local verification
 
-Host: Windows/PowerShell, GNU15.1.0, CMake4.0.1/Ninja, Python3.12.10. Actual P4 SDK:
-GCC15.2.0 (esp-15.2.0_20251204), SDK-environment CMake4.0.3, Ninja1.12.1,
+Host: Windows/PowerShell, GNU 15.1.0, CMake 4.0.1/Ninja, Python 3.12.10. Actual P4 SDK:
+GCC 15.2.0 (esp-15.2.0_20251204), SDK-environment CMake 4.0.3, Ninja 1.12.1,
 esptool5.6.0, accessed only through `scripts/idf.cmd`.
 
 | Layer | Result | Evidence |
 | --- | --- | --- |
 | Portable host | PASS |236/236 Release CTests in build/host |
 | Portable consumer | PASS |2/2 separately configured tests-OFF consumer CTests |
-| Native host | PASS |63/63 Release; independent reviewer63/63;63/63 UBSan trap, complete45-file SDK closure at both tick rates |
-| Actual P4 SDK link | PASS | Real fixture image0x5c3b0 bytes; no SDK replacement or flash |
+| Native host | PASS | 63/63 Release; independent reviewer 63/63; 63/63 UBSan trap, complete 45-file SDK closure at both tick rates |
+| Actual P4 SDK link | PASS | Real fixture image 0x5c3b0 bytes; no SDK replacement or flash |
 | Python/research/version | PASS |103 tests;97 registers/52 procedures/35 features; generated version current |
-| Source documentation/reference/diff | PASS | Doxygen289 pages and two rejected negative fixtures;29 vendor artifacts/27 extracts/1889 local links in239 Markdown files; diff check |
-| Installed/exported package | NOT RUN | Build-tree consumer exercised; packaging stages68-71 |
-| Remote CI | NOT RUN | First-execution prompt71 rule |
+| Source documentation/reference/diff | PASS | Doxygen 289 pages and two rejected negative fixtures; 29 vendor artifacts/27 extracts/1889 local links in 239 Markdown files; diff check |
+| Installed/exported package | NOT RUN | Build-tree consumer exercised; packaging stages 68-71 |
+| Remote CI | NOT RUN | First-execution prompt 71 rule |
 | Physical timing/link | NOT RUN | No flash or fixture operation; native_wall_time qualification remains open |
 | Reusable installed teardown | BLOCKED | native_rx_quiescence; all installed resources remain retained until restart |
 
@@ -197,13 +197,13 @@ code/tests, owning prompts and original pinned SDK source.
 | --- | --- |
 | 1: board preparation overwrites another PHY's initialization silence | Corrected. Atomic BusAdmission CAS claims BOARD_PREPARING/INITIALIZING; reservations cannot overwrite one another. prepareBoard drains/releases controller before GPIO/waits; failure stays FAILED_CLOSED after never-installed deletion. board_respects_initialization_silence/board_silence_excludes_other_owners/failed_board_silence_remains_closed pass. |
 | 2: discovery bypasses core audit/accounting/clock faults | Corrected. readIdentityAt executes one shared two-ID RAW batch with explicit invoked flag; rejects RUNNING/RESULT_PENDING/cleanup/session, never retargets/accepts identity, and leaves ordinary outputs unchanged on failure. Native discover requires installed STOPPED/IDLE and cumulative scan allowance. identity_scan and native discovery/accounting/admission cover partial words and local denial. Receipt freshness uses the explicit invocation flag, independently of cumulative counters; these tests do not force counter saturation. Future CLI should reuse this owner route rather than recreate a second probe driver that bypasses binding evidence. |
-| 3: positive timed controller wait reportedBUSY | Corrected. ticks0 contention is BUSY; positive wait expiry is MDIO_TIMEOUT/ESP_ERR_TIMEOUT, no frame or sound-controller quarantine. Managed health records transport failure, RAW does not. controller_wait_classification passes at 1000 Hz/100 Hz. |
+| 3: positive timed controller wait reportedBUSY | Corrected. ticks 0 contention is BUSY; positive wait expiry is MDIO_TIMEOUT/ESP_ERR_TIMEOUT, no frame or sound-controller quarantine. Managed health records transport failure, RAW does not. controller_wait_classification passes at 1000 Hz/100 Hz. |
 | 4: individual SDK/MAC/PHY bounds exceeded silently | Corrected in PhyControl return checks. Accepted effects persist, later calls stop, explicit retry is required and backend errors win. sdk_control_callback_bounds/flow_control_callback_bounds/completion-contention pass. Detection does not preempt synchronous SDK calls. |
-| 5: timeout detail0 made discovery receipts malformed | Corrected native BOUND_ADMISSION/FRAME_BUDGET/DEADLINE details and empty-mask ACCESS_POLICY. discovery_accounting/admission/raw_boundary_failures pass; genuinely malformed reports still reject. |
+| 5: timeout detail 0 made discovery receipts malformed | Corrected native BOUND_ADMISSION/FRAME_BUDGET/DEADLINE details and empty-mask ACCESS_POLICY. discovery_accounting/admission/raw_boundary_failures pass; genuinely malformed reports still reject. |
 | 6: dispatched host one-shot became inactive too early | Corrected fake reports armed-or-running, matching actual SDK CALLBACK_IS_RUNNING lifetime. pinned_driver_timer and partial-start/fence tests exercise it. Unarmed stop remains INVALID_STATE for this exact pin. |
 | Rejected forced 10 extension, forced 100/half, hypothetical timer errors and pre-install ownership findings | Actual validation/source retain their dispositions: forced 10+extension rejects; native forced 100/half+extension remains necessary; no invented timer behavior replaces the pin. Pre-install calls require serialized instance ownership; shared BusAdmission covers distinct PHY owners. |
-| Simplicity/no duplicate engine and pinned SDK selection | One admission enum, existing core batch boundary/identity builder, assigned vtable without base, public SDK controls and45-file dependency closure remain. No private cache, registry, duplicate chip procedure or successful production stub was added. |
-| Retained RX resources and separated evidence layers | Reusable installed teardown stays BLOCKED. STOP/fence/count-zero cannot close a pre-entry captured mediator. Host63 tests prove modeled source-layer behavior, not physical timing. Historical image/hash/dirty identity stay tied to recorded inputs; installed/exported package and physical qualification remain separate. |
+| Simplicity/no duplicate engine and pinned SDK selection | One admission enum, existing core batch boundary/identity builder, assigned vtable without base, public SDK controls and 45-file dependency closure remain. No private cache, registry, duplicate chip procedure or successful production stub was added. |
+| Retained RX resources and separated evidence layers | Reusable installed teardown stays BLOCKED. STOP/fence/count-zero cannot close a pre-entry captured mediator. Host 63 tests prove modeled source-layer behavior, not physical timing. Historical image/hash/dirty identity stay tied to recorded inputs; installed/exported package and physical qualification remain separate. |
 
 Independent repetition used a fresh build directory:
 

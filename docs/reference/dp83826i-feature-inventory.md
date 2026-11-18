@@ -246,14 +246,14 @@ documented chip function.
 | --- | --- | --- |
 | EEE initialization, 8.3.3.1, page 26 | Vendor offsets `0x04D1`, `0x04D3`, `0x04DF`, `0x033E`, `0x033F`, `0x0123`, `0x031B`, `0x0466`, `0x04CF`, `0x0416`, `0x04F5`, `0x04E0`, `0x031F`, `0x04F4`; the recipe also names EEE address `0x203C` and already catalogued `0x001F`, `0x0308`, `0x0000` | Audit the entire ordered recipe, hard-reset/negotiation effects, register namespaces, restoration and every failure boundary. Do not expose undocumented internal fields as freely tunable settings. |
 | EEE control/status, 8.3.3.2 and 8.3.11.1 | Printed MMD 3 addresses `0x1001`, `0x1014`, `0x1016`; printed MMD 7 addresses `0x203C`, `0x203D`; vendor DEVAD 31 `0x04D1` (EEECFG3). Exact tuples are selected source-implied under D2; physical Q1 remains open | Preserve the printed namespace/address separately from verified wire offsets. The cited DP83826 sections identify these EEE addresses but do not prove an alias translation or provide a complete detailed field catalogue; close this from exact applicable official evidence. Never convert them to vendor offsets or native Clause 45 merely by name. |
-| Legacy-MAC LPI, 8.3.4 | Vendor `0x04D1` control fields; printed MMD7 address `0x203C`, mapped by the explicit source-implied D2 association under Q1 | Typed enter/exit and enable/advertise procedures need explicit application/MAC coordination. No PHY TX buffering is available in LPI. |
+| Legacy-MAC LPI, 8.3.4 | Vendor `0x04D1` control fields; printed MMD 7 address `0x203C`, mapped by the explicit source-implied D2 association under Q1 | Typed enter/exit and enable/advertise procedures need explicit application/MAC coordination. No PHY TX buffering is available in LPI. |
 | Deep power-down, 8.3.6.3 | Vendor `0x0428`, bit 2, followed by IEEE power-down | Resolve relationship to PHYSCR PLL-disable and define exit/clock restoration before implementing. |
 | Digital loopback, 8.3.14.4; SNLA423A 2.5 | Vendor `0x0122`, `0x0123`, `0x0130` in addition to the base loopback/reset registers | Allow only the sourced loopback preparation values/ordering, validate speed/mode, and reconcile overlap with the EEE recipe at `0x0123`. |
 | Compliance stimulus, 8.5.1.32 | Vendor `0x0428`, bits 4/5; COMPT `0x0027` bit 4 is used by prose despite being grouped as reserved in its table | Resolve and implement exact enable/reconfigure/stop procedure; normal low-level RMW must not automatically authorize these reserved-field exceptions. |
 | Signal quality, SNLA423A 2.3.3 | `0x0225` in the app note vs `0x0218` in SNLS647I | Conflict requiring clarification, not two automatically equivalent APIs. Record raw evidence and withhold derived SNR until address/scaling are resolved. |
 
 The bare address `0x203C` in the EEE recipe is insufficient to select DEVAD;
-section 8.3.3.2 supplies the printed MMD7 association, not a proved wire-offset translation. A future implementation must check
+section 8.3.3.2 supplies the printed MMD 7 association, not a proved wire-offset translation. A future implementation must check
 the exact host/MMD access convention, including any vendor tooling translation,
 instead of interpreting the printed hexadecimal number as a Clause 22 address.
 
@@ -318,15 +318,15 @@ The correctness review adds these specific constraints to the source ledger:
   five explicit tuples recorded in the ledger from SNLS638C low-offset text,
   SNLS505H's worked trace and exact-part DEVAD associations. Keep the conflicting
   full-number notation and Q1; there is no generic digit-stripping rule. Before
-  initialization require whole-word capability0002 and, after reset, advertisement
-  readback0002. Status/counter belong to the collector. No exact-part trace was found.
+  initialization require whole-word capability 0002 and, after reset, advertisement
+  readback 0002. Status/counter belong to the collector. No exact-part trace was found.
 - **TDR derived recipe:** D3 selects SNLA428's six transmit-A runs, retaining the
-  distinct datasheet raw tuning. The additional0411 recipe-only row and shared0416
+  distinct datasheet raw tuning. The additional 0411 recipe-only row and shared 0416
   actions have no general read/restore permission. Q7 qualification remains open;
   matching-row interpretation and whole-word peak classification never imply pairB.
 - **Forced mode and compliance:** D4 uses coherent BMCR/current-link with the
-  extended-duplex exception, retaining raw PHYSTS questions underQ11. All14 exact
-  COMPT10M actions are eligible; the opaque100M branch stays gated. D8 keeps
+  extended-duplex exception, retaining raw PHYSTS questions under Q11. All 14 exact
+  COMPT10M actions are eligible; the opaque 100M branch stays gated. D8 keeps
   next-page intent transient, never part of ordinary persistent advertisement.
 
 ## Corrections from public-library extraction

@@ -103,11 +103,11 @@ the MAC's numeric significance convention. The MAC tables pair high:low **TI**
 bytes **4:5, 2:3, 0:1**; password tables pair **1:0, 3:2, 5:4**.
 
 Independent pin-review cross-check found an error in the first power fragment:
-it equated TI MAC byte0 with API octet0 and produced5566/3344/1122. Re-reading
+it equated TI MAC byte 0 with API octet 0 and produced 5566/3344/1122. Re-reading
 the original MSB label confirms that those expected words were wrong. The
-SNLA261A generic byte0-first explanation must not override the exact DP83826
+SNLA261A generic byte 0-first explanation must not override the exact DP83826
 table's explicit significance label. The lead owns the corresponding ledger,
-guide and independent-test correction to2211/4433/6655; this is a source-review
+guide and independent-test correction to 2211/4433/6655; this is a source-review
 correction, not hardware qualification. The final shared ledger's six MAC field
 descriptions and `wol_configure` were re-read and confirm this correction. The
 temporary integration fragment is obsolete and must not replace the corrected
@@ -119,11 +119,11 @@ The actual packet begins with six FF sync octets followed by 16 complete MAC
 repetitions and optional six password octets; FCS/packet framing are MAC-owned.
 
 PHYSCR active-sleep mask/value is **7000/6000**; BISCR observation **0100** means
-normal and **0000 under mask0100** means asleep. Thus PHYSCR=6108 and BISCR=0100
+normal and **0000 under mask 0100** means asleep. Thus PHYSCR=6108 and BISCR=0100
 is a valid successful enable while awake. BMCR IEEE request mask is **0800**;
-compose reset/restart bits **8200** neutral zero and preserve isolation0400.
+compose reset/restart bits **8200** neutral zero and preserve isolation 0400.
 PHYSCR PLL disable is **8000**, conditional on IEEE power-down. The separate DPD
-recipe sets **0428 bit0004 before BMCR0800**; compliance bits0030 must not change.
+recipe sets **0428 bit 0004 before BMCR 0800**; compliance bits 0030 must not change.
 No complete inverse DPD sequence or guaranteed wake completion is documented.
 
 EEE's 18 printed pairs, in order, are:
@@ -134,7 +134,7 @@ EEE's 18 printed pairs, in order, are:
 
 The first and last are C22 controls; **203C remains printed notation**, not a
 wire offset. Full-word exceptional actions record the other 15 words only for
-this recipe, never generic writable fields. EEECFG3 prose supports set bits0/3
+this recipe, never generic writable fields. EEECFG3 prose supports set bits 0/3
 (`mask0009/value0009`) and TX-LPI start/stop (`mask1000/value1000/0000`). It does
 not document their general read semantics, remaining fields, reserved mask,
 reset word or a safe arbitrary-word RMW policy. Recipe values are not defaults.
@@ -153,22 +153,22 @@ already researched shared RECIPE_0123 gains only a separate EEE action. The lead
 owns shared RECIPE_0428 and the clock record. Their source exceptions must remain
 bounded by the exact action masks and participating owners.
 
-Five printed associations are researched but source-blocked: MMD3
-1001/1014/1016 and MMD7 203C/203D. Exact DP83826 prose explicitly establishes
-203C bit1 advertisement only. Capability, partner, LPI indication and error-count
+Five printed associations are researched but source-blocked: MMD 3
+1001/1014/1016 and MMD 7 203C/203D. Exact DP83826 prose explicitly establishes
+203C bit 1 advertisement only. Capability, partner, LPI indication and error-count
 roles remain required scope, but their complete DP83826 field/access/reset maps
-are absent from its detailed register catalogue. SNLA328's DP83825 table4 names
-1001 bits11/10 latched high and9/8 current; table5 names1014 bits2/1 capability;
-section2.3.3 describes an RC saturating wake-error counter cleared by PCS reset.
+are absent from its detailed register catalogue. SNLA328's DP83825 table 4 names
+1001 bits 11/10 latched high and 9/8 current; table 5 names 1014 bits 2/1 capability;
+section 2.3.3 describes an RC saturating wake-error counter cleared by PCS reset.
 These remain comparison facts. They do not authorize DP83826 reads, clear
 assumptions, digit stripping, 1000-Mbit support or hidden aliases.
 
 `eee_wire` requires exact-part selector/address/data traces or authoritative TI
-clarification for all five associations, including offsets above04D1 in the
+clarification for all five associations, including offsets above 04D1 in the
 recipe. `eee_control_semantics` requires exact control/read/reset/disable facts
 and safe handling of unspecified EEECFG3 bits. `deep_power_exit` requires the
-complete DPD exit and clock/SMI-ready behavior, plus safe shared0428 composition.
-`wol_bit_mask` blocks interpreting the merely named RXFCFG1 bit6 as a custom
+complete DPD exit and clock/SMI-ready behavior, plus safe shared 0428 composition.
+`wol_bit_mask` blocks interpreting the merely named RXFCFG1 bit 6 as a custom
 pattern engine. `wol_live_reconfigure` retains the absence of a documented atomic
 live credential-update/pending-indication guarantee: quiesced/disabled setup
 can proceed independently, but continuous live-match guarantees cannot.
@@ -178,20 +178,20 @@ The existing RXFS SFD-reference and pin conflicts remain in their owning gates.
 
 | Procedure / owner | Required behavior and bounds | Independent acceptance / fixture plan |
 | --- | --- | --- |
-| power_ieee /28 | One composed BMCR RMW then stable readback; at most3 direct target frames for that change, plus explicitly budgeted preflight/cleanup. Clearing the request cannot override an asserted ENHANCED PWRDN pin. | Test isolation retained, command bits neutral, accepted-write failures, asserted external pin and no false awake result. Future identified board observes clocks/power and MDIO under both pin roles. |
-| power_active_sleep /28 | Apply7000=6000, verify policy, take one BISCR sample. No wait-until-sleep loop; partner presence can keep normal state indefinitely. | Enable while linked/awake succeeds; later BISCR0/1 changes are observations. Future fixture records NLP, partner insertion and current draw without claiming1.4s wake bound. |
-| power_pll_control /28 | Only admitted while IEEE power-down; one PHYSCR8000 RMW/readback. Clock dependency belongs to application. | Reject unmet prerequisites before mutation; no inference of PLL running from software setter alone. Measure supplied/generated clock paths separately. |
-| power_deep /28 | Source-gated0428 bit2 then IEEE request, preserving compliance; no invented readback/inverse. Separate finite reset/reinitialize recovery if explicitly admitted. | Zero I/O until essential gate closes; test every accepted/uncertain prefix and failed cleanup. Future fixture captures exact MDIO and clock/rail behavior. |
-| eee_initialize /29 | Gate before first destructive reset; exact18-step recipe, acyclic replay of other owned settings. Nominal recipe floor is2 direct+16 indirect targets=66 C22 frames only after mapping is proved; reset polls, checks and cleanup are additional bounded work. | Literal order/all18 values, overlap0123, clock0308 and reset invalidation; every failure/cancel boundary; no arbitrary opaque readback or guessed disable. Future EEE-capable/noncapable peers,10/100 and MII/RMII, identified traces and power measurements. |
-| eee_negotiation_status /29 | Bypass0009 set, proven advertisement route, AN restart through sole negotiation owner, separate capability/request/partner/result validity. Unknown status reads remain blocked. | All capability/peer combinations, stale epochs, destructive evidence preservation after clarification, no LPI if negotiation unsupported/incomplete. |
-| legacy_lpi /30 | MAC stops/drains TX; qualified EEE first; set1000, finite session, clear1000, establish readiness before releasing TX. No PHY buffering. | Fail/cancel at each side effect; preserve TX-may-remain-inhibited until proven exit, even after teardown. Future waveform/traffic captures assess real peer timing;36us NOM is never sufficient proof alone. |
-| wol_configure /31 | Whole request validated; quiesce/disable, preserve pending collector evidence, write/verify six credentials and stable policy, establish IRQ/GPIO route, enable last with W0C neutral. At most40 logical target accesses in proposed base profile; delegated pin/IRQ work consumes the same finite aggregate budget. | Literal MAC/password/CRC/pulse/level combinations and invalid lengths/codes; every target failure; RXFS/MISR partial samples retained. Future valid/bad CRC/wrong password/malformed packets at10/100, pulse widths and MCU wake measured separately. |
-| wol_acknowledge /31 | Retain collector status first; explicit0 only at bit11 preserving stable settings. One composed target write; any RMW/status prerequisites count separately. Never acknowledge during unrelated updates. | Pending event survives1981/19A1;1181/11A1 acknowledge. Repeated cached views perform no I/O. New events during ack remain an ordering uncertainty, not a lossless queue claim. |
+| power_ieee /28 | One composed BMCR RMW then stable readback; at most 3 direct target frames for that change, plus explicitly budgeted preflight/cleanup. Clearing the request cannot override an asserted ENHANCED PWRDN pin. | Test isolation retained, command bits neutral, accepted-write failures, asserted external pin and no false awake result. Future identified board observes clocks/power and MDIO under both pin roles. |
+| power_active_sleep /28 | Apply 7000=6000, verify policy, take one BISCR sample. No wait-until-sleep loop; partner presence can keep normal state indefinitely. | Enable while linked/awake succeeds; later BISCR 0/1 changes are observations. Future fixture records NLP, partner insertion and current draw without claiming 1.4s wake bound. |
+| power_pll_control /28 | Only admitted while IEEE power-down; one PHYSCR 8000 RMW/readback. Clock dependency belongs to application. | Reject unmet prerequisites before mutation; no inference of PLL running from software setter alone. Measure supplied/generated clock paths separately. |
+| power_deep /28 | Source-gated 0428 bit 2 then IEEE request, preserving compliance; no invented readback/inverse. Separate finite reset/reinitialize recovery if explicitly admitted. | Zero I/O until essential gate closes; test every accepted/uncertain prefix and failed cleanup. Future fixture captures exact MDIO and clock/rail behavior. |
+| eee_initialize /29 | Gate before first destructive reset; exact 18-step recipe, acyclic replay of other owned settings. Nominal recipe floor is 2 direct+16 indirect targets=66 C22 frames only after mapping is proved; reset polls, checks and cleanup are additional bounded work. | Literal order/all 18 values, overlap 0123, clock 0308 and reset invalidation; every failure/cancel boundary; no arbitrary opaque readback or guessed disable. Future EEE-capable/noncapable peers,10/100 and MII/RMII, identified traces and power measurements. |
+| eee_negotiation_status /29 | Bypass 0009 set, proven advertisement route, AN restart through sole negotiation owner, separate capability/request/partner/result validity. Unknown status reads remain blocked. | All capability/peer combinations, stale epochs, destructive evidence preservation after clarification, no LPI if negotiation unsupported/incomplete. |
+| legacy_lpi /30 | MAC stops/drains TX; qualified EEE first; set 1000, finite session, clear 1000, establish readiness before releasing TX. No PHY buffering. | Fail/cancel at each side effect; preserve TX-may-remain-inhibited until proven exit, even after teardown. Future waveform/traffic captures assess real peer timing; 36us NOM is never sufficient proof alone. |
+| wol_configure /31 | Whole request validated; quiesce/disable, preserve pending collector evidence, write/verify six credentials and stable policy, establish IRQ/GPIO route, enable last with W0C neutral. At most 40 logical target accesses in proposed base profile; delegated pin/IRQ work consumes the same finite aggregate budget. | Literal MAC/password/CRC/pulse/level combinations and invalid lengths/codes; every target failure; RXFS/MISR partial samples retained. Future valid/bad CRC/wrong password/malformed packets at 10/100, pulse widths and MCU wake measured separately. |
+| wol_acknowledge /31 | Retain collector status first; explicit 0 only at bit 11 preserving stable settings. One composed target write; any RMW/status prerequisites count separately. Never acknowledge during unrelated updates. | Pending event survives 1981/19A1; 1181/11A1 acknowledge. Repeated cached views perform no I/O. New events during ack remain an ordering uncertainty, not a lossless queue claim. |
 
 All procedures use finite primary and cleanup **duration and frame/transaction
 counts**, bounded callbacks and owner-admission time. Count C22 versus complete
 indirect transactions separately; admit each whole transaction before starting.
-An indirect target normally costs4 C22 frames; atomic RMW must include both
+An indirect target normally costs 4 C22 frames; atomic RMW must include both
 directions under the same controller lock. Release that lock before scheduled
 waits or output. Zero work budget performs no I/O. Do not refresh the overall
 deadline on each poll; counts terminate even if a clock freezes.
@@ -208,18 +208,18 @@ opaque recipe word can be restored by an invented readable snapshot.
 
 ## Evidence status and handoff
 
-The subsequent read-only cross-review visually checked SNLS647I pages75,81-83
-and SNLA266B page13. Pin-specific mux/access/reset facts and COMPT's10M codes0..D
-versus100M count0..31 agreed with the originals. Three procedure findings were
+The subsequent read-only cross-review visually checked SNLS647I pages 75,81-83
+and SNLA266B page 13. Pin-specific mux/access/reset facts and COMPT's 10M codes 0..D
+versus 100M count 0..31 agreed with the originals. Three procedure findings were
 sent to the lead and their final shared-ledger corrections were verified:
 
-- `compt_reserved` and `compliance_session` now block the0428 branch **before
+- `compt_reserved` and `compliance_session` now block the 0428 branch **before
   any preservation read**, pending exact read effects and safe unknown-bit
   composition. The source-described bit writes do not grant opaque reads.
 - Compliance cleanup now stops or completes the authorized hard reset **before
   restoring any COMPT nibble or persistent profile**, retaining possible emission
   if stop cannot be established. Temporary stimuli are never restored.
-- `pin_configure` now states its24+16 frame allowance is local work only;
+- `pin_configure` now states its 24+16 frame allowance is local work only;
   source/IRQ/WoL operations and cleanup reserve additional finite counts under
   the same aggregate durations, with nonrecursive dependency coordination.
 
@@ -229,12 +229,12 @@ executing implementation and physical acceptance remain future work.
 Original-PDF research and independent literal derivation: **PASS** for the
 identified pages and facts. Fragment JSON parsing and all seven complete field
 partitions/reset-mask checks: **PASS**, Windows/PowerShell, Python3.12. The
-fragment contains20 registers,9 procedures,19 actions,5 timing records and5
+fragment contains 20 registers, 9 procedures, 19 actions, 5 timing records and 5
 blocked printed associations. `python tools/verify_references.py`: **PASS**,
-27 vendor artifacts,25 extracts,1209 links in142 Markdown files at this review
+27 vendor artifacts, 25 extracts, 1209 links in 142 Markdown files at this review
 checkpoint (the lead may add more documents). Host driver, portable/package
 consumer and SDK link: **NOT RUN**
-(no implementation in this stage). Remote CI: **NOT RUN**, reserved for prompt71.
+(no implementation in this stage). Remote CI: **NOT RUN**, reserved for prompt 71.
 Physical evidence: **NOT RUN**, no authorized fixture actions. Essential EEE/DPD
 source-dependent operations remain **BLOCKED** by the named gates. This does not
 block the independent IEEE policy, active-sleep policy or established WoL field

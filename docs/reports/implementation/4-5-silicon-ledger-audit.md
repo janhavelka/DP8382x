@@ -10,7 +10,7 @@ The final handoff records this audit's verified commit/upstream equality.
 Re-read prompts [4](../../prompts/4-silicon-diagnostic-ledger.md) and
 [5](../../prompts/5-silicon-power-interface-ledger.md) in full, parent/repository
 AGENTS, COMMON, FULL_COVERAGE, ENGINEERING, SOURCE_MAP and EVIDENCE, plus entry
-guides and the actual checker, tests, JSON and commits2805cfd/604096c.
+guides and the actual checker, tests, JSON and commits 2805cfd/604096c.
 Previous summaries were navigation only. Original PDFs and source-first literals
 were compared with current artifacts. This remains source research, not driver
 implementation or hardware qualification.
@@ -32,13 +32,13 @@ were read-only; no reviewer edited siblings, vendor bytes or shared files:
 
 | Scope | Original evidence independently inspected | Audit disposition |
 | --- | --- | --- |
-| Loopback, BIST and freshness | SNLS647I pp41–43,54,68–73; tables8-19/40/45–47; table8-45 also visually rendered | Per-speed loopback, PRBS modes, freeze/clear read-write overlap, IPG and reset-done interpretation correct |
-| TDR and quality | SNLS647I pp76–81, tables8-54–72 | Segment controls/words, reserved result banks, raw capture and MSE address correct; derived units/classifications remain gated |
-| Events/counters/link loss | SNLS647I pp15,17,44–45,49,63–72,92; tables8-33–41/44/91 | Consumed prefixes, ambiguous read loss, latch/clear sources, finite budgets, RECR/RMII/PHYSTS conflicts retained |
+| Loopback, BIST and freshness | SNLS647I pp41–43,54,68–73; tables 8-19/40/45–47; table 8-45 also visually rendered | Per-speed loopback, PRBS modes, freeze/clear read-write overlap, IPG and reset-done interpretation correct |
+| TDR and quality | SNLS647I pp76–81, tables 8-54–72 | Segment controls/words, reserved result banks, raw capture and MSE address correct; derived units/classifications remain gated |
+| Events/counters/link loss | SNLS647I pp15,17,44–45,49,63–72,92; tables 8-33–41/44/91 | Consumed prefixes, ambiguous read loss, latch/clear sources, finite budgets, RECR/RMII/PHYSTS conflicts retained |
 | Diagnostic supporting sources | SNLA423A pp12,18–20; SNLA344C pp9–10; SNLA494 pp9–11; SNLA495 pp6–7 | Conflicting examples and EtherCAT ESC/F28P65/MII applicability remain separate from P4 RMII |
 | Power/EEE/LPI/WoL | SNLS647I pp15,26–29,91–93; SNLA261A, SNLA328, SNLU262A | Policy/state separation, NOM timing, wire gates, neutral W0C and exact-part MAC/password mapping correct |
-| Pin/electrical/compliance | SNLS647I tables8-42/49–51/73–80/82–86/89–90/92–97; SNLA266B table5-5 | All25 remaining field partitions/access types correct; one split-field procedure issue fixed below |
-| Ownership and family scope | Actual JSON feature/procedure records, variants guide, exact family source assignments | All79 detailed entries,17 opaque records,five blocked EEE associations,35 families and52 procedures accounted for; no inferred suffix support |
+| Pin/electrical/compliance | SNLS647I tables 8-42/49–51/73–80/82–86/89–90/92–97; SNLA266B table 5-5 | All 25 remaining field partitions/access types correct; one split-field procedure issue fixed below |
+| Ownership and family scope | Actual JSON feature/procedure records, variants guide, exact family source assignments | All 79 detailed entries, 17 opaque records,five blocked EEE associations, 35 families and 52 procedures accounted for; no inferred suffix support |
 
 No confirmed prompt-4 silicon or procedure defect was found. Its register facts
 and diagnostic procedure records are unchanged by this audit. Existing core and
@@ -48,23 +48,23 @@ reserved banks. None was hidden by a fake, broadened mask or support claim.
 
 ## Confirmed findings and corrections
 
-1. **Split amplitude transition ordering.** SNLS647I tables8-79/80 pp84–85
-   divide MDIX-minus between two words and document combined codes28..38.
-   The old procedure validated endpoints only. For2F-to30, high-first passes
-   through3F and low-first through20; neither intermediate is documented.
+1. **Split amplitude transition ordering.** SNLS647I tables 8-79/80 pp84–85
+   divide MDIX-minus between two words and document combined codes 28..38.
+   The old procedure validated endpoints only. For 2F-to 30, high-first passes
+   through 3F and low-first through 20; neither intermediate is documented.
    MAC traffic quiescence does not prove inactive analog output.
    The corrected procedure establishes the observed starting code, stages through
-   low nibble8, verifies each write before dependent continuation, and applies
+   low nibble 8, verifies each write before dependent continuation, and applies
    the same rule to restoration. Unknown/invalid current state prevents dependent
    writes and retains recovery-required state. Temporary amplitude changes remain
    explicit; the procedure makes no glitch-free claim.
 
    The lead independently reopened both original tables and checked the arithmetic.
-   Primary maximum is68 frames for5 snapshots,6 writes and6 readbacks, plus16
-   prerequisite frames. Cleanup reserves56 frames for2 current VOD rereads,
-   6 writes and6 readbacks. These counts require retained-word composition and
+   Primary maximum is 68 frames for 5 snapshots, 6 writes and 6 readbacks, plus 16
+   prerequisite frames. Cleanup reserves 56 frames for 2 current VOD rereads,
+   6 writes and 6 readbacks. These counts require retained-word composition and
    exclusion of conflicting writers/reset, with finite duration limits as before.
-   Tests cover289 endpoint pairs and restoration from each modeled prefix.
+   Tests cover 289 endpoint pairs and restoration from each modeled prefix.
    These are research arithmetic and future failure-injection contracts, not an
    executed PHY transition implementation.
 
@@ -72,13 +72,13 @@ reserved banks. None was hidden by a fake, broadened mask or support claim.
    test combined RW/RHW and aggregate masks. A polarity RHW-to-RW change or
    swapped LED enable/value masks passed those checks.
    Added an independently transcribed semantic-name-to-mask/access oracle for
-   every field of all25 remaining detailed rows, including the all-reserved row.
+   every field of all 25 remaining detailed rows, including the all-reserved row.
    The source reviewer supplied literals before comparison. Reproduced mutations
    now fail individually; numeric expectations remain outside the structural checker.
 
 3. **Procedure ownership was not fully guarded by numeric tests.** Removing all
    ordinary WoL configuration masks passed the old remaining oracles.
-   Added independently reviewed exact ownership maps for all24 stage-5 procedures.
+   Added independently reviewed exact ownership maps for all 24 stage-5 procedures.
    Empty ordinary ownership remains correct for legacy LPI because its required
    opaque write actions carry ownership. The missing-WoL-mask mutation now fails.
 
@@ -89,7 +89,7 @@ reserved banks. None was hidden by a fake, broadened mask or support claim.
    cases without introducing a general schema framework.
 
 The independent reviewers rechecked the actual corrections and found no further
-confirmed issue in their scopes. A representative931-case structural mutation
+confirmed issue in their scopes. A representative 931-case structural mutation
 sweep also found no uncaught exceptions. That experiment is robustness evidence,
 not proof that arbitrary text accurately describes silicon.
 
@@ -108,7 +108,7 @@ paths, rejection tests, CLI examples and Python runners:
 - PCA9555 `498178e4d9e4acb6fab7d8b816ad5021efe8806a`, clean:
   `include/PCA9555/PCA9555.h` result/snapshot declarations,
   `src/PCA9555.cpp` input/cleanup paths,
-  `test/test_basic.cpp` failure cases around line795,
+  `test/test_basic.cpp` failure cases around line 795,
   `examples/01_basic_bringup_cli/main.cpp` and `tools/run_i2c_hil.py`.
   A consumed valid observation survives later cleanup failure;
   primary/cleanup results remain separate.
@@ -136,13 +136,13 @@ Targeted TI support searches for DP83826 BICSR1 freeze, EEE203C/1001 and CDCR/TD
 did not produce an inspected exact-part correction closing the current gates.
 The [TI product listing](https://www.ti.com/product/DP83826E) still exposes Rev.I.
 These are bounded source checks, not an assertion that no clarification exists.
-Vendor bytes/hashes and all24 named source gates remain unchanged.
+Vendor bytes/hashes and all 24 named source gates remain unchanged.
 
 ## Verification and completion
 
 Windows/PowerShell, Python3.12.10; standard-library tests/checkers. PyMuPDF was
 used only to inspect originals. No sibling tests, firmware or fixture was run.
-No CI workflow was added or changed; remote CI is reserved for prompt71.
+No CI workflow was added or changed; remote CI is reserved for prompt 71.
 
 | Layer | Final result |
 | --- | --- |
@@ -151,7 +151,7 @@ No CI workflow was added or changed; remote CI is reserved for prompt71.
 | Vendor/reference/local-link integrity | PASS: `python tools/verify_references.py`;27 artifacts,25 text extracts; local links checked |
 | Task diff/independent final review | PASS: `git diff --check`; confirmed findings corrected, no unrelated changes |
 | Driver host / portable-package / SDK link | NOT RUN: no such implementation added in this research audit |
-| Remote CI / physical qualification | NOT RUN: prompt71 / identified later fixture campaigns |
+| Remote CI / physical qualification | NOT RUN: prompt 71 / identified later fixture campaigns |
 
 Updated behavior, independent vectors, schema/test guides, coverage navigation,
 README/CHANGELOG and progress. Reviewed architecture and variant boundaries;
@@ -172,16 +172,16 @@ stage-specific observations.
 
 | Finding/group | Current verdict and evidence |
 | --- | --- |
-| 1: split MDIX amplitude transition could pass undocumented intermediate code | Corrected in both research and shipped behavior. `src/DP8382xAnalog.cpp` SNAPSHOT validates current28..38, stages low nibble8 only on a high-field change, verifies BRIDGE_WRITE before high-field APPLY, and verifies every subsequent row. Invalid starting code retains cleanupOwed. Ordinary initialization/restoration use the same analog tail. `test/analog.cpp` vectors/failures/replay and `test_independent_split_amplitude_transition_prefixes` cover valid endpoints and restoration prefixes. No glitch-free physical claim is made. |
+| 1: split MDIX amplitude transition could pass undocumented intermediate code | Corrected in both research and shipped behavior. `src/DP8382xAnalog.cpp` SNAPSHOT validates current 28..38, stages low nibble 8 only on a high-field change, verifies BRIDGE_WRITE before high-field APPLY, and verifies every subsequent row. Invalid starting code retains cleanupOwed. Ordinary initialization/restoration use the same analog tail. `test/analog.cpp` vectors/failures/replay and `test_independent_split_amplitude_transition_prefixes` cover valid endpoints and restoration prefixes. No glitch-free physical claim is made. |
 | 2: aggregate masks miss changed field names/access or swapped fields | Retained independent semantic-name/mask/access maps for all 25 remaining detailed rows in `test/test_remaining_ledger.py::test_independent_remaining_semantic_fields_and_access`; the structural checker is not its numeric oracle. |
 | 3: erased WoL owned masks could pass | Retained exact independent 24-procedure ownership map in `test_independent_remaining_procedure_owned_masks`, plus checker feature/register cross-check. Recipe-only legacyLPI ownership remains its exact writeActions rather than invented ordinary masks. |
 | 4: optional printed-address disposition admitted nontext | Retained nonempty-text validation in `tools/verify_ledger.py` and `test_printed_eee_disposition_cannot_claim_wire_resolution`. Omission remains legal. |
-| Loopback/BIST access and freshness, event/counter consumption, TDR/quality and reserved banks | Current `DP8382xDiagnostics.cpp`, `DP8382xCable.cpp`, `DP8382xQuality.cpp` and shared collector retain per-read effects and ambiguity. Ledger gates `bist_result_semantics`, `tdr_freshness_abort`, `tdr_reserved`, `recr_width`, `rmii_rc` and `mse_address` still prevent unsupported PASS, totals, extra decoded banks or dB conversion. SelectedD3 TDR helper is implemented25 with physical Q7 separate; blanket historical source blocking is not its current status. |
-| Power/EEE/LPI/WoL, pin/electrical/compliance and variant boundaries | Shipped typed procedures are in their dedicated source files; D2 EEE tuples ship 29 with physical Q1 open. W0C neutral/ack is exact-part, not a family write1 substitution. `pin_fields`, `analog_rx_gain`, `ioctrl_example`, `compt_reserved` and deep-power-exit uncertainties remain explicit. All14 documented10M compliance patterns ship 35;100M0428 remains gated. Only exact DP83826I is admitted; shared IDs do not qualify suffixes. |
-| Vendor examples, family applicability, best-practice/failure retention | The core does not import TI code, guessed units or C2000/EtherCAT electrical assumptions. Exact tables and per-procedure recipe exceptions remain authoritative under EVIDENCE; temporary profiles restore through separate bounded operations/OP9. The numerical68/56 research allowance is historical arithmetic, not a universal current operation budget. |
+| Loopback/BIST access and freshness, event/counter consumption, TDR/quality and reserved banks | Current `DP8382xDiagnostics.cpp`, `DP8382xCable.cpp`, `DP8382xQuality.cpp` and shared collector retain per-read effects and ambiguity. Ledger gates `bist_result_semantics`, `tdr_freshness_abort`, `tdr_reserved`, `recr_width`, `rmii_rc` and `mse_address` still prevent unsupported PASS, totals, extra decoded banks or dB conversion. Selected D3 TDR helper is implemented 25 with physical Q7 separate; blanket historical source blocking is not its current status. |
+| Power/EEE/LPI/WoL, pin/electrical/compliance and variant boundaries | Shipped typed procedures are in their dedicated source files; D2 EEE tuples ship 29 with physical Q1 open. W0C neutral/ack is exact-part, not a family write 1 substitution. `pin_fields`, `analog_rx_gain`, `ioctrl_example`, `compt_reserved` and deep-power-exit uncertainties remain explicit. All 14 documented 10M compliance patterns ship 35; 100M 0428 remains gated. Only exact DP83826I is admitted; shared IDs do not qualify suffixes. |
+| Vendor examples, family applicability, best-practice/failure retention | The core does not import TI code, guessed units or C2000/EtherCAT electrical assumptions. Exact tables and per-procedure recipe exceptions remain authoritative under EVIDENCE; temporary profiles restore through separate bounded operations/OP9. The numerical 68/56 research allowance is historical arithmetic, not a universal current operation budget. |
 
 PASS: `python tools/verify_ledger.py` (97/52/35) and all 80 ledger tests;
-these include the semantic/ownership/disposition and289-endpoint regressions.
-Independent native host63/63 also passed, but does not establish analog hardware
+these include the semantic/ownership/disposition and 289-endpoint regressions.
+Independent native host 63/63 also passed, but does not establish analog hardware
 behavior. No physical/remote CI/package/new SDK-link execution was performed here.
 No additional defect was confirmed in the enumerated research corrections.

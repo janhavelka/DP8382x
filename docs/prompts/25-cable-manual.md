@@ -37,7 +37,7 @@ are NOT RUN, never zero-filled. Write addresses 0170, 0173, 0175, 0178, 0416,
 | 0456 | 0608 | 0608 | 0608 | 0608 | 0608 | 0608 |
 | 001E | 8102 | 8102 | 8102 | 8102 | 8102 | 8102 |
 
-All words are hexadecimal. GENCFG 0456 is the explicit exception: RMW mask0600
+All words are hexadecimal. GENCFG 0456 is the explicit exception: RMW mask 0600
 preserves prompt 33's bit 3; with bit 3 clear the composed word is `0x0600`, unprinted
 by TI and part of Q7. Save/restore GENCFG[10:9]. Procedure-only `0x0411`/`0x0416` have no
 read/reset proof, so exit requires HARD and full initialization replay, including
@@ -57,14 +57,14 @@ the disable/restore handoff. Read live CDCR and retain its word. If bit 14 is se
 end with an explicit error and no cable write; prompt 35 owns the required
 clear-then-HARD contingency. A run completes only after start bit 15 reads clear
 and done bit 1 is set under the freshness rule; reset and previous runs leave
-done set. Retain fail bit 0 and then read0180/0185/018A. Keep unproved maximum
+done set. Retain fail bit 0 and then read 0180/0185/018A. Keep unproved maximum
 completion time/freshness claims explicit; use a finite owner deadline.
 
 Implement documented A/B transmit/capture, same/cross-pair, averaging, DC,
 threshold/pulse/shadow controls with legal encodings; averaging codes 0..6 mean
-1..64 and7 is reserved. The selected six-run recipe is transmitA/same-channel
+1..64 and 7 is reserved. The selected six-run recipe is transmitA/same-channel
 only. No derived result describes pairB or the whole cable. B/cross-pair raw
-settings remain available without derived distance. Autorun belongs to26.
+settings remain available without derived distance. Autorun belongs to 26.
 
 Validate request values, declared/cached capability and maintenance admission
 before I/O. When link/peer conditions need live evidence, use bounded observation
@@ -79,14 +79,14 @@ Retain each non-destructive CDCR/0180/0185/018A read with per-word validity;
 a failed read means invalid data, not history loss, and bounded re-read is legal.
 Only prerequisite BMSR/PHYSTS/MISR reads use the collector. Reserved result
 banks are not decoded peaks. Provide a pure SNLA428-only helper over retained
-samples: search performed runs2,3,4,5,1B,1A; take the first amplitude0185&7F
-above decimal10 (segments2..5) or24 (segment1). Use that same row's index0180&FF
-and018A. Metres=abs((index-5)*8/(2*prop_dly)), with caller propagation delay
-(ns/m): Cat5/5e5.35, Cat6 5, Cat7 4.6. Zero018A means open; nonzero means short.
+samples: search performed runs 2,3,4,5,1B,1A; take the first amplitude 0185&7F
+above decimal 10 (segments 2..5) or 24 (segment 1). Use that same row's index 0180&FF
+and 018A. Metres=abs((index-5)*8/(2*prop_dly)), with caller propagation delay
+(ns/m): Cat5/5e 5.35, Cat6 5, Cat7 4.6. Zero 018A means open; nonzero means short.
 Keep raw bits 11/5 separately without inventing bit 11 polarity. No qualifying
 peak is NO_PEAK, never good cable or zero metres. Q7 qualifies physical accuracy.
 Test the complete table 2-5 sample: rows 2..4 zero;5=(78,11,0),
-1B=(0C,06,800),1A=(06,44,0) gives run5/open/100m within1e-9.
+1B=(0C,06,800),1A=(06,44,0) gives run 5/open/100m within 1e-9.
 The note's code has indexing/undefined-variable inconsistencies; derive the
 helper independently from the selected recipe and declared interpretation.
 

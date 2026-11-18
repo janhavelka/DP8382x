@@ -47,7 +47,7 @@ and admitted pinned P4 IO_MUX choices. They are not reusable component defaults.
 The optional route prepares readiness before install, performs NONE initialization
 and verified 100/full autonegotiation configuration, reconciles SDK AN state,
 disables MAC flow control with the already-clear PHY pause advertisement, and
-reads MMD31 offset `0x0018` through one owner batch. It checks the SDK AN cache,
+reads MMD 31 offset `0x0018` through one owner batch. It checks the SDK AN cache,
 starts, waits 100 ms and stops. It then configures forced 10/half with manual
 MDI routing, reconciles SDK state, checks cached AN is disabled, starts, waits
 100 ms and retires. The flow route avoids the pinned SDK's defective shared

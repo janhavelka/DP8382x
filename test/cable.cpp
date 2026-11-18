@@ -189,8 +189,8 @@ void matrix() {
     CHECK(b.writeCount-first==rowCount*8U && b.triggers==rowCount);
     CHECK(result.cable.complete && !result.cable.stale && result.cable.session.value==t.value);
     CHECK(result.cleanupOwed && result.temporaryMayBeActive && !result.persistentRestored);
-    // Preflight8 + saved7*4, then each row29apply+20verify+1trigger+
-    // 2status+12results+1bookend. Call counts are independently enumerated.
+    // Preflight 8 + saved 7*4, then each row 29 apply+20 verify+1 trigger+
+    // 2 status+12 results+1 bookend. Call counts are independently enumerated.
     CHECK(b.frames-frames==36U+65U*rowCount && b.calls-calls==14U+19U*rowCount);
     CHECK(b.calls==b.releases);
     CHECK(d.healthSnapshot().totalSuccess==health.totalSuccess && d.healthSnapshot().totalFailures==health.totalFailures);
@@ -201,7 +201,7 @@ void matrix() {
     if(mask==0x3F) CHECK(diagnosis.run==CableRun::RUN_5 && diagnosis.conclusion==CableConclusion::OPEN && std::abs(diagnosis.metres-100.0)<1e-9);
     const auto stopFrames=b.frames,stopCalls=b.calls;
     finishStop(d,b); CHECK(b.hardResets==1U);
-    // Stop5/4 + HARD initialization/profile56/30 + saved tail66/16.
+    // Stop 5/4 + HARD initialization/profile 56/30 + saved tail 66/16.
     CHECK(b.frames-stopFrames==127U && b.calls-stopCalls==50U);
     CHECK(result.cable.complete && !result.cable.stale); // Historical primary value is immutable.
   }
@@ -233,7 +233,7 @@ void raw() {
     const auto stopFrames=b.frames,stopCalls=b.calls;finishStop(d,b);
     CHECK(b.frames-stopFrames==118U && b.calls-stopCalls==48U);
   }
-  // Separate SNLS647I tables8-56/57 words, not silently replaced by SNLA428.
+  // Separate SNLS647I tables 8-56/57 words, not silently replaced by SNLA428.
   const uint16_t thresholds[]={0x0D07,0x0D14,0x1A21,0x343B,0x8F6F};
   const uint16_t shadows[]={0x1004,0x1004,0x1005,0x1008,0x100B};
   for(unsigned segment=0;segment<5;++segment) {
@@ -361,8 +361,8 @@ void capture() {
     CHECK(read.cable.complete && b.triggers==triggers && failed.status.detail==-25025);finishStop(d,b);
   }
   // Interrupt the second selected row after its index read. Reacquisition owns
-  // only that accepted trigger: it must retain row1A, finish row1B without a new
-  // trigger, and leave the requested but unstarted row2 explicitly NOT_RUN.
+  // only that accepted trigger: it must retain row 1A, finish row 1B without a new
+  // trigger, and leave the requested but unstarted row 2 explicitly NOT_RUN.
   for(bool cancelled:{false,true}) {
     Controller b; Driver d; ready(d,b); const auto t=start(d,b,settings(0x07));
     for(unsigned turn=0;turn<128U && !d.cableSnapshot().result.samples[1].index.valid;++turn) {

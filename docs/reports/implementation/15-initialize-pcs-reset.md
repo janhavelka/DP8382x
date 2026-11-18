@@ -17,7 +17,7 @@ generic engine, fixture operation or remote CI were introduced.
 
 Owned `include/DP8382x/DP8382x.h`, `src/DP8382x.cpp`, operation tests/registration,
 portable example/consumer and affected guides/evidence. Ledger procedure scope
-is `pcs_reset` and `initialize_10base`; reset family remains PARTIAL for prompt16.
+is `pcs_reset` and `initialize_10base`; reset family remains PARTIAL for prompt 16.
 Prerequisites 14 and 8 were verified against actual identity code and OP-1–17,
 not inferred from earlier completion summaries.
 
@@ -26,7 +26,7 @@ Implemented `startInitialize`, `pollOperation`, `takeResult`, `cancel`,
 One explicit initialization phase switch uses fixed state and the existing
 terminal batch path. Tokens are lifetime uint64 values without exhaustion policy.
 Only INITIALIZE and NONE/PCS ship; hard-reset floors, link settings snapshots
-and managed health arrive with their real consumers in prompts16,17–18,21.
+and managed health arrive with their real consumers in prompts 16,17–18,21.
 Removed duplicated planned operation declarations from the guide in favor of
 the shipped header and explicit future extensions.
 
@@ -63,10 +63,10 @@ Independent source audit at 2026-11-08 07:34 UTC fetched the
 [current TI datasheet](https://www.ti.com/lit/ds/symlink/dp83826i.pdf): SNLS647I,
 August 2025, byte-identical to the preserved archive. SHA-256:
 `4e440fb8bd1cd44ee9ab0773944bef4f0605884f25c4ab96ea55d0ed859fd9c3`.
-Original PDF pages15,17,54,86,89,90 were visually inspected. Table8-19 pp54–55
+Original PDF pages 15,17,54,86,89,90 were visually inspected. Table 8-19 pp54–55
 establishes self-clearing BMCR reset and vendor retention; §8.3.13 p40 and
-table8-81 p86 establish mandatory VOD and stable mask; tables8-87/88 pp89–90
-establish raw strap records. §7.6 timing/footnote2 and Figure7-1 p18 establish
+table 8-81 p86 establish mandatory VOD and stable mask; tables 8-87/88 pp89–90
+establish raw strap records. §7.6 timing/footnote 2 and Figure 7-1 p18 establish
 external supply, clock and RESET_N readiness, not a software PCS completion
 maximum. Final source review distinguished the figure's hold-low recommendation
 from the footnote's additional-reset requirement; the application establishes
@@ -77,11 +77,11 @@ Current TI RTOS `main` was
 
 | File | Git blob | Comparison |
 | --- | --- | --- |
-| [generic_phy.c](https://github.com/TexasInstruments/ethernet-rtos-drivers/blob/94bf4343004732983b0b8e1eec123d88ff70453b/rtos_drivers/src/generic_phy.c) | `39414bd3b1004cdf6075bf0f4be30180babdc84d` | Reset RMW line159 rejected for this procedure; completion read/test lines190–195 compared. |
-| [dp83826.c](https://github.com/TexasInstruments/ethernet-rtos-drivers/blob/94bf4343004732983b0b8e1eec123d88ff70453b/rtos_drivers/src/dp83826.c) | `e0b64710350d764fe16ffd089fbdc5246e600039` | Mandatory initialization compared; hard-reset address/mask defect at349 remains in catalogue, outside PCS scope. |
+| [generic_phy.c](https://github.com/TexasInstruments/ethernet-rtos-drivers/blob/94bf4343004732983b0b8e1eec123d88ff70453b/rtos_drivers/src/generic_phy.c) | `39414bd3b1004cdf6075bf0f4be30180babdc84d` | Reset RMW line 159 rejected for this procedure; completion read/test lines 190–195 compared. |
+| [dp83826.c](https://github.com/TexasInstruments/ethernet-rtos-drivers/blob/94bf4343004732983b0b8e1eec123d88ff70453b/rtos_drivers/src/dp83826.c) | `e0b64710350d764fe16ffd089fbdc5246e600039` | Mandatory initialization compared; hard-reset address/mask defect at 349 remains in catalogue, outside PCS scope. |
 | [dp83826_priv.h](https://github.com/TexasInstruments/ethernet-rtos-drivers/blob/94bf4343004732983b0b8e1eec123d88ff70453b/rtos_drivers/src/dp83826_priv.h) | `37ab9b94d67687c569ac2e1e36b315fb90eb6749` | Names/masks compared with exact tables; macros are not independent authority. |
 
-These TI files retain BSD-3-Clause notices at lines1–31 and their repository
+These TI files retain BSD-3-Clause notices at lines 1–31 and their repository
 license. No implementation was copied. Original vendor payloads/provenance and
 hashes remain unchanged; PDFs retain TI notices.
 
@@ -114,8 +114,8 @@ hidden work, extra register framework or speculative settings replay was added.
 
 ## Verification and documentation
 
-Environment: Windows PowerShell, GNU MinGW-w6415.1.0 x86-64, CMake4.0.1,
-Python3.12.10, Doxygen1.13.2. Reproduction:
+Environment: Windows PowerShell, GNU MinGW-w64 15.1.0 x86-64, CMake 4.0.1,
+Python 3.12.10, Doxygen 1.13.2. Reproduction:
 
 ```sh
 cmake -S . -B build/init15-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON
@@ -141,8 +141,8 @@ git diff --check
 | Doxygen | PASS:102 HTML pages, public operation/evidence docs and two rejected negative fixtures. |
 | Reference/version/diff | PASS: archived hashes/local links, unchanged generated version and whitespace. |
 | Installed/exported package | NOT RUN: later package stages. |
-| SDK link | NOT RUN: native adapter remains prompts37–39. |
-| Remote CI | NOT RUN: first-set checkpoint reserved for prompt71. |
+| SDK link | NOT RUN: native adapter remains prompts 37–39. |
+| Remote CI | NOT RUN: first-set checkpoint reserved for prompt 71. |
 | Physical | NOT RUN: no fixture, actual part/strap/supply measurements or MDIO/reset traces operated. |
 
 Tests inject every one of the 50 NONE/PCS trace frame failures, every release

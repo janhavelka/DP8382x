@@ -125,12 +125,12 @@ command/read pair. A possible clear without returned data retains history loss.
 No FCSCR accumulation rules transfer to BIST. Cached [BIST views](bist.md) and
 formatting never reread counters.
 
-EEE status and wake errors extend this collector in stage29. The wake-error word
+EEE status and wake errors extend this collector in stage 29. The wake-error word
 is retained raw; saturation or history loss cannot become an exact accumulated
 physical rate. Reset marks prior host evidence discontinuous. [EEE](eee.md)
 provides the separate complete aggregate and bounded acquisition contract.
 
-Stage34 quality configuration reuses this collector for PHYSTS, FLDS, RCSR and
-every10BTSCR prerequisite/RMW/readback. Polarity and jabber/next-page evidence
+Stage 34 quality configuration reuses this collector for PHYSTS, FLDS, RCSR and
+every 10BTSCR prerequisite/RMW/readback. Polarity and jabber/next-page evidence
 remain available through existing samples; no new counter acquisition path is
 introduced. Raw MSE is nondestructive and has its own [staged snapshot](quality.md).
