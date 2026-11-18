@@ -16,7 +16,7 @@ GNU or Clang is required for the unmodified SDK C17 source. Consumers leave
 `DP8382X_BUILD_PINNED_IDF_TESTS` off and need no SDK or Python.
 
 `verify_sdk.py` checks the exact SDK commit, asks the compiler for every
-compiled source's header dependencies for both 1000 Hz and 100 Hz configurations,
+compiled source's header dependencies for1000Hz,100Hz and333Hz configurations,
 checks every selected SDK file against
 the pinned Git blob and compares the complete closure with `sdk-files.json`.
 Only Windows CRLF expansion is normalized. Configuration and every build
@@ -111,3 +111,18 @@ flow-policy callbacks retain accepted effects when their individual bound is
 exceeded. Positive controller waits return MDIO_TIMEOUT; zero-tick contention
 returns BUSY at both1000Hz and100Hz. The timer fake now reports a dispatched
 callback as active until it returns, matching the pinned public timer behavior.
+
+The [2026-11-18 corrections](../../../docs/reports/implementation/37-39-native-fixes-2026-11-18.md)
+bring the registered total to144:68 native cases at each of1000Hz and100Hz,
+seven actual SDK driver cases, and a333Hz rational-wait case. All suites retain
+assertions in Release. They add failed/cancelled initialization/configuration,
+retryable retirement, independent failed-start cleanup, discarded-timer admission,
+first/latest native cleanup domains, DOWN-before-STOP repair, lost observations,
+P4 no-command busy rejection, full pause resolution and dependent callback bounds.
+
+Shared-controller tests now use a non-installed address-1 participant on the
+same actual MAC object and SharedBus as the installed owner. Every peer obeys
+logical silence/quarantine and the whole-batch mutex; no second P4 MAC is installed.
+MAC installation is tested under exclusive logical silence with no mutex over its
+waits. Fakes serialize callbacks on one ESP_TIMER_TASK, so a live timer callback
+cannot be bypassed by a fence fired recursively from an injected task delay.

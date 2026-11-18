@@ -80,7 +80,9 @@ global target-register reserved policy.
 Native admission uses one Phase enum: Stopped, Control, Starting, Running,
 Stopping, Maintenance. A phase-by-method switch admits expected callbacks;
 unexpected nesting rejects. Track one record containing stage, firstError,
-cleanupError, publishedTuple, publicationUncertain and eventLost. A reservation
+cleanupError, publishedTuple, publicationUncertain, eventLost and stopRequired.
+The two errors separate portable Status from native SDK failure and reset only
+on an admitted new start, with a saturating cycle sequence. A reservation
 is logical admission, not a held mutex. No callback steals an application token.
 
 Lock order is instance gate, controller lock, controller internals. Never acquire
@@ -157,14 +159,17 @@ PHYSTS low bits stay raw. The forced_physts question remains a physical-value
 question rather than a blanket software block. With extended full-duplex enabled
 or unverified, forced 100/half cannot be universally resolved; native admission
 rejects that tuple when it cannot publish UP. Portable pause retains complete
-RX/TX resolution, while SDK peer pause is its narrower full-duplex/partner-symmetric
-Boolean. MAC flow-control policy is separate; avoid the pinned flow-control ioctl
+RX/TX resolution. The P4 Boolean enables both directions, so the adapter projects
+true only for valid resolved RX AND TX pause; one-way/invalid resolution projects
+false. MAC flow-control policy is separate; avoid the pinned flow-control ioctl
 argument-width defect and call the correctly typed MAC method.
 
 For UP send speed, duplex, peer pause, then link and record each accepted step.
 For a changed tuple while up, project DOWN before updates and UP. Emit nothing for
 an unchanged verified tuple. Unknown observation does not invent cable-down;
-administrative DOWN is explicit and distinct. OP-14 limits live resolution during
+administrative DOWN is explicit and distinct. Failed running acquisition or lost
+trust/agreement requests that DOWN and latches stopRequired until complete stop;
+the prior physical observation remains historical. OP-14 limits live resolution during
 semantic writes or temporary profiles.
 
 The P4 factory knows its pinned set_link cannot fail for a valid link argument:
@@ -179,6 +184,8 @@ not the error code. Never retry UP blindly; it can rebuild DMA descriptors.
 
 1. Before esp_eth_driver_install, drive board reset and finish readiness waits
    without MDIO. MAC init configures SMI and needs PHY REF_CLK already present.
+   INSTALLING reserves the shared controller domain after draining its mutex;
+   release the mutex before MAC reset waits, then release logical silence once.
    Its reset polls in 10 ms steps up to sw_reset_timeout_ms, default 100 ms.
    Adapter reset_hw returns local OK and set_mediator only stores context.
 2. Adapter init and install G_STAT are local/nonfallible under validated input.
@@ -187,16 +194,19 @@ not the error code. Never retry UP blindly; it can rebuild DMA descriptors.
 3. After install run typed startInitialize/configure through direct MAC batches.
    Their failure follows the same gated stopped teardown below, retaining primary
    evidence and referenced resources.
-4. On esp_eth_start failure call esp_eth_stop. If no timer was armed it changes
+4. On esp_eth_start failure or late completion call owner stop with a separate
+   finite cleanup allowance anchored after start returns. If no timer was armed SDK stop changes
    FSM to STOP then returns ESP_ERR_INVALID_STATE before DOWN or STOP publication.
    Other stop errors may also omit them. After the fence below, send missing
-   administrative DOWN; if START was posted but STOP was not, post STOP using
+   administrative DOWN and repair a lost DISCONNECTED before posting STOP. If
+   START was posted but STOP was not, post STOP using
    &hdl and sizeof(hdl), with finite ticks. get_link in Starting records START.
-5. After every stop, fence first: an owner-created ESP_TIMER_TASK one-shot exists
+5. An already stopped owner with no obligations returns OK without callbacks.
+   Otherwise fence after framework stop: an owner-created ESP_TIMER_TASK one-shot exists
    before install. Arm once with esp_timer_start_once(fence, 0), then poll
    esp_timer_is_active with task delay until false under a finite deadline.
    Never wait from the timer task or re-arm while polling. Timeout retains all
-   resources. After the fence, publish DOWN if the journal still says UP; then
+   resources and retryable STOPPING. After the fence, publish DOWN if the journal still says UP; then
    call mac->stop(mac) directly to observe the HAL result set_link discards.
    Each attempt can busy-wait 2500 us; finite retry holds no instance/bus lock.
 6. Stop all transmit callers and end the application RX session. Keep its
@@ -213,6 +223,9 @@ not the error code. Never retry UP blindly; it can rebuild DMA descriptors.
    teardown procedure. Do not free the driver, glue, MAC, PHY, netif or borrowed
    callback context while that task may still reference them. Close admission,
    retain resources and primary/cleanup evidence, and require system restart.
+   Enter terminal MAINTENANCE only after stop succeeds; failed retirement returns
+   the actual error and keeps stop retries admitted. A forbidden raw uninstall
+   atomically closes admission because the SDK may already have deleted its timer.
 8. Prompts 37 and 42 must independently derive and test a public-API quiescence
    route before enabling reusable destruction. A changed SDK baseline requires
    explicit source re-audit, not a private cast or fork. Until such a route is

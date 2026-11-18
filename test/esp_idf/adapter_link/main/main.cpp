@@ -72,6 +72,12 @@ void showStatus(const char* operation, Status status) {
               static_cast<long>(status.detail));
 }
 
+void showNativeStatus(const char* operation, NativeStatus status) {
+  std::printf("%s: core=%s detail=%ld SDK=%s (%ld)\n", operation,
+              errorName(status.coreStatus.code), static_cast<long>(status.coreStatus.detail),
+              esp_err_to_name(status.sdkError), static_cast<long>(status.sdkError));
+}
+
 esp_err_t showSdkCachedSettings(bool expectedAutonegotiation) {
   bool autonegotiation = !expectedAutonegotiation;
   eth_speed_t speed{};
@@ -181,8 +187,10 @@ void runFixture() {
     showStatus("Configure 100/full AN", status);
   }
   if (error == ESP_OK && status.ok()) {
-    status = fixture.phy->reconcileSdkState(nowUs() + 1000000U);
-    showStatus("Reconcile AN SDK state", status);
+    const auto reconciliation = fixture.phy->reconcileSdkState(nowUs() + 1000000U);
+    showNativeStatus("Reconcile AN SDK state", reconciliation);
+    status = reconciliation.coreStatus;
+    error = reconciliation.sdkError;
   }
   if (error == ESP_OK && status.ok()) {
     // Both pause advertisement bits were already verified clear above. This
@@ -228,8 +236,10 @@ void runFixture() {
     showStatus("Configure forced 10/half", status);
   }
   if (error == ESP_OK && status.ok()) {
-    status = fixture.phy->reconcileSdkState(nowUs() + 1000000U);
-    showStatus("Reconcile forced SDK state", status);
+    const auto reconciliation = fixture.phy->reconcileSdkState(nowUs() + 1000000U);
+    showNativeStatus("Reconcile forced SDK state", reconciliation);
+    status = reconciliation.coreStatus;
+    error = reconciliation.sdkError;
   }
   if (error == ESP_OK && status.ok()) error = showSdkCachedSettings(false);
   if (error == ESP_OK && status.ok()) {
@@ -244,8 +254,12 @@ void runFixture() {
   LifecycleRecord record{};
   status = fixture.phy->lifecycleSnapshot(record);
   if (status.ok()) {
-    showStatus("Lifecycle primary", record.firstError);
-    showStatus("Lifecycle cleanup", record.cleanupError);
+    std::printf("Lifecycle sequence=%llu phase=%u stop required=%u\n",
+                static_cast<unsigned long long>(record.sequence), static_cast<unsigned>(record.phase),
+                static_cast<unsigned>(record.stopRequired));
+    showNativeStatus("Lifecycle primary", record.firstError);
+    showNativeStatus("Lifecycle cleanup", record.cleanupError);
+    showNativeStatus("Lifecycle latest cleanup failure", record.lastCleanupError);
   }
 }
 } // namespace

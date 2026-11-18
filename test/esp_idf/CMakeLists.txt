@@ -42,13 +42,15 @@ endforeach()
 list(APPEND verify_command --include "${host}" --source "${repo}/src/esp_idf/Phy.cpp")
 list(APPEND verify_command --source "${repo}/src/esp_idf/PhyControl.cpp")
 set(verify_command_100hz ${verify_command} --define DP8382X_HOST_FREERTOS_HZ=100)
+set(verify_command_333hz ${verify_command} --define DP8382X_HOST_FREERTOS_HZ=333)
+execute_process(COMMAND ${verify_command_333hz} RESULT_VARIABLE sdk_verified_333hz)
 execute_process(COMMAND ${verify_command_100hz} RESULT_VARIABLE sdk_verified_100hz)
 execute_process(COMMAND ${verify_command} RESULT_VARIABLE sdk_verified)
-if(NOT sdk_verified EQUAL 0 OR NOT sdk_verified_100hz EQUAL 0)
+if(NOT sdk_verified EQUAL 0 OR NOT sdk_verified_100hz EQUAL 0 OR NOT sdk_verified_333hz EQUAL 0)
   message(FATAL_ERROR "Pinned SDK file/dependency verification failed")
 endif()
 add_custom_target(dp8382x_verify_pinned_sdk
-    COMMAND ${verify_command} COMMAND ${verify_command_100hz} VERBATIM)
+    COMMAND ${verify_command} COMMAND ${verify_command_100hz} COMMAND ${verify_command_333hz} VERBATIM)
 
 add_library(dp8382x_pinned_sdk STATIC ${sdk_sources})
 add_dependencies(dp8382x_pinned_sdk dp8382x_verify_pinned_sdk)
@@ -82,7 +84,7 @@ target_compile_options(dp8382x_native_host PRIVATE -Wall -Wextra -Werror -UNDEBU
 add_executable(dp8382x_native_host_tests host/native.cpp)
 target_link_libraries(dp8382x_native_host_tests PRIVATE dp8382x_native_host)
 target_compile_options(dp8382x_native_host_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
-foreach(suite IN ITEMS factory board_install_failures raw_routing raw_rx_retention
+set(native_suites factory board_install_failures raw_routing raw_rx_retention
     glue_rx_retention stop_failures partial_start_fence notifications
     notification_failures lost_link_event shared_quarantine callback_bounds
     live_tuple_changes incomplete_negotiation pause_projection notification_partial_receipts
@@ -95,35 +97,47 @@ foreach(suite IN ITEMS factory board_install_failures raw_routing raw_rx_retenti
     raw_mutation_admission collector_partial_evidence uncertain_basic_control
     configuration_admission hard_reset_silence board_respects_initialization_silence
     board_silence_excludes_other_owners failed_board_silence_remains_closed flow_completion_contention
-    forced_partner_pause stopping_late_poll foreign_flow_effect start_gate_failures)
+    forced_partner_pause stopping_late_poll foreign_flow_effect start_gate_failures
+    initialize_failures configuration_failures retire_and_stop_admission board_completion_contention
+    late_start_cleanup uninstall_gate_contention stop_failure_receipts stop_without_start
+    stop_repairs_lost_down observation_loss p4_busy_before_command dependent_callback_bounds install_reservation
+    timer_publication_during_stop)
+foreach(suite IN LISTS native_suites)
   add_test(NAME native_${suite} COMMAND dp8382x_native_host_tests ${suite})
   set_tests_properties(native_${suite} PROPERTIES TIMEOUT 30)
 endforeach()
 
-# Compile the same pinned SDK and production adapter with realistic 100 Hz ticks.
-# This changes only the host RTOS configuration; no controller implementation is replaced.
-add_library(dp8382x_pinned_sdk_100hz STATIC ${sdk_sources})
-add_dependencies(dp8382x_pinned_sdk_100hz dp8382x_verify_pinned_sdk)
-target_include_directories(dp8382x_pinned_sdk_100hz PUBLIC ${sdk_includes})
-target_compile_features(dp8382x_pinned_sdk_100hz PRIVATE c_std_17)
-target_compile_definitions(dp8382x_pinned_sdk_100hz PUBLIC DP8382X_HOST_FREERTOS_HZ=100)
-target_compile_definitions(dp8382x_pinned_sdk_100hz PRIVATE free=hostSdkFree calloc=hostSdkCalloc)
-target_compile_options(dp8382x_pinned_sdk_100hz PRIVATE
-    -include "${host}/platform/host_compat.h" -Wall -Wextra -Werror
-    -Wno-pointer-to-int-cast -Wno-unused-parameter
-    "$<$<C_COMPILER_ID:GNU>:-Wno-old-style-declaration>")
-add_library(dp8382x_idf_host_fakes_100hz STATIC host/Fakes.cpp host/InstrumentedMac.cpp)
-target_include_directories(dp8382x_idf_host_fakes_100hz PUBLIC "${host}")
-target_link_libraries(dp8382x_idf_host_fakes_100hz PUBLIC dp8382x_pinned_sdk_100hz)
-target_compile_features(dp8382x_idf_host_fakes_100hz PUBLIC cxx_std_17)
-target_compile_options(dp8382x_idf_host_fakes_100hz PRIVATE -Wall -Wextra -Werror -UNDEBUG)
-add_library(dp8382x_native_host_100hz STATIC "${repo}/src/esp_idf/Phy.cpp" "${repo}/src/esp_idf/PhyControl.cpp")
-target_link_libraries(dp8382x_native_host_100hz PUBLIC DP8382x dp8382x_idf_host_fakes_100hz)
-target_compile_options(dp8382x_native_host_100hz PRIVATE -Wall -Wextra -Werror -UNDEBUG)
-add_executable(dp8382x_native_host_100hz_tests host/native.cpp)
-target_link_libraries(dp8382x_native_host_100hz_tests PRIVATE dp8382x_native_host_100hz)
-target_compile_options(dp8382x_native_host_100hz_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
-add_test(NAME native_board_tick_readiness_100hz COMMAND dp8382x_native_host_100hz_tests board_tick_readiness)
-set_tests_properties(native_board_tick_readiness_100hz PROPERTIES TIMEOUT 30)
-add_test(NAME native_controller_wait_classification_100hz COMMAND dp8382x_native_host_100hz_tests controller_wait_classification)
-set_tests_properties(native_controller_wait_classification_100hz PROPERTIES TIMEOUT 30)
+# Compile the same pinned sources and production adapter at each host tick rate.
+function(add_native_tick_rate rate)
+  set(sdk_target dp8382x_pinned_sdk_${rate}hz)
+  set(fakes_target dp8382x_idf_host_fakes_${rate}hz)
+  set(adapter_target dp8382x_native_host_${rate}hz)
+  set(test_target dp8382x_native_host_${rate}hz_tests)
+  add_library(${sdk_target} STATIC ${sdk_sources})
+  add_dependencies(${sdk_target} dp8382x_verify_pinned_sdk)
+  target_include_directories(${sdk_target} PUBLIC ${sdk_includes})
+  target_compile_features(${sdk_target} PRIVATE c_std_17)
+  target_compile_definitions(${sdk_target} PUBLIC DP8382X_HOST_FREERTOS_HZ=${rate})
+  target_compile_definitions(${sdk_target} PRIVATE free=hostSdkFree calloc=hostSdkCalloc)
+  target_compile_options(${sdk_target} PRIVATE
+      -include "${host}/platform/host_compat.h" -Wall -Wextra -Werror
+      -Wno-pointer-to-int-cast -Wno-unused-parameter
+      "$<$<C_COMPILER_ID:GNU>:-Wno-old-style-declaration>")
+  add_library(${fakes_target} STATIC host/Fakes.cpp host/InstrumentedMac.cpp)
+  target_include_directories(${fakes_target} PUBLIC "${host}")
+  target_link_libraries(${fakes_target} PUBLIC ${sdk_target})
+  target_compile_features(${fakes_target} PUBLIC cxx_std_17)
+  target_compile_options(${fakes_target} PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+  add_library(${adapter_target} STATIC "${repo}/src/esp_idf/Phy.cpp" "${repo}/src/esp_idf/PhyControl.cpp")
+  target_link_libraries(${adapter_target} PUBLIC DP8382x ${fakes_target})
+  target_compile_options(${adapter_target} PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+  add_executable(${test_target} host/native.cpp)
+  target_link_libraries(${test_target} PRIVATE ${adapter_target})
+  target_compile_options(${test_target} PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+  foreach(suite IN LISTS ARGN)
+    add_test(NAME native_${suite}_${rate}hz COMMAND ${test_target} ${suite})
+    set_tests_properties(native_${suite}_${rate}hz PROPERTIES TIMEOUT 30)
+  endforeach()
+endfunction()
+add_native_tick_rate(100 ${native_suites})
+add_native_tick_rate(333 controller_wait_classification)

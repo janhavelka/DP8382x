@@ -616,3 +616,10 @@ callback contention, event retry deadlines and start/timer completion contention
 The same adapter/driver/fake sources also compile at100Hz; tick-boundary waits prove
 elapsed readiness checks rather than assuming delay(1) lasts a full tick. These are
 modeled host cases; actual P4 SDK linking and physical timing remain separate.
+
+The [native audit corrections](../docs/reports/implementation/37-39-native-fixes-2026-11-18.md)
+run the complete68 native suites at both1000Hz and100Hz plus seven actual-driver
+tests and a333Hz rational-tick test (144 total). Failure/cancellation, incomplete
+retirement, receipt contention, late cleanup, deleted-timer rejection, ordered
+events, resolved pause and one-controller peer exclusion all execute production
+adapter code. Physical timing, stack headroom and reusable RX teardown remain gates.

@@ -48,9 +48,11 @@ void deliverEvents() {
     }
 }
 void tickTimers() {
+    // Both link timers and adapter fences dispatch on the same SDK task.
+    if (std::any_of(timers.begin(), timers.end(), [](const esp_timer* timer) { return timer->running; })) return;
     const auto current = timers;
     for (auto* timer : current) {
-        if (!timer->active || (!timer->periodic && data.holdOneShot)) continue;
+        if (!timer->active || timer->running || (!timer->periodic && data.holdOneShot)) continue;
         if (!timer->periodic) timer->active = false;
         timer->running = true;
         timer->args.callback(timer->args.arg);
@@ -120,6 +122,7 @@ esp_err_t esp_timer_delete(esp_timer_handle_t timer) {
 esp_err_t esp_timer_start_periodic(esp_timer_handle_t timer, uint64_t periodUs) {
     data.calls.emplace_back("timer.periodic");
     if (const auto error = consume(data.nextTimerStartError); error != ESP_OK) return error;
+    assert(!timer || std::find(timers.begin(), timers.end(), timer) != timers.end());
     if (!timer || timer->active) return ESP_ERR_INVALID_STATE;
     timer->active = true; timer->periodic = true;
     data.periodicPeriodsUs.push_back(periodUs);
@@ -145,9 +148,11 @@ bool esp_timer_is_active(esp_timer_handle_t timer) { return timer && (timer->act
 int64_t esp_timer_get_time(void) { return static_cast<int64_t>(data.nowUs); }
 void vTaskDelay(TickType_t ticks) {
     const auto before = data.nowUs;
-    constexpr uint64_t tickUs = uint64_t{1000000} / CONFIG_FREERTOS_HZ;
     // A one-tick wait may finish almost immediately just before a tick edge.
-    if (ticks) data.nowUs = (data.nowUs / tickUs + ticks) * tickUs;
+    if (ticks) {
+        const auto currentTick = before * CONFIG_FREERTOS_HZ / 1000000U;
+        data.nowUs = ((currentTick + ticks) * 1000000U + CONFIG_FREERTOS_HZ - 1U) / CONFIG_FREERTOS_HZ;
+    }
     data.delays.push_back({ticks, before, data.nowUs});
     Host::tickTimers();
 }
@@ -155,6 +160,7 @@ TaskHandle_t xTaskGetCurrentTaskHandle(void) { return reinterpret_cast<void*>(da
 esp_err_t esp_event_post(esp_event_base_t, int32_t id, const void* event, size_t size, TickType_t ticks) {
     data.calls.emplace_back("event." + std::to_string(id));
     data.nowUs += data.eventElapsedUs;
+    if (const auto callback = data.onEventAttempt) callback(id);
     if (data.eventErrorId == -1 || data.eventErrorId == id) {
         if (const auto error = consume(data.nextEventError); error != ESP_OK) return error;
     }

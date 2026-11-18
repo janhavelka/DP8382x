@@ -13,6 +13,9 @@ and the ESP32-P4 fixture links. Reusable installed teardown remains blocked by
 separately typed MAC/PHY calls and preserves partial effects. Acquired link evidence
 and accepted SDK publication are separate cached views. Notification/timing
 regressions include 100 Hz ticks; physical wall-time bounds remain unqualified.
+The [native correction review](docs/reports/implementation/37-39-native-fixes-2026-11-18.md)
+records all17 auditor findings, lifecycle retry/error fixes and additional timing,
+failure and shared-controller regressions. Installed resources remain retained.
 [EEE negotiation and status](docs/eee.md) now provide explicit reset-bearing setup,
 verified restoration and bounded retained observations; physical Q1 remains pending.
 The [prompt-36 integration review](docs/reports/implementation/36-primary-feature-closure.md)

@@ -29,30 +29,49 @@ enum class LifecycleStage : uint8_t {
   BOARD, ///< Application reset and shared readiness.
   INSTALL, ///< Public framework installation.
   INITIALIZE, ///< Typed core initialization.
+  CONFIGURE, ///< Typed persistent configuration and retained result.
   START, ///< Framework start and initial link collection.
   STOP, ///< Framework stop request.
   FENCE, ///< Timer-task callback fence.
   MAC_STOP, ///< Direct actual MAC stop observation.
   RETAINED ///< Admission closed; objects retained until restart.
 };
+/// @brief Native outcome keeps portable chip/admission errors distinct from SDK errors.
+/// @note At most one member is non-success. SDK queue, timer and MAC-policy
+/// failures never become portable MDIO errors or transport-health samples.
+struct NativeStatus {
+  Status coreStatus{}; ///< Portable procedure, owner admission or aggregate deadline result.
+  esp_err_t sdkError{ESP_OK}; ///< Exact SDK result; ESP_OK when coreStatus owns the failure.
+  /// @brief Test both result domains without I/O.
+  /// @return True only when neither domain reports a failure.
+  bool ok() const noexcept { return coreStatus.ok() && sdkError == ESP_OK; }
+  /// @brief Test a portable result code without reclassifying SDK errors.
+  /// @param[in] error Portable code to compare.
+  /// @return True only for a matching portable result and no SDK failure.
+  bool is(Err error) const noexcept { return sdkError == ESP_OK && coreStatus.is(error); }
+};
 /// @brief Last accepted MAC projection; down never invents speed or duplex.
 struct PublishedTuple {
   bool up{false}; ///< True only after accepted LINK UP notification.
   LinkSpeed speed{LinkSpeed::UNKNOWN}; ///< Qualified speed for the last UP.
   Duplex duplex{Duplex::UNKNOWN}; ///< Qualified duplex for the last UP.
-  bool peerPause{false}; ///< Narrow SDK symmetric partner capability, not resolved RX/TX.
+  bool peerPause{false}; ///< SDK Boolean: true only for valid resolved RX AND TX pause.
   bool speedAccepted{false}; ///< SPEED callback accepted this field in the latest update.
   bool duplexAccepted{false}; ///< DUPLEX callback accepted this field in the latest update.
   bool pauseAccepted{false}; ///< PAUSE callback accepted this field in the latest update.
 };
 /// @brief Persistent primary/cleanup evidence for framework partial effects.
 struct LifecycleRecord {
+  Phase phase{Phase::STOPPED}; ///< Current owner admission copied by lifecycleSnapshot; no separate state machine.
+  uint64_t sequence{0}; ///< Saturating start-attempt sequence; zero precedes the first admitted start.
   LifecycleStage stage{LifecycleStage::FACTORY}; ///< Last attempted boundary.
-  Status firstError{}; ///< First failure; detail preserves the native error.
-  Status cleanupError{}; ///< First stop/fence/publication cleanup failure.
+  NativeStatus firstError{}; ///< First failure in this start cycle, or pre-start setup.
+  NativeStatus cleanupError{}; ///< First cleanup failure; retries preserve it until the next admitted start.
+  NativeStatus lastCleanupError{}; ///< Most recent cleanup failure; preserves a later failed repair separately from its first cause.
   PublishedTuple publishedTuple{}; ///< Last accepted projection.
   bool publicationUncertain{false}; ///< Unknown MAC partial effect; admission closes.
   bool eventLost{false}; ///< Current accepted LINK event is pending; older failures remain in firstError.
+  bool stopRequired{false}; ///< Observation/publication safety lost; application must stop before restarting traffic.
 };
 /// @brief Last public SDK control reconciliation; cached fields are not live PHY evidence.
 struct SdkStateSnapshot {
@@ -62,7 +81,7 @@ struct SdkStateSnapshot {
   bool autoNegotiationAccepted{false}; ///< Public S_AUTONEGO completed in the last attempt.
   bool speedAccepted{false}; ///< Forced S_SPEED acknowledged the verified desired speed.
   bool duplexAccepted{false}; ///< Forced S_DUPLEX_MODE acknowledged the verified desired duplex.
-  Status status{Err::NOT_INITIALIZED, 0, "SDK state not reconciled"}; ///< Last reconciliation result.
+  NativeStatus status{{Err::NOT_INITIALIZED, 0, "SDK state not reconciled"}}; ///< Last reconciliation result, with distinct SDK domain.
 };
 /// @brief Separate MAC policy and PHY advertisement receipts; no implicit rollback.
 struct FlowControlRecord {
@@ -83,6 +102,7 @@ enum class BusAdmission : uint8_t {
   AVAILABLE, ///< Ordinary complete batches and a new exclusive procedure may run.
   INITIALIZING, ///< Only the admitting PHY's initialization batches may run.
   BOARD_PREPARING, ///< No MDIO while reset/readiness owns the controller domain.
+  INSTALLING, ///< MAC reset/clock setup excludes every shared-controller participant.
   FAILED_CLOSED ///< Board readiness failed; external disposition or restart required.
 };
 /// @brief Borrowed controller-wide exclusion and readiness shared by every PHY.
@@ -124,8 +144,9 @@ struct PhyConfig {
   Config core{}; ///< Explicit part/interface/address and truthful transport bounds; callbacks replaced.
   esp_eth_mac_t* mac{nullptr}; ///< Borrowed actual MAC, never the mediator route.
   SharedBus* bus{nullptr}; ///< Borrowed bus shared by all participants.
-  uint32_t linkPollMs{2000}; ///< 1..4294967 ms; avoids pinned SDK's 32-bit us multiplication overflow. Not a response-time guarantee.
-  uint32_t callbackBudgetUs{100000}; ///< Aggregate live-link/restart callback allowance.
+  uint32_t linkPollMs{2000}; ///< 1..4294967 ms, at least callbackBudgetUs rounded up to ms; not a response-time guarantee.
+  uint32_t callbackBudgetUs{100000}; ///< Must exceed B(8)+B(2)+clockLagUs+5*notificationUs; includes local/gate/clock overhead.
+  uint32_t cleanupBudgetUs{100000}; ///< Separate positive failed-start stop allowance from observed completion; never renews a stop retry.
   uint32_t notificationUs{0}; ///< Required qualified per-notification bound, microseconds including scheduling; late return is detected, not preempted.
   uint32_t lockWaitUs{1000}; ///< Controller mutex wait cap; scheduler latency remains conditional.
   uint32_t maxFencePolls{100000}; ///< Finite timer fence polling cap.
@@ -175,19 +196,21 @@ public:
   /// @param[out] output Published only on success; SDK install failure has no partial handle.
   /// @return SDK error unchanged; failed install leaves only owner MAC/PHY deletion.
   esp_err_t install(esp_eth_handle_t& output) noexcept;
-  /// @brief Start only after verified settings and explicit public SDK reconciliation; no hidden waits.
-  /// @param[in] deadlineUs Absolute enclosing allowance, including failure stop/fence.
-  /// @return Primary SDK error; failed start performs bounded stop and retains cleanup separately.
+  /// @brief Start after verified settings and SDK reconciliation; bounded gate waits, no negotiation wait.
+  /// @param[in] deadlineUs Absolute primary allowance, including synchronous start callbacks.
+  /// @return Primary error; failed/late start attempts stop with a separate cleanupBudgetUs allowance.
   /// @note The terminal receipt is adopted by the next gated entry, so an already
   /// running timer callback cannot strand STARTING after SDK success.
   esp_err_t start(uint64_t deadlineUs) noexcept;
   /// @brief Stop, fence once, repair missing DOWN/STOP, then observe actual MAC stop status.
   /// @param[in] deadlineUs Absolute allowance; timeout retains objects and retry polls the same fence.
-  /// @return First stop/cleanup error; no controller/instance gate survives waits.
+  /// @return OK when fully stopped (also if already stopped); otherwise error with retryable STOPPING.
+  /// @note Earlier cleanup errors stay in the journal even after successful repair.
   esp_err_t stop(uint64_t deadlineUs) noexcept;
   /// @brief Close admission permanently and retain installed resources under RX lifetime gate.
   /// @param[in] deadlineUs Absolute enclosing stop/fence allowance, microseconds.
-  /// @return ESP_ERR_NOT_SUPPORTED after bounded stop; earlier errors remain in the record.
+  /// @return ESP_ERR_NOT_SUPPORTED only after complete stop and terminal retention;
+  /// otherwise the stop error with retryable admission and retained effects.
   esp_err_t retire(uint64_t deadlineUs) noexcept;
   /// @brief Delete only a never-installed idle adapter; never deletes the borrowed MAC/bus.
   /// @return INVALID_STATE if installed, active or fence live; otherwise actual timer deletion error/OK.
@@ -228,7 +251,7 @@ public:
   /// @param[in] deadlineUs Exclusive absolute esp_timer allowance for all controls, microseconds.
   /// @return Terminal status; partial/late SDK acceptance stays in sdkStateSnapshot.
   /// @note No MDIO: callbacks attest shared core readback; stale settings require initialize/configure first.
-  Status reconcileSdkState(uint64_t deadlineUs) noexcept;
+  NativeStatus reconcileSdkState(uint64_t deadlineUs) noexcept;
   /// @brief Apply MAC flow policy and attest separately configured PHY pause using correctly typed calls.
   /// @param[in] enabled Application MAC policy; never passed through defective S_FLOW_CTRL ioctl.
   /// @param[in] pauseAbility Bit0 symmetric/bit1 asymmetric, 0..3; must match verified AN advertisement.
@@ -371,10 +394,15 @@ private:
   static esp_err_t acknowledgeDuplex(esp_eth_phy_t*, eth_duplex_t) noexcept;
   static esp_err_t deletePhy(esp_eth_phy_t*) noexcept;
   bool enter() noexcept;
+  bool enterUntil(uint64_t deadlineUs) noexcept;
+  bool enterStartCallback() noexcept;
+  bool enterControlCallback() noexcept;
   void leave() noexcept;
   void record(esp_err_t error, bool cleanup = false) noexcept;
-  esp_err_t publish(PublishedTuple tuple, uint64_t deadlineUs) noexcept;
-  esp_err_t finishStop(uint64_t deadlineUs, esp_err_t initial, bool stopCalled = true) noexcept;
+  void recordCore(Status status, bool cleanup = false) noexcept;
+  esp_err_t publish(PublishedTuple tuple, uint64_t deadlineUs, bool stopping = false) noexcept;
+  esp_err_t finishStop(uint64_t deadlineUs) noexcept;
+  void rememberCleanup(esp_err_t error, bool deadline = false) noexcept;
   IoBudget callbackBudget(uint32_t frames) const noexcept;
   void shareQuiet() noexcept;
   bool verifiedSettings() const noexcept;
@@ -386,19 +414,19 @@ private:
   enum class ControlCompletion : uint8_t { NONE, SDK, FLOW };
   bool admittedControl(ControlEntry entry) const noexcept;
   ControlEntry _controlEntry{ControlEntry::NONE};
-  TaskHandle_t _controlTask{nullptr};
-  uint64_t _controlDeadline{0};
+  std::atomic<TaskHandle_t> _controlTask{nullptr};
+  std::atomic<uint64_t> _controlDeadline{0};
   SdkStateSnapshot _sdkState{};
   FlowControlRecord _flow{};
   SdkStateSnapshot _pendingSdk{};
   FlowControlRecord _pendingFlow{};
-  esp_err_t _pendingControlError{ESP_OK};
+  NativeStatus _pendingControlError{};
   std::atomic<ControlCompletion> _controlCompletion{ControlCompletion::NONE};
   std::atomic<bool> _unexpectedFlowEffect{false};
   struct PublicationResult {
     PublishedTuple tuple{};
     bool uncertain{false}, eventLost{false}, cleanup{false};
-    esp_err_t error{ESP_OK};
+    NativeStatus status{};
   };
   PublicationResult _pendingPublication{};
   std::atomic<bool> _publicationComplete{false};
@@ -414,13 +442,22 @@ private:
   std::atomic<int64_t> _installOutcome{std::numeric_limits<int64_t>::min()};
   std::atomic<int64_t> _startOutcome{std::numeric_limits<int64_t>::min()};
   std::atomic<int64_t> _cleanupOutcome{std::numeric_limits<int64_t>::min()};
+  std::atomic<int64_t> _latestCleanupOutcome{std::numeric_limits<int64_t>::min()};
+  std::atomic<int64_t> _boardOutcome{std::numeric_limits<int64_t>::min()};
   std::atomic<bool> _installing{false};
+  std::atomic<bool> _uninstallSeen{false};
+  std::atomic<TaskHandle_t> _startTask{nullptr};
+  std::atomic<bool> _stopRequested{false};
+  static constexpr int64_t OWNER_DEADLINE = std::numeric_limits<int64_t>::max();
   std::atomic<Phase> _phase{Phase::STOPPED};
   std::atomic<uint8_t> _deferredStart{0}; ///< Bit0 FSM changed; bit1 START was posted before get_link.
   LifecycleRecord _record{};
   DiscoverySnapshot _discovery{};
-  bool _boardReady{false}, _installed{false}, _installAttempted{false}, _fenceArmed{false};
+  std::atomic<bool> _installed{false};
+  bool _boardReady{false}, _installAttempted{false}, _fenceArmed{false};
   bool _startPosted{false}, _stopPosted{false}, _notifying{false};
-  uint64_t _lifecycleDeadline{0};
+  bool _macStopAccepted{false};
+  bool _cleanupPublicationReported{false}; ///< Sole lifecycle caller detects an already-recorded inner callback failure.
+  std::atomic<uint64_t> _lifecycleDeadline{0};
 };
 } // namespace DP8382x::EspIdf

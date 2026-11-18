@@ -18,6 +18,7 @@ struct State {
     std::vector<std::string> calls;
     std::vector<Event> events;
     uint64_t eventElapsedUs = 0;
+    std::function<void(int32_t)> onEventAttempt;
     std::function<void(int32_t)> onEventPost;
     std::vector<Delay> delays;
     esp_err_t nextEventError = ESP_OK;

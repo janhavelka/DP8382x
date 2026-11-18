@@ -1,5 +1,9 @@
 # Independent audit of prompts 37-39
 
+The [2026-11-18 follow-up](37-39-native-fixes-2026-11-18.md) rechecks the later
+17-item review against1a8bc8e, corrects missed native defects and records current
+verification. The conclusions and counts below describe the earlier checkpoint.
+
 Audit date: 2026-11-17. Entry was clean `main`, synchronized after fetch at
 `ec792d2ea5bee28d20092999c1ec6facad57e088`. Reviewed the complete original
 [37](../../prompts/37-esp-idf-lifecycle.md),

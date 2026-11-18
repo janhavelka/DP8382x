@@ -28,6 +28,11 @@ struct Fixture {
         mac.registers[0x19] = 0x8001;
         mac.registers[0x1C] = 0x0100;
     }
+    Fixture(Fixture& controller, uint8_t address) : Fixture() {
+        config.mac = &controller.mac.native;
+        config.bus = &controller.bus;
+        config.core.phyAddress = address;
+    }
     void create() { assert(Native::create(config, owner) == ESP_OK); }
     void board() {
         BoardControl control;
@@ -36,7 +41,7 @@ struct Fixture {
         assert(Host::state().nowUs >= 50000 && mac.frames.empty());
     }
     void install() { create(); board(); assert(owner->install(handle) == ESP_OK); assert(Host::isLive(handle) && mac.frames.empty()); }
-    OperationResult finish(OperationToken token) {
+    Status pollToResult(OperationToken token) {
         Status status{Err::IN_PROGRESS, 0, "Pending"};
         for (unsigned i = 0; i < 256 && status.is(Err::IN_PROGRESS); ++i) {
             OperationSnapshot snapshot;
@@ -44,6 +49,11 @@ struct Fixture {
             if (snapshot.nextPollValid) Host::state().nowUs = std::max(Host::state().nowUs, snapshot.nextPollAtUs);
             status = owner->pollOperation(token);
         }
+        assert(!status.inProgress());
+        return status;
+    }
+    OperationResult finish(OperationToken token) {
+        const auto status = pollToResult(token);
         if (!status.ok()) std::cerr << "operation failure " << static_cast<int>(status.code) << " " << status.detail << "\n";
         assert(status.ok());
         OperationResult result; assert(owner->takeResult(token, result).ok()); return result;
@@ -71,13 +81,41 @@ struct Fixture {
         const auto error = owner->start(Host::state().nowUs + 100000);
         if (error != ESP_OK) {
             auto record = journal();
-            std::cerr << "start error " << error << " journal " << static_cast<int>(record.firstError.code) << ":" << record.firstError.detail << " cleanup " << record.cleanupError.detail << "\n";
+            std::cerr << "start error " << error << " journal " << errorName(record.firstError.coreStatus.code)
+                      << ":" << record.firstError.sdkError << " cleanup " << record.cleanupError.sdkError << "\n";
             for (const auto& call : Host::state().calls) std::cerr << call << " ";
             std::cerr << "\n";
         }
         return error;
     }
 };
+
+// A second PHY uses the installed controller's MDIO route under the application
+// bus protocol. It never installs another ESP Ethernet driver or sets a mediator.
+esp_err_t readPeerIdentity(Fixture& controller, uint16_t& output) {
+    auto& bus = controller.bus;
+    const auto available = [&] {
+        return bus.admission == BusAdmission::AVAILABLE && !bus.quarantined &&
+               Host::state().nowUs >= bus.quietUntilUs.load();
+    };
+    if (!available() || xSemaphoreTake(bus.mutex, 0) != pdTRUE) return ESP_ERR_INVALID_STATE;
+    uint32_t value = 0;
+    auto& mac = controller.mac.native;
+    const auto error = available() ? mac.read_phy_reg(&mac, 1, 2, &value) : ESP_ERR_INVALID_STATE;
+    assert(xSemaphoreGive(bus.mutex) == pdTRUE);
+    if (error == ESP_OK) output = static_cast<uint16_t>(value);
+    return error;
+}
+
+size_t countCall(const char* name) {
+    return std::count(Host::state().calls.begin(), Host::state().calls.end(), name);
+}
+
+std::vector<int32_t> eventOrder() {
+    std::vector<int32_t> ids;
+    for (const auto& event : Host::state().events) ids.push_back(event.id);
+    return ids;
+}
 void factory() {
     Host::reset(); Fixture f;
     auto* output = reinterpret_cast<Native*>(0x1234);
@@ -118,6 +156,8 @@ void factory() {
     assert(phy->set_addr(phy, 1) == ESP_ERR_NOT_SUPPORTED);
     assert(phy->reset(phy) == ESP_ERR_NOT_SUPPORTED);
     assert(phy->pwrctl(phy, true) == ESP_ERR_NOT_SUPPORTED);
+    assert(phy->deinit(phy) == ESP_OK);
+    assert(f.journal().phase == Phase::STOPPED && f.journal().firstError.ok());
     assert(f.mac.frames.empty());
     assert(f.owner->destroy() == ESP_OK);
 }
@@ -148,6 +188,131 @@ void rawRouting() {
     assert(f.owner->retire(Host::state().nowUs + 100000) == ESP_ERR_NOT_SUPPORTED);
     assert(Host::isLive(f.handle) && f.mac.alive);
 }
+
+void assertFailedOperation(Fixture& f, OperationToken token, OperationKind kind, Err expected,
+                           int32_t detail, BusAdmission reserved, OperationResult& result) {
+    OperationSnapshot pending;
+    assert(f.owner->operationSnapshot(pending).ok());
+    assert(pending.token.value == token.value && pending.kind == kind && pending.state == OperationState::RESULT_PENDING);
+    assert(pending.status.is(expected) && pending.status.detail == detail);
+    assert(f.bus.admission == reserved && !Host::semaphoreHeld(f.bus.mutex));
+    auto journal = f.journal();
+    assert(journal.stage == (kind == OperationKind::INITIALIZE ? LifecycleStage::INITIALIZE : LifecycleStage::CONFIGURE));
+    assert(journal.firstError.is(expected) && journal.firstError.coreStatus.detail == detail);
+    assert(journal.cleanupError.ok());
+    const auto frames = f.mac.frames.size();
+    uint16_t id = 0xCAFE;
+    assert(f.owner->readClause22(2, id, {Host::state().nowUs + 100000, 1}).is(Err::BUSY) && id == 0xCAFE);
+    assert(f.owner->start(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
+    assert(f.owner->takeResult(token, result).ok() && result.kind == kind);
+    assert(result.token.value == token.value && result.status.is(expected) && result.status.detail == detail);
+    assert(f.owner->takeResult(token, result).is(Err::RESULT_NOT_AVAILABLE));
+    assert(f.owner->operationSnapshot(pending).ok() && pending.state == OperationState::IDLE);
+    assert(f.bus.admission == BusAdmission::AVAILABLE && !Host::semaphoreHeld(f.bus.mutex));
+    assert(f.owner->start(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
+    SdkStateSnapshot sdk;
+    assert(f.owner->sdkStateSnapshot(sdk).ok() && !sdk.reconciled);
+    assert(f.mac.frames.size() == frames && eventOrder().empty() && Host::state().periodicPeriodsUs.empty());
+    assert(Host::isLive(f.handle) && f.mac.alive && f.owner->destroy() == ESP_ERR_INVALID_STATE);
+    journal = f.journal();
+    assert(journal.firstError.is(expected) && journal.firstError.coreStatus.detail == detail);
+}
+
+void initializeFailures() {
+    for (const auto failure : {Err::MDIO_TIMEOUT, Err::DEVICE_MISMATCH, Err::CANCELLED}) {
+        Host::reset(); Fixture f; f.install();
+        OperationToken token;
+        const OperationBudget budget{{Host::state().nowUs + 1000000, 512}, 10, 16};
+        assert(f.owner->startInitialize({ResetKind::NONE}, budget, token).inProgress());
+        assert(f.journal().stage == LifecycleStage::INITIALIZE && f.bus.admission == BusAdmission::INITIALIZING);
+        assert(f.owner->start(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
+        const OperationToken wrong{token.value + 1U};
+        assert(f.owner->pollOperation(wrong).is(Err::TOKEN_MISMATCH));
+        assert(f.owner->cancel(wrong).is(Err::TOKEN_MISMATCH) && f.journal().firstError.ok());
+        int32_t detail = 0;
+        if (failure == Err::MDIO_TIMEOUT) {
+            f.mac.readResults = {ESP_OK, ESP_ERR_TIMEOUT}; // Stop after capturing PHYIDR1.
+            detail = ESP_ERR_TIMEOUT;
+        } else if (failure == Err::DEVICE_MISMATCH) {
+            f.mac.registers[2] = 0x3000;
+            detail = static_cast<int32_t>(IdentityDetail::WRONG_OUI);
+        }
+        if (failure == Err::CANCELLED) {
+            assert(f.owner->cancel(token).ok()); // Deliver directly, without an extra poll to journal it.
+            assert(f.mac.frames.empty());
+        } else {
+            assert(f.pollToResult(token).is(failure));
+        }
+        OperationResult result;
+        assertFailedOperation(f, token, OperationKind::INITIALIZE, failure, detail, BusAdmission::INITIALIZING, result);
+        assert(!result.mutationAttempted && !result.mutationPossible && !result.cleanupOwed);
+        assert(f.bus.quarantined == (failure == Err::MDIO_TIMEOUT));
+        if (failure == Err::MDIO_TIMEOUT) {
+            assert(result.failingBatch.attemptedFrames == 2 && result.failingBatch.completedFrames == 1);
+            assert(f.mac.frames.size() == 1 && f.mac.frames.front().reg == 2);
+        }
+        if (failure == Err::DEVICE_MISMATCH) {
+            assert(result.identity.id1Valid && result.identity.id1 == 0x3000 && result.identity.id2Valid);
+            assert(result.identity.acceptance == IdentityAcceptance::REJECTED);
+        }
+        uint16_t id = 0xCAFE;
+        const auto raw = f.owner->readClause22(2, id, {Host::state().nowUs + 100000, 1});
+        if (failure == Err::MDIO_TIMEOUT) assert(raw.is(Err::BUSY) && id == 0xCAFE);
+        else assert(raw.ok() && id == f.mac.registers[2]);
+    }
+}
+
+void configurationFailures() {
+    for (const auto failure : {Err::MDIO_TIMEOUT, Err::CANCELLED}) {
+        Host::reset(); Fixture f; f.install(); f.initialize();
+        LinkSettings settings;
+        settings.advertisement.technologyMask = LINK_10_FULL;
+        OperationToken token;
+        assert(f.owner->startConfigure(settings, {{Host::state().nowUs + 1000000, 512}, 10, 16}, token).inProgress());
+        assert(f.bus.admission == BusAdmission::AVAILABLE);
+        assert(f.owner->start(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
+        bool anarWritten = false;
+        f.mac.onFrame = [&](const Host::Frame& frame) {
+            if (frame.write && frame.reg == 4) {
+                anarWritten = true;
+                if (failure == Err::MDIO_TIMEOUT) f.mac.errors["mac.read"] = ESP_ERR_TIMEOUT;
+            }
+        };
+        Status status{Err::IN_PROGRESS, 0, "Pending"};
+        for (unsigned poll = 0; poll < 256 && status.inProgress(); ++poll) {
+            if (failure == Err::CANCELLED && anarWritten) break;
+            OperationSnapshot snapshot;
+            assert(f.owner->operationSnapshot(snapshot).ok());
+            if (snapshot.nextPollValid) Host::state().nowUs = std::max(Host::state().nowUs, snapshot.nextPollAtUs);
+            status = f.owner->pollOperation(token);
+        }
+        f.mac.onFrame = nullptr;
+        assert(anarWritten && (f.mac.registers[4] & 0x01E0) == 0x0040);
+        if (failure == Err::CANCELLED) {
+            assert(status.inProgress() && f.owner->cancel(token).ok());
+        } else {
+            assert(status.is(Err::MDIO_TIMEOUT));
+        }
+        OperationResult result;
+        assertFailedOperation(f, token, OperationKind::CONFIGURE, failure, failure == Err::CANCELLED ? 0 : ESP_ERR_TIMEOUT,
+                              BusAdmission::AVAILABLE, result);
+        assert(result.mutationAttempted && result.mutationCompleted && result.mutationPossible && result.cleanupOwed);
+        SettingsSnapshot cached;
+        assert(f.owner->settingsSnapshot(cached).ok() && cached.desiredValid && cached.observedStale);
+        assert(cached.trust == ConfigurationTrust::DIRTY && cached.desired.advertisement.technologyMask == LINK_10_FULL);
+        assert(f.bus.quarantined == (failure == Err::MDIO_TIMEOUT));
+        uint16_t id = 0xCAFE;
+        const auto raw = f.owner->readClause22(2, id, {Host::state().nowUs + 100000, 1});
+        if (failure == Err::MDIO_TIMEOUT) assert(raw.is(Err::BUSY) && id == 0xCAFE);
+        else {
+            assert(raw.ok() && id == 0x2000);
+            f.configure(settings); // Explicit restoration after the accepted prefix.
+            f.mac.registers[0x10] = 0x0017;
+            assert(f.start() == ESP_OK);
+        }
+    }
+}
+
 void retainedRx(bool netif) {
     Host::reset(); Fixture f; f.install(); f.initialize();
     auto* interface = netif ? Host::makeNetif() : nullptr;
@@ -177,7 +342,7 @@ void stopFailures() {
     Host::state().nextEventError = ESP_ERR_TIMEOUT;
     assert(f.owner->start(Host::state().nowUs + 100000) == ESP_ERR_TIMEOUT);
     assert(Host::state().oneShotArms == 1);
-    assert(f.journal().firstError.detail == ESP_ERR_TIMEOUT);
+    assert(f.journal().firstError.sdkError == ESP_ERR_TIMEOUT);
     assert(Host::isLive(f.handle) && f.mac.alive);
     Host::reset(); Fixture g; g.install(); g.initialize();
     assert(g.start() == ESP_OK);
@@ -186,7 +351,7 @@ void stopFailures() {
     assert(Host::state().oneShotArms == 1 && Host::isLive(g.handle));
     Host::state().holdOneShot = false;
     const auto second = g.owner->stop(Host::state().nowUs + 100000);
-    assert(second == ESP_OK || second == ESP_ERR_INVALID_STATE);
+    assert(second == ESP_OK);
     assert(Host::state().oneShotArms == 1);
 }
 void partialStartFence() {
@@ -240,7 +405,7 @@ void notificationFailures() {
         Host::reset(); Fixture f; f.install(); f.initialize();
         f.mac.errors[operation] = ESP_ERR_TIMEOUT;
         assert(f.owner->start(Host::state().nowUs + 100000) == ESP_ERR_TIMEOUT);
-        assert(f.journal().publicationUncertain && f.journal().firstError.detail == ESP_ERR_TIMEOUT);
+        assert(f.journal().publicationUncertain && f.journal().firstError.sdkError == ESP_ERR_TIMEOUT);
         assert(Host::isLive(f.handle) && f.mac.alive && f.owner->destroy() == ESP_ERR_INVALID_STATE);
     }
 }
@@ -273,18 +438,21 @@ void lostLinkEvent() {
     assert(std::count(Host::state().calls.begin(), Host::state().calls.end(), "mac.down") == downs);
 }
 void sharedQuarantine() {
-    Host::reset(); Fixture f; Fixture g;
-    g.config.bus = &f.bus;
-    f.install(); g.install();
+    Host::reset(); Fixture f; f.install();
     uint16_t output = 0xCAFE;
+    assert(readPeerIdentity(f, output) == ESP_OK && output == 0x2000);
+    assert(f.mac.frames.size() == 1 && f.mac.frames.back().address == 1);
+    assert(countCall("mac.init") == 1);
+    output = 0xCAFE;
     f.mac.errors["mac.read"] = ESP_ERR_TIMEOUT;
     const auto first = f.owner->readClause22(2, output, {Host::state().nowUs + 10000, 1});
     assert(first.detail == ESP_ERR_TIMEOUT && output == 0xCAFE && f.bus.quarantined);
-    const auto second = g.owner->readClause22(2, output, {Host::state().nowUs + 10000, 1});
-    assert(second.is(Err::BUSY) && output == 0xCAFE && g.mac.frames.empty());
+    const auto reads = countCall("mac.read");
+    assert(readPeerIdentity(f, output) == ESP_ERR_INVALID_STATE && output == 0xCAFE);
+    assert(countCall("mac.read") == reads);
 }
 void callbackBounds() {
-    Host::reset(); Fixture f; f.config.notificationUs = 40000;
+    Host::reset(); Fixture f; f.config.notificationUs = 40000; f.config.callbackBudgetUs = 215000;
     f.install(); f.initialize(); const auto frames = f.mac.frames.size();
     assert(f.owner->start(Host::state().nowUs + 100000) == ESP_ERR_TIMEOUT);
     assert(f.mac.frames.size() == frames + 3); // Restart only; no link reads without full notification allowance.
@@ -295,7 +463,7 @@ void callbackBounds() {
     const auto record = g.journal();
     assert(record.publishedTuple.speedAccepted && record.publishedTuple.speed == LinkSpeed::MBPS_100);
     assert(!record.publishedTuple.duplexAccepted && !record.publishedTuple.up);
-    assert(record.firstError.detail == ESP_ERR_TIMEOUT && Host::isLive(g.handle));
+    assert(record.firstError.is(Err::OPERATION_TIMEOUT) && Host::isLive(g.handle));
 }
 std::vector<std::string> noticesSince(size_t offset) {
     std::vector<std::string> result;
@@ -307,6 +475,8 @@ std::vector<std::string> noticesSince(size_t offset) {
 }
 void liveTupleChanges() {
     Host::reset(); Fixture f; f.install(); f.initialize(LINK_TECHNOLOGY_MASK);
+    LinkSettings settings; settings.advertisement = {LINK_TECHNOLOGY_MASK, true, false};
+    f.configure(settings);
     assert(f.start() == ESP_OK);
     struct Case { uint16_t physts; uint16_t partner; eth_speed_t speed; eth_duplex_t duplex; uint32_t pause; };
     const Case cases[] = {
@@ -318,6 +488,7 @@ void liveTupleChanges() {
     };
     for (const auto& row : cases) {
         f.mac.registers[0x10] = row.physts; f.mac.registers[5] = row.partner;
+        f.mac.registers[0x19] = row.pause ? 0xB001 : 0x8001;
         const auto offset = Host::state().calls.size();
         Host::tickTimers();
         assert((noticesSince(offset) == std::vector<std::string>{"mac.down", "mac.speed", "mac.duplex", "mac.pause", "mac.up"}));
@@ -354,25 +525,43 @@ void incompleteNegotiation() {
     assert(f.mac.frames.size() == frames); // Acquired observations and accepted SDK fields have different validity.
 }
 void pauseProjection() {
-    struct Case { bool localSym; bool localAsym; uint16_t partner; uint16_t phycr; bool rx; bool tx; uint32_t peer; };
-    const Case cases[] = {
-        {false, false, 0x0501, 0x8001, false, false, 1},
-        {true, true, 0x0901, 0xA001, true, false, 0},
-        {false, true, 0x0D01, 0x9001, false, true, 1},
-        {true, false, 0x0501, 0xB001, true, true, 1}
+    // Order of local and partner advertisements: none, symmetric, asymmetric,
+    // both. Expected outputs are {resolved RX, resolved TX, P4 Boolean}.
+    struct Pause { bool rx; bool tx; uint32_t peer; };
+    const Pause cases[4][4] = {
+        {{false, false, 0}, {false, false, 0}, {false, false, 0}, {false, false, 0}},
+        {{false, false, 0}, {true, true, 1},   {false, false, 0}, {true, true, 1}},
+        {{false, false, 0}, {false, false, 0}, {false, false, 0}, {false, true, 0}},
+        {{false, false, 0}, {true, true, 1},   {true, false, 0},  {true, true, 1}},
     };
-    for (const auto& row : cases) {
+    for (uint16_t local = 0; local < 4; ++local) {
         Host::reset(); Fixture f; f.install(); f.initialize();
-        LinkSettings settings; settings.advertisement = {LINK_100_FULL, row.localSym, row.localAsym};
+        LinkSettings settings; settings.advertisement = {LINK_100_FULL, (local & 1U) != 0U, (local & 2U) != 0U};
         f.configure(settings);
-        f.mac.registers[5] = row.partner; f.mac.registers[0x19] = row.phycr;
-        assert(f.start() == ESP_OK);
-        LinkSnapshot observation;
-        assert(f.owner->linkSnapshot(observation).ok());
-        assert(observation.pauseValid && observation.pauseRx == row.rx && observation.pauseTx == row.tx);
-        assert(observation.rawAnlpar == row.partner && observation.rawPhycr == row.phycr);
-        assert(f.mac.pauseRequests.back() == row.peer && f.journal().publishedTuple.peerPause == (row.peer != 0));
-        assert(!f.mac.flowEnabled && f.mac.flowRequests.empty()); // Publication cannot choose application MAC policy.
+        const auto enabled = f.owner->setFlowControl(true, local, Host::state().nowUs + 100000);
+        assert(enabled == ESP_OK && f.mac.flowEnabled && f.mac.flowRequests.size() == 1);
+        for (uint16_t peer = 0; peer < 4; ++peer) {
+            const auto& expected = cases[local][peer];
+            const uint16_t partner = static_cast<uint16_t>(0x0101U | (peer << 10U));
+            const uint16_t phycr = static_cast<uint16_t>(0x8001U | (expected.rx ? 0x2000U : 0U) |
+                                                       (expected.tx ? 0x1000U : 0U));
+            f.mac.registers[5] = partner; f.mac.registers[0x19] = phycr;
+            if (peer == 0) assert(f.start() == ESP_OK);
+            else Host::tickTimers();
+            LinkSnapshot observation;
+            assert(f.owner->linkSnapshot(observation).ok());
+            assert(observation.pauseValid && observation.pauseRx == expected.rx && observation.pauseTx == expected.tx);
+            assert(observation.rawAnlpar == partner && observation.rawPhycr == phycr);
+            assert(f.mac.pauseRequests.back() == expected.peer && f.journal().publishedTuple.peerPause == (expected.peer != 0));
+            assert(f.mac.flowRequests.size() == 1); // Application policy stays separate.
+        }
+        if (local == 3) {
+            f.mac.registers[0x19] = 0xA001; // RX only disagrees with symmetric negotiation.
+            Host::tickTimers();
+            LinkSnapshot observation;
+            assert(f.owner->linkSnapshot(observation).ok() && observation.linkUp && !observation.pauseValid);
+            assert(f.mac.pauseRequests.back() == 0 && !f.journal().publishedTuple.peerPause);
+        }
     }
 }
 void notificationPartialReceipts() {
@@ -412,7 +601,7 @@ void notificationLateRetry() {
         auto* phy = f.owner->nativePhy();
         assert(phy->get_link(phy) == ESP_ERR_TIMEOUT);
         const auto record = f.journal();
-        assert(!record.publicationUncertain && record.firstError.detail == ESP_ERR_TIMEOUT);
+        assert(!record.publicationUncertain && record.firstError.is(Err::OPERATION_TIMEOUT));
         assert(record.publishedTuple.speedAccepted);
         assert(record.publishedTuple.duplexAccepted == (late >= 1));
         assert(record.publishedTuple.pauseAccepted == (late >= 2));
@@ -560,16 +749,68 @@ void stopCompletionContention() {
                 if (id == ETHERNET_EVENT_STOP) { injected = true; Host::state().failSemaphoreTakes = 1; }
             };
         }
-        assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE && injected);
+        assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK && injected);
         Host::state().onTimerOnce = nullptr; Host::state().onEventPost = nullptr;
         const auto stops = [] {
             return std::count_if(Host::state().events.begin(), Host::state().events.end(), [](const auto& event) { return event.id == ETHERNET_EVENT_STOP; });
         };
-        assert(stops() == 1 && Host::state().oneShotArms == (afterFenceArm ? 1U : 0U));
+        assert(stops() == 1 && Host::state().oneShotArms == 1);
         assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
         assert(stops() == 1 && Host::state().oneShotArms == 1); // Accepted SDK stop and fence arm cannot be replayed.
         assert(f.mac.frames.size() == frames && !f.journal().publishedTuple.up && Host::isLive(f.handle));
     }
+}
+void stopFailureReceipts() {
+    for (const bool macFailure : {false, true}) {
+        Host::reset(); Fixture f; f.install(); f.initialize(); assert(f.start() == ESP_OK);
+        if (macFailure) {
+            f.mac.errors["mac.stop"] = ESP_FAIL;
+            f.mac.onCall = [&](const char* operation) {
+                if (std::string(operation) == "mac.stop") Host::state().failSemaphoreTakes = 1;
+            };
+        } else {
+            Host::state().holdOneShot = true;
+            Host::state().onTimerOnce = [] { Host::state().failSemaphoreTakes = 1; };
+        }
+        const auto expected = macFailure ? ESP_FAIL : ESP_ERR_TIMEOUT;
+        assert(f.owner->stop(Host::state().nowUs + 100000) == expected);
+        assert(Host::state().failSemaphoreTakes == 1); // No gate was needed to retain this receipt.
+        Host::state().failSemaphoreTakes = 0;
+        const auto failure = f.journal().cleanupError;
+        if (macFailure) assert(failure.sdkError == ESP_FAIL && failure.coreStatus.ok());
+        else assert(failure.is(Err::OPERATION_TIMEOUT));
+        f.mac.onCall = nullptr;
+        Host::state().holdOneShot = false;
+        assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+        assert(f.journal().cleanupError.sdkError == failure.sdkError);
+        assert(f.journal().cleanupError.coreStatus.code == failure.coreStatus.code);
+        assert(Host::state().oneShotArms == 1 && countCall("mac.stop") == (macFailure ? 2U : 1U));
+        assert((eventOrder() == std::vector<int32_t>{ETHERNET_EVENT_START, ETHERNET_EVENT_CONNECTED,
+                                                    ETHERNET_EVENT_DISCONNECTED, ETHERNET_EVENT_STOP}));
+    }
+    Host::reset(); Fixture f; f.config.pinnedP4Mac = true; f.install(); f.initialize(); assert(f.start() == ESP_OK);
+    f.mac.registers[1] = 0x7849; f.mac.registers[0x10] = 0;
+    Host::state().eventErrorId = ETHERNET_EVENT_DISCONNECTED;
+    Host::state().nextEventError = ESP_ERR_TIMEOUT;
+    Host::tickTimers();
+    assert(f.journal().eventLost && !f.journal().publishedTuple.up);
+    Host::state().nextEventError = ESP_FAIL;
+    Host::state().onEventAttempt = [](int32_t id) {
+        if (id == ETHERNET_EVENT_DISCONNECTED) Host::state().failSemaphoreTakes = 1;
+    };
+    assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_FAIL);
+    assert(Host::state().failSemaphoreTakes == 1);
+    Host::state().failSemaphoreTakes = 0;
+    Host::state().onEventAttempt = nullptr;
+    auto record = f.journal();
+    assert(record.firstError.sdkError == ESP_ERR_TIMEOUT && record.cleanupError.sdkError == ESP_FAIL && record.eventLost);
+    assert((eventOrder() == std::vector<int32_t>{ETHERNET_EVENT_START, ETHERNET_EVENT_CONNECTED}));
+    assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+    record = f.journal();
+    assert(record.cleanupError.sdkError == ESP_FAIL && !record.eventLost && !record.publishedTuple.up);
+    assert(countCall("mac.down") == 1 && countCall("mac.stop") == 1 && Host::state().oneShotArms == 1);
+    assert((eventOrder() == std::vector<int32_t>{ETHERNET_EVENT_START, ETHERNET_EVENT_CONNECTED,
+                                                ETHERNET_EVENT_DISCONNECTED, ETHERNET_EVENT_STOP}));
 }
 void pollPeriodBounds() {
     Host::reset(); Fixture f;
@@ -585,6 +826,30 @@ void pollPeriodBounds() {
     f.install(); f.initialize(); assert(f.start() == ESP_OK);
     assert(Host::state().periodicPeriodsUs.back() == uint64_t{4294967000});
     assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+}
+void dependentCallbackBounds() {
+    Host::reset(); Fixture f;
+    auto* sentinel = reinterpret_cast<Native*>(0x1234);
+    const auto verifyInvalid = [&](const PhyConfig& config) {
+        Host::state().failSemaphore = true;
+        assert(Native::create(config, sentinel) == ESP_ERR_INVALID_ARG && sentinel == reinterpret_cast<Native*>(0x1234));
+        assert(Host::state().failSemaphore && Host::state().timerCreates == 0);
+        Host::state().failSemaphore = false;
+    };
+    auto invalid = f.config; invalid.linkPollMs = 99;
+    verifyInvalid(invalid);
+    invalid = f.config; invalid.callbackBudgetUs = 50; // Exactly five notifications, no room for MDIO.
+    verifyInvalid(invalid);
+    invalid.callbackBudgetUs = 14051; // 2*2000 + 10*1000 + 1 + 5*10.
+    verifyInvalid(invalid);
+    invalid = f.config; invalid.cleanupBudgetUs = 0;
+    verifyInvalid(invalid);
+    f.config.callbackBudgetUs = 14052; f.config.linkPollMs = 15;
+    f.create();
+    assert(f.owner->destroy() == ESP_OK);
+    f.config.callbackBudgetUs = 100000; f.config.linkPollMs = 100;
+    f.create();
+    assert(f.owner->destroy() == ESP_OK);
 }
 void forbiddenLifecycle() {
     Host::reset(); Fixture f; f.create();
@@ -644,13 +909,15 @@ void discovery() {
 }
 void discoveryAdmission() {
     Host::reset(); Fixture f;
-    f.config.core.transport.bounds.frameUs = UINT32_C(0x80000000);
+    f.config.core.transport.bounds.frameUs = 400000000;
+    f.config.callbackBudgetUs = 4100000000U;
+    f.config.linkPollMs = 4294967;
     f.install();
     DiscoverySnapshot previous;
     assert(f.owner->discover(1, previous, {Host::state().nowUs + UINT64_C(10000000000), 2}).ok());
     const auto frames = f.mac.frames.size();
     DiscoverySnapshot output; output.requestedMask = 0xCAFE;
-    assert(f.owner->discover(3, output, {Host::state().nowUs + 10000, 4}).is(Err::OPERATION_TIMEOUT));
+    assert(f.owner->discover(0x3F, output, {Host::state().nowUs + 4000000000ULL, 12}).is(Err::OPERATION_TIMEOUT));
     assert(f.mac.frames.size() == frames && output.requestedMask == 0xCAFE);
     DiscoverySnapshot cached;
     assert(f.owner->discoverySnapshot(cached).ok() && cached.requestedMask == 1 && cached.framesAttempted == 2);
@@ -734,8 +1001,10 @@ void terminalEventRetry() {
     Host::state().nextEventError = ESP_ERR_TIMEOUT;
     Host::tickTimers();
     assert(f.journal().publishedTuple.up && f.journal().eventLost);
-    assert(f.owner->retire(Host::state().nowUs + 1) == ESP_ERR_NOT_SUPPORTED);
-    assert(f.journal().publishedTuple.up && f.journal().eventLost);
+    assert(f.owner->retire(Host::state().nowUs + 100000) == ESP_ERR_NOT_SUPPORTED);
+    assert(!f.journal().publishedTuple.up && !f.journal().eventLost);
+    assert((eventOrder() == std::vector<int32_t>{ETHERNET_EVENT_START, ETHERNET_EVENT_DISCONNECTED, ETHERNET_EVENT_STOP}));
+    assert(f.mac.link == ETH_LINK_DOWN && countCall("mac.stop") == 1);
     const auto events = Host::state().events.size();
     const auto ups = std::count(Host::state().calls.begin(), Host::state().calls.end(), "mac.up");
     assert(f.owner->retryLinkEvent(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
@@ -745,11 +1014,237 @@ void terminalEventRetry() {
     assert(g.start() == ESP_OK);
     const auto frames = g.mac.frames.size();
     const auto calls = Host::state().calls.size();
-    assert(g.owner->retire(Host::state().nowUs) == ESP_ERR_NOT_SUPPORTED);
+    assert(g.owner->retire(Host::state().nowUs) == ESP_ERR_TIMEOUT);
     const auto record = g.journal();
-    assert(record.firstError.ok() && record.cleanupError.detail == ESP_ERR_TIMEOUT);
+    assert(record.stage != LifecycleStage::RETAINED && record.firstError.ok());
+    assert(record.cleanupError.is(Err::OPERATION_TIMEOUT));
     assert(g.mac.frames.size() == frames && Host::state().calls.size() == calls);
+    assert(g.owner->retire(Host::state().nowUs + 100000) == ESP_ERR_NOT_SUPPORTED);
+    assert(g.journal().stage == LifecycleStage::RETAINED && !g.journal().publishedTuple.up && g.mac.link == ETH_LINK_DOWN);
     assert(Host::isLive(g.handle) && g.mac.alive && g.owner->destroy() == ESP_ERR_INVALID_STATE);
+}
+
+void retireAndStopAdmission() {
+    for (const bool retire : {false, true}) {
+        Host::reset(); Fixture f; f.install(); f.initialize(); assert(f.start() == ESP_OK);
+        Host::state().failSemaphoreTakes = 2; // Timer or snapshot loses the first two gate attempts.
+        const auto deadline = Host::state().nowUs + 100000;
+        const auto status = retire ? f.owner->retire(deadline) : f.owner->stop(deadline);
+        assert(status == (retire ? ESP_ERR_NOT_SUPPORTED : ESP_OK));
+        assert(!f.journal().publishedTuple.up && f.mac.link == ETH_LINK_DOWN && countCall("mac.stop") == 1);
+        assert((eventOrder() == std::vector<int32_t>{ETHERNET_EVENT_START, ETHERNET_EVENT_CONNECTED,
+                                                    ETHERNET_EVENT_DISCONNECTED, ETHERNET_EVENT_STOP}));
+        assert(Host::state().oneShotArms == 1 && Host::state().failSemaphoreTakes == 0);
+        assert(f.journal().stage == (retire ? LifecycleStage::RETAINED : LifecycleStage::MAC_STOP));
+        assert(Host::isLive(f.handle));
+    }
+    Host::reset(); Fixture f; f.install(); f.initialize(); assert(f.start() == ESP_OK);
+    Host::state().holdOneShot = true;
+    assert(f.owner->retire(Host::state().nowUs + 2000) == ESP_ERR_TIMEOUT);
+    assert(f.journal().stage != LifecycleStage::RETAINED && countCall("mac.stop") == 0);
+    Host::state().holdOneShot = false;
+    assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+    assert(f.owner->retire(Host::state().nowUs + 100000) == ESP_ERR_NOT_SUPPORTED);
+    assert(f.journal().stage == LifecycleStage::RETAINED && !f.journal().publishedTuple.up);
+    assert(countCall("mac.stop") == 1 && Host::state().oneShotArms == 1 && Host::isLive(f.handle));
+}
+
+void boardCompletionContention() {
+    for (const auto releaseError : {ESP_OK, ESP_FAIL}) {
+        Host::reset(); Fixture f; f.install(); Fixture other(f, 1); other.create();
+        struct Context {
+            SharedBus* bus;
+            uint64_t floor = 0;
+            esp_err_t releaseError;
+        } context{&f.bus, 0, releaseError};
+        BoardControl control; control.context = &context;
+        control.setReset = [](void* opaque, bool asserted) {
+            if (asserted) return ESP_OK;
+            auto& context = *static_cast<Context*>(opaque);
+            context.floor = Host::state().nowUs + 20000;
+            context.bus->quietUntilUs.store(context.floor);
+            Host::state().failSemaphoreTakes = 1; // Snapshot owns the gate at reset completion.
+            return context.releaseError;
+        };
+        const auto before = f.mac.frames.size();
+        assert(other.owner->prepareBoard(control, Host::state().nowUs + 100000) == releaseError);
+        assert(f.bus.admission == (releaseError == ESP_OK ? BusAdmission::AVAILABLE : BusAdmission::FAILED_CLOSED));
+        assert(!Host::semaphoreHeld(f.bus.mutex) && f.bus.quietUntilUs == context.floor);
+        Host::state().failSemaphoreTakes = 0;
+        uint16_t id = 0xCAFE;
+        const auto peerStatus = readPeerIdentity(f, id); // No intervening call through the board owner.
+        if (releaseError == ESP_OK) {
+            assert(Host::state().nowUs >= context.floor && peerStatus == ESP_OK && id == 0x2000);
+            assert(f.mac.frames.size() == before + 1 && f.mac.frames.back().address == 1);
+            assert(other.owner->prepareBoard(control, Host::state().nowUs + 100000) == ESP_OK);
+            Host::state().failSemaphoreTakes = 0;
+        } else {
+            assert(peerStatus == ESP_ERR_INVALID_STATE && id == 0xCAFE && f.mac.frames.size() == before);
+            assert(other.journal().firstError.sdkError == ESP_FAIL);
+        }
+        assert(other.owner->destroy() == ESP_OK && Host::isLive(f.handle));
+    }
+}
+
+void lateStartCleanup() {
+    Host::reset(); Fixture f; f.install(); f.initialize();
+    const auto deadline = Host::state().nowUs + 100000;
+    Host::state().onTimerPeriodic = [&] { Host::state().nowUs = deadline + 1; };
+    assert(f.owner->start(deadline) == ESP_ERR_TIMEOUT);
+    Host::state().onTimerPeriodic = nullptr;
+    const auto failed = f.journal();
+    assert(failed.sequence == 1 && failed.firstError.is(Err::OPERATION_TIMEOUT) && failed.cleanupError.ok());
+    assert(!failed.publishedTuple.up && f.mac.link == ETH_LINK_DOWN && countCall("mac.stop") == 1);
+    assert((eventOrder() == std::vector<int32_t>{ETHERNET_EVENT_START, ETHERNET_EVENT_CONNECTED,
+                                                ETHERNET_EVENT_DISCONNECTED, ETHERNET_EVENT_STOP}));
+    assert(Host::state().oneShotArms == 1 && Host::isLive(f.handle));
+    const auto frames = f.mac.frames.size();
+    Host::tickTimers();
+    assert(f.mac.frames.size() == frames);
+    uint8_t packet[64]{};
+    assert(esp_eth_transmit(f.handle, packet, sizeof(packet)) == ESP_ERR_INVALID_STATE && countCall("mac.transmit") == 0);
+    assert(f.start() == ESP_OK);
+    const auto next = f.journal();
+    assert(next.sequence == 2 && next.firstError.ok() && next.cleanupError.ok() && next.publishedTuple.up);
+
+    Host::reset(); Fixture g; g.install(); g.initialize();
+    Host::state().nextTimerStartError = ESP_ERR_NO_MEM; // SDK start accepted UP but did not arm its timer.
+    g.mac.errors["mac.stop"] = ESP_FAIL;
+    assert(g.owner->start(Host::state().nowUs + 100000) == ESP_ERR_NO_MEM);
+    const auto pending = g.journal();
+    assert(pending.phase == Phase::STOPPING && pending.stopRequired && !pending.publishedTuple.up);
+    assert(pending.sequence == 1 && pending.firstError.sdkError == ESP_ERR_NO_MEM);
+    assert(pending.cleanupError.sdkError == ESP_ERR_INVALID_STATE); // Unarmed SDK timer.
+    assert(pending.lastCleanupError.sdkError == ESP_FAIL); // Later direct MAC stop.
+    assert(countCall("mac.stop") == 1 && Host::state().oneShotArms == 1);
+    assert(g.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+    const auto repaired = g.journal();
+    assert(repaired.phase == Phase::STOPPED && !repaired.stopRequired && repaired.lastCleanupError.sdkError == ESP_FAIL);
+    assert(countCall("mac.stop") == 2 && Host::state().oneShotArms == 1);
+    assert((eventOrder() == std::vector<int32_t>{ETHERNET_EVENT_START, ETHERNET_EVENT_CONNECTED,
+                                                ETHERNET_EVENT_DISCONNECTED, ETHERNET_EVENT_STOP}));
+    assert(g.start() == ESP_OK);
+    assert(g.journal().sequence == 2 && g.journal().firstError.ok() && g.journal().cleanupError.ok() &&
+           g.journal().lastCleanupError.ok());
+}
+
+void uninstallGateContention() {
+    Host::reset(); Fixture f; f.install(); f.initialize();
+    const auto deleted = Host::state().timerDeletes;
+    const auto frames = f.mac.frames.size();
+    Host::state().failSemaphoreTakes = 1;
+    assert(esp_eth_driver_uninstall(f.handle) == ESP_ERR_INVALID_STATE);
+    assert(Host::state().timerDeletes == deleted + 1 && Host::isLive(f.handle));
+    assert(f.owner->start(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
+    OperationToken token;
+    assert(f.owner->startInitialize({ResetKind::NONE}, {{Host::state().nowUs + 1000000, 512}, 10, 16}, token).is(Err::BUSY));
+    assert(f.owner->destroy() == ESP_ERR_INVALID_STATE);
+    const auto record = f.journal();
+    assert(record.stage == LifecycleStage::RETAINED && record.firstError.sdkError == ESP_ERR_INVALID_STATE);
+    assert(f.mac.frames.size() == frames && countCall("timer.periodic") == 0 && eventOrder().empty());
+}
+
+void stopWithoutStart() {
+    Host::reset(); Fixture f; f.install(); f.initialize();
+    const auto calls = Host::state().calls.size();
+    assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+    assert(f.journal().firstError.ok() && f.journal().cleanupError.ok());
+    assert(f.owner->retire(Host::state().nowUs + 100000) == ESP_ERR_NOT_SUPPORTED);
+    assert(f.journal().stage == LifecycleStage::RETAINED && f.journal().cleanupError.ok());
+    assert(Host::state().calls.size() == calls && eventOrder().empty() && Host::isLive(f.handle));
+}
+
+void stopRepairsLostDown() {
+    Host::reset(); Fixture f; f.config.pinnedP4Mac = true; f.install(); f.initialize(); assert(f.start() == ESP_OK);
+    Host::state().eventErrorId = ETHERNET_EVENT_DISCONNECTED;
+    Host::state().nextEventError = ESP_ERR_TIMEOUT;
+    assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+    assert((eventOrder() == std::vector<int32_t>{ETHERNET_EVENT_START, ETHERNET_EVENT_CONNECTED,
+                                                ETHERNET_EVENT_DISCONNECTED, ETHERNET_EVENT_STOP}));
+    const auto record = f.journal();
+    assert(!record.eventLost && !record.publishedTuple.up && f.mac.link == ETH_LINK_DOWN);
+    assert(record.cleanupError.sdkError == ESP_ERR_TIMEOUT && record.cleanupError.coreStatus.ok());
+    assert(record.lastCleanupError.sdkError == ESP_ERR_TIMEOUT && record.lastCleanupError.coreStatus.ok());
+    assert(countCall("mac.down") == 1 && countCall("mac.stop") == 1 && Host::state().oneShotArms == 1);
+    assert(f.owner->retryLinkEvent(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
+    assert(f.start() == ESP_OK && f.journal().sequence == 2 && f.journal().cleanupError.ok());
+
+    Host::reset(); Fixture g; g.config.pinnedP4Mac = true; g.install(); g.initialize(); assert(g.start() == ESP_OK);
+    g.mac.elapsedUs["mac.down"] = g.config.notificationUs + 1;
+    assert(g.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+    const auto lateNotification = g.journal();
+    assert(lateNotification.phase == Phase::STOPPED && !lateNotification.publishedTuple.up && !lateNotification.eventLost);
+    assert(lateNotification.cleanupError.is(Err::OPERATION_TIMEOUT) && lateNotification.lastCleanupError.is(Err::OPERATION_TIMEOUT));
+    assert(countCall("mac.down") == 1 && countCall("mac.stop") == 1 && Host::state().oneShotArms == 1);
+    assert((eventOrder() == std::vector<int32_t>{ETHERNET_EVENT_START, ETHERNET_EVENT_CONNECTED,
+                                                ETHERNET_EVENT_DISCONNECTED, ETHERNET_EVENT_STOP}));
+
+    Host::reset(); Fixture h; h.config.pinnedP4Mac = true; h.install(); h.initialize(); assert(h.start() == ESP_OK);
+    h.mac.registers[1] = 0x7849; h.mac.registers[0x10] = 0;
+    Host::state().eventErrorId = ETHERNET_EVENT_DISCONNECTED;
+    Host::state().nextEventError = ESP_ERR_TIMEOUT;
+    Host::tickTimers();
+    assert(h.journal().eventLost && !h.journal().publishedTuple.up);
+    Host::state().eventElapsedUs = 1001;
+    assert(h.owner->stop(Host::state().nowUs + 1000) == ESP_ERR_TIMEOUT);
+    const auto lateEvent = h.journal();
+    assert(lateEvent.phase == Phase::STOPPING && !lateEvent.eventLost);
+    assert(lateEvent.firstError.sdkError == ESP_ERR_TIMEOUT && lateEvent.firstError.coreStatus.ok());
+    assert(lateEvent.cleanupError.is(Err::OPERATION_TIMEOUT) && lateEvent.lastCleanupError.is(Err::OPERATION_TIMEOUT));
+    assert((eventOrder() == std::vector<int32_t>{ETHERNET_EVENT_START, ETHERNET_EVENT_CONNECTED, ETHERNET_EVENT_DISCONNECTED}));
+    assert(Host::state().oneShotArms == 0 && countCall("mac.stop") == 0);
+    Host::state().eventElapsedUs = 0;
+    assert(h.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+    assert(h.journal().phase == Phase::STOPPED && h.journal().lastCleanupError.is(Err::OPERATION_TIMEOUT));
+    assert(countCall("mac.down") == 1 && countCall("mac.stop") == 1 && Host::state().oneShotArms == 1);
+    assert((eventOrder() == std::vector<int32_t>{ETHERNET_EVENT_START, ETHERNET_EVENT_CONNECTED,
+                                                ETHERNET_EVENT_DISCONNECTED, ETHERNET_EVENT_STOP}));
+}
+
+void observationLoss() {
+    for (const bool invalidation : {false, true}) {
+        Host::reset(); Fixture f; f.config.pinnedP4Mac = true; f.install(); f.initialize(); assert(f.start() == ESP_OK);
+        if (invalidation) assert(f.owner->invalidateDeviceState(InvalidationReason::EXTERNAL_RESET).ok());
+        else f.mac.errors["mac.read"] = ESP_ERR_TIMEOUT;
+        Host::tickTimers();
+        const auto record = f.journal();
+        assert(record.stopRequired && !record.publishedTuple.up && f.mac.link == ETH_LINK_DOWN);
+        assert(record.firstError.is(invalidation ? Err::NOT_INITIALIZED : Err::MDIO_TIMEOUT));
+        assert(record.firstError.sdkError == ESP_OK && f.bus.quarantined == !invalidation);
+        assert((eventOrder() == std::vector<int32_t>{ETHERNET_EVENT_START, ETHERNET_EVENT_CONNECTED, ETHERNET_EVENT_DISCONNECTED}));
+        const auto frames = f.mac.frames.size();
+        f.mac.registers[1] = 0x7849; f.mac.registers[0x10] = 0;
+        Host::tickTimers();
+        assert(f.mac.frames.size() == frames && countCall("mac.down") == 1);
+        assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+        assert(eventOrder().back() == ETHERNET_EVENT_STOP && !f.journal().publishedTuple.up);
+    }
+}
+
+void installReservation() {
+    Host::reset(); Fixture f; Fixture other(f, 1);
+    f.create(); f.board(); other.create();
+    assert(xSemaphoreTake(f.bus.mutex, 0) == pdTRUE);
+    auto rejected = reinterpret_cast<esp_eth_handle_t>(0x1234);
+    assert(f.owner->install(rejected) == ESP_ERR_INVALID_STATE && rejected == reinterpret_cast<void*>(0x1234));
+    assert(f.bus.admission == BusAdmission::AVAILABLE && countCall("mac.init") == 0);
+    assert(xSemaphoreGive(f.bus.mutex) == pdTRUE);
+    bool seen = false;
+    f.mac.onCall = [&](const char* operation) {
+        if (std::string(operation) != "mac.init") return;
+        seen = true;
+        assert(f.bus.admission == BusAdmission::INSTALLING && !Host::semaphoreHeld(f.bus.mutex));
+        uint16_t id = 0xCAFE;
+        assert(readPeerIdentity(f, id) == ESP_ERR_INVALID_STATE && id == 0xCAFE);
+        BoardControl control;
+        control.setReset = [](void*, bool) -> esp_err_t { assert(false); return ESP_FAIL; };
+        assert(other.owner->prepareBoard(control, Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
+    };
+    assert(f.owner->install(f.handle) == ESP_OK && seen && f.bus.admission == BusAdmission::AVAILABLE);
+    uint16_t id = 0;
+    assert(readPeerIdentity(f, id) == ESP_OK && id == 0x2000);
+    assert(f.mac.frames.size() == 1 && f.mac.frames.back().address == 1 && countCall("mac.init") == 1);
+    assert(other.owner->destroy() == ESP_OK && Host::isLive(f.handle));
 }
 void installerContention() {
     for (const auto expected : {ESP_OK, ESP_ERR_TIMEOUT}) {
@@ -772,7 +1267,7 @@ void installerContention() {
         assert(f.owner->lifecycleSnapshot(record).is(Err::BUSY) && record.eventLost);
         Host::state().failSemaphoreTakes = 0;
         assert(f.owner->lifecycleSnapshot(record).ok());
-        assert(expected == ESP_OK ? record.firstError.ok() : record.firstError.detail == expected);
+        assert(expected == ESP_OK ? record.firstError.ok() : record.firstError.sdkError == expected);
         assert(f.owner->install(output) == ESP_ERR_INVALID_STATE);
         assert(f.owner->destroy() == (expected == ESP_OK ? ESP_ERR_INVALID_STATE : ESP_OK));
     }
@@ -784,9 +1279,7 @@ std::vector<Host::SemaphoreEvent> controllerEvents(SemaphoreHandle_t mutex) {
     return result;
 }
 void rawReadArbitration() {
-    Host::reset(); Fixture f; Fixture g;
-    g.config.bus = &f.bus;
-    f.install(); g.install();
+    Host::reset(); Fixture f; f.install();
     f.mac.extended[0x0467] = 0xBEEF;
     Host::state().semaphoreEvents.clear();
     unsigned boundaries = 0;
@@ -798,9 +1291,9 @@ void rawReadArbitration() {
         assert(f.owner->readMmd(31, 0x0467, sentinel, {Host::state().nowUs + 100000, 4}).is(Err::BUSY));
         assert(sentinel == 0xCAFE && f.mac.frames.size() == frames);
         Host::state().currentTask = 2; // Independent owner/PHY on the same controller.
-        assert(g.owner->readMmd(31, 0x0467, sentinel, {Host::state().nowUs + 100000, 4}).is(Err::MDIO_TIMEOUT));
+        assert(readPeerIdentity(f, sentinel) == ESP_ERR_INVALID_STATE);
         Host::state().currentTask = 1;
-        assert(sentinel == 0xCAFE && g.mac.frames.empty());
+        assert(sentinel == 0xCAFE && f.mac.frames.size() == frames);
         uint32_t raw = 0xCAFE;
         esp_eth_phy_reg_rw_data_t request{2, &raw};
         assert(esp_eth_ioctl(f.handle, ETH_CMD_READ_PHY_REG, &request) == ESP_ERR_NOT_SUPPORTED);
@@ -820,10 +1313,14 @@ void rawReadArbitration() {
     assert(std::count_if(receipts.begin(), receipts.end(), [](const auto& e) { return !e.take; }) == 1);
     assert(!Host::semaphoreHeld(f.bus.mutex) && !f.bus.quarantined);
     f.mac.onFrame = nullptr;
-    assert(g.owner->readMmd(31, 0x0467, result, {Host::state().nowUs + 100000, 4}).ok());
+    assert(readPeerIdentity(f, result) == ESP_OK && result == 0x2000);
+    assert(f.mac.frames.size() == 5 && f.mac.frames.back().address == 1 && countCall("mac.init") == 1);
 }
 void rawLockFailures() {
-    Host::reset(); Fixture f; f.install();
+    Host::reset(); Fixture f;
+    f.config.lockWaitUs = (1000000U + CONFIG_FREERTOS_HZ - 1U) / CONFIG_FREERTOS_HZ;
+    f.config.core.transport.bounds.fixedUs = f.config.lockWaitUs + 1000U;
+    f.install();
     uint16_t result = 0xCAFE;
     Host::state().semaphoreEvents.clear(); Host::state().failNextTake = f.bus.mutex;
     assert(f.owner->readMmd(31, 0x0467, result, {Host::state().nowUs + 100000, 4}).is(Err::MDIO_TIMEOUT));
@@ -842,8 +1339,9 @@ void rawLockFailures() {
     assert(result == 0xCAFE && f.mac.frames.size() == frames);
 }
 void controllerWaitClassification() {
-    constexpr uint32_t tickUs = 1000000U / CONFIG_FREERTOS_HZ;
-    for (const uint32_t waitUs : {tickUs - 1U, tickUs, tickUs * 2U}) {
+    constexpr uint32_t legacyTickUs = (1000U / CONFIG_FREERTOS_HZ) * 1000U;
+    constexpr uint32_t tickUs = (1000000U + CONFIG_FREERTOS_HZ - 1U) / CONFIG_FREERTOS_HZ;
+    for (const uint32_t waitUs : {legacyTickUs, tickUs - 1U, tickUs, tickUs * 2U}) {
         Host::reset(); Fixture f;
         f.config.lockWaitUs = waitUs;
         f.config.core.transport.bounds.fixedUs = waitUs + 1000U;
@@ -853,11 +1351,12 @@ void controllerWaitClassification() {
         uint16_t output = 0xCAFE;
         const auto status = f.owner->readMmd(31, 0x0467, output, {Host::state().nowUs + 100000, 4});
         const auto receipts = controllerEvents(f.bus.mutex);
-        const bool waited = waitUs >= tickUs;
+        const auto expectedTicks = uint64_t{waitUs} * CONFIG_FREERTOS_HZ / 1000000U;
+        const bool waited = expectedTicks != 0;
         assert(status.is(waited ? Err::MDIO_TIMEOUT : Err::BUSY));
         if (waited) assert(status.detail == ESP_ERR_TIMEOUT);
         assert(receipts.size() == 1 && receipts[0].take && !receipts[0].accepted);
-        assert(receipts[0].ticks == waitUs / tickUs);
+        assert(receipts[0].ticks == expectedTicks);
         assert(output == 0xCAFE && f.mac.frames.empty() && !f.bus.quarantined);
         // A timed acquisition failure has no uncertain controller effect and is retryable.
         assert(f.owner->readMmd(31, 0x0467, output, {Host::state().nowUs + 100000, 4}).ok());
@@ -878,6 +1377,38 @@ void rawBoundaryFailures() {
         const auto receipts = controllerEvents(f.bus.mutex);
         assert(receipts.size() == 2 && receipts[0].take && receipts[0].accepted && !receipts[1].take && receipts[1].accepted);
     }
+}
+void p4BusyBeforeCommand() {
+    for (const bool prefix : {false, true}) {
+        Host::reset(); Fixture f; f.config.pinnedP4Mac = true; f.install();
+        const auto completed = prefix ? 2U : 0U;
+        f.mac.writeResults.assign(completed, ESP_OK);
+        f.mac.writeResults.push_back(ESP_ERR_INVALID_STATE); // P4 busy before writing the command.
+        uint16_t output = 0xCAFE;
+        const IoBudget budget{Host::state().nowUs + 100000, 4};
+        const auto failure = f.owner->readMmd(31, 0x0467, output, budget);
+        assert(prefix ? failure.is(Err::MDIO_ERROR) && failure.detail == ESP_ERR_INVALID_STATE : failure.is(Err::BUSY));
+        assert(output == 0xCAFE && f.mac.frames.size() == completed && !f.bus.quarantined);
+        TransportSnapshot snapshot;
+        assert(f.owner->transportSnapshot(snapshot).ok());
+        assert(snapshot.completedFrames == completed && snapshot.attemptedFrames == completed);
+        assert(snapshot.violation == TransportViolation::NONE && snapshot.lastBatch.controllerReusable);
+        assert(snapshot.lastBatch.releaseStatus.ok() && !snapshot.lastBatch.frames[completed].attempted);
+        f.mac.extended[0x0467] = 0xBEEF;
+        assert(f.owner->readMmd(31, 0x0467, output, budget).ok() && output == 0xBEEF);
+    }
+    Host::reset(); Fixture f; f.config.pinnedP4Mac = true; f.install();
+    f.mac.readResults = {ESP_ERR_INVALID_STATE};
+    uint16_t output = 0xCAFE;
+    const IoBudget budget{Host::state().nowUs + 100000, 1};
+    const auto failure = f.owner->readClause22(2, output, budget);
+    assert(failure.is(Err::BUSY) && output == 0xCAFE && !f.bus.quarantined);
+    TransportSnapshot snapshot;
+    assert(f.owner->transportSnapshot(snapshot).ok());
+    assert(snapshot.attemptedFrames == 0 && snapshot.completedFrames == 0 && snapshot.violation == TransportViolation::NONE);
+    assert(snapshot.lastBatch.controllerReusable && snapshot.lastBatch.releaseStatus.ok() && !snapshot.lastBatch.frames[0].attempted);
+    assert(f.mac.frames.empty() && countCall("mac.read") == 1);
+    assert(f.owner->readClause22(2, output, budget).ok() && output == 0x2000);
 }
 void rejectedRawReads() {
     Host::reset(); Fixture f; f.install();
@@ -965,7 +1496,7 @@ void directStartInvalidation() {
         const auto newStarts = std::count_if(Host::state().events.begin(), Host::state().events.end(), [](const auto& e) { return e.id == ETHERNET_EVENT_START; });
         assert(newStarts - starts == (cachedAn ? 0 : 1));
         assert(esp_eth_start(f.handle) == ESP_ERR_INVALID_STATE); // FSM effect remains until supported cleanup.
-        assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
+        assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
         assert(Host::state().oneShotArms == 1 && !f.journal().publishedTuple.up);
         assert(std::count(Host::state().calls.begin(), Host::state().calls.end(), "mac.stop") > 0);
         const auto stops = std::count_if(Host::state().events.begin(), Host::state().events.end(), [](const auto& e) { return e.id == ETHERNET_EVENT_STOP; });
@@ -1055,7 +1586,7 @@ void sdkControlCallbackBounds() {
         const auto frames = f.mac.frames.size();
         const auto status = f.owner->reconcileSdkState(Host::state().nowUs + 100000);
         const bool late = duration > f.config.notificationUs;
-        assert(late ? status.is(Err::OPERATION_TIMEOUT) : status.ok());
+        assert(late ? status.is(Err::OPERATION_TIMEOUT) && status.sdkError == ESP_OK : status.ok());
         SdkStateSnapshot record; assert(f.owner->sdkStateSnapshot(record).ok());
         assert(record.autoNegotiationAccepted && record.reconciled == !late && record.cacheValid == !late);
         bool enabled = false;
@@ -1065,12 +1596,38 @@ void sdkControlCallbackBounds() {
         assert(f.owner->reconcileSdkState(Host::state().nowUs + 100000).ok());
         assert(f.owner->sdkStateSnapshot(record).ok() && record.reconciled && record.cacheValid);
     }
+    for (const bool loseAgreement : {false, true}) {
+        Host::reset(); Fixture f; f.install(); f.initialize();
+        auto* phy = f.owner->nativePhy();
+        original = phy->autonego_ctrl;
+        static SharedBus* quarantine = nullptr;
+        quarantine = loseAgreement ? &f.bus : nullptr;
+        phy->autonego_ctrl = [](esp_eth_phy_t* native, eth_phy_autoneg_cmd_t command, bool* enabled) {
+            if (command != ESP_ETH_PHY_AUTONEGO_EN) return original(native, command, enabled);
+            if (!quarantine) return ESP_ERR_TIMEOUT;
+            const auto accepted = original(native, command, enabled);
+            assert(accepted == ESP_OK);
+            quarantine->quarantined.store(true);
+            return accepted;
+        };
+        const auto frames = f.mac.frames.size();
+        const auto result = f.owner->reconcileSdkState(Host::state().nowUs + 100000);
+        if (loseAgreement) assert(result.is(Err::NOT_INITIALIZED));
+        else assert(result.sdkError == ESP_ERR_TIMEOUT && result.coreStatus.ok());
+        SdkStateSnapshot record;
+        assert(f.owner->sdkStateSnapshot(record).ok() && !record.reconciled && !record.cacheValid);
+        assert(record.autoNegotiationAccepted == loseAgreement && f.mac.frames.size() == frames);
+        assert(record.status.coreStatus.code == result.coreStatus.code && record.status.sdkError == result.sdkError);
+    }
+    Host::reset(); Fixture f; f.install(); f.initialize();
+    Host::state().failSemaphoreTakes = f.config.maxFencePolls;
+    const auto contention = f.owner->reconcileSdkState(Host::state().nowUs + 500000);
+    assert(contention.is(Err::BUSY));
 }
 void rawMutationArbitration() {
     for (const bool modify : {false, true}) {
-        Host::reset(); Fixture f; Fixture g; g.config.bus = &f.bus;
-        f.install(); g.install(); f.initialize(); g.initialize();
-        f.mac.frames.clear(); g.mac.frames.clear();
+        Host::reset(); Fixture f; f.install(); f.initialize();
+        f.mac.frames.clear();
         f.mac.registers[0x18] = 0x0080;
         Host::state().semaphoreEvents.clear();
         unsigned boundaries = 0;
@@ -1080,9 +1637,11 @@ void rawMutationArbitration() {
             const IoBudget budget{Host::state().nowUs + 100000, 5};
             assert(f.owner->writeMmd(31, 0x18, 0x12, budget).is(Err::BUSY));
             Host::state().currentTask = 2;
-            assert(g.owner->writeMmd(31, 0x18, 0x12, budget).is(Err::MDIO_TIMEOUT));
+            uint16_t sentinel = 0xCAFE;
+            const auto frames = f.mac.frames.size();
+            assert(readPeerIdentity(f, sentinel) == ESP_ERR_INVALID_STATE);
             Host::state().currentTask = 1;
-            assert(g.mac.frames.empty());
+            assert(sentinel == 0xCAFE && f.mac.frames.size() == frames);
         };
         const IoBudget budget{Host::state().nowUs + 100000, 5};
         const auto status = modify ? f.owner->modifyMmd(31, 0x18, 0x12, 0x12, budget) : f.owner->writeMmd(31, 0x18, 0x12, budget);
@@ -1095,6 +1654,10 @@ void rawMutationArbitration() {
         assert(std::count_if(receipts.begin(), receipts.end(), [](const auto& e) { return e.take && e.accepted; }) == 1);
         assert(std::count_if(receipts.begin(), receipts.end(), [](const auto& e) { return !e.take; }) == 1);
         assert(!Host::semaphoreHeld(f.bus.mutex));
+        f.mac.onFrame = nullptr;
+        uint16_t identity = 0;
+        assert(readPeerIdentity(f, identity) == ESP_OK && identity == 0x2000);
+        assert(f.mac.frames.back().address == 1 && countCall("mac.init") == 1);
     }
 }
 void rawMutationAdmission() {
@@ -1183,9 +1746,8 @@ void configurationAdmission() {
     assert(f.owner->sdkStateSnapshot(sdk).ok() && sdk.reconciled);
 }
 void hardResetSilence() {
-    Host::reset(); Fixture f; Fixture g; g.config.bus = &f.bus;
-    f.install(); g.install(); f.initialize(); g.initialize();
-    f.mac.frames.clear(); g.mac.frames.clear();
+    Host::reset(); Fixture f; f.install(); f.initialize();
+    f.mac.frames.clear();
     OperationToken token;
     assert(f.owner->startInitialize({ResetKind::HARD}, {{Host::state().nowUs + 1000000, 512}, 10, 16}, token).inProgress());
     assert(f.bus.admission == BusAdmission::INITIALIZING && !Host::semaphoreHeld(f.bus.mutex));
@@ -1193,8 +1755,9 @@ void hardResetSilence() {
     Status status{Err::IN_PROGRESS, 0, "Pending"};
     for (unsigned i = 0; i < 256 && status.inProgress(); ++i) {
         uint16_t sentinel = 0xCAFE;
-        assert(g.owner->readClause22(2, sentinel, {Host::state().nowUs + 100000, 1}).is(Err::BUSY));
-        assert(sentinel == 0xCAFE && g.mac.frames.empty());
+        const auto frames = f.mac.frames.size();
+        assert(readPeerIdentity(f, sentinel) == ESP_ERR_INVALID_STATE);
+        assert(sentinel == 0xCAFE && f.mac.frames.size() == frames);
         OperationSnapshot operation;
         assert(f.owner->operationSnapshot(operation).ok());
         if (operation.nextPollValid) Host::state().nowUs = std::max(Host::state().nowUs, operation.nextPollAtUs);
@@ -1214,11 +1777,12 @@ void hardResetSilence() {
     assert(f.bus.admission == BusAdmission::AVAILABLE && !Host::semaphoreHeld(f.bus.mutex));
     Host::state().nowUs = std::max(Host::state().nowUs, f.bus.quietUntilUs.load());
     uint16_t id = 0;
-    assert(g.owner->readClause22(2, id, {Host::state().nowUs + 100000, 1}).ok() && id == 0x2000);
+    assert(readPeerIdentity(f, id) == ESP_OK && id == 0x2000);
+    assert(f.mac.frames.back().address == 1 && countCall("mac.init") == 1);
     assert(f.owner->reconcileSdkState(Host::state().nowUs + 100000).ok());
 }
 void boardRespectsInitializationSilence() {
-    Host::reset(); Fixture f; Fixture g; g.config.bus = &f.bus;
+    Host::reset(); Fixture f; Fixture g(f, 1);
     f.install(); f.initialize(); g.create();
     OperationToken token;
     assert(f.owner->startInitialize({ResetKind::HARD}, {{Host::state().nowUs + 1000000, 512}, 10, 16}, token).inProgress());
@@ -1227,19 +1791,19 @@ void boardRespectsInitializationSilence() {
     control.setReset = [](void* context, bool) { ++*static_cast<unsigned*>(context); return ESP_OK; };
     const auto frames = f.mac.frames.size(); const auto before = Host::state().nowUs;
     assert(g.owner->prepareBoard(control, before + 100000) == ESP_ERR_INVALID_STATE);
-    assert(pins == 0 && Host::state().nowUs == before && f.mac.frames.size() == frames && g.mac.frames.empty());
+    assert(pins == 0 && Host::state().nowUs == before && f.mac.frames.size() == frames);
     assert(f.bus.admission == BusAdmission::INITIALIZING && !Host::semaphoreHeld(f.bus.mutex));
     // Rejection cannot release another owner's reset/replay reservation.
     uint16_t sentinel = 0xCAFE;
     assert(f.owner->readClause22(2, sentinel, {before + 100000, 1}).is(Err::BUSY) && sentinel == 0xCAFE);
     assert(f.finish(token).status.ok() && f.bus.admission == BusAdmission::AVAILABLE);
+    const auto initializedFrames = f.mac.frames.size();
     assert(g.owner->prepareBoard(control, Host::state().nowUs + 100000) == ESP_OK);
-    assert(pins == 2 && f.bus.admission == BusAdmission::AVAILABLE && g.mac.frames.empty());
+    assert(pins == 2 && f.bus.admission == BusAdmission::AVAILABLE && f.mac.frames.size() == initializedFrames);
     assert(g.owner->destroy() == ESP_OK);
 }
 void boardSilenceExcludesOtherOwners() {
-    Host::reset(); Fixture f; Fixture g; Fixture h;
-    g.config.bus = &f.bus; h.config.bus = &f.bus;
+    Host::reset(); Fixture f; Fixture g(f, 1); Fixture h(f, 2);
     f.install(); f.initialize(); g.create(); h.create();
     struct Context { Fixture* initialized; Fixture* otherBoard; unsigned pins = 0; unsigned otherPins = 0; } context{&f, &h};
     BoardControl control; control.context = &context;
@@ -1255,7 +1819,9 @@ void boardSilenceExcludesOtherOwners() {
         BoardControl nested; nested.context = &context.otherPins;
         nested.setReset = [](void* pins, bool) { ++*static_cast<unsigned*>(pins); return ESP_OK; };
         assert(other.owner->prepareBoard(nested, Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
-        assert(context.otherPins == 0 && other.mac.frames.empty() && first.bus.admission == BusAdmission::BOARD_PREPARING);
+        uint16_t identity = 0xCAFE;
+        assert(readPeerIdentity(first, identity) == ESP_ERR_INVALID_STATE && identity == 0xCAFE);
+        assert(context.otherPins == 0 && first.mac.frames.size() == frames && first.bus.admission == BusAdmission::BOARD_PREPARING);
         return ESP_OK;
     };
     assert(g.owner->prepareBoard(control, Host::state().nowUs + 100000) == ESP_OK);
@@ -1267,8 +1833,7 @@ void boardSilenceExcludesOtherOwners() {
     assert(g.owner->destroy() == ESP_OK && h.owner->destroy() == ESP_OK);
 }
 void failedBoardSilenceRemainsClosed() {
-    Host::reset(); Fixture f; Fixture g; Fixture h;
-    g.config.bus = &f.bus; h.config.bus = &f.bus;
+    Host::reset(); Fixture f; Fixture g(f, 1); Fixture h(f, 2);
     f.install(); f.initialize(); g.create(); h.create();
     unsigned pins = 0;
     BoardControl failed; failed.context = &pins;
@@ -1286,7 +1851,7 @@ void failedBoardSilenceRemainsClosed() {
     uint16_t sentinel = 0xCAFE;
     assert(f.owner->readClause22(2, sentinel, {before + 100000, 1}).is(Err::BUSY) && sentinel == 0xCAFE);
     assert(token.value == original.value && otherPins == 0 && Host::state().nowUs == before);
-    assert(f.bus.admission == BusAdmission::FAILED_CLOSED && f.mac.frames.size() == frames && h.mac.frames.empty());
+    assert(f.bus.admission == BusAdmission::FAILED_CLOSED && f.mac.frames.size() == frames);
     assert(h.owner->destroy() == ESP_OK);
 }
 void flowCompletionContention() {
@@ -1296,12 +1861,12 @@ void flowCompletionContention() {
     f.mac.onCall = [](const char* operation) {
         if (std::string(operation) == "mac.flow") Host::state().failSemaphoreTakes = 1;
     };
-    assert(f.owner->setFlowControl(true, 1, Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
+    assert(f.owner->setFlowControl(true, 1, Host::state().nowUs + 100000) == ESP_OK);
     f.mac.onCall = nullptr;
     FlowControlRecord record;
     assert(f.owner->flowControlSnapshot(record).ok());
     assert(record.macAttempted && record.macAccepted && record.macEffectPossible && record.macError == ESP_OK);
-    assert(!record.phyAttempted && !record.phyAccepted && !record.reconciled && f.mac.flowEnabled);
+    assert(record.phyAttempted && record.phyAccepted && record.reconciled && f.mac.flowEnabled);
     assert(f.owner->setFlowControl(false, 1, Host::state().nowUs + 100000) == ESP_OK);
     assert(!f.mac.flowEnabled);
 }
@@ -1326,10 +1891,42 @@ void stoppingLatePoll() {
     assert(Host::state().events.size() == events && f.mac.frames.size() == frames);
     Host::state().holdOneShot = false;
     const auto stopped = f.owner->stop(Host::state().nowUs + 100000);
-    assert(stopped == ESP_OK || stopped == ESP_ERR_INVALID_STATE);
+    assert(stopped == ESP_OK);
     const auto stops = std::count_if(Host::state().events.begin(), Host::state().events.end(), [](const auto& e) { return e.id == ETHERNET_EVENT_STOP; });
     assert(stops == 1 && Host::state().oneShotArms == 1);
     assert(!f.journal().publishedTuple.up);
+}
+void timerPublicationDuringStop() {
+    Host::reset(); Fixture f; f.install(); f.initialize(LINK_TECHNOLOGY_MASK); assert(f.start() == ESP_OK);
+    f.mac.registers[0x10] = 0x0017; // Timer has a new UP tuple to publish.
+    bool armed = false;
+    bool stopped = false;
+    const auto offset = Host::state().calls.size();
+    f.mac.onFrame = [&](const Host::Frame&) {
+        if (armed) return;
+        armed = true;
+        Host::state().beforeSemaphoreTake = [&](SemaphoreHandle_t semaphore) {
+            if (semaphore == f.bus.mutex) return;
+            assert(!Host::semaphoreHeld(f.bus.mutex)); // Core observation released the complete batch.
+            Host::state().beforeSemaphoreTake = nullptr;
+            Host::state().currentTask = 2;
+            const auto before = Host::state().nowUs;
+            assert(f.owner->stop(before + 20000) == ESP_ERR_TIMEOUT);
+            const auto elapsed = Host::state().nowUs;
+            assert(elapsed <= before + 20000 && f.journal().phase == Phase::STOPPING);
+            assert(Host::state().oneShotArms == 1 && f.mac.link == ETH_LINK_DOWN);
+            stopped = true;
+            Host::state().currentTask = 1;
+        };
+    };
+    Host::tickTimers();
+    assert(armed && stopped);
+    assert((noticesSince(offset) == std::vector<std::string>{"mac.down"}));
+    assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+    assert(f.journal().phase == Phase::STOPPED && !f.journal().publishedTuple.up);
+    assert(countCall("mac.stop") == 1 && Host::state().oneShotArms == 1);
+    assert((eventOrder() == std::vector<int32_t>{ETHERNET_EVENT_START, ETHERNET_EVENT_CONNECTED,
+                                                ETHERNET_EVENT_DISCONNECTED, ETHERNET_EVENT_STOP}));
 }
 void foreignFlowEffect() {
     Host::reset(); Fixture f; f.install(); f.initialize();
@@ -1377,29 +1974,33 @@ void startGateFailures() {
         assert(Host::state().failSemaphoreTakes == 0 && f.mac.frames.size() == frames);
         assert(eventCount(ETHERNET_EVENT_START) == (cachedAn ? 0 : 1));
         assert(esp_eth_start(f.handle) == ESP_ERR_INVALID_STATE); // SDK FSM changed before the denied callback.
-        assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
+        assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
         assert(eventCount(ETHERNET_EVENT_STOP) == (cachedAn ? 0 : 1));
         assert(Host::state().oneShotArms == 1 && f.mac.frames.size() == frames);
         assert(std::count(Host::state().calls.begin(), Host::state().calls.end(), "mac.stop") == 1);
-        (void)f.owner->stop(Host::state().nowUs + 100000);
+        assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
         assert(eventCount(ETHERNET_EVENT_STOP) == (cachedAn ? 0 : 1));
         assert(f.mac.frames.size() == frames);
     }
-    Host::reset(); Fixture f; f.install(); f.initialize();
-    f.configure(forcedSettings(LinkSpeed::MBPS_10));
-    const auto frames = f.mac.frames.size();
-    bool injected = false;
-    Host::state().beforeSemaphoreTake = [&](SemaphoreHandle_t) {
-        if (eventCount(ETHERNET_EVENT_START) != 1) return;
-        Host::state().beforeSemaphoreTake = nullptr;
-        Host::state().failSemaphoreTakes = 1;
-        injected = true;
-    };
-    assert(f.owner->start(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
-    assert(injected && eventCount(ETHERNET_EVENT_START) == 1 && eventCount(ETHERNET_EVENT_STOP) == 1);
-    assert(Host::state().oneShotArms == 1 && f.mac.frames.size() == frames);
-    assert(std::count(Host::state().calls.begin(), Host::state().calls.end(), "mac.stop") == 1);
-    f.configure(forcedSettings(LinkSpeed::MBPS_100)); // Cleanup restored normal stopped admission.
+    for (const bool restart : {false, true}) {
+        Host::reset(); Fixture f; f.install(); f.initialize();
+        if (!restart) f.configure(forcedSettings(LinkSpeed::MBPS_100));
+        unsigned gateAttempts = 0;
+        bool injected = false;
+        Host::state().beforeSemaphoreTake = [&](SemaphoreHandle_t semaphore) {
+            if (semaphore == f.bus.mutex) return;
+            const bool callbackEntry = restart ? ++gateAttempts == 2 : eventCount(ETHERNET_EVENT_START) == 1;
+            if (!callbackEntry) return;
+            Host::state().beforeSemaphoreTake = nullptr;
+            Host::state().failSemaphoreTakes = 1;
+            injected = true;
+        };
+        assert(f.owner->start(Host::state().nowUs + 100000) == ESP_OK);
+        assert(injected && eventCount(ETHERNET_EVENT_START) == 1 && eventCount(ETHERNET_EVENT_STOP) == 0);
+        assert(Host::state().oneShotArms == 0 && f.journal().firstError.ok());
+        assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+        assert(eventCount(ETHERNET_EVENT_STOP) == 1 && Host::state().oneShotArms == 1 && countCall("mac.stop") == 1);
+    }
 }
 }
 int main(int argc, char** argv) {
@@ -1407,6 +2008,8 @@ int main(int argc, char** argv) {
     if (suite == "factory") factory();
     else if (suite == "board_install_failures") boardAndInstallFailures();
     else if (suite == "raw_routing") rawRouting();
+    else if (suite == "initialize_failures") initializeFailures();
+    else if (suite == "configuration_failures") configurationFailures();
     else if (suite == "raw_rx_retention") retainedRx(false);
     else if (suite == "glue_rx_retention") retainedRx(true);
     else if (suite == "stop_failures") stopFailures();
@@ -1427,16 +2030,27 @@ int main(int argc, char** argv) {
     else if (suite == "poll_period_bounds") pollPeriodBounds();
     else if (suite == "start_completion_contention") startCompletionContention();
     else if (suite == "stop_completion_contention") stopCompletionContention();
+    else if (suite == "stop_failure_receipts") stopFailureReceipts();
+    else if (suite == "dependent_callback_bounds") dependentCallbackBounds();
     else if (suite == "forbidden_lifecycle") forbiddenLifecycle();
     else if (suite == "discovery") discovery();
     else if (suite == "discovery_admission") discoveryAdmission();
     else if (suite == "discovery_accounting") discoveryAccounting();
     else if (suite == "terminal_event_retry") terminalEventRetry();
+    else if (suite == "retire_and_stop_admission") retireAndStopAdmission();
+    else if (suite == "board_completion_contention") boardCompletionContention();
+    else if (suite == "late_start_cleanup") lateStartCleanup();
+    else if (suite == "uninstall_gate_contention") uninstallGateContention();
+    else if (suite == "stop_without_start") stopWithoutStart();
+    else if (suite == "stop_repairs_lost_down") stopRepairsLostDown();
+    else if (suite == "observation_loss") observationLoss();
+    else if (suite == "install_reservation") installReservation();
     else if (suite == "installer_contention") installerContention();
     else if (suite == "raw_read_arbitration") rawReadArbitration();
     else if (suite == "raw_lock_failures") rawLockFailures();
     else if (suite == "controller_wait_classification") controllerWaitClassification();
     else if (suite == "raw_boundary_failures") rawBoundaryFailures();
+    else if (suite == "p4_busy_before_command") p4BusyBeforeCommand();
     else if (suite == "rejected_raw_reads") rejectedRawReads();
     else if (suite == "forced_lifecycle") forcedLifecycle();
     else if (suite == "raw_state_reconciliation") rawStateReconciliation();
@@ -1456,6 +2070,7 @@ int main(int argc, char** argv) {
     else if (suite == "flow_completion_contention") flowCompletionContention();
     else if (suite == "forced_partner_pause") forcedPartnerPause();
     else if (suite == "stopping_late_poll") stoppingLatePoll();
+    else if (suite == "timer_publication_during_stop") timerPublicationDuringStop();
     else if (suite == "foreign_flow_effect") foreignFlowEffect();
     else if (suite == "start_gate_failures") startGateFailures();
     else return 2;

@@ -44,7 +44,9 @@ controller lock before hardware waits, SDK callbacks, notifications or output.
 Shared controller quarantine and SMI silence are application-owned admission,
 distinct from passive transport health and from an operation's cleanup barrier.
 The native shared admission enum prevents board preparation and initialization
-from replacing each other's reservation. Failed board readiness stays closed
+from replacing each other's reservation. MAC installation has its own logical
+silence reservation across reset and CSR-clock setup, with no mutex across waits.
+Failed board readiness stays closed
 independently of the adapter lifetime. Explicit address discovery uses the core's
 raw two-ID batch audit and counters without accepting or retargeting a device.
 
@@ -223,3 +225,7 @@ terminal receipts prevent callback gate contention from losing effects or strand
 admission. No base polling or second chip procedure is introduced. Finite native
 wall time requires the explicit workload qualification described by native_wall_time;
 installed reusable destruction remains gated separately by native_rx_quiescence.
+The [2026-11-18 correction review](reports/implementation/37-39-native-fixes-2026-11-18.md)
+adds retryable failed retirement, independent failed-start cleanup, typed native
+error receipts, administrative DOWN after lost observation, resolved pause
+projection and validated callback/period bounds. This changes no stage40 scope.

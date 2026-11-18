@@ -9,5 +9,6 @@ typedef unsigned UBaseType_t;
 #define pdMS_TO_TICKS(ms) ((TickType_t)(((uint64_t)(ms) * CONFIG_FREERTOS_HZ) / 1000U))
 #define pdTRUE 1
 #define pdFALSE 0
+#define configTICK_RATE_HZ CONFIG_FREERTOS_HZ
 #define portMAX_DELAY UINT32_MAX
 #define portTICK_PERIOD_MS (1000 / CONFIG_FREERTOS_HZ)

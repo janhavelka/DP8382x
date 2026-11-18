@@ -27,6 +27,18 @@ The 1000 us RESET_N assertion is application policy; R21/C24 requires actual
 waveform qualification. The clock timestamp attests continuously valid PHY/MAC
 clock conditions at the observed time; it cannot detect a missing oscillator.
 
+The SDK runs periodic link observation on the shared `esp_timer` task. The P4
+fixture configuration used `CONFIG_ESP_TIMER_TASK_STACK_SIZE=3584` bytes.
+For the November 18 correction, P4 GCC 15.2.0 `-fstack-usage` reported 272
+bytes for `getLink`, 512 for `readLinkStatus`, 416 for the core batch call
+and 160 for the native MDIO backend. Those four nested frames account for
+1360 bytes before entering the SDK MAC. The timer dispatcher, MAC, event posting and error logging also use
+this stack. The pinned SDK adds `TASK_EXTRA_STACK_SIZE` to the configured
+size in `esp_system/include/esp_task.h`. Qualification requires high-water
+measurements under the application's release build, enabled logging and
+worst-case link/error traffic, with headroom for its callbacks. The fixture
+has no physical stack measurement.
+
 Explicit board pins are MDC40, MDIO39, RESET54, REF_CLK44, TX_EN49, TXD0=41,
 TXD1=42, CRS_DV51, RXD0=52 and RXD1=53. These reflect the maintained board record
 and admitted pinned P4 IO_MUX choices. They are not reusable component defaults.

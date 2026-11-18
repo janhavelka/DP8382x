@@ -5,31 +5,37 @@
 namespace DP8382x::EspIdf {
 namespace {
 uint64_t nowUs() noexcept { return static_cast<uint64_t>(esp_timer_get_time()); }
-Status denied() noexcept {
-  return Status::Error(Err::BUSY, "Native control owner unavailable", static_cast<int32_t>(BusyDetail::OWNER_ADMISSION));
+NativeStatus denied() noexcept {
+  return {Status::Error(Err::BUSY, "Native control owner unavailable", static_cast<int32_t>(BusyDetail::OWNER_ADMISSION))};
 }
-Status controlStatus(esp_err_t error) noexcept {
-  if (error == ESP_OK) return Status::Ok();
-  if (error == ESP_ERR_TIMEOUT)
-    return Status::Error(Err::OPERATION_TIMEOUT, "Native control deadline expired", static_cast<int32_t>(TimeoutDetail::DEADLINE));
-  return Status::Error(Err::MDIO_ERROR, "Native public control failed", error);
+NativeStatus unverified() noexcept {
+  return {Status::Error(Err::NOT_INITIALIZED, "Restore and verify core settings before SDK reconciliation")};
+}
+NativeStatus expired() noexcept {
+  return {Status::Error(Err::OPERATION_TIMEOUT, "Native control budget exhausted", static_cast<int32_t>(TimeoutDetail::DEADLINE))};
+}
+NativeStatus admissionFailure(uint64_t deadlineUs) noexcept {
+  return nowUs() >= deadlineUs ? expired() : denied();
+}
+esp_err_t flowError(NativeStatus status) noexcept {
+  if (status.sdkError != ESP_OK) return status.sdkError;
+  if (status.ok()) return ESP_OK;
+  return status.is(Err::OPERATION_TIMEOUT) ? ESP_ERR_TIMEOUT : ESP_ERR_INVALID_STATE;
 }
 }
 
-Status Phy::reconcileSdkState(uint64_t deadlineUs) noexcept {
-  if (!enter()) return denied();
+NativeStatus Phy::reconcileSdkState(uint64_t deadlineUs) noexcept {
+  if (!enterUntil(deadlineUs)) return admissionFailure(deadlineUs);
   refreshAgreement();
   if (!stoppedAdmission()) { leave(); return denied(); }
-  if (!verifiedSettings()) {
-    leave(); return Status::Error(Err::NOT_INITIALIZED, "Restore and verify core settings before SDK reconciliation");
-  }
+  if (!verifiedSettings()) { leave(); return unverified(); }
   const auto current = nowUs();
   // S_AN, G_AN and (in forced mode) S_SPEED/S_DUPLEX. Each public call must
   // fit the caller-qualified callback overhead even though these callbacks do no I/O.
   const auto settings = _core.settingsSnapshot().desired;
   const uint64_t calls = settings.mode == LinkMode::FORCED ? 4U : 2U;
   if (current >= deadlineUs || calls * _config.notificationUs >= deadlineUs - current) {
-    leave(); return controlStatus(ESP_ERR_TIMEOUT);
+    leave(); return expired();
   }
   _phase = Phase::CONTROL; _controlTask = xTaskGetCurrentTaskHandle(); _controlDeadline = deadlineUs;
   _sdkState = {}; _sdkState.status = denied();
@@ -38,36 +44,37 @@ Status Phy::reconcileSdkState(uint64_t deadlineUs) noexcept {
   const bool desiredAn = enabled;
   leave();
 
-  auto call = [&](ControlEntry entry, esp_eth_io_cmd_t command, void* value) {
-    if (!enter()) return ESP_ERR_INVALID_STATE;
+  auto call = [&](ControlEntry entry, esp_eth_io_cmd_t command, void* value) -> NativeStatus {
+    if (!enterUntil(deadlineUs)) return admissionFailure(deadlineUs);
     const auto before = nowUs();
-    if (before >= deadlineUs || _config.notificationUs >= deadlineUs - before || !verifiedSettings() || _frameworkStopOwed) {
-      leave(); return ESP_ERR_TIMEOUT;
-    }
+    if (_phase != Phase::CONTROL || _frameworkStopOwed) { leave(); return denied(); }
+    if (!verifiedSettings()) { leave(); return unverified(); }
+    if (before >= deadlineUs || _config.notificationUs >= deadlineUs - before) { leave(); return expired(); }
     _controlEntry = entry;
     leave();
     const auto error = esp_eth_ioctl(_ethernet, command, value);
-    if (error == ESP_OK) {
-      if (command == ETH_CMD_S_AUTONEGO) receipt.autoNegotiationAccepted = true;
-      if (command == ETH_CMD_G_AUTONEGO) { receipt.cacheValid = true; receipt.cachedAutoNegotiation = enabled; }
-      if (command == ETH_CMD_S_SPEED) receipt.speedAccepted = true;
-      if (command == ETH_CMD_S_DUPLEX_MODE) receipt.duplexAccepted = true;
-    }
+    if (error != ESP_OK) return {{}, error};
+    if (command == ETH_CMD_S_AUTONEGO) receipt.autoNegotiationAccepted = true;
+    if (command == ETH_CMD_G_AUTONEGO) { receipt.cacheValid = true; receipt.cachedAutoNegotiation = enabled; }
+    if (command == ETH_CMD_S_SPEED) receipt.speedAccepted = true;
+    if (command == ETH_CMD_S_DUPLEX_MODE) receipt.duplexAccepted = true;
     const auto after = nowUs();
-    return error == ESP_OK && (after < before || after >= deadlineUs || after - before > _config.notificationUs) ? ESP_ERR_TIMEOUT : error;
+    if (after < before || after >= deadlineUs || after - before > _config.notificationUs) return expired();
+    return {};
   };
-  auto error = call(ControlEntry::AUTONEGO, ETH_CMD_S_AUTONEGO, &enabled);
-  if (error == ESP_OK) error = call(ControlEntry::NONE, ETH_CMD_G_AUTONEGO, &enabled);
-  if (error == ESP_OK && enabled != desiredAn) error = ESP_ERR_INVALID_RESPONSE;
-  if (error == ESP_OK && !desiredAn) {
+  auto status = call(ControlEntry::AUTONEGO, ETH_CMD_S_AUTONEGO, &enabled);
+  if (status.ok()) status = call(ControlEntry::NONE, ETH_CMD_G_AUTONEGO, &enabled);
+  if (status.ok() && enabled != desiredAn)
+    status = {Status::Error(Err::CONFIG_MISMATCH, "SDK autonegotiation cache disagrees with verified settings")};
+  if (status.ok() && !desiredAn) {
     eth_speed_t speed = settings.forced.speed == LinkSpeed::MBPS_100 ? ETH_SPEED_100M : ETH_SPEED_10M;
-    error = call(ControlEntry::SPEED, ETH_CMD_S_SPEED, &speed);
-    if (error == ESP_OK) {
+    status = call(ControlEntry::SPEED, ETH_CMD_S_SPEED, &speed);
+    if (status.ok()) {
       eth_duplex_t duplex = settings.forced.duplex == Duplex::FULL ? ETH_DUPLEX_FULL : ETH_DUPLEX_HALF;
-      error = call(ControlEntry::DUPLEX, ETH_CMD_S_DUPLEX_MODE, &duplex);
+      status = call(ControlEntry::DUPLEX, ETH_CMD_S_DUPLEX_MODE, &duplex);
     }
   }
-  receipt.status = controlStatus(error); receipt.reconciled = error == ESP_OK;
+  receipt.status = status; receipt.reconciled = status.ok();
   _pendingSdk = receipt;
   _controlCompletion.store(ControlCompletion::SDK);
   return receipt.status;
@@ -75,7 +82,7 @@ Status Phy::reconcileSdkState(uint64_t deadlineUs) noexcept {
 
 esp_err_t Phy::setFlowControl(bool enabled, uint32_t pauseAbility, uint64_t deadlineUs) noexcept {
   if (pauseAbility > 3U) return ESP_ERR_INVALID_ARG;
-  if (!enter()) return ESP_ERR_INVALID_STATE;
+  if (!enterUntil(deadlineUs)) return flowError(admissionFailure(deadlineUs));
   const auto settings = _core.settingsSnapshot().desired;
   const uint32_t desired = (settings.advertisement.symmetricPause ? 1U : 0U) |
       (settings.advertisement.asymmetricPause ? 2U : 0U);
@@ -100,31 +107,39 @@ esp_err_t Phy::setFlowControl(bool enabled, uint32_t pauseAbility, uint64_t dead
   const auto before = nowUs();
   const auto macError = _config.mac->enable_flow_ctrl(_config.mac, enabled);
   receipt.macError = macError; receipt.macAccepted = macError == ESP_OK;
-  auto error = macError;
+  NativeStatus status{{}, macError};
   const auto after = nowUs();
-  if (error == ESP_OK && (after < before || after - before > _config.notificationUs ||
+  if (status.ok() && (after < before || after - before > _config.notificationUs ||
       after >= deadlineUs || _config.notificationUs >= deadlineUs - after))
-    error = ESP_ERR_TIMEOUT;
-  if (error == ESP_OK) {
-    if (!enter()) error = ESP_ERR_INVALID_STATE;
-    else { _controlEntry = ControlEntry::PAUSE; leave(); }
+    status = expired();
+  if (status.ok()) {
+    if (!enterUntil(deadlineUs)) status = admissionFailure(deadlineUs);
+    else {
+      const auto reservedAt = nowUs();
+      if (_phase != Phase::CONTROL || _frameworkStopOwed || _unexpectedFlowEffect.load()) status = denied();
+      else if (!verifiedSettings()) status = unverified();
+      else if (reservedAt >= deadlineUs || _config.notificationUs >= deadlineUs - reservedAt) status = expired();
+      else _controlEntry = ControlEntry::PAUSE;
+      leave();
+    }
   }
-  if (error == ESP_OK) {
+  if (status.ok()) {
     receipt.phyAttempted = true;
     const auto phyBefore = nowUs();
-    error = _handle.phy.advertise_pause_ability(&_handle.phy, pauseAbility);
-    receipt.phyError = error; receipt.phyAccepted = error == ESP_OK;
+    receipt.phyError = _handle.phy.advertise_pause_ability(&_handle.phy, pauseAbility);
+    receipt.phyAccepted = receipt.phyError == ESP_OK;
+    status.sdkError = receipt.phyError;
     const auto phyAfter = nowUs();
-    if (error == ESP_OK && (phyAfter < phyBefore || phyAfter - phyBefore > _config.notificationUs))
-      error = ESP_ERR_TIMEOUT;
+    if (status.ok() && (phyAfter < phyBefore || phyAfter - phyBefore > _config.notificationUs))
+      status = expired();
   } else {
-    receipt.phyError = error;
+    receipt.phyError = flowError(status);
   }
-  if (error == ESP_OK && nowUs() >= deadlineUs) error = ESP_ERR_TIMEOUT;
-  if (_unexpectedFlowEffect.load() && error == ESP_OK) error = ESP_ERR_INVALID_STATE;
-  receipt.reconciled = error == ESP_OK;
-  _pendingFlow = receipt; _pendingControlError = error;
+  if (status.ok() && nowUs() >= deadlineUs) status = expired();
+  if (_unexpectedFlowEffect.load() && status.ok()) status = denied();
+  receipt.reconciled = status.ok();
+  _pendingFlow = receipt; _pendingControlError = status;
   _controlCompletion.store(ControlCompletion::FLOW);
-  return error;
+  return flowError(status);
 }
 } // namespace DP8382x::EspIdf

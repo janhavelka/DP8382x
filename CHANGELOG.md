@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Correct all17 native adapter audit findings: retry incomplete stops/retirement,
+  retain contended completion and cancellation evidence, use independent start
+  cleanup, close admission after forbidden uninstall, and repair DOWN before STOP.
+  Separate SDK/portable failures, withdraw stale running UP, project resolved pause,
+  validate callback/period bounds and exclude controller peers during installation.
+
 - Recheck the 17-item audit follow-up against current sources; remove drifted
   API declaration/guide copies, correct timing/source/native/variant guidance,
   and assign compact results, admission and harness/timing work to their owners.
