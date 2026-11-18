@@ -60,7 +60,7 @@ transactions.
 All 17 members of the pinned public vtable are accounted for below. Calls are
 synchronous; input/output pointers are borrowed only until return. The installed
 PHY, mediator and MAC have the retained lifetime described below. `L` means
-bounded local work with zero requested gate wait; `B(n)`, `N` and `T` are the
+bounded local processing; gate waits are described below. `B(n)`, `N` and `T` are the
 conditional bounds defined in [Timing declarations](#timing-declarations).
 The timing/error tables describe observed return classification; real-time
 qualification remains conditional. Timer polls and snapshots try the instance gate
@@ -69,6 +69,13 @@ retry admission within their absolute deadline and finite `maxFencePolls` cap;
 they release the gate before every delay. A busy timer entry is a missed observation,
 not an attempted MDIO transaction. Ordinary failure preserves outputs. Unsupported
 entries do not acquire a bus lock. No row delegates to the IEEE base.
+
+The table's `L` covers local processing only. Add owner gate acquisition within
+the existing absolute deadline wherever a lifecycle callback waits: STARTING
+get_link/RESTART, CONTROL EN/DIS/SPEED/DUPLEX/PAUSE and STOPPING set_link. Each
+such acquisition has at most `maxFencePolls` attempts with one-tick delays only
+when remaining allowance permits; synchronous callbacks do not receive a new
+deadline. RUNNING timer callbacks keep their zero-wait instance entry.
 
 | PHY entry | Executing owner / complete transaction | Side effects and notifications | Error/output contract | Supported blocking bound |
 | --- | --- | --- | --- | --- |
@@ -234,7 +241,7 @@ reservation without changing hardware. Only that owner executes batches during s
 no mutex spans polls or waits. Successful `takeResult` reopens admission while
 preserving any reset quiet floor. Cancellation does not erase the floor. Drain
 release failure quarantines the bus and issues no frame: it returns BUSY with
-CONTROLLER_QUARANTINED and retains the exact SDK failure in the lifecycle journal,
+CONTROLLER_QUARANTINED and records the exact SDK failure if firstError is empty,
 without incrementing MDIO accounting. The application must keep polling and deliver
 results; stopping scheduling does not provide bounded wall-clock completion.
 
@@ -345,7 +352,8 @@ remain application-owned and can have partial MAC effects before PHY rejection.
 If forbidden direct stop runs while the link is already DOWN, the SDK emits no
 PHY callback to reveal whether STOP was delivered. Cleanup after raw uninstall
 therefore conservatively posts STOP; a previously delivered raw STOP can be
-duplicated. The invalid-lifecycle error remains recorded. Exactly-once accepted
+duplicated. The call returns INVALID_STATE and closes normal admission; firstError
+preserves the earliest failure if it already contains another cause. Exactly-once accepted
 event bookkeeping applies to owner-routed transitions, not this invisible bypass.
 The pinned flow-control ioctl has a bool/uint32 argument-width defect; do not
 pass a small Boolean through it. Prompt 38 owns the correctly typed owner route.
@@ -362,7 +370,10 @@ No safe reusable public-API route has been established for this baseline.
 
 `retire` enters terminal MAINTENANCE and returns NOT_SUPPORTED only after successful
 stop/fence/DOWN/STOP/MAC-stop disposition (or an idle, never-started owner). Failure
-returns its actual error, leaves STOPPING retryable, and retains the same resources.
+returns its actual error and retains the same resources. Already admitted cleanup
+remains retryable in STOPPING; denied initial admission preserves the prior phase.
+Retire's final gate can time out after stop has completed, leaving STOPPED with
+no new cleanup error. CONTROL rejection also preserves its existing obligations.
 An already stopped owner with no work owed performs no framework stop, fence,
 event or MAC call. Terminal retention keeps driver, glue, MAC, PHY, netif, controller
 mutex and borrowed contexts until system restart. Stop TX callers, end the RX

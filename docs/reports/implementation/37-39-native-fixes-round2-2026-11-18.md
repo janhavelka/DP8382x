@@ -34,8 +34,9 @@ headers, `src/phy/esp_eth_phy_802_3.c` and the P4 EMAC implementation under
 [driver source](https://github.com/espressif/esp-idf/blob/fff9895c82d744c7237be8847347bdd1b07c6643/components/esp_eth/src/esp_eth.c)
 confirms that running timer polls ignore get_link failures, stop changes FSM
 before later fallible work, and uninstall deletes the timer before PHY deinit.
-The P4 valid set_link(DOWN) path already changes MAC state even when a later
-DISCONNECTED post fails. Therefore the review's claim that this necessarily
+The P4 valid set_link(DOWN) path already attempts MAC stop and updates the SDK
+link cache even when a later DISCONNECTED post fails; it discards the MAC stop
+return. Therefore the review's claim that this necessarily
 leaves the MAC UP is too broad; missing framework/fence/direct-stop observation
 is the confirmed defect.
 
@@ -78,7 +79,7 @@ repository still defers first-execution remote CI to prompt 71.
 | 6 | Fixed | Retire's final gate timeout creates no cleanup error after stop has completed. Stop in completed MAINTENANCE is idempotent OK, matching the public contract. Resources remain retained. |
 | 7 | Not a numeric-validation defect; contract clarified | `cleanupBudgetUs` is a positive attempt allowance. No source-qualified universal minimum covers scheduler/fence dispatch, previous callbacks and generic MAC stop. Inventing a minimum would falsely promise completion. A too-short allowance retains obligations; an explicit later stop supplies its own finite deadline. Finite poll/attempt caps remain enforced. |
 | 8 | Fixed | Board delays require a full tick within remaining allowance using the rational conversion, tested at 1000/100/333 Hz. Recheck elapsed time after wake; scheduling itself remains conditional. |
-| 9 | Fixed | Board aggregate expiry and stopping-publication gate expiry retain core OPERATION_TIMEOUT even when forwarded through esp_eth_stop. Actual SDK callback TIMEOUT remains sdkError. Init mutex-release failure is BUSY/CONTROLLER_QUARANTINED plus exact ESP_FAIL journal evidence, with no MDIO sample or token publication. |
+| 9 | Fixed | Board aggregate expiry and stopping-publication gate expiry retain core OPERATION_TIMEOUT even when forwarded through esp_eth_stop. Actual SDK callback TIMEOUT remains sdkError. Init mutex-release failure is BUSY/CONTROLLER_QUARANTINED; exact ESP_FAIL becomes firstError if empty, preserving an earlier cause otherwise. No MDIO sample or token is published. |
 | 10 | Fixed documentation | SharedBus Doxygen and guide explicitly require all participants to recheck admission/quarantine/quiet after taking the controller mutex and then hold it for the whole batch. A pre-lock check alone cannot protect INSTALLING. |
 | 11 | Fixed tests | Failed initialization covers actual ESP_FAIL mapped to MDIO_ERROR, as well as the existing failure classes. Tests assert lifecycle phase CONTROL before taking a terminal result and STOPPED afterward, plus result/transport details. |
 | 12 | Fixed in separate prose commit | Hand-reviewed insertion-only word/number spacing in maintained Markdown and comments. Code, identifiers, literals, paths, hashes, quoted source labels and vendor payloads are preserved. The separate commit and final checks are recorded in the handoff. |
@@ -130,3 +131,13 @@ Reusable installed teardown remains **BLOCKED by native_rx_quiescence**. Driver,
 MAC, glue, PHY, netif and borrowed resources remain alive until system restart.
 Physical PHY execution, traffic, wall-time and stack high-water evidence are
 NOT RUN; no fixture was operated. Remote CI is NOT RUN under prompt 71 policy.
+
+Checked and synchronized units: `990b30d` contains the behavior, regressions and
+guide; `1deab61` contains only the reviewed spacing corrections. Each matched
+origin/main with zero ahead/behind after push and fetch. The spacing unit inserts
+2,892 spaces across 162 files and preserves every other byte. Additional checks
+confirm unchanged executable tokens, string literals, Markdown code/link targets,
+known hashes and referenced anchors. Its Doxygen, reference/ledger/version checks
+and all 103 Python tests pass. Final documentation review narrows the shutdown
+proof, first-error retention and timeout-phase wording without changing behavior.
+The final handoff records the documentation checkpoint and clean image identity.

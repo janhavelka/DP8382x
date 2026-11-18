@@ -212,7 +212,8 @@ public:
   /// @brief Stop, fence once, repair missing DOWN/STOP, then observe actual MAC stop status.
   /// @param[in] deadlineUs Absolute allowance; timeout retains objects and retry polls the same fence.
   /// @return OK when native stop is complete (also if already stopped/retained).
-  /// Admission timeout has no new effects; admitted failure leaves retryable STOPPING.
+  /// A new stop denied admission leaves phase and hardware unchanged. Timeout of
+  /// already-owed cleanup records that failure; admitted work remains retryable.
   /// A lost DISCONNECTED cannot withhold fence/STOP/MAC stop; its error and repair
   /// debt remain. STOP may precede that repaired event after a queue failure.
   /// Forbidden raw uninstall skips the deleted SDK timer, retaining native cleanup
