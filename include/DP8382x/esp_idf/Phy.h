@@ -72,6 +72,9 @@ struct LifecycleRecord {
   bool publicationUncertain{false}; ///< Unknown MAC partial effect; admission closes.
   bool eventLost{false}; ///< Current accepted LINK event is pending; older failures remain in firstError.
   bool stopRequired{false}; ///< Observation/publication safety lost; application must stop before restarting traffic.
+  Status lastObservationStatus{Err::RESULT_NOT_AVAILABLE, 0, "No native observation"}; ///< Latest admitted live query result, independent of firstError.
+  uint32_t consecutiveObservationMisses{0}; ///< Saturating unsuccessful RUNNING queries; success clears, gate denial does not count.
+  bool observationDownOwed{false}; ///< Transient miss limit reached; withdraw UP when the current publisher finishes, without requiring stop.
 };
 /// @brief Last public SDK control reconciliation; cached fields are not live PHY evidence.
 struct SdkStateSnapshot {
@@ -108,6 +111,9 @@ enum class BusAdmission : uint8_t {
 /// @brief Borrowed controller-wide exclusion and readiness shared by every PHY.
 /// @pre mutex is an application-created nonrecursive mutex. This object and mutex
 /// outlive all MAC/driver callbacks, including terminal retained-resource state.
+/// @pre Every participant checks admission, quarantine and quietUntilUs both
+/// before AND after acquiring mutex, then holds it for the complete transaction.
+/// Only the INITIALIZING reservation owner may bypass that admission state.
 struct SharedBus {
   SemaphoreHandle_t mutex{nullptr}; ///< Serializes complete MDIO batches.
   std::atomic<bool> quarantined{false}; ///< Unknown controller completion; external repair only.
@@ -146,12 +152,13 @@ struct PhyConfig {
   SharedBus* bus{nullptr}; ///< Borrowed bus shared by all participants.
   uint32_t linkPollMs{2000}; ///< 1..4294967 ms, at least callbackBudgetUs rounded up to ms; not a response-time guarantee.
   uint32_t callbackBudgetUs{100000}; ///< Must exceed B(8)+B(2)+clockLagUs+5*notificationUs; includes local/gate/clock overhead.
-  uint32_t cleanupBudgetUs{100000}; ///< Separate positive failed-start stop allowance from observed completion; never renews a stop retry.
+  uint32_t cleanupBudgetUs{100000}; ///< Positive failed-start attempt allowance from observed completion; may be too short to finish. No qualified fence/scheduler/MAC minimum exists; explicit stop retry supplies its own deadline.
   uint32_t notificationUs{0}; ///< Required qualified per-notification bound, microseconds including scheduling; late return is detected, not preempted.
   uint32_t lockWaitUs{1000}; ///< Controller mutex wait cap; scheduler latency remains conditional.
   uint32_t maxFencePolls{100000}; ///< Finite timer fence polling cap.
   uint32_t maxStopAttempts{1}; ///< Finite actual MAC stop attempts.
   bool pinnedP4Mac{false}; ///< Attests actual pinned P4 MAC, whose valid set_link always succeeds.
+  uint32_t maxObservationMisses{3}; ///< Positive consecutive admitted RUNNING misses before recoverable administrative DOWN; no wall-time bound if polling is denied.
 };
 
 class Phy;
@@ -204,7 +211,12 @@ public:
   esp_err_t start(uint64_t deadlineUs) noexcept;
   /// @brief Stop, fence once, repair missing DOWN/STOP, then observe actual MAC stop status.
   /// @param[in] deadlineUs Absolute allowance; timeout retains objects and retry polls the same fence.
-  /// @return OK when fully stopped (also if already stopped); otherwise error with retryable STOPPING.
+  /// @return OK when native stop is complete (also if already stopped/retained).
+  /// Admission timeout has no new effects; admitted failure leaves retryable STOPPING.
+  /// A lost DISCONNECTED cannot withhold fence/STOP/MAC stop; its error and repair
+  /// debt remain. STOP may precede that repaired event after a queue failure.
+  /// Forbidden raw uninstall skips the deleted SDK timer, retaining native cleanup
+  /// and bus-silent cancel/takeResult. Core result delivery remains independently owed.
   /// @note Earlier cleanup errors stay in the journal even after successful repair.
   esp_err_t stop(uint64_t deadlineUs) noexcept;
   /// @brief Close admission permanently and retain installed resources under RX lifetime gate.
@@ -401,7 +413,7 @@ private:
   void record(esp_err_t error, bool cleanup = false) noexcept;
   void recordCore(Status status, bool cleanup = false) noexcept;
   esp_err_t publish(PublishedTuple tuple, uint64_t deadlineUs, bool stopping = false) noexcept;
-  esp_err_t finishStop(uint64_t deadlineUs) noexcept;
+  esp_err_t finishStop(uint64_t deadlineUs, esp_err_t downError) noexcept;
   void rememberCleanup(esp_err_t error, bool deadline = false) noexcept;
   IoBudget callbackBudget(uint32_t frames) const noexcept;
   void shareQuiet() noexcept;
@@ -447,7 +459,7 @@ private:
   std::atomic<bool> _installing{false};
   std::atomic<bool> _uninstallSeen{false};
   std::atomic<TaskHandle_t> _startTask{nullptr};
-  std::atomic<bool> _stopRequested{false};
+  bool _preStopDownAttempted{false}; ///< Lifecycle owner tries a lost DOWN once before framework stop.
   static constexpr int64_t OWNER_DEADLINE = std::numeric_limits<int64_t>::max();
   std::atomic<Phase> _phase{Phase::STOPPED};
   std::atomic<uint8_t> _deferredStart{0}; ///< Bit0 FSM changed; bit1 START was posted before get_link.

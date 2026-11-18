@@ -31,6 +31,10 @@ public SDK reconciliation, owner-routed raw/collector access, separate MAC/PHY f
 policy, terminal framework restart, link notifications and bounded stop/fencing. Real-driver host and P4 link tests
 cover their own layers. RX task lifetime still prevents reusable destruction of
 installed resources; terminal retirement retains them through system restart.
+Transient live-query misses use a validated count limit and recover on later
+evidence; lost trust still requires owner stop. Event repair debt cannot withhold
+the native hardware-stop attempt. Core result delivery remains a separate
+obligation, including after a forbidden raw uninstall closes normal admission.
 
 The first board advertises 100 Mbit/s full duplex, but the reusable driver supports
 all source-qualified 10/100 modes. Configured policy, resolved link and application

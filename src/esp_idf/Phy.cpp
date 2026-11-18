@@ -72,8 +72,10 @@ bool Phy::enter() noexcept {
   if (xSemaphoreTake(_gate, 0) != pdTRUE) return false;
   const auto boardOutcome = _boardOutcome.exchange(std::numeric_limits<int64_t>::min());
   if (boardOutcome != std::numeric_limits<int64_t>::min()) {
-    const auto error = static_cast<esp_err_t>(boardOutcome);
-    record(error); _boardReady = error == ESP_OK; _phase = Phase::STOPPED;
+    if (boardOutcome == OWNER_DEADLINE)
+      recordCore(Status::Error(Err::OPERATION_TIMEOUT, "Board readiness allowance expired", static_cast<int32_t>(TimeoutDetail::DEADLINE)));
+    else record(static_cast<esp_err_t>(boardOutcome));
+    _boardReady = boardOutcome == ESP_OK; _phase = Phase::STOPPED;
   }
   const auto outcome = _installOutcome.exchange(std::numeric_limits<int64_t>::min());
   if (outcome != std::numeric_limits<int64_t>::min()) {
@@ -90,6 +92,7 @@ bool Phy::enter() noexcept {
     if (status.ok() && !_pendingPublication.status.ok()) status = _pendingPublication.status;
     if (_pendingPublication.cleanup && !_pendingPublication.status.ok()) _record.lastCleanupError = _pendingPublication.status;
     if (_pendingPublication.uncertain) _record.stopRequired = true;
+    if (!_pendingPublication.uncertain && !_pendingPublication.tuple.up) _record.observationDownOwed = false;
     _notifying = false;
   }
   const auto started = _deferredStart.exchange(0);
@@ -105,9 +108,6 @@ bool Phy::enter() noexcept {
       recordCore(Status::Error(Err::OPERATION_TIMEOUT, "Native start completed late", static_cast<int32_t>(TimeoutDetail::DEADLINE)));
     else record(static_cast<esp_err_t>(startOutcome));
     _phase = startOutcome == ESP_OK ? Phase::RUNNING : Phase::STOPPING;
-  }
-  if (_stopRequested.exchange(false) && (_phase == Phase::RUNNING || _phase == Phase::STARTING)) {
-    _phase = Phase::STOPPING; _record.stage = LifecycleStage::STOP; _record.stopRequired = true;
   }
   const auto cleanupOutcome = _cleanupOutcome.exchange(std::numeric_limits<int64_t>::min());
   if (cleanupOutcome == OWNER_DEADLINE)
@@ -142,19 +142,28 @@ bool Phy::enter() noexcept {
   // Uninstall deletes the SDK timer before it calls deinit. This independent
   // latch wins over every late start/control receipt and never reopens that timer.
   if (_uninstallSeen.load()) {
-    _phase = Phase::MAINTENANCE; _record.stage = LifecycleStage::RETAINED;
-    _record.stopRequired = true; _sdkState.reconciled = false;
+    // The deleted framework timer is never touched again. Independent fence,
+    // MAC stop, cancel and result delivery remain available until resolved.
+    _frameworkStopOwed = false; _sdkState.reconciled = false;
+    if (_phase == Phase::STOPPED || _phase == Phase::MAINTENANCE) {
+      _phase = Phase::MAINTENANCE; _record.stage = LifecycleStage::RETAINED;
+    } else {
+      _phase = Phase::STOPPING; _record.stopRequired = true;
+    }
     record(ESP_ERR_INVALID_STATE);
   }
   return true;
 }
 bool Phy::enterUntil(uint64_t deadlineUs) noexcept {
-  constexpr uint64_t tickUs = (uint64_t{1000000} + configTICK_RATE_HZ - 1U) / configTICK_RATE_HZ;
   for (uint32_t polls = 0; polls < _config.maxFencePolls; ++polls) {
     const auto current = timeNow();
     if (current >= deadlineUs) return false;
-    if (enter()) return true;
-    if (deadlineUs - current < tickUs) return false;
+    if (enter()) {
+      if (timeNow() < deadlineUs) return true;
+      leave(); return false;
+    }
+    const auto after = timeNow();
+    if (after >= deadlineUs || !ticksWithin(deadlineUs - after)) return false;
     vTaskDelay(1);
   }
   return false;
@@ -188,7 +197,7 @@ esp_err_t Phy::create(const PhyConfig& config, Phy*& output) noexcept {
       !config.linkPollMs || config.linkPollMs > std::numeric_limits<uint32_t>::max() / 1000U ||
       !config.callbackBudgetUs || !config.cleanupBudgetUs || !config.notificationUs || !config.lockWaitUs ||
       config.core.transport.bounds.fixedUs < config.lockWaitUs ||
-      !config.maxFencePolls || !config.maxStopAttempts) return ESP_ERR_INVALID_ARG;
+      !config.maxFencePolls || !config.maxStopAttempts || !config.maxObservationMisses) return ESP_ERR_INVALID_ARG;
   const auto& bounds = config.core.transport.bounds;
   const uint64_t linkBound = uint64_t{2} * bounds.fixedUs + uint64_t{10} * bounds.frameUs +
       bounds.clockLagUs + uint64_t{5} * config.notificationUs;
@@ -292,8 +301,12 @@ esp_err_t Phy::prepareBoard(const BoardControl& board, uint64_t deadlineUs) noex
   if (!enter()) return ESP_ERR_INVALID_STATE;
   if (_installAttempted || _phase != Phase::STOPPED || _notifying) { leave(); return ESP_ERR_INVALID_STATE; }
   const auto entry = timeNow();
-  if (entry >= deadlineUs || board.powerOnAtUs > entry || board.clockStableAtUs > entry) {
+  if (board.powerOnAtUs > entry || board.clockStableAtUs > entry) {
     leave(); return ESP_ERR_INVALID_ARG;
+  }
+  if (entry >= deadlineUs) {
+    recordCore(Status::Error(Err::OPERATION_TIMEOUT, "Board readiness allowance expired", static_cast<int32_t>(TimeoutDetail::DEADLINE)));
+    leave(); return ESP_ERR_TIMEOUT;
   }
   auto& bus = *_config.bus;
   auto admission = bus.admission.load();
@@ -306,18 +319,26 @@ esp_err_t Phy::prepareBoard(const BoardControl& board, uint64_t deadlineUs) noex
   leave();
   // Drain existing whole batches. No mutex survives pin callbacks or waits.
   esp_err_t error = ESP_OK;
-  if (xSemaphoreTake(bus.mutex, ticksWithin(deadlineUs - entry)) != pdTRUE) error = ESP_ERR_TIMEOUT;
+  bool ownerDeadline = false;
+  if (xSemaphoreTake(bus.mutex, ticksWithin(deadlineUs - entry)) != pdTRUE) {
+    ownerDeadline = true; error = ESP_ERR_TIMEOUT;
+  }
   else {
     if (bus.quarantined.load()) error = ESP_ERR_INVALID_STATE;
     if (xSemaphoreGive(bus.mutex) != pdTRUE) { bus.quarantined.store(true); error = ESP_FAIL; }
   }
   uint32_t polls = 0;
   auto waitUntil = [&](uint64_t due) {
-    while (timeNow() < due) {
-      if (timeNow() >= deadlineUs || ++polls >= board.maxPolls) return ESP_ERR_TIMEOUT;
+    auto current = timeNow();
+    while (current < due) {
+      if (current >= deadlineUs || ++polls >= board.maxPolls || !ticksWithin(deadlineUs - current)) {
+        ownerDeadline = true; return ESP_ERR_TIMEOUT;
+      }
       vTaskDelay(1);
+      current = timeNow();
     }
-    return timeNow() < deadlineUs ? ESP_OK : ESP_ERR_TIMEOUT;
+    ownerDeadline = current >= deadlineUs;
+    return ownerDeadline ? ESP_ERR_TIMEOUT : ESP_OK;
   };
   uint64_t clockDue = 0, porDue = 0, due = 0;
   // esp_timer's P4 counter conversion floors ticks/16. Use completion upper
@@ -328,17 +349,17 @@ esp_err_t Phy::prepareBoard(const BoardControl& board, uint64_t deadlineUs) noex
   if (error == ESP_OK) error = waitUntil(clockDue > porDue ? clockDue : porDue);
   if (error == ESP_OK) error = board.setReset(board.context, true);
   if (error == ESP_OK) {
-    if (!addTime(timeNow(), uint64_t{board.assertionUs} + lag, due)) error = ESP_ERR_TIMEOUT;
+    if (!addTime(timeNow(), uint64_t{board.assertionUs} + lag, due)) { ownerDeadline = true; error = ESP_ERR_TIMEOUT; }
     else error = waitUntil(due);
   }
   if (error == ESP_OK) error = board.setReset(board.context, false);
   if (error == ESP_OK) {
-    if (!addTime(timeNow(), 2000U + lag, due)) error = ESP_ERR_TIMEOUT;
-    else { extendQuiet(bus, due); error = waitUntil(bus.quietUntilUs.load()); }
+    if (!addTime(timeNow(), 2000U + lag, due)) { ownerDeadline = true; error = ESP_ERR_TIMEOUT; }
+    else { extendQuiet(bus, due); error = waitUntil(due); }
   }
   // Terminal receipt cannot be lost to an unrelated snapshot's short gate hold.
   // Release shared admission here; the next entry adopts only local readiness.
-  _boardOutcome.store(error);
+  _boardOutcome.store(ownerDeadline ? OWNER_DEADLINE : static_cast<int64_t>(error));
   bus.admission.store(error == ESP_OK ? BusAdmission::AVAILABLE : BusAdmission::FAILED_CLOSED);
   if (enter()) leave();
   return error;
@@ -456,9 +477,11 @@ esp_err_t Phy::autonego(esp_eth_phy_t* phy, eth_phy_autoneg_cmd_t command, bool*
 bool Phy::verifiedSettings() const noexcept {
   const auto settings = _core.settingsSnapshot();
   const auto operation = _core.operationSnapshot();
+  const auto transport = _core.transportSnapshot();
   return _core.isInitialized() && _core.capabilities().valid && settings.desiredValid &&
       settings.trust == ConfigurationTrust::VERIFIED && operation.state == OperationState::IDLE &&
-      !operation.cleanupOwed && !operation.temporaryMayBeActive && !_config.bus->quarantined.load();
+      !operation.cleanupOwed && !operation.temporaryMayBeActive && !transport.clockInvalid &&
+      !transport.stopped && !_config.bus->quarantined.load();
 }
 void Phy::refreshAgreement() noexcept {
   if (!verifiedSettings()) _sdkState.reconciled = false;
@@ -527,7 +550,13 @@ esp_err_t Phy::acknowledgePause(esp_eth_phy_t* phy, uint32_t ability) noexcept {
 
 esp_err_t Phy::publish(PublishedTuple tuple, uint64_t deadlineUs, bool stopping) noexcept {
   const bool ownerCall = stopping || _startTask.load() == xTaskGetCurrentTaskHandle();
-  if (!(ownerCall ? enterUntil(deadlineUs) : enter())) return ESP_ERR_INVALID_STATE;
+  if (!(ownerCall ? enterUntil(deadlineUs) : enter())) {
+    if (stopping) {
+      rememberCleanup(ESP_ERR_TIMEOUT, true); _cleanupPublicationReported = true;
+      return ESP_ERR_TIMEOUT;
+    }
+    return ESP_ERR_INVALID_STATE;
+  }
   if (!_mediator || _notifying || _record.publicationUncertain ||
       (stopping ? _phase != Phase::STOPPING : (_phase != Phase::RUNNING && _phase != Phase::STARTING))) {
     leave(); return ESP_ERR_INVALID_STATE;
@@ -582,7 +611,7 @@ esp_err_t Phy::publish(PublishedTuple tuple, uint64_t deadlineUs, bool stopping)
   // The synchronous notification owner is the only writer until this release.
   // No post-callback try-lock can lose accepted effects or strand _notifying.
   _pendingPublication = receipt;
-  if (receipt.cleanup) _cleanupPublicationReported = true;
+  if (receipt.cleanup) _cleanupPublicationReported = !receipt.status.ok();
   _publicationComplete.store(true);
   return error;
 }
@@ -594,10 +623,18 @@ esp_err_t Phy::getLink(esp_eth_phy_t* phy) noexcept {
   }
   if (self._phase == Phase::STARTING) self._startPosted = true; // SDK posts START before this callback.
   const auto budget = self.callbackBudget(16);
-  const auto fail = [&](Status failure) {
+  const auto fail = [&](Status failure, bool trustLost = false) {
     self.recordCore(failure);
-    self._record.stopRequired = true;
-    const bool withdraw = self._record.publishedTuple.up && !self._notifying;
+    self._record.lastObservationStatus = failure;
+    if (self._phase == Phase::RUNNING) {
+      if (self._record.consecutiveObservationMisses < std::numeric_limits<uint32_t>::max())
+        ++self._record.consecutiveObservationMisses;
+      if (self._record.consecutiveObservationMisses >= self._config.maxObservationMisses)
+        self._record.observationDownOwed = true;
+    }
+    if (trustLost || self._phase == Phase::STARTING) self._record.stopRequired = true;
+    const bool withdraw = self._record.publishedTuple.up && !self._notifying &&
+        (self._record.stopRequired || self._record.observationDownOwed);
     self.leave();
     // Administrative DOWN does not rewrite retained physical link evidence.
     // If publication is itself uncertain, the journal requires application stop.
@@ -606,11 +643,21 @@ esp_err_t Phy::getLink(esp_eth_phy_t* phy) noexcept {
   };
   self.refreshAgreement();
   if (self._record.stopRequired)
-    return fail(Status::Error(Err::NOT_INITIALIZED, "Owner stop required after running proof was lost"));
-  if (self._notifying || self._record.publicationUncertain)
-    return fail(busy());
+    return fail(self._record.lastObservationStatus.ok() || self._record.lastObservationStatus.is(Err::RESULT_NOT_AVAILABLE)
+        ? Status::Error(Err::NOT_INITIALIZED, "Owner stop required after running proof was lost")
+        : self._record.lastObservationStatus, true);
+  // publicationUncertain is also the in-flight marker. Only a terminal unknown
+  // effect loses trust; our synchronous publisher retains its own receipt.
+  if (self._notifying) return fail(busy());
+  if (self._record.publicationUncertain) return fail(busy(), true);
   if (!self._sdkState.reconciled)
-    return fail(Status::Error(Err::NOT_INITIALIZED, "Running SDK or PHY agreement lost"));
+    return fail(Status::Error(Err::NOT_INITIALIZED, "Running SDK or PHY agreement lost"), true);
+  if (self._record.observationDownOwed) {
+    if (self._record.publishedTuple.up) {
+      self.leave(); return self.publish({}, budget.deadlineUs);
+    }
+    self._record.observationDownOwed = false;
+  }
   const uint64_t reserve = uint64_t{self._config.notificationUs} * 5U;
   const auto current = timeNow();
   if (current >= budget.deadlineUs || reserve >= budget.deadlineUs - current) {
@@ -619,9 +666,11 @@ esp_err_t Phy::getLink(esp_eth_phy_t* phy) noexcept {
   LinkSnapshot observation{};
   const auto status = self._core.readLinkStatus(observation, {budget.deadlineUs - reserve, budget.maxFrames});
   self.refreshAgreement();
-  if (!status.ok()) return fail(status);
+  if (!status.ok()) return fail(status, !self._sdkState.reconciled);
   if (observation.linkUp && !observation.resolvedModeValid)
     return fail(Status::Error(Err::NOT_INITIALIZED, "Running link mode is unresolved"));
+  self._record.lastObservationStatus = Status::Ok();
+  self._record.consecutiveObservationMisses = 0;
   PublishedTuple tuple{};
   tuple.up = observation.linkUp;
   if (tuple.up) {
@@ -636,11 +685,7 @@ esp_err_t Phy::setLink(esp_eth_phy_t* phy, eth_link_t link) noexcept {
   if (link != ETH_LINK_DOWN) return ESP_ERR_NOT_SUPPORTED;
   auto& self = owner(phy);
   if (self._phase.load() != Phase::STOPPING) return ESP_ERR_INVALID_STATE;
-  if (!self.enterUntil(self._lifecycleDeadline))
-    return timeNow() >= self._lifecycleDeadline.load() ? ESP_ERR_TIMEOUT : ESP_ERR_INVALID_STATE;
-  if (self._phase != Phase::STOPPING) { self.leave(); return ESP_ERR_INVALID_STATE; }
-  const auto deadline = self._lifecycleDeadline.load();
-  self.leave(); return self.publish({}, deadline, true);
+  return self.publish({}, self._lifecycleDeadline.load(), true);
 }
 
 void Phy::rememberCleanup(esp_err_t error, bool deadline) noexcept {
@@ -665,8 +710,10 @@ esp_err_t Phy::start(uint64_t deadlineUs) noexcept {
   if (_record.sequence < std::numeric_limits<uint64_t>::max()) ++_record.sequence;
   _record.firstError = {}; _record.cleanupError = {}; _record.lastCleanupError = {};
   _record.stopRequired = false;
+  _record.consecutiveObservationMisses = 0; _record.observationDownOwed = false;
+  _record.lastObservationStatus = Status::Error(Err::RESULT_NOT_AVAILABLE, "No native observation");
   _phase = Phase::STARTING; _lifecycleDeadline = deadlineUs; _record.stage = LifecycleStage::START;
-  _startPosted = false; _stopPosted = false; _macStopAccepted = false;
+  _startPosted = false; _stopPosted = false; _macStopAccepted = false; _preStopDownAttempted = false;
   _frameworkStopOwed = true; // SDK changes its FSM before calling the PHY or posting START.
   _startTask.store(xTaskGetCurrentTaskHandle());
   leave();
@@ -684,60 +731,63 @@ esp_err_t Phy::start(uint64_t deadlineUs) noexcept {
 }
 
 esp_err_t Phy::stop(uint64_t deadlineUs) noexcept {
-  const auto phase = _phase.load();
-  if (phase == Phase::RUNNING || phase == Phase::STARTING) _stopRequested.store(true);
   const auto timeout = [&]() {
     rememberCleanup(ESP_ERR_TIMEOUT, true);
     return ESP_ERR_TIMEOUT;
   };
-  // Drain publication after closing new live observations, outside its gate.
-  // A timer or snapshot can finish, even if this lifecycle request must retry.
-  for (uint32_t poll = 0; poll < _config.maxFencePolls; ++poll) {
-    if (!enterUntil(deadlineUs)) return timeout();
-    if (!_installed || _phase == Phase::CONTROL || _phase == Phase::MAINTENANCE) {
-      leave(); return ESP_ERR_INVALID_STATE;
-    }
-    if (_phase == Phase::STOPPED && !_frameworkStopOwed) { leave(); return ESP_OK; }
-    _phase = Phase::STOPPING; _record.stage = LifecycleStage::STOP; _lifecycleDeadline = deadlineUs;
-    _record.stopRequired = true;
-    if (!_notifying) break;
+  // A new stop has no effects until admitted. A failed start or a prior
+  // admitted stop already owes cleanup, including when this retry cannot enter.
+  if (!enterUntil(deadlineUs)) {
+    const auto start = _startOutcome.load();
+    const bool cleanupOwed = _phase.load() == Phase::STOPPING ||
+        (start != std::numeric_limits<int64_t>::min() && start != ESP_OK);
+    return cleanupOwed ? timeout() : ESP_ERR_TIMEOUT;
+  }
+  if (!_installed || _phase == Phase::CONTROL) { leave(); return ESP_ERR_INVALID_STATE; }
+  if (_phase == Phase::MAINTENANCE || (_phase == Phase::STOPPED && !_frameworkStopOwed)) {
+    leave(); return ESP_OK;
+  }
+  _phase = Phase::STOPPING; _record.stage = LifecycleStage::STOP; _lifecycleDeadline = deadlineUs;
+  _record.stopRequired = true;
+  // Once admitted, close new live observations while an existing publisher
+  // finishes outside the gate. Later owner calls resume the same obligations.
+  for (uint32_t poll = 0; _notifying; ++poll) {
     leave();
     const auto current = timeNow();
     if (poll + 1 == _config.maxFencePolls || current >= deadlineUs ||
         !ticksWithin(deadlineUs - current)) return timeout();
     vTaskDelay(1);
+    if (!enterUntil(deadlineUs)) return timeout();
   }
   if (timeNow() >= deadlineUs) { leave(); return timeout(); }
-  // If a prior timer poll already set the SDK link cache DOWN, esp_eth_stop
-  // would skip PHY set_link and post STOP immediately. Repair that event first.
-  if (_frameworkStopOwed && _record.eventLost && !_record.publishedTuple.up) {
+  esp_err_t downError = ESP_OK;
+  if (_frameworkStopOwed && !_preStopDownAttempted && _record.eventLost && !_record.publishedTuple.up) {
+    // Try to restore normal event order once. If this consumes the entire
+    // allowance, the next owner call proceeds to framework stop immediately.
+    _preStopDownAttempted = true;
     leave();
     _cleanupPublicationReported = false;
-    const auto repaired = retryLinkEvent(deadlineUs);
-    if (repaired != ESP_OK) {
-      if (!_cleanupPublicationReported) rememberCleanup(repaired, timeNow() >= deadlineUs);
-      return repaired;
-    }
+    downError = retryLinkEvent(deadlineUs);
+    if (!_cleanupPublicationReported) rememberCleanup(downError, downError == ESP_ERR_TIMEOUT && timeNow() >= deadlineUs);
     if (!enterUntil(deadlineUs)) return timeout();
     if (_phase != Phase::STOPPING) { leave(); return ESP_ERR_INVALID_STATE; }
-    if (timeNow() >= deadlineUs) { leave(); return timeout(); }
   }
-  const bool callFramework = _frameworkStopOwed;
+  if (timeNow() >= deadlineUs) { leave(); return timeout(); }
+  // Installed deinit proves the SDK FSM has already stopped and its timer
+  // was deleted. Only the adapter's independent fence may be used from here.
+  const bool callFramework = _frameworkStopOwed && !_uninstallSeen.load();
   _frameworkStopOwed = false;
+  _preStopDownAttempted = false;
   _record.stage = LifecycleStage::FENCE;
   leave();
-  // Pinned esp_eth_stop changes FSM to STOP before all its fallible steps.
-  // A retry must finish the outstanding work without calling it a second time.
   _cleanupPublicationReported = false;
   const auto initial = callFramework ? esp_eth_stop(_ethernet) : ESP_OK;
   if (callFramework && initial == ESP_OK) _stopPosted = true;
-  // set_link may have returned our own deadline failure through esp_eth_stop.
-  // Its typed receipt owns that failure; do not relabel the forwarded SDK code.
-  if (!_cleanupPublicationReported || _pendingPublication.status.ok()) rememberCleanup(initial);
-  return finishStop(deadlineUs);
+  if (!_cleanupPublicationReported) rememberCleanup(initial);
+  return finishStop(deadlineUs, downError);
 }
 
-esp_err_t Phy::finishStop(uint64_t deadlineUs) noexcept {
+esp_err_t Phy::finishStop(uint64_t deadlineUs, esp_err_t downError) noexcept {
   const auto timeout = [&]() {
     rememberCleanup(ESP_ERR_TIMEOUT, true);
     return ESP_ERR_TIMEOUT;
@@ -746,7 +796,7 @@ esp_err_t Phy::finishStop(uint64_t deadlineUs) noexcept {
   if (!_fenceArmed) {
     const auto armed = esp_timer_start_once(_fence, 0);
     if (armed != ESP_OK) { rememberCleanup(armed); return armed; }
-    _fenceArmed = true; // Single lifecycle caller owns this receipt across retries.
+    _fenceArmed = true;
   }
   uint32_t polls = 0;
   while (esp_timer_is_active(_fence)) {
@@ -759,33 +809,35 @@ esp_err_t Phy::finishStop(uint64_t deadlineUs) noexcept {
   const bool needDown = _record.publishedTuple.up;
   const bool uncertain = _record.publicationUncertain;
   leave();
-  esp_err_t events = uncertain ? ESP_ERR_INVALID_STATE : ESP_OK;
+  esp_err_t events = uncertain ? ESP_ERR_INVALID_STATE : downError;
   _cleanupPublicationReported = false;
   if (!uncertain && needDown) events = publish({}, deadlineUs, true);
-  if (!_cleanupPublicationReported) rememberCleanup(events, events == ESP_ERR_TIMEOUT && timeNow() >= deadlineUs);
+  if (needDown || uncertain) {
+    if (!_cleanupPublicationReported) rememberCleanup(events, events == ESP_ERR_TIMEOUT && timeNow() >= deadlineUs);
+  }
   if (!enterUntil(deadlineUs)) return timeout();
   const bool lostDown = !_record.publicationUncertain && !_record.publishedTuple.up && _record.eventLost;
   leave();
-  if (lostDown) {
+  if (lostDown && downError == ESP_OK) {
     _cleanupPublicationReported = false;
     events = retryLinkEvent(deadlineUs);
     if (!_cleanupPublicationReported) rememberCleanup(events, events == ESP_ERR_TIMEOUT && timeNow() >= deadlineUs);
   }
-  if (events == ESP_OK && _startPosted && !_stopPosted) {
+  // An accepted link/cache DOWN can have a missing DISCONNECTED. Keep that
+  // error and repair independently while still delivering STOP to netif glue.
+  if ((events == ESP_OK || lostDown) && _startPosted && !_stopPosted) {
     const auto before = timeNow();
     if (before >= deadlineUs) return timeout();
-    events = esp_event_post(ETH_EVENT, ETHERNET_EVENT_STOP, &_ethernet, sizeof(_ethernet), ticksWithin(deadlineUs - before));
-    rememberCleanup(events);
-    if (events == ESP_OK) {
+    const auto stopEvent = esp_event_post(ETH_EVENT, ETHERNET_EVENT_STOP, &_ethernet, sizeof(_ethernet), 0);
+    rememberCleanup(stopEvent);
+    if (stopEvent == ESP_OK) {
       _stopPosted = true;
       if (timeNow() >= deadlineUs) return timeout();
-    }
+    } else if (events == ESP_OK) events = stopEvent;
   }
   if (!enterUntil(deadlineUs)) return timeout();
   _record.stage = LifecycleStage::MAC_STOP;
   leave();
-  // MAC stop is still useful after an event error. Record a successful call
-  // immediately, including a late one, so retry cannot repeat its effects.
   esp_err_t macError = ESP_OK;
   for (uint32_t attempt = 0; !_macStopAccepted && attempt < _config.maxStopAttempts; ++attempt) {
     if (timeNow() >= deadlineUs) return timeout();
@@ -802,7 +854,10 @@ esp_err_t Phy::finishStop(uint64_t deadlineUs) noexcept {
     record(ESP_ERR_INVALID_STATE, true); leave(); return ESP_ERR_INVALID_STATE;
   }
   if (timeNow() >= deadlineUs) { leave(); return timeout(); }
-  _phase = Phase::STOPPED; _fenceArmed = false; _record.stopRequired = false;
+  _fenceArmed = false; _record.stopRequired = false;
+  if (_uninstallSeen.load()) {
+    _phase = Phase::MAINTENANCE; _record.stage = LifecycleStage::RETAINED;
+  } else _phase = Phase::STOPPED;
   leave();
   return ESP_OK;
 }
@@ -810,13 +865,16 @@ esp_err_t Phy::finishStop(uint64_t deadlineUs) noexcept {
 esp_err_t Phy::retire(uint64_t deadlineUs) noexcept {
   const auto stopped = stop(deadlineUs);
   if (stopped != ESP_OK) return stopped;
-  if (!enterUntil(deadlineUs)) { rememberCleanup(ESP_ERR_TIMEOUT, true); return ESP_ERR_TIMEOUT; }
+  // Stop already completed. Failure to acquire the terminal admission gate
+  // cannot create a cleanup error or undo those observed effects.
+  if (!enterUntil(deadlineUs)) return ESP_ERR_TIMEOUT;
+  if (_phase == Phase::MAINTENANCE) { leave(); return ESP_ERR_NOT_SUPPORTED; }
   if (!_installed || _phase != Phase::STOPPED || _frameworkStopOwed || _notifying ||
       _record.publicationUncertain || _record.publishedTuple.up || _record.eventLost) {
     leave(); return ESP_ERR_INVALID_STATE;
   }
   _phase = Phase::MAINTENANCE; _record.stage = LifecycleStage::RETAINED;
-  leave(); return ESP_ERR_NOT_SUPPORTED; // native_rx_quiescence retains all installed resources.
+  leave(); return ESP_ERR_NOT_SUPPORTED;
 }
 
 esp_err_t Phy::destroy() noexcept {
@@ -860,12 +918,13 @@ Status Phy::startInitialize(const InitializeOptions& options, const OperationBud
   if (bus.quarantined.load()) {
     const bool released = xSemaphoreGive(bus.mutex) == pdTRUE;
     bus.admission.store(released ? BusAdmission::AVAILABLE : BusAdmission::FAILED_CLOSED);
-    leave(); return released ? busDenied(true) : nativeStatus(ESP_FAIL);
+    if (!released) record(ESP_FAIL);
+    leave(); return busDenied(true);
   }
   _ownsSilence = true;
   if (xSemaphoreGive(bus.mutex) != pdTRUE) {
     bus.quarantined.store(true); bus.admission.store(BusAdmission::FAILED_CLOSED);
-    _ownsSilence = false; leave(); return nativeStatus(ESP_FAIL);
+    _ownsSilence = false; record(ESP_FAIL); leave(); return busDenied(true);
   }
   const auto status = _core.startInitialize(options, budget, token);
   if (status.inProgress()) {
@@ -900,8 +959,8 @@ Status Phy::takeResult(OperationToken token, OperationResult& output) noexcept {
   if (!enter()) return busy();
   const auto status = _core.takeResult(token, output);
   if (status.ok()) recordCore(output.status);
-  if (status.ok() && _phase == Phase::CONTROL) {
-    _phase = _frameworkStopOwed ? Phase::STOPPING : Phase::STOPPED;
+  if (status.ok()) {
+    if (_phase == Phase::CONTROL) _phase = _frameworkStopOwed ? Phase::STOPPING : Phase::STOPPED;
     if (_ownsSilence) { shareQuiet(); _ownsSilence = false; _config.bus->admission.store(BusAdmission::AVAILABLE); }
   }
   leave(); return status;
@@ -1049,13 +1108,13 @@ esp_err_t Phy::retryLinkEvent(uint64_t deadlineUs) noexcept {
   _notifying = true; leave();
   const auto current = timeNow();
   const auto error = current >= deadlineUs ? ESP_ERR_TIMEOUT :
-    esp_event_post(ETH_EVENT, id, &_ethernet, sizeof(_ethernet), ticksWithin(deadlineUs - current));
+    esp_event_post(ETH_EVENT, id, &_ethernet, sizeof(_ethernet), receipt.cleanup ? 0 : ticksWithin(deadlineUs - current));
   const auto after = timeNow();
   if (error == ESP_OK) receipt.eventLost = false;
   const bool late = current >= deadlineUs || (error == ESP_OK && (after < current || after >= deadlineUs));
   receipt.status = late ? NativeStatus{Status::Error(Err::OPERATION_TIMEOUT, "Native event allowance expired", static_cast<int32_t>(TimeoutDetail::DEADLINE))} : NativeStatus{{}, error};
   _pendingPublication = receipt;
-  if (receipt.cleanup) _cleanupPublicationReported = true;
+  if (receipt.cleanup) _cleanupPublicationReported = !receipt.status.ok();
   _publicationComplete.store(true);
   return late ? ESP_ERR_TIMEOUT : error;
 }

@@ -623,3 +623,11 @@ tests and a333Hz rational-tick test (144 total). Failure/cancellation, incomplet
 retirement, receipt contention, late cleanup, deleted-timer rejection, ordered
 events, resolved pause and one-controller peer exclusion all execute production
 adapter code. Physical timing, stack headroom and reusable RX teardown remain gates.
+
+The [second-round corrections](../docs/reports/implementation/37-39-native-fixes-round2-2026-11-18.md)
+extend the same real-driver harness with transient observation recovery and its
+miss limit, own-publisher contention, foreign quiet floors, subtick board budgets,
+rejected stop admission, persistent event loss, raw-uninstall cleanup/result
+delivery and precise SDK/core error domains. The complete native suite runs at
+1000, 100 and 333 Hz, in Release and UBSan trap builds. These cases model the
+source paths and retained outcomes; they do not qualify physical timing.

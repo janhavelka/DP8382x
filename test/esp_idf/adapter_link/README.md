@@ -29,10 +29,11 @@ clock conditions at the observed time; it cannot detect a missing oscillator.
 
 The SDK runs periodic link observation on the shared `esp_timer` task. The P4
 fixture configuration used `CONFIG_ESP_TIMER_TASK_STACK_SIZE=3584` bytes.
-For the November 18 correction, P4 GCC 15.2.0 `-fstack-usage` reported 272
+For the November 18 second-round correction, P4 GCC 15.2.0 `-fstack-usage` reported 304
 bytes for `getLink`, 512 for `readLinkStatus`, 416 for the core batch call
 and 160 for the native MDIO backend. Those four nested frames account for
-1360 bytes before entering the SDK MAC. The timer dispatcher, MAC, event posting and error logging also use
+1392 bytes before entering the SDK MAC. The separate verified-settings check uses
+448 bytes; it is not nested inside the MDIO chain. The timer dispatcher, MAC, event posting and error logging also use
 this stack. The pinned SDK adds `TASK_EXTRA_STACK_SIZE` to the configured
 size in `esp_system/include/esp_task.h`. Qualification requires high-water
 measurements under the application's release build, enabled logging and

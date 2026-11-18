@@ -101,7 +101,11 @@ set(native_suites factory board_install_failures raw_routing raw_rx_retention
     initialize_failures configuration_failures retire_and_stop_admission board_completion_contention
     late_start_cleanup uninstall_gate_contention stop_failure_receipts stop_without_start
     stop_repairs_lost_down observation_loss p4_busy_before_command dependent_callback_bounds install_reservation
-    timer_publication_during_stop)
+    timer_publication_during_stop stop_before_admission persistent_disconnected_during_stop
+    raw_uninstall_during_stop raw_uninstall_during_initialization retire_after_stop_admission_timeout
+    native_cleanup_error_domains observation_cable_flap observation_bus_contention observation_miss_bound
+    peer_board_observation event_retry_observation board_deadline_domains cancelled_reset_board_floor
+    late_stop_gate raw_uninstall_already_down failed_start_cleanup_admission minimal_cleanup_allowance)
 foreach(suite IN LISTS native_suites)
   add_test(NAME native_${suite} COMMAND dp8382x_native_host_tests ${suite})
   set_tests_properties(native_${suite} PROPERTIES TIMEOUT 30)
@@ -140,4 +144,4 @@ function(add_native_tick_rate rate)
   endforeach()
 endfunction()
 add_native_tick_rate(100 ${native_suites})
-add_native_tick_rate(333 controller_wait_classification)
+add_native_tick_rate(333 ${native_suites})

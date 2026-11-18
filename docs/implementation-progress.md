@@ -5,7 +5,7 @@ execution. Prompts 1–35 are complete for supported procedures (DPD remains sou
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
 Current local checks include 236 registered portable Release CTests, 103 Python tests,
 two linked tests-OFF consumers, Doxygen negative checks, ledger/reference integrity
-and deterministic version validation. Prompts37-39 and their audits add144 pinned-driver/native host
+and deterministic version validation. Prompts 37-39 and their audits add 262 pinned-driver/native host
 tests in Release and UBSan and an actual ESP32-P4 image link. Physical qualification
 remains later work; first-execution remote CI belongs to prompt 71.
 The driver now provides the restricted Clause 22/MMD subset, stable-field RMW
@@ -27,6 +27,14 @@ Prompt 23 adds [loopback sessions](loopback.md), with separate start/stop
 operations, retained temporary state and verified restoration.
 
 ## Execution record
+
+The [second-round native correction review](reports/implementation/37-39-native-fixes-round2-2026-11-18.md)
+starts from synchronized `998cb6d` on main. It corrects transient observation
+recovery, peer quiet-floor readiness, stop admission and continued cleanup after
+event failure or forbidden uninstall, with precise deadline/error evidence.
+All 12 comments have individual dispositions; prose spacing is a separate unit.
+Prompt 40 remains unstarted and native_rx_quiescence remains BLOCKED. Final
+verification totals and synchronized checkpoints are recorded in the handoff.
 
 The [2026-11-18 native correction review](reports/implementation/37-39-native-fixes-2026-11-18.md)
 rechecks all17 findings at1a8bc8e and fixes lifecycle retry/completion, error domains,

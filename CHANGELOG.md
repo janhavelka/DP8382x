@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Correct the second native review: recover transient link observations, preserve
+  peer quiet floors without failing completed board readiness, and continue native
+  cleanup after event failure or forbidden uninstall. Expired stop admission has
+  no new effects; owner deadlines remain separate from actual SDK errors.
+
 - Correct all17 native adapter audit findings: retry incomplete stops/retirement,
   retain contended completion and cancellation evidence, use independent start
   cleanup, close admission after forbidden uninstall, and repair DOWN before STOP.

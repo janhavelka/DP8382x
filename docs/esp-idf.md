@@ -6,7 +6,8 @@ C++17 core through the public `esp_eth_phy_t` interface. Its baseline is
 The component metadata selects that release and target. This is a selected
 integration baseline, not a tested range of SDK releases or MACs. Executing
 results and remaining gates belong to the [prompt39 report](reports/implementation/39-esp-idf-link-bounds.md)
-and [2026-11-18 corrections](reports/implementation/37-39-native-fixes-2026-11-18.md);
+and [2026-11-18 corrections](reports/implementation/37-39-native-fixes-2026-11-18.md),
+followed by the [second-round review](reports/implementation/37-39-native-fixes-round2-2026-11-18.md);
 the [source audit](reports/implementation/39-native-source-audit.md) records
 the inspected inputs. A linked image does not establish physical operation.
 
@@ -32,6 +33,10 @@ One application owner serializes lifecycle/control entry. The instance gate also
 serializes callbacks and snapshots; snapshots copy data without MDIO. Lock order
 is instance gate, controller mutex, controller internals. Every participant on
 the MDIO controller shares the same mutex, silence admission and quarantine.
+Every participant checks admission, quarantine and the quiet floor before locking
+and again **after acquiring the mutex**, then holds it for its whole transaction.
+The second check closes the race with INSTALLING/BOARD_PREPARING reservations;
+checking only before locking cannot make a logical silence window safe.
 A complete C22/MMD/RMW batch owns that mutex; no selector state or controller
 lock survives a terminal batch. Notifications, SDK lifecycle calls, callback
 draining, waits and output run without locks their callbacks need.
@@ -74,7 +79,7 @@ entries do not acquire a bus lock. No row delegates to the IEEE base.
 | `autonego_ctrl(G_STAT)` | Installer or gated local query | Installer assigns initial true; later assigns desired mode only when valid | Null output INVALID_ARG; unknown desired/gate INVALID_STATE; ordinary failure preserves output | L |
 | `autonego_ctrl(EN/DIS)` | Exact task/CONTROL reservation for public reconciliation | Acknowledges verified matching core mode into SDK cache; no write | Mismatch/unadmitted INVALID_STATE; output assigned only on OK | L |
 | `autonego_ctrl(RESTART)` | Framework STARTING; shared core; one 3-frame BMCR batch | Command/readback; accepted/uncertain write retained; no AN wait | Core status retained internally, mapped native error; enabled assigned only on OK | L+B(3)+clock checks, within callback/start allowance under qualified bounds |
-| `get_link` | Initial STARTING or RUNNING timer; core collector; batches of 8 and 2 frames | Acquired link evidence, then unlocked ordered projection; lost running evidence requests administrative DOWN and owner stop | Physical observation stays separate from administrative state; partial notifications retain receipts | L+B(8)+B(2)+up to5N+clock/local overhead |
+| `get_link` | Initial STARTING or RUNNING timer; core collector; batches of 8 and 2 frames | Acquired link evidence, then unlocked ordered projection; transient misses use the configured limit, lost trust requires owner stop | Physical observation stays separate from administrative state; partial notifications retain receipts | L+B(8)+B(2)+up to 5N+clock/local overhead |
 | `set_link(DOWN)` | STOPPING owner/framework; no MDIO | Administrative DOWN only if last publication was UP | Unadmitted INVALID_STATE; accepted event loss separate from generic uncertainty | L+up toN, enclosed by stop deadline |
 | `set_link(UP)` | No admitted unsolicited route | None | NOT_SUPPORTED | L |
 | `reset` | Rejected; typed initialization owns resets | None | NOT_SUPPORTED | L |
@@ -202,7 +207,12 @@ qualified pulse. These requirements come from SNLS647I section 7.6 and 8.3.11,
 as reconciled in [initialization](initialization.md). Elapsed-time checks and
 finite poll caps apply; a floor-rounded RTOS delay alone is insufficient. Quiet
 floors merge by atomic maximum. Board completion releases shared admission once,
-independently of snapshot contention; a terminal receipt publishes local readiness
+after waiting for its own reset-release due time. A later peer floor remains
+enforced by install and complete batches; it cannot turn this board's completed
+readiness into a controller-wide failure. Before requesting a one-tick delay,
+the remaining deadline must contain that tick at the configured rational rate.
+Scheduler delay can still exceed the requested wait; elapsed checks detect it.
+Board completion is independent of snapshot contention; its receipt publishes local readiness
 at the next gated entry without overwriting a later participant's reservation.
 
 Only after readiness does `install` call the public SDK installer. The fence
@@ -223,7 +233,9 @@ batch mutex and retains it through result delivery. A failed drain releases its
 reservation without changing hardware. Only that owner executes batches during silence;
 no mutex spans polls or waits. Successful `takeResult` reopens admission while
 preserving any reset quiet floor. Cancellation does not erase the floor. Drain
-release failure quarantines the bus. The application must keep polling and deliver
+release failure quarantines the bus and issues no frame: it returns BUSY with
+CONTROLLER_QUARANTINED and retains the exact SDK failure in the lifecycle journal,
+without incrementing MDIO accounting. The application must keep polling and deliver
 results; stopping scheduling does not provide bounded wall-clock completion.
 
 Start publishes its terminal SDK outcome through a receipt adopted by the next
@@ -272,7 +284,12 @@ An adapter deadline forwarded by an SDK callback keeps its original portable
 deadline status; the enclosing SDK return does not relabel it as an SDK timeout.
 `retryLinkEvent` retries the event alone with a finite deadline. It never
 replays MAC UP or rebuilds DMA descriptors. During stop, a pending DISCONNECTED
-is delivered before STOP, including one lost by an earlier timer poll. Successfully
+is attempted before STOP, including one lost by an earlier timer poll. If the
+bounded repost fails, framework stop, the fence, STOP and actual MAC stop still
+proceed; the event error and DOWN repair remain owed in STOPPING. In this failure
+case STOP can precede repaired DISCONNECTED. Cleanup event retries and standalone
+STOP repair request zero queue wait, so a full queue cannot consume each new
+cleanup allowance and indefinitely withhold hardware stop. Successfully
 repaired stop returns OK while retaining the earlier cleanup error. An error on another MAC can leave
 publication uncertain and closes further ordinary publication/start admission.
 Owner stop still attempts the actual MAC stop. If current DOWN/cache/event state
@@ -291,7 +308,8 @@ An in-flight snapshot may still show the previous publication with uncertainty.
 | Observation/publication outcome | Retained evidence and next action |
 | --- | --- |
 | Down, including initial cable absent | Valid acquired down; no speed/duplex invented; publish DOWN only after prior UP |
-| Running observation fails, bus is quarantined, trust/agreement is lost, or mode becomes unresolved | Preserve acquired/partial/stale evidence and primary error; request administrative DOWN, latch stopRequired. Application must stop before another start. This does not claim physical cable-down |
+| Running observation changes, admission/mutex is busy, P4 command is rejected before issue, own publisher is in flight, or UP mode is unresolved | Preserve the tuple for fewer than maxObservationMisses; at the limit request administrative DOWN without stopRequired. Next coherent poll may publish UP normally |
+| Bus is quarantined, clock/transport contract fails, trust/SDK agreement is lost, or publication has a terminal unknown effect | Preserve acquired/partial/stale evidence and actual cause; request administrative DOWN and latch stopRequired. Application must stop before another start. This does not claim physical cable-down |
 | First resolved UP | SPEED, DUPLEX, PAUSE, UP; each field accepted separately |
 | Speed, duplex or Boolean peer pause changes while up | DOWN, SPEED, DUPLEX, PAUSE, UP; latest acquired and accepted fields stay separate |
 | Same fully published tuple | No notifications/events; a still-lost event needs explicit event retry |
@@ -301,12 +319,34 @@ An in-flight snapshot may still show the previous publication with uncertainty.
 | Event retry accepted after deadline | Clear eventLost, return TIMEOUT and retain error; never send it again as though unaccepted |
 | Stop then restart | Administrative DOWN and fenced timer stop; next resolved UP republishes all fields into SDK caches |
 
+`maxObservationMisses` is positive (default 3), checked by the factory. It counts
+consecutive admitted RUNNING queries, saturates, and clears after a coherent
+publishable observation. A denied instance gate cannot update that count; this
+is a poll-count policy, not an unconditional wall-time guarantee. The latest
+`lastObservationStatus` remains visible even when `firstError` already contains
+an older event failure. If the limit is reached during our own publication,
+`observationDownOwed` survives until that receipt completes: the next available
+poll withdraws UP before collecting another sample, and the following good poll
+can republish. No concurrent publisher is introduced. Initial STARTING failures
+still fail start and use its separate cleanup allowance.
+
 The application must use owner lifecycle methods. Direct `esp_eth_start`,
 `esp_eth_stop`, `esp_eth_driver_uninstall`, PHY deletion and mediator replacement
 can cause SDK effects before a PHY callback rejects. In particular, uninstall
 can delete its timer before reaching `deinit`; a rejected attempt does not
-restore that timer or authorize a later start. Arbitrary control ioctls also
+restore that timer or authorize a later start. After that uninstall latch,
+owner stop uses only its independent
+fence, DOWN/STOP repair and actual MAC stop; it never calls the SDK's deleted timer.
+Native cleanup remains STOPPING until resolved, then MAINTENANCE. Bus-silent
+cancel/takeResult remain admitted even there: the application must cancel any
+unfinished core operation and consume its result to release INITIALIZING silence.
+Native stop completion does not claim core result delivery. Arbitrary control ioctls
 remain application-owned and can have partial MAC effects before PHY rejection.
+If forbidden direct stop runs while the link is already DOWN, the SDK emits no
+PHY callback to reveal whether STOP was delivered. Cleanup after raw uninstall
+therefore conservatively posts STOP; a previously delivered raw STOP can be
+duplicated. The invalid-lifecycle error remains recorded. Exactly-once accepted
+event bookkeeping applies to owner-routed transitions, not this invisible bypass.
 The pinned flow-control ioctl has a bool/uint32 argument-width defect; do not
 pass a small Boolean through it. Prompt 38 owns the correctly typed owner route.
 
@@ -380,7 +420,7 @@ failed callback keeps its original error. Nothing preempts a synchronous call.
 | MAC stop | At most100 HAL stop attempts with25us busy delays, nominal2500us | Each HAL call and possible1000-read FIFO flush, scheduler/logging; hidden flush error remains an observation limit |
 | MAC multi-register mutex |100ms requested wait for destination-filter add/remove | Separate MAC filter API only. Not used by MDIO or SPEED/DUPLEX/PAUSE/LINK notification paths |
 | SDK START/STOP/LINK event posts | Zero requested queue wait on framework paths | Event allocation/internal critical sections, dispatch/logging; a full queue can fail after prior MAC/cache effects |
-| Owner event retry/STOP repair | Floor(remainingUs/tick) finite ticks | Scheduling and event internals, then elapsed check. Subtick allowance requests zero ticks |
+| Owner event retry/STOP repair | Running explicit retry uses floor(remainingUs*Hz/1000000) ticks; cleanup retry and STOP repair request zero queue wait | Scheduling and event internals, then elapsed check. Subtick allowance requests zero ticks |
 | Timer fence | One precreated timer arm; at most maxFencePolls checks, delay(1) between | Prior timer callbacks, timer-task dispatch and owner wake latency; timer active includes executing callback |
 | Running link polls | check_link_period_ms, accepted1..4294967ms (32-bit SDK ms*1000 limit) | Serial timer-task backlog, callback execution, owner admission. Period is not response time or EtherCAT timing |
 
@@ -404,6 +444,16 @@ A pre-call check cannot bound a
 call whose backend/scheduler itself is unbounded. Deadline expiry retains
 resources and effects; it does not prove a callback was interrupted or RX drained.
 
+There is no source-qualified numeric minimum that guarantees cleanup completion:
+fence dispatch, prior callbacks, scheduler latency and generic MAC stop lack a
+universal finite bound. `cleanupBudgetUs` is therefore a positive **attempt**
+allowance, not a completion promise. A small value can expire with effects and
+obligations retained; the owner then calls stop with a separately chosen finite
+deadline. Fence/MAC attempt counts do not turn that allowance into a minimum.
+Stop closes RUNNING admission only after acquiring the gate; an expired or
+exhausted initial admission leaves polling active. After a completed stop,
+retire admission failure cannot manufacture a cleanup error or undo completion.
+
 At100Hz one tick is10ms. `vTaskDelay(1)` can wake at the next boundary much
 sooner than10ms; it is only a scheduling hint. Board readiness rechecks elapsed
 esp_timer microseconds after every wake and anchors minimum waits after pin
@@ -423,8 +473,8 @@ failure injection and the real SDK image link remain useful evidence of their
 own layers. This timing gate is separate from `native_rx_quiescence` and the
 hidden MAC/HAL error limitations; it does not invent a successful backend.
 
-**Timer-task stack:** the fixture configures3584 bytes before the SDK's conditional
-extra stack. A fresh P4 GCC `-fstack-usage` check measured1360 bytes for the nested
+**Timer-task stack:** the fixture configures 3584 bytes before the SDK's conditional
+extra stack. The second-round P4 GCC `-fstack-usage` check measured 1392 bytes for the nested
 `getLink`/`readLinkStatus`/core `_execute`/native `execute` frames alone, before
 deeper SDK/logging/error paths. These static frames do not establish a safe total.
 Qualify the timer task's actual high-water mark under release logging, failure and

@@ -167,8 +167,11 @@ argument-width defect and call the correctly typed MAC method.
 For UP send speed, duplex, peer pause, then link and record each accepted step.
 For a changed tuple while up, project DOWN before updates and UP. Emit nothing for
 an unchanged verified tuple. Unknown observation does not invent cable-down;
-administrative DOWN is explicit and distinct. Failed running acquisition or lost
-trust/agreement requests that DOWN and latches stopRequired until complete stop;
+administrative DOWN is explicit and distinct. Transient running misses retain UP
+until the positive maxObservationMisses bound (default 3), then request DOWN with
+automatic recovery on a later coherent observation. Last cause and deferred DOWN
+are retained independently of the first lifecycle error. Lost trust/agreement,
+quarantine or terminal publication uncertainty latches stopRequired until complete stop;
 the prior physical observation remains historical. OP-14 limits live resolution during
 semantic writes or temporary profiles.
 
@@ -198,9 +201,11 @@ not the error code. Never retry UP blindly; it can rebuild DMA descriptors.
    finite cleanup allowance anchored after start returns. If no timer was armed SDK stop changes
    FSM to STOP then returns ESP_ERR_INVALID_STATE before DOWN or STOP publication.
    Other stop errors may also omit them. After the fence below, send missing
-   administrative DOWN and repair a lost DISCONNECTED before posting STOP. If
+   administrative DOWN and attempt to repair a lost DISCONNECTED before STOP.
+   A failed repost retains its error/debt while fence/STOP/MAC stop proceed;
+   event ordering can be STOP then repaired DISCONNECTED in this failure case. If
    START was posted but STOP was not, post STOP using
-   &hdl and sizeof(hdl), with finite ticks. get_link in Starting records START.
+   &hdl and sizeof(hdl), with zero queue wait. get_link in Starting records START.
 5. An already stopped owner with no obligations returns OK without callbacks.
    Otherwise fence after framework stop: an owner-created ESP_TIMER_TASK one-shot exists
    before install. Arm once with esp_timer_start_once(fence, 0), then poll

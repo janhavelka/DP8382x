@@ -16,6 +16,9 @@ regressions include 100 Hz ticks; physical wall-time bounds remain unqualified.
 The [native correction review](docs/reports/implementation/37-39-native-fixes-2026-11-18.md)
 records all17 auditor findings, lifecycle retry/error fixes and additional timing,
 failure and shared-controller regressions. Installed resources remain retained.
+The [second-round review](docs/reports/implementation/37-39-native-fixes-round2-2026-11-18.md)
+adds recoverable transient link misses, continued hardware cleanup after event
+failure or forbidden uninstall, and stricter admission/deadline evidence.
 [EEE negotiation and status](docs/eee.md) now provide explicit reset-bearing setup,
 verified restoration and bounded retained observations; physical Q1 remains pending.
 The [prompt-36 integration review](docs/reports/implementation/36-primary-feature-closure.md)
