@@ -12,6 +12,8 @@ flow control, complete MMD access, cached getters and bounded start/stop. A
 volatile application guard defaults to false, retaining those references while
 booting only an identity/status message. This is linked-image evidence; it does
 not establish MDIO, clocks, timing, link, physical RX scheduling or Q13 results.
+The fixture uses the default 1 ms per-pin callback allowance. The board owner
+must qualify it together with the reset pulse before fixture use.
 The application refreshes its Git commit/tree identity on every build, independently
 of the release version read from `library.json`. Archives report `unknown`.
 

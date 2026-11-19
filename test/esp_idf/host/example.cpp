@@ -173,7 +173,7 @@ void macCleanupFailure() {
 }
 void liveBorrowerCleanup(bool denyDestroy) {
     Host::reset();
-    faults.gpioLevel = ESP_FAIL;
+    faults.resetRelease = ESP_FAIL; // A pre-install primary error; isolate the destruction receipt below.
     assert(!initialize() && !app.installed && app.phy && app.mac && app.bus.mutex);
     if (denyDestroy) {
         // Let the journal copy succeed, then refuse the destroy's gate entry.

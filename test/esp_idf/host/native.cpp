@@ -467,6 +467,54 @@ void sharedQuarantine() {
     const auto reads = countCall("mac.read");
     assert(readPeerIdentity(f, output) == ESP_ERR_INVALID_STATE && output == 0xCAFE);
     assert(countCall("mac.read") == reads);
+
+    Host::reset(); Fixture running; running.config.pinnedP4Mac = true;
+    running.install(); running.initialize(); assert(running.start() == ESP_OK);
+    LinkSnapshot before;
+    assert(running.owner->linkSnapshot(before).ok() && before.valid && before.linkUp);
+
+    // An identified outside caller has a read in flight without the shared
+    // mutex. The P4 rejects the owner's overlapping read before issuing it.
+    running.mac.onFrame = [&](const Host::Frame& externalRead) {
+        assert(!externalRead.write && externalRead.address == 1 && externalRead.reg == 2);
+        running.mac.readResults = {ESP_ERR_INVALID_STATE};
+        Host::tickTimers();
+        assert(running.bus.quarantined && running.journal().stopRequired);
+    };
+    uint32_t externalId = 0;
+    assert(running.mac.native.read_phy_reg(&running.mac.native, 1, 2, &externalId) == ESP_OK);
+    assert(externalId == 0x2000);
+    running.mac.onFrame = nullptr; // The single outside call returned and its issuer is finished.
+
+    TransportSnapshot transport;
+    assert(running.owner->transportSnapshot(transport).ok() && !transport.stopped);
+    assert(transport.violation == TransportViolation::NONE && !transport.controllerReusable);
+    assert(transport.lastBatch.status.is(Err::MDIO_ERROR) && transport.lastBatch.status.detail == ESP_ERR_INVALID_STATE);
+    assert(!transport.lastBatch.frames[0].attempted && !running.journal().publishedTuple.up);
+    const auto frames = running.mac.frames.size();
+    assert(readPeerIdentity(running, output) == ESP_ERR_INVALID_STATE && output == 0xCAFE);
+    assert(running.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+    assert(running.journal().phase == Phase::STOPPED);
+    assert(running.owner->reconcileSdkState(Host::state().nowUs + 100000).is(Err::NOT_INITIALIZED));
+
+    // The fixture has one stopped framework poller, a suspended cooperating
+    // peer and the completed outside read above. All controller work is idle.
+    // Acquiring the mutex alone would not establish these conditions.
+    assert(xSemaphoreTake(running.bus.mutex, 0) == pdTRUE);
+    assert(running.bus.admission == BusAdmission::AVAILABLE && running.bus.quarantined);
+    running.bus.quarantined.store(false);
+    assert(xSemaphoreGive(running.bus.mutex) == pdTRUE);
+    assert(running.owner->start(Host::state().nowUs + 100000) == ESP_ERR_INVALID_STATE);
+    assert(running.owner->reconcileSdkState(Host::state().nowUs + 100000).ok());
+    assert(running.mac.frames.size() == frames); // Stop, disposition and reconciliation made no MDIO transfers.
+
+    ++Host::state().nowUs;
+    const auto restartUs = Host::state().nowUs;
+    assert(running.start() == ESP_OK && running.journal().publishedTuple.up);
+    LinkSnapshot after;
+    assert(running.owner->linkSnapshot(after).ok() && after.valid && after.linkUp && !after.stale);
+    assert(after.timeValid && after.observedSinceUs >= restartUs && after.observations > before.observations);
+    assert(readPeerIdentity(running, output) == ESP_OK && output == 0x2000);
 }
 void callbackBounds() {
     Host::reset(); Fixture f; f.config.notificationUs = 40000; f.config.callbackBudgetUs = 215000;
@@ -720,6 +768,8 @@ void boardTickReadiness() {
         const uint64_t porTick = uint64_t{50000} * CONFIG_FREERTOS_HZ / 1000000;
         Host::state().nowUs = (porTick * 1000000 + CONFIG_FREERTOS_HZ - 1) / CONFIG_FREERTOS_HZ - 1;
         BoardControl control;
+        // The simulated release can take nearly a whole tick at 100 Hz.
+        control.pinCallbackUs = 10000;
         struct Times { uint64_t assertedAt; uint64_t releasedAt; bool beforeTick; } times{0, 0, beforeTick};
         control.context = &times;
         control.setReset = [](void* context, bool asserted) {
@@ -737,7 +787,7 @@ void boardTickReadiness() {
         assert(f.owner->prepareBoard(control, Host::state().nowUs + 100000) == ESP_OK);
         const auto assertedAt = times.assertedAt, releasedAt = times.releasedAt;
         // One-microsecond floor-clock uncertainty is part of the readiness anchor.
-        assert(assertedAt >= 50001 && releasedAt >= assertedAt + control.assertionUs + 1);
+        assert(assertedAt >= 50101 && releasedAt >= assertedAt + control.assertionUs + 1);
         assert(Host::state().nowUs >= releasedAt + 2001 && f.bus.admission == BusAdmission::AVAILABLE && f.mac.frames.empty());
         assert(!Host::state().delays.empty() && Host::state().delays.front().afterUs - Host::state().delays.front().beforeUs == 1);
         const auto afterRelease = std::find_if(Host::state().delays.begin(), Host::state().delays.end(), [&](const auto& delay) { return delay.beforeUs == releasedAt; });
@@ -1905,7 +1955,7 @@ void failedBoardSilenceRemainsClosed() {
     BoardControl failed; failed.context = &pins;
     failed.setReset = [](void* context, bool) { ++*static_cast<unsigned*>(context); return ESP_FAIL; };
     assert(g.owner->prepareBoard(failed, Host::state().nowUs + 100000) == ESP_FAIL);
-    assert(pins == 1 && f.bus.admission == BusAdmission::FAILED_CLOSED && !Host::semaphoreHeld(f.bus.mutex));
+    assert(pins == 2 && f.bus.admission == BusAdmission::FAILED_CLOSED && !Host::semaphoreHeld(f.bus.mutex));
     assert(g.owner->destroy() == ESP_OK); // Shared closure does not borrow the deleted owner's address.
     unsigned otherPins = 0;
     BoardControl other; other.context = &otherPins;
@@ -2301,22 +2351,26 @@ void eventRetryObservation() {
 }
 
 void boardDeadlineDomains() {
-    enum class Failure { ENTRY, WAIT, DRAIN, POLL, PIN, ASSERTED, RELEASE };
+    enum class Failure { ENTRY, WAIT, DRAIN, POLL, PIN, READY_POLLS, RELEASE };
     for (const auto previous : {BusAdmission::BOOT_CLOSED, BusAdmission::AVAILABLE})
     for (const auto failure : {Failure::ENTRY, Failure::WAIT, Failure::DRAIN, Failure::POLL,
-                               Failure::PIN, Failure::ASSERTED, Failure::RELEASE}) {
+                               Failure::PIN, Failure::READY_POLLS, Failure::RELEASE}) {
         Host::reset(); Fixture f; f.create();
         f.bus.admission = previous;
         Host::state().nowUs = 49991; // The POR readiness floor is 50001 us.
-        struct Pins { unsigned calls{0}; bool fail; } pins{0, failure == Failure::PIN};
+        struct Pins { unsigned calls; bool fail; uint64_t releasedAt; } pins{0, failure == Failure::PIN, 0};
         BoardControl board; board.context = &pins;
-        board.setReset = [](void* context, bool) {
-            auto& p = *static_cast<Pins*>(context); ++p.calls;
-            return p.fail ? ESP_ERR_TIMEOUT : ESP_OK;
+        board.setReset = [](void* context, bool asserted) {
+            auto& p = *static_cast<Pins*>(context);
+            assert(asserted == (p.calls == 0));
+            ++p.calls;
+            if (!asserted) p.releasedAt = Host::state().nowUs;
+            if (p.fail) return asserted ? ESP_ERR_TIMEOUT : ESP_FAIL;
+            return ESP_OK;
         };
         if (failure == Failure::POLL) board.maxPolls = 1;
-        if (failure == Failure::ASSERTED) {
-            Host::state().nowUs = 50001; // POR and clock ready before the assertion callback.
+        if (failure == Failure::READY_POLLS) {
+            Host::state().nowUs = 50101; // 100 us after both POR and clock stabilization.
             board.maxPolls = 1;
         }
         const auto before = Host::state().nowUs;
@@ -2331,15 +2385,17 @@ void boardDeadlineDomains() {
         } else {
             assert(error.is(Err::OPERATION_TIMEOUT) && error.sdkError == ESP_OK);
             const auto reason = failure == Failure::ENTRY ? TimeoutDetail::DEADLINE :
-                failure == Failure::POLL || failure == Failure::ASSERTED ? TimeoutDetail::POLL_BUDGET : TimeoutDetail::BOUND_ADMISSION;
+                failure == Failure::POLL || failure == Failure::READY_POLLS ? TimeoutDetail::POLL_BUDGET : TimeoutDetail::BOUND_ADMISSION;
             assert(error.coreStatus.detail == static_cast<int32_t>(reason));
-            if (failure != Failure::ASSERTED) assert(Host::state().nowUs == before && Host::state().delays.empty());
+            assert(Host::state().nowUs == before && Host::state().delays.empty());
         }
-        const bool effect = failure == Failure::PIN || failure == Failure::ASSERTED;
-        assert(pins.calls == (effect ? 1U : 0U));
+        const bool effect = failure == Failure::PIN;
+        assert(pins.calls == (effect ? 2U : 0U));
+        if (effect) assert(f.journal().cleanupError.sdkError == ESP_FAIL);
+        else assert(f.journal().cleanupError.ok());
         assert(f.bus.admission == (effect || failure == Failure::RELEASE ? BusAdmission::FAILED_CLOSED : previous));
         assert(f.bus.quarantined == (failure == Failure::RELEASE));
-        assert(f.bus.quietUntilUs == (failure == Failure::ENTRY ? 0U : 50001U));
+        assert(f.bus.quietUntilUs == (effect ? pins.releasedAt + 2001 : failure == Failure::ENTRY ? 0U : 50001U));
         assert(f.mac.frames.empty() && f.owner->destroy() == ESP_OK);
     }
     // Restoring AVAILABLE does not waive a newly powered peer's SMI floor.
@@ -2356,6 +2412,116 @@ void boardDeadlineDomains() {
     assert(peer.owner->destroy() == ESP_OK);
 }
 
+void boardResetWindow() {
+    {
+        Host::reset(); Fixture f; f.create();
+        BoardControl board;
+        board.pinCallbackUs = 0;
+        board.setReset = [](void*, bool) { assert(false); return ESP_FAIL; };
+        assert(f.owner->prepareBoard(board, 100000) == ESP_ERR_INVALID_ARG);
+        assert(f.bus.admission == BusAdmission::BOOT_CLOSED && f.bus.quietUntilUs == 0);
+        assert(Host::state().delays.empty() && f.mac.frames.empty() && f.owner->destroy() == ESP_OK);
+    }
+    for (const uint64_t stableAt : {0U, 55000U}) {
+        Host::reset(); Fixture f; f.create();
+        // Exercise the instant that the later of POR and REF_CLK has become
+        // ready. The additional reset still needs 100 us before assertion.
+        Host::state().nowUs = stableAt ? 55001 : 50001;
+        const uint64_t earliest = stableAt ? 55101 : 50101;
+        uint64_t assertedAt = 0;
+        BoardControl board; board.clockStableAtUs = stableAt; board.context = &assertedAt;
+        board.setReset = [](void* ctx, bool asserted) {
+            if (asserted) *static_cast<uint64_t*>(ctx) = Host::state().nowUs;
+            return ESP_OK;
+        };
+        assert(f.owner->prepareBoard(board, 160001) == ESP_OK);
+        assert(assertedAt >= earliest && f.mac.frames.empty() && f.owner->destroy() == ESP_OK);
+    }
+    {
+        Host::reset(); Fixture f; f.create();
+        const uint64_t end = std::numeric_limits<uint64_t>::max();
+        Host::state().nowUs = end - 50002;
+        BoardControl board; board.powerOnAtUs = Host::state().nowUs;
+        board.setReset = [](void*, bool) { assert(false); return ESP_FAIL; };
+        assert(f.owner->prepareBoard(board, end) == ESP_ERR_INVALID_ARG);
+        // POR floor fits; another 100 us before the pulse would overflow.
+        assert(f.bus.quietUntilUs == end - 1 && f.bus.admission == BusAdmission::FAILED_CLOSED);
+        assert(f.mac.frames.empty() && f.owner->destroy() == ESP_OK);
+    }
+    // Independent windows with 100 us hold, 2 ms quiet, 1 us lag on each
+    // wait, 1 ms per pin call and a tick of rounding on each wait.
+    constexpr uint64_t window = CONFIG_FREERTOS_HZ == 100 ? 24102U :
+                                CONFIG_FREERTOS_HZ == 333 ? 10110U : 6102U;
+    for (const auto allowance : {uint64_t{999}, window, window + 1}) {
+        Host::reset(); Fixture f; f.create(); f.bus.admission = BusAdmission::AVAILABLE;
+        Host::state().nowUs = 60001; // Both prerequisites are already satisfied.
+        unsigned pins = 0;
+        BoardControl board; board.context = &pins;
+        board.setReset = [](void* ctx, bool asserted) {
+            auto& count = *static_cast<unsigned*>(ctx);
+            assert(asserted == (count++ == 0));
+            Host::state().nowUs += 1000; // Exactly the admitted callback duration.
+            return ESP_OK;
+        };
+        const auto deadline = Host::state().nowUs + allowance;
+        const auto status = f.owner->prepareBoard(board, deadline);
+        if (allowance <= window) {
+            assert(status == ESP_ERR_TIMEOUT && pins == 0 && Host::state().delays.empty());
+            assert(f.journal().firstError.coreStatus.detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
+            assert(f.bus.quietUntilUs == 50001);
+        } else {
+            assert(status == ESP_OK && pins == 2 && Host::state().nowUs < deadline);
+            assert(Host::state().nowUs >= f.bus.quietUntilUs);
+        }
+        assert(f.bus.admission == BusAdmission::AVAILABLE && f.mac.frames.empty());
+        assert(f.owner->destroy() == ESP_OK);
+    }
+    enum class Failure { ASSERT_OVERRUN, RELEASE_OVERRUN, LATE_WAKE, LATE_RELEASE_ERROR, FLOOR_OVERFLOW };
+    for (auto failure : {Failure::ASSERT_OVERRUN, Failure::RELEASE_OVERRUN, Failure::LATE_WAKE,
+                         Failure::LATE_RELEASE_ERROR, Failure::FLOOR_OVERFLOW}) {
+        Host::reset(); Fixture f; f.create(); Host::state().nowUs = 60001;
+        struct Pins { Failure failure; unsigned calls; uint64_t releasedAt; } pins{failure, 0, 0};
+        BoardControl board; board.context = &pins;
+        board.setReset = [](void* ctx, bool asserted) {
+            auto& pins = *static_cast<Pins*>(ctx);
+            assert(asserted == (pins.calls++ == 0));
+            if (asserted && pins.failure == Failure::ASSERT_OVERRUN) Host::state().nowUs += 1001;
+            if (!asserted) {
+                if (pins.failure == Failure::RELEASE_OVERRUN) Host::state().nowUs += 1001;
+                if (pins.failure == Failure::FLOOR_OVERFLOW)
+                    Host::state().nowUs = std::numeric_limits<uint64_t>::max() - 10;
+                pins.releasedAt = Host::state().nowUs;
+                if (pins.failure == Failure::LATE_RELEASE_ERROR) return ESP_FAIL;
+            }
+            return ESP_OK;
+        };
+        const bool lateWait = failure == Failure::LATE_WAKE || failure == Failure::LATE_RELEASE_ERROR;
+        uint64_t deadline = 160001;
+        esp_timer_handle_t delayTimer = nullptr;
+        if (lateWait) {
+            // Emulate owner starvation during the asserted hold. Cleanup must
+            // release once even if the task next runs at the exclusive deadline.
+            esp_timer_create_args_t args{};
+            args.arg = &deadline;
+            args.callback = [](void* arg) { Host::state().nowUs = *static_cast<uint64_t*>(arg); };
+            assert(esp_timer_create(&args, &delayTimer) == ESP_OK);
+            assert(esp_timer_start_once(delayTimer, 1) == ESP_OK);
+        }
+        assert(f.owner->prepareBoard(board, deadline) == ESP_ERR_TIMEOUT && pins.calls == 2);
+        if (delayTimer) assert(esp_timer_delete(delayTimer) == ESP_OK);
+        const auto record = f.journal();
+        const auto expected = lateWait || failure == Failure::FLOOR_OVERFLOW ?
+                              TimeoutDetail::DEADLINE : TimeoutDetail::BOUND_ADMISSION;
+        assert(record.firstError.is(Err::OPERATION_TIMEOUT));
+        assert(record.firstError.coreStatus.detail == static_cast<int32_t>(expected));
+        if (failure == Failure::LATE_RELEASE_ERROR) assert(record.cleanupError.sdkError == ESP_FAIL);
+        else assert(record.cleanupError.ok());
+        const auto floor = failure == Failure::FLOOR_OVERFLOW ?
+                           std::numeric_limits<uint64_t>::max() : pins.releasedAt + 2001;
+        assert(f.bus.quietUntilUs == floor && f.bus.admission == BusAdmission::FAILED_CLOSED);
+        assert(!Host::semaphoreHeld(f.bus.mutex) && f.mac.frames.empty() && f.owner->destroy() == ESP_OK);
+    }
+}
 void boardDeadlineBeforeDrain() {
     Host::reset(); Fixture f; f.create();
     f.bus.admission = BusAdmission::AVAILABLE;
@@ -3064,6 +3230,7 @@ int main(int argc, char** argv) {
     else if (suite == "peer_board_failure_observation") peerBoardFailureObservation();
     else if (suite == "event_retry_observation") eventRetryObservation();
     else if (suite == "board_deadline_domains") boardDeadlineDomains();
+    else if (suite == "board_reset_window") boardResetWindow();
     else if (suite == "board_deadline_before_drain") boardDeadlineBeforeDrain();
     else if (suite == "cancelled_reset_board_floor") cancelledResetBoardFloor();
     else if (suite == "late_stop_gate") lateStopGate();

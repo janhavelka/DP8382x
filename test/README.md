@@ -1,5 +1,11 @@
 # Verification
 
+Use the pinned-host CTest filter `board_deadline_domains|board_reset_window|shared_quarantine`
+to rerun board deadline admission, release-on-failure and application-directed
+controller recovery at 100, 333 and 1,000 Hz. These tests run with an
+instrumented MAC and clock. The real P4 adapter and basic application are
+linked through the repository IDF wrapper.
+
 The [40–42 audit](../docs/reports/implementation/40-42-independent-review.md)
 records the full pinned-driver rerun. The `example_*` suites include netif
 MAC mismatch, reset release failure, negotiating startup and the last allowed

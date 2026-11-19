@@ -24,7 +24,9 @@ The `1000 ms` link poll is application policy, not a PHY timing guarantee.
 PHY input. Resolve and measure that rail, then recheck the final board netlist,
 address straps, 25/50 MHz clocks, R21/C24 reset pulse, all power rails and the
 PHY's electrical limits. The 1 ms requested reset assertion does not prove the
-actual RC waveform. `Phy::prepareBoard` enforces the 2 ms post-release and
+actual RC waveform. The native owner budgets 1 ms for each GPIO callback
+by default, separately from the required low pulse. Qualify both on the board.
+`Phy::prepareBoard` enforces the 2 ms post-release and
 50 ms power-on SMI silence after application-attested stable clock; the SDK's
 100 us default assertion alone does not. These are source-backed software
 conditions; real timing is unmeasured.

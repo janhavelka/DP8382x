@@ -132,6 +132,9 @@ struct BoardControl {
   uint64_t clockStableAtUs{0}; ///< Stable REF_CLK event sample with the same clockLagUs bound; uninterrupted thereafter.
   uint32_t assertionUs{100}; ///< At least 25 us; board RC pulse qualification remains external.
   uint32_t maxPolls{100000}; ///< Finite wait cap, including a frozen clock.
+  /// Positive per-invocation RESET_N callback allowance in microseconds, including scheduling.
+  /// The default is application policy. Supply a qualified bound for the actual GPIO implementation.
+  uint32_t pinCallbackUs{1000};
 };
 /// @brief One discovery address's independent raw identity samples, never accepted part identity.
 struct DiscoveryEntry {
@@ -204,7 +207,7 @@ public:
   /// @brief Public vtable for the owner-controlled installer; never delete directly after install.
   /// @return Borrowed stable address, valid through this adapter's retained lifetime.
   esp_eth_phy_t* nativePhy() noexcept { return &_handle.phy; }
-  /// @brief Assert/reset board under shared silence, then wait 2 ms release/50 ms POR and clock readiness.
+  /// @brief Wait 100 us after both POR readiness and stable clock, pulse RESET_N, then keep SMI quiet for 2 ms.
   /// @param[in] board Finite borrowed pin callback and real power/clock timestamps.
   /// @param[in] deadlineUs Exclusive absolute esp_timer microsecond deadline, no renewed timeout.
   /// @return Native error/timeout; another reservation rejects before GPIO.
@@ -212,6 +215,11 @@ public:
   /// admission only when controller release and timing are known, preserving the
   /// shared POR/quiet floor. Any attempted pin effect or uncertain release leaves
   /// FAILED_CLOSED until external disposition or system restart.
+  /// Before assertion, admission covers both pin calls, the assertion hold,
+  /// release quiet interval and tick rounding. On failure after an attempted
+  /// assertion the owner still attempts release once, even after expiry. A
+  /// cleanup error is retained separately. Each callback must return within
+  /// its declared allowance for the application to claim bounded wall time.
   /// @note Shared RESET_N requires owner-routed invalidation of every affected
   /// peer and reinitialization/reconciliation before restart. Do not attest a
   /// completed EXTERNAL_RESET after an uncertain pin callback.

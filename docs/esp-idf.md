@@ -254,13 +254,26 @@ are quiescent, or system restart, may re-establish readiness.
 `prepareBoard` closes controller-wide admission and drains complete batches,
 then releases the mutex before GPIO callbacks or hardware waits. The application
 supplies real power-on and continuous-clock timestamps plus a finite reset pin
-callback. Under the selected delayed-clock path, reset follows POR completion
-and at least 100 us of stable clock. POR readiness is at least 50 ms after power
+callback. Under the selected additional-reset path for a delayed clock, wait
+at least 100 µs after both the POR completion bound and clock stabilization
+before asserting RESET_N. POR readiness is at least 50 ms after the supplies reach their final levels,
 and SMI remains inactive at least 2 ms after reset release. Assertion is at least
 25 us without debounce capacitors; the board's RC circuit requires its own
 qualified pulse. These requirements come from SNLS647I section 7.6 and 8.3.11,
-as reconciled in [initialization](initialization.md). Elapsed-time checks and
-finite poll caps apply; a floor-rounded RTOS delay alone is insufficient. Quiet
+as reconciled in [initialization](initialization.md).
+
+Immediately before the first pin call, the remaining exclusive deadline must
+cover two `BoardControl::pinCallbackUs` allowances, the assertion hold, the
+2 ms post-release quiet interval, clock lag for both waits and worst-case tick
+rounding for each wait. The default per-call allowance is 1,000 µs. Qualify
+it with the actual GPIO implementation and scheduler. If an attempted
+assertion fails or its hold cannot finish, the owner makes one best-effort
+release call. The shared bus stays FAILED_CLOSED. An unsuccessful release
+does not establish pin level, pulse width or readiness. Inspect both the
+primary and cleanup receipts before external disposition.
+
+Elapsed-time checks and finite poll caps apply. A floor-rounded RTOS delay
+alone is insufficient. Quiet
 floors merge by atomic maximum. Board completion releases shared admission once,
 after waiting for its own reset-release due time. A later peer floor remains
 enforced by install and complete batches; it cannot turn this board's completed
@@ -488,6 +501,27 @@ the native lifecycle journal. Transaction reuse evidence is captured before
 unlock, so a later owner's failure cannot corrupt this completed receipt.
 Generic MAC failures and actual
 P4 MDIO timeouts retain uncertain effects and quarantine. Passive health cannot reopen it.
+
+### Recovering a quarantined shared controller
+
+1. Close application traffic and maintenance admission for every bus participant.
+   Stop the affected framework owners and confirm each stop/fence receipt.
+   Keep installed resources and late RX contexts alive.
+2. Identify and stop any MDIO access outside the shared owner. Establish that
+   every outstanding controller command has completed, the controller is idle,
+   the mutex ownership is known and all future participants use that mutex.
+   The pinned MAC has no public controller-idle query. A cancelled timer,
+   successful mutex take or elapsed delay alone supplies insufficient evidence.
+3. With exclusive application ownership and that evidence, clear
+   `bus.quarantined`. Preserve `bus.admission` and `quietUntilUs`. A
+   FAILED_CLOSED board, ambiguous configuration write, lost controller mutex
+   or stopped core transport needs its own disposition. If the application
+   cannot establish safe reuse, keep admission closed until system restart.
+4. While each owner is stopped, verify or explicitly restore its owned
+   configuration as required, check `reconcileSdkState`, and explicitly
+   `start` each eligible owner. Acquire fresh link evidence before admitting a
+   new application session. Preserve the original error and any uncertain
+   effects alongside the recovery results.
 
 `L` covers fixed local/gate/clock processing under the qualified workload;
 timer/snapshot instance acquisition requests zero ticks. Owner gate retries use

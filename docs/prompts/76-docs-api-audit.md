@@ -54,6 +54,14 @@ blocking/deadline bounds, reset/cancellation, uncertain writes and cleanup.
 actual implementation against each claim; a plausible comment cannot repair
 incorrect behavior.
 
+Close the native observation detail-code deferral from the stages 37–39
+follow-up. Several `NOT_INITIALIZED` returns currently have zero detail.
+Review each actual cause (shared board readiness, lost SDK or PHY agreement,
+unresolved running mode and stop already required). Define distinct stable
+detail codes for caller-distinguishable conditions, preserve the top-level
+code and SDK error domain, and test numeric detail plus rendered meaning at
+the native and CLI boundaries.
+
 Explain non-obvious masks/order/effects with exact source sections beside actual
 register/configuration/operation/diagnostic procedures. Use existing
 responsibility modules where present; do not mandate new files merely to match a

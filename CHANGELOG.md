@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Check the full reset and SMI quiet-time allowance before the native board
+  owner asserts RESET_N. An attempted assertion now gets a release attempt
+  even on failure, with independent primary and cleanup receipts.
+
 - Preserve the basic P4 example's terminal result across delivery contention
   and distinguish historical lifecycle errors and unavailable link evidence.
 

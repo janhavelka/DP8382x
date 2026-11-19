@@ -1,5 +1,9 @@
 # Implementation progress
 
+The [stages 37–39 board and controller follow-up](reports/implementation/37-39-board-controller-follow-up.md)
+checks the complete reset allowance before GPIO and tests explicit recovery
+from shared controller quarantine at all three host tick rates.
+
 The [prompt 40 follow-up](reports/implementation/40-p4-network-example.md#second-auditor-follow-up)
 rechecks the historical gate-closed P4 ELF and the application’s reporting
 of undelivered results, lifecycle errors and unresolved link profiles.
