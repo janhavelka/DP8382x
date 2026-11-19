@@ -85,6 +85,11 @@ archives. Rebuild real SDK images if public/adapter paths change; missing SDK
 remains a separate BLOCKED layer. Report behavior coverage and unresolved
 sources/SDK/fixtures, without an unsupported coverage percentage.
 
+Deferred from the prompt-40 follow-up review (2026-11-19, F10): give the
+example host translation unit, which includes the P4 example source, its own
+pinned SDK dependency-closure manifest using its actual definitions and include
+paths, with a negative check that an example-only SDK header drift is rejected.
+
 Update Doxygen, API/testing/feature guides and `test/README.md` with a link to the
 feature-coverage matrix, actual registered suites and confirmed corrections.
 

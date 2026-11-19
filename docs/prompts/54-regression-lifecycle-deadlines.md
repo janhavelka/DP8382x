@@ -97,6 +97,13 @@ allocations after caller setup, supplementing source checks. Rebuild affected
 actual SDK images when lifecycle/public paths change; separate host, link and
 physical claims and retain missing-tool gates.
 
+Deferred from the prompt-40 follow-up review (2026-11-19, F9): for each injected
+start, stop, timer and MDIO failure in `test/esp_idf/host/example.cpp`, assert
+that the injection was reached, the primary and cleanup domains, the native
+phase, retained resources, timer/event state and the permitted next owner
+action, instead of accepting any failure. Add netif attach sub-step failures and
+a reset-release failure after a successful assertion.
+
 Update Doxygen, API/timing/ownership/testing guides and `test/README.md` with
 corrected lifecycle, scheduler, result and partial-effect contracts.
 

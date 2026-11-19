@@ -77,6 +77,12 @@ background framework poll must not falsely fail a passive-command test. Record
 linked versus physical results separately; no timing or HIL claim follows from
 source inspection.
 
+Deferred from the prompt-40 follow-up review (2026-11-19, F6): route the basic
+example's periodic status report through the shared bounded writer so owner
+lifecycle progress never waits for console availability; test a withheld sink
+during a callback burst and unexpected STOP. Decide whether the optional
+local-peer probe becomes a selectable owner-routed command.
+
 Update CLI/platform Doxygen, `docs/cli.md`, both example READMEs and the
 feature ledger with the actual shared source lists and owner integrations.
 
