@@ -58,6 +58,12 @@ identity refreshes on every build. The component's `idf_component.yml` pins IDF
 6.1 and ESP32-P4 without adding a second release-version value. Ordinary portable
 consumers do not load the component or these SDK tools.
 
+The native ordinary Ethernet application is
+[`examples/esp_idf/basic`](../examples/esp_idf/basic/README.md). Build its
+default-closed image with the command in that guide. Its board gate stays off
+until the PHY supply and final board wiring are physically qualified; this
+stage does not flash it.
+
 The `.cmd` launcher works from `cmd`, PowerShell and Git Bash and applies
 `-ExecutionPolicy Bypass` to its own PowerShell process only.
 

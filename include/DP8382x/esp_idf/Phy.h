@@ -256,6 +256,10 @@ public:
   /// @note A valid observation may precede failed/partial SDK notification. Inspect
   /// LifecycleRecord for accepted fields, uncertainty and pending event delivery.
   Status linkSnapshot(LinkSnapshot& output) noexcept;
+  /// @brief Copy passive managed MDIO health without polling or resetting statistics.
+  /// @param[out] output Copied on OK; unchanged when the instance gate is busy.
+  /// @return OK or BUSY; cable, IP and profile state remain separate.
+  Status healthSnapshot(HealthSnapshot& output) noexcept;
   /// @brief Admit the core's explicit reset/initialization while stopped; token unchanged on failure.
   /// @param[in] options Explicit core reset choice; initialization reserves shared-bus silence.
   /// @param[in] budget Original aggregate core deadline/frame/poll policy.

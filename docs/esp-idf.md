@@ -1,5 +1,39 @@
 # Native ESP-IDF PHY owner
 
+## P4 ordinary Ethernet application
+
+The [basic example](../examples/esp_idf/basic/README.md) is a complete native
+ESP32-P4 image with explicit board RMII pins, PHY address 0 as a declared strap
+input, application-owned reset/readiness, one `Phy` owner, `esp_netif` DHCP,
+bounded callback facts and a finite stop/start cycle. Build it with:
+
+```bat
+scripts\idf.cmd -C examples/esp_idf/basic -B C:\esp\build\dp8382x-p40 set-target esp32p4 build
+```
+
+The image is inert by default (`DP8382X_BOARD_READY=n`). The current saved
+netlist confirms the P4 signal mapping but does not demonstrate a supply source
+on the PHY `3V3` input. Flash/monitor instructions and the qualified fixture
+gate are in the example README; no physical link, DHCP or peer result is claimed.
+The example's Git/dirty identity is refreshed in its build directory; an
+archive reports unknown. Its `1000 ms` poll and conditional controller/callback
+bounds are application policy, not measured PHY or scheduling guarantees.
+
+The application acquires lwIP/default loop, netif, bus mutex, MAC and PHY,
+prepares the board, installs the driver, creates glue/attaches netif/registers
+handlers, initializes and verifies 100/full AN, reconciles SDK state, then
+starts the existing framework poller. The application task, never an event
+handler, performs stop/retire and prints cached management, trust, resolved
+link/profile and IP evidence. It does not infer reachability from DHCP.
+After install, the native RX lifetime gate retains glue, netif, driver, MAC,
+PHY, handlers and static callback context until restart. A failed attach may
+already have published the netif RX pointer. Before install, only locally
+created resources are released; ESP-IDF v6.1 does not support `esp_netif_deinit`
+after lwIP init. An event handler does no blocking work and cannot wait for its
+own unregister. Glue deletion has no independent deadline, as unregister can
+wait for the longest default-loop handler. The first primary and cleanup
+errors stay separate from the native lifecycle journal.
+
 The native adapter in [Phy.h](../include/DP8382x/esp_idf/Phy.h) uses the existing
 C++17 core through the public `esp_eth_phy_t` interface. Its baseline is
 **ESP-IDF v6.1, commit `fff9895c82d744c7237be8847347bdd1b07c6643`, ESP32-P4**.

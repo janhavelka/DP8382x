@@ -4,7 +4,11 @@ General microcontroller library workspace for Texas Instruments DP8382x Ethernet
 PHYs, starting with **DP83826IRHBR (DP83826I)**. The C++17 core is
 framework-independent, with a native ESP-IDF adapter for the ESP32-P4 Ethernet MAC.
 
-**Status: prompts 1-35 complete for supported procedures; prompts 37-39 add native ESP-IDF lifecycle, SDK state arbitration and notification conformance. Deep-power-down and full primary closure remain source-blocked; hardware qualification remains future work.**
+**Status: prompts 1-35 complete for supported procedures; prompts 37-39 add native ESP-IDF lifecycle, SDK state arbitration and notification conformance. Prompt 40 adds a native P4 Ethernet/IP application with a default-closed board gate. Deep-power-down and full primary closure remain source-blocked; hardware qualification remains future work.**
+The [P4 basic example](examples/esp_idf/basic/README.md) builds against the
+pinned SDK, but its saved board netlist leaves PHY `3V3` without a demonstrated
+supply source. Resolve that physical gate before flashing or interpreting link,
+DHCP or reachability results.
 The [native ESP-IDF guide](docs/esp-idf.md) covers explicit board readiness,
 AN/forced configuration, public SDK reconciliation, link publication, owner-routed
 raw/collector access and discovery, and bounded framework start/stop. The real pinned SDK driver has executing host tests

@@ -1,5 +1,15 @@
 # Pinned driver host tests
 
+Prompt 40 adds `dp8382x_example_host_tests`: it includes the actual P4 basic
+application translation unit with its build identity/app_main entry suppressed,
+and compiles against the same pinned SDK driver/glue and native adapter. The
+35 cases inject board/resource acquisition, all SDK glue and application
+handler registration failures, partial netif attach with retained RX context,
+start/stop/retire failures and callback bursts without console progress.
+`BoardConfig` is compiled from the production header. These host cases model
+SDK return paths and callback order; the separate real P4 image proves link
+integration, while electrical and network behavior remain unmeasured.
+
 The optional target compiles the supplied, unmodified `esp_eth.c` and
 `esp_eth_netif_glue.c`, the native adapter and the portable core. SDK headers
 come from the actual pinned checkout. No Ethernet, timer, event, heap, logging

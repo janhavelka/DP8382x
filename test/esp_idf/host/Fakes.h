@@ -23,10 +23,16 @@ struct State {
     std::vector<Delay> delays;
     esp_err_t nextEventError = ESP_OK;
     int32_t eventErrorId = -1; // -1 means the next event, otherwise only this ID.
+    esp_err_t nextHandlerRegisterError = ESP_OK;
+    unsigned failHandlerRegistrationNumber = 0; // 1-based; zero disables ordinal injection.
+    unsigned handlerRegistrationCount = 0;
+    esp_err_t nextNetifAttachError = ESP_OK; // Applied after post_attach publishes RX context.
     esp_err_t nextTimerCreateError = ESP_OK;
     esp_err_t nextTimerStartError = ESP_OK;
     esp_err_t nextTimerStopError = ESP_OK;
     bool failAllocation = false;
+    unsigned failAllocationNumber = 0; // 1-based SDK calloc attempt; zero disables.
+    unsigned allocationAttempts = 0;
     bool failSemaphore = false;
     unsigned failSemaphoreTakes = 0;
     SemaphoreHandle_t failNextTake = nullptr;
@@ -52,6 +58,8 @@ void reset();
 void deliverEvents();
 void tickTimers();
 bool isLive(const void* allocation);
+size_t activeHandlers();
+size_t activeNetifs();
 bool semaphoreHeld(SemaphoreHandle_t semaphore);
 esp_netif_t* makeNetif();
 void destroyNetif(esp_netif_t* netif);

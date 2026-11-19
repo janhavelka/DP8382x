@@ -84,6 +84,33 @@ target_compile_options(dp8382x_native_host PRIVATE -Wall -Wextra -Werror -UNDEBU
 add_executable(dp8382x_native_host_tests host/native.cpp)
 target_link_libraries(dp8382x_native_host_tests PRIVATE dp8382x_native_host)
 target_compile_options(dp8382x_native_host_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+
+# The application lifecycle tests include the actual P4 example translation
+# unit with SDK boundary calls injected by the host test. No duplicate owner.
+add_executable(dp8382x_example_host_tests host/example.cpp)
+target_link_libraries(dp8382x_example_host_tests PRIVATE dp8382x_native_host)
+target_compile_definitions(dp8382x_example_host_tests PRIVATE
+    CONFIG_ETH_USE_ESP32_EMAC=1 CONFIG_IDF_TARGET_ESP32P4=1)
+target_include_directories(dp8382x_example_host_tests PRIVATE
+    "${sdk}/components/esp_driver_gpio/include"
+    "${sdk}/components/esp_hw_support/include"
+    "${sdk}/components/esp_hal_gpio/include"
+    "${sdk}/components/esp_hal_gpio/esp32p4/include"
+    "${sdk}/components/esp_system/include")
+target_compile_options(dp8382x_example_host_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+foreach(suite IN ITEMS board_config gate_closed shared_loop netif_init_failure
+    event_loop_failure netif_new_failure mutex_failure mac_new_failure
+    factory_failure board_failure board_direction_failure driver_allocation_failure
+    install_failure cleanup_failure mac_cleanup_failure glue_allocation_failure
+    glue_registration_1 glue_registration_2 glue_registration_3
+    glue_registration_4 glue_registration_5
+    app_registration_6 app_registration_7 app_registration_8
+    attach_partial_failure event_burst_no_console start_stop start_failure
+    stop_failure stop_event_failure start_timer_failure stop_timer_failure
+    start_mdio_failure queued_expected_stop unexpected_stop)
+  add_test(NAME example_${suite} COMMAND dp8382x_example_host_tests ${suite})
+  set_tests_properties(example_${suite} PROPERTIES TIMEOUT 30)
+endforeach()
 set(native_suites factory board_install_failures raw_routing raw_rx_retention
     glue_rx_retention stop_failures partial_start_fence notifications
     notification_failures lost_link_event shared_quarantine callback_bounds

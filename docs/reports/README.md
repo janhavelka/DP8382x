@@ -1,5 +1,10 @@
 # Planning audits and later implementation evidence
 
+The [prompt 40 report](implementation/40-p4-network-example.md) records the
+ordinary P4 Ethernet application, native image and failure tests. Its
+[board source audit](implementation/40-board-source-audit.md) verifies the latest
+saved signal netlist and retains the unresolved PHY supply gate.
+
 The [17-item audit follow-up](audit-followup-2026-11-17.md) corrects the BISCR
 wire mask, removes drifted contract copies, qualifies source/native claims and
 assigns remaining structural/test work. It supersedes named earlier dispositions.

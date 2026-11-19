@@ -955,6 +955,10 @@ Status Phy::linkSnapshot(LinkSnapshot& output) noexcept {
   if (!enter()) return busy();
   output = _core.linkSnapshot(); leave(); return Status::Ok();
 }
+Status Phy::healthSnapshot(HealthSnapshot& output) noexcept {
+  if (!enter()) return busy();
+  output = _core.healthSnapshot(); leave(); return Status::Ok();
+}
 void Phy::shareQuiet() noexcept {
   const auto progress = _core.operationSnapshot();
   if (progress.busQuietValid) {

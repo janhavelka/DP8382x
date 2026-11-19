@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add the native ESP32-P4 ordinary Ethernet example: explicit netlist pin checks,
+  default-closed board admission, DHCP, cached PHY/link/IP reporting, one finite
+  stop/start cycle and retained installed resources. Expose passive native
+  health; keep the unpowered PHY rail and physical networking as open gates.
+
 - Correct the third native review: stop on same-poll reset or failed shared board
   readiness, quarantine unexplained P4 controller activity, and restore pre-GPIO
   admission without waiving POR silence. Preserve deadline/poll/admission causes

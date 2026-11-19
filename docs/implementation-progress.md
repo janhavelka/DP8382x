@@ -1,5 +1,18 @@
 # Implementation progress
 
+Prompt 40 software stage is complete: it adds the native ESP32-P4 ordinary Ethernet application on `main` from
+clean synchronized `022cccb7ffcffc211a81398764eb64380346dccb`. It uses the
+real pinned MAC/PHY, explicit current-netlist pins, DHCP, a default-closed
+board gate, separate cached health/link/trust/IP output and finite stop/start.
+Verification includes 35 application host cases within 318/318 pinned native
+Release and UBSan CTests, 236/236 portable CTests, two portable consumer cases
+and the actual pinned P4 image link.
+The [stage report](reports/implementation/40-p4-network-example.md) records
+tests, linked image and ownership. The latest saved board netlist does not
+demonstrate a supply source for PHY `3V3`, so flashing, physical link, DHCP and
+peer reachability remain NOT RUN. Reusable installed teardown remains BLOCKED
+by `native_rx_quiescence`; installed resources are retained until restart.
+
 The [80-prompt implementation plan](prompts/README.md) is in its first
 execution. Prompts 1–35 are complete for supported procedures (DPD remains source-blocked): source research, shared contracts, portable
 values/version tooling, direct/indirect and side-effect access, exact identity and complete software reset/initialization.
@@ -533,7 +546,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [37 Implement the native ESP-IDF factory and lifecycle](prompts/37-esp-idf-lifecycle.md) | COMPLETE; reusable teardown BLOCKED | [Report](reports/implementation/37-esp-idf-lifecycle.md), [native guide](esp-idf.md), [source audit](reports/implementation/37-native-source-audit.md); 234 portable Release, 24 pinned-driver/native Release and UBSan, two tests-OFF consumers and actual pinned P4 image link PASS. Installed resources remain retained under native_rx_quiescence; physical Q13 and remote CI NOT RUN. |
 | [38 Complete SDK-aware configuration and raw MDIO arbitration](prompts/38-esp-idf-state-arbitration.md) | COMPLETE | [Report](reports/implementation/38-esp-idf-state-arbitration.md), [native guide](esp-idf.md), [source audit](reports/implementation/38-native-source-audit.md); 235 portable Release, 43 pinned-driver/native Release and UBSan, two tests-OFF consumers, actual P4 link and local source checks PASS. Reusable installed teardown remains BLOCKED; physical and remote CI NOT RUN. |
 | [39 Prove native link notifications and adapter timing contracts](prompts/39-esp-idf-link-bounds.md) | COMPLETE | [Report](reports/implementation/39-esp-idf-link-bounds.md), [conformance/timing guide](esp-idf.md), [fresh source audit](reports/implementation/39-native-source-audit.md);55 native Release/UBSan,235 portable, two consumer tests and actual pinned P4 link PASS. Physical native_wall_time qualification and native_rx_quiescence remain separate gates; remote CI NOT RUN. |
-| [40 Build the complete ESP32-P4 ordinary Ethernet example](prompts/40-p4-network-example.md) | NOT STARTED | None |
+| [40 Build the complete ESP32-P4 ordinary Ethernet example](prompts/40-p4-network-example.md) | COMPLETE for software/image | [Report](reports/implementation/40-p4-network-example.md), [board audit](reports/implementation/40-board-source-audit.md), [example](../examples/esp_idf/basic/README.md); 35 application tests, pinned P4 image. Physical PHY power/link/DHCP NOT RUN; reusable installed teardown BLOCKED. |
 | [41 Implement explicit application admission and maintenance ownership](prompts/41-owner-admission-example.md) | NOT STARTED | None |
 | [42 Demonstrate bounded native MAC frame handoff](prompts/42-owner-frame-boundary.md) | NOT STARTED | None |
 | [43 Implement the portable CLI, bounded console and record schema](prompts/43-cli-foundation.md) | NOT STARTED | None |

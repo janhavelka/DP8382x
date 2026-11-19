@@ -37,6 +37,8 @@ void reset() {
     delivered = 0;
 }
 bool isLive(const void* allocation) { return allocations.count(const_cast<void*>(allocation)) != 0; }
+size_t activeHandlers() { return handlers.size(); }
+size_t activeNetifs() { return netifs.size(); }
 bool semaphoreHeld(SemaphoreHandle_t semaphore) { return semaphore && semaphore->held; }
 void deliverEvents() {
     while (delivered < data.events.size()) {
@@ -96,6 +98,8 @@ void vSemaphoreDelete(SemaphoreHandle_t semaphore) {
     delete semaphore;
 }
 void* hostSdkCalloc(size_t count, size_t size) {
+    ++data.allocationAttempts;
+    if (data.failAllocationNumber == data.allocationAttempts) return nullptr;
     if (data.failAllocation) { data.failAllocation = false; return nullptr; }
     void* value = std::calloc(count, size);
     if (value) allocations.insert(value);
@@ -172,16 +176,27 @@ esp_err_t esp_event_post(esp_event_base_t, int32_t id, const void* event, size_t
     return ESP_OK;
 }
 esp_err_t esp_event_handler_instance_register(esp_event_base_t base, int32_t id, esp_event_handler_t callback, void* arg, esp_event_handler_instance_t* out) {
+    data.calls.emplace_back("handler.register." + std::to_string(id));
+    ++data.handlerRegistrationCount;
+    if (data.failHandlerRegistrationNumber == 0 ||
+        data.failHandlerRegistrationNumber == data.handlerRegistrationCount) {
+        if (const auto error = consume(data.nextHandlerRegisterError); error != ESP_OK) return error;
+    }
     auto* handler = new Handler{base, id, callback, arg}; handlers.push_back(handler); *out = handler; return ESP_OK;
 }
 esp_err_t esp_event_handler_instance_unregister(esp_event_base_t, int32_t, esp_event_handler_instance_t instance) {
+    data.calls.emplace_back("handler.unregister");
     auto* handler = static_cast<Handler*>(instance);
     handlers.erase(std::remove(handlers.begin(), handlers.end(), handler), handlers.end()); delete handler; return ESP_OK;
 }
 esp_err_t esp_netif_attach(esp_netif_t* netif, esp_netif_iodriver_handle handle) {
-    auto* base = static_cast<esp_netif_driver_base_t*>(handle); return base->post_attach(netif, handle);
+    auto* base = static_cast<esp_netif_driver_base_t*>(handle);
+    const auto attached = base->post_attach(netif, handle);
+    return attached == ESP_OK ? consume(data.nextNetifAttachError) : attached;
 }
-esp_err_t esp_netif_set_driver_config(esp_netif_t* netif, const esp_netif_driver_ifconfig_t* config) { netif->driver = *config; return ESP_OK; }
+esp_err_t esp_netif_set_driver_config(esp_netif_t* netif, const esp_netif_driver_ifconfig_t* config) {
+    netif->driver = *config; return ESP_OK;
+}
 esp_err_t esp_netif_set_mac(esp_netif_t*, uint8_t*) { return ESP_OK; }
 esp_err_t esp_netif_set_link_speed(esp_netif_t*, uint32_t) { return ESP_OK; }
 esp_err_t esp_netif_receive(esp_netif_t* netif, void* buffer, size_t, void*) {

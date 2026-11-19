@@ -1,31 +1,34 @@
-# Planned ESP-IDF examples
+# ESP-IDF examples
 
-The first example should bring up the ESP32-P4 MAC with DP83826I, report PHY
-identity and negotiated link state, and provide bounded register diagnostics.
-It should accept board-specific pins, address, clock and advertisement policy.
+## The first native Ethernet application
 
-The application examples remain planned. Prompt 37 supplies a buildable
+The [P4 basic example](basic/README.md) now links the actual ESP32-P4 MAC,
+DP83826I owner and `esp_netif` DHCP. It reports cached PHY/link/profile and IP
+evidence, performs a finite stop/start cycle, and retains installed resources
+under the native RX lifetime gate. Its default image never starts hardware;
+the saved board netlist leaves the PHY `3V3` supply unproved. Register diagnostics
+and the shared CLI remain task 47 work.
+
+The second owner/EtherCAT-boundary example remains planned. Prompt 37 supplies a buildable
 [P4 link fixture](../../test/esp_idf/adapter_link/README.md) and
 [native component guide](../../docs/esp-idf.md); its execution guard is disabled
 and no hardware result is claimed. Use the [board context](../../docs/esp32p4-board.md)
 and [official SDK references](../../docs/reference/source-code.md) when implementing
 it. Keep EtherCAT master integration in the application that owns that stack.
 
-The [promptset](../../docs/prompts/README.md) separately plans an ordinary
-Ethernet/IP example and an owner example demonstrating the 100/full EtherCAT
+The [promptset](../../docs/prompts/README.md) also plans an owner example demonstrating the 100/full EtherCAT
 integration boundary, followed by a shared diagnostic CLI. Neither supplies an
 EtherCAT master or servo-control implementation. Application power delivery is
 outside the library and examples.
 
-Both native examples will own MAC/controller creation, board settings, PHY
-address, clock, scheduling and console transport. They will admit one executing
-owner per PHY operation, serialize complete indirect MDIO transactions across
-all bus participants and publish copied snapshots. They must retain partially
-created resources and report cleanup failures until release is known. The
-shared CLI will attach without starting hardware work; startup belongs to the
-example. A separate plain C++ MCU consumer proves core portability, while the
-native examples must be linked with the selected ESP-IDF SDK. Existing sibling
-I2C examples do not establish an Ethernet backend or P4 link result.
+The basic example owns MAC/controller creation, board settings, PHY address,
+clock, scheduling and DHCP. It admits one executing owner per PHY operation,
+uses the shared complete-transaction MDIO lock and prints copied snapshots.
+It retains installed resources under the native RX lifetime gate and reports
+primary and cleanup failures separately. The future shared CLI will attach
+without starting hardware work. A separate plain C++ MCU consumer proves core
+portability; the basic example links the selected ESP-IDF SDK. Existing sibling
+I2C examples do not establish P4 physical link operation.
 
 The [prompt-6 decision](../../docs/design-decisions.md) now fixes these routes:
 
