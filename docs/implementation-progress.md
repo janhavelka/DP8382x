@@ -1,5 +1,9 @@
 # Implementation progress
 
+The [third auditor follow-up](reports/implementation/40-p4-network-example.md#third-auditor-follow-up)
+closes the expired-entry POR floor, the STOP check after journal retries and
+pre-install journal retention. It defers the remaining minor items to prompt 54.
+
 The [stages 37–39 board and controller follow-up](reports/implementation/37-39-board-controller-follow-up.md)
 checks the complete reset allowance before GPIO and tests explicit recovery
 from shared controller quarantine at all three host tick rates.

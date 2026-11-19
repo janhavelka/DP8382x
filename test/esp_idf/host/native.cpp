@@ -2395,21 +2395,40 @@ void boardDeadlineDomains() {
         else assert(f.journal().cleanupError.ok());
         assert(f.bus.admission == (effect || failure == Failure::RELEASE ? BusAdmission::FAILED_CLOSED : previous));
         assert(f.bus.quarantined == (failure == Failure::RELEASE));
-        assert(f.bus.quietUntilUs == (effect ? pins.releasedAt + 2001 : failure == Failure::ENTRY ? 0U : 50001U));
+        // Even an expired entry publishes the reported power event's POR floor.
+        assert(f.bus.quietUntilUs == (effect ? pins.releasedAt + 2001 : 50001U));
         assert(f.mac.frames.empty() && f.owner->destroy() == ESP_OK);
     }
-    // Restoring AVAILABLE does not waive a newly powered peer's SMI floor.
-    Host::reset(); Fixture f; Fixture peer(f, 1); f.install(); f.initialize(); peer.create();
-    BoardControl board; board.powerOnAtUs = Host::state().nowUs;
-    board.setReset = [](void*, bool) { assert(false); return ESP_FAIL; };
-    const auto before = Host::state().nowUs;
-    assert(peer.owner->prepareBoard(board, before + 1) == ESP_ERR_TIMEOUT);
-    assert(f.bus.admission == BusAdmission::AVAILABLE && f.bus.quietUntilUs == before + 50001);
-    uint16_t id = 0xCAFE; const auto frames = f.mac.frames.size();
-    assert(readPeerIdentity(f, id) == ESP_ERR_INVALID_STATE && id == 0xCAFE && f.mac.frames.size() == frames);
+    // Restoring AVAILABLE does not waive a newly powered peer's SMI floor,
+    // including a call whose allowance had already expired at entry.
+    for (const uint64_t allowance : {uint64_t{0}, uint64_t{1}}) {
+        Host::reset(); Fixture f; Fixture peer(f, 1); f.install(); f.initialize(); peer.create();
+        BoardControl board; board.powerOnAtUs = Host::state().nowUs;
+        board.setReset = [](void*, bool) { assert(false); return ESP_FAIL; };
+        const auto before = Host::state().nowUs;
+        assert(peer.owner->prepareBoard(board, before + allowance) == ESP_ERR_TIMEOUT);
+        assert(f.bus.admission == BusAdmission::AVAILABLE && f.bus.quietUntilUs == before + 50001);
+        uint16_t id = 0xCAFE; const auto frames = f.mac.frames.size();
+        assert(readPeerIdentity(f, id) == ESP_ERR_INVALID_STATE && id == 0xCAFE && f.mac.frames.size() == frames);
+        Host::state().nowUs = f.bus.quietUntilUs;
+        assert(readPeerIdentity(f, id) == ESP_OK && id == 0x2000);
+        assert(peer.owner->destroy() == ESP_OK);
+    }
+    // A new power event withdraws the previous reset proof even when the
+    // replacement preparation is rejected, so installation cannot reuse it.
+    Host::reset(); Fixture f; f.create();
+    Host::state().nowUs = 60001;
+    BoardControl ready;
+    ready.setReset = [](void*, bool) { return ESP_OK; };
+    assert(f.owner->prepareBoard(ready, Host::state().nowUs + 100000) == ESP_OK);
+    BoardControl repowered; repowered.powerOnAtUs = Host::state().nowUs;
+    repowered.setReset = [](void*, bool) { assert(false); return ESP_FAIL; };
+    assert(f.owner->prepareBoard(repowered, Host::state().nowUs) == ESP_ERR_TIMEOUT);
+    assert(f.bus.admission == BusAdmission::AVAILABLE && f.bus.quietUntilUs == repowered.powerOnAtUs + 50001);
     Host::state().nowUs = f.bus.quietUntilUs;
-    assert(readPeerIdentity(f, id) == ESP_OK && id == 0x2000);
-    assert(peer.owner->destroy() == ESP_OK);
+    esp_eth_handle_t handle = nullptr;
+    assert(f.owner->install(handle) == ESP_ERR_INVALID_STATE && handle == nullptr);
+    assert(f.mac.frames.empty() && f.owner->destroy() == ESP_OK);
 }
 
 void boardResetWindow() {

@@ -115,7 +115,7 @@ foreach(suite IN ITEMS board_config gate_closed shared_loop netif_init_failure
     unexpected_stop_gap negotiating_start emac_address_failure netif_address_mismatch
     netif_address_read_failure live_cleanup_order live_cleanup_denied terminal_delivery_failure
     terminal_busy owner_timeout_delivered running_failures journal_retry journal_unavailable journal_failed_call
-    profile_match profile_mismatch profile_aged profile_busy)
+    journal_retry_stop cleanup_journal_unavailable profile_match profile_mismatch profile_aged profile_busy)
   add_test(NAME example_${suite} COMMAND dp8382x_example_host_tests ${suite})
   set_tests_properties(example_${suite} PROPERTIES TIMEOUT 30)
 endforeach()

@@ -329,26 +329,31 @@ esp_err_t Phy::prepareBoard(const BoardControl& board, uint64_t deadlineUs) noex
   if (board.powerOnAtUs > entry || board.clockStableAtUs > entry) {
     leave(); return ESP_ERR_INVALID_ARG;
   }
+  auto& bus = *_config.bus;
+  const uint64_t lag = _config.core.transport.bounds.clockLagUs;
+  uint64_t porDue = 0;
+  const bool porKnown = addTime(board.powerOnAtUs, 50000U + lag, porDue);
+  // A reported power event withdraws this owner's earlier reset proof and
+  // publishes the new POR silence even when this call is rejected below
+  // (expired allowance, quarantine or another reservation). The floor merges
+  // by atomic maximum and never replaces another owner's reservation.
+  _boardReady = false;
+  if (porKnown) extendQuiet(bus, porDue);
   if (entry >= deadlineUs) {
     recordCore(Status::Error(Err::OPERATION_TIMEOUT, "Board readiness allowance expired", static_cast<int32_t>(TimeoutDetail::DEADLINE)));
     leave(); return ESP_ERR_TIMEOUT;
   }
-  auto& bus = *_config.bus;
   auto admission = bus.admission.load();
   if (bus.quarantined.load() ||
       (admission != BusAdmission::BOOT_CLOSED && admission != BusAdmission::AVAILABLE) ||
       !bus.admission.compare_exchange_strong(admission, BusAdmission::BOARD_PREPARING)) {
     leave(); return ESP_ERR_INVALID_STATE;
   }
-  _phase = Phase::CONTROL; _boardReady = false; _record.stage = LifecycleStage::BOARD;
+  _phase = Phase::CONTROL; _record.stage = LifecycleStage::BOARD;
   leave();
-  uint64_t assertionReady = 0, clockStable = 0, porDue = 0, due = 0;
-  const uint64_t lag = _config.core.transport.bounds.clockLagUs;
-  const bool porKnown = addTime(board.powerOnAtUs, 50000U + lag, porDue);
+  uint64_t assertionReady = 0, clockStable = 0, due = 0;
   const bool readinessKnown = porKnown && addTime(board.clockStableAtUs, lag, clockStable) &&
       addTime(clockStable > porDue ? clockStable : porDue, 100U, assertionReady);
-  // Even a pre-GPIO timeout must preserve a newly powered peer's SMI silence.
-  if (porKnown) extendQuiet(bus, porDue);
   bool resetAttempted = false;
   // Drain existing whole batches. No mutex survives pin callbacks or waits.
   int64_t result = readinessKnown ? ESP_OK : ESP_ERR_INVALID_ARG;

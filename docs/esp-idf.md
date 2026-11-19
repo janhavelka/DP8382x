@@ -243,8 +243,10 @@ owner polls. During INITIALIZING only its admitting core can issue batches;
 BOARD_PREPARING and INSTALLING admit no MDIO. Successful
 board preparation/result delivery returns AVAILABLE. A board failure before any
 GPIO invocation restores its previous BOOT_CLOSED/AVAILABLE state when timing
-and controller release are known. The shared POR floor is merged before the
-drain, so reopening AVAILABLE never waives a newly powered peer's 50 ms silence.
+and controller release are known. The shared POR floor is merged at entry,
+before the deadline, quarantine and reservation checks, and the owner's earlier
+board readiness is withdrawn there. Reopening AVAILABLE or rejecting an expired
+call therefore never waives a newly powered peer's 50 ms silence.
 Any invoked pin callback can have applied an effect even on error. Such a
 failure, unknown timing, or failed mutex release leaves FAILED_CLOSED independently
 of that adapter's lifetime; uncertain controller release also quarantines the bus. Other PHY reset
@@ -506,6 +508,9 @@ P4 MDIO timeouts retain uncertain effects and quarantine. Passive health cannot 
 
 1. Close application traffic and maintenance admission for every bus participant.
    Stop the affected framework owners and confirm each stop/fence receipt.
+   An owner in CONTROL cannot stop: cancel its operation, deliver the result
+   with `takeResult` and keep the reported possible writes first. Until that
+   delivery succeeds the owner keeps CONTROL, and the bus stays closed.
    Keep installed resources and late RX contexts alive.
 2. Identify and stop any MDIO access outside the shared owner. Establish that
    every outstanding controller command has completed, the controller is idle,

@@ -196,6 +196,24 @@ void liveBorrowerCleanup(bool denyDestroy) {
     }
     assert(!app.phy && !app.mac && !app.bus.mutex && !mac->alive);
 }
+void cleanupJournalUnavailable() {
+    Host::reset();
+    faults.resetRelease = ESP_FAIL; // A pre-install failure with a live PHY.
+    assert(!initialize() && !app.installed && app.phy && app.mac && app.bus.mutex);
+    const auto count = [](const char* name) {
+        const auto& calls = Host::state().calls;
+        return std::count(calls.begin(), calls.end(), name);
+    };
+    // Destruction would delete the journal: deny the three final copies only.
+    Host::state().failSemaphoreTakes = 3;
+    releaseBeforeInstall();
+    assert(Host::state().failSemaphoreTakes == 0 && app.journalCopyError.is(Err::BUSY));
+    assert(count("timer.delete") == 0 && count("mac.del") == 0);
+    assert(app.phy && mac->alive && app.bus.mutex);
+    releaseBeforeInstall(); // Contention ended: confirmed copy, then dependency-order release.
+    assert(count("timer.delete") == 1 && count("mac.del") == 1);
+    assert(!app.phy && !app.mac && !app.bus.mutex && !mac->alive);
+}
 void quarantinedMutexRetained() {
     Host::reset();
     // The board drain takes the bus mutex and its give fails: the adapter
@@ -527,19 +545,42 @@ void runningFailures() {
 void journalBeforeRestart(bool permanent) {
     Host::reset();
     assert(initialize());
+    // Literal oracle from the README: three cached reads, one-tick yields between them.
     unsigned attempts = 0;
     Host::state().beforeSemaphoreTake = [&](SemaphoreHandle_t handle) {
         const auto& delays = Host::state().delays;
         if (!attempts && (delays.empty() || delays.back().ticks != pdMS_TO_TICKS(1000))) return;
-        if (attempts >= (permanent ? MAX_JOURNAL_TRIES : 1U)) return;
+        if (attempts >= (permanent ? 3U : 1U)) return;
+        if (attempts) assert(delays.back().ticks == 1);
         ++attempts;
         Host::state().failNextTake = handle;
     };
     serve();
-    assert(attempts == (permanent ? MAX_JOURNAL_TRIES : 1U));
+    assert(attempts == (permanent ? 3U : 1U));
     assert(app.journalCopyError.is(Err::BUSY) == permanent);
     assert(callCount("timer.periodic") == (permanent ? 1U : 2U));
     assert(std::string(app.sessionEnd) == (permanent ? "restart withheld: journal unavailable" : "demonstration complete"));
+    finish();
+}
+void stopDuringJournalRetry() {
+    Host::reset();
+    assert(initialize());
+    unsigned attempts = 0;
+    Host::state().beforeSemaphoreTake = [&](SemaphoreHandle_t handle) {
+        const auto& delays = Host::state().delays;
+        if (!attempts && (delays.empty() || delays.back().ticks != pdMS_TO_TICKS(1000))) return;
+        if (++attempts == 1) { Host::state().failNextTake = handle; return; } // First pre-restart read is BUSY.
+        if (attempts != 2) return;
+        // An unexpected STOP arrives during the one-tick yield; the retry then succeeds.
+        assert(delays.back().ticks == 1);
+        Host::deliverEvents(); // Consume the intentional stop's receipt first.
+        assert(!app.shutdownRequested.load() && app.expectedStops.load() == 0);
+        onEthernet(&app, ETH_EVENT, ETHERNET_EVENT_STOP, &app.driver);
+    };
+    serve();
+    Host::state().beforeSemaphoreTake = nullptr;
+    assert(attempts >= 2 && app.shutdownRequested.load() && app.journalCopyError.ok());
+    assert(callCount("timer.periodic") == 1 && std::string(app.sessionEnd) == "restart withheld");
     finish();
 }
 void failedCallWithoutJournal() {
@@ -580,7 +621,8 @@ void lostEventUnresolved() {
     mac->onCall = nullptr;
     assert(postedEvents(ETHERNET_EVENT_CONNECTED) == 0 && callCount("mac.up") == 1);
     assert(std::string(app.sessionEnd) == "link event delivery unresolved");
-    assert(app.eventRetries == MAX_EVENT_RETRIES && attempts == 1U + MAX_EVENT_RETRIES);
+    // Literal README limit: the original post and ten event-only retries.
+    assert(app.eventRetries == 10U && attempts == 11U);
     assert(callCount("timer.periodic") == 1);
     LifecycleRecord record{};
     assert(app.phy->lifecycleSnapshot(record).ok() && record.phase != Phase::RUNNING);
@@ -687,17 +729,17 @@ void lastEventRetry(bool late) {
     Host::state().onEventAttempt = [&](int32_t id) {
         if (id != ETHERNET_EVENT_CONNECTED) return;
         ++attempts;
-        if (attempts <= MAX_EVENT_RETRIES) {
+        if (attempts <= 10U) {
             Host::state().eventErrorId = id;
             Host::state().nextEventError = ESP_FAIL;
-        } else if (late && attempts == MAX_EVENT_RETRIES + 1) {
+        } else if (late && attempts == 11U) {
             Host::state().nowUs += 200001U; // Last retry delivers, just beyond its deadline.
         }
     };
     serve();
     Host::state().onEventAttempt = nullptr;
     assert(std::string(app.sessionEnd) == "demonstration complete" && app.eventRetries == 0);
-    assert(attempts == 2U + MAX_EVENT_RETRIES); // Original UP, ten retries and second session UP.
+    assert(attempts == 12U); // Original UP, ten retries and second session UP.
     assert(postedEvents(ETHERNET_EVENT_CONNECTED) == 2 && callCount("mac.up") == 2);
     finish();
 }
@@ -735,6 +777,8 @@ int main(int argc, char** argv) {
     else if (suite == "running_failures") runningFailures();
     else if (suite == "journal_retry" || suite == "journal_unavailable") journalBeforeRestart(suite == "journal_unavailable");
     else if (suite == "journal_failed_call") failedCallWithoutJournal();
+    else if (suite == "journal_retry_stop") stopDuringJournalRetry();
+    else if (suite == "cleanup_journal_unavailable") cleanupJournalUnavailable();
     else if (suite.rfind("profile_", 0) == 0) profileReport(suite);
     else if (suite == "lost_event_retry") lostEventRetry();
     else if (suite == "lost_event_unresolved") lostEventUnresolved();

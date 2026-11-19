@@ -174,9 +174,10 @@ void onLostIp(void* context, esp_event_base_t, int32_t, void* data) {
 /// The never-installed PHY borrows the MAC and bus, so it goes first; if its
 /// destruction fails, the MAC and mutex it references stay alive. A quarantined
 /// bus may hold an unreleased mutex, so the mutex is then retained as well.
+/// Destruction deletes the adapter journal, so an unconfirmed final copy keeps
+/// the PHY and its dependencies alive for an explicit retry.
 void releaseBeforeInstall() {
-  if (app.phy) {
-    copyLifecycle();
+  if (app.phy && copyLifecycle()) {
     const esp_err_t error = app.phy->destroy();
     cleanupError(error);
     if (error == ESP_OK) app.phy = nullptr;
@@ -465,8 +466,10 @@ bool runInterval(unsigned steps) {
 /// A bounded, console-independent stop/start cycle exercises the single owner.
 /// Lifecycle obligations end the session with an owner stop and no restart.
 void serve() {
-  if (app.shutdownRequested.load()) { app.sessionEnd = "start withheld"; return; }
+  // Confirm the journal first: its retries yield, and a STOP delivered during
+  // a yield must still withhold the start.
   if (!copyLifecycle()) { app.sessionEnd = "start withheld: journal unavailable"; return; }
+  if (app.shutdownRequested.load()) { app.sessionEnd = "start withheld"; return; }
   esp_err_t error = app.phy->start(deadlineUs());
   checkAdapter("start", error);
   if (error != ESP_OK) { app.sessionEnd = "start failed"; return; }
@@ -475,10 +478,11 @@ void serve() {
   if (active) {
     if (ownerStop() != ESP_OK) { app.sessionEnd = "owner stop failed"; return; }
     vTaskDelay(pdMS_TO_TICKS(1000));
-    // An unexpected STOP delivered while stopped prevents the restart. A
-    // completed owner stop has already discharged any stopRequired latch.
-    if (app.shutdownRequested.load()) { app.sessionEnd = "restart withheld"; return; }
+    // An unexpected STOP delivered while stopped, including during the
+    // journal retries, prevents the restart. A completed owner stop has
+    // already discharged any stopRequired latch.
     if (!copyLifecycle()) { app.sessionEnd = "restart withheld: journal unavailable"; return; }
+    if (app.shutdownRequested.load()) { app.sessionEnd = "restart withheld"; return; }
     error = app.phy->start(deadlineUs());
     checkAdapter("restart", error);
     if (error != ESP_OK) { app.sessionEnd = "restart failed"; return; }

@@ -124,7 +124,7 @@ struct SharedBus {
 /// @pre Quiesce traffic before external power changes. For shared RESET_N,
 /// invalidate every affected peer under its owner; this object tracks no pin topology.
 struct BoardControl {
-  void* context{nullptr}; ///< Borrowed through all calls and retained resources.
+  void* context{nullptr}; ///< Borrowed until prepareBoard returns, including its best-effort release call; not stored.
   /// @brief Finite terminal board callback; true asserts RESET_N, false releases it.
   /// @note Any invocation can apply an effect even when it returns an error.
   esp_err_t (*setReset)(void*, bool){nullptr};
@@ -211,10 +211,15 @@ public:
   /// @param[in] board Finite borrowed pin callback and real power/clock timestamps.
   /// @param[in] deadlineUs Exclusive absolute esp_timer microsecond deadline, no renewed timeout.
   /// @return Native error/timeout; another reservation rejects before GPIO.
+  /// Every call with valid timestamps withdraws this owner's earlier board
+  /// readiness and merges the POR floor first, also when an expired deadline,
+  /// quarantine or another reservation then rejects it.
   /// A failure before any GPIO invocation restores prior BOOT_CLOSED/AVAILABLE
   /// admission only when controller release and timing are known, preserving the
-  /// shared POR/quiet floor. Any attempted pin effect or uncertain release leaves
-  /// FAILED_CLOSED until external disposition or system restart.
+  /// shared POR/quiet floor. A failed sequence after any attempted pin call, or an
+  /// uncertain controller release, leaves FAILED_CLOSED until external
+  /// disposition or system restart. A successful release does not by itself
+  /// prove a qualified board pulse.
   /// Before assertion, admission covers both pin calls, the assertion hold,
   /// release quiet interval and tick rounding. On failure after an attempted
   /// assertion the owner still attempts release once, even after expiry. A

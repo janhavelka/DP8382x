@@ -107,6 +107,23 @@ withhold STOP dispatch through retirement and exercise late RX. Distinguish
 posting, handler delivery and evidence of actual netif session closure. Keep
 closure explicitly unresolved wherever the pinned public API supplies no proof.
 
+Deferred from the third auditor follow-up (2026-11-19,
+`aud-20261119-135408-6dbe29`), minor items:
+
+- **Board clock regression.** `Phy::prepareBoard` checks for a backward
+  esp_timer sample only within each pin callback. Add one nondecreasing sample
+  across drain, wakes and both sides of each callback. On regression, fail
+  closed, still with exactly one release attempt. Inject regressions between
+  phases.
+- **Event-retry receipt.** The basic example discards the direct
+  `retryLinkEvent` return. Keep it as a separate receipt without treating
+  TIMEOUT as non-delivery. Test an original event failure followed by a retry
+  accepted late.
+- **Oracle gaps.** Add a transient gate-BUSY poll of a different frozen
+  terminal status followed by failed takes, and check that the snapshot status
+  is reported. Add the exact remaining-poll threshold for both post-assertion
+  waits after readiness polls have used part of `BoardControl::maxPolls`.
+
 Update Doxygen, API/timing/ownership/testing guides and `test/README.md` with
 corrected lifecycle, scheduler, result and partial-effect contracts.
 

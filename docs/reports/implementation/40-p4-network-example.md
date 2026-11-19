@@ -224,3 +224,59 @@ The symbol command above returned all twelve entries. Build with
 `scripts\idf.cmd -C examples/esp_idf/basic -B C:\esp\build\dp8382x-audit40 -D SDKCONFIG=C:/esp/build/dp8382x-audit40/sdkconfig -D IDF_TARGET=esp32p4 build`.
 This run executed registered regressions and inspected artifacts. No physical
 board or first-set remote CI was run.
+
+## Third auditor follow-up
+
+`aud-20261119-135408-6dbe29` (gpt-6.2-astra, complex depth) reviewed
+`9933109..d7c4881`. It covered the basic example and the native board-reset
+and quarantine changes. Before any edit, each finding was compared with a
+separate Claude review of the code and the pinned ESP-IDF `fff9895c` source.
+
+Entry state `d7c488175cbe38075be9029312ca5d8e6adf9d5f` passed every check in
+a separate clean clone:
+
+- pinned Release 355/355 and UBSan-trap 355/355;
+- portable 242/242 and consumer 2/2;
+- Python 103/103, ledger, references, version and whitespace checks;
+- basic, owner and `adapter_link` P4 images.
+
+Doxygen passed from the main checkout. Under `C:\esp\build\`, the Doxyfile's
+`*/build/*` exclude pattern matches every header and the check reports no
+input. Run it from a path without a `build` component.
+
+| Finding | Disposition |
+| --- | --- |
+| F1 an expired entry skipped the reported POR floor | Fixed. `prepareBoard` validates timestamps, then withdraws this owner's earlier board readiness and merges the POR floor. Only after that do the deadline, quarantine and reservation checks run. `board_deadline_domains` covers three cases: the floor after an expired entry, a peer read refused after an exhausted allowance, and installation refused when re-preparation after a new power event is rejected. |
+| F2 failed timer stop reported as a restartable stop | Not a defect with the pinned SDK. `esp_timer_stop` fails only for a null handle, an uninitialized timer service or an unarmed timer, so a failed stop never leaves the link timer armed. The host fake's error that keeps the timer active is a stricter model. `Phy::getLink` refuses work outside STARTING/RUNNING without MDIO. |
+| F3 clock regression between board phases | Deferred to prompt 54 as minor: esp_timer is monotonic; the per-callback checks remain. |
+| F4 STOP during journal confirmation | Fixed. Both start sites confirm the journal first, then check `shutdownRequested`. `journal_retry_stop` delivers STOP during the one-tick yield. |
+| F5 pre-install destruction could delete an unread journal | Fixed. The PHY is destroyed only after a confirmed final copy. Otherwise the PHY, MAC and mutex stay alive for an explicit retry. `cleanup_journal_unavailable`. |
+| F6 direct `retryLinkEvent` return discarded | Deferred to prompt 54 as a minor diagnostic. Delivery is still decided by the next journal snapshot. |
+| F7 owner progress with a withheld output sink | Already deferred to prompt 47. The README now says the owner stops at its next service step, and that 100 ms is a requested interval. |
+| F8 netif session closure before retirement | Already deferred (first review F4; prompt 54). No new claim. |
+| F9 retry tests followed production constants | Fixed. Journal and lost-event cases use literal limits of 3 and 10 and check one-tick yields between journal reads. |
+| F10 public reset wording | Fixed. The board context lifetime now ends at return. Only a failed sequence after a pin call leaves FAILED_CLOSED. |
+| Question: recovery with an owner in CONTROL | Documented in recovery step 1: cancel, deliver with `takeResult` and keep the possible writes. An undelivered token keeps CONTROL and the bus closed. |
+| Question: controller-idle evidence | Unchanged. The guide already requires application evidence; without it, admission stays closed until restart. |
+| Oracle gaps (frozen status under transient BUSY, exact remaining polls) | Deferred to prompt 54. |
+
+Each fix was checked by restoring the old behavior one at a time in the
+isolated clone. Every mutant failed its regression:
+
+- F1: floor after the deadline check, or readiness kept: `board_deadline_domains` at all three tick rates.
+- F4: shutdown check before the journal copy: `journal_retry_stop`.
+- F5: destroy after a failed copy: `cleanup_journal_unavailable`.
+- F9: journal limit 4 or 2: `journal_unavailable`; event limit 11: `lost_event_unresolved`.
+
+The restored build passed all 68 affected cases.
+
+Precommit verification ran in the same clone on `d7c4881` with exactly these
+code, test and guide edits; only this report section was completed afterwards:
+
+| Layer | Result |
+| --- | --- |
+| Pinned native host | PASS. 357/357 Release and 357/357 UBSan-trap CTests, including 65 basic-example cases and the board suites at 100, 333 and 1,000 Hz. |
+| Portable and consumer | PASS. 242/242 and 2/2. |
+| Python, ledger, references, version, whitespace | PASS. 103 tests; 97 registers/52 procedures/35 features; 2,033 local links; version check; `git diff --check`. Doxygen 291 pages from the main checkout. |
+| P4 images, ESP-IDF `fff9895c`, board gate closed | PASS, zero warnings. Basic 515,296 bytes, SHA-256 `d74bf9e465e0d220ccc84b6569622a5d0807e965b4fdd570b6bc2b0d7a1357fb`, all twelve symbols. Owner 401,136 bytes, `9db9104e7358a0964c2f7da3d01c8b357a6826ea779ea710bb452c9cb5f77171`. `adapter_link` 386,208 bytes, `90c8779bf5fcdc84095e926f2dd5bd80c2eb348f7156c575a3a3c068c88f37b9`. Embedded identity `d7c4881`, dirty. |
+| Physical board and remote CI | NOT RUN. No fixture; first-set CI belongs to prompt 71. |

@@ -99,7 +99,9 @@ Every 100 ms service step also copies the adapter's lifecycle journal (no PHY
 I/O) and acts on its obligations:
 
 - `stopRequired` (observation or publication trust lost): the owner stops at
-  once, records the current observation cause and does not restart.
+  its next service step, records the current observation cause and does not
+  restart. A busy snapshot or blocked console output delays that step; the
+  100 ms is a requested interval, not a handling bound.
 - `eventLost` (the P4 MAC accepted a link change but its event was not
   delivered): the owner calls the event-only `retryLinkEvent`, which never
   replays MAC UP. After 10 consecutive steps without delivery it stops.
@@ -109,6 +111,8 @@ ended and whether a core result is still owed. Historical lifecycle errors
 can first be observed at a later successful call. Before start or restart,
 the owner attempts up to three cached journal reads with up to two one-tick
 yields. It withholds the transition if it cannot confirm the previous journal.
+It checks for an unexpected STOP only after that confirmation, so a STOP
+delivered during a yield still withholds the start.
 
 Typed operations (initialize, configure) are polled to completion on the owner
 task. On `BUSY`, the owner checks for a terminal result pending on that
@@ -126,6 +130,8 @@ snapshot never refreshes it, and contended polls can leave an old sample.
 Before successful driver installation, cleanup releases created PHY, MAC, mutex,
 netif and the owned default loop in dependency order: the PHY borrows the MAC
 and bus, so it goes first, and a PHY that cannot be destroyed keeps both alive.
+Destruction deletes the adapter journal, so a PHY whose final journal copy
+cannot be confirmed is also kept, with its dependencies, for an explicit retry.
 A quarantined bus may still hold its mutex, which is then retained. A null SDK
 factory result reports no cause, so it is recorded by stage, not as an
 invented SDK error code. The failed-start cleanup allowance is set to 500 ms,

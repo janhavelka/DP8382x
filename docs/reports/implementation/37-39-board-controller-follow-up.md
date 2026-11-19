@@ -39,6 +39,11 @@ contract and builds.
   produces a new timestamped link observation. The pinned P4 MAC has no public
   idle fence. The [recovery procedure](../../esp-idf.md#recovering-a-quarantined-shared-controller)
   describes when the owner must retain resources and use system restart.
+- **Expired entry and CONTROL recovery.** A later independent audit found that
+  an already expired call returned before publishing the reported POR floor.
+  See the [third auditor follow-up](40-p4-network-example.md#third-auditor-follow-up)
+  for that correction, the recovery step for an owner in CONTROL and the
+  deferred minor items.
 - **Observation detail codes.** Several `NOT_INITIALIZED` cases share detail
   zero. [Prompt 76](../../prompts/76-docs-api-audit.md) now owns their stable
   caller-visible distinctions and rendering tests.

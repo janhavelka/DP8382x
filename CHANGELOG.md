@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Publish a reported power event's POR silence, and withdraw the native owner's
+  earlier board readiness, before `prepareBoard` can reject the call. The basic
+  P4 example now checks for an unexpected STOP after journal confirmation and
+  keeps a pre-install PHY whose final journal copy is unconfirmed.
+
 - Check the full reset and SMI quiet-time allowance before the native board
   owner asserts RESET_N. An attempted assertion now gets a release attempt
   even on failure, with independent primary and cleanup receipts.
