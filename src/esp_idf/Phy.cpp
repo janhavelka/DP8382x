@@ -715,12 +715,14 @@ esp_err_t Phy::getLink(esp_eth_phy_t* phy) noexcept {
   // Neither unresolved UP nor observed DOWN can restore the owner's agreement.
   if (!self._sdkState.reconciled)
     return fail(Status::Error(Err::NOT_INITIALIZED, "Running SDK or PHY agreement lost"), true);
-  if (observation.linkUp && !observation.resolvedModeValid)
+  const bool awaitingNegotiation = self._config.waitForNegotiatedLink &&
+      observation.negotiation == NegotiationState::IN_PROGRESS;
+  if (observation.linkUp && !observation.resolvedModeValid && !awaitingNegotiation)
     return fail(Status::Error(Err::NOT_INITIALIZED, "Running link mode is unresolved"));
   self._record.lastObservationStatus = Status::Ok();
   self._record.consecutiveObservationMisses = 0;
   PublishedTuple tuple{};
-  tuple.up = observation.linkUp;
+  tuple.up = observation.linkUp && observation.resolvedModeValid;
   if (tuple.up) {
     tuple.speed = observation.speed; tuple.duplex = observation.duplex;
     // P4's Boolean enables RX and TX together; a one-way or invalid resolution
@@ -954,6 +956,29 @@ Status Phy::lifecycleSnapshot(LifecycleRecord& output) noexcept {
 Status Phy::linkSnapshot(LinkSnapshot& output) noexcept {
   if (!enter()) return busy();
   output = _core.linkSnapshot(); leave(); return Status::Ok();
+}
+Status Phy::withAdmissionEvidence(void* context, void (*decide)(void*, const LinkSnapshot&,
+    const SettingsSnapshot&, const HealthSnapshot&, bool, uint64_t) noexcept) noexcept {
+  if (!decide) return Status::Error(Err::INVALID_PARAM, "Missing admission callback");
+  if (!enter()) return busy();
+  uint64_t upper;
+  if (!addTime(timeNow(), _config.core.transport.bounds.clockLagUs, upper)) {
+    leave();
+    return Status::Error(Err::INVALID_CONFIG, "Admission clock overflow",
+                         static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT));
+  }
+  const auto link = _core.linkSnapshot();
+  const auto& published = _record.publishedTuple;
+  const bool ready = _phase == Phase::RUNNING && !_notifying && !_record.stopRequired &&
+      !_record.observationDownOwed && !_record.eventLost && !_record.publicationUncertain &&
+      _record.lastObservationStatus.ok() && _sdkState.reconciled && verifiedSettings() &&
+      _config.bus->admission.load() == BusAdmission::AVAILABLE &&
+      (!_flow.macEffectPossible || _flow.reconciled) && published.up && link.linkUp &&
+      link.valid && !link.stale && link.resolvedModeValid &&
+      published.speed == link.speed && published.duplex == link.duplex;
+  decide(context, link, _core.settingsSnapshot(), _core.healthSnapshot(), ready, upper);
+  leave();
+  return Status::Ok();
 }
 Status Phy::healthSnapshot(HealthSnapshot& output) noexcept {
   if (!enter()) return busy();

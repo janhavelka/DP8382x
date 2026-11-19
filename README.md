@@ -9,6 +9,8 @@ The [P4 basic example](examples/esp_idf/basic/README.md) builds against the
 pinned SDK, but its saved board netlist leaves PHY `3V3` without a demonstrated
 supply source. Resolve that physical gate before flashing or interpreting link,
 DHCP or reachability results.
+The [P4 owner example](examples/esp_idf/owner/README.md) adds explicit session
+admission on fresh 100/full evidence and bounded maintenance after release.
 The [native ESP-IDF guide](docs/esp-idf.md) covers explicit board readiness,
 AN/forced configuration, public SDK reconciliation, link publication, owner-routed
 raw/collector access and discovery, and bounded framework start/stop. The real pinned SDK driver has executing host tests

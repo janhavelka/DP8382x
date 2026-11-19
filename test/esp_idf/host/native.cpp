@@ -1,4 +1,5 @@
 #include "InstrumentedMac.h"
+#include "../../../examples/esp_idf/owner/main/PhyOwner.h"
 #include <DP8382x/esp_idf/Phy.h>
 #include <algorithm>
 #include <cassert>
@@ -531,6 +532,18 @@ void incompleteNegotiation() {
     assert(f.owner->linkSnapshot(observation).ok());
     assert(observation.valid && observation.linkUp && !observation.resolvedModeValid && observation.negotiation == NegotiationState::IN_PROGRESS);
     assert(f.mac.frames.size() == frames); // Acquired observations and accepted SDK fields have different validity.
+    Fixture waiting; waiting.config.waitForNegotiatedLink = true; waiting.install(); waiting.initialize();
+    waiting.mac.registers[1] = 0x784D; waiting.mac.registers[0x10] = 0x0001;
+    assert(waiting.start() == ESP_OK);
+    assert(waiting.journal().phase == Phase::RUNNING && !waiting.journal().publishedTuple.up);
+    assert(waiting.owner->linkSnapshot(observation).ok() && observation.linkUp && !observation.resolvedModeValid);
+    waiting.mac.registers[1] = 0x786D; waiting.mac.registers[0x10] = 0x0015;
+    Host::tickTimers();
+    assert(waiting.journal().publishedTuple.up && waiting.journal().publishedTuple.duplex == Duplex::FULL);
+    waiting.mac.registers[1] = 0x784D; waiting.mac.registers[0x10] = 0x0001;
+    for (unsigned i = 0; i < 4; ++i) Host::tickTimers();
+    assert(!waiting.journal().publishedTuple.up && waiting.journal().lastObservationStatus.ok());
+    assert(waiting.journal().consecutiveObservationMisses == 0 && !waiting.journal().stopRequired);
 }
 void pauseProjection() {
     // Order of local and partner advertisements: none, symmetric, asymmetric,
@@ -2016,6 +2029,26 @@ void foreignFlowEffect() {
 }
 void observationCableFlap() {
     Host::reset(); Fixture f; f.install(); f.initialize(); assert(f.start() == ESP_OK);
+    struct Decision { Phy* phy; bool called; bool ready; };
+    const auto admission = [&](bool expected) {
+        Decision decision{f.owner, false, false};
+        const auto frames = f.mac.frames.size();
+        assert(f.owner->withAdmissionEvidence(&decision, [](void* ctx, const LinkSnapshot& link,
+                const SettingsSnapshot& settings, const HealthSnapshot&, bool ready, uint64_t nowUs) noexcept {
+            auto& result = *static_cast<Decision*>(ctx);
+            result.called = true; result.ready = ready;
+            if (ready) {
+                assert(link.valid && !link.stale && link.resolvedModeValid && nowUs >= link.observedSinceUs);
+                assert(settings.trust == ConfigurationTrust::VERIFIED);
+            }
+            // Framework and application cannot replace evidence during this decision.
+            LinkSnapshot unused;
+            assert(result.phy->linkSnapshot(unused).is(Err::BUSY));
+        }).ok());
+        assert(decision.called && decision.ready == expected && f.mac.frames.size() == frames);
+    };
+    assert(f.owner->withAdmissionEvidence(nullptr, nullptr).is(Err::INVALID_PARAM));
+    admission(true);
     unsigned reads = 0;
     f.mac.onFrame = [&](const Host::Frame& frame) {
         if (frame.reg == 1 && ++reads == 2) {
@@ -2027,13 +2060,16 @@ void observationCableFlap() {
     assert(transient.lastObservationStatus.is(Err::BUSY));
     assert(transient.lastObservationStatus.detail == static_cast<int32_t>(BusyDetail::OBSERVATION_CHANGED));
     assert(transient.consecutiveObservationMisses == 1 && transient.publishedTuple.up && !transient.stopRequired);
+    admission(false);
     f.mac.onFrame = nullptr;
     Host::tickTimers(); // A stable observation of the pulled cable now reaches the MAC.
     const auto down = f.journal();
     assert(down.lastObservationStatus.ok() && down.consecutiveObservationMisses == 0 && !down.publishedTuple.up);
+    admission(false);
     f.mac.registers[1] = 0x786D; f.mac.registers[0x10] = 0x0015;
     Host::tickTimers();
     assert(f.journal().publishedTuple.up && !f.journal().stopRequired && f.mac.link == ETH_LINK_UP);
+    admission(true);
     assert((eventOrder() == std::vector<int32_t>{ETHERNET_EVENT_START, ETHERNET_EVENT_CONNECTED,
                                                 ETHERNET_EVENT_DISCONNECTED, ETHERNET_EVENT_CONNECTED}));
 }
@@ -2683,6 +2719,105 @@ void startGateFailures() {
         assert(eventCount(ETHERNET_EVENT_STOP) == 1 && Host::state().oneShotArms == 1 && countCall("mac.stop") == 1);
     }
 }
+// Exercises the application policy against real pinned esp_eth start/stop and
+// timer callbacks, using the fixture's instrumented MAC and synthetic clock.
+void applicationRecovery() {
+    using owner_example::OwnerPhase;
+    Host::reset();
+    Fixture f;
+    f.config.linkPollMs = owner_example::LINK_POLL_MS;
+    f.config.waitForNegotiatedLink = true;
+    struct Application {
+        owner_example::PhyOwner policy;
+        uint64_t generation{};
+        bool request{};
+        Status admitted{};
+    } app;
+    const auto sample = [&](bool request) {
+        app.request = request;
+        const auto frames = f.mac.frames.size();
+        const auto collected = f.owner->withAdmissionEvidence(&app,
+            [](void* ptr, const LinkSnapshot& link, const SettingsSnapshot& settings,
+               const HealthSnapshot& health, bool ready, uint64_t now) noexcept {
+                auto& a = *static_cast<Application*>(ptr);
+                a.policy.observe(now, health, settings, link, ready);
+                if (a.request) a.admitted = a.policy.admit(now, a.generation);
+            });
+        assert(collected.ok() && frames == f.mac.frames.size());
+    };
+    LinkSettings profile;
+    profile.advertisement.technologyMask = 1;
+    assert(!app.policy.begin(profile).ok() && f.mac.frames.empty());
+    profile.advertisement.technologyMask = 8;
+    assert(app.policy.begin(profile).ok());
+    f.install();
+    f.initialize();
+    assert(f.start() == ESP_OK);
+    sample(true);
+    assert(app.admitted.ok());
+    const auto firstSession = app.generation;
+    const auto before = f.mac.frames.size();
+    assert(!app.policy.beginMaintenance(true).ok() && f.mac.frames.size() == before);
+
+    const auto upStatus = f.mac.registers[0x10];
+    const auto upBasic = f.mac.registers[1];
+    f.mac.registers[1] = 0x7849;
+    f.mac.registers[0x10] = 0;
+    Host::tickTimers();
+    sample(false);
+    assert(app.policy.snapshot().phase == OwnerPhase::WITHDRAWN);
+    assert(!app.policy.beginMaintenance(true).ok());
+    f.mac.registers[0x10] = upStatus;
+    f.mac.registers[1] = upBasic;
+    Host::tickTimers();
+    sample(true);
+    assert(!app.admitted.ok() && app.policy.release(firstSession).ok());
+    assert(!app.policy.beginMaintenance(false).ok());
+    assert(app.policy.beginMaintenance(true).ok());
+    assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+
+    OperationToken token;
+    const auto budget = [] { return OperationBudget{{Host::state().nowUs + 1000000,512},10,16}; };
+    assert(f.owner->startInitialize({ResetKind::PCS},budget(),token).inProgress());
+    bool wroteReset = false;
+    for (unsigned step = 0; step < 32 && !wroteReset; ++step) {
+        const auto start = f.mac.frames.size();
+        assert(f.owner->pollOperation(token,MAX_BATCH_FRAMES).inProgress());
+        assert(f.mac.frames.size() - start <= MAX_BATCH_FRAMES);
+        for (auto i = start; i < f.mac.frames.size(); ++i) {
+            const auto& frame = f.mac.frames[i];
+            wroteReset |= frame.write && frame.reg == 0 && frame.value == 0x8000;
+        }
+    }
+    assert(wroteReset && f.owner->cancel(token).ok());
+    OperationResult primary;
+    assert(f.owner->takeResult(token,primary).ok());
+    assert(primary.status.is(Err::CANCELLED) && primary.commandAccepted &&
+           primary.mutationPossible && primary.cleanupOwed);
+    assert(app.policy.retainResult(primary).ok());
+    app.policy.finishMaintenance(Host::state().nowUs + 1);
+    assert(!app.policy.beginMaintenance(true).ok());
+    assert(app.policy.takeResult(primary).ok());
+    assert(app.policy.beginMaintenance(true).ok());
+
+    assert(f.owner->startInitialize({ResetKind::NONE},budget(),token).inProgress());
+    const auto recovered = f.finish(token);
+    assert(recovered.token.value != primary.token.value && recovered.persistentRestored && !recovered.cleanupOwed);
+    assert(app.policy.retainResult(recovered).ok());
+    app.policy.finishMaintenance(Host::state().nowUs + 1);
+    OperationResult restoration;
+    assert(app.policy.takeResult(restoration).ok() && restoration.status.ok() && primary.status.is(Err::CANCELLED));
+    assert(f.owner->reconcileSdkState(Host::state().nowUs + 100000).ok());
+    Host::state().nowUs += 2; // A new sample starts strictly after the maintenance fence.
+    assert(f.start() == ESP_OK);
+    sample(false);
+    assert(app.policy.snapshot().phase == OwnerPhase::READY);
+    sample(true);
+    assert(app.admitted.ok() && firstSession != app.generation);
+    assert(!app.policy.allowFrame(Host::state().nowUs + 1,firstSession).ok());
+    assert(app.policy.release(app.generation).ok());
+    assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+}
 }
 int main(int argc, char** argv) {
     assert(argc == 2); const std::string suite = argv[1];
@@ -2766,6 +2901,7 @@ int main(int argc, char** argv) {
     else if (suite == "observation_miss_bound") observationMissBound();
     else if (suite == "observation_reset_trust") observationResetTrust();
     else if (suite == "observation_publication_admission") observationPublicationAdmission();
+    else if (suite == "application_recovery") applicationRecovery();
     else if (suite == "start_observation_reserve") startObservationReserve();
     else if (suite == "observation_gate_denial") observationGateDenial();
     else if (suite == "peer_board_observation") peerBoardObservation();

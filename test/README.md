@@ -1,5 +1,12 @@
 # Verification
 
+Prompt 41 registers `owner_policy`, `owner_continuity` and `owner_recovery`
+in the portable host build. In the pinned-driver build, run
+`ctest --test-dir <build> -R 'application_recovery|incomplete_negotiation|observation_cable_flap' --output-on-failure`.
+The recovery case crosses the real SDK start/stop callbacks and the application
+admission gate at each registered tick rate. See the
+[owner example](../examples/esp_idf/owner/README.md) for the P4 image command.
+
 ## Current workspace
 
 Run from the repository root using Python 3.10 or newer:

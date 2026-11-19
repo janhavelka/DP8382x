@@ -81,7 +81,7 @@ endforeach()
 add_library(dp8382x_native_host STATIC "${repo}/src/esp_idf/Phy.cpp" "${repo}/src/esp_idf/PhyControl.cpp")
 target_link_libraries(dp8382x_native_host PUBLIC DP8382x dp8382x_idf_host_fakes)
 target_compile_options(dp8382x_native_host PRIVATE -Wall -Wextra -Werror -UNDEBUG)
-add_executable(dp8382x_native_host_tests host/native.cpp)
+add_executable(dp8382x_native_host_tests host/native.cpp "${repo}/examples/esp_idf/owner/main/PhyOwner.cpp")
 target_link_libraries(dp8382x_native_host_tests PRIVATE dp8382x_native_host)
 target_compile_options(dp8382x_native_host_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
 
@@ -135,7 +135,7 @@ set(native_suites factory board_install_failures raw_routing raw_rx_retention
     late_stop_gate raw_uninstall_already_down failed_start_cleanup_admission minimal_cleanup_allowance
     observation_reset_trust peer_board_failure_observation observation_gate_denial
     quarantine_after_batch_unlock board_deadline_before_drain
-    observation_publication_admission start_observation_reserve)
+    observation_publication_admission start_observation_reserve application_recovery)
 foreach(suite IN LISTS native_suites)
   add_test(NAME native_${suite} COMMAND dp8382x_native_host_tests ${suite})
   set_tests_properties(native_${suite} PROPERTIES TIMEOUT 30)
@@ -165,7 +165,7 @@ function(add_native_tick_rate rate)
   add_library(${adapter_target} STATIC "${repo}/src/esp_idf/Phy.cpp" "${repo}/src/esp_idf/PhyControl.cpp")
   target_link_libraries(${adapter_target} PUBLIC DP8382x ${fakes_target})
   target_compile_options(${adapter_target} PRIVATE -Wall -Wextra -Werror -UNDEBUG)
-  add_executable(${test_target} host/native.cpp)
+  add_executable(${test_target} host/native.cpp "${repo}/examples/esp_idf/owner/main/PhyOwner.cpp")
   target_link_libraries(${test_target} PRIVATE ${adapter_target})
   target_compile_options(${test_target} PRIVATE -Wall -Wextra -Werror -UNDEBUG)
   foreach(suite IN LISTS ARGN)

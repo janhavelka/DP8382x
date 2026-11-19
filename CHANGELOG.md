@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added the ESP32-P4 application owner example with explicit 100/full admission,
+  revocable session generations, maintenance after release and retained results.
+  Native applications can evaluate current link and MAC publication together.
+
 - Add the native ESP32-P4 ordinary Ethernet example: explicit netlist pin checks,
   default-closed board admission, DHCP, cached PHY/link/IP reporting, one finite
   stop/start cycle and retained installed resources. Expose passive native

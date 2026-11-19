@@ -169,6 +169,7 @@ struct PhyConfig {
   /// Gate-denied polls do not count: stale UP has no wall-time bound under persistent
   /// contention or a stopped scheduler. The application owns its freshness deadline.
   uint32_t maxObservationMisses{3};
+  bool waitForNegotiatedLink{false}; ///< Keep the framework polling with MAC DOWN while a coherent UP awaits AN.
 };
 
 class Phy;
@@ -256,6 +257,16 @@ public:
   /// @note A valid observation may precede failed/partial SDK notification. Inspect
   /// LifecycleRecord for accepted fields, uncertainty and pending event delivery.
   Status linkSnapshot(LinkSnapshot& output) noexcept;
+  /// @brief Evaluate an application admission decision against one consistent native/core observation.
+  /// @param[in] context Borrowed application state, serialized by the application's single task.
+  /// @param[in] decide Synchronous bounded local decision under the instance gate. Copy values as
+  /// needed. Do not reenter the adapter, issue I/O, log, block or retain references in the callback.
+  /// Receives link, verified/observed settings, transport health, agreement with the running MAC
+  /// publication and the conservative current esp_timer upper bound in microseconds (including clockLagUs).
+  /// @return OK after decision, INVALID_PARAM for a null decision, BUSY on contention,
+  /// or INVALID_CONFIG if the clock upper bound overflows. Errors skip the callback.
+  Status withAdmissionEvidence(void* context, void (*decide)(void*, const LinkSnapshot&,
+      const SettingsSnapshot&, const HealthSnapshot&, bool, uint64_t) noexcept) noexcept;
   /// @brief Copy passive managed MDIO health without polling or resetting statistics.
   /// @param[out] output Copied on OK; unchanged when the instance gate is busy.
   /// @return OK or BUSY; cable, IP and profile state remain separate.

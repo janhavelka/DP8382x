@@ -365,7 +365,8 @@ An in-flight snapshot may still show the previous publication with uncertainty.
 | Observation/publication outcome | Retained evidence and next action |
 | --- | --- |
 | Down, including initial cable absent | Valid acquired down; no speed/duplex invented; publish DOWN only after prior UP |
-| Running observation changes, temporary admission/mutex contention, own publisher is in flight, or unresolved UP with trust intact | Preserve the tuple for fewer than maxObservationMisses; at the limit request administrative DOWN without stopRequired. Next coherent poll may publish UP normally |
+| Coherent link up with AN in progress and `waitForNegotiatedLink` enabled | Publish MAC DOWN, keep the coherent PHY observation, clear the miss count and continue framework polling. |
+| Running observation changes, temporary admission/mutex contention, own publisher is in flight, or other unresolved UP with trust intact | Preserve the tuple for fewer than maxObservationMisses; at the limit request administrative DOWN without stopRequired. Next coherent poll may publish UP normally |
 | Bus is FAILED_CLOSED or quarantined (including unexplained P4 busy while holding the mutex), clock/transport contract fails, trust/SDK agreement is lost, or publication has a terminal unknown effect | Preserve acquired/partial/stale evidence and actual cause; request administrative DOWN and latch stopRequired. FAILED_CLOSED preflight records NOT_INITIALIZED with shared-board-readiness context. Application must stop and resolve the shared fault before restart. This does not claim physical cable-down |
 | First resolved UP | SPEED, DUPLEX, PAUSE, UP; each field accepted separately |
 | Speed, duplex or Boolean peer pause changes while up | DOWN, SPEED, DUPLEX, PAUSE, UP; latest acquired and accepted fields stay separate |
@@ -617,3 +618,14 @@ Keep portable host, portable consumer, pinned-driver host, real SDK image link,
 remote CI and physical results separate. First-execution remote CI belongs to
 prompt 71. Q13 physical stop/RX qualification remains a separate gate after
 software lifetime safety.
+
+An application may call `withAdmissionEvidence` to decide session admission
+under the same gate that protects framework observations. The synchronous
+callback receives cached link, settings and health, the running MAC's agreement
+with the observed link, and the current esp_timer time. Gate contention returns
+BUSY before the callback. Rendering can use the application's passive snapshot.
+Set `PhyConfig::waitForNegotiatedLink` to keep the framework timer running
+when a coherent sample shows link up with autonegotiation in progress. The MAC
+stays down until the PHY resolves the link. This applies at start and on later
+polls. The option defaults to false.
+See [application ownership](ethercat-integration.md).

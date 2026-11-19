@@ -1,5 +1,11 @@
 # Implementation progress
 
+Prompt 41 adds the [ESP32-P4 application owner](../examples/esp_idf/owner/README.md)
+on `main`. Admission checks current link, MAC agreement, health and configuration
+under one gate. Explicit release and frame quiescence precede maintenance.
+The [stage report](reports/implementation/41-owner-admission-example.md) records
+host recovery tests, the P4 link and the remaining board and timing evidence.
+
 Prompt 40 software stage is complete: it adds the native ESP32-P4 ordinary Ethernet application on `main` from
 clean synchronized `022cccb7ffcffc211a81398764eb64380346dccb`. It uses the
 real pinned MAC/PHY, explicit current-netlist pins, DHCP, a default-closed
@@ -547,7 +553,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [38 Complete SDK-aware configuration and raw MDIO arbitration](prompts/38-esp-idf-state-arbitration.md) | COMPLETE | [Report](reports/implementation/38-esp-idf-state-arbitration.md), [native guide](esp-idf.md), [source audit](reports/implementation/38-native-source-audit.md); 235 portable Release, 43 pinned-driver/native Release and UBSan, two tests-OFF consumers, actual P4 link and local source checks PASS. Reusable installed teardown remains BLOCKED; physical and remote CI NOT RUN. |
 | [39 Prove native link notifications and adapter timing contracts](prompts/39-esp-idf-link-bounds.md) | COMPLETE | [Report](reports/implementation/39-esp-idf-link-bounds.md), [conformance/timing guide](esp-idf.md), [fresh source audit](reports/implementation/39-native-source-audit.md);55 native Release/UBSan,235 portable, two consumer tests and actual pinned P4 link PASS. Physical native_wall_time qualification and native_rx_quiescence remain separate gates; remote CI NOT RUN. |
 | [40 Build the complete ESP32-P4 ordinary Ethernet example](prompts/40-p4-network-example.md) | COMPLETE for software/image | [Report](reports/implementation/40-p4-network-example.md), [board audit](reports/implementation/40-board-source-audit.md), [example](../examples/esp_idf/basic/README.md); 35 application tests, pinned P4 image. Physical PHY power/link/DHCP NOT RUN; reusable installed teardown BLOCKED. |
-| [41 Implement explicit application admission and maintenance ownership](prompts/41-owner-admission-example.md) | NOT STARTED | None |
+| [41 Implement explicit application admission and maintenance ownership](prompts/41-owner-admission-example.md) | Software complete | [Host and P4 link evidence](reports/implementation/41-owner-admission-example.md). Physical session qualification remains open. |
 | [42 Demonstrate bounded native MAC frame handoff](prompts/42-owner-frame-boundary.md) | NOT STARTED | None |
 | [43 Implement the portable CLI, bounded console and record schema](prompts/43-cli-foundation.md) | NOT STARTED | None |
 | [44 Add complete identity, configuration and register CLI routes](prompts/44-cli-configuration-registers.md) | NOT STARTED | None |

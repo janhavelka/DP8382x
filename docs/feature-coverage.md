@@ -1,5 +1,10 @@
 # DP83826I feature coverage
 
+The [P4 application owner](../examples/esp_idf/owner/README.md) consumes the
+verified configuration, management-health and resolved-link evidence from
+these features to admit sessions. Its host and SDK verification is recorded
+in the [prompt 41 report](reports/implementation/41-owner-admission-example.md).
+
 This matrix summarizes the [authoritative ledger](registers/dp83826i.json),
 without duplicating its numeric map. All 35 families have complete source
 dispositions. All 79 detailed entries, 18 opaque recipe records and five

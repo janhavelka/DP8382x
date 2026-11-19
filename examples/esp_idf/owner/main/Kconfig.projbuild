@@ -1,0 +1,11 @@
+menu "DP8382x P4 example"
+    config DP8382X_BOARD_READY
+        bool "Allow this confirmed and powered board to run Ethernet"
+        default n
+        help
+            Enable only after checking the final netlist, supplying PHY 3V3,
+            confirming PHY address 0, 25 MHz oscillator, 50 MHz RMII clock,
+            reset waveform and all required power rails on the actual board.
+            The default image only reports its configuration and does not
+            touch MAC, MDIO, reset GPIO or the network.
+endmenu
