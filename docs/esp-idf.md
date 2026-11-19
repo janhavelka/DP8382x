@@ -624,6 +624,11 @@ under the same gate that protects framework observations. The synchronous
 callback receives cached link, settings and health, the running MAC's agreement
 with the observed link, and the current esp_timer time. Gate contention returns
 BUSY before the callback. Rendering can use the application's passive snapshot.
+The P4 raw owner can submit one admitted frame inside this gate using its
+single-task, TX-mutex-off configuration. It keeps the SDK buffer borrow,
+session check and MAC publication synchronized. The
+[frame lifetime table](ethercat-integration.md#frame-ownership-on-the-pinned-p4-driver)
+describes late RX, buffer release and the installed lifetime.
 Set `PhyConfig::waitForNegotiatedLink` to keep the framework timer running
 when a coherent sample shows link up with autonegotiation in progress. The MAC
 stays down until the PHY resolves the link. This applies at start and on later

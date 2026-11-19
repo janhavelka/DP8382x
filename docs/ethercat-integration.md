@@ -28,8 +28,25 @@ The P4 board uses RMII with the PHY supplying REF_CLK. SNLA344C discusses an
 EtherCAT slave controller. SNLA494 and SNLA495 address C2000 slave-controller
 integration. Their ESC sequences and MII Fast Link Drop timing cannot establish
 a detection deadline for this RMII application. Board power, straps, clock and
-link transitions need an identified fixture. Raw MAC handoff belongs to prompt
-42. Master scheduling, servo control and machine safety belong to the application.
+link transitions need an identified fixture. Master scheduling, servo control
+and machine safety belong to the application.
+
+## Frame ownership on the pinned P4 driver
+
+| Boundary | Ownership and evidence |
+| --- | --- |
+| `esp_err_t stack_input(esp_eth_handle_t hdl, uint8_t* buffer, uint32_t length, void* priv)` | Registered once with `esp_eth_update_input_path` while stopped. The P4 RX task uses the extended mediator entry, which forwards to this callback. The raw owner copies at most 1,518 bytes into application storage and frees the original on every return, including drops and errors. No netif or glue is attached to this port. |
+| `esp_err_t esp_eth_transmit(esp_eth_handle_t hdl, void* buf, size_t length)` | One application task lends a buffer until the call returns. The P4 copies into DMA buffers. ESP_OK means queued. ESP_ERR_NO_MEM records backpressure and drops the request. ESP_ERR_INVALID_STATE reports the SDK's cached link-down and withdraws the session. The caller retains its bytes on every outcome. |
+| Release and retirement | Close session admission, release the generation and take the RX queue guard once before discarding session slots for maintenance. A late callback can still drop and free. Queued-to-DMA frames have no wire-completion receipt here. `Phy::retire` retains the installed driver, MAC, PHY and static callback context under `native_rx_quiescence`. |
+
+The application allocates four slots per direction and services at most one
+slot from each per turn. A dequeued TX carries its original generation until
+the synchronous SDK call. An RX callback entering after readmission can report
+only its current delivery generation. The example counts EtherTypes and never
+automatically replies. Wire capture on a known peer would establish actual
+delivery there. Cycle period, latency, loss under load and master behavior
+require separate measurements. The [example build and commands](../examples/esp_idf/owner/README.md)
+describe both opt-ins for generating a single test frame.
 
 See the [owner example and timing policy](../examples/esp_idf/owner/README.md)
 and [native lifecycle and timing evidence](reference/library-sdk.md).

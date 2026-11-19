@@ -260,7 +260,11 @@ public:
   /// @brief Evaluate an application admission decision against one consistent native/core observation.
   /// @param[in] context Borrowed application state, serialized by the application's single task.
   /// @param[in] decide Synchronous bounded local decision under the instance gate. Copy values as
-  /// needed. Do not reenter the adapter, issue I/O, log, block or retain references in the callback.
+  /// needed. Do not reenter the adapter, perform MDIO, log, block or retain references.
+  /// A single application TX owner may submit one bounded frame with esp_eth_transmit
+  /// here on the pinned P4 MAC with the TX mutex, chunked cache writeback and
+  /// debug logging disabled as in the owner example. Validate session generation
+  /// and freshness under this gate through submission. The SDK borrows bytes until return.
   /// Receives link, verified/observed settings, transport health, agreement with the running MAC
   /// publication and the conservative current esp_timer upper bound in microseconds (including clockLagUs).
   /// @return OK after decision, INVALID_PARAM for a null decision, BUSY on contention,

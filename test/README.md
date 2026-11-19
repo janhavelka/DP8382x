@@ -1,5 +1,11 @@
 # Verification
 
+Prompt 42 registers `frame_queue`, `frame_session` and `frame_load` in the
+portable host build. In the pinned SDK host build, `native_application_frames`
+executes the raw callback and gated SDK transmit, including backpressure,
+cached link-down, failed stop and RX delayed across readmission or retirement.
+It runs at each configured tick rate alongside raw and netif lifetime tests.
+
 Prompt 41 registers `owner_policy`, `owner_continuity` and `owner_recovery`
 in the portable host build. In the pinned-driver build, run
 `ctest --test-dir <build> -R 'application_recovery|incomplete_negotiation|observation_cable_flap' --output-on-failure`.

@@ -1,4 +1,4 @@
-# ESP32-P4 application admission example
+# ESP32-P4 application admission and raw frames
 
 This ESP-IDF application has one owner task and uses the framework timer for
 link observations. It advertises 100BASE-TX full duplex only. A quiet cable,
@@ -23,6 +23,7 @@ build identity. The console needs nonblocking input.
 | `s` | Show the cached owner view. The periodic service copies framework evidence without issuing MDIO. |
 | `a` | Explicitly admit a session using the current evidence. The owner assigns a generation on success. |
 | `r` | Release the active or withdrawn generation. |
+| `x` | When the test-frame option is enabled, queue one experimental frame for a later service turn in the active session. |
 | `m` | Admit one maintenance operation, stop the framework, request a PCS reset and replay owned settings. |
 | `c` | During maintenance, cancel the current operation and retain its result and possible effects. |
 | `t` | Take the pending result. Primary and restoration receipts have separate storage. |
@@ -40,15 +41,44 @@ The clock domain is monotonic `esp_timer` microseconds. Link polling is set to
 1,000 ms. The maximum sample age is 3,000 ms from the start of acquisition.
 Owner checks target 100 ms and allow a maximum gap of 250 ms before withdrawing
 an active session. A delayed task checks again when scheduled. Every queued
-submission must present the current generation to `allowFrame` against current
-gated evidence. Actual RX/TX handoff follows in prompt 42.
+submission presents its original generation to `allowFrame`. The owner holds
+the native evidence gate through the call to `esp_eth_transmit`.
 
 Each service turn reads at most one console byte. A maintenance poll executes
 at most one indivisible core batch and yields before the next poll. The result
 slot applies backpressure until consumed. The core operation budget is 5 s
 and 2,048 MDIO frames. The owner requests cancellation after 6 s or 6,400
 service steps, then allows up to 100 cancellation and delivery attempts. If
-delivery still fails, it retains the token. This example registers no application
-frame callback and holds no application buffers, so release establishes
-application quiescence immediately. The SDK RX context has a separate lifetime.
+delivery still fails, it retains the token.
+
+## Raw frame service
+
+The owner installs one raw RX callback before framework start. The separate
+basic example owns its own netif/glue. On this port the EMAC RX task copies
+an admitted frame into a fixed queue, or drops it on contention, invalid
+length, closed admission or capacity. The callback calls `free()` on every
+path. There are four RX slots and four TX slots of 1,518 bytes, excluding FCS.
+The minimum accepted length is the 14-byte Ethernet header. Each service turn
+handles at most one RX and one TX. Status rendering and maintenance requests
+do not send frames.
+
+The owner counts untagged experimental EtherType `0x88B5` separately.
+RX generation identifies when the callback acquired admission. The SDK can
+deliver a frame captured earlier, even across a stop or a new session.
+Applications requiring request/response correlation need a protocol identifier.
+
+Both the board gate and `CONFIG_DP8382X_ENABLE_TEST_FRAME` default off. With
+both enabled for a dedicated fixture, `x` queues one 60-byte frame, using the
+actual MAC source and destination `02:00:00:00:00:2A`. The single owner task
+submits it at most once. `s` displays application drops, DMA acceptance,
+backpressure, cached link-down and the first and latest SDK transmit errors.
+Cached link-down withdraws the session. Select the example's mutex-off TX
+and unchunked cache configuration and a maximum log level of INFO for the
+bounded submit path.
+
+Release closes ingress. Before maintenance the owner makes one attempt to
+discard outstanding session slots. A contending copy leaves maintenance
+unadmitted. An RX callback can still finish freeing its SDK buffer or enter
+later against the retained context. A DMA-queued frame may still be on its
+way to the wire. Installed storage stays alive until system restart.
 See the [application ownership guide](../../../docs/ethercat-integration.md).

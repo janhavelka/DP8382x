@@ -5,6 +5,14 @@
 #include <cassert>
 #include <cstdlib>
 #include <iostream>
+#include "../../../examples/esp_idf/owner/main/FramePort.h"
+
+// Count actual frees in the application's stack_input callback. Only its
+// free call is instrumented; it still uses the host allocator for every buffer.
+namespace { unsigned applicationRxFrees = 0; }
+#define free(buffer) free((++applicationRxFrees, (buffer)))
+#include "../../../examples/esp_idf/owner/main/RawMac.h"
+#undef free
 
 namespace {
 using namespace DP8382x;
@@ -2719,6 +2727,115 @@ void startGateFailures() {
         assert(eventCount(ETHERNET_EVENT_STOP) == 1 && Host::state().oneShotArms == 1 && countCall("mac.stop") == 1);
     }
 }
+void applicationFrames() {
+    using namespace owner_example;
+    Host::reset();
+    Fixture f;
+    f.install();
+    FramePort port;
+    assert(esp_eth_update_input_path(f.handle, receiveRaw, &port) == ESP_OK);
+    // Exercise the P4 extended mediator entry and SDK fallback to stack_input.
+    const auto arrive = [&](uint32_t length) {
+        auto* bytes = static_cast<uint8_t*>(std::calloc(length, 1));
+        assert(bytes);
+        const auto before = applicationRxFrees;
+        assert(f.mac.mediator->stack_input_info(f.mac.mediator, bytes, length, nullptr) == ESP_OK);
+        assert(applicationRxFrees == before + 1);
+    };
+    arrive(64); // Installed, session closed.
+    assert(port.counts().rxDropped == 1);
+    auto* invalidContext = static_cast<uint8_t*>(std::malloc(64));
+    assert(invalidContext && receiveRaw(f.handle, invalidContext, 64, nullptr) == ESP_ERR_INVALID_ARG);
+    assert(applicationRxFrees == 2);
+
+    f.initialize();
+    assert(f.start() == ESP_OK);
+    struct Session {
+        PhyOwner policy;
+        FramePort& port;
+        esp_eth_handle_t handle;
+        uint64_t generation{};
+        RawFrame packet{};
+        TxCounts tx{};
+        bool submit{};
+    } session{{}, port, f.handle};
+    LinkSettings wanted;
+    wanted.advertisement.technologyMask = LINK_100_FULL;
+    assert(session.policy.begin(wanted).ok());
+    const auto service = [&](bool submit) {
+        session.submit = submit;
+        const auto frames = f.mac.frames.size();
+        assert(f.owner->withAdmissionEvidence(&session,
+            [](void* context, const LinkSnapshot& link, const SettingsSnapshot& settings,
+               const HealthSnapshot& health, bool ready, uint64_t now) noexcept {
+                auto& s = *static_cast<Session*>(context);
+                s.policy.observe(now, health, settings, link, ready);
+                if (s.submit) {
+                    (void)transmitAdmitted(s.policy, s.port, now, s.handle, s.packet, s.tx);
+                } else {
+                    assert(s.policy.admit(now, s.generation).ok());
+                    assert(s.port.setSession(s.generation));
+                }
+            }).ok());
+        assert(f.mac.frames.size() == frames); // No MDIO or additional poll.
+    };
+    service(false);
+    for (unsigned i = 0; i < 5; ++i) arrive(64);
+    arrive(1519);
+    assert(port.counts().rxAccepted == 4 && port.counts().rxDropped == 3 && Host::state().netifRx == 0);
+    RawFrame received;
+    assert(port.popRx(session.generation, received) && received.length == 64);
+    uint8_t payload[60]{0x02,0,0,0,0,1};
+    assert(port.queueTx(session.generation, payload, sizeof(payload)));
+    assert(port.popTx(session.generation, session.packet));
+    f.mac.onCall = [&](const char* name) {
+        if (std::string(name) == "mac.transmit") {
+            LinkSnapshot ignored;
+            assert(f.owner->linkSnapshot(ignored).is(Err::BUSY)); // Gate held through actual SDK call.
+        }
+    };
+    service(true);
+    assert(session.tx.queuedToDma == 1);
+    f.mac.errors["mac.transmit"] = ESP_ERR_NO_MEM;
+    service(true);
+    assert(session.tx.backpressure == 1 && session.tx.lastError == ESP_ERR_NO_MEM);
+    assert(session.policy.snapshot().phase == OwnerPhase::ACTIVE);
+    f.mac.errors["mac.transmit"] = ESP_FAIL;
+    service(true);
+    assert(session.tx.failed == 1 && session.tx.lastError == ESP_FAIL);
+    // Model SDK cached link-down with a still-admitted local observation.
+    assert(f.mac.mediator->on_state_changed(f.mac.mediator, ETH_STATE_LINK, reinterpret_cast<void*>(ETH_LINK_DOWN)) == ESP_OK);
+    service(true);
+    assert(session.tx.linkDown == 1 && countCall("mac.transmit") == 3);
+    assert(session.policy.snapshot().phase == OwnerPhase::WITHDRAWN);
+    assert(!port.queueTx(session.generation, payload, sizeof(payload)));
+    assert(session.packet.length == sizeof(payload) && session.packet.bytes[0] == 0x02);
+    assert(f.mac.mediator->on_state_changed(f.mac.mediator, ETH_STATE_LINK, reinterpret_cast<void*>(ETH_LINK_UP)) == ESP_OK);
+    service(true);
+    assert(session.tx.denied == 1 && countCall("mac.transmit") == 3);
+
+    f.mac.pauseRxAfterMediatorLoad();
+    assert(port.setSession(0) && session.policy.release(session.generation).ok() && port.quiesce());
+    const auto old = session.generation;
+    service(false);
+    assert(session.generation != old);
+    service(true); // Dequeued buffer from the old session.
+    assert(session.tx.denied == 2 && countCall("mac.transmit") == 3);
+    assert(f.mac.resumeRx() == ESP_OK && applicationRxFrees == 9);
+    assert(port.popRx(session.generation, received) && received.generation == session.generation);
+    // A callback first entered after readmission gives no wire-arrival epoch.
+    f.mac.pauseRxAfterMediatorLoad();
+    assert(port.setSession(0) && session.policy.release(session.generation).ok() && port.quiesce());
+    f.mac.errors["mac.stop"] = ESP_FAIL;
+    assert(f.owner->retire(Host::state().nowUs + 100000) != ESP_OK);
+    const auto receipt = f.journal();
+    assert(session.tx.firstError == ESP_ERR_NO_MEM && receipt.cleanupError.sdkError == ESP_FAIL);
+    assert(Host::isLive(f.handle) && f.mac.alive && f.owner->destroy() == ESP_ERR_INVALID_STATE);
+    assert(f.mac.resumeRx() == ESP_OK && applicationRxFrees == 10);
+    assert(port.quiesce() && Host::state().netifRx == 0);
+    Host::reset();
+}
+
 // Exercises the application policy against real pinned esp_eth start/stop and
 // timer callbacks, using the fixture's instrumented MAC and synthetic clock.
 void applicationRecovery() {
@@ -2901,6 +3018,7 @@ int main(int argc, char** argv) {
     else if (suite == "observation_miss_bound") observationMissBound();
     else if (suite == "observation_reset_trust") observationResetTrust();
     else if (suite == "observation_publication_admission") observationPublicationAdmission();
+    else if (suite == "application_frames") applicationFrames();
     else if (suite == "application_recovery") applicationRecovery();
     else if (suite == "start_observation_reserve") startObservationReserve();
     else if (suite == "observation_gate_denial") observationGateDenial();

@@ -1,5 +1,11 @@
 # Implementation progress
 
+Prompt 42 extends the [P4 owner](../examples/esp_idf/owner/README.md) with a
+fixed-capacity raw frame boundary. Host tests execute the SDK handoff and
+exercise RX delayed across release, readmission and retirement. The pinned
+P4 image links with board access and test traffic disabled. See the
+[stage report](reports/implementation/42-owner-frame-boundary.md).
+
 Prompt 41 adds the [ESP32-P4 application owner](../examples/esp_idf/owner/README.md)
 on `main`. Admission checks current link, MAC agreement, health and configuration
 under one gate. Explicit release and frame quiescence precede maintenance.
@@ -554,7 +560,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [39 Prove native link notifications and adapter timing contracts](prompts/39-esp-idf-link-bounds.md) | COMPLETE | [Report](reports/implementation/39-esp-idf-link-bounds.md), [conformance/timing guide](esp-idf.md), [fresh source audit](reports/implementation/39-native-source-audit.md);55 native Release/UBSan,235 portable, two consumer tests and actual pinned P4 link PASS. Physical native_wall_time qualification and native_rx_quiescence remain separate gates; remote CI NOT RUN. |
 | [40 Build the complete ESP32-P4 ordinary Ethernet example](prompts/40-p4-network-example.md) | COMPLETE for software/image | [Report](reports/implementation/40-p4-network-example.md), [board audit](reports/implementation/40-board-source-audit.md), [example](../examples/esp_idf/basic/README.md); 35 application tests, pinned P4 image. Physical PHY power/link/DHCP NOT RUN; reusable installed teardown BLOCKED. |
 | [41 Implement explicit application admission and maintenance ownership](prompts/41-owner-admission-example.md) | Software complete | [Host and P4 link evidence](reports/implementation/41-owner-admission-example.md). Physical session qualification remains open. |
-| [42 Demonstrate bounded native MAC frame handoff](prompts/42-owner-frame-boundary.md) | NOT STARTED | None |
+| [42 Demonstrate bounded native MAC frame handoff](prompts/42-owner-frame-boundary.md) | Software complete | [Host handoff and P4 image link](reports/implementation/42-owner-frame-boundary.md). Reusable teardown remains blocked by the SDK RX lifetime. |
 | [43 Implement the portable CLI, bounded console and record schema](prompts/43-cli-foundation.md) | NOT STARTED | None |
 | [44 Add complete identity, configuration and register CLI routes](prompts/44-cli-configuration-registers.md) | NOT STARTED | None |
 | [45 Add link, lifecycle and retained-operation CLI commands](prompts/45-cli-link-lifecycle.md) | NOT STARTED | None |

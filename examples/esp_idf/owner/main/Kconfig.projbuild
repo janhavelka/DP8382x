@@ -8,4 +8,12 @@ menu "DP8382x P4 example"
             reset waveform and all required power rails on the actual board.
             The default image only reports its configuration and does not
             touch MAC, MDIO, reset GPIO or the network.
+    config DP8382X_ENABLE_TEST_FRAME
+        bool "Allow explicit single experimental Ethernet frame on x"
+        depends on DP8382X_BOARD_READY
+        default n
+        help
+            On a dedicated test segment, x queues one 60-byte Ethernet frame
+            for the active session. The destination is 02:00:00:00:00:2A and
+            EtherType is 0x88B5. There is no periodic or automatic transmission.
 endmenu

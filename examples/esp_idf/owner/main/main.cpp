@@ -3,6 +3,7 @@
 #include "BoardConfig.h"
 #include "ExampleIdentity.h"
 #include "PhyOwner.h"
+#include "RawMac.h"
 #include <DP8382x/esp_idf/Phy.h>
 #include <DP8382x/Version.h>
 #include "driver/gpio.h"
@@ -11,6 +12,10 @@
 #include <cstdio>
 #include <fcntl.h>
 #include <unistd.h>
+
+#if CONFIG_ETH_TRANSMIT_MUTEX || CONFIG_ESP_MM_CACHE_MSYNC_C2M_CHUNKED_OPS || CONFIG_LOG_MAXIMUM_LEVEL > 3
+#error "Owner TX under the admission gate requires TX mutex and chunked cache mutex off, maximum logging INFO or lower"
+#endif
 
 namespace {
 using namespace ::DP8382x;
@@ -24,6 +29,18 @@ esp_eth_mac_t* mac{};
 esp_eth_handle_t driver{};
 bool eventLoopOwned{};
 PhyOwner owner;
+FramePort frames;
+RawFrame serviceFrame; // One task processes RX, then TX. The SDK borrows it only during TX.
+TxCounts txCounts;
+uint64_t experimentalRx{}, otherRx{};
+// Local experimental EtherType. The source address is filled from the actual MAC.
+uint8_t testFrame[60] = {0x02,0,0,0,0,0x2A, 0,0,0,0,0,0, 0x88,0xB5, 'P','4'};
+#ifdef CONFIG_DP8382X_ENABLE_TEST_FRAME
+static volatile bool testTrafficEnabled = true;
+#else
+static volatile bool testTrafficEnabled = false;
+#endif
+bool testFrameQueued{};
 uint64_t ticket{};
 OperationToken pending{};
 OperationResult completed, startupInit, startupConfig, primary, restoration;
@@ -98,11 +115,19 @@ bool install() {
   board.setReset = resetPin;
   board.powerOnAtUs = board.clockStableAtUs = nowUs(); // Confirmed by board gate.
   board.assertionUs = 1000;
-  return accepted("board preparation", phy->prepareBoard(board, deadline())) &&
-         accepted("install", phy->install(driver));
+  if (!accepted("board preparation", phy->prepareBoard(board, deadline())) ||
+      !accepted("install", phy->install(driver))) return false;
+  // Register once, while STOPPED and before first start. No netif/glue owns RX.
+  if (!accepted("raw RX registration", esp_eth_update_input_path(driver, receiveRaw, &frames))) return false;
+  return !testTrafficEnabled ||
+      accepted("test source MAC", esp_eth_ioctl(driver, ETH_CMD_G_MAC_ADDR, &testFrame[6]));
 }
 
 void closeResources() {
+  frames.setSession(0);
+  // This clears application queues if accessible; a late RX still owns a
+  // static context. Even an empty application queue cannot fence the SDK task.
+  if (!frames.quiesce()) std::puts("Frame queues retained closed during teardown");
   if (driver) {
     if (pending.value != 0) {
       std::printf("Operation result delivery outstanding; retaining installed owner and token=%llu\n",
@@ -116,8 +141,8 @@ void closeResources() {
       std::printf("lifecycle primary=%s/%ld cleanup=%s/%ld\n", errorName(life.firstError.coreStatus.code),
           static_cast<long>(life.firstError.sdkError), errorName(life.cleanupError.coreStatus.code),
           static_cast<long>(life.cleanupError.sdkError));
-    std::printf("retire=%s installed storage retained; outstanding token=%llu\n", esp_err_to_name(error),
-        static_cast<unsigned long long>(pending.value));
+    std::printf("retire=%s first-tx-error=%ld installed storage retained; outstanding token=%llu\n",
+        esp_err_to_name(error), static_cast<long>(txCounts.firstError), static_cast<unsigned long long>(pending.value));
     return;
   }
   if (phy && !accepted("factory cleanup", phy->destroy())) return;
@@ -164,20 +189,47 @@ bool runFramework() {
 
 void decide(void* action, const LinkSnapshot& link, const SettingsSnapshot& settings,
             const HealthSnapshot& health, bool frameworkReady, uint64_t now) noexcept {
+  const char key = *static_cast<const char*>(action);
   owner.observe(now, health, settings, link, frameworkReady);
-  if (*static_cast<const char*>(action) == 'a') lastAdmission = owner.admit(now, ticket);
+  if (key == 'a') lastAdmission = owner.admit(now, ticket);
+  const auto& view = owner.snapshot();
+  const bool active = view.phase == OwnerPhase::ACTIVE;
+  if (!frames.setSession(active ? view.generation : 0) || !active) return;
+  // A rejected lifecycle request must not service a frame as a side effect.
+  if (key == 'm' || key == 'v' || key == 'q' || key == 'r' || key == 's') return;
+  if (frames.popRx(view.generation, serviceFrame)) {
+    // Classify a callback-delivered raw observation, without interpreting a
+    // protocol response or assigning a generation to its on-wire arrival.
+    if (serviceFrame.bytes[12] == 0x88 && serviceFrame.bytes[13] == 0xB5)
+      ++experimentalRx;
+    else ++otherRx;
+  }
+  if (frames.popTx(view.generation, serviceFrame) &&
+      !transmitAdmitted(owner, frames, upperNowUs(), driver, serviceFrame, txCounts)) return;
+  // Explicit producer only. Service this new request on a later gated turn.
+  if (key == 'x' && testTrafficEnabled && view.phase == OwnerPhase::ACTIVE)
+    testFrameQueued = frames.queueTx(view.generation, testFrame, sizeof(testFrame));
 }
 
 void observe(char key) {
+  testFrameQueued = false;
   const auto status = phy->withAdmissionEvidence(&key, decide);
-  if (!status.ok()) { owner.missingEvidence(upperNowUs()); lastAdmission = status; }
+  if (!status.ok()) {
+    frames.setSession(0);
+    owner.missingEvidence(upperNowUs());
+    lastAdmission = status;
+  }
   if (key == 'a') show("admit", lastAdmission);
+  if (key == 'x') {
+    if (!testTrafficEnabled) std::puts("Test traffic disabled in menuconfig");
+    else std::puts(testFrameQueued ? "Test frame queued for owner service" : "Test frame request dropped");
+  }
 }
 
 bool maintenance(bool restore) {
-  // No application RX callback, queued buffers or TX handoff in this example.
-  // The application's empty buffer set is known; the SDK RX task remains alive.
-  const auto admitted = owner.beginMaintenance(true);
+  const auto phase = owner.snapshot().phase;
+  const bool released = phase == OwnerPhase::WAITING || phase == OwnerPhase::READY;
+  const auto admitted = owner.beginMaintenance(released && frames.quiesce());
   if (!admitted.ok()) { show("maintenance", admitted); return true; }
   if (!accepted("stop before maintenance", phy->stop(deadline()))) return false;
   const auto status = phy->startInitialize({restore ? ResetKind::NONE : ResetKind::PCS}, budget(), pending);
@@ -218,11 +270,15 @@ void run() {
   }
   if (!status.ok()) { show("startup", status); closeResources(); return; }
   if (!runFramework()) { closeResources(); return; }
-  std::puts("a admit, r release, m PCS maintenance, v restore, c cancel during maintenance, t take result, s status, q stop");
+  std::puts("a admit, r release, x queue test frame, m PCS maintenance, v restore, c cancel during maintenance, t take result, s status, q stop");
   auto previous = owner.snapshot().phase;
   for (;;) {
     char key{};
     (void)read(STDIN_FILENO, &key, 1);
+    if (key == 'r') {
+      frames.setSession(0);
+      show("release", owner.release(ticket));
+    }
     observe(key); // Same adapter gate for current evidence and explicit admission.
     const auto& view = owner.snapshot();
     if (view.phase != previous || key == 's') {
@@ -233,7 +289,17 @@ void run() {
           static_cast<unsigned>(view.link.duplex), view.resultPending);
       previous = view.phase;
     }
-    if (key == 'r') show("release", owner.release(ticket));
+    if (key == 's') {
+      const auto c = frames.counts();
+      std::printf("rx accepted=%lu dropped=%lu experimental=%llu other=%llu; tx queued=%lu dropped=%lu denied=%llu dma-queued=%llu backpressure=%llu link-down=%llu failed=%llu attempted=%u first-error=%ld last-sdk=%ld\n",
+          static_cast<unsigned long>(c.rxAccepted), static_cast<unsigned long>(c.rxDropped),
+          static_cast<unsigned long long>(experimentalRx), static_cast<unsigned long long>(otherRx),
+          static_cast<unsigned long>(c.txQueued), static_cast<unsigned long>(c.txDropped),
+          static_cast<unsigned long long>(txCounts.denied), static_cast<unsigned long long>(txCounts.queuedToDma),
+          static_cast<unsigned long long>(txCounts.backpressure),
+          static_cast<unsigned long long>(txCounts.linkDown), static_cast<unsigned long long>(txCounts.failed),
+          txCounts.attempted, static_cast<long>(txCounts.firstError), static_cast<long>(txCounts.lastError));
+    }
     if ((key == 'm' || key == 'v') && !maintenance(key == 'v')) break;
     if (key == 't') {
       auto& destination = restoreRequest ? restoration : primary;

@@ -4,6 +4,8 @@ The [P4 application owner](../examples/esp_idf/owner/README.md) consumes the
 verified configuration, management-health and resolved-link evidence from
 these features to admit sessions. Its host and SDK verification is recorded
 in the [prompt 41 report](reports/implementation/41-owner-admission-example.md).
+Its [raw frame handoff](reports/implementation/42-owner-frame-boundary.md)
+uses that admission decision for each submission. Chip register coverage is unchanged.
 
 This matrix summarizes the [authoritative ledger](registers/dp83826i.json),
 without duplicating its numeric map. All 35 families have complete source

@@ -84,10 +84,10 @@ esp_err_t InstrumentedMac::resumeRx() {
     assert(alive && rxPaused && capturedMediator);
     state().calls.emplace_back("rx.resume");
     rxPaused = false;
-    auto* buffer = static_cast<uint8_t*>(std::malloc(64));
+    auto* buffer = static_cast<uint8_t*>(std::calloc(64, 1));
     assert(buffer);
     // No app callback has executed while paused. Use the retained old mediator,
     // as esp_eth_mac_esp.c does between its unsynchronized load and callback.
-    return capturedMediator->stack_input(capturedMediator, buffer, 64);
+    return capturedMediator->stack_input_info(capturedMediator, buffer, 64, nullptr);
 }
 }

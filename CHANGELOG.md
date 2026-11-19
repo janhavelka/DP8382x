@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added raw frame handoff to the P4 owner example with fixed RX/TX storage,
+  generation checks at submission and an explicitly enabled single test frame.
+
 - Added the ESP32-P4 application owner example with explicit 100/full admission,
   revocable session generations, maintenance after release and retained results.
   Native applications can evaluate current link and MAC publication together.
