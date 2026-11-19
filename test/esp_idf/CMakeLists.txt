@@ -111,12 +111,20 @@ foreach(suite IN ITEMS board_config gate_closed shared_loop netif_init_failure
     stop_failure stop_event_failure start_timer_failure stop_timer_failure
     start_mdio_failure queued_expected_stop unexpected_stop quarantined_mutex_retained
     operation_busy_retry operation_result_owed running_stop_required lost_event_retry
-    lost_event_unresolved link_evidence_age board_release_failure last_event_retry
+    lost_event_unresolved link_evidence_age board_release_failure last_event_retry last_event_retry_on_time
     unexpected_stop_gap negotiating_start emac_address_failure netif_address_mismatch
-    netif_address_read_failure)
+    netif_address_read_failure live_cleanup_order live_cleanup_denied terminal_delivery_failure
+    terminal_busy owner_timeout_delivered running_failures journal_retry journal_unavailable journal_failed_call
+    profile_match profile_mismatch profile_aged profile_busy)
   add_test(NAME example_${suite} COMMAND dp8382x_example_host_tests ${suite})
   set_tests_properties(example_${suite} PROPERTIES TIMEOUT 30)
 endforeach()
+set_tests_properties(example_profile_match PROPERTIES PASS_REGULAR_EXPRESSION "linkEvidence=CURRENT[^\n]*profile100full=yes")
+set_tests_properties(example_profile_mismatch PROPERTIES PASS_REGULAR_EXPRESSION "linkEvidence=CURRENT[^\n]*profile100full=no")
+set_tests_properties(example_profile_aged PROPERTIES PASS_REGULAR_EXPRESSION "linkEvidence=AGED[^\n]*profile100full=unknown")
+set_tests_properties(example_profile_busy PROPERTIES PASS_REGULAR_EXPRESSION "linkEvidence=BUSY[^\n]*profile100full=unknown[^\n]*nativePhase=BUSY")
+set_tests_properties(example_journal_failed_call PROPERTIES PASS_REGULAR_EXPRESSION "primary stage=start cause=reported core=OK detail=0 SDK=INJECTED_OR_SDK_ERROR")
+set_tests_properties(example_glue_allocation_failure PROPERTIES PASS_REGULAR_EXPRESSION "primary stage=netif glue cause=unreported core=OK detail=0 SDK=ESP_OK")
 set(native_suites factory board_install_failures raw_routing raw_rx_retention
     glue_rx_retention stop_failures partial_start_fence notifications
     notification_failures lost_link_event shared_quarantine callback_bounds

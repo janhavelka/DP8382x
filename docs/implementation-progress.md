@@ -1,5 +1,9 @@
 # Implementation progress
 
+The [prompt 40 follow-up](reports/implementation/40-p4-network-example.md#second-auditor-follow-up)
+rechecks the historical gate-closed P4 ELF and the application’s reporting
+of undelivered results, lifecycle errors and unresolved link profiles.
+
 The [independent audit of prompts 40–42](reports/implementation/40-42-independent-review.md)
 corrected P4 startup, stop and event handling, verified the attached network
 address, and closed a raw-session readmission gap after SDK cached link-down.

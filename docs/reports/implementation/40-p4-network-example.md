@@ -98,8 +98,9 @@ are filled from the final verified run in the handoff.
 | Reusable installed teardown | BLOCKED | `native_rx_quiescence`; resources retained until system restart |
 
 Acceptance regression input includes acquisition and each handler registration,
-partial attach, start/stop/retirement failures, callback bursts and a withheld
-console. The 35 registered `example_*` cases include null MAC, board reset and
+partial attach, start/stop/retirement failures and callback bursts. Testing
+owner progress with a blocked output sink belongs to prompt 47. The 35
+registered `example_*` cases include null MAC, board reset and
 driver allocation failures; five real glue and three application handler
 registration failures; a failed attach after RX pointer publication; 1000
 event callbacks without console; foreign lost-IP filtering; delayed expected
@@ -153,23 +154,22 @@ handoff to avoid a self-reference.
 An independent OpenAI audit (`aud-20261119-093117-0ad388`, gpt-6.2-astra,
 complex depth) of `c2023d9` against this prompt and the shared contracts was
 compared with a separate Claude review of the same code before any change.
-Both reviews agreed on the functional defects below; each fix has a registered
-`example_*` regression, and each regression was checked by restoring the old
-behaviour one fix at a time (every one failed except a restart check that
-proved redundant and was simplified).
+The first review's dispositions follow. Later checks against the preserved
+ELF corrected the original assessment of F5. Executing regressions and
+artifact checks are identified separately below.
 
 | Finding | Disposition |
 | --- | --- |
 | F2 service loop ignored `stopRequired` and `eventLost` | Fixed. Each 100 ms step copies the journal (no I/O). `stopRequired` ends the session with an owner stop and no restart; `eventLost` uses the event-only `retryLinkEvent` and stops after 10 undelivered steps. Tests `running_stop_required`, `lost_event_retry`, `lost_event_unresolved`. |
 | F3 a BUSY poll or failed take stranded the operation token | Fixed. BUSY is retried, never treated as terminal; cancel/take retry within finite counts; an undelivered token is kept, reported, and retirement is refused rather than claimed. Tests `operation_busy_retry`, `operation_result_owed`. |
 | F1 pre-install unwind order and quarantined mutex | Fixed. The never-installed PHY (the borrower) is destroyed before the MAC; a failed PHY destruction keeps MAC and mutex; a quarantined bus keeps its possibly held mutex. Tests `mac_cleanup_failure`, `quarantined_mutex_retained`. |
-| F5 the gate-closed image did not link the operational path | Fixed. The gate is read through a `volatile`, so the default image keeps the complete MAC/PHY/glue/service chain; checked by symbol comparison of the old and new P4 images. |
+| F5 the gate-closed image omitted operational symbols | False positive. The original clean `c2023d9` P4 ELF already contains all twelve symbols listed below. The volatile gate makes retention explicit across compiler optimizations. |
 | F7 invented NO_MEM for null factories; typed board cause lost | Fixed. Null factories record their stage with an unknown cause; adapter steps copy the typed journal before the mapped return; the final line names the failing stage. A repaired stop's historical failure is still captured before the next start resets the journal. |
 | F8 stale-but-copied link evidence printed CURRENT; BUSY phase printed STOPPED | Fixed. CURRENT requires a sample at most three poll periods old (`linkAgeMs`, else `AGED`); unavailable phase prints `BUSY`. Test `link_evidence_age`. |
 | F11 cleanup allowance could not admit an owed DOWN | Fixed. `cleanupBudgetUs` is 500 ms, above the 101 ms notification allowance. |
 | F9 some start/stop failure tests accept several outcomes | Partly fixed: the success path now requires MAINTENANCE and a completed session. Deferred to prompt 54: exact per-variant outcome oracles, attach sub-step failures and reset-release failure after assertion. |
-| F4 ending the netif session before retirement | Deferred. Retirement stops the MAC and posts STOP, which stops the netif; late RX lifetime stays under the BLOCKED `native_rx_quiescence` gate and physical prompt 72. |
-| F6 console backpressure on the owner task | Deferred to prompt 47, which routes output through the shared bounded CLI writer. ESP32-P4 UART0 console writes are bounded per line by baud rate. |
+| F4 ending the netif session before retirement | Deferred. STOP is queued. The glue handler calls a void netif action on later dispatch, and the application lacks confirmation of completed netif shutdown. Installed resources stay alive under `native_rx_quiescence`. Prompt 54 tracks delayed or withheld dispatch. |
+| F6 console backpressure on the owner task | Deferred to prompt 47. The synchronous UART writer can wait on its lock or FIFO. The callback-burst case exercises callback independence. Owner progress with blocked output still needs the bounded writer and a withheld-sink test. |
 | F10 example translation unit outside the SDK closure manifest | Deferred to prompt 55: give the example configuration its own pinned closure manifest. |
 
 Auditor questions that remain open and are owned elsewhere: boot-time PHY
@@ -180,3 +180,47 @@ local-peer probe should be selectable (prompt 47 CLI). None was invented here.
 The [subsequent independent review](40-42-independent-review.md) resolved
 the F9 start/stop, reset-release and attach cases and corrected the main-task
 stack configuration. It records fresh host and image results for both P4 examples.
+
+## Second auditor follow-up
+
+Checked `aud-20261119-100555-4ccdbe` against synchronized `main` at
+`9933109`. The existing netif definitions were already in the host test at
+`0c50ed0`. Prompts 47, 54 and 55 already contained the planned follow-up
+work at `9933109`. The earlier audit and this audit use independent finding
+numbers. Second-review F5/F6 correspond to the deferred netif-session and
+synchronous-output findings above. F1/F2/F8 already have executing STOP,
+tenth-retry and negotiation regressions.
+
+The original clean gate-closed image at `c2023d91c4984ee2b1c72b96d863a5bf87791f32`
+is 509,776 bytes, SHA-256
+`865813bd18cf046b7b4cff90d463f93eda2266c41bacfbac7128d785661d2f02`.
+Its ELF contains six SDK and six native PHY entry points. Both this image
+and the precommit image above have build identities independent of the
+library version. To reproduce the symbol inspection in PowerShell, set
+`$build` to the historical or follow-up P4 build directory and run
+
+```powershell
+$nm = (Select-String -Path "$build/CMakeCache.txt" -Pattern '^CMAKE_NM:FILEPATH=(.+)$').Matches[0].Groups[1].Value
+& $nm -C --defined-only "$build/dp8382x_p4_ethernet.elf" | Select-String -CaseSensitive ' T (esp_eth_driver_install|esp_eth_start|esp_eth_new_netif_glue|esp_netif_attach|esp_eth_mac_new_esp32|esp_netif_new)$| T DP8382x::EspIdf::Phy::(create|install|prepareBoard|start|stop|retire)\('
+Get-FileHash "$build/dp8382x_p4_ethernet.bin"
+Get-Content "$build/basic_identity/ExampleIdentity.h"
+(Get-Content "$build/config/sdkconfig.json" -Raw | ConvertFrom-Json).DP8382X_BOARD_READY
+```
+
+| Second review | Disposition and executing cases |
+| --- | --- |
+| F3 terminal status and delivery | A known terminal failure survives take-only contention. Report the owed token, its terminal status and the delivery failure separately. On owner expiry, preserve a subsequently delivered cancellation result. `terminal_delivery_failure`, `terminal_busy`, `owner_timeout_delivered`. |
+| F4 journal attribution | A cycle's historical first error is identified as journal evidence. The direct adapter return and the observation ending service have their own receipts. Before a new start, allow three cached journal reads with at most two one-tick yields. Withhold restart on persistent contention. `lost_event_retry`, `running_failures`, `journal_retry`, `journal_unavailable`. |
+| F7 null factories | The stage records an application failure with an unreported cause. Neither the SDK nor core error domain receives a fabricated diagnosis. Covered by the netif, MAC and glue allocation cases. |
+| F9 profile verdict | Output uses yes/no for a fresh resolved match/mismatch and unknown for unavailable evidence. Four registered `profile_*` cases check the actual emitted line, including age and BUSY phase. |
+| F10 pre-install unwind | `live_cleanup_order` observes destruction of the live PHY before MAC deletion. `live_cleanup_denied` denies PHY destruction, checks retention of both dependencies and exercises an explicit cleanup retry. Prompt 54 retains cross-module stop and dispatch coverage. |
+| F11 reproducibility | The full pinned suite passed 352/352 in both Release and UBSan-trap. This includes 63 registered basic-example cases at the example's configured 1,000 Hz and the native adapter suites at 100, 333 and 1,000 Hz. Use `ctest --test-dir build/p40-native-ubsan -N -R "^example_"` to list the examples. |
+
+Follow-up P4 link with ESP-IDF `fff9895c`: closed board gate, 16 KiB main
+stack, source identity `9933109` with the follow-up edits present. The image
+was 514,688 bytes, SHA-256
+`7a7de6600125c0a8dc2084420925936e378d39606362607e141d36eb4e5ad9c2`.
+The symbol command above returned all twelve entries. Build with
+`scripts\idf.cmd -C examples/esp_idf/basic -B C:\esp\build\dp8382x-audit40 -D SDKCONFIG=C:/esp/build/dp8382x-audit40/sdkconfig -D IDF_TARGET=esp32p4 build`.
+This run executed registered regressions and inspected artifacts. No physical
+board or first-set remote CI was run.

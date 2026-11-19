@@ -101,8 +101,11 @@ Deferred from the prompt-40 follow-up review (2026-11-19, F9): for each injected
 start, stop, timer and MDIO failure in `test/esp_idf/host/example.cpp`, assert
 that the injection was reached, the primary and cleanup domains, the native
 phase, retained resources, timer/event state and the permitted next owner
-action, instead of accepting any failure. Add netif attach sub-step failures and
-a reset-release failure after a successful assertion.
+action. Reuse the registered basic-example attach, reset-release and exact
+start/stop regressions. For the deferred netif session finding, delay or
+withhold STOP dispatch through retirement and exercise late RX. Distinguish
+posting, handler delivery and evidence of actual netif session closure. Keep
+closure explicitly unresolved wherever the pinned public API supplies no proof.
 
 Update Doxygen, API/timing/ownership/testing guides and `test/README.md` with
 corrected lifecycle, scheduler, result and partial-effect contracts.

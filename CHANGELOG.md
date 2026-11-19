@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Preserve the basic P4 example's terminal result across delivery contention
+  and distinguish historical lifecycle errors and unavailable link evidence.
+
 - Fixed P4 example startup and event handling, retained operation effects on
   failure, and verified the netif MAC before DHCP. Raw TX now rejects invalid
   frame descriptors and requires verified framework recovery after cached DOWN.

@@ -42,10 +42,15 @@ struct Application {
   std::atomic<uint32_t> events{0};
   NativeStatus primary{};
   NativeStatus cleanup{};
-  const char* failedStage{"none"}; ///< First failing application step; the cause stays in primary.
+  const char* failedStage{nullptr}; ///< A null SDK factory has a stage but supplies no cause.
+  const char* failedAdapterCall{nullptr}; ///< First failing direct adapter call, independent of the cycle journal.
+  esp_err_t adapterCallError{ESP_OK};
+  Status journalCopyError{}; ///< First exhausted journal confirmation.
+  Status stopObservation{Err::RESULT_NOT_AVAILABLE, 0, "No observation ended service"};
   const char* sessionEnd{"not started"}; ///< Why serve() ended its traffic session.
   bool resultOwed{false}; ///< An admitted core result could not be delivered; CONTROL remains.
   OperationToken owedToken{}; ///< Retained undelivered token, valid while resultOwed.
+  Status owedTerminal{Err::RESULT_NOT_AVAILABLE, 0, "Terminal operation status unavailable"};
   OperationResult lastResult{}; ///< Last delivered operation, including possible effects.
   unsigned eventRetries{0}; ///< Consecutive owner retries of one lost link event.
 };
@@ -54,6 +59,7 @@ Application app;
 /// Finite owner allowances. Counts bound loops even if the clock stalls.
 constexpr uint32_t MAX_OWNER_POLLS = 10000;   ///< Operation progress polls.
 constexpr uint32_t MAX_DELIVERY_TRIES = 100;  ///< Cancel/take attempts on gate contention.
+constexpr unsigned MAX_JOURNAL_TRIES = 3; ///< Two single-tick yields between three cached reads.
 constexpr unsigned MAX_EVENT_RETRIES = 10;    ///< Lost link-event retries before owner stop.
 constexpr uint64_t OPERATION_WAIT_US = 6000000; ///< Owner wait over the 5 s core I/O budget.
 constexpr uint32_t CLOCK_LAG_US = 1; ///< Conservative esp_timer timestamp allowance.
@@ -63,16 +69,16 @@ uint64_t deadlineUs() { return nowUs() + 1000000U; }
 
 /// Record the first failing step. Later failures never replace the first cause.
 void fail(const char* stage, esp_err_t error) {
-  if (error == ESP_OK || !app.primary.ok()) return;
+  if (error == ESP_OK || app.failedStage) return;
   app.primary.sdkError = error; app.failedStage = stage;
 }
 void fail(const char* stage, Status status) {
-  if (status.ok() || !app.primary.ok()) return;
+  if (status.ok() || app.failedStage) return;
   app.primary.coreStatus = status; app.failedStage = stage;
 }
 /// A null SDK factory result reports no cause; do not invent an exact SDK code.
 void failNull(const char* stage) {
-  fail(stage, Status::Error(Err::INVALID_CONFIG, "SDK factory returned null; cause not reported"));
+  if (!app.failedStage) app.failedStage = stage;
 }
 void cleanupError(esp_err_t error) {
   if (error != ESP_OK && app.cleanup.ok()) app.cleanup.sdkError = error;
@@ -80,20 +86,33 @@ void cleanupError(esp_err_t error) {
 void cleanupError(Status status) {
   if (!status.ok() && app.cleanup.ok()) app.cleanup.coreStatus = status;
 }
-/// Copy the adapter's typed journal. Call after every lifecycle step, also on
-/// success: a repaired stop returns OK but keeps its historical failure, and
-/// the next admitted start resets the journal.
-void retainLifecycle(const char* stage = "lifecycle journal") {
-  if (!app.phy) return;
-  LifecycleRecord record{};
-  if (!app.phy->lifecycleSnapshot(record).ok()) return;
-  if (!record.firstError.ok() && app.primary.ok()) { app.primary = record.firstError; app.failedStage = stage; }
+/// The journal stores the first error in a cycle, without its originating step.
+void retainLifecycle(const LifecycleRecord& record) {
+  if (!record.firstError.ok() && !app.failedStage) {
+    app.primary = record.firstError;
+    app.failedStage = "adapter cycle journal";
+  }
   if (!record.cleanupError.ok() && app.cleanup.ok()) app.cleanup = record.cleanupError;
 }
-/// Adapter step: journal cause first, so its exact cause wins over a mapped return.
+/// Confirm delivery before a later start can clear the previous cycle's journal.
+bool copyLifecycle() {
+  LifecycleRecord record{};
+  for (unsigned attempt = 1; ; ++attempt) {
+    const Status status = app.phy->lifecycleSnapshot(record);
+    if (status.ok()) { retainLifecycle(record); return true; }
+    if (!status.is(Err::BUSY) || attempt == MAX_JOURNAL_TRIES) {
+      if (app.journalCopyError.ok()) app.journalCopyError = status;
+      return false;
+    }
+    vTaskDelay(1);
+  }
+}
+/// Retain the direct SDK receipt even if a historical journal error predates it.
 void checkAdapter(const char* stage, esp_err_t error) {
-  retainLifecycle(stage);
-  fail(stage, error);
+  if (error != ESP_OK && !app.failedAdapterCall) {
+    app.failedAdapterCall = stage; app.adapterCallError = error;
+  }
+  if (copyLifecycle()) fail(stage, error);
 }
 
 const char* phaseName(Phase phase) {
@@ -156,8 +175,8 @@ void onLostIp(void* context, esp_event_base_t, int32_t, void* data) {
 /// destruction fails, the MAC and mutex it references stay alive. A quarantined
 /// bus may hold an unreleased mutex, so the mutex is then retained as well.
 void releaseBeforeInstall() {
-  retainLifecycle("pre-install journal");
   if (app.phy) {
+    copyLifecycle();
     const esp_err_t error = app.phy->destroy();
     cleanupError(error);
     if (error == ESP_OK) app.phy = nullptr;
@@ -191,10 +210,12 @@ OperationBudget operationBudget() {
 }
 
 /// True when the adapter holds this token's frozen result awaiting delivery.
-bool resultPending(OperationToken token) {
+bool resultPending(OperationToken token, Status& terminal) {
   OperationSnapshot snapshot{};
-  return app.phy->operationSnapshot(snapshot).ok() && snapshot.token.value == token.value &&
-      snapshot.state == OperationState::RESULT_PENDING;
+  if (!app.phy->operationSnapshot(snapshot).ok() || snapshot.token.value != token.value ||
+      snapshot.state != OperationState::RESULT_PENDING) return false;
+  terminal = snapshot.status;
+  return true;
 }
 
 /// Finite owner polling and delivery. BUSY from the instance gate or controller
@@ -204,9 +225,10 @@ bool resultPending(OperationToken token) {
 Status finishOperation(OperationToken token) {
   const uint64_t until = nowUs() + OPERATION_WAIT_US;
   bool terminal = false;
+  Status progress{};
   for (uint32_t poll = 0; poll < MAX_OWNER_POLLS && !terminal && nowUs() < until; ++poll) {
-    const Status progress = app.phy->pollOperation(token);
-    terminal = !progress.inProgress() && (!progress.is(Err::BUSY) || resultPending(token));
+    progress = app.phy->pollOperation(token);
+    terminal = !progress.inProgress() && (!progress.is(Err::BUSY) || resultPending(token, progress));
     if (!terminal) vTaskDelay(1);
   }
   Status outcome = Status::Error(Err::OPERATION_TIMEOUT, "Example owner operation wait expired");
@@ -225,9 +247,13 @@ Status finishOperation(OperationToken token) {
   }
   if (!taken.ok()) {
     app.resultOwed = true; app.owedToken = token;
+    if (terminal) app.owedTerminal = progress;
     cleanupError(taken);
-    return terminal ? taken : outcome;
+    if (!terminal) return outcome;
+    return progress.ok() ? taken : progress;
   }
+  app.resultOwed = false;
+  app.owedToken = {};
   return terminal ? app.lastResult.status : outcome;
 }
 
@@ -326,7 +352,7 @@ bool initialize() {
   if (!status.ok()) { fail("PHY configure", status); return false; }
   const NativeStatus reconciliation = app.phy->reconcileSdkState(deadlineUs());
   if (!reconciliation.ok()) {
-    if (app.primary.ok()) { app.primary = reconciliation; app.failedStage = "SDK reconciliation"; }
+    if (!app.failedStage) { app.primary = reconciliation; app.failedStage = "SDK reconciliation"; }
     return false;
   }
   error = app.phy->setFlowControl(false, 0U, deadlineUs());
@@ -362,7 +388,8 @@ void report() {
   const bool fresh = timed && ageUs <= MAX_LINK_AGE_US;
   const bool currentLink = l.ok() && link.valid && !link.stale && fresh;
   const bool resolved = currentLink && link.linkUp && link.resolvedModeValid;
-  const bool profile = resolved && link.speed == LinkSpeed::MBPS_100 && link.duplex == Duplex::FULL;
+  const char* profile = !resolved ? "unknown" :
+      link.speed == LinkSpeed::MBPS_100 && link.duplex == Duplex::FULL ? "yes" : "no";
   const char* linkEvidence = !l.ok() ? "BUSY" : !link.valid ? "UNKNOWN" :
       link.stale ? "STALE" : !fresh ? "AGED" : "CURRENT";
   const char* trust = !s.ok() ? "BUSY" :
@@ -370,7 +397,7 @@ void report() {
       settings.trust == ConfigurationTrust::DIRTY ? "DIRTY" : "UNKNOWN";
   const uint32_t ip = app.ipAddress.load();
   std::printf("MDIO=%s configTrust=%s linkEvidence=%s linkAgeMs=%lu link=%u eventCarrier=%u resolved=%u speed=%u duplex=%u "
-              "profile100full=%u IP=%s %u.%u.%u.%u reachability=not-requested "
+              "profile100full=%s IP=%s %u.%u.%u.%u reachability=not-requested "
               "events=%lu nativePhase=%s stopRequired=%s eventLost=%s\n",
               h.ok() ? driverStateName(health.state) : "BUSY",
               trust, linkEvidence,
@@ -380,7 +407,7 @@ void report() {
               static_cast<unsigned>(resolved),
               resolved ? static_cast<unsigned>(link.speed) : 0U,
               resolved ? static_cast<unsigned>(link.duplex) : 0U,
-              static_cast<unsigned>(profile), ip != 0U ? "ready" : "pending/lost",
+              profile, ip != 0U ? "ready" : "pending/lost",
               static_cast<unsigned>(ip & 0xffU), static_cast<unsigned>((ip >> 8U) & 0xffU),
               static_cast<unsigned>((ip >> 16U) & 0xffU), static_cast<unsigned>(ip >> 24U),
               static_cast<unsigned long>(app.events.load()),
@@ -395,10 +422,11 @@ void report() {
 bool serviceObligations() {
   LifecycleRecord life{};
   if (!app.phy->lifecycleSnapshot(life).ok()) return true; // Gate busy: next step.
+  retainLifecycle(life);
   if (life.stopRequired) {
     app.sessionEnd = "adapter requires owner stop";
+    app.stopObservation = life.lastObservationStatus;
     fail("running observation", life.lastObservationStatus);
-    retainLifecycle("running observation");
     return false;
   }
   if (!life.eventLost) { app.eventRetries = 0; return true; }
@@ -406,7 +434,6 @@ bool serviceObligations() {
   // accepted late returns TIMEOUT but clears eventLost.
   if (app.eventRetries >= MAX_EVENT_RETRIES) {
     app.sessionEnd = "link event delivery unresolved";
-    retainLifecycle("link event");
     return false;
   }
   ++app.eventRetries;
@@ -439,6 +466,7 @@ bool runInterval(unsigned steps) {
 /// Lifecycle obligations end the session with an owner stop and no restart.
 void serve() {
   if (app.shutdownRequested.load()) { app.sessionEnd = "start withheld"; return; }
+  if (!copyLifecycle()) { app.sessionEnd = "start withheld: journal unavailable"; return; }
   esp_err_t error = app.phy->start(deadlineUs());
   checkAdapter("start", error);
   if (error != ESP_OK) { app.sessionEnd = "start failed"; return; }
@@ -450,6 +478,7 @@ void serve() {
     // An unexpected STOP delivered while stopped prevents the restart. A
     // completed owner stop has already discharged any stopRequired latch.
     if (app.shutdownRequested.load()) { app.sessionEnd = "restart withheld"; return; }
+    if (!copyLifecycle()) { app.sessionEnd = "restart withheld: journal unavailable"; return; }
     error = app.phy->start(deadlineUs());
     checkAdapter("restart", error);
     if (error != ESP_OK) { app.sessionEnd = "restart failed"; return; }
@@ -469,23 +498,39 @@ void finish() {
     // An undelivered core result keeps CONTROL, so retirement is refused and
     // reported rather than claimed; the token stays recorded below.
     const esp_err_t error = app.phy->retire(deadlineUs());
-    retainLifecycle("retire");
+    copyLifecycle();
     if (error != ESP_ERR_NOT_SUPPORTED) cleanupError(error);
   } else {
     releaseBeforeInstall();
   }
-  std::printf("primary stage=%s core=%s detail=%ld SDK=%s cleanup core=%s detail=%ld SDK=%s; "
+  // If the terminal journal was inaccessible, expose the exact direct SDK
+  // return and name that call. Earlier cycle history stays unknown.
+  const char* primaryStage = app.failedStage ? app.failedStage : app.failedAdapterCall;
+  const auto primarySdk = app.failedStage ? app.primary.sdkError : app.adapterCallError;
+  std::printf("primary stage=%s cause=%s core=%s detail=%ld SDK=%s cleanup core=%s detail=%ld SDK=%s; "
               "session=%s; resultOwed=%s token=%llu; installed resources %s\n",
-              app.failedStage,
+              primaryStage ? primaryStage : "none",
+              !primaryStage ? "none" : app.failedStage && app.primary.ok() ? "unreported" : "reported",
               errorName(app.primary.coreStatus.code),
               static_cast<long>(app.primary.coreStatus.detail),
-              esp_err_to_name(app.primary.sdkError),
+              esp_err_to_name(primarySdk),
               errorName(app.cleanup.coreStatus.code),
               static_cast<long>(app.cleanup.coreStatus.detail),
               esp_err_to_name(app.cleanup.sdkError),
               app.sessionEnd, app.resultOwed ? "yes" : "no",
               static_cast<unsigned long long>(app.owedToken.value),
               app.installed ? "retained until restart" : "released where safe");
+  if (app.failedAdapterCall)
+    std::printf("adapter call=%s SDK=%s\n", app.failedAdapterCall, esp_err_to_name(app.adapterCallError));
+  if (app.resultOwed)
+    std::printf("undelivered operation status=%s detail=%ld\n", errorName(app.owedTerminal.code),
+                static_cast<long>(app.owedTerminal.detail));
+  if (!app.journalCopyError.ok())
+    std::printf("journal unavailable=%s detail=%ld\n", errorName(app.journalCopyError.code),
+                static_cast<long>(app.journalCopyError.detail));
+  if (!app.stopObservation.is(Err::RESULT_NOT_AVAILABLE))
+    std::printf("stop observation=%s detail=%ld\n", errorName(app.stopObservation.code),
+                static_cast<long>(app.stopObservation.detail));
   if (app.lastResult.token.value != 0) {
     std::printf("last delivered operation=%llu status=%s possible-write=%u cleanup-owed=%u\n",
                 static_cast<unsigned long long>(app.lastResult.token.value),

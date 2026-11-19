@@ -87,7 +87,9 @@ before building. Actual task stack high-water marks need a running fixture.
 Callbacks only copy bounded link/IP facts or request shutdown; they perform no
 console output, blocking cleanup or PHY I/O. The owner task prints cached
 management health, configuration trust, resolved link/profile and IP state.
-Its finite service loop does not wait for console input and stops/restarts once.
+The service loop runs without console input and stops/restarts once. Its
+synchronous output can block the owner on a slow or unavailable sink.
+Prompt 47 owns bounded output and the corresponding withheld-sink test.
 An unexpected STOP callback requests owner shutdown. Task 47 can route shared
 CLI requests through this same owner loop without adding a second poller.
 
@@ -100,20 +102,23 @@ I/O) and acts on its obligations:
   delivered): the owner calls the event-only `retryLinkEvent`, which never
   replays MAC UP. After 10 consecutive steps without delivery it stops.
 
-The final line names the first failing stage, the primary and cleanup causes,
-why the session ended and whether a core result is still owed.
+The final output reports the primary and cleanup causes, why the session
+ended and whether a core result is still owed. Historical lifecycle errors
+can first be observed at a later successful call. Before start or restart,
+the owner attempts up to three cached journal reads with up to two one-tick
+yields. It withholds the transition if it cannot confirm the previous journal.
 
 Typed operations (initialize, configure) are polled to completion on the owner
-task. A `BUSY` poll means the instance gate or controller was contended, not
-that the operation ended, so it is retried. Only a successful `takeResult`
-releases control and owned bus silence. If poll, cancel and take all stay
-contended for the finite allowance (about 6 s, capped by attempt counts), the
-token is kept and reported as owed, and retirement is refused rather than
-claimed.
+task. On `BUSY`, the owner checks for a terminal result pending on that
+token. The polling allowance is 6 s or 10,000 attempts. Cancellation and
+result delivery then each allow up to 100 attempts with one-tick yields.
+Only successful delivery releases CONTROL. An undelivered token remains
+owed and preserves the original operation evidence.
 
 Link evidence prints `CURRENT` only when the cached sample is valid, not stale
 and at most three poll periods old (`linkAgeMs`); otherwise `AGED`, `STALE`,
-`UNKNOWN` or `BUSY`, and the 100/full profile verdict is withheld. Copying a
+`UNKNOWN` or `BUSY`. The 100/full verdict prints `yes` or `no` for a
+current resolved mode and `unknown` for unavailable evidence. Copying a
 snapshot never refreshes it, and contended polls can leave an old sample.
 
 Before successful driver installation, cleanup releases created PHY, MAC, mutex,
@@ -130,7 +135,8 @@ restart, including failures after attachment. `esp_netif_attach` can publish
 the netif RX pointer before reporting failure. `Phy::retire` stops/fences and
 closes admission; a failure keeps everything alive for inspection. The first
 primary result, first cleanup error and native lifecycle journal remain
-separate. No event handler waits for its own unregister, and no installed glue
+separate. Posting STOP queues the glue handler. The owner has no receipt
+confirming that netif traffic has ended. No event handler waits for its own unregister, and no installed glue
 is deleted. Glue deletion has no independent deadline: unregister can wait on
 the default-loop mutex for the longest handler. Handlers here only set atomics.
 

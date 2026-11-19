@@ -135,14 +135,16 @@ void acquisitionFailure(const std::string& caseName) {
     }
     else assert(false);
     run(true);
-    assert(!app.installed && !app.primary.ok());
+    assert(!app.installed && app.failedStage);
+    const bool factoryWithoutCause = faults.nullNetif || faults.nullMac;
+    assert(app.primary.ok() == factoryWithoutCause);
     assert(Host::activeHandlers() == 0 && Host::activeNetifs() == 0);
     assert(app.netif == nullptr && app.bus.mutex == nullptr);
     assert(!app.loopOwned && !faults.eventLoopOwned);
     if (caseName == "install_failure") assert(mac && !mac->alive);
     if (caseName == "board_release_failure") {
         assert(std::count(Host::state().calls.begin(), Host::state().calls.end(), "gpio.level") == 2);
-        assert(app.primary.sdkError == ESP_FAIL && std::string(app.failedStage) == "board preparation");
+        assert(app.primary.sdkError == ESP_FAIL && std::string(app.failedAdapterCall) == "board preparation");
         assert(app.bus.admission.load() == BusAdmission::FAILED_CLOSED);
         assert(mac && mac->frames.empty() && !mac->alive);
     }
@@ -154,7 +156,7 @@ void cleanupFailure() {
     run(true);
     // A null factory reports no cause: the stage is known, no SDK code is invented.
     assert(!app.installed && app.primary.sdkError == ESP_OK);
-    assert(app.primary.coreStatus.is(Err::INVALID_CONFIG) && std::string(app.failedStage) == "netif new");
+    assert(app.primary.ok() && std::string(app.failedStage) == "netif new");
     assert(app.cleanup.sdkError == ESP_FAIL && app.loopOwned && faults.eventLoopOwned);
 }
 void macCleanupFailure() {
@@ -165,10 +167,34 @@ void macCleanupFailure() {
     run(true);
     assert(!app.installed && app.primary.sdkError == ESP_ERR_NO_MEM);
     assert(std::string(app.failedStage) == "PHY create");
-    // The PHY borrower goes first; the MAC that failed deletion stays, and the
-    // bus mutex (used only by the PHY) is released.
+    // PHY creation failed. MAC cleanup failed independently.
     assert(app.cleanup.sdkError == ESP_FAIL && app.mac && !app.phy && !app.bus.mutex);
     assert(Host::activeNetifs() == 0 && !app.loopOwned);
+}
+void liveBorrowerCleanup(bool denyDestroy) {
+    Host::reset();
+    faults.gpioLevel = ESP_FAIL;
+    assert(!initialize() && !app.installed && app.phy && app.mac && app.bus.mutex);
+    if (denyDestroy) {
+        // Let the journal copy succeed, then refuse the destroy's gate entry.
+        Host::state().afterSemaphoreGive = [](SemaphoreHandle_t handle) {
+            Host::state().failNextTake = handle;
+            Host::state().afterSemaphoreGive = nullptr;
+        };
+    }
+    releaseBeforeInstall();
+    const auto& calls = Host::state().calls;
+    auto timerDeleted = std::find(calls.begin(), calls.end(), "timer.delete");
+    auto macDeleted = std::find(calls.begin(), calls.end(), "mac.del");
+    if (denyDestroy) {
+        assert(timerDeleted == calls.end() && macDeleted == calls.end());
+        assert(app.cleanup.sdkError == ESP_ERR_INVALID_STATE && app.phy && mac->alive && app.bus.mutex);
+        releaseBeforeInstall(); // The borrower and its dependencies remain usable for an explicit retry.
+    } else {
+        assert(timerDeleted != calls.end() && macDeleted != calls.end() && timerDeleted < macDeleted);
+        assert(app.cleanup.ok());
+    }
+    assert(!app.phy && !app.mac && !app.bus.mutex && !mac->alive);
 }
 void quarantinedMutexRetained() {
     Host::reset();
@@ -180,7 +206,7 @@ void quarantinedMutexRetained() {
     run(true);
     Host::state().beforeSemaphoreTake = nullptr;
     assert(!app.installed && !app.primary.ok() && app.bus.quarantined.load());
-    assert(std::string(app.failedStage) == "board preparation");
+    assert(std::string(app.failedAdapterCall) == "board preparation");
     assert(app.bus.mutex && !app.phy && !app.mac);
     Host::state().failNextGive = nullptr;
 }
@@ -188,7 +214,7 @@ void glueAllocationFailure() {
     Host::reset();
     Host::state().failAllocationNumber = 2;
     run(true);
-    assert(app.installed && app.primary.coreStatus.is(Err::INVALID_CONFIG));
+    assert(app.installed && app.primary.ok());
     assert(std::string(app.failedStage) == "netif glue");
     assert(Host::state().allocationAttempts == 2);
     assert(!app.glue && app.driver && app.netif && mac && mac->alive);
@@ -206,7 +232,7 @@ void glueRegistrationFailure(unsigned registration) {
     Host::state().failHandlerRegistrationNumber = registration;
     Host::state().nextHandlerRegisterError = ESP_FAIL;
     run(true);
-    assert(app.installed && !app.primary.ok());
+    assert(app.installed && app.primary.ok() && std::string(app.failedStage) == "netif glue");
     assert(Host::state().handlerRegistrationCount == registration);
     assert(Host::activeHandlers() == 0);
     assert(Host::activeNetifs() == 1 && app.netif);
@@ -305,10 +331,10 @@ void startStop(bool startFailure, bool stopFailure, bool stopEventFailure) {
     assert(app.phy->lifecycleSnapshot(record).ok() && record.phase == Phase::MAINTENANCE);
     assert(app.primary.coreStatus.ok() && app.cleanup.coreStatus.ok() && !app.resultOwed);
     if (startFailure) {
-        assert(std::string(app.failedStage) == "start" && app.primary.sdkError == ESP_FAIL);
+        assert(std::string(app.failedAdapterCall) == "start" && app.primary.sdkError == ESP_FAIL);
         assert(app.cleanup.sdkError == ESP_ERR_INVALID_STATE); // Link timer was never armed.
     } else if (stopFailure) {
-        assert(std::string(app.failedStage) == "owner stop" && app.primary.sdkError == ESP_FAIL);
+        assert(std::string(app.failedAdapterCall) == "owner stop" && app.primary.sdkError == ESP_FAIL);
         assert(app.cleanup.sdkError == ESP_FAIL);
     } else if (stopEventFailure) {
         assert(app.primary.ok() && app.cleanup.sdkError == ESP_FAIL);
@@ -365,6 +391,60 @@ void operationResultOwed() {
     assert(app.phy->cancel(token).ok() && app.phy->takeResult(token, result).ok());
     assert(app.phy->lifecycleSnapshot(record).ok() && record.phase == Phase::STOPPED);
 }
+void terminalDeliveryFailure() {
+    Host::reset();
+    assert(initialize());
+    const auto token = runningConfigure();
+    mac->onCall = [](const char* name) {
+        if (std::string(name) != "mac.read") return;
+        mac->errors["mac.read"] = ESP_FAIL;
+        // Let this poll finish with MDIO_ERROR. Deny only subsequent take calls.
+        Host::state().afterSemaphoreGive = [](SemaphoreHandle_t handle) {
+            if (handle == app.bus.mutex) return;
+            Host::state().failSemaphoreTakes = MAX_DELIVERY_TRIES;
+            Host::state().afterSemaphoreGive = nullptr;
+        };
+    };
+    const auto status = finishOperation(token);
+    assert(status.is(Err::MDIO_ERROR) && status.detail == ESP_FAIL);
+    assert(app.owedTerminal.is(Err::MDIO_ERROR) && app.owedTerminal.detail == ESP_FAIL);
+    assert(app.resultOwed && app.owedToken.value == token.value && app.cleanup.coreStatus.is(Err::BUSY));
+    LifecycleRecord record;
+    assert(app.phy->lifecycleSnapshot(record).ok() && record.phase == Phase::CONTROL);
+    assert(finishOperation(token).is(Err::MDIO_ERROR));
+    assert(app.lastResult.token.value == token.value && app.lastResult.status.is(Err::MDIO_ERROR));
+    assert(!app.resultOwed && app.owedToken.value == 0);
+    assert(app.phy->lifecycleSnapshot(record).ok() && record.phase == Phase::STOPPED);
+}
+void terminalBusy() {
+    Host::reset();
+    assert(initialize());
+    const auto token = runningConfigure();
+    const auto frames = mac->frames.size();
+    app.bus.quarantined.store(true);
+    const auto status = finishOperation(token);
+    assert(status.is(Err::BUSY) && status.detail == static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED));
+    assert(app.lastResult.token.value == token.value && app.lastResult.status.detail == status.detail);
+    LifecycleRecord record;
+    assert(!app.resultOwed && app.cleanup.ok() && mac->frames.size() == frames);
+    assert(app.phy->lifecycleSnapshot(record).ok() && record.phase == Phase::STOPPED);
+}
+void waitExpiredResultDelivered() {
+    Host::reset();
+    assert(initialize());
+    const auto token = runningConfigure();
+    const auto start = nowUs();
+    const auto frames = mac->frames.size();
+    Host::state().beforeSemaphoreTake = [start](SemaphoreHandle_t handle) {
+        if (nowUs() < start + OPERATION_WAIT_US) Host::state().failNextTake = handle;
+    };
+    const auto status = finishOperation(token);
+    assert(status.is(Err::OPERATION_TIMEOUT) && app.cleanup.ok() && !app.resultOwed);
+    assert(app.lastResult.token.value == token.value && app.lastResult.status.is(Err::CANCELLED));
+    LifecycleRecord record;
+    assert(app.phy->lifecycleSnapshot(record).ok() && record.phase == Phase::STOPPED);
+    assert(mac->frames.size() == frames);
+}
 void runningStopRequired() {
     Host::reset();
     assert(initialize());
@@ -381,7 +461,7 @@ void runningStopRequired() {
     const auto& calls = Host::state().calls;
     assert(std::string(app.sessionEnd) == "adapter requires owner stop");
     assert(std::count(calls.begin(), calls.end(), "timer.periodic") == 1);
-    assert(!app.primary.ok() && std::string(app.failedStage) == "running observation");
+    assert(!app.primary.ok() && app.stopObservation.is(Err::MDIO_ERROR));
     LifecycleRecord record{};
     assert(app.phy->lifecycleSnapshot(record).ok() && record.phase == Phase::STOPPED && !record.stopRequired);
     finish();
@@ -421,14 +501,76 @@ void lostEventRetry() {
     // by the retry: one UP per session as well.
     assert(postedEvents(ETHERNET_EVENT_CONNECTED) == 2 && callCount("mac.up") == 2);
     assert(app.eventRetries == 0 && std::string(app.sessionEnd) == "demonstration complete");
+    assert(app.primary.sdkError == ESP_FAIL && std::string(app.failedStage) == "adapter cycle journal");
+    assert(!app.failedAdapterCall); // The historical event error predates the successful owner stop.
     assert(callCount("timer.periodic") == 2);
+}
+void runningFailures() {
+    Host::reset();
+    assert(initialize());
+    linkUpWhileRunning();
+    Host::state().eventErrorId = ETHERNET_EVENT_CONNECTED;
+    Host::state().nextEventError = ESP_FAIL;
+    // A repaired event delivery and a later failed MDIO observation are distinct receipts.
+    Host::state().onEventPost = [](int32_t id) {
+        if (id == ETHERNET_EVENT_CONNECTED)
+            mac->onCall = [](const char* operation) {
+                if (std::string(operation) == "mac.read") mac->errors["mac.read"] = ESP_ERR_TIMEOUT;
+            };
+    };
+    serve();
+    assert(std::string(app.sessionEnd) == "adapter requires owner stop");
+    assert(app.primary.sdkError == ESP_FAIL && std::string(app.failedStage) == "adapter cycle journal");
+    assert(app.stopObservation.is(Err::MDIO_TIMEOUT) && app.stopObservation.detail == ESP_ERR_TIMEOUT);
+    finish();
+}
+void journalBeforeRestart(bool permanent) {
+    Host::reset();
+    assert(initialize());
+    unsigned attempts = 0;
+    Host::state().beforeSemaphoreTake = [&](SemaphoreHandle_t handle) {
+        const auto& delays = Host::state().delays;
+        if (!attempts && (delays.empty() || delays.back().ticks != pdMS_TO_TICKS(1000))) return;
+        if (attempts >= (permanent ? MAX_JOURNAL_TRIES : 1U)) return;
+        ++attempts;
+        Host::state().failNextTake = handle;
+    };
+    serve();
+    assert(attempts == (permanent ? MAX_JOURNAL_TRIES : 1U));
+    assert(app.journalCopyError.is(Err::BUSY) == permanent);
+    assert(callCount("timer.periodic") == (permanent ? 1U : 2U));
+    assert(std::string(app.sessionEnd) == (permanent ? "restart withheld: journal unavailable" : "demonstration complete"));
+    finish();
+}
+void failedCallWithoutJournal() {
+    Host::reset();
+    assert(initialize());
+    Host::state().nextTimerStartError = ESP_FAIL;
+    const auto error = app.phy->start(deadlineUs());
+    assert(error == ESP_FAIL);
+    Host::state().failSemaphoreTakes = 100000;
+    checkAdapter("start", error);
+    finish();
+    assert(!app.failedStage && std::string(app.failedAdapterCall) == "start" && app.adapterCallError == ESP_FAIL);
+    assert(app.journalCopyError.is(Err::BUSY));
+}
+void profileReport(const std::string& suite) {
+    Host::reset();
+    assert(initialize());
+    if (suite == "profile_mismatch") mac->registers[0x10] = 0x0013; // AN complete, resolved 10/half.
+    assert(app.phy->start(deadlineUs()) == ESP_OK);
+    if (suite == "profile_aged") Host::state().nowUs += MAX_LINK_AGE_US + 1;
+    if (suite == "profile_busy") Host::state().failSemaphoreTakes = 4;
+    report(); // CTest checks the actual rendered status line.
 }
 void lostEventUnresolved() {
     Host::reset();
     assert(initialize());
     linkUpWhileRunning();
-    Host::state().onEventAttempt = [](int32_t id) {
+    unsigned attempts = 0;
+    Host::state().onEventAttempt = [&](int32_t id) {
         if (id == ETHERNET_EVENT_CONNECTED) {
+            ++attempts;
             Host::state().eventErrorId = ETHERNET_EVENT_CONNECTED;
             Host::state().nextEventError = ESP_FAIL;
         }
@@ -438,7 +580,7 @@ void lostEventUnresolved() {
     mac->onCall = nullptr;
     assert(postedEvents(ETHERNET_EVENT_CONNECTED) == 0 && callCount("mac.up") == 1);
     assert(std::string(app.sessionEnd) == "link event delivery unresolved");
-    assert(app.eventRetries == MAX_EVENT_RETRIES);
+    assert(app.eventRetries == MAX_EVENT_RETRIES && attempts == 1U + MAX_EVENT_RETRIES);
     assert(callCount("timer.periodic") == 1);
     LifecycleRecord record{};
     assert(app.phy->lifecycleSnapshot(record).ok() && record.phase != Phase::RUNNING);
@@ -469,12 +611,12 @@ void timerFailure(bool duringStart) {
     assert(app.installed && app.driver && app.glue && app.netif && mac && mac->alive);
     assert(app.primary.coreStatus.ok() && app.cleanup.coreStatus.ok());
     if (duringStart) {
-        assert(std::string(app.failedStage) == "start" && app.primary.sdkError == ESP_FAIL);
+        assert(std::string(app.failedAdapterCall) == "start" && app.primary.sdkError == ESP_FAIL);
         assert(app.cleanup.sdkError == ESP_ERR_INVALID_STATE);
     } else {
         // The SDK timer remained active. Its original stop failure is preserved
         // separately from the rejected attempt to arm it on restart.
-        assert(std::string(app.failedStage) == "restart" && app.primary.sdkError == ESP_ERR_INVALID_STATE);
+        assert(std::string(app.failedAdapterCall) == "restart" && app.primary.sdkError == ESP_ERR_INVALID_STATE);
         assert(app.cleanup.sdkError == ESP_FAIL);
     }
     LifecycleRecord record{};
@@ -487,7 +629,7 @@ void startMdioFailure() {
     serve();
     finish();
     assert(app.installed && app.driver && app.glue && app.netif && mac && mac->alive);
-    assert(std::string(app.failedStage) == "start" && app.primary.is(Err::MDIO_ERROR));
+    assert(std::string(app.failedAdapterCall) == "start" && app.primary.is(Err::MDIO_ERROR));
     assert(app.primary.coreStatus.detail == ESP_FAIL);
     assert(app.cleanup.coreStatus.ok() && app.cleanup.sdkError == ESP_ERR_INVALID_STATE);
     LifecycleRecord record{};
@@ -537,7 +679,7 @@ void unexpectedStopGap() {
     finish();
 }
 
-void lastEventRetry() {
+void lastEventRetry(bool late) {
     Host::reset();
     assert(initialize());
     linkUpWhileRunning();
@@ -548,13 +690,14 @@ void lastEventRetry() {
         if (attempts <= MAX_EVENT_RETRIES) {
             Host::state().eventErrorId = id;
             Host::state().nextEventError = ESP_FAIL;
-        } else if (attempts == MAX_EVENT_RETRIES + 1) {
+        } else if (late && attempts == MAX_EVENT_RETRIES + 1) {
             Host::state().nowUs += 200001U; // Last retry delivers, just beyond its deadline.
         }
     };
     serve();
     Host::state().onEventAttempt = nullptr;
     assert(std::string(app.sessionEnd) == "demonstration complete" && app.eventRetries == 0);
+    assert(attempts == 2U + MAX_EVENT_RETRIES); // Original UP, ten retries and second session UP.
     assert(postedEvents(ETHERNET_EVENT_CONNECTED) == 2 && callCount("mac.up") == 2);
     finish();
 }
@@ -581,13 +724,22 @@ int main(int argc, char** argv) {
     else if (suite == "shared_loop") sharedLoop();
     else if (suite == "cleanup_failure") cleanupFailure();
     else if (suite == "mac_cleanup_failure") macCleanupFailure();
+    else if (suite == "live_cleanup_order" || suite == "live_cleanup_denied") liveBorrowerCleanup(suite == "live_cleanup_denied");
     else if (suite == "quarantined_mutex_retained") quarantinedMutexRetained();
     else if (suite == "operation_busy_retry") operationBusyRetry();
     else if (suite == "operation_result_owed") operationResultOwed();
+    else if (suite == "terminal_delivery_failure") terminalDeliveryFailure();
+    else if (suite == "terminal_busy") terminalBusy();
+    else if (suite == "owner_timeout_delivered") waitExpiredResultDelivered();
     else if (suite == "running_stop_required") runningStopRequired();
+    else if (suite == "running_failures") runningFailures();
+    else if (suite == "journal_retry" || suite == "journal_unavailable") journalBeforeRestart(suite == "journal_unavailable");
+    else if (suite == "journal_failed_call") failedCallWithoutJournal();
+    else if (suite.rfind("profile_", 0) == 0) profileReport(suite);
     else if (suite == "lost_event_retry") lostEventRetry();
     else if (suite == "lost_event_unresolved") lostEventUnresolved();
-    else if (suite == "last_event_retry") lastEventRetry();
+    else if (suite == "last_event_retry" || suite == "last_event_retry_on_time")
+        lastEventRetry(suite == "last_event_retry");
     else if (suite == "unexpected_stop_gap") unexpectedStopGap();
     else if (suite == "negotiating_start") negotiatingStart();
     else if (suite == "link_evidence_age") linkEvidenceAge();
