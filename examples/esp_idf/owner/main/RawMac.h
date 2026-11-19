@@ -24,7 +24,8 @@ struct TxCounts {
 // the pinned P4 driver borrows bytes until return and lastError is exact.
 inline bool transmitAdmitted(PhyOwner& owner, FramePort& frames, uint64_t nowUs, esp_eth_handle_t driver,
                              RawFrame& frame, TxCounts& counts) noexcept {
-  if (!owner.allowFrame(nowUs, frame.generation).ok()) {
+  if (!owner.allowFrame(nowUs, frame.generation).ok() || !driver ||
+      frame.length < FRAME_HEADER_BYTES || frame.length > sizeof(frame.bytes)) {
     ++counts.denied;
     if (owner.snapshot().phase != OwnerPhase::ACTIVE) frames.setSession(0);
     return false;
@@ -37,7 +38,7 @@ inline bool transmitAdmitted(PhyOwner& owner, FramePort& frames, uint64_t nowUs,
     case ESP_ERR_NO_MEM: ++counts.backpressure; break;
     case ESP_ERR_INVALID_STATE:
       ++counts.linkDown;
-      owner.missingEvidence(nowUs);
+      owner.cachedLinkDown(nowUs);
       frames.setSession(0);
       break;
     default: ++counts.failed; break;

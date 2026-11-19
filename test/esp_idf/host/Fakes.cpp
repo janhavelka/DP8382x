@@ -7,7 +7,10 @@
 #include "esp_heap_caps.h"
 
 struct esp_timer { esp_timer_create_args_t args; bool active; bool periodic; bool running; };
-struct esp_netif_obj { esp_netif_driver_ifconfig_t driver{}; };
+struct esp_netif_obj {
+    esp_netif_driver_ifconfig_t driver{};
+    uint8_t mac[6]{};
+};
 struct HostSemaphore { bool held = false; };
 namespace {
 Host::State data;
@@ -197,7 +200,16 @@ esp_err_t esp_netif_attach(esp_netif_t* netif, esp_netif_iodriver_handle handle)
 esp_err_t esp_netif_set_driver_config(esp_netif_t* netif, const esp_netif_driver_ifconfig_t* config) {
     netif->driver = *config; return ESP_OK;
 }
-esp_err_t esp_netif_set_mac(esp_netif_t*, uint8_t*) { return ESP_OK; }
+esp_err_t esp_netif_set_mac(esp_netif_t* netif, uint8_t* mac) {
+    const auto error = consume(data.nextSetMacError);
+    if (error == ESP_OK) std::memcpy(netif->mac, mac, sizeof(netif->mac));
+    return error;
+}
+esp_err_t esp_netif_get_mac(esp_netif_t* netif, uint8_t* mac) {
+    const auto error = consume(data.nextGetMacError);
+    if (error == ESP_OK) std::memcpy(mac, netif->mac, sizeof(netif->mac));
+    return error;
+}
 esp_err_t esp_netif_set_link_speed(esp_netif_t*, uint32_t) { return ESP_OK; }
 esp_err_t esp_netif_receive(esp_netif_t* netif, void* buffer, size_t, void*) {
     ++data.netifRx; netif->driver.driver_free_rx_buffer(netif->driver.handle, buffer); return ESP_OK;

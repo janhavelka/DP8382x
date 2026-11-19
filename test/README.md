@@ -1,5 +1,12 @@
 # Verification
 
+The [40–42 audit](../docs/reports/implementation/40-42-independent-review.md)
+records the full pinned-driver rerun. The `example_*` suites include netif
+MAC mismatch, reset release failure, negotiating startup and the last allowed
+event delivery. `owner_continuity` and `native_application_frames` exercise
+the final clock check, malformed frame descriptors and verified recovery from
+a cached SDK DOWN.
+
 Prompt 42 registers `frame_queue`, `frame_session` and `frame_load` in the
 portable host build. In the pinned SDK host build, `native_application_frames`
 executes the raw callback and gated SDK transmit, including backpressure,

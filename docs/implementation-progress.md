@@ -1,5 +1,9 @@
 # Implementation progress
 
+The [independent audit of prompts 40–42](reports/implementation/40-42-independent-review.md)
+corrected P4 startup, stop and event handling, verified the attached network
+address, and closed a raw-session readmission gap after SDK cached link-down.
+
 Prompt 42 extends the [P4 owner](../examples/esp_idf/owner/README.md) with a
 fixed-capacity raw frame boundary. Host tests execute the SDK handoff and
 exercise RX delayed across release, readmission and retirement. The pinned

@@ -14,6 +14,7 @@ struct OwnerSnapshot {
   uint64_t generation{0};  // Identifies the session until its explicit release.
   bool evidenceAvailable{false};
   bool frameworkReady{false};
+  bool frameworkRestartRequired{false}; // SDK TX contradicted the retained MAC-UP publication.
   bool resultPending{false};
   DP8382x::HealthSnapshot health{};
   DP8382x::SettingsSnapshot settings{};
@@ -33,6 +34,9 @@ public:
                const DP8382x::SettingsSnapshot& settings,
                const DP8382x::LinkSnapshot& link, bool frameworkReady) noexcept;
   void missingEvidence(uint64_t nowUs) noexcept;
+  void cachedLinkDown(uint64_t nowUs) noexcept;
+  // Called only after the owner reconciles and successfully starts the framework.
+  void frameworkRestarted() noexcept;
   DP8382x::Status admit(uint64_t nowUs, uint64_t& generation) noexcept;
   DP8382x::Status allowFrame(uint64_t nowUs, uint64_t generation) noexcept;
   DP8382x::Status release(uint64_t generation) noexcept;
@@ -48,7 +52,8 @@ private:
   OwnerSnapshot _state{};
   DP8382x::LinkSettings _profile{};
   DP8382x::OperationResult _result{};
-  uint64_t _lastCheckUs{0};
+  uint64_t _lastClockUs{0};   // Includes the final check immediately before TX.
+  uint64_t _lastServiceUs{0}; // Only evidence service advances the allowed service gap.
   uint64_t _maintenanceEndUs{0};
   bool _maintenanceEnded{false};
   bool _clockInvalid{false};

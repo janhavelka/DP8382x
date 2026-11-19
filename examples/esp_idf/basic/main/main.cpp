@@ -14,6 +14,7 @@
 #include "esp_netif_ip_addr.h"
 #include "esp_system.h"
 #include "freertos/task.h"
+#include <array>
 #include <atomic>
 #include <cstdio>
 
@@ -36,33 +37,75 @@ struct Application {
   bool installed{false};
   std::atomic<bool> linked{false};
   std::atomic<bool> shutdownRequested{false};
-  std::atomic<bool> startDesired{false};
   std::atomic<unsigned> expectedStops{0};
   std::atomic<uint32_t> ipAddress{0};
   std::atomic<uint32_t> events{0};
   NativeStatus primary{};
   NativeStatus cleanup{};
+  const char* failedStage{"none"}; ///< First failing application step; the cause stays in primary.
+  const char* sessionEnd{"not started"}; ///< Why serve() ended its traffic session.
+  bool resultOwed{false}; ///< An admitted core result could not be delivered; CONTROL remains.
+  OperationToken owedToken{}; ///< Retained undelivered token, valid while resultOwed.
+  OperationResult lastResult{}; ///< Last delivered operation, including possible effects.
+  unsigned eventRetries{0}; ///< Consecutive owner retries of one lost link event.
 };
 Application app;
+
+/// Finite owner allowances. Counts bound loops even if the clock stalls.
+constexpr uint32_t MAX_OWNER_POLLS = 10000;   ///< Operation progress polls.
+constexpr uint32_t MAX_DELIVERY_TRIES = 100;  ///< Cancel/take attempts on gate contention.
+constexpr unsigned MAX_EVENT_RETRIES = 10;    ///< Lost link-event retries before owner stop.
+constexpr uint64_t OPERATION_WAIT_US = 6000000; ///< Owner wait over the 5 s core I/O budget.
+constexpr uint32_t CLOCK_LAG_US = 1; ///< Conservative esp_timer timestamp allowance.
 
 uint64_t nowUs() { return static_cast<uint64_t>(esp_timer_get_time()); }
 uint64_t deadlineUs() { return nowUs() + 1000000U; }
 
-void fail(esp_err_t error) {
-  if (error != ESP_OK && app.primary.ok()) app.primary.sdkError = error;
+/// Record the first failing step. Later failures never replace the first cause.
+void fail(const char* stage, esp_err_t error) {
+  if (error == ESP_OK || !app.primary.ok()) return;
+  app.primary.sdkError = error; app.failedStage = stage;
 }
-void fail(Status status) {
-  if (!status.ok() && app.primary.ok()) app.primary.coreStatus = status;
+void fail(const char* stage, Status status) {
+  if (status.ok() || !app.primary.ok()) return;
+  app.primary.coreStatus = status; app.failedStage = stage;
+}
+/// A null SDK factory result reports no cause; do not invent an exact SDK code.
+void failNull(const char* stage) {
+  fail(stage, Status::Error(Err::INVALID_CONFIG, "SDK factory returned null; cause not reported"));
 }
 void cleanupError(esp_err_t error) {
   if (error != ESP_OK && app.cleanup.ok()) app.cleanup.sdkError = error;
 }
-void retainLifecycle() {
+void cleanupError(Status status) {
+  if (!status.ok() && app.cleanup.ok()) app.cleanup.coreStatus = status;
+}
+/// Copy the adapter's typed journal. Call after every lifecycle step, also on
+/// success: a repaired stop returns OK but keeps its historical failure, and
+/// the next admitted start resets the journal.
+void retainLifecycle(const char* stage = "lifecycle journal") {
   if (!app.phy) return;
   LifecycleRecord record{};
   if (!app.phy->lifecycleSnapshot(record).ok()) return;
-  if (!record.firstError.ok() && app.primary.ok()) app.primary = record.firstError;
+  if (!record.firstError.ok() && app.primary.ok()) { app.primary = record.firstError; app.failedStage = stage; }
   if (!record.cleanupError.ok() && app.cleanup.ok()) app.cleanup = record.cleanupError;
+}
+/// Adapter step: journal cause first, so its exact cause wins over a mapped return.
+void checkAdapter(const char* stage, esp_err_t error) {
+  retainLifecycle(stage);
+  fail(stage, error);
+}
+
+const char* phaseName(Phase phase) {
+  switch (phase) {
+    case Phase::STOPPED: return "STOPPED";
+    case Phase::CONTROL: return "CONTROL";
+    case Phase::STARTING: return "STARTING";
+    case Phase::RUNNING: return "RUNNING";
+    case Phase::STOPPING: return "STOPPING";
+    case Phase::MAINTENANCE: return "MAINTENANCE";
+  }
+  return "UNKNOWN";
 }
 
 /// GPIO latch precedes output enable. Return errors even if the pin effect occurred.
@@ -83,8 +126,11 @@ void onEthernet(void* context, esp_event_base_t, int32_t id, void* data) {
     owner.linked.store(false);
     owner.ipAddress.store(0);
   }
-  if (id == ETHERNET_EVENT_STOP && owner.expectedStops.exchange(0) == 0 &&
-      owner.startDesired.load()) owner.shutdownRequested.store(true);
+  if (id == ETHERNET_EVENT_STOP) {
+    // The single event loop consumes each queued owner-stop announcement once.
+    if (owner.expectedStops.load()) owner.expectedStops.fetch_sub(1);
+    else owner.shutdownRequested.store(true);
+  }
 }
 
 /// DHCP outcome is network evidence; it never changes PHY transport health.
@@ -106,19 +152,22 @@ void onLostIp(void* context, esp_event_base_t, int32_t, void* data) {
 }
 
 /// Release only pre-install objects. lwIP initialization cannot be undone by IDF.
-/// If MAC deletion fails, borrowed PHY/bus storage remains alive.
+/// The never-installed PHY borrows the MAC and bus, so it goes first; if its
+/// destruction fails, the MAC and mutex it references stay alive. A quarantined
+/// bus may hold an unreleased mutex, so the mutex is then retained as well.
 void releaseBeforeInstall() {
-  if (app.mac) {
-    const esp_err_t error = app.mac->del(app.mac);
-    cleanupError(error);
-    if (error == ESP_OK) app.mac = nullptr;
-  }
-  if (!app.mac && app.phy) {
+  retainLifecycle("pre-install journal");
+  if (app.phy) {
     const esp_err_t error = app.phy->destroy();
     cleanupError(error);
     if (error == ESP_OK) app.phy = nullptr;
   }
-  if (!app.mac && !app.phy && app.bus.mutex) {
+  if (!app.phy && app.mac) {
+    const esp_err_t error = app.mac->del(app.mac);
+    cleanupError(error);
+    if (error == ESP_OK) app.mac = nullptr;
+  }
+  if (!app.phy && app.bus.mutex && !app.bus.quarantined.load()) {
     vSemaphoreDelete(app.bus.mutex);
     app.bus.mutex = nullptr;
   }
@@ -141,43 +190,68 @@ OperationBudget operationBudget() {
   return budget;
 }
 
-/// Finite owner polling; cancellation still keeps accepted hardware effects.
+/// True when the adapter holds this token's frozen result awaiting delivery.
+bool resultPending(OperationToken token) {
+  OperationSnapshot snapshot{};
+  return app.phy->operationSnapshot(snapshot).ok() && snapshot.token.value == token.value &&
+      snapshot.state == OperationState::RESULT_PENDING;
+}
+
+/// Finite owner polling and delivery. BUSY from the instance gate or controller
+/// is retried, never mistaken for a terminal result. Only a successful take
+/// releases CONTROL and owned bus silence, so an undelivered token is retained
+/// and reported. Cancellation keeps accepted hardware effects.
 Status finishOperation(OperationToken token) {
-  for (uint32_t poll = 0; poll < 10000U; ++poll) {
+  const uint64_t until = nowUs() + OPERATION_WAIT_US;
+  bool terminal = false;
+  for (uint32_t poll = 0; poll < MAX_OWNER_POLLS && !terminal && nowUs() < until; ++poll) {
     const Status progress = app.phy->pollOperation(token);
-    if (!progress.inProgress()) {
-      OperationResult result{};
-      const Status taken = app.phy->takeResult(token, result);
-      return taken.ok() ? result.status : taken;
-    }
-    vTaskDelay(1);
+    terminal = !progress.inProgress() && (!progress.is(Err::BUSY) || resultPending(token));
+    if (!terminal) vTaskDelay(1);
   }
-  const Status cancelled = app.phy->cancel(token);
-  OperationResult result{};
-  const Status taken = app.phy->takeResult(token, result);
-  return !cancelled.ok() ? cancelled : !taken.ok() ? taken : result.status;
+  Status outcome = Status::Error(Err::OPERATION_TIMEOUT, "Example owner operation wait expired");
+  if (!terminal) {
+    Status cancelled = Status::Error(Err::BUSY, "Cancel not attempted");
+    for (uint32_t i = 0; i < MAX_DELIVERY_TRIES && cancelled.is(Err::BUSY); ++i) {
+      cancelled = app.phy->cancel(token);
+      if (cancelled.is(Err::BUSY)) vTaskDelay(1);
+    }
+    if (!cancelled.ok()) cleanupError(cancelled);
+  }
+  Status taken = Status::Error(Err::BUSY, "Take not attempted");
+  for (uint32_t i = 0; i < MAX_DELIVERY_TRIES && taken.is(Err::BUSY); ++i) {
+    taken = app.phy->takeResult(token, app.lastResult);
+    if (taken.is(Err::BUSY)) vTaskDelay(1);
+  }
+  if (!taken.ok()) {
+    app.resultOwed = true; app.owedToken = token;
+    cleanupError(taken);
+    return terminal ? taken : outcome;
+  }
+  return terminal ? app.lastResult.status : outcome;
 }
 
 /// Construct and configure all resources before explicit framework start.
 bool initialize() {
   esp_err_t error = esp_netif_init();
-  if (error != ESP_OK) { fail(error); return false; }
+  if (error != ESP_OK) { fail("netif init", error); return false; }
   error = esp_event_loop_create_default();
   if (error == ESP_OK) app.loopOwned = true;
-  else if (error != ESP_ERR_INVALID_STATE) { fail(error); return false; }
+  else if (error != ESP_ERR_INVALID_STATE) { fail("event loop", error); return false; }
 
   esp_netif_config_t netifConfig = ESP_NETIF_DEFAULT_ETH(); // DHCP is application policy.
   app.netif = esp_netif_new(&netifConfig);
-  if (!app.netif) { fail(ESP_ERR_NO_MEM); return false; }
+  if (!app.netif) { failNull("netif new"); return false; }
+  // Dynamic mutex creation fails only on allocation.
   app.bus.mutex = xSemaphoreCreateMutex();
-  if (!app.bus.mutex) { fail(ESP_ERR_NO_MEM); return false; }
+  if (!app.bus.mutex) { fail("bus mutex", ESP_ERR_NO_MEM); return false; }
 
   eth_mac_config_t macConfig = ETH_MAC_DEFAULT_CONFIG();
   eth_esp32_emac_config_t emacConfig = ETH_ESP32_EMAC_DEFAULT_CONFIG();
   Board::apply(emacConfig);
-  if (!Board::valid(emacConfig)) { fail(ESP_ERR_INVALID_ARG); return false; }
+  if (!Board::valid(emacConfig)) { fail("board config", ESP_ERR_INVALID_ARG); return false; }
   app.mac = esp_eth_mac_new_esp32(&emacConfig, &macConfig);
-  if (!app.mac) { fail(ESP_ERR_NO_MEM); return false; }
+  if (!app.mac) { failNull("MAC new"); return false; }
 
   PhyConfig config{};
   config.core.variant = Variant::DP83826I;
@@ -185,15 +259,18 @@ bool initialize() {
   config.core.requiredMode = OperatingMode::ENHANCED;
   config.core.phyAddress = Board::PHY_ADDRESS;
   // Conditional application admission values, not measured wall-time promises.
-  config.core.transport.bounds = {2000, 1500, 1};
+  config.core.transport.bounds = {2000, 1500, CLOCK_LAG_US};
   config.notificationUs = 101000;
   config.callbackBudgetUs = 1000000;
+  // A failed start after UP needs more than one notification allowance to withdraw it.
+  config.cleanupBudgetUs = 500000;
   config.mac = app.mac;
   config.bus = &app.bus;
   config.pinnedP4Mac = true;
   config.linkPollMs = Board::LINK_POLL_MS;
+  config.waitForNegotiatedLink = true;
   error = Phy::create(config, app.phy);
-  if (error != ESP_OK) { fail(error); return false; }
+  if (error != ESP_OK) { fail("PHY create", error); return false; }
 
   BoardControl board{};
   board.setReset = setReset;
@@ -204,41 +281,69 @@ bool initialize() {
   board.clockStableAtUs = readySample;
   board.assertionUs = 1000; // R21/C24 pulse must be measured before enabling board gate.
   error = app.phy->prepareBoard(board, deadlineUs());
-  if (error == ESP_OK) error = app.phy->install(app.driver);
-  if (error != ESP_OK) { fail(error); return false; }
+  if (error != ESP_OK) { checkAdapter("board preparation", error); return false; }
+  error = app.phy->install(app.driver);
+  if (error != ESP_OK) { checkAdapter("driver install", error); return false; }
   app.installed = true;
 
+  // Pinned post_attach ignores its MAC read and netif address assignment errors.
+  // Establish the MAC address and verify the attached netif before starting DHCP.
+  std::array<uint8_t, 6> macAddress{}, netifAddress{};
+  error = esp_eth_ioctl(app.driver, ETH_CMD_G_MAC_ADDR, macAddress.data());
+  if (error != ESP_OK) { fail("EMAC address", error); return false; }
   app.glue = esp_eth_new_netif_glue(app.driver);
-  if (!app.glue) { fail(ESP_ERR_NO_MEM); return false; }
+  if (!app.glue) { failNull("netif glue"); return false; }
   // A failed attach may already have published netif to the driver RX callback.
   error = esp_netif_attach(app.netif, app.glue);
-  if (error != ESP_OK) { fail(error); return false; }
+  if (error != ESP_OK) { fail("netif attach", error); return false; }
+  error = esp_netif_get_mac(app.netif, netifAddress.data());
+  if (error != ESP_OK) { fail("netif address readback", error); return false; }
+  if (netifAddress != macAddress) {
+    fail("netif MAC mismatch", Status::Error(Err::CONFIG_MISMATCH, "Netif and EMAC addresses differ"));
+    return false;
+  }
   error = esp_event_handler_instance_register(ETH_EVENT, ESP_EVENT_ANY_ID,
                                                onEthernet, &app, &app.ethHandler);
-  if (error != ESP_OK) { fail(error); return false; }
+  if (error != ESP_OK) { fail("Ethernet handler", error); return false; }
   error = esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_GOT_IP,
                                                onIp, &app, &app.ipHandler);
-  if (error != ESP_OK) { fail(error); return false; }
+  if (error != ESP_OK) { fail("IP handler", error); return false; }
   error = esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_LOST_IP,
                                                onLostIp, &app, &app.lostIpHandler);
-  if (error != ESP_OK) { fail(error); return false; }
+  if (error != ESP_OK) { fail("lost-IP handler", error); return false; }
 
   OperationToken token{};
   InitializeOptions init{};
   init.reset = ResetKind::NONE;
   Status status = app.phy->startInitialize(init, operationBudget(), token);
   if (status.inProgress()) status = finishOperation(token);
-  if (!status.ok()) { fail(status); return false; }
+  if (!status.ok()) { fail("PHY initialize", status); return false; }
 
   LinkSettings settings{};
   settings.advertisement.technologyMask = LINK_100_FULL;
   status = app.phy->startConfigure(settings, operationBudget(), token);
   if (status.inProgress()) status = finishOperation(token);
-  if (!status.ok()) { fail(status); return false; }
+  if (!status.ok()) { fail("PHY configure", status); return false; }
   const NativeStatus reconciliation = app.phy->reconcileSdkState(deadlineUs());
-  if (!reconciliation.ok()) { app.primary = reconciliation; return false; }
+  if (!reconciliation.ok()) {
+    if (app.primary.ok()) { app.primary = reconciliation; app.failedStage = "SDK reconciliation"; }
+    return false;
+  }
   error = app.phy->setFlowControl(false, 0U, deadlineUs());
-  if (error != ESP_OK) { fail(error); return false; }
+  if (error != ESP_OK) { checkAdapter("flow control", error); return false; }
+  return true;
+}
+
+/// A copied snapshot is not refreshed by copying, and gate-denied polls can
+/// leave an old tuple in place. This application treats evidence older than
+/// three of its own poll periods as AGED and withholds the profile verdict.
+constexpr uint64_t MAX_LINK_AGE_US = uint64_t{3} * Board::LINK_POLL_MS * 1000U;
+
+/// Age of a link sample from its acquisition start; false when time is unusable.
+bool linkAge(const LinkSnapshot& link, uint64_t upperNowUs, uint64_t& ageUs) {
+  if (!link.timeValid || link.observedSinceUs > link.observedAtUs || link.observedAtUs > upperNowUs)
+    return false;
+  ageUs = upperNowUs - link.observedSinceUs;
   return true;
 }
 
@@ -252,20 +357,24 @@ void report() {
   const Status s = app.phy->settingsSnapshot(settings);
   const Status l = app.phy->linkSnapshot(link);
   const Status n = app.phy->lifecycleSnapshot(life);
-  const bool currentLink = l.ok() && link.valid && !link.stale;
+  uint64_t ageUs = 0;
+  const bool timed = l.ok() && linkAge(link, nowUs() + CLOCK_LAG_US, ageUs);
+  const bool fresh = timed && ageUs <= MAX_LINK_AGE_US;
+  const bool currentLink = l.ok() && link.valid && !link.stale && fresh;
   const bool resolved = currentLink && link.linkUp && link.resolvedModeValid;
   const bool profile = resolved && link.speed == LinkSpeed::MBPS_100 && link.duplex == Duplex::FULL;
   const char* linkEvidence = !l.ok() ? "BUSY" : !link.valid ? "UNKNOWN" :
-      link.stale ? "STALE" : "CURRENT";
+      link.stale ? "STALE" : !fresh ? "AGED" : "CURRENT";
   const char* trust = !s.ok() ? "BUSY" :
       settings.trust == ConfigurationTrust::VERIFIED ? "VERIFIED" :
       settings.trust == ConfigurationTrust::DIRTY ? "DIRTY" : "UNKNOWN";
   const uint32_t ip = app.ipAddress.load();
-  std::printf("MDIO=%s configTrust=%s linkEvidence=%s link=%u eventCarrier=%u resolved=%u speed=%u duplex=%u "
+  std::printf("MDIO=%s configTrust=%s linkEvidence=%s linkAgeMs=%lu link=%u eventCarrier=%u resolved=%u speed=%u duplex=%u "
               "profile100full=%u IP=%s %u.%u.%u.%u reachability=not-requested "
-              "events=%lu nativePhase=%u\n",
+              "events=%lu nativePhase=%s stopRequired=%s eventLost=%s\n",
               h.ok() ? driverStateName(health.state) : "BUSY",
               trust, linkEvidence,
+              static_cast<unsigned long>(timed ? ageUs / 1000U : 0U),
               static_cast<unsigned>(currentLink && link.linkUp),
               static_cast<unsigned>(app.linked.load()),
               static_cast<unsigned>(resolved),
@@ -275,57 +384,114 @@ void report() {
               static_cast<unsigned>(ip & 0xffU), static_cast<unsigned>((ip >> 8U) & 0xffU),
               static_cast<unsigned>((ip >> 16U) & 0xffU), static_cast<unsigned>(ip >> 24U),
               static_cast<unsigned long>(app.events.load()),
-              n.ok() ? static_cast<unsigned>(life.phase) : 0U);
+              n.ok() ? phaseName(life.phase) : "BUSY",
+              !n.ok() ? "BUSY" : life.stopRequired ? "yes" : "no",
+              !n.ok() ? "BUSY" : life.eventLost ? "yes" : "no");
+}
+
+/// Service the adapter's cached obligations on the owner task. Copies only; no
+/// PHY I/O and no second poller. Returns false when the session must end:
+/// the adapter requires an owner stop, or a lost link event stays undelivered.
+bool serviceObligations() {
+  LifecycleRecord life{};
+  if (!app.phy->lifecycleSnapshot(life).ok()) return true; // Gate busy: next step.
+  if (life.stopRequired) {
+    app.sessionEnd = "adapter requires owner stop";
+    fail("running observation", life.lastObservationStatus);
+    retainLifecycle("running observation");
+    return false;
+  }
+  if (!life.eventLost) { app.eventRetries = 0; return true; }
+  // Check the receipt on the next turn even for the final attempt: an event
+  // accepted late returns TIMEOUT but clears eventLost.
+  if (app.eventRetries >= MAX_EVENT_RETRIES) {
+    app.sessionEnd = "link event delivery unresolved";
+    retainLifecycle("link event");
+    return false;
+  }
+  ++app.eventRetries;
+  (void)app.phy->retryLinkEvent(nowUs() + 200000U);
+  return true;
+}
+
+/// Owner stop that keeps the queued STOP receipt until its callback arrives.
+esp_err_t ownerStop() {
+  // STOP is queued. Keep this receipt until callback delivery, even if it
+  // arrives after the next START; current desired state is not its origin.
+  app.expectedStops.fetch_add(1);
+  const esp_err_t error = app.phy->stop(deadlineUs());
+  checkAdapter("owner stop", error);
+  return error;
+}
+
+/// Run one traffic interval; false when shutdown or an obligation ends the session.
+bool runInterval(unsigned steps) {
+  for (unsigned step = 0; step < steps; ++step) {
+    vTaskDelay(pdMS_TO_TICKS(100));
+    if (app.shutdownRequested.load()) { app.sessionEnd = "unexpected framework STOP"; return false; }
+    if (!serviceObligations()) return false;
+    if (step % 10U == 0U) report();
+  }
+  return true;
 }
 
 /// A bounded, console-independent stop/start cycle exercises the single owner.
+/// Lifecycle obligations end the session with an owner stop and no restart.
 void serve() {
-  app.startDesired.store(true);
+  if (app.shutdownRequested.load()) { app.sessionEnd = "start withheld"; return; }
   esp_err_t error = app.phy->start(deadlineUs());
-  retainLifecycle();
-  if (error != ESP_OK) { fail(error); return; }
-  for (unsigned cycle = 0; cycle < 2 && !app.shutdownRequested.load(); ++cycle) {
-    const unsigned ticks = cycle == 0 ? 100U : 200U;
-    for (unsigned step = 0; step < ticks && !app.shutdownRequested.load(); ++step) {
-      vTaskDelay(pdMS_TO_TICKS(100));
-      if (step % 10U == 0U) report();
-    }
-    if (cycle == 0 && !app.shutdownRequested.load()) {
-      app.startDesired.store(false);
-      // STOP is queued. Keep this receipt until callback delivery, even if it
-      // arrives after the next START; current desired state is not its origin.
-      app.expectedStops.store(1);
-      error = app.phy->stop(deadlineUs());
-      retainLifecycle();
-      if (error != ESP_OK) { fail(error); break; }
-      vTaskDelay(pdMS_TO_TICKS(1000));
-      app.startDesired.store(true);
-      error = app.phy->start(deadlineUs());
-      retainLifecycle();
-      if (error != ESP_OK) { fail(error); break; }
-    }
+  checkAdapter("start", error);
+  if (error != ESP_OK) { app.sessionEnd = "start failed"; return; }
+  app.sessionEnd = "running";
+  bool active = runInterval(100);
+  if (active) {
+    if (ownerStop() != ESP_OK) { app.sessionEnd = "owner stop failed"; return; }
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    // An unexpected STOP delivered while stopped prevents the restart. A
+    // completed owner stop has already discharged any stopRequired latch.
+    if (app.shutdownRequested.load()) { app.sessionEnd = "restart withheld"; return; }
+    error = app.phy->start(deadlineUs());
+    checkAdapter("restart", error);
+    if (error != ESP_OK) { app.sessionEnd = "restart failed"; return; }
+    active = runInterval(200);
+    if (active) app.sessionEnd = "demonstration complete";
   }
-  app.startDesired.store(false);
+  if (!active) {
+    LifecycleRecord life{};
+    if (app.phy->lifecycleSnapshot(life).ok() && life.phase == Phase::RUNNING) (void)ownerStop();
+  }
 }
 
 /// Installed objects, including netif/glue/handlers, remain alive until restart.
 /// Callback context is static; no event callback waits on its own unregister.
 void finish() {
   if (app.installed) {
+    // An undelivered core result keeps CONTROL, so retirement is refused and
+    // reported rather than claimed; the token stays recorded below.
     const esp_err_t error = app.phy->retire(deadlineUs());
-    retainLifecycle();
+    retainLifecycle("retire");
     if (error != ESP_ERR_NOT_SUPPORTED) cleanupError(error);
   } else {
     releaseBeforeInstall();
   }
-  std::printf("primary core=%s detail=%ld SDK=%s cleanup core=%s detail=%ld SDK=%s; installed resources %s\n",
+  std::printf("primary stage=%s core=%s detail=%ld SDK=%s cleanup core=%s detail=%ld SDK=%s; "
+              "session=%s; resultOwed=%s token=%llu; installed resources %s\n",
+              app.failedStage,
               errorName(app.primary.coreStatus.code),
               static_cast<long>(app.primary.coreStatus.detail),
               esp_err_to_name(app.primary.sdkError),
               errorName(app.cleanup.coreStatus.code),
               static_cast<long>(app.cleanup.coreStatus.detail),
               esp_err_to_name(app.cleanup.sdkError),
+              app.sessionEnd, app.resultOwed ? "yes" : "no",
+              static_cast<unsigned long long>(app.owedToken.value),
               app.installed ? "retained until restart" : "released where safe");
+  if (app.lastResult.token.value != 0) {
+    std::printf("last delivered operation=%llu status=%s possible-write=%u cleanup-owed=%u\n",
+                static_cast<unsigned long long>(app.lastResult.token.value),
+                errorName(app.lastResult.status.code), static_cast<unsigned>(app.lastResult.mutationPossible),
+                static_cast<unsigned>(app.lastResult.cleanupOwed));
+  }
 }
 
 /// @brief Called only after application/board authorization; never by a handler.
@@ -340,6 +506,15 @@ void run(bool boardReady) {
 } // namespace
 
 #ifndef DP8382X_EXAMPLE_TEST
+#ifdef CONFIG_DP8382X_BOARD_READY
+static constexpr bool BOARD_GATE = true;
+#else
+static constexpr bool BOARD_GATE = false;
+#endif
+/// The volatile read keeps the operational chain in every image, so a default
+/// (gate-closed) build still links the complete MAC/PHY/glue/service path.
+static volatile bool boardGate = BOARD_GATE;
+
 extern "C" void app_main(void) {
   std::printf("DP8382x %s source=%s tree=%s SDK=%s target=%s "
               "P4 RMII MDC=%d MDIO=%d REF_CLK=%d TX_EN=%d TXD0=%d TXD1=%d "
@@ -352,10 +527,6 @@ extern "C" void app_main(void) {
               Board::RXD1, Board::RESET_N,
               static_cast<unsigned long>(Board::PHY_ADDRESS),
               static_cast<unsigned long>(Board::LINK_POLL_MS));
-#ifdef CONFIG_DP8382X_BOARD_READY
-  run(true);
-#else
-  run(false);
-#endif
+  run(boardGate);
 }
 #endif

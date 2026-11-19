@@ -41,7 +41,18 @@ and machine safety belong to the application.
 
 The application allocates four slots per direction and services at most one
 slot from each per turn. A dequeued TX carries its original generation until
-the synchronous SDK call. An RX callback entering after readmission can report
+the synchronous SDK call. The final check validates its length, handle,
+generation and sample age. A regressing owner clock withdraws admission even
+if the regression falls between frame submission and the next service turn.
+The service-gap budget is measured between owner checks.
+
+After an SDK cached DOWN, the PHY can continue to report the same UP tuple
+while the driver suppresses duplicate publications. Release the withdrawn
+generation, quiesce the application queues and request verified maintenance.
+Only a successful framework restart clears `frameworkRestartRequired`.
+A fresh post-maintenance sample then permits explicit readmission.
+
+An RX callback entering after readmission can report
 only its current delivery generation. The example counts EtherTypes and never
 automatically replies. Wire capture on a known peer would establish actual
 delivery there. Cycle period, latency, loss under load and master behavior

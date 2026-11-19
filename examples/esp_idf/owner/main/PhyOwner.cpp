@@ -40,8 +40,9 @@ void PhyOwner::withdraw() noexcept {
 }
 
 bool PhyOwner::checkTime(uint64_t nowUs) noexcept {
-  if (nowUs < _lastCheckUs) _clockInvalid = true;
-  const bool inTime = !_clockInvalid && nowUs - _lastCheckUs <= MAX_SERVICE_GAP_US;
+  if (nowUs < _lastClockUs) _clockInvalid = true;
+  _lastClockUs = nowUs;
+  const bool inTime = !_clockInvalid && nowUs - _lastServiceUs <= MAX_SERVICE_GAP_US;
   if (!inTime) withdraw();
   return inTime;
 }
@@ -55,13 +56,13 @@ void PhyOwner::observe(uint64_t nowUs, const HealthSnapshot& health, const Setti
        link.observations - old.observations > 1U ||
        (link.observations != old.observations && (link.rawBmsrFirst & 4U) == 0U))) withdraw();
 
-  _lastCheckUs = nowUs;
+  _lastServiceUs = nowUs;
   _state.evidenceAvailable = true;
-  _state.frameworkReady = frameworkReady;
+  _state.frameworkReady = frameworkReady && !_state.frameworkRestartRequired;
   _state.health = health;
   _state.settings = settings;
   _state.link = link;
-  const bool usable = !_clockInvalid && frameworkReady && health.initialized && health.state == DriverState::READY &&
+  const bool usable = !_clockInvalid && _state.frameworkReady && health.initialized && health.state == DriverState::READY &&
       settings.trust == ConfigurationTrust::VERIFIED && settings.desiredValid && settings.observedValid &&
       !settings.observedStale && settings.lastVerificationStatus.ok() &&
       matches(settings.desired, _profile) && matches(settings.observed, _profile) &&
@@ -77,9 +78,21 @@ void PhyOwner::observe(uint64_t nowUs, const HealthSnapshot& health, const Setti
 
 void PhyOwner::missingEvidence(uint64_t nowUs) noexcept {
   checkTime(nowUs);
-  _lastCheckUs = nowUs;
+  _lastServiceUs = nowUs;
   _state.evidenceAvailable = false;
   withdraw();
+}
+
+void PhyOwner::cachedLinkDown(uint64_t nowUs) noexcept {
+  missingEvidence(nowUs);
+  // A later identical PHY UP can leave the driver's cached link DOWN: the
+  // adapter suppresses duplicate UP publications. Require a framework restart.
+  _state.frameworkReady = false;
+  _state.frameworkRestartRequired = true;
+}
+
+void PhyOwner::frameworkRestarted() noexcept {
+  _state.frameworkRestartRequired = false;
 }
 
 Status PhyOwner::admit(uint64_t nowUs, uint64_t& generation) noexcept {
@@ -110,8 +123,7 @@ Status PhyOwner::beginMaintenance(bool framesQuiescent) noexcept {
 }
 void PhyOwner::finishMaintenance(uint64_t nowUs) noexcept {
   if (_state.phase != OwnerPhase::MAINTENANCE) return;
-  checkTime(nowUs);
-  _lastCheckUs = nowUs;
+  missingEvidence(nowUs);
   _maintenanceEndUs = nowUs;
   _maintenanceEnded = true;
   _state.phase = OwnerPhase::WAITING;

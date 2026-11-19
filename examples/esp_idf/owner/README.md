@@ -72,7 +72,12 @@ both enabled for a dedicated fixture, `x` queues one 60-byte frame, using the
 actual MAC source and destination `02:00:00:00:00:2A`. The single owner task
 submits it at most once. `s` displays application drops, DMA acceptance,
 backpressure, cached link-down and the first and latest SDK transmit errors.
-Cached link-down withdraws the session. Select the example's mutex-off TX
+If transmit returns cached link-down, `s` shows `frameworkRestartRequired=1`
+and the current generation is withdrawn. Release with `r`, take any pending
+result with `t`, then request verified restoration with `v`. A successful
+framework restart clears the flag. A fresh post-maintenance 100/full sample
+allows explicit admission with `a`. A PHY UP sample alone can leave the SDK
+transmit cache DOWN. Select the example's mutex-off TX
 and unchunked cache configuration and a maximum log level of INFO for the
 bounded submit path.
 

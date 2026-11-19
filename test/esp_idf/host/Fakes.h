@@ -27,6 +27,8 @@ struct State {
     unsigned failHandlerRegistrationNumber = 0; // 1-based; zero disables ordinal injection.
     unsigned handlerRegistrationCount = 0;
     esp_err_t nextNetifAttachError = ESP_OK; // Applied after post_attach publishes RX context.
+    esp_err_t nextSetMacError = ESP_OK;
+    esp_err_t nextGetMacError = ESP_OK;
     esp_err_t nextTimerCreateError = ESP_OK;
     esp_err_t nextTimerStartError = ESP_OK;
     esp_err_t nextTimerStopError = ESP_OK;

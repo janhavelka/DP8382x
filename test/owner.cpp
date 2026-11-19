@@ -137,6 +137,36 @@ void continuity() {
   const auto live = gap.admit();
   CHECK(gap.owner.allowFrame(gap.now + MAX_SERVICE_GAP_US,live).ok());
   CHECK(!gap.owner.allowFrame(gap.now + MAX_SERVICE_GAP_US + 1,live).ok());
+
+  Fixture clock;
+  const auto session = clock.admit();
+  CHECK(clock.owner.allowFrame(clock.now + 10, session).ok());
+  clock.now += 5; // Later than the last service, earlier than the final TX check.
+  clock.observe();
+  CHECK(clock.owner.snapshot().phase == OwnerPhase::WITHDRAWN);
+  CHECK(clock.owner.release(session).ok());
+  clock.now += 20;
+  clock.observe();
+  CHECK(clock.owner.snapshot().phase == OwnerPhase::WAITING);
+
+  Fixture lost;
+  const auto old = lost.admit();
+  lost.owner.cachedLinkDown(++lost.now);
+  CHECK(lost.owner.release(old).ok());
+  lost.observe();
+  CHECK(lost.owner.snapshot().phase == OwnerPhase::WAITING);
+  lost.link.observedAtUs = lost.link.observedSinceUs = ++lost.now;
+  lost.observe(); // Fresh PHY evidence cannot repair the SDK's own link cache.
+  CHECK(lost.owner.snapshot().frameworkRestartRequired && !lost.owner.snapshot().frameworkReady);
+  uint64_t refused = old;
+  CHECK(!lost.owner.admit(lost.now, refused).ok() && refused == old);
+  CHECK(lost.owner.beginMaintenance(true).ok());
+  lost.owner.finishMaintenance(++lost.now);
+  lost.owner.frameworkRestarted();
+  lost.observe(); // Pre-maintenance sample.
+  CHECK(lost.owner.snapshot().phase == OwnerPhase::WAITING);
+  lost.link.observedAtUs = lost.link.observedSinceUs = ++lost.now;
+  CHECK(lost.admit() != old);
 }
 
 void recovery() {

@@ -184,7 +184,9 @@ bool finish(OperationResult& result, bool cancellable) {
 bool runFramework() {
   const auto state = phy->reconcileSdkState(deadline());
   if (!state.ok()) { show("reconciliation", state.coreStatus); accepted("reconciliation", state.sdkError); return false; }
-  return accepted("framework start", phy->start(deadline()));
+  if (!accepted("framework start", phy->start(deadline()))) return false;
+  owner.frameworkRestarted();
+  return true;
 }
 
 void decide(void* action, const LinkSnapshot& link, const SettingsSnapshot& settings,
@@ -282,9 +284,10 @@ void run() {
     observe(key); // Same adapter gate for current evidence and explicit admission.
     const auto& view = owner.snapshot();
     if (view.phase != previous || key == 's') {
-      std::printf("phase=%s generation=%llu evidenceAvailable=%d frameworkReady=%d health=%s trust=%u linkValid=%u stale=%u linkUp=%u speed=%u duplex=%u resultPending=%u\n",
+      std::printf("phase=%s generation=%llu evidenceAvailable=%d frameworkReady=%d frameworkRestartRequired=%d health=%s trust=%u linkValid=%u stale=%u linkUp=%u speed=%u duplex=%u resultPending=%u\n",
           phaseName(view.phase), static_cast<unsigned long long>(view.generation),
-          view.evidenceAvailable, view.frameworkReady, driverStateName(view.health.state), static_cast<unsigned>(view.settings.trust),
+          view.evidenceAvailable, view.frameworkReady, view.frameworkRestartRequired,
+          driverStateName(view.health.state), static_cast<unsigned>(view.settings.trust),
           view.link.valid, view.link.stale, view.link.linkUp, static_cast<unsigned>(view.link.speed),
           static_cast<unsigned>(view.link.duplex), view.resultPending);
       previous = view.phase;

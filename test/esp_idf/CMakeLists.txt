@@ -109,7 +109,11 @@ foreach(suite IN ITEMS board_config gate_closed shared_loop netif_init_failure
     app_registration_6 app_registration_7 app_registration_8
     attach_partial_failure event_burst_no_console start_stop start_failure
     stop_failure stop_event_failure start_timer_failure stop_timer_failure
-    start_mdio_failure queued_expected_stop unexpected_stop)
+    start_mdio_failure queued_expected_stop unexpected_stop quarantined_mutex_retained
+    operation_busy_retry operation_result_owed running_stop_required lost_event_retry
+    lost_event_unresolved link_evidence_age board_release_failure last_event_retry
+    unexpected_stop_gap negotiating_start emac_address_failure netif_address_mismatch
+    netif_address_read_failure)
   add_test(NAME example_${suite} COMMAND dp8382x_example_host_tests ${suite})
   set_tests_properties(example_${suite} PROPERTIES TIMEOUT 30)
 endforeach()

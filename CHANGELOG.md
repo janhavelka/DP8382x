@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed P4 example startup and event handling, retained operation effects on
+  failure, and verified the netif MAC before DHCP. Raw TX now rejects invalid
+  frame descriptors and requires verified framework recovery after cached DOWN.
+
 - Added raw frame handoff to the P4 owner example with fixed RX/TX storage,
   generation checks at submission and an explicitly enabled single test frame.
 

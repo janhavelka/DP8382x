@@ -19,6 +19,14 @@ The example's Git/dirty identity is refreshed in its build directory; an
 archive reports unknown. Its `1000 ms` poll and conditional controller/callback
 bounds are application policy, not measured PHY or scheduling guarantees.
 
+The basic example independently reads the EMAC address before attaching
+the glue and compares it with the attached netif before starting. ESP-IDF
+v6.1 discards both the address-read and netif-set return values inside
+`esp_eth_post_attach`. A mismatch or unavailable readback stops startup.
+The example keeps the delivered operation result in static storage and
+configures a 16 KiB main task. It services a negotiating link through the
+single framework poller.
+
 The application acquires lwIP/default loop, netif, bus mutex, MAC and PHY,
 prepares the board, installs the driver, creates glue/attaches netif/registers
 handlers, initializes and verifies 100/full AN, reconciles SDK state, then

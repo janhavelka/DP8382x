@@ -2758,6 +2758,7 @@ void applicationFrames() {
         RawFrame packet{};
         TxCounts tx{};
         bool submit{};
+        Status admission{};
     } session{{}, port, f.handle};
     LinkSettings wanted;
     wanted.advertisement.technologyMask = LINK_100_FULL;
@@ -2773,13 +2774,14 @@ void applicationFrames() {
                 if (s.submit) {
                     (void)transmitAdmitted(s.policy, s.port, now, s.handle, s.packet, s.tx);
                 } else {
-                    assert(s.policy.admit(now, s.generation).ok());
-                    assert(s.port.setSession(s.generation));
+                    s.admission = s.policy.admit(now, s.generation);
+                    if (s.admission.ok()) assert(s.port.setSession(s.generation));
                 }
             }).ok());
         assert(f.mac.frames.size() == frames); // No MDIO or additional poll.
     };
     service(false);
+    assert(session.admission.ok());
     for (unsigned i = 0; i < 5; ++i) arrive(64);
     arrive(1519);
     assert(port.counts().rxAccepted == 4 && port.counts().rxDropped == 3 && Host::state().netifRx == 0);
@@ -2796,6 +2798,20 @@ void applicationFrames() {
     };
     service(true);
     assert(session.tx.queuedToDma == 1);
+    // The SDK dereferences the handle first and trusts the supplied byte count.
+    // A malformed application descriptor must never reach it, even in a live session.
+    for (uint16_t length : {0, 13, 1519}) {
+        session.packet.length = length;
+        service(true);
+    }
+    session.packet.length = sizeof(payload);
+    session.handle = nullptr;
+    service(true);
+    session.handle = f.handle;
+    const auto malformedDenials = session.tx.denied;
+    assert(malformedDenials == 4 && countCall("mac.transmit") == 1);
+    assert(session.tx.lastError == ESP_OK && session.tx.firstError == ESP_OK &&
+           session.tx.queuedToDma == 1 && session.policy.snapshot().phase == OwnerPhase::ACTIVE);
     f.mac.errors["mac.transmit"] = ESP_ERR_NO_MEM;
     service(true);
     assert(session.tx.backpressure == 1 && session.tx.lastError == ESP_ERR_NO_MEM);
@@ -2810,19 +2826,41 @@ void applicationFrames() {
     assert(session.policy.snapshot().phase == OwnerPhase::WITHDRAWN);
     assert(!port.queueTx(session.generation, payload, sizeof(payload)));
     assert(session.packet.length == sizeof(payload) && session.packet.bytes[0] == 0x02);
-    assert(f.mac.mediator->on_state_changed(f.mac.mediator, ETH_STATE_LINK, reinterpret_cast<void*>(ETH_LINK_UP)) == ESP_OK);
     service(true);
-    assert(session.tx.denied == 1 && countCall("mac.transmit") == 3);
+    assert(session.tx.denied == malformedDenials + 1 && countCall("mac.transmit") == 3);
 
     f.mac.pauseRxAfterMediatorLoad();
     assert(port.setSession(0) && session.policy.release(session.generation).ok() && port.quiesce());
     const auto old = session.generation;
     service(false);
-    assert(session.generation != old);
+    assert(!session.admission.ok() && session.generation == old);
+    Host::state().nowUs += 2;
+    Host::tickTimers();
+    service(false);
+    // Even a newer coherent PHY UP leaves the private SDK cache DOWN when
+    // the adapter's last published tuple was identical and it skips an UP.
+    assert(!session.admission.ok() && session.policy.snapshot().frameworkRestartRequired);
+    assert(session.policy.beginMaintenance(port.quiesce()).ok());
+    assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+    OperationToken token;
+    assert(f.owner->startInitialize({ResetKind::NONE}, {{Host::state().nowUs + 1000000,512},10,16}, token).inProgress());
+    const auto restored = f.finish(token);
+    assert(restored.status.ok() && restored.persistentRestored && !restored.cleanupOwed);
+    session.policy.finishMaintenance(Host::state().nowUs + 1);
+    assert(f.owner->reconcileSdkState(Host::state().nowUs + 100000).ok());
+    Host::state().nowUs += 2;
+    assert(f.start() == ESP_OK);
+    session.policy.frameworkRestarted();
+    service(false);
+    assert(session.admission.ok() && session.generation != old);
     service(true); // Dequeued buffer from the old session.
-    assert(session.tx.denied == 2 && countCall("mac.transmit") == 3);
+    assert(session.tx.denied == malformedDenials + 2 && countCall("mac.transmit") == 3);
     assert(f.mac.resumeRx() == ESP_OK && applicationRxFrees == 9);
     assert(port.popRx(session.generation, received) && received.generation == session.generation);
+    assert(port.queueTx(session.generation, payload, sizeof(payload)));
+    assert(port.popTx(session.generation, session.packet));
+    service(true);
+    assert(session.tx.queuedToDma == 2 && session.tx.lastError == ESP_OK);
     // A callback first entered after readmission gives no wire-arrival epoch.
     f.mac.pauseRxAfterMediatorLoad();
     assert(port.setSession(0) && session.policy.release(session.generation).ok() && port.quiesce());

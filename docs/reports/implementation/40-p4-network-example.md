@@ -147,3 +147,36 @@ updated. No version increment, new package manifest, SDK fork or workflow is
 appropriate for this stage. The source audit, stage code, tests and checks are
 committed and synchronized on `main`; the final commit ID belongs in the
 handoff to avoid a self-reference.
+
+## Follow-up review, 2026-11-19
+
+An independent OpenAI audit (`aud-20261119-093117-0ad388`, gpt-6.2-astra,
+complex depth) of `c2023d9` against this prompt and the shared contracts was
+compared with a separate Claude review of the same code before any change.
+Both reviews agreed on the functional defects below; each fix has a registered
+`example_*` regression, and each regression was checked by restoring the old
+behaviour one fix at a time (every one failed except a restart check that
+proved redundant and was simplified).
+
+| Finding | Disposition |
+| --- | --- |
+| F2 service loop ignored `stopRequired` and `eventLost` | Fixed. Each 100 ms step copies the journal (no I/O). `stopRequired` ends the session with an owner stop and no restart; `eventLost` uses the event-only `retryLinkEvent` and stops after 10 undelivered steps. Tests `running_stop_required`, `lost_event_retry`, `lost_event_unresolved`. |
+| F3 a BUSY poll or failed take stranded the operation token | Fixed. BUSY is retried, never treated as terminal; cancel/take retry within finite counts; an undelivered token is kept, reported, and retirement is refused rather than claimed. Tests `operation_busy_retry`, `operation_result_owed`. |
+| F1 pre-install unwind order and quarantined mutex | Fixed. The never-installed PHY (the borrower) is destroyed before the MAC; a failed PHY destruction keeps MAC and mutex; a quarantined bus keeps its possibly held mutex. Tests `mac_cleanup_failure`, `quarantined_mutex_retained`. |
+| F5 the gate-closed image did not link the operational path | Fixed. The gate is read through a `volatile`, so the default image keeps the complete MAC/PHY/glue/service chain; checked by symbol comparison of the old and new P4 images. |
+| F7 invented NO_MEM for null factories; typed board cause lost | Fixed. Null factories record their stage with an unknown cause; adapter steps copy the typed journal before the mapped return; the final line names the failing stage. A repaired stop's historical failure is still captured before the next start resets the journal. |
+| F8 stale-but-copied link evidence printed CURRENT; BUSY phase printed STOPPED | Fixed. CURRENT requires a sample at most three poll periods old (`linkAgeMs`, else `AGED`); unavailable phase prints `BUSY`. Test `link_evidence_age`. |
+| F11 cleanup allowance could not admit an owed DOWN | Fixed. `cleanupBudgetUs` is 500 ms, above the 101 ms notification allowance. |
+| F9 some start/stop failure tests accept several outcomes | Partly fixed: the success path now requires MAINTENANCE and a completed session. Deferred to prompt 54: exact per-variant outcome oracles, attach sub-step failures and reset-release failure after assertion. |
+| F4 ending the netif session before retirement | Deferred. Retirement stops the MAC and posts STOP, which stops the netif; late RX lifetime stays under the BLOCKED `native_rx_quiescence` gate and physical prompt 72. |
+| F6 console backpressure on the owner task | Deferred to prompt 47, which routes output through the shared bounded CLI writer. ESP32-P4 UART0 console writes are bounded per line by baud rate. |
+| F10 example translation unit outside the SDK closure manifest | Deferred to prompt 55: give the example configuration its own pinned closure manifest. |
+
+Auditor questions that remain open and are owned elsewhere: boot-time PHY
+power and REF_CLK validity (board gate, physical prompt 72), main and timer
+task stack margins (`native_wall_time`, prompt 72), and whether the optional
+local-peer probe should be selectable (prompt 47 CLI). None was invented here.
+
+The [subsequent independent review](40-42-independent-review.md) resolved
+the F9 start/stop, reset-release and attach cases and corrected the main-task
+stack configuration. It records fresh host and image results for both P4 examples.

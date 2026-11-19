@@ -31,7 +31,10 @@ conditions; real timing is unmeasured.
 
 The committed `sdkconfig.defaults` leaves `DP8382X_BOARD_READY` off. With the
 gate off, the image reports build/board identity and returns before touching
-GPIO, MAC, MDIO or the network. After the physical checks above, an authorized
+GPIO, MAC, MDIO or the network. The gate is read through a `volatile` value,
+so the default image still links the complete MAC, PHY, glue and service path;
+a gate-closed build therefore proves that path links, not only the banner.
+After the physical checks above, an authorized
 board owner may use `menuconfig` to enable the gate in a local ignored
 `sdkconfig`, rebuild and inspect the exact configuration before flashing.
 
@@ -56,7 +59,10 @@ performed by this stage. Confirm the supply, reset, clocks and netlist before
 enabling the gate. Connect a local DHCP-capable peer/switch and record PHY
 identity, negotiated profile, assigned IP and a separately requested local-peer
 probe. This application does not probe a peer on its own; `reachability` prints
-`not-requested`. DHCP failure is IP evidence even if MDIO and link are healthy.
+`not-requested`. For an explicitly requested fixture check, a peer on the same
+LAN can run `ping -n 3 <assigned-ip>` on Windows during a running interval.
+Record its target, replies and timeouts separately from the assigned address.
+DHCP failure is IP evidence even if MDIO and link are healthy.
 A valid 10/half link does not satisfy this application's 100/full profile.
 
 ## Ownership and limits
@@ -65,10 +71,18 @@ A valid 10/half link does not satisfy this application's 100/full profile.
 MAC, native PHY and Ethernet driver. It initializes the shared lwIP facility,
 creates or borrows the default event loop, creates a netif, MAC and PHY, prepares
 board reset/clock readiness, installs the driver, creates glue, attaches netif,
-registers application handlers, initializes/configures/reconciles the PHY,
+checks the attached netif MAC against the EMAC, registers application handlers,
+initializes/configures/reconciles the PHY,
 then starts the framework. The SDK's own periodic timer is the only PHY link
 poller. DHCP belongs to `esp_netif`; no static address or remote probe is
 implicitly configured.
+
+A healthy link still negotiating at startup remains under framework polling
+until a resolved mode is available. The main task defaults to a 16 KiB stack.
+The owner keeps the last delivered operation result in static application
+storage and reports its token, possible writes and cleanup obligation on exit.
+When reusing an older local `sdkconfig`, check `CONFIG_ESP_MAIN_TASK_STACK_SIZE`
+before building. Actual task stack high-water marks need a running fixture.
 
 Callbacks only copy bounded link/IP facts or request shutdown; they perform no
 console output, blocking cleanup or PHY I/O. The owner task prints cached
@@ -77,8 +91,38 @@ Its finite service loop does not wait for console input and stops/restarts once.
 An unexpected STOP callback requests owner shutdown. Task 47 can route shared
 CLI requests through this same owner loop without adding a second poller.
 
-Before successful driver installation, cleanup releases created MAC/PHY/mutex,
-netif and the owned default loop in dependency order. `esp_netif_init` is
+Every 100 ms service step also copies the adapter's lifecycle journal (no PHY
+I/O) and acts on its obligations:
+
+- `stopRequired` (observation or publication trust lost): the owner stops at
+  once, records the current observation cause and does not restart.
+- `eventLost` (the P4 MAC accepted a link change but its event was not
+  delivered): the owner calls the event-only `retryLinkEvent`, which never
+  replays MAC UP. After 10 consecutive steps without delivery it stops.
+
+The final line names the first failing stage, the primary and cleanup causes,
+why the session ended and whether a core result is still owed.
+
+Typed operations (initialize, configure) are polled to completion on the owner
+task. A `BUSY` poll means the instance gate or controller was contended, not
+that the operation ended, so it is retried. Only a successful `takeResult`
+releases control and owned bus silence. If poll, cancel and take all stay
+contended for the finite allowance (about 6 s, capped by attempt counts), the
+token is kept and reported as owed, and retirement is refused rather than
+claimed.
+
+Link evidence prints `CURRENT` only when the cached sample is valid, not stale
+and at most three poll periods old (`linkAgeMs`); otherwise `AGED`, `STALE`,
+`UNKNOWN` or `BUSY`, and the 100/full profile verdict is withheld. Copying a
+snapshot never refreshes it, and contended polls can leave an old sample.
+
+Before successful driver installation, cleanup releases created PHY, MAC, mutex,
+netif and the owned default loop in dependency order: the PHY borrows the MAC
+and bus, so it goes first, and a PHY that cannot be destroyed keeps both alive.
+A quarantined bus may still hold its mutex, which is then retained. A null SDK
+factory result reports no cause, so it is recorded by stage, not as an
+invented SDK error code. The failed-start cleanup allowance is set to 500 ms,
+above the 101 ms notification allowance needed to withdraw an accepted UP. `esp_netif_init` is
 process-wide and IDF v6.1 cannot deinitialize its lwIP thread; the example does
 not claim to own or delete it. After installation, `native_rx_quiescence` keeps
 driver, glue, netif, MAC, PHY, handlers and static context alive until system
