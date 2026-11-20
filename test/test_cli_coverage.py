@@ -14,6 +14,24 @@ STAGE_44_ROUTES = {
     "registers read", "registers write", "registers modify", "registers dump",
     "registers bmcr",
 }
+STAGE_45_ROWS = {
+    "access": {"test stress", "test stop", "test stats"},
+    "reset": {"recovery reset", "recovery restart", "recovery reinitialize"},
+    "initialization": {
+        "connection initialize", "connection end", "owner start", "owner poll",
+        "owner status", "owner result", "owner cancel", "owner abandon",
+    },
+    "link": {"link read", "link partner", "link cached", "link watch"},
+    "counters": {"link collect", "cached events"},
+    "straps": {"connection initialize", "recovery reinitialize"},
+    "pcs_reset": {"recovery reset"},
+    "hard_reset": {"recovery reset"},
+    "restart": {"recovery restart"},
+    "external_reset": {"recovery reinitialize"},
+    "initialize_10base": {"connection initialize", "recovery reinitialize"},
+    "observe_link": {"link read", "link partner", "link cached", "link watch"},
+    "collect_event_counters": {"link collect", "cached events"},
+}
 
 
 def registered_tests():
@@ -81,7 +99,7 @@ class CliCoverageTests(unittest.TestCase):
         for owner in sorted(owners):
             with self.subTest(owner=owner):
                 self.assertIn(owner, self.features)
-                self.assertRegex(rows[owner][5], r"^(`[^`]+`|Pending (45|46|47)\b|N/A\.)")
+                self.assertRegex(rows[owner][5], r"^(`[^`]+`|Pending (46|47)\b|N/A\.)")
 
     def test_listed_commands_have_dispatch_and_evidence(self):
         rows = self.rows()
@@ -96,7 +114,7 @@ class CliCoverageTests(unittest.TestCase):
                 commands = set(re.findall(r"`([^`]+)`", cells[5]))
                 self.assertLessEqual(commands, registered)
                 if not commands:
-                    self.assertRegex(cells[5], r"^(Pending (45|46|47)\b|N/A\.)")
+                    self.assertRegex(cells[5], r"^(Pending (46|47)\b|N/A\.)")
                 documented.update(commands)
                 named_checks = set(re.findall(r"\b[a-z]+(?:_[a-z]+)+\b", cells[7]))
                 self.assertTrue(named_checks, f"Missing host check: {identifier}")
@@ -110,6 +128,20 @@ class CliCoverageTests(unittest.TestCase):
         self.assertLessEqual(STAGE_44_ROUTES, documented)
         for identifier in ("access", "negotiation", "crossover"):
             self.assertIn("native_cli_reconciliation", rows[identifier][7])
+
+    def test_link_and_lifecycle_routes_keep_terminal_and_sample_evidence(self):
+        rows = self.rows()
+        for identifier, expected in STAGE_45_ROWS.items():
+            with self.subTest(row=identifier):
+                cells = rows[identifier]
+                self.assertLessEqual(expected, set(re.findall(r"`([^`]+)`", cells[5])))
+                self.assertIn("`result`", cells[6])
+                self.assertIn("cli_fixture_transcript", cells[7])
+                if expected & {"link watch", "test stress"}:
+                    self.assertIn("`sample`", cells[6])
+        for identifier in ("link", "counters", "observe_link", "collect_event_counters"):
+            self.assertIn("native_cli_link_events", rows[identifier][7])
+        self.assertIn("native_cli_lifecycle", rows["initialization"][7])
 
 
 if __name__ == "__main__":

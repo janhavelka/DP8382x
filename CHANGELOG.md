@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add owner-routed link and event acquisition, explicit reset and reapply,
+  retained operation status/result and cancellation, and finite watch and stress
+  to the shared example CLI. Preserve consumed event prefixes and report reset
+  effects separately from restoration and current link validity.
+
 - Reject live CLI work on clock regression, freeze admitted configuration
   through its owner and retain its result. Stop a scan or dump when the owner
   cannot account for a successful row's frames.

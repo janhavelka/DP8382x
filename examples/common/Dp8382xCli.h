@@ -18,7 +18,8 @@ enum class SnapshotKind {
   SETTINGS,     ///< Desired, observed and trusted configuration.
   OPERATION,    ///< Occupied slot and pending restoration evidence.
   TRANSPORT,    ///< Attributed batch and physical frame counts.
-  IDENTITY      ///< Retained identity, including stale and incomplete words.
+  IDENTITY,     ///< Retained identity, including stale and incomplete words.
+  EVENTS        ///< Current or historical event/counter aggregate.
 };
 
 /// @brief Copy destination. The callback only fills the requested member.
@@ -30,6 +31,9 @@ struct CachedSnapshot {
   OperationSnapshot operation{}; ///< Cached slot state, not a consumed result.
   TransportSnapshot transport{}; ///< Cached totals, including non-managed work.
   DeviceIdentity identity{};     ///< Cached identity, not a fresh failed-call result.
+  CounterSnapshot counters{};    ///< Cached coherent event aggregate and its validity.
+  std::array<uint16_t, 6> eventWords{}; ///< Retained words, including partial history.
+  uint8_t eventValidMask{0};      ///< Historical word validity in collector order.
 };
 
 /// @brief One terminal owner call or one step of the existing core operation.
@@ -48,7 +52,12 @@ enum class Action {
   POLL,            ///< Advance the admitted operation by at most one batch.
   CANCEL,          ///< Freeze retained evidence without I/O on a CLI clock fault.
   TAKE,            ///< Copy a terminal result and release that operation's slot.
-  RECONCILE        ///< Apply verified intent to stopped SDK cache where applicable.
+  RECONCILE,       ///< Apply verified intent to stopped SDK cache where applicable.
+  START_INITIALIZE, ///< Admit initialization, explicit reset or owned replay.
+  OBSERVE_LINK,    ///< Acquire one coherent link observation.
+  COLLECT_EVENTS,  ///< Consume the event/counter sources under their existing collector.
+  ABANDON,         ///< Withdraw local cleanup debt after app-confirmed external disposition.
+  END              ///< Release the binding through the application's owner route.
 };
 
 /// @brief Selected owner inputs, copied at command admission.
@@ -62,6 +71,7 @@ struct Request {
   OperationToken token{};     ///< Token returned by the selected owner, for poll/take.
   LinkSettings settings{};    ///< Typed link intent for START_CONFIGURE.
   ConfigureOptions options{}; ///< Bounded negotiation policy for START_CONFIGURE.
+  ResetKind reset{ResetKind::NONE}; ///< Requested initialization/reset kind.
 };
 
 /// @brief Evidence for this call only. Unavailable evidence remains defaulted.
@@ -81,6 +91,17 @@ struct Receipt {
   bool negotiationComplete{false}; ///< Explicit AN completion from the retained procedure.
   NextPageResult nextPages{}; ///< Collected next-page progress, including partial reads.
   int32_t sdkError{0};       ///< Separate SDK error on RECONCILE; zero when absent.
+  LinkSnapshot link{};     ///< Fresh coherent link only on success.
+  CounterSnapshot counters{}; ///< Fresh complete counter aggregate only on success.
+  std::array<uint16_t, 6> eventWords{}; ///< Current PHYSTS, FLDS, MISR1/2, FCSCR, RECR prefix.
+  uint8_t eventValidMask{0}; ///< Valid returned event words. Zero means no valid prefix.
+  ResetKind reset{ResetKind::NONE}; ///< Effective reset from the retained operation.
+  StrapEvidence straps{}; ///< Retained initialization strap evidence.
+  bool commandRequired{false}; ///< Operation selected a reset command.
+  bool commandAccepted{false}; ///< Reset frame completed, independent of observed clear.
+  bool protocolComplete{false}; ///< Reset completion observed within its budget.
+  bool persistentRestored{false}; ///< Core verified the owned persistent state.
+  bool clockInvalid{false}; ///< Core operation latched a time-contract fault.
 };
 
 /// @brief Borrowed callbacks called only by the application task that owns the CLI.
@@ -172,7 +193,7 @@ private:
   struct Command;
   struct ConfigOption;
   struct Reply;
-  enum class Work { IDLE, CALL, DISCOVERY, DUMP, POLL, TAKE, RECONCILE };
+  enum class Work { IDLE, CALL, DISCOVERY, DUMP, WATCH, STRESS, POLL, TAKE, RECONCILE };
   struct Job {
     Work step{Work::IDLE};
     Request request{};
@@ -187,6 +208,25 @@ private:
     uint32_t skipped{0};
     uint32_t attempted{0};
     bool attemptedKnown{true};
+    uint64_t nextUs{0};
+    uint64_t intervalUs{0};
+    bool initialize{false};
+  };
+  struct Control {
+    std::string_view command{};
+    Action action{Action::POLL};
+    uint64_t req{0};
+  };
+  struct DeliveredResult {
+    uint64_t requestId{0};
+    OperationToken token{};
+    Status outcome{};
+    Status coreStatus{};
+    int32_t sdkError{0};
+    bool mutationCompleted{false};
+    bool mutationPossible{false};
+    bool cleanupOwed{false};
+    bool temporary{false};
   };
   using Args = std::array<std::string_view, MAX_TOKENS>;
   static const Command COMMANDS[];
@@ -196,7 +236,10 @@ private:
   void record(std::string_view name, uint64_t req, const Reply& reply);
   void flushRecord();
   void serviceJob();
+  void serviceControl();
   void sequenceStep();
+  void runStep();
+  void finishRun(Status status);
   void human(std::string_view bytes);
   void profileHelp();
   void help(const Command&, const Args&, std::size_t, Reply&);
@@ -205,12 +248,24 @@ private:
   void console(const Command&, const Args&, std::size_t, Reply&);
   void cached(const Command&, const Args&, std::size_t, Reply&);
   void route(const Command&, const Args&, std::size_t, Reply&);
+  void lifecycle(const Command&, const Args&, std::size_t, Reply&);
+  void owner(const Command&, const Args&, std::size_t, Reply&);
+  void link(const Command&, const Args&, std::size_t, Reply&);
+  void run(const Command&, const Args&, std::size_t, Reply&);
+  bool schedule(std::string_view command, const Request& request, Work step, uint64_t durationUs, Reply& reply);
   bool parseProfile(const Args&, std::size_t count, Request&);
 
   Platform _platform{};
   Identity _identity{};
   ConsoleBuffer _output{};
   Job _job{};
+  Control _control{};
+  DeliveredResult _lastResult{};
+  uint32_t _lastRounds{0};
+  uint32_t _lastAttempts{0};
+  uint64_t _lastRunReq{0};
+  bool _lastAttemptsKnown{true};
+  Status _lastRunStatus{Err::RESULT_NOT_AVAILABLE, 0, "No retained run"};
   std::array<char, LINE_BYTES> _line{};
   std::array<char, ConsoleBuffer::MAX_RECORD_BYTES + 1> _record{};
   std::size_t _lineSize{0};

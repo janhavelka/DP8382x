@@ -989,6 +989,9 @@ Status Phy::linkSnapshot(LinkSnapshot& output) noexcept {
   if (!enter()) return busy();
   output = _core.linkSnapshot(); leave(); return Status::Ok();
 }
+Status Phy::readLinkStatus(LinkSnapshot& output, const IoBudget& budget) noexcept {
+  return stoppedRaw(nullptr, [&](bool*) { return _core.readLinkStatus(output, budget); });
+}
 Status Phy::withAdmissionEvidence(void* context, void (*decide)(void*, const LinkSnapshot&,
     const SettingsSnapshot&, const HealthSnapshot&, bool, uint64_t) noexcept) noexcept {
   if (!decide) return Status::Error(Err::INVALID_PARAM, "Missing admission callback");
@@ -1104,6 +1107,11 @@ Status Phy::cancel(OperationToken token) noexcept {
   if (snapshot.token.value == token.value && snapshot.state == OperationState::RESULT_PENDING) recordCore(snapshot.status);
   leave(); return status;
 }
+Status Phy::abandonCleanup() noexcept {
+  if (!enter()) return busy();
+  if (!stoppedAdmission()) { leave(); return busy(); }
+  const auto status = _core.abandonCleanup(); refreshAgreement(); leave(); return status;
+}
 Status Phy::operationSnapshot(OperationSnapshot& output) noexcept {
   if (!enter()) return busy();
   output = _core.operationSnapshot(); leave(); return Status::Ok();
@@ -1162,6 +1170,15 @@ Status Phy::acquireEvidence(uint32_t mask, EvidenceSnapshot& output, const IoBud
   if (!enter()) return busy();
   if (!stoppedAdmission()) { leave(); return busy(); }
   const auto status = _core.acquireEvidence(mask, output, budget); refreshAgreement(); leave(); return status;
+}
+Status Phy::collectEvents(CounterSnapshot& output, const IoBudget& budget, RawBatchReceipt* receipt) noexcept {
+  return stoppedRaw(receipt, [&](bool* invoked) { return _core.collectEvents(output, budget, invoked); });
+}
+Status Phy::counterSnapshot(CounterSnapshot& output, EvidenceSnapshot* evidence) noexcept {
+  if (!enter()) return busy();
+  output = _core.counterSnapshot();
+  if (evidence) *evidence = _core.evidenceSnapshot();
+  leave(); return Status::Ok();
 }
 Status Phy::invalidateDeviceState(InvalidationReason reason) noexcept {
   if (!enter()) return busy();

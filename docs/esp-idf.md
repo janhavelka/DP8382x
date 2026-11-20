@@ -62,7 +62,11 @@ typed apply/verify, the existing token/result path, and public SDK
 reconciliation. Raw probe, discovery and register access provide fresh
 receipts captured under the native gate, including failed prefixes and
 the audited release status. The bridge can cancel an admitted token without
-I/O or a new maintenance grant if the CLI clock regresses. Application console
+I/O or a new maintenance grant. Explicit CLI link/event acquisition requires a
+stopped native owner and shares the core collector with framework polling.
+Watch copies cached link evidence. The application provides a release hook for
+CLI end and independent external disposition for abandon. The release hook owns
+SDK stop and fencing and preserves storage still reachable by callbacks. Console
 attachment is stage 47.
 
 If a core clock fault during initialization prevents establishing the

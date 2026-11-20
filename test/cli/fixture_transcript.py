@@ -10,9 +10,13 @@ FIELD = re.compile(rb"[a-z][a-z0-9_]*=[A-Za-z0-9_.:-]+")
 FIXTURE = sys.argv.pop(1)
 
 
-def run(data, *options):
+def invoke(data, *options):
     return subprocess.run((FIXTURE, *options), input=data, capture_output=True,
-                          check=True, timeout=5).stdout
+                          check=True, timeout=5)
+
+
+def run(data, *options):
+    return invoke(data, *options).stdout
 
 
 def records(transcript):
@@ -34,6 +38,10 @@ def records(transcript):
             fields[key] = value
         found.append(fields)
     return found
+
+
+def request(rows, number):
+    return [row for row in rows if row["req"] == str(number)]
 
 
 class FixtureTranscript(unittest.TestCase):
@@ -231,6 +239,224 @@ class FixtureTranscript(unittest.TestCase):
                          ("terminal", "OPERATION_TIMEOUT", "OPERATION_TIMEOUT", "0"))
         self.assertEqual((result["np_requested"], result["np_complete"], result["np_owed"], result["cleanup_owed"]),
                          ("1", "0", "1", "1"))
+
+    def test_link_observation_latch_and_cached_failure(self):
+        before, live, partner, cached, sampled, failed, stale, after = records(run(
+            b"cached transport\n$latch-link-low\nlink read 8\nlink partner 1\n"
+            b"link cached 8\ncached transport\n$fail-next 8\nlink read 8\n"
+            b"link cached 8\ncached transport\n"))
+        for row in (live, partner, cached):
+            self.assertEqual((row["valid"], row["up"], row["resolved"], row["speed_mbps"], row["duplex"]),
+                             ("1", "1", "1", "100", "full"))
+        self.assertEqual((live["observation"], partner["observation"], cached["observation"]),
+                         ("up", "wrong_policy", "up"))
+        self.assertEqual((live["bmsr_first"], live["bmsr_current"], partner["bmsr_first"]), ("32", "36", "36"))
+        self.assertEqual((live["advertised_modes"], live["partner_valid"], live["partner_modes"]), ("15", "1", "8"))
+        self.assertEqual((failed["primary"], failed["observation"], failed["valid"]),
+                         ("MDIO_ERROR", "management_failure", "0"))
+        self.assertEqual((stale["valid"], stale["stale"], stale["observation"], stale["resolved"]),
+                         ("1", "1", "stale", "0"))
+        self.assertEqual(int(sampled["attempted"]) - int(before["attempted"]), 20)
+        self.assertEqual(int(sampled["batches"]) - int(before["batches"]), 4)
+        self.assertEqual(int(after["attempted"]) - int(sampled["attempted"]), 9)
+        self.assertEqual(int(after["completed"]) - int(sampled["completed"]), 8)
+
+    def test_pending_and_down_do_not_project_resolved_mode_or_pause(self):
+        for state in ("pending", "down"):
+            with self.subTest(state=state):
+                live, cached = records(run(b"link read\nlink cached\n", "--partner", state))
+                for row in (live, cached):
+                    self.assertEqual(row["observation"], state)
+                    self.assertEqual((row["resolved"], row["speed_mbps"], row["duplex"], row["pause_valid"],
+                                      row["partner_valid"]), ("0", "0", "unknown", "0", "0"))
+
+    def test_event_failure_preserves_consumed_prefix(self):
+        before, failed, partial, after, collected, cached, final = records(run(
+            b"cached transport\n$inject-events\n$fail-next 3\nlink collect\ncached events\n"
+            b"cached transport\nlink collect\ncached events\ncached transport\n"))
+        self.assertEqual((failed["primary"], failed["detail"]), ("MDIO_ERROR", "-43"))
+        self.assertEqual((failed["event_mask"], failed["misr1"], failed["misr2"]), ("7", "42240", "0"))
+        self.assertEqual((partial["valid"], partial["stale"], partial["event_mask"], partial["misr1"]),
+                         ("0", "1", "7", "42240"))
+        for row in (collected, cached):
+            self.assertEqual((row["primary"], row["event_mask"], row["misr1"], row["misr2"]),
+                             ("OK", "63", "0", "23040"))
+        self.assertEqual(int(after["attempted"]) - int(before["attempted"]), 4)
+        self.assertEqual(int(after["completed"]) - int(before["completed"]), 3)
+        self.assertEqual(int(final["attempted"]) - int(after["attempted"]), 6)
+        self.assertEqual(int(final["batches"]) - int(before["batches"]), 2)
+
+    def test_reset_distinctions_and_local_end(self):
+        result = invoke(b"link read\nbegin none\nlink cached\ninit pcs\n"
+                        b"registers write c22 24 16\nrecovery restart\nregisters read c22 24\n"
+                        b"recovery reset hard\nregisters read c22 24\n"
+                        b"recovery reinitialize none\nconnection end\nconnection probe\n", "--trace-resets")
+        rows = records(result.stdout)
+        self.assertEqual(result.stderr.splitlines(), [b"reset 00 8000", b"reset 1f 4000", b"reset 1f 8000"])
+        for number, kind in ((2, "none"), (4, "pcs"), (6, "restart"), (8, "hard"), (10, "none")):
+            admitted, terminal = request(rows, number)
+            self.assertEqual((admitted["state"], admitted["primary"]), ("admitted", "IN_PROGRESS"))
+            self.assertEqual((terminal["state"], terminal["primary"], terminal["op"]),
+                             ("terminal", "OK", admitted["op"]))
+            self.assertEqual((terminal["requested_reset"], terminal["effective_reset"]), (kind, kind))
+            self.assertEqual(terminal["reset_accepted"], "0" if kind == "none" else "1")
+            self.assertEqual((terminal["persistent_restored"], terminal["link_valid"]), ("1", "0"))
+        self.assertEqual(request(rows, 3)[0]["observation"], "stale")
+        self.assertEqual(request(rows, 7)[0]["value"], "16")
+        self.assertEqual(request(rows, 9)[0]["value"], "0")
+        self.assertEqual(request(rows, 11)[0]["primary"], "OK")
+        self.assertEqual(request(rows, 12)[0]["primary"], "NOT_BOUND")
+
+    def test_lifecycle_rejections_are_bus_silent(self):
+        stream = (b"cached transport\nconnection initialize none\nrecovery reset pcs\n"
+                  b"recovery restart\nrecovery reinitialize\nconnection end\nowner abandon\n"
+                  b"owner start initialize hard\nowner cancel 0\nrecovery reset restart\n"
+                  b"link watch 0 100\ntest stress 1 0\ncached transport\n")
+        result = invoke(stream, "--deny-maintenance", "--trace-resets")
+        denied = records(result.stdout)
+        self.assertEqual(result.stderr, b"")
+        self.assertEqual([row["primary"] for row in denied[1:8]], ["BUSY"] * 7)
+        self.assertEqual([row["primary"] for row in denied[8:12]], ["INVALID_PARAM"] * 4)
+        for key in ("batches", "attempted", "completed"):
+            self.assertEqual(denied[0][key], denied[-1][key])
+
+        before, unavailable, after, verify, verified = records(run(
+            b"cached transport\nrecovery restart\ncached transport\nowner start verify\n", "--no-maintenance"))
+        self.assertEqual((unavailable["state"], unavailable["primary"]), ("terminal", "UNSUPPORTED"))
+        for key in ("batches", "attempted", "completed"):
+            self.assertEqual(before[key], after[key])
+        self.assertEqual((verify["state"], verify["primary"]), ("admitted", "IN_PROGRESS"))
+        self.assertEqual((verified["primary"], verified["mutation_completed"]), ("OK", "0"))
+
+    def test_cancel_after_accepted_reset_and_reapply_separately(self):
+        # Fixture setup takes its own token 1. Token 2 is the first command.
+        result = invoke(b"$pause\n$output-stall 2\nrecovery reset pcs\n$tick 8\n"
+                        b"owner status\nconnection end\nowner cancel 2\n$resume\n"
+                        b"owner result 2\nrecovery reinitialize none\n", "--trace-resets")
+        rows = records(result.stdout)
+        self.assertEqual(result.stderr.splitlines(), [b"reset 00 8000"])
+        admitted, cancelled = request(rows, 1)
+        self.assertEqual((admitted["state"], admitted["op"]), ("admitted", "2"))
+        self.assertEqual((cancelled["state"], cancelled["primary"], cancelled["op"]),
+                         ("terminal", "CANCELLED", "2"))
+        self.assertEqual((cancelled["mutation_completed"], cancelled["cleanup_owed"]), ("1", "1"))
+        self.assertEqual(request(rows, 2)[0]["slot"], "running")
+        self.assertEqual(request(rows, 3)[0]["primary"], "BUSY")
+        self.assertEqual(request(rows, 4)[0]["primary"], "OK")
+        queried = request(rows, 5)[0]
+        self.assertEqual((queried["origin_req"], queried["op"], queried["outcome"]), ("1", "2", "CANCELLED"))
+        restore_admission, restored = request(rows, 6)
+        self.assertNotEqual(restore_admission["op"], cancelled["op"])
+        self.assertEqual((restored["primary"], restored["cleanup_owed"]), ("OK", "0"))
+
+    def test_reset_timeout_and_recovery_failure_are_separate(self):
+        result = invoke(b"recovery reset hard\nrecovery reinitialize none\nowner status\n"
+                        b"cached transport\nlink watch 1 10\ntest stress 1 10\ncached transport\n",
+                        "--hold-reset", "--trace-resets")
+        rows = records(result.stdout)
+        self.assertEqual(result.stderr.splitlines(), [b"reset 1f 8000"])
+        _, reset = request(rows, 1)
+        _, restore = request(rows, 2)
+        for terminal in (reset, restore):
+            self.assertEqual(terminal["primary"], "OPERATION_TIMEOUT")
+            self.assertEqual(terminal["cleanup_owed"], "1")
+        self.assertNotEqual(reset["op"], restore["op"])
+        for number in (5, 6):
+            rejected, = request(rows, number)
+            self.assertEqual((rejected["primary"], rejected["detail"]), ("BUSY", "5"))
+        self.assertEqual(request(rows, 4)[0]["attempted"], request(rows, 7)[0]["attempted"])
+
+    def test_accepted_hard_reset_obeys_exact_quiet_floor(self):
+        rows = records(run(b"$pause\nrecovery reset hard\n$tick 7\ncached transport\n"
+                           b"$before-quiet-floor\ncached transport\n$at-quiet-floor\n"
+                           b"cached transport\n$resume\n"))
+        _, terminal = request(rows, 1)
+        before, below, at = (request(rows, number)[0] for number in (2, 3, 4))
+        self.assertEqual(terminal["primary"], "OK")
+        self.assertEqual((before["attempted"], before["batches"]), (below["attempted"], below["batches"]))
+        self.assertEqual(int(at["attempted"]) - int(below["attempted"]), 1)
+        self.assertEqual(int(at["batches"]) - int(below["batches"]), 1)
+
+    def test_hard_reset_with_regressed_anchor_blocks_followup_wire(self):
+        rows = records(run(b"cached transport\nrecovery reset hard\nowner status\ncached transport\n"
+                           b"connection discover 1 1\ncached transport\n", "--regress-after-hard"))
+        _, terminal = request(rows, 2)
+        self.assertEqual((terminal["primary"], terminal["reset_accepted"], terminal["reset_complete"],
+                          terminal["clock_invalid"], terminal["cleanup_owed"]),
+                         ("INVALID_CONFIG", "1", "0", "1", "1"))
+        self.assertEqual(request(rows, 3)[0]["cleanup_owed"], "1")
+        before, after = (request(rows, number)[0] for number in (4, 6))
+        self.assertEqual((before["clock_invalid"], before["attempted"]), ("1", after["attempted"]))
+        self.assertEqual(request(rows, 5)[-1]["primary"], "INVALID_CONFIG")
+
+    def test_abandon_requires_separate_disposition_before_local_end(self):
+        rows = records(run(b"$pause\nrecovery reset pcs\n$tick 8\nowner cancel 2\n$resume\n"
+                           b"cached transport\nowner abandon\nconnection end\n$isolate\n"
+                           b"owner abandon\ncached transport\nconnection end\n"))
+        acquired = request(rows, 1)[-1]
+        self.assertEqual((acquired["primary"], acquired["cleanup_owed"]), ("CANCELLED", "1"))
+        self.assertEqual([request(rows, number)[0]["primary"] for number in (4, 5, 6, 8)],
+                         ["BUSY", "BUSY", "OK", "OK"])
+        for key in ("batches", "attempted", "completed"):
+            self.assertEqual(request(rows, 3)[0][key], request(rows, 7)[0][key])
+
+    def test_explicit_poll_does_one_owner_step_and_keeps_origin_result(self):
+        rows = records(run(b"$pause\ncached transport\nowner start initialize none\n$tick 1\n"
+                           b"owner status\nowner poll 3\nowner poll 2\n$tick 1\n"
+                           b"cached transport\n$resume\nowner result 2\n"))
+        self.assertEqual(request(rows, 3)[0]["slot"], "running")
+        self.assertEqual(request(rows, 4)[0]["primary"], "TOKEN_MISMATCH")
+        poll = request(rows, 5)[0]
+        self.assertEqual((poll["primary"], poll["op"], poll["origin_req"], poll["poll_status"]),
+                         ("OK", "2", "2", "IN_PROGRESS"))
+        before, after = (request(rows, number)[0] for number in (1, 6))
+        self.assertEqual(int(after["batches"]) - int(before["batches"]), 1)
+        self.assertEqual(int(after["attempted"]) - int(before["attempted"]), 2)
+        admitted, terminal = request(rows, 2)
+        queried = request(rows, 7)[0]
+        self.assertEqual((admitted["op"], terminal["op"], queried["op"]), ("2", "2", "2"))
+        self.assertEqual((queried["origin_req"], queried["outcome"]), ("2", "OK"))
+
+    def test_active_operations_survive_full_console(self):
+        rows = records(run(b"$pause\n$output-stall 2000\nowner start initialize none\n$tick 1\n"
+                           b"connection end\n" + b"drv\n" * 40 + b"$tick 30\n$output-stall 0\n$resume\n"
+                           b"owner result\ncached transport\n"))
+        admitted, terminal = request(rows, 1)
+        self.assertEqual((admitted["state"], terminal["state"], terminal["primary"]), ("admitted", "terminal", "OK"))
+        self.assertEqual(terminal["op"], admitted["op"])
+        self.assertEqual(request(rows, 2)[0]["primary"], "BUSY")
+        for number in range(2, 45):
+            self.assertEqual(len(request(rows, number)), 1)
+
+    def test_finite_watch_and_stress_budget(self):
+        rows = records(run(b"cached transport\nlink watch 3 30 8\ncached transport\n"
+                           b"test stress 3 30\ntest stats\ncached transport\n"))
+        before, watched, after = (request(rows, number)[0] for number in (1, 3, 6))
+        self.assertEqual(before["attempted"], watched["attempted"])
+        self.assertEqual(int(after["attempted"]) - int(watched["attempted"]), 3)
+        self.assertEqual(int(after["batches"]) - int(watched["batches"]), 3)
+        for number, attempted in ((2, "0"), (4, "3")):
+            run_rows = request(rows, number)
+            self.assertEqual([row["round"] for row in run_rows if row["state"] == "progress"], ["1", "2", "3"])
+            self.assertEqual((run_rows[-1]["state"], run_rows[-1]["primary"]), ("terminal", "OK"))
+            self.assertEqual((run_rows[-1]["rounds"], run_rows[-1]["attempted"], run_rows[-1]["managed"]),
+                             ("3", attempted, "0"))
+        stats = request(rows, 5)[0]
+        self.assertEqual((stats["origin_req"], stats["rounds"], stats["attempted"], stats["outcome"]),
+                         ("4", "3", "3", "OK"))
+
+    def test_stress_stop_and_first_fault_stop_the_run(self):
+        stopped = records(run(b"cached transport\n$pause\ntest stress 20 1000\n$tick 4\n"
+                              b"test stop\n$resume\ncached transport\n"))
+        self.assertEqual(request(stopped, 2)[-1]["primary"], "CANCELLED")
+        self.assertEqual(request(stopped, 3)[0]["primary"], "OK")
+        self.assertEqual(int(request(stopped, 4)[0]["attempted"]) - int(stopped[0]["attempted"]), 1)
+        faulted = records(run(b"cached transport\n$fail-next 0\ntest stress 5 100\ncached transport\n"))
+        before, after = (request(faulted, number)[0] for number in (1, 3))
+        self.assertEqual((request(faulted, 2)[-1]["primary"], request(faulted, 2)[-1]["detail"]),
+                         ("MDIO_ERROR", "-43"))
+        self.assertEqual(int(after["attempted"]) - int(before["attempted"]), 1)
+        self.assertEqual(after["completed"], before["completed"])
 
 
 if __name__ == "__main__":

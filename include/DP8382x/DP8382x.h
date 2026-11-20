@@ -1218,7 +1218,7 @@ struct EeeSnapshot {
 struct OperationResult {
   OperationToken token{}; ///< Owning instance's lifetime token.
   OperationKind kind{OperationKind::NONE}; ///< Operation that produced this result.
-  ResetKind reset{ResetKind::NONE}; ///< Requested reset, separate from external observations.
+  ResetKind reset{ResetKind::NONE}; ///< Effective reset, including a hard reset required by an owned EEE profile.
   Status status{Err::RESULT_NOT_AVAILABLE, 0, "No operation"}; ///< Immutable terminal outcome.
   bool mutationAttempted{false}; ///< Semantic target write attempted; excludes selectors.
   bool mutationCompleted{false}; ///< Semantic target completed, even if later failure occurred.
@@ -1909,13 +1909,14 @@ public:
   /// @param[in] sourceMask Nonzero subset of ALL_EVIDENCE; no implicit sources.
   /// @param[out] evidence Assigned only when every requested read/release succeeds on time.
   /// @param[in] budget Aggregate deadline and frames; complete requested count admitted first.
+  /// @param[out] invoked Optional flag set true if this call invokes the transport for any batch.
   /// @pre Application owns the instance, exact part/address and diagnostic admission.
   /// @return Terminal transport/validation status; errors retain consumed partial samples.
   /// @note PHYSTS is read first when requested. RXFS uses a complete MMD sequence.
   /// Reads can clear IRQ/history; ambiguous reads set historyLost, never zero events.
   /// A collection spans bounded batches; it is not a simultaneous hardware snapshot.
   Status acquireEvidence(uint32_t sourceMask, EvidenceSnapshot& evidence,
-                         const IoBudget& budget) noexcept;
+                         const IoBudget& budget, bool* invoked = nullptr) noexcept;
   /// @brief Update only MISR1/2 stable enables while retaining consumed events.
   /// @param[in] registerAddress C22 MISR1 (0x12) or MISR2 (0x13).
   /// @param[in] mask Nonzero low-byte owned mask.
@@ -1945,11 +1946,13 @@ public:
   /// @brief Collect PHYSTS, FLDS, MISR1, MISR2, FCSCR and RECR once in one six-read batch.
   /// @param[out] snapshot Assigned only on complete in-budget success; unchanged on error.
   /// @param[in] budget Exclusive aggregate deadline and at least six frames.
+  /// @param[out] invoked Optional flag set true when this call invokes the transport.
   /// @return Same admission/errors as acquireEvidence; partial receipts remain immediately cached.
   /// @pre Serialized exact-part diagnostic owner, including all other controller users.
   /// @note Tables 8-33..39. No implicit RXFS read, drain, retry or counter reset.
   /// FCSCR FF is a lower bound; RECR remains raw under Q16. No MDIO-health accounting claim.
-  Status collectEvents(CounterSnapshot& snapshot, const IoBudget& budget) noexcept;
+  Status collectEvents(CounterSnapshot& snapshot, const IoBudget& budget,
+                       bool* invoked = nullptr) noexcept;
   /// @brief Copy last complete event/counter aggregate without bus/clock callbacks.
   /// @return Historical values with explicit validity/staleness; partials are in evidenceSnapshot.
   CounterSnapshot counterSnapshot() const noexcept { return _counters; }

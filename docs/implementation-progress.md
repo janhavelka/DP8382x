@@ -1,5 +1,12 @@
 # Implementation progress
 
+Prompt 45 adds owner-routed [link, events and lifecycle CLI commands](cli.md)
+on `main` from synchronized `110b6b0`. It preserves one correlated terminal
+result per operation, keeps replay separate from cancellation, and bounds
+watch and stress. The [stage report](reports/implementation/45-cli-link-lifecycle.md)
+records portable, pinned SDK host and P4 link checks. Firmware console attachment
+and physical qualification follow in later stages.
+
 The [independent review of prompts 43 and 44](reports/implementation/43-44-independent-review.md)
 starts from synchronized `0f493d4` on `main`. It corrects CLI clock-fault
 handling, frame-count and release evidence, and expands the compiled CLI and
@@ -597,7 +604,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [42 Demonstrate bounded native MAC frame handoff](prompts/42-owner-frame-boundary.md) | Software complete | [Host handoff and P4 image link](reports/implementation/42-owner-frame-boundary.md). Reusable teardown remains blocked by the SDK RX lifetime. |
 | [43 Implement the portable CLI, bounded console and record schema](prompts/43-cli-foundation.md) | COMPLETE | [Grammar and schema](cli.md), [source audit and verification](reports/implementation/43-cli-foundation.md). Real-core host fixture and eight CLI CTests. Native console and physical evidence follow. |
 | [44 Add complete identity, configuration and register CLI routes](prompts/44-cli-configuration-registers.md) | COMPLETE | [Grammar](cli.md), [matrix](feature-coverage.md), [verification](reports/implementation/44-cli-configuration-registers.md). SDK console attachment and physical qualification follow. |
-| [45 Add link, lifecycle and retained-operation CLI commands](prompts/45-cli-link-lifecycle.md) | NOT STARTED | None |
+| [45 Add link, lifecycle and retained-operation CLI commands](prompts/45-cli-link-lifecycle.md) | COMPLETE | [CLI guide](cli.md), [matrix](feature-coverage.md), [report](reports/implementation/45-cli-link-lifecycle.md). Portable, pinned SDK host, consumers, P4 links and source checks passed. |
 | [46 Expose every diagnostic and opt-in feature through typed commands](prompts/46-cli-diagnostics-controls.md) | NOT STARTED | None |
 | [47 Integrate the shared CLI in both P4 applications and close coverage](prompts/47-cli-native-integration.md) | NOT STARTED | None |
 | [48 Implement the offline protocol verifier and durable evidence bundles](prompts/48-runner-protocol-artifacts.md) | NOT STARTED | None |

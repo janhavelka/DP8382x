@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <string>
+#include <string_view>
 
 namespace {
 using namespace DP8382x;
@@ -95,6 +96,26 @@ Request request(Action action, uint32_t frames = 512) {
 bool install(Endpoint& endpoint, SharedBus& bus) {
   bus.mutex = xSemaphoreCreateMutex();
   return bus.mutex && endpoint.install(bus, 0);
+}
+
+bool attach(Endpoint& endpoint, Processor& cli) {
+  endpoint.owner.write = Endpoint::write;
+  Identity identity{};
+  identity.boot = 45;
+  identity.variant = Variant::DP83826I;
+  return cli.setup(endpoint.owner.platform(), identity);
+}
+
+bool drain(Processor& cli) {
+  for (unsigned i = 0; i < 128 && (cli.workPending() || cli.outputPending()); ++i) {
+    Host::state().nowUs += 1000;
+    cli.tick();
+  }
+  return !cli.workPending() && !cli.outputPending();
+}
+
+bool command(Processor& cli, std::string_view line) {
+  return cli.feed(line) == line.size() && drain(cli);
 }
 
 void admission() {
@@ -384,8 +405,11 @@ bool issueHard(Endpoint& endpoint, OperationToken token, bool regress) {
       if (regress) Host::state().nowUs = 1;
     }
   };
+  auto poll = request(Action::POLL, MAX_BATCH_FRAMES);
+  poll.token = token;
+  Receipt receipt{};
   for (unsigned i = 0; i < 16 && !issued; ++i) {
-    if (!endpoint.phy->pollOperation(token).inProgress()) break;
+    if (!endpoint.call(poll, receipt).inProgress()) break;
   }
   endpoint.mac.onFrame = nullptr;
   return issued;
@@ -399,9 +423,11 @@ void sharedSilence() {
     // Separate instrumented MAC objects share the management reservation and
     // lock. This models two owners and does not install two physical P4 MACs.
     if (!install(first, bus) || !peer.install(bus, 1)) { CHECK(false); continue; }
-    OperationToken token{};
-    CHECK(first.phy->startInitialize({ResetKind::HARD}, allowance(), token).inProgress());
     Receipt receipt{};
+    auto initialize = request(Action::START_INITIALIZE);
+    initialize.reset = ResetKind::HARD;
+    CHECK(first.call(initialize, receipt).inProgress());
+    const auto token = receipt.token;
     Request scan = request(Action::DISCOVER, 2);
     scan.address = 1;
     CHECK(peer.call(scan, receipt).is(Err::BUSY));
@@ -410,12 +436,14 @@ void sharedSilence() {
     OperationSnapshot progress{};
     CHECK(first.phy->operationSnapshot(progress).ok());
     CHECK(progress.busQuietValid == !regress);
-    if (!regress) CHECK(first.phy->cancel(token).ok());
-    OperationResult result{};
-    CHECK(first.phy->takeResult(token, result).ok() && result.commandAccepted);
+    auto result = request(Action::CANCEL);
+    result.token = token;
+    if (!regress) CHECK(first.call(result, receipt).ok());
+    result.action = Action::TAKE;
+    CHECK(first.call(result, receipt).ok() && receipt.commandAccepted && receipt.reset == ResetKind::HARD);
     CHECK(bus.admission == BusAdmission::AVAILABLE);
     if (regress) {
-      CHECK(result.clockInvalid && bus.quarantined);
+      CHECK(receipt.clockInvalid && bus.quarantined);
       Host::state().nowUs = 100000;
       scan.budget = allowance(2);
       CHECK(peer.call(scan, receipt).detail == static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED));
@@ -433,11 +461,145 @@ void sharedSilence() {
     }
   }
 }
+
+void linkEvents() {
+  Host::reset();
+  SharedBus bus;
+  Endpoint endpoint;
+  Processor cli;
+  if (!install(endpoint, bus) || !endpoint.initialize() || !attach(endpoint, cli)) { CHECK(false); return; }
+  const auto beforeLink = endpoint.mac.frames.size();
+  endpoint.mac.registers[1] = 0x7869; // First BMSR still shows historical loss.
+  endpoint.mac.onFrame = [&](const Host::Frame& frame) {
+    if (!frame.write && frame.reg == 1) endpoint.mac.registers[1] = 0x786D;
+  };
+  CHECK(command(cli, "link read\n"));
+  CHECK(endpoint.mac.frames.size() == beforeLink + 10);
+  CHECK(endpoint.transcript.find("cmd=link.read op=0 state=terminal primary=OK") != std::string::npos);
+  CHECK(endpoint.transcript.find("observation=up valid=1 stale=0 up=1 resolved=1 speed_mbps=100 duplex=full") !=
+        std::string::npos);
+  CHECK(endpoint.transcript.find("bmsr_first=30825 bmsr_current=30829") != std::string::npos);
+  CHECK(command(cli, "link cached\n"));
+  CHECK(endpoint.mac.frames.size() == beforeLink + 10);
+  endpoint.mac.onFrame = nullptr;
+
+  if (!command(cli, "configuration apply an 8 none auto 1\n") || endpoint.phy->start(now() + 100000) != ESP_OK) {
+    CHECK(false);
+    return;
+  }
+  const auto runningFrames = endpoint.mac.frames.size();
+  CHECK(command(cli, "link read\n") && command(cli, "link collect\n"));
+  CHECK(endpoint.mac.frames.size() == runningFrames);
+  CHECK(endpoint.transcript.find("cmd=link.read op=0 state=terminal primary=BUSY") != std::string::npos);
+  CHECK(endpoint.transcript.find("cmd=link.collect op=0 state=terminal primary=BUSY") != std::string::npos);
+  if (endpoint.phy->stop(now() + 100000) != ESP_OK) { CHECK(false); return; }
+
+  const auto beforeEvents = endpoint.mac.frames.size();
+  TransportSnapshot transportBefore{};
+  CHECK(endpoint.phy->transportSnapshot(transportBefore).ok());
+  endpoint.mac.registers[0x12] = 0x2001;
+  endpoint.mac.readResults = {ESP_OK, ESP_OK, ESP_OK, ESP_ERR_TIMEOUT};
+  endpoint.mac.onFrame = [&](const Host::Frame& frame) {
+    if (!frame.write && frame.reg == 0x12) endpoint.mac.registers[0x12] = 0;
+  };
+  CHECK(command(cli, "link collect\n"));
+  CHECK(endpoint.transcript.find("cmd=link.collect op=0 state=terminal primary=MDIO_TIMEOUT") != std::string::npos);
+  CHECK(endpoint.transcript.find("event_mask=7 physts=21 flds=0 misr1=8193 misr2=0") != std::string::npos);
+  const auto afterEvents = endpoint.mac.frames.size();
+  CHECK(afterEvents == beforeEvents + 3);
+  if (afterEvents == beforeEvents + 3) CHECK(endpoint.mac.frames.back().reg == 0x12);
+  TransportSnapshot transportAfter{};
+  CHECK(endpoint.phy->transportSnapshot(transportAfter).ok());
+  CHECK(transportAfter.totalBatches == transportBefore.totalBatches + 1 &&
+        transportAfter.attemptedFrames == transportBefore.attemptedFrames + 4 &&
+        transportAfter.completedFrames == transportBefore.completedFrames + 3);
+  CHECK(endpoint.mac.registers[0x12] == 0 && bus.quarantined);
+
+  endpoint.transcript.clear();
+  CHECK(command(cli, "cached events\n"));
+  CHECK(endpoint.transcript.find("cmd=cached.events op=0 state=terminal primary=OK") != std::string::npos);
+  CHECK(endpoint.transcript.find("valid=0 stale=1 event_mask=7 physts=21 flds=0 misr1=8193 misr2=0") != std::string::npos);
+  CHECK(endpoint.mac.frames.size() == afterEvents);
+  endpoint.transcript.clear();
+  CHECK(command(cli, "link collect\n"));
+  CHECK(endpoint.transcript.find("cmd=link.collect op=0 state=terminal primary=BUSY") != std::string::npos);
+  CHECK(endpoint.transcript.find("event_mask=0 physts=0 flds=0 misr1=0 misr2=0") != std::string::npos);
+  CHECK(endpoint.mac.frames.size() == afterEvents);
+}
+
+void lifecycle() {
+  Host::reset();
+  SharedBus bus;
+  Endpoint endpoint;
+  Processor cli;
+  if (!install(endpoint, bus) || !attach(endpoint, cli)) { CHECK(false); return; }
+  CHECK(endpoint.mac.frames.empty());
+  CHECK(command(cli, "connection end\n"));
+  CHECK(endpoint.transcript.find("cmd=connection.end op=0 state=terminal primary=INVALID_CONFIG") != std::string::npos);
+  CHECK(endpoint.mac.frames.empty());
+
+  endpoint.owner.end = [](void* context, uint64_t deadlineUs) {
+    auto& app = *static_cast<Endpoint*>(context);
+    const auto retired = app.phy->retire(deadlineUs);
+    // The native SDK keeps installed storage; preserve its actual refusal to
+    // relinquish that storage, including its signed SDK detail.
+    return retired == ESP_OK ? Status::Ok() : Status::Error(Err::INVALID_CONFIG, "Native retirement", retired);
+  };
+  const std::string_view start = "owner start initialize\n";
+  CHECK(cli.feed(start) == start.size());
+  cli.tick();
+  OperationSnapshot operation{};
+  CHECK(endpoint.phy->operationSnapshot(operation).ok() && operation.state == OperationState::RUNNING);
+  CHECK(operation.token.value != 0 && endpoint.mac.frames.empty());
+  Receipt receipt{};
+  const auto activeEnd = endpoint.call(request(Action::END), receipt);
+  CHECK(activeEnd.is(Err::BUSY) && activeEnd.detail == static_cast<int32_t>(BusyDetail::OPERATION_ACTIVE));
+  CHECK(endpoint.call(request(Action::OBSERVE_LINK), receipt).is(Err::BUSY) && !receipt.link.valid);
+  CHECK(endpoint.call(request(Action::COLLECT_EVENTS), receipt).is(Err::BUSY) && !receipt.batchValid);
+
+  const std::string token = std::to_string(operation.token.value);
+  const std::string cancel = "owner cancel " + token + '\n';
+  endpoint.maintenance = false;
+  const auto checks = endpoint.maintenanceChecks;
+  CHECK(cli.feed(cancel) == cancel.size());
+  cli.tick();
+  CHECK(endpoint.maintenanceChecks == checks && endpoint.mac.frames.empty());
+  CHECK(endpoint.phy->operationSnapshot(operation).ok() && operation.state == OperationState::RESULT_PENDING);
+  endpoint.maintenance = true;
+  const auto pendingEnd = endpoint.call(request(Action::END), receipt);
+  CHECK(pendingEnd.is(Err::BUSY) && pendingEnd.detail == static_cast<int32_t>(BusyDetail::RESULT_PENDING));
+  CHECK(drain(cli));
+  const std::string terminal = "cmd=owner.start op=" + token + " state=terminal primary=CANCELLED";
+  const auto at = endpoint.transcript.find(terminal);
+  CHECK(at != std::string::npos && at == endpoint.transcript.rfind(terminal));
+  CHECK(command(cli, "owner result " + token + '\n'));
+  CHECK(endpoint.transcript.find("cmd=owner.result op=" + token + " state=terminal primary=OK") != std::string::npos);
+  CHECK(endpoint.transcript.find("origin_req=2 outcome=CANCELLED") != std::string::npos);
+  CHECK(endpoint.phy->operationSnapshot(operation).ok() && operation.state == OperationState::IDLE);
+  CHECK(endpoint.mac.frames.empty());
+
+  CHECK(command(cli, "recovery reset pcs\n"));
+  CHECK(endpoint.transcript.find("requested_reset=pcs effective_reset=pcs reset_required=1 reset_accepted=1 reset_complete=1") !=
+        std::string::npos);
+  CHECK(std::any_of(endpoint.mac.frames.begin(), endpoint.mac.frames.end(), [](const Host::Frame& frame) {
+    return frame.write && frame.reg == 0 && (frame.value & 0x8000U) != 0;
+  }));
+  const auto beforeEnd = endpoint.mac.frames.size();
+  endpoint.transcript.clear();
+  CHECK(command(cli, "connection end\n"));
+  const auto unsupported = "cmd=connection.end op=0 state=terminal primary=INVALID_CONFIG detail=" +
+      std::to_string(ESP_ERR_NOT_SUPPORTED);
+  CHECK(endpoint.transcript.find(unsupported) != std::string::npos);
+  LifecycleRecord life{};
+  CHECK(endpoint.phy->lifecycleSnapshot(life).ok() && life.phase == Phase::MAINTENANCE);
+  CHECK(endpoint.handle && endpoint.mac.alive && endpoint.mac.frames.size() == beforeEnd);
+}
 } // namespace
 
 int main(int argc, char** argv) {
   const test::Suite suites[] = {{"admission", admission}, {"reconciliation", reconciliation},
                                 {"discovery", discovery}, {"raw_access", rawAccess},
-                                {"shared_silence", sharedSilence}, {"clock_fault", clockFault}};
+                                {"shared_silence", sharedSilence}, {"clock_fault", clockFault},
+                                {"link_events", linkEvents}, {"lifecycle", lifecycle}};
   return test::runSuites(argc, argv, suites);
 }

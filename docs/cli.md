@@ -8,9 +8,9 @@ admission and performs no MDIO. Health, link resolution and configuration trust
 are separate. The application still decides whether a link suits its session.
 
 This processor provides local and cached queries, identity and discovery,
-typed profile configuration and policy-checked register access. Prompts 45–46
-add lifecycle, live link, collector and diagnostic commands. Prompt 47
-attaches the already implemented owner bridge to the native consoles.
+typed profile configuration, policy-checked register access, link observations,
+event collection and cooperative lifecycle commands. Prompt 46 adds diagnostics
+and opt-in controls. Prompt 47 attaches the owner bridge to the native consoles.
 
 ## Input and commands
 
@@ -64,10 +64,29 @@ An argument or token failure rejects the entire line before dispatch.
 | `registers bmcr <mask> <value>` | | Update only mask 0x3100 bits in one stopped two-frame operation under maintenance. |
 | `registers dump c22 <first> <last>` | | Inspect up to 32 consecutive addresses through safe read policy. |
 | `registers dump mmd <devad> <first> <last>` | | Inspect up to 32 offsets in one explicit MMD space through safe read policy. |
+| `connection initialize [reset-kind]` | `init`, `begin` | Initialize and verify owned settings. Default `none`. |
+| `connection end` | | Release through the application owner. See the teardown rule below. |
+| `recovery reset <pcs\|hard>` | | Issue the selected reset and verify owned replay. |
+| `recovery restart` | | Issue the circuitry restart, then verify owned state. |
+| `recovery reinitialize [reset-kind]` | | Open a new restoration operation and budget. Default `none`. |
+| `owner start initialize [reset-kind]`, `owner start verify` | | Admit the same initialization or read-only verification used by the other entry points. |
+| `owner poll <token>` | | Service one explicit step of the active CLI token. The CLI also services admitted work on its ordinary ticks. |
+| `owner status` | | Copy the slot and cleanup barrier without advancing. |
+| `owner result [token]` | | Copy the latest delivered CLI operation's outcome, effects and original request number. |
+| `owner cancel <token>` | | Freeze the active CLI token without transfers or a new maintenance grant. Effects already recorded remain. |
+| `owner abandon` | | Clear local cleanup debt after the application confirms external disposition. |
+| `link read [allowed-modes]`, `link partner [allowed-modes]` | | Make one coherent link and partner acquisition through the owner. Native use requires STOPPED. |
+| `link cached [allowed-modes]` | | Describe the cached link, raw advertisement and optional policy match without MDIO. |
+| `link collect` | | Consume six event/counter sources once through the collector. Native use requires STOPPED. |
+| `cached events` | | Copy the aggregate and retained source words, including a consumed partial prefix. |
+| `link watch <count> <duration-ms> [allowed-modes]` | | Sample the application's cached link periodically. |
+| `test stress <count> <duration-ms>` | | Read safe Clause 22 PHYIDR1 once per round. |
+| `test stop`, `test stats` | | Stop the active watch/stress without I/O or copy the last finished run's counts. |
 
 Unsigned input uses decimal or explicit `0x`/`0X` hex. Leading zeros do not
 select octal. Require at least one digit, reject signs, partial conversions and
-values above 4294967295, then check the command range before using the value.
+values above 4294967295 unless the argument is a 64-bit operation token, then
+check the command range before using the value.
 The wire's signed details use decimal with an optional minus and retain the
 whole int32 range.
 Enums match their complete tokens. Missing or extra arguments reject.
@@ -125,6 +144,63 @@ A transport failure keeps its address, signed detail and any valid first
 word. Results neither select nor initialize a PHY, and cannot infer an
 isolated or powered-down state.
 
+### Lifecycle and ownership
+
+`reset-kind` is `none`, `pcs`, `hard` or `restart`. NONE still programs and
+verifies mandatory VOD and replays owned settings. PCS uses BMCR `0x00` bit
+`0x8000`; HARD uses PHYRCR `0x1F` bit `0x8000`; restart uses PHYRCR `0x1F` bit
+`0x4000`. The restore plan and quiet floor stay with the existing owner. An
+owned EEE replay can select HARD even with a different request, so check both
+reset fields. A successful initialization is followed by a separate link
+observation for current link evidence. Native restart also requires the
+application's stopped SDK reconciliation and start path.
+
+Initialization and end require maintenance. Each initialization, reset or replay
+gets one 5 s deadline and a 512-frame allowance. End on a portable binding is
+local and bus-silent once results and cleanup obligations are settled. The
+native bridge requires the application's quiesce/teardown hook. That hook owns
+stop/fencing and retained resources. It receives an absolute deadline or zero
+when the CLI cannot provide one. A missing hook returns `INVALID_CONFIG`.
+`owner abandon` requires both maintenance and independent application
+confirmation of an external reset, power removal, isolation or ownership
+transfer. The command cannot itself attest disposition. Abandon preserves
+historical evidence and records no proof of restoration or controller recovery.
+
+Operation tokens accept positive decimal or hexadecimal `uint64_t` values.
+Poll and cancel apply to the CLI's active token. A poll or cancel reply uses
+its own request ID. The admitted operation keeps its own originating request
+and emits exactly one terminal result. A cancelled or failed operation may
+leave cleanup debt. Reinitialize uses a new token, deadline and result. The
+retained `owner result` copy stays available across other local commands and
+is replaced when the next terminal operation result is delivered.
+
+### Link and bounded runs
+
+An `allowed-modes` value is a nonzero 1–15 bit mask with the same mode bits as
+the AN profile. It checks a resolved current link against caller policy and
+does not change settings or application readiness. A live link command uses
+the core's complete 8-frame plus 2-frame consistency check with a shared 2 s
+deadline. The first BMSR word is historical latch-low evidence. The second
+and final BMSR/PHYSTS reads establish current consistency. Partner evidence
+comes from the same acquisition, and is usable only for a qualified AN base
+page. Forced and incomplete negotiation withhold unproved mode or pause data.
+
+The six-word collector reads PHYSTS, FLDS, MISR1, MISR2, FCSCR and RECR in one
+batch. The first failed word ends the batch. Valid returned words, including a
+consumed MISR1 before a failed MISR2, remain in retained history. Cached views
+never consume the hardware again. FCSCR contributes to the host sum. RECR
+remains a raw word under its documented interpretation gate.
+
+Watch and stress allow 1–32 rounds and durations from `count` to 5000 ms. They
+start on a service tick and space subsequent rounds by the duration divided
+by count in microseconds, with no catch-up burst. Deadlines are exclusive and
+the host must keep servicing ticks and output. Watch samples cached evidence,
+including staleness, so changes depend on the application's collector service.
+Stress attempts one raw PHYIDR1 batch per round and contributes zero managed
+health transactions. The runs share the CLI work slot and the console record
+budget. Outstanding owner work or cleanup debt blocks a new run. A stop or
+fault ends the run and preserves every queued sample.
+
 ## Console service
 
 Serialize `setup`, `feed`, `discardInput` and `tick` in the application task.
@@ -166,6 +242,12 @@ its owner without advancing hardware work, then takes the retained result.
 The terminal record keeps the core status, possible effects and any cleanup
 owed. A clock fault also prevents SDK reconciliation. Local and cached queries
 remain available.
+
+The owner status/result views can run during an active operation when the
+console can accept another line. An explicit poll/cancel uses the first available
+service tick and retains its own response. The processor stops accepting another
+input line until that response can be stored. Console writes run outside the
+owner call and controller lock.
 
 A complete record occupies at most 1024 bytes including CRLF. The queue admits
 the entire record and any needed leading CRLF together, using its logical tail
@@ -209,7 +291,7 @@ is stable on output and immaterial to validation.
 | `type` | `session` for a successful handshake, `sample` for a range row, otherwise `result`. |
 | `cmd` | Canonical command. Groups use a dot as separator, such as `cached.health`. `unknown` means dispatch could not select one. |
 | `op` | uint64 operation token. Zero when the request has no operation. The cached slot token is a separate payload value. |
-| `state` | `terminal` for a final outcome. `admitted` with `primary=IN_PROGRESS` and a nonzero token is emitted by apply and verify when the core accepts work. `progress` marks a single `sample` in a range. |
+| `state` | `terminal` for a final outcome. A cooperative start emits `admitted` with `primary=IN_PROGRESS` and a nonzero token when the core accepts work. `progress` marks one range or run sample. |
 | `primary`, `detail` | Exact printable `Err` and signed int32 detail. Only terminal `OK` is command success. Details never narrow a backend error. |
 | `cleanup`, `cleanup_detail` | Separate printable cleanup outcome, or `none` and 0 when no cleanup was executed. A later cleanup cannot replace a primary error. |
 | `time_valid`, `time_us` | 0/1 and uint64 firmware clock in microseconds, sampled when the record is created. Both are zero when the clock is absent or a fault is detected. On a valid clock, zero is usable. |
@@ -247,6 +329,52 @@ write/operation receipt. They never invent successful ordinary read output.
 | `cached settings` | `trust desired_valid desired_mode desired_modes desired_speed_mbps desired_duplex observed_valid observed_stale observed_mode observed_modes observed_speed_mbps observed_duplex`. Mode is `an`, `forced` or `unknown`. Only the active mode's corresponding data applies. Observed staleness is independent of desired intent. |
 | `cached operation` | `slot token slot_status slot_detail cleanup_owed temporary slot_deadline_us`. Slot is `idle`, `running` or `result_pending`. An occupied slot carries its own token and deadline. The query's terminal outcome does not advance that slot. |
 | `cached transport` | `batches attempted completed stopped clock_invalid controller_reusable`. Counts are uint32 and can include application startup or other owner traffic. |
+| `owner status` | The same payload as `cached operation`. |
+
+### Lifecycle, link and run payloads
+
+- Admitted initialize/reset/replay terminal results include `core_status core_detail`,
+  `requested_reset effective_reset`, `reset_required reset_accepted reset_complete`,
+  `persistent_restored mutation_completed mutation_possible cleanup_owed temporary`,
+  `clock_invalid link_valid` and `sor1_valid sor1 sor2_valid sor2 straps_stale`.
+  `link_valid=0` indicates that the operation did not acquire a fresh link.
+  `reset_accepted` means the reset
+  frame completed, while `reset_complete` requires later readback. SOR words can
+  be historical when `straps_stale=1`. Admission carries the active token.
+- `owner poll` includes `origin_req poll_status poll_detail` for the one poll.
+  The query's `primary=OK` acknowledges service. The originating operation's
+  status, cancellation and cleanup debt belong to its own terminal record.
+  `owner cancel` acknowledges the request with `origin_req`. `owner result`
+  carries `origin_req outcome outcome_detail core_status core_detail sdk_error
+  mutation_completed mutation_possible cleanup_owed temporary` for a retained
+  operation. It uses the query's request number and the referenced operation token.
+- Detailed link records carry `observation valid stale up resolved speed_mbps
+  duplex negotiation pause_valid pause_rx pause_tx observed_valid observed_us`,
+  `policy_mask advertised_valid advertised_modes partner_valid partner_modes`,
+  and raw `bmsr_first bmsr_current anar anlpar aner`, `last_status last_detail`
+  and `round`. Observation is `unobserved`, `stale`, `down`, `pending`,
+  `unresolved`, `wrong_policy`, `up`, `unavailable` or `management_failure`.
+  `pending` denotes AN in progress while link is up. A down sample can still
+  show `negotiation=in_progress`. An ordinary observation uses `round=0`.
+- Event records carry `valid stale event_mask physts flds misr1 misr2 fcscr recr
+  false_carrier_total lower_bound saturated observed_valid observed_us last_status
+  last_detail`. `valid` and `stale` describe the aggregate. Mask bits 0–5
+  identify the six word positions in collector order. In `link collect` this
+  is the current call's audited prefix. In `cached events` it is retained
+  history, and the timestamp applies only to the last complete aggregate.
+- Watch and stress emit `type=sample state=progress` under the original request.
+  Stress samples carry `round address valid value attempted`. A terminal run
+  carries `rounds requested attempted attempted_known managed`. `rounds` counts
+  successful rounds, `attempted` counts attributable physical frames, and
+  `managed=0` identifies the use of cached or raw access. `test stats` uses a
+  separate request and copies the last finished run with `running origin_req
+  rounds attempted attempted_known managed outcome outcome_detail`.
+
+For example, cancel token 2 after `init hard` admission with `owner cancel 2`.
+Wait for `connection.initialize` on the admission's request number with
+`state=terminal primary=CANCELLED`. If it carries `cleanup_owed=1`, an admitted
+`recovery reinitialize hard` has a new request, token and result. The earlier
+`owner.cancel` acknowledgement does not report replay success.
 
 ### Identity, registers and profile payloads
 

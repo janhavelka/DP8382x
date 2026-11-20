@@ -90,7 +90,8 @@ target_compile_options(dp8382x_native_host_tests PRIVATE -Wall -Wextra -Werror -
 add_executable(dp8382x_native_cli_tests host/cli44.cpp "${repo}/examples/common/Dp8382xCli.cpp")
 target_link_libraries(dp8382x_native_cli_tests PRIVATE dp8382x_native_host)
 target_compile_options(dp8382x_native_cli_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
-foreach(suite IN ITEMS admission reconciliation discovery raw_access shared_silence clock_fault)
+foreach(suite IN ITEMS admission reconciliation discovery raw_access shared_silence clock_fault
+                        link_events lifecycle)
   add_test(NAME native_cli_${suite} COMMAND dp8382x_native_cli_tests ${suite})
   set_tests_properties(native_cli_${suite} PROPERTIES TIMEOUT 30)
 endforeach()

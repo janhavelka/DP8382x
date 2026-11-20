@@ -281,6 +281,12 @@ public:
   /// @note A valid observation may precede failed/partial SDK notification. Inspect
   /// LifecycleRecord for accepted fields, uncertainty and pending event delivery.
   Status linkSnapshot(LinkSnapshot& output) noexcept;
+  /// @brief Acquire one coherent core link observation while the SDK owner is stopped.
+  /// @param[out] output Assigned on complete success; cached history remains separate.
+  /// @param[in] budget Absolute deadline and allowance for the two batches (ten frames).
+  /// @return Terminal core outcome or BUSY if stopped-owner admission is unavailable.
+  /// @note Uses the core collector without link notifications or SDK control changes.
+  Status readLinkStatus(LinkSnapshot& output, const IoBudget& budget) noexcept;
   /// @brief Evaluate an application admission decision against one consistent native/core observation.
   /// @param[in] context Borrowed application state, serialized by the application's single task.
   /// @param[in] decide Synchronous bounded local decision under the instance gate. Copy values as
@@ -368,6 +374,12 @@ public:
   /// @param[in] token Exact operation token.
   /// @return Core cancellation status or BUSY; no hardware rollback is implied.
   Status cancel(OperationToken token) noexcept;
+  /// @brief Abandon local cleanup debt after application-established external disposition.
+  /// @pre Exact stopped owner with no result owed. The application has already established
+  /// isolation, reset, power removal or transfer of ownership as appropriate.
+  /// @return Core status or BUSY; no MDIO, clock or Ethernet SDK calls.
+  /// @note Does not clear possible effects, quiet time or shared quarantine.
+  Status abandonCleanup() noexcept;
   /// @brief Copy core progress locally; unchanged output on busy gate.
   /// @param[out] output Copied snapshot on OK.
   /// @return OK or BUSY; no clock or I/O.
@@ -445,6 +457,18 @@ public:
   /// @param[in] budget Complete acquisition allowance.
   /// @return Core status or BUSY; ordinary raw reads cannot bypass this collector.
   Status acquireEvidence(uint32_t sourceMask, EvidenceSnapshot& output, const IoBudget& budget) noexcept;
+  /// @brief Collect the six event/counter words through the stopped core owner in one batch.
+  /// @param[out] output Assigned only on complete in-budget success.
+  /// @param[in] budget Exclusive deadline and allowance for at least six frames.
+  /// @param[out] receipt Optional fresh transaction report, invalid when no callback ran.
+  /// @return Core status or BUSY; partial consumption remains in evidenceSnapshot.
+  Status collectEvents(CounterSnapshot& output, const IoBudget& budget,
+                       RawBatchReceipt* receipt = nullptr) noexcept;
+  /// @brief Copy the historical complete event/counter aggregate without I/O or clock access.
+  /// @param[out] output Assigned on OK, unchanged on gate contention.
+  /// @param[out] evidence Optional retained partial samples, copied under the same instance gate.
+  /// @return OK or BUSY; validity and staleness describe the last complete acquisition.
+  Status counterSnapshot(CounterSnapshot& output, EvidenceSnapshot* evidence = nullptr) noexcept;
   /// @brief Copy retained destructive samples locally, without acknowledging hardware.
   /// @param[out] output Copied history on OK, unchanged on BUSY.
   /// @return OK or BUSY; no clock or I/O.

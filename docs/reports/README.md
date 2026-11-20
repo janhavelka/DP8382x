@@ -1,5 +1,8 @@
 # Planning audits and later implementation evidence
 
+The [prompt 45 report](implementation/45-cli-link-lifecycle.md) records shared
+CLI link, event and lifecycle routes and executing verification.
+
 The [prompts 43 and 44 review](implementation/43-44-independent-review.md)
 records CLI clock, transport receipt and transcript fixes with local verification.
 

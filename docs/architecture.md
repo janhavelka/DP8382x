@@ -101,9 +101,10 @@ later variants only with their individual register/procedure and qualification
 evidence; family names never grant compatibility.
 
 Examples own board resources and actual SDK links. The [shared CLI](cli.md)
-routes identity, configuration and register commands through the application
-owner. Typed profile apply uses the existing core operation and native public
-SDK reconciliation. Discovery and dumps advance one address per tick. The CLI holds a complete
+routes identity, configuration, register, link, event and lifecycle commands
+through the application owner. Typed profile apply uses the existing core
+operation and native public SDK reconciliation. Discovery, dumps and stress
+advance one complete transaction per tick. Watch copies cached link. The CLI holds a complete
 terminal record when the console queue fills. The host fixture runs this
 processor and the core on simulated MDIO. Planned Python sessions retain bounded raw
 transcripts and correlated identities/outcomes. Runs use two artifacts: a text

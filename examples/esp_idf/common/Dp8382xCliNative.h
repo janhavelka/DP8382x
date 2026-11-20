@@ -2,7 +2,7 @@
 /// @brief Application bridge from the portable CLI to the installed ESP-IDF PHY owner.
 #pragma once
 
-#include "../../common/Dp8382xCli.h"
+#include "../../common/Dp8382xCliCore.h"
 #include <DP8382x/esp_idf/Phy.h>
 
 namespace DP8382x::Cli {
@@ -20,6 +20,15 @@ struct NativeOwner {
   /// The application owns quiescence and lifecycle changes. This check does not
   /// open maintenance, stop the MAC or perform MDIO.
   bool (*maintenanceAllowed)(void*){nullptr};
+  /// @brief Independently attest external disposition before abandoning cleanup.
+  /// @note Return true only after isolation, external reset, power removal or ownership transfer.
+  /// A local check under application serialization. A null callback denies ABANDON.
+  bool (*externalDisposition)(void*){nullptr};
+  /// @brief Run the application's bounded quiescence and release route for the installed owner.
+  /// @note Receives context and an absolute deadline in esp_timer microseconds. Zero means the
+  /// CLI could not supply a trusted deadline. Return terminal status and keep storage reachable
+  /// by SDK or CLI callbacks alive. Null means the application has no END route.
+  Status (*end)(void*, uint64_t deadlineUs){nullptr};
 
   /// @brief Build the processor's borrowed platform callbacks without I/O.
   /// @return Platform with a null writer if the bridge has no console sink.
@@ -50,6 +59,12 @@ private:
       case SnapshotKind::OPERATION: return phy->operationSnapshot(output.operation);
       case SnapshotKind::TRANSPORT: return phy->transportSnapshot(output.transport);
       case SnapshotKind::IDENTITY: return phy->identitySnapshot(output.identity);
+      case SnapshotKind::EVENTS: {
+        EvidenceSnapshot evidence{};
+        const auto status = phy->counterSnapshot(output.counters, &evidence);
+        if (status.ok()) owner_detail::copyRetainedEventWords(evidence, output);
+        return status;
+      }
     }
     return Status::Error(Err::INVALID_PARAM, "Unknown native snapshot");
   }
@@ -58,7 +73,7 @@ private:
     switch (action) {
       case Action::WRITE_C22: case Action::WRITE_MMD: case Action::MODIFY_MMD:
       case Action::MODIFY_BMCR: case Action::INVALIDATE: case Action::START_CONFIGURE:
-      case Action::RECONCILE:
+      case Action::RECONCILE: case Action::START_INITIALIZE: case Action::ABANDON: case Action::END:
         return true;
       default: return false;
     }
@@ -89,14 +104,7 @@ private:
   static Status take(EspIdf::Phy& phy, OperationToken token, Receipt& receipt) {
     OperationResult result{};
     const auto taken = phy.takeResult(token, result);
-    if (!taken.ok()) return taken;
-    receipt.result = result.status;
-    receipt.mutationCompleted = result.mutationCompleted;
-    receipt.mutationPossible = result.mutationPossible;
-    receipt.cleanupOwed = result.cleanupOwed;
-    receipt.temporary = result.temporaryMayBeActive;
-    receipt.nextPages = result.nextPage;
-    receipt.negotiationComplete = result.negotiationComplete;
+    if (taken.ok()) owner_detail::copyOperationResult(result, receipt);
     return taken;
   }
 
@@ -114,6 +122,7 @@ private:
         status = phy.modifyMmd(request.devad, request.address, request.mask, request.value, budget, &evidence);
         break;
       case Action::MODIFY_BMCR: status = phy.modifyBasicControl(request.mask, request.value, budget, &evidence); break;
+      case Action::COLLECT_EVENTS: status = phy.collectEvents(receipt.counters, budget, &evidence); break;
       default: return Status::Error(Err::INVALID_PARAM, "Unknown raw native action");
     }
     if (evidence.valid) {
@@ -121,6 +130,7 @@ private:
       receipt.batchValid = true;
       receipt.violation = evidence.violation;
       receipt.releaseStatus = evidence.releaseStatus;
+      if (request.action == Action::COLLECT_EVENTS) owner_detail::copyEventWords(receipt);
       if (request.action == Action::PROBE && !status.ok() && evidence.violation == TransportViolation::NONE) {
         const auto& first = evidence.batch.frames[0];
         const auto& second = evidence.batch.frames[1];
@@ -134,6 +144,24 @@ private:
         if (receipt.identity.id2Valid) receipt.identity.id2 = second.value;
         if (receipt.identity.id1Valid) receipt.identity.admissionStatus = status;
       }
+    }
+    return status;
+  }
+
+  static Status endOwner(NativeOwner& bridge, uint64_t deadlineUs) {
+    if (!bridge.end) return Status::Error(Err::INVALID_CONFIG, "No application release route");
+    OperationSnapshot operation{};
+    const auto copied = bridge.phy->operationSnapshot(operation);
+    if (!copied.ok()) return copied;
+    const auto available = owner_detail::idleSlot(operation);
+    if (!available.ok()) return available;
+    if (operation.cleanupOwed) {
+      return Status::Error(Err::BUSY, "Cleanup is still required",
+                           static_cast<int32_t>(BusyDetail::CLEANUP_REQUIRED));
+    }
+    const auto status = bridge.end(bridge.context, deadlineUs);
+    if (status.inProgress()) {
+      return Status::Error(Err::INVALID_CONFIG, "Nonterminal application release", status.detail);
     }
     return status;
   }
@@ -154,9 +182,18 @@ private:
       case Action::START_CONFIGURE:
         return phy.startConfigure(request.settings, request.options, request.budget, receipt.token);
       case Action::START_VERIFY: return phy.startVerify(request.budget, receipt.token);
+      case Action::START_INITIALIZE: return phy.startInitialize({request.reset}, request.budget, receipt.token);
       case Action::POLL: return phy.pollOperation(request.token, request.budget.io.maxFrames);
       case Action::CANCEL: return phy.cancel(request.token);
       case Action::TAKE: return take(phy, request.token, receipt);
+      case Action::OBSERVE_LINK: return phy.readLinkStatus(receipt.link, request.budget.io);
+      case Action::ABANDON:
+        if (!bridge.externalDisposition || !bridge.externalDisposition(bridge.context)) {
+          return Status::Error(Err::BUSY, "External disposition not established",
+                               static_cast<int32_t>(BusyDetail::OWNER_ADMISSION));
+        }
+        return phy.abandonCleanup();
+      case Action::END: return endOwner(bridge, request.budget.io.deadlineUs);
       case Action::RECONCILE: {
         const auto status = phy.reconcileSdkState(request.budget.io.deadlineUs);
         receipt.sdkError = status.sdkError;

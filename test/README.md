@@ -1,5 +1,10 @@
 # Verification
 
+Prompt 45 extends `cli_fixture_transcript` with exact wire reset values, latch-low
+link evidence, partial events, cancellation, cleanup debt and bounded watch and
+stress. `native_cli_link_events` and `native_cli_lifecycle` exercise the pinned
+SDK stopped-owner and application release paths.
+
 Prompt 44 expands `cli_fixture_transcript` and adds `cli_processor_routes`.
 The pinned SDK cases named `native_cli_*` exercise owner admission, discovery,
 raw access, shared silence, AN/forced reconciliation and cancellation after

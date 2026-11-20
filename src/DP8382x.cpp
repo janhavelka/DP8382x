@@ -742,7 +742,8 @@ Status DP8382x::invalidateDeviceState(InvalidationReason reason) noexcept {
 }
 
 Status DP8382x::acquireEvidence(uint32_t sourceMask, EvidenceSnapshot& evidence,
-                               const IoBudget& budget) noexcept {
+                               const IoBudget& budget, bool* invoked) noexcept {
+  if (invoked) *invoked = false;
   if (sourceMask == 0U || (sourceMask & ~ALL_EVIDENCE) != 0U) { return paramError(ParamDetail::ACCESS_POLICY); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (_active || _polling || (_operation.state == OperationState::RUNNING && !_configuring && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && !_analogWorking && !_electricalWorking &&
@@ -774,7 +775,9 @@ Status DP8382x::acquireEvidence(uint32_t sourceMask, EvidenceSnapshot& evidence,
   MdioBatch batch;
   auto run = [&]() noexcept {
     const uint32_t count = batch.frameCount;
-    const Status result = _execute(batch, remaining);
+    bool called = false;
+    const Status result = _execute(batch, remaining, &called);
+    if (invoked && called) *invoked = true;
     if (result.ok()) { remaining.maxFrames -= count; }
     batch = {};
     return result;
@@ -796,7 +799,8 @@ Status DP8382x::acquireEvidence(uint32_t sourceMask, EvidenceSnapshot& evidence,
   return status;
 }
 
-Status DP8382x::collectEvents(CounterSnapshot& snapshot, const IoBudget& budget) noexcept {
+Status DP8382x::collectEvents(CounterSnapshot& snapshot, const IoBudget& budget, bool* invoked) noexcept {
+  if (invoked) *invoked = false;
   constexpr uint32_t sources = evidenceBit(EvidenceSource::PHYSTS) | evidenceBit(EvidenceSource::FLDS) |
       evidenceBit(EvidenceSource::MISR1) | evidenceBit(EvidenceSource::MISR2) |
       evidenceBit(EvidenceSource::FCSCR) | evidenceBit(EvidenceSource::RECR);
@@ -804,7 +808,7 @@ Status DP8382x::collectEvents(CounterSnapshot& snapshot, const IoBudget& budget)
   // Keep local owner rejection bus-silent and prevent reentry from changing a live aggregate.
   if (_active || _polling) { return busy(BusyDetail::OPERATION_ACTIVE); }
   EvidenceSnapshot acquired;
-  const auto status = acquireEvidence(sources, acquired, budget);
+  const auto status = acquireEvidence(sources, acquired, budget, invoked);
   if (!status.ok()) {
     _counters.stale = true;
     _counters.lastStatus = status;

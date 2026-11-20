@@ -14,18 +14,32 @@ behavior only.
 | Argument | Effect |
 | --- | --- |
 | `--identity TOKEN` | Reports a supplied firmware identity. Use 1 to 64 ASCII letters, digits, underscores, dots, colons or hyphens. Default `unknown`. |
-| `--partner down\|100-full\|10-half` | Selects simulated partner and link register values. Default `100-full`. |
+| `--partner down\|pending\|100-full\|10-half` | Selects simulated partner and link register values. Default `100-full`. |
 | `--fail-after N` | Permits N successful physical frames per simulated boot, then fails attempted frames with `MDIO_ERROR`, detail `-43`. Startup frames count. A failed write reports a possible effect. |
 | `--reboot-after N` | Reboots once after accepting N complete CLI lines, counting rejected lines and treating CRLF as one boundary. Drops output queued in the old boot and starts the new request count at 1. |
 | `--partial-record` | Writes the first machine record's prefix, drops the rest of the record and suppresses all later output. |
 | `--deny-maintenance` | Models an active application session, so the owner rejects disruptive commands before PHY I/O. Default grants maintenance for the isolated model. |
+| `--no-maintenance` | Models an application without a maintenance mode. Disruptive commands return `UNSUPPORTED`. |
+| `--hold-reset` | Leaves an accepted reset bit set to exercise timeout and cleanup debt. |
+| `--regress-after-hard` | Moves the simulated clock backwards at the first hard-reset frame. |
+| `--trace-resets` | Writes each literal reset register/value pair to stderr. Stdout remains the CLI byte stream. |
 
 The fixture intercepts exact lines containing `$pause`, `$resume`, `$tick N`
 or `$output-stall N`. They do not consume CLI request numbers. These controls
 exist only in the host executable. `$pause` suspends automatic ticks and
 `$resume` resumes them. `$tick N` advances N owner ticks of 1 ms each.
 `$output-stall N` makes the next N write offers accept zero bytes. N for those
-two controls is decimal 0 through 4096. Controls work with CR, LF or CRLF.
+two controls is decimal 0 through 4096. The following fixture-only controls
+also work with CR, LF or CRLF.
+
+| Control | Effect |
+| --- | --- |
+| `$latch-link-low` | Makes the next BMSR read return historical link-low evidence. |
+| `$inject-events` | Sets simulated MISR1/MISR2 high-byte events. The collector consumes them. |
+| `$fail-next N` | Fails the frame after N further successful simulated frames once. N is 0 through 4096. |
+| `$before-quiet-floor`, `$at-quiet-floor` | While paused, service one tick at the current hard-reset floor minus 1 µs or exactly at the floor. |
+| `$isolate` | Models external disposition and lets the application attest it for `owner abandon`. |
+
 All other bytes reach the CLI unchanged, including controls with invalid
 arguments. The fixture pumps up to 8192 owner ticks at input boundaries and
 EOF to cover the 5-second configuration deadline and final output. Staging is
