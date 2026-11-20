@@ -1,11 +1,13 @@
 # ESP32-P4 ordinary Ethernet example
 
 This is a native ESP-IDF v6.1 application using the real ESP32-P4 MAC, the
-DP8382x native PHY owner and `esp_netif` DHCP. It advertises only 100/full,
-reports the resolved link separately from DHCP, and makes one explicit
-stop/start cycle. It runs for about 30 seconds, then stops and retains installed
-resources until restart. The shared diagnostic CLI attaches in prompt 47;
-this example needs no console input, FieldCore service or Internet connection.
+DP8382x native PHY owner and `esp_netif` DHCP. It starts with a 100/full-only
+advertisement, reports the resolved link separately from DHCP, and makes one
+explicit stop/start cycle. The default cycle runs for 10 seconds, stops for
+1 second, runs for 20 seconds, then stops in maintenance. The shared CLI
+continues to run and the installed resources remain available. An explicit
+`application stop` supersedes the automatic cycle. The cycle needs no console
+input, FieldCore service or Internet connection.
 
 ## Board gate and wiring
 
@@ -32,8 +34,9 @@ by default, separately from the required low pulse. Qualify both on the board.
 conditions; real timing is unmeasured.
 
 The committed `sdkconfig.defaults` leaves `DP8382X_BOARD_READY` off. With the
-gate off, the image reports build/board identity and returns before touching
-GPIO, MAC, MDIO or the network. The gate is read through a `volatile` value,
+gate off, the UART console provides build and board identity, help and local
+status. The application leaves the PHY GPIO, MAC, MDIO and network inactive.
+The gate is read through a `volatile` value,
 so the default image still links the complete MAC, PHY, glue and service path;
 a gate-closed build therefore proves that path links, not only the banner.
 After the physical checks above, an authorized
@@ -45,15 +48,15 @@ board owner may use `menuconfig` to enable the gate in a local ignored
 From the repository root on Windows:
 
 ```bat
-scripts\idf.cmd -C examples/esp_idf/basic -B C:\esp\build\dp8382x-p40 set-target esp32p4 build
+scripts\idf.cmd -C examples/esp_idf/basic -B C:\esp\build\dp8382x-p47-basic set-target esp32p4 build
 ```
 
 Only after resolving the board gate and identifying an authorized fixture/port:
 
 ```bat
-scripts\idf.cmd -C examples/esp_idf/basic -B C:\esp\build\dp8382x-p40 menuconfig
-scripts\idf.cmd -C examples/esp_idf/basic -B C:\esp\build\dp8382x-p40 build
-scripts\idf.cmd -C examples/esp_idf/basic -B C:\esp\build\dp8382x-p40 -p <PORT> flash monitor
+scripts\idf.cmd -C examples/esp_idf/basic -B C:\esp\build\dp8382x-p47-basic menuconfig
+scripts\idf.cmd -C examples/esp_idf/basic -B C:\esp\build\dp8382x-p47-basic build
+scripts\idf.cmd -C examples/esp_idf/basic -B C:\esp\build\dp8382x-p47-basic -p <PORT> flash monitor
 ```
 
 The final command is an instruction for a future qualified fixture, not a run
@@ -65,7 +68,26 @@ probe. This application does not probe a peer on its own; `reachability` prints
 LAN can run `ping -n 3 <assigned-ip>` on Windows during a running interval.
 Record its target, replies and timeouts separately from the assigned address.
 DHCP failure is IP evidence even if MDIO and link are healthy.
-A valid 10/half link does not satisfy this application's 100/full profile.
+A valid 10/half link does not satisfy this application's 100/full policy.
+
+## Shared CLI
+
+Open the board's UART0 serial bridge at 115200 baud, 8 data bits, no parity
+and one stop bit. The example selects ESP-IDF log V1 and disables the secondary
+USB console. If reusing a local `sdkconfig`, check these settings before building.
+Both native examples use the same `ConsoleSources.cmake` to compile
+`Dp8382xCli.cpp` and `Dp8382xUartConsole.cpp`. The host fixture compiles the
+shared processor with its own byte transport. [CLI guide](../../../docs/cli.md)
+
+Use `session <nonce>` for firmware identity and synchronization, and
+`application status` for the cached network state. `application stop` stops and
+fences the framework before admitting PHY maintenance. Use
+`configuration apply` for a complete AN or forced profile and `registers bmcr`
+for guarded raw maintenance. If a command leaves cleanup owed, wait for its
+terminal record and use `recovery reinitialize` under a new token. With
+verified settings, `application start` reconciles the stopped SDK state and
+starts the framework. `cached link`, `health` and `cfg` copy retained evidence.
+Peer reachability remains a separately requested fixture measurement.
 
 ## Ownership and limits
 
@@ -86,22 +108,21 @@ storage and reports its token, possible writes and cleanup obligation on exit.
 When reusing an older local `sdkconfig`, check `CONFIG_ESP_MAIN_TASK_STACK_SIZE`
 before building. Actual task stack high-water marks need a running fixture.
 
-Callbacks only copy bounded link/IP facts or request shutdown; they perform no
-console output, blocking cleanup or PHY I/O. The owner task prints cached
-management health, configuration trust, resolved link/profile and IP state.
-The service loop runs without console input and stops/restarts once. Its
-synchronous output can block the owner on a slow or unavailable sink.
-Prompt 47 owns bounded output and the corresponding withheld-sink test.
-An unexpected STOP callback requests owner shutdown. Task 47 can route shared
-CLI requests through this same owner loop without adding a second poller.
+Callbacks only copy bounded link/IP facts or request shutdown. The owner task
+queues periodic cached management health, configuration trust, resolved link
+and IP lines. A separate UART task drains bounded output. A withheld or slow
+sink can drop ordinary status lines while the owner continues lifecycle service.
+`local console` reports the output queues, backpressure and drops. An unexpected
+STOP callback requests shutdown. The CLI runs on the same owner task and the
+framework timer remains the link poller.
 
 Every 100 ms service step also copies the adapter's lifecycle journal (no PHY
 I/O) and acts on its obligations:
 
 - `stopRequired` (observation or publication trust lost): the owner stops at
-  its next service step, records the current observation cause and does not
-  restart. A busy snapshot or blocked console output delays that step; the
-  100 ms is a requested interval, not a handling bound.
+  its next service step, records the current observation cause and withholds
+  restart. A busy snapshot or delayed owner task can delay that step. The
+  100 ms is a requested interval during the demo.
 - `eventLost` (the P4 MAC accepted a link change but its event was not
   delivered): the owner calls the event-only `retryLinkEvent`, which never
   replays MAC UP. After 10 consecutive steps without delivery it stops.
@@ -114,12 +135,13 @@ yields. It withholds the transition if it cannot confirm the previous journal.
 It checks for an unexpected STOP only after that confirmation, so a STOP
 delivered during a yield still withholds the start.
 
-Typed operations (initialize, configure) are polled to completion on the owner
+Startup operations (initialize, configure) are polled to completion on the owner
 task. On `BUSY`, the owner checks for a terminal result pending on that
 token. The polling allowance is 6 s or 10,000 attempts. Cancellation and
 result delivery then each allow up to 100 attempts with one-tick yields.
 Only successful delivery releases CONTROL. An undelivered token remains
-owed and preserves the original operation evidence.
+owed and preserves the original operation evidence. Later shared CLI commands
+use the separate budgets and terminal record rules in the CLI guide.
 
 Link evidence prints `CURRENT` only when the cached sample is valid, not stale
 and at most three poll periods old (`linkAgeMs`); otherwise `AGED`, `STALE`,

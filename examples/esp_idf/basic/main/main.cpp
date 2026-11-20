@@ -1,8 +1,10 @@
 /// @file main.cpp
 /// @brief One application owner for the pinned ESP32-P4 MAC, PHY and IP stack.
 #include "BoardConfig.h"
+#include "../../common/Dp8382xExampleConsole.h"
 #ifndef DP8382X_EXAMPLE_TEST
 #include "ExampleIdentity.h"
+#include "esp_random.h"
 #endif
 #include <DP8382x/Version.h>
 #include <DP8382x/esp_idf/Phy.h>
@@ -21,6 +23,7 @@
 namespace {
 using namespace ::DP8382x;
 using namespace ::DP8382x::EspIdf;
+using namespace ::DP8382x::Cli;
 
 /// Static callback context survives every installed SDK resource until restart.
 struct Application {
@@ -35,6 +38,11 @@ struct Application {
   esp_event_handler_instance_t lostIpHandler{nullptr};
   bool loopOwned{false};
   bool installed{false};
+  bool manualControl{false}; ///< An explicit stop supersedes the remaining demo cycle.
+  bool cliMaintenance{false}; ///< Stop and fence confirmed on the application task.
+  bool consoleRetired{false}; ///< Installed resources are kept after retirement.
+  bool traffic{false}; ///< Application's successful network start is still in service.
+  bool stopAnnounced{false}; ///< This run already reserved a queued STOP receipt.
   std::atomic<bool> linked{false};
   std::atomic<bool> shutdownRequested{false};
   std::atomic<unsigned> expectedStops{0};
@@ -55,6 +63,7 @@ struct Application {
   unsigned eventRetries{0}; ///< Consecutive owner retries of one lost link event.
 };
 Application app;
+ExampleConsole console;
 
 /// Finite owner allowances. Counts bound loops even if the clock stalls.
 constexpr uint32_t MAX_OWNER_POLLS = 10000;   ///< Operation progress polls.
@@ -374,7 +383,7 @@ bool linkAge(const LinkSnapshot& link, uint64_t upperNowUs, uint64_t& ageUs) {
   return true;
 }
 
-/// Print separate cached PHY, profile and IP evidence on the owner task.
+/// Queue separate cached PHY, profile and IP evidence on the owner task.
 void report() {
   HealthSnapshot health{};
   SettingsSnapshot settings{};
@@ -397,7 +406,7 @@ void report() {
       settings.trust == ConfigurationTrust::VERIFIED ? "VERIFIED" :
       settings.trust == ConfigurationTrust::DIRTY ? "DIRTY" : "UNKNOWN";
   const uint32_t ip = app.ipAddress.load();
-  std::printf("MDIO=%s configTrust=%s linkEvidence=%s linkAgeMs=%lu link=%u eventCarrier=%u resolved=%u speed=%u duplex=%u "
+  console.print("MDIO=%s configTrust=%s linkEvidence=%s linkAgeMs=%lu link=%u eventCarrier=%u resolved=%u speed=%u duplex=%u "
               "profile100full=%s IP=%s %u.%u.%u.%u reachability=not-requested "
               "events=%lu nativePhase=%s stopRequired=%s eventLost=%s\n",
               h.ok() ? driverStateName(health.state) : "BUSY",
@@ -443,20 +452,99 @@ bool serviceObligations() {
 }
 
 /// Owner stop that keeps the queued STOP receipt until its callback arrives.
-esp_err_t ownerStop() {
+esp_err_t ownerStop(uint64_t until = 0) {
   // STOP is queued. Keep this receipt until callback delivery, even if it
   // arrives after the next START; current desired state is not its origin.
-  app.expectedStops.fetch_add(1);
-  const esp_err_t error = app.phy->stop(deadlineUs());
+  if (!app.stopAnnounced) {
+    app.expectedStops.fetch_add(1);
+    app.stopAnnounced = true;
+  }
+  const esp_err_t error = app.phy->stop(until ? until : deadlineUs());
+  if (error == ESP_OK) app.traffic = false;
   checkAdapter("owner stop", error);
   return error;
+}
+
+bool maintenanceAllowed(void*) {
+  return app.cliMaintenance && !app.consoleRetired && !app.shutdownRequested.load();
+}
+
+Status endConsole(void*, uint64_t until) {
+  if (until == 0) return Status::Error(Err::INVALID_CONFIG, "Trusted teardown deadline required");
+  const auto error = app.phy->retire(until);
+  if (error == ESP_ERR_NOT_SUPPORTED) {
+    app.cliMaintenance = false;
+    app.consoleRetired = true;
+  }
+  return applicationSdkStatus(error);
+}
+
+Status applicationCommand(void*, ApplicationCommand command, uint64_t until, FeatureFields& fields) {
+  if (command == ApplicationCommand::STATUS) {
+    const uint32_t ip = app.ipAddress.load();
+    fields.set(" installed=%u traffic=%u maintenance=%u retired=%u shutdown=%u carrier=%u"
+               " ip=%u.%u.%u.%u events=%lu",
+               unsigned(app.installed), unsigned(app.traffic), unsigned(app.cliMaintenance),
+               unsigned(app.consoleRetired), unsigned(app.shutdownRequested.load()), unsigned(app.linked.load()),
+               unsigned(ip & 255U), unsigned((ip >> 8U) & 255U), unsigned((ip >> 16U) & 255U),
+               unsigned(ip >> 24U), static_cast<unsigned long>(app.events.load()));
+    return Status::Ok();
+  }
+  if (command != ApplicationCommand::START && command != ApplicationCommand::STOP)
+    return Status::Error(Err::UNSUPPORTED, "Raw frame session belongs to the owner example");
+  if (!console.native.phy || app.consoleRetired)
+    return Status::Error(Err::NOT_BOUND, "No available installed network owner");
+  const auto idle = applicationSlot(*app.phy);
+  if (!idle.ok()) return idle;
+  if (command == ApplicationCommand::STOP) {
+    LifecycleRecord life;
+    const auto copied = app.phy->lifecycleSnapshot(life);
+    if (!copied.ok()) return copied;
+    app.manualControl = true;
+    const auto error = life.phase == Phase::STOPPED && !life.stopRequired ?
+        app.phy->stop(until) : ownerStop(until);
+    if (error == ESP_OK) app.traffic = false;
+    app.cliMaintenance = error == ESP_OK;
+    return applicationSdkStatus(error);
+  }
+  if (!maintenanceAllowed(nullptr))
+    return Status::Error(Err::BUSY, "Stop and fence the network before starting",
+                         static_cast<int32_t>(BusyDetail::OWNER_ADMISSION));
+  const auto reconciliation = app.phy->reconcileSdkState(until);
+  if (!reconciliation.coreStatus.ok()) return reconciliation.coreStatus;
+  if (reconciliation.sdkError != ESP_OK) return applicationSdkStatus(reconciliation.sdkError);
+  const auto error = app.phy->start(until);
+  app.cliMaintenance = false; // A start attempt can leave framework effects.
+  app.traffic = error == ESP_OK;
+  if (app.traffic) app.stopAnnounced = false;
+  return applicationSdkStatus(error);
+}
+
+bool attachConsole(const Identity& identity) {
+  console.native.maintenanceAllowed = maintenanceAllowed;
+  console.native.end = endConsole;
+  console.native.application = applicationCommand;
+  return console.attach(identity);
+}
+
+void serviceConsoleFor(uint32_t milliseconds) {
+  if (!console.attached) {
+    vTaskDelay(pdMS_TO_TICKS(milliseconds));
+    return;
+  }
+  for (uint32_t step = 0; step < milliseconds && !app.shutdownRequested.load(); ++step) {
+    console.service();
+    if (app.manualControl) return;
+    vTaskDelay(1);
+  }
 }
 
 /// Run one traffic interval; false when shutdown or an obligation ends the session.
 bool runInterval(unsigned steps) {
   for (unsigned step = 0; step < steps; ++step) {
-    vTaskDelay(pdMS_TO_TICKS(100));
+    serviceConsoleFor(100);
     if (app.shutdownRequested.load()) { app.sessionEnd = "unexpected framework STOP"; return false; }
+    if (app.manualControl) { app.sessionEnd = "console owner control"; return false; }
     if (!serviceObligations()) return false;
     if (step % 10U == 0U) report();
   }
@@ -473,11 +561,15 @@ void serve() {
   esp_err_t error = app.phy->start(deadlineUs());
   checkAdapter("start", error);
   if (error != ESP_OK) { app.sessionEnd = "start failed"; return; }
+  app.traffic = true;
+  app.stopAnnounced = false;
   app.sessionEnd = "running";
   bool active = runInterval(100);
+  if (app.manualControl && !app.shutdownRequested.load()) return;
   if (active) {
     if (ownerStop() != ESP_OK) { app.sessionEnd = "owner stop failed"; return; }
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    serviceConsoleFor(1000);
+    if (app.manualControl && !app.shutdownRequested.load()) return;
     // An unexpected STOP delivered while stopped, including during the
     // journal retries, prevents the restart. A completed owner stop has
     // already discharged any stopRequired latch.
@@ -486,8 +578,14 @@ void serve() {
     error = app.phy->start(deadlineUs());
     checkAdapter("restart", error);
     if (error != ESP_OK) { app.sessionEnd = "restart failed"; return; }
+    app.traffic = true;
+    app.stopAnnounced = false;
     active = runInterval(200);
-    if (active) app.sessionEnd = "demonstration complete";
+    if (app.manualControl && !app.shutdownRequested.load()) return;
+    if (active) {
+      app.sessionEnd = "demonstration complete";
+      if (console.attached) app.cliMaintenance = ownerStop() == ESP_OK;
+    }
   }
   if (!active) {
     LifecycleRecord life{};
@@ -502,6 +600,8 @@ void finish() {
     // An undelivered core result keeps CONTROL, so retirement is refused and
     // reported rather than claimed; the token stays recorded below.
     const esp_err_t error = app.phy->retire(deadlineUs());
+    app.traffic = false;
+    if (error == ESP_ERR_NOT_SUPPORTED) app.consoleRetired = true;
     copyLifecycle();
     if (error != ESP_ERR_NOT_SUPPORTED) cleanupError(error);
   } else {
@@ -511,7 +611,7 @@ void finish() {
   // return and name that call. Earlier cycle history stays unknown.
   const char* primaryStage = app.failedStage ? app.failedStage : app.failedAdapterCall;
   const auto primarySdk = app.failedStage ? app.primary.sdkError : app.adapterCallError;
-  std::printf("primary stage=%s cause=%s core=%s detail=%ld SDK=%s cleanup core=%s detail=%ld SDK=%s; "
+  console.print("primary stage=%s cause=%s core=%s detail=%ld SDK=%s cleanup core=%s detail=%ld SDK=%s; "
               "session=%s; resultOwed=%s token=%llu; installed resources %s\n",
               primaryStage ? primaryStage : "none",
               !primaryStage ? "none" : app.failedStage && app.primary.ok() ? "unreported" : "reported",
@@ -525,18 +625,18 @@ void finish() {
               static_cast<unsigned long long>(app.owedToken.value),
               app.installed ? "retained until restart" : "released where safe");
   if (app.failedAdapterCall)
-    std::printf("adapter call=%s SDK=%s\n", app.failedAdapterCall, esp_err_to_name(app.adapterCallError));
+    console.print("adapter call=%s SDK=%s\n", app.failedAdapterCall, esp_err_to_name(app.adapterCallError));
   if (app.resultOwed)
-    std::printf("undelivered operation status=%s detail=%ld\n", errorName(app.owedTerminal.code),
+    console.print("undelivered operation status=%s detail=%ld\n", errorName(app.owedTerminal.code),
                 static_cast<long>(app.owedTerminal.detail));
   if (!app.journalCopyError.ok())
-    std::printf("journal unavailable=%s detail=%ld\n", errorName(app.journalCopyError.code),
+    console.print("journal unavailable=%s detail=%ld\n", errorName(app.journalCopyError.code),
                 static_cast<long>(app.journalCopyError.detail));
   if (!app.stopObservation.is(Err::RESULT_NOT_AVAILABLE))
-    std::printf("stop observation=%s detail=%ld\n", errorName(app.stopObservation.code),
+    console.print("stop observation=%s detail=%ld\n", errorName(app.stopObservation.code),
                 static_cast<long>(app.stopObservation.detail));
   if (app.lastResult.token.value != 0) {
-    std::printf("last delivered operation=%llu status=%s possible-write=%u cleanup-owed=%u\n",
+    console.print("last delivered operation=%llu status=%s possible-write=%u cleanup-owed=%u\n",
                 static_cast<unsigned long long>(app.lastResult.token.value),
                 errorName(app.lastResult.status.code), static_cast<unsigned>(app.lastResult.mutationPossible),
                 static_cast<unsigned>(app.lastResult.cleanupOwed));
@@ -546,26 +646,42 @@ void finish() {
 /// @brief Called only after application/board authorization; never by a handler.
 void run(bool boardReady) {
   if (!boardReady) {
-    std::puts("Board gate closed: verify PHY 3V3 supply, netlist, straps, clocks and reset waveform before enabling.");
+    console.print("Board gate closed: verify PHY 3V3 supply, netlist, straps, clocks and reset waveform before enabling.\n");
     return;
   }
-  if (initialize()) serve();
+  if (initialize()) {
+    if (console.attached) console.native.phy = app.phy;
+    serve();
+    if (console.attached && (app.cliMaintenance || app.manualControl) && !app.shutdownRequested.load()) return;
+  }
   finish();
 }
 } // namespace
 
 #ifndef DP8382X_EXAMPLE_TEST
+/// @brief Board authorization from menuconfig. The volatile read keeps the
+/// operational chain linkable even when the board gate is closed.
+static volatile bool boardGate =
 #ifdef CONFIG_DP8382X_BOARD_READY
-static constexpr bool BOARD_GATE = true;
+    true;
 #else
-static constexpr bool BOARD_GATE = false;
+    false;
 #endif
-/// The volatile read keeps the operational chain in every image, so a default
-/// (gate-closed) build still links the complete MAC/PHY/glue/service path.
-static volatile bool boardGate = BOARD_GATE;
 
+/// @brief Start UART service, then run the explicitly authorized network demo.
+/// @note The application task services the shared CLI and the installed owner.
 extern "C" void app_main(void) {
-  std::printf("DP8382x %s source=%s tree=%s SDK=%s target=%s "
+  Identity identity{esp_random(), EXAMPLE_GIT_COMMIT, EXAMPLE_GIT_TREE, esp_get_idf_version(),
+                    CONFIG_IDF_TARGET, "p4-netlist-basic", "rmii-ext-50MHz", Variant::DP83826I,
+                    MacInterface::RMII, Board::PHY_ADDRESS, "uart0", CONFIG_ESP_CONSOLE_UART_BAUDRATE};
+  if (identity.boot == 0) identity.boot = static_cast<uint32_t>(nowUs()) | 1U;
+  if (!attachConsole(identity)) return;
+  const auto uart = startUartConsole(console.queues);
+  if (uart != ESP_OK) {
+    std::printf("UART0 console setup failed: %s (%ld)\n", esp_err_to_name(uart), static_cast<long>(uart));
+    return;
+  }
+  console.print("DP8382x %s source=%s tree=%s SDK=%s target=%s "
               "P4 RMII MDC=%d MDIO=%d REF_CLK=%d TX_EN=%d TXD0=%d TXD1=%d "
               "CRS_DV=%d RXD0=%d RXD1=%d reset=%d PHY-address=%lu "
               "poll=%lu-ms DHCP; profile=100/full; peer-probe=off\n",
@@ -577,5 +693,23 @@ extern "C" void app_main(void) {
               static_cast<unsigned long>(Board::PHY_ADDRESS),
               static_cast<unsigned long>(Board::LINK_POLL_MS));
   run(boardGate);
+  uint64_t nextStatusUs = 0;
+  uint64_t nextObligationUs = 0;
+  for (;;) {
+    const auto before = nowUs();
+    const bool checkObligations = before >= nextObligationUs;
+    if (checkObligations) nextObligationUs = before + 100000U;
+    if (app.traffic && (app.shutdownRequested.load() || (checkObligations && !serviceObligations()))) {
+      app.sessionEnd = "console network session stopped";
+      finish();
+    }
+    console.service();
+    const auto now = nowUs();
+    if (app.traffic && now >= nextStatusUs) {
+      report();
+      nextStatusUs = now + 1000000U;
+    }
+    vTaskDelay(1);
+  }
 }
 #endif

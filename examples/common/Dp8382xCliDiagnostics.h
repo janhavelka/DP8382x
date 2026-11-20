@@ -88,14 +88,14 @@ inline void cableFields(const CableResult& result, FeatureFields& out) {
   char rows[6 * ROW_BYTES]{};
   for (std::size_t i = 0; i < result.samples.size(); ++i) {
     const auto& row = result.samples[i];
-    const unsigned flags = unsigned(row.cdcr.valid) | (unsigned(row.index.valid) << 1U) |
+    const auto flags = static_cast<uint16_t>(unsigned(row.cdcr.valid) | (unsigned(row.index.valid) << 1U) |
         (unsigned(row.amplitude.valid) << 2U) | (unsigned(row.peak.valid) << 3U) |
         (unsigned(row.cdcr.stale) << 4U) | (unsigned(row.index.stale) << 5U) |
         (unsigned(row.amplitude.stale) << 6U) | (unsigned(row.peak.stale) << 7U) |
         (unsigned(row.triggerAccepted) << 8U) | (unsigned(row.triggerPossible) << 9U) |
         (unsigned(row.freshnessObserved) << 10U) | (unsigned(row.failed) << 11U) |
-        (unsigned(row.state) << 12U);
-    std::snprintf(rows + i * ROW_BYTES, ROW_BYTES, "%04X:%04X:%04X:%04X:%04X", flags,
+        (unsigned(row.state) << 12U));
+    std::snprintf(rows + i * ROW_BYTES, ROW_BYTES, "%04X:%04X:%04X:%04X:%04X", unsigned(flags),
                   unsigned(row.cdcr.raw), unsigned(row.index.raw), unsigned(row.amplitude.raw), unsigned(row.peak.raw));
   }
   out.set(" session_op=%" PRIu64 " recipe=%s requested_mask=%u complete=%u stale=%u stopped=%u autorun=%u"

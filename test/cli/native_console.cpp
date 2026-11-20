@@ -224,7 +224,7 @@ void concurrentLogs() {
   std::thread output([&] {
     for (unsigned n = 0; n < RECORDS; ++n) {
       const auto text = record(n);
-      for (const char byte : text) {
+      for (const char& byte : text) {
         while (console.write(&byte, 1) == 0) std::this_thread::yield();
       }
     }

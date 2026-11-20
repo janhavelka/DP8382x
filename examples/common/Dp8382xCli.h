@@ -59,7 +59,18 @@ enum class Action {
   COLLECT_EVENTS,  ///< Consume the event/counter sources under their existing collector.
   ABANDON,         ///< Withdraw local cleanup debt after app-confirmed external disposition.
   END,             ///< Release the binding through the application's owner route.
-  FEATURE          ///< Execute one grouped typed feature or copy its cached view.
+  FEATURE,         ///< Execute one grouped typed feature or copy its cached view.
+  APPLICATION      ///< Route one explicit command to the example application.
+};
+
+/// @brief Application commands use the same grammar on every console.
+enum class ApplicationCommand {
+  STATUS,  ///< Copy cached application evidence.
+  START,   ///< Reconcile verified settings and start the framework.
+  STOP,    ///< Stop/fence the framework and open a maintenance window.
+  ADMIT,   ///< Admit a raw frame session under the owner's policy.
+  RELEASE, ///< Withdraw the application session and close its frame queues.
+  SEND     ///< Queue the optional fixed experimental frame once.
 };
 
 /// @brief Selected owner inputs, copied at command admission.
@@ -76,6 +87,7 @@ struct Request {
   ResetKind reset{ResetKind::NONE}; ///< Requested initialization/reset kind.
   Feature feature{Feature::NONE}; ///< Typed command selector retained through terminal delivery.
   FeatureArgs featureArgs{}; ///< Copied arguments for the initial feature call only.
+  ApplicationCommand application{ApplicationCommand::STATUS}; ///< Selector for APPLICATION.
 };
 
 /// @brief Evidence for this call only. Unavailable evidence remains defaulted.
@@ -131,6 +143,8 @@ struct Platform {
   /// A portable RECONCILE is a local success. Native reconciliation uses public
   /// stopped SDK controls and supplies the independent SDK error.
   Status (*execute)(void*, const Request&, Receipt&){nullptr};
+  /// @brief Optional bus-silent copy of bounded console transport counters.
+  void (*consoleStats)(void*, FeatureFields&){nullptr};
 };
 
 /// @brief Values declared by the application, separate from observed silicon.
@@ -147,6 +161,8 @@ struct Identity {
   Variant variant{Variant::UNKNOWN}; ///< Declared part, not an observed ID.
   MacInterface interface{MacInterface::RMII}; ///< Declared MAC interface.
   uint32_t phyAddress{0}; ///< Declared Clause 22 address, 0 to 31.
+  const char* console{"unknown"}; ///< Console transport name, e.g. uart0 or host-stdio.
+  uint32_t baud{0}; ///< UART line speed in bit/s, zero when inapplicable or unknown.
 };
 
 /// @brief One fixed-memory CLI per application stream.
@@ -253,6 +269,7 @@ private:
   void identity(const Command&, const Args&, std::size_t, Reply&);
   void configure(const Command&, const Args&, std::size_t, Reply&);
   void console(const Command&, const Args&, std::size_t, Reply&);
+  void application(const Command&, const Args&, std::size_t, Reply&);
   void cached(const Command&, const Args&, std::size_t, Reply&);
   void route(const Command&, const Args&, std::size_t, Reply&);
   void lifecycle(const Command&, const Args&, std::size_t, Reply&);

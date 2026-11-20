@@ -30,11 +30,18 @@ struct NativeOwner {
   /// by SDK or CLI callbacks alive. Null means the application has no END route.
   Status (*end)(void*, uint64_t deadlineUs){nullptr};
   FeatureAttestation featureAttestation{nullptr}; ///< Independent application proof for typed feature prerequisites.
+  /// @brief Execute an explicit application command on the owner task.
+  /// @note STATUS is cached and receives a zero deadline. Other commands receive
+  /// an absolute exclusive budget in esp_timer microseconds.
+  Status (*application)(void*, ApplicationCommand, uint64_t, FeatureFields&){nullptr};
+  /// @brief Copy optional UART and output queue counters without owner or bus access.
+  void (*consoleStats)(void*, FeatureFields&){nullptr};
 
   /// @brief Build the processor's borrowed platform callbacks without I/O.
   /// @return Platform with a null writer if the bridge has no console sink.
   Platform platform() noexcept {
-    return {this, write ? &writeSome : nullptr, &readCached, &nowUs, &execute};
+    return {this, write ? &writeSome : nullptr, &readCached, &nowUs, &execute,
+            consoleStats ? &copyConsoleStats : nullptr};
   }
 
 private:
@@ -44,6 +51,11 @@ private:
   }
 
   static uint64_t nowUs(void*) { return static_cast<uint64_t>(esp_timer_get_time()); }
+
+  static void copyConsoleStats(void* opaque, FeatureFields& fields) {
+    auto& bridge = *static_cast<NativeOwner*>(opaque);
+    bridge.consoleStats(bridge.context, fields);
+  }
 
   static Status missing() {
     return Status::Error(Err::NOT_BOUND, "The application has no native PHY");
@@ -173,6 +185,11 @@ private:
   static Status execute(void* opaque, const Request& request, Receipt& receipt) {
     auto& bridge = *static_cast<NativeOwner*>(opaque);
     receipt = {};
+    if (request.action == Action::APPLICATION) {
+      if (!bridge.application) return Status::Error(Err::UNSUPPORTED, "No application command route");
+      return bridge.application(bridge.context, request.application, request.budget.io.deadlineUs,
+                                receipt.featureFields);
+    }
     if (!bridge.phy) return missing();
     const bool maintenance = requiresMaintenance(request.action) ||
         (request.action == Action::FEATURE && owner_detail::featureMaintenance(request.feature));

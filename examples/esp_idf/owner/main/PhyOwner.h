@@ -30,6 +30,10 @@ public:
   PhyOwner& operator=(const PhyOwner&) = delete;
 
   DP8382x::Status begin(const DP8382x::LinkSettings& profile) noexcept;
+  /// @brief Check copied settings against the admitted 100/full AN profile.
+  /// @param[in] settings Retained desired and observed evidence from the native owner.
+  /// @return True for a verified, current match of both values. Performs no I/O.
+  bool verifiedProfile(const DP8382x::SettingsSnapshot& settings) const noexcept;
   void observe(uint64_t nowUs, const DP8382x::HealthSnapshot& health,
                const DP8382x::SettingsSnapshot& settings,
                const DP8382x::LinkSnapshot& link, bool frameworkReady) noexcept;

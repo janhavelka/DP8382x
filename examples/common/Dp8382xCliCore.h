@@ -148,6 +148,8 @@ public:
     }
 
     switch (request.action) {
+      case Action::APPLICATION:
+        return Status::Error(Err::UNSUPPORTED, "No application command route");
       case Action::START_CONFIGURE:
         return _driver.startConfigure(request.settings, request.options, request.budget, receipt.token);
       case Action::START_VERIFY:

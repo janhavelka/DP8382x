@@ -340,6 +340,7 @@ public:
     identity.firmware = _options.identity;
     identity.target = "host";
     identity.backend = "sim-mdio";
+    identity.console = "host-stdio";
     identity.clock = "simulated";
     identity.variant = config.variant;
     identity.interface = config.interface;

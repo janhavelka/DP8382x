@@ -721,6 +721,159 @@ void unexpectedStopGap() {
     finish();
 }
 
+struct ConsoleSink {
+    std::string output;
+    bool stalled{false};
+    static std::size_t write(void* context, const char* bytes, std::size_t size) {
+        auto& sink = *static_cast<ConsoleSink*>(context);
+        if (sink.stalled) return 0;
+        sink.output.append(bytes, size);
+        return size;
+    }
+    void tick() { console.queues.drain(this, write); }
+    void drain() {
+        for (unsigned i = 0; i < 128; ++i) {
+            console.service();
+            tick();
+            if (!console.processor.outputPending() && console.queues.stats().queuedOutput == 0 &&
+                console.queues.stats().queuedLogs == 0) return;
+        }
+        assert(false && "console did not drain");
+    }
+    void command(std::string_view line) {
+        output.clear();
+        assert(console.queues.offerInput(line) == line.size());
+        for (unsigned i = 0; i < 200; ++i) {
+            console.service();
+            tick();
+            if (console.queues.stats().queuedInput == 0 && !console.processor.workPending()) {
+                drain();
+                return;
+            }
+            // No framework timer calls while attributing CLI command frames.
+            Host::state().nowUs += 1000U;
+        }
+        assert(false && "CLI did not complete");
+    }
+    void terminal(std::string_view command, std::string_view primary) const {
+        const auto start = output.find(command);
+        assert(start != std::string::npos);
+        const auto terminal = output.find("state=terminal primary=", start);
+        assert(terminal != std::string::npos);
+        const auto field = terminal + std::string_view("state=terminal primary=").size();
+        if (output.compare(field, primary.size(), primary) != 0 || output[field + primary.size()] != ' ') {
+            std::cerr << output;
+            assert(false && "unexpected CLI terminal status");
+        }
+    }
+};
+
+void attachTestConsole() {
+    Identity identity;
+    identity.boot = 47;
+    identity.backend = "p4-basic-host";
+    identity.console = "uart0";
+    identity.baud = 115200U;
+    assert(attachConsole(identity));
+    assert(Host::state().calls.empty());
+    assert(initialize());
+    console.native.phy = app.phy;
+}
+
+void cliNetwork() {
+    Host::reset();
+    attachTestConsole();
+    assert(app.phy->start(deadlineUs()) == ESP_OK);
+    app.traffic = true;
+    ConsoleSink sink;
+    auto before = mac->frames.size();
+    sink.command("session network\n");
+    assert(sink.output.find("console=uart0 baud=115200") != std::string::npos);
+    sink.command("cached settings\n");
+    sink.terminal("cmd=cached.settings", "OK");
+    sink.command("registers bmcr 0x1000 0\n");
+    sink.terminal("cmd=registers.bmcr", "BUSY");
+    assert(mac->frames.size() == before);
+    sink.command("application stop\n");
+    sink.terminal("cmd=application.stop", "OK");
+    assert(app.cliMaintenance && !app.traffic && app.manualControl);
+
+    sink.command("configuration apply forced 10 half mdi 1\n");
+    sink.terminal("cmd=configuration.apply", "OK");
+    SdkStateSnapshot sdk;
+    assert(app.phy->sdkStateSnapshot(sdk).ok() && sdk.reconciled && sdk.cacheValid);
+    assert(!sdk.cachedAutoNegotiation && sdk.speedAccepted && sdk.duplexAccepted);
+    before = mac->frames.size();
+    sink.command("registers bmcr 0x1000 0x1000\n");
+    sink.terminal("cmd=registers.bmcr", "OK");
+    assert(mac->frames.size() == before + 2 && mac->frames.back().write && mac->frames.back().reg == 0);
+    assert(app.phy->sdkStateSnapshot(sdk).ok() && !sdk.reconciled);
+    sink.command("application start\n");
+    sink.terminal("cmd=application.start", "NOT_INITIALIZED");
+    assert(!app.traffic && mac->frames.size() == before + 2);
+    sink.command("connection initialize none\n");
+    sink.terminal("cmd=connection.initialize", "OK");
+    sink.command("configuration apply an 8 none auto 1\n");
+    sink.terminal("cmd=configuration.apply", "OK");
+    assert(app.phy->sdkStateSnapshot(sdk).ok() && sdk.reconciled && sdk.cachedAutoNegotiation);
+    sink.command("application start\n");
+    sink.terminal("cmd=application.start", "OK");
+    Host::deliverEvents();
+
+    mac->errors["mac.stop"] = ESP_FAIL;
+    sink.command("application stop\n");
+    sink.terminal("cmd=application.stop", "INVALID_CONFIG");
+    assert(!app.cliMaintenance);
+    before = mac->frames.size();
+    sink.command("registers bmcr 0x1000 0\n");
+    sink.terminal("cmd=registers.bmcr", "BUSY");
+    assert(mac->frames.size() == before);
+    mac->errors.erase("mac.stop");
+    sink.command("application stop\n");
+    sink.terminal("cmd=application.stop", "OK");
+    Host::deliverEvents();
+    assert(app.expectedStops.load() == 0 && !app.shutdownRequested.load());
+    sink.command("connection end\n");
+    sink.terminal("cmd=connection.end", "UNSUPPORTED");
+    assert(app.consoleRetired && !app.cliMaintenance && mac->alive && Host::isLive(app.driver));
+}
+
+void cliSlowStop() {
+    Host::reset();
+    attachTestConsole();
+    ConsoleSink sink;
+    sink.stalled = true;
+    for (unsigned i = 0; i < 40; ++i) {
+        console.queues.offerInput("version\n");
+        console.service();
+        sink.tick();
+    }
+    // The startup owner must keep serving lifecycle through a saturated sink.
+    // Deliver a real timer-triggered poll, then a burst on the event boundary.
+    bool sentStop = false;
+    mac->onCall = [&](const char* name) {
+        if (sentStop || !app.traffic || std::string_view(name) != "mac.read" ||
+            console.queues.stats().queuedLogs == 0) return;
+        sentStop = true;
+        for (unsigned i = 0; i < 1000; ++i) {
+            onEthernet(&app, ETH_EVENT, ETHERNET_EVENT_CONNECTED, &app.driver);
+            onEthernet(&app, ETH_EVENT, ETHERNET_EVENT_DISCONNECTED, &app.driver);
+        }
+        onEthernet(&app, ETH_EVENT, ETHERNET_EVENT_STOP, &app.driver);
+    };
+    serve();
+    mac->onCall = nullptr;
+    assert(sentStop && app.shutdownRequested.load() && app.events.load() >= 2001U);
+    assert(callCount("timer.periodic") == 1 && callCount("mac.stop") == 1);
+    assert(console.queues.stats().stalledWrites != 0 && console.queues.stats().outputBackpressure != 0);
+    assert(sink.output.empty() && app.installed && Host::isLive(app.driver));
+    sink.stalled = false;
+    sink.drain();
+    assert(sink.output.find("\r\n@DP8382X ") != std::string::npos);
+    assert(sink.output.find("[log] MDIO=") != std::string::npos && console.queues.stats().truncatedLogs == 0);
+    finish();
+}
+
 void lastEventRetry(bool late) {
     Host::reset();
     assert(initialize());
@@ -810,6 +963,8 @@ int main(int argc, char** argv) {
     else if (suite == "start_mdio_failure") startMdioFailure();
     else if (suite == "queued_expected_stop") queuedExpectedStop();
     else if (suite == "unexpected_stop") unexpectedStop();
+    else if (suite == "cli_network") cliNetwork();
+    else if (suite == "cli_slow_stop") cliSlowStop();
     else return 2;
     Host::reset();
     std::cout << suite << " passed\n";

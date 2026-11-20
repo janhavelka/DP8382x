@@ -98,7 +98,7 @@ endforeach()
 
 # The application lifecycle tests include the actual P4 example translation
 # unit with SDK boundary calls injected by the host test. No duplicate owner.
-add_executable(dp8382x_example_host_tests host/example.cpp)
+add_executable(dp8382x_example_host_tests host/example.cpp "${repo}/examples/common/Dp8382xCli.cpp")
 target_link_libraries(dp8382x_example_host_tests PRIVATE dp8382x_native_host)
 target_compile_definitions(dp8382x_example_host_tests PRIVATE
     CONFIG_ETH_USE_ESP32_EMAC=1 CONFIG_IDF_TARGET_ESP32P4=1)
@@ -124,6 +124,7 @@ foreach(suite IN ITEMS board_config gate_closed shared_loop netif_init_failure
     unexpected_stop_gap negotiating_start emac_address_failure netif_address_mismatch
     netif_address_read_failure live_cleanup_order live_cleanup_denied terminal_delivery_failure
     terminal_busy owner_timeout_delivered running_failures journal_retry journal_unavailable journal_failed_call
+    cli_network cli_slow_stop
     journal_retry_stop cleanup_journal_unavailable profile_match profile_mismatch profile_aged profile_busy)
   add_test(NAME example_${suite} COMMAND dp8382x_example_host_tests ${suite})
   set_tests_properties(example_${suite} PROPERTIES TIMEOUT 30)
@@ -134,6 +135,24 @@ set_tests_properties(example_profile_aged PROPERTIES PASS_REGULAR_EXPRESSION "li
 set_tests_properties(example_profile_busy PROPERTIES PASS_REGULAR_EXPRESSION "linkEvidence=BUSY[^\n]*profile100full=unknown[^\n]*nativePhase=BUSY")
 set_tests_properties(example_journal_failed_call PROPERTIES PASS_REGULAR_EXPRESSION "primary stage=start cause=reported core=OK detail=0 SDK=INJECTED_OR_SDK_ERROR")
 set_tests_properties(example_glue_allocation_failure PROPERTIES PASS_REGULAR_EXPRESSION "primary stage=netif glue cause=unreported core=OK detail=0 SDK=ESP_OK")
+
+add_executable(dp8382x_owner_cli_host_tests host/owner_cli.cpp
+    "${repo}/examples/common/Dp8382xCli.cpp"
+    "${repo}/examples/esp_idf/owner/main/PhyOwner.cpp"
+    "${repo}/examples/esp_idf/owner/main/FramePort.cpp")
+target_link_libraries(dp8382x_owner_cli_host_tests PRIVATE dp8382x_native_host)
+target_compile_definitions(dp8382x_owner_cli_host_tests PRIVATE
+    CONFIG_ETH_USE_ESP32_EMAC=1 CONFIG_IDF_TARGET_ESP32P4=1)
+target_include_directories(dp8382x_owner_cli_host_tests PRIVATE
+    "${sdk}/components/esp_driver_gpio/include"
+    "${sdk}/components/esp_hw_support/include"
+    "${sdk}/components/esp_hal_gpio/include"
+    "${sdk}/components/esp_hal_gpio/esp32p4/include"
+    "${sdk}/components/esp_system/include")
+target_compile_options(dp8382x_owner_cli_host_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+add_test(NAME owner_cli_integration COMMAND dp8382x_owner_cli_host_tests)
+set_tests_properties(owner_cli_integration PROPERTIES TIMEOUT 30)
+
 set(native_suites factory board_install_failures raw_routing raw_rx_retention
     glue_rx_retention stop_failures partial_start_fence notifications
     notification_failures lost_link_event shared_quarantine callback_bounds

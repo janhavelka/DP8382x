@@ -10,7 +10,9 @@ are separate. The application still decides whether a link suits its session.
 This processor provides local and cached queries, identity and discovery,
 typed profile configuration, policy-checked register access, link observations,
 event collection, cooperative lifecycle commands, diagnostics and opt-in
-controls. Prompt 47 attaches the owner bridge to the native consoles.
+controls. The [network application](../examples/esp_idf/basic/README.md),
+[raw-frame owner](../examples/esp_idf/owner/README.md) and compiled host fixture
+all use this processor, grammar and record format.
 
 ## Input and commands
 
@@ -35,14 +37,19 @@ An argument or token failure rejects the entire line before dispatch.
 
 | Command | Alias | Arguments and effect |
 | --- | --- | --- |
-| `help [topic]` | `?` | Show aligned help from the command and settings tables. Topics include `local`, `cached`, `connection`, `configuration`, `registers` and each general command. |
+| `help [topic]` | `?` | Show aligned help from the command and settings tables. Topics include `local`, `application`, `cached`, `connection`, `configuration`, `registers` and each general command. |
 | `version` | `ver` | Report library and application identity. |
 | `session <nonce>` | | Echo a 1–64 byte protocol token and report identity for synchronization. |
 | `capabilities` | `caps` | Show passive capability evidence from accepted silicon identity. |
 | `local board` | | Show declared board/backend, interface, clock, address and provenance. |
 | `local color [off\|on]` | | Query or set human help styling. Default off. Each styled title resets ANSI before the line ends. |
 | `local quiet [0..1]` | | Query or mute human help and prompts. Default 0. Protocol records remain enabled. |
-| `local console` | | Show queued bytes, dropped human chunks and zero-byte write count sampled before its own record. |
+| `local console` | | Show the processor's queue and backpressure counts, plus transport counters where available. |
+| `application status` | | Copy the selected application's cached state. No MDIO. |
+| `application stop` | | Request a stopped and fenced maintenance window. Raw-frame sessions must be released first. |
+| `application start` | | Require verified settings, reconcile the stopped SDK state and start the framework. |
+| `application admit`, `application release` | | Explicitly admit or release a raw-frame session, using the raw-frame owner's current policy. |
+| `application send` | | Queue the raw-frame owner's fixed test frame when the build and session allow it. A later service turn decides submission. |
 | `cached health` | `drv`, `health` | Copy managed MDIO health, counts and last error. |
 | `cached link` | | Copy link validity, staleness, resolved speed/duplex and pause evidence. |
 | `cached settings` | `cfg`, `settings` | Copy desired and observed link profile summaries and configuration trust. |
@@ -85,11 +92,37 @@ An argument or token failure rejects the entire line before dispatch.
 
 Unsigned input uses decimal or explicit `0x`/`0X` hex. Leading zeros do not
 select octal. Require at least one digit, reject signs, partial conversions and
-values above 4294967295 unless the argument is a 64-bit operation token, then
-check the command range before using the value.
+values above 4294967295 except for the 64-bit operation tokens and BIST
+observation interval. Each command then checks its argument ranges.
 The wire's signed details use decimal with an optional minus and retain the
 whole int32 range.
 Enums match their complete tokens. Missing or extra arguments reject.
+
+### Application commands
+
+The P4 network application supports `status`, `stop` and `start`. The
+raw-frame owner also supports `admit`, `release` and `send`. Unavailable
+application routes, including all of them in the host fixture, return
+`UNSUPPORTED`. These commands share the PHY owner's service loop. An
+application status query copies existing evidence. Background SDK polls can
+still contribute frames to all-source totals. The other commands use
+the CLI work slot and a 5 s deadline.
+
+Active traffic denies disruptive CLI work. Release a raw session and service
+any pending operation result before requesting `application stop`. The
+application opens maintenance only after a successful framework stop and any
+required raw-frame quiescence. Use `configuration apply` for a verified AN or
+forced profile. Raw `registers bmcr` effects can require `recovery reinitialize`
+before the owner can verify and start. A failed operation retains its own
+terminal result and any cleanup owed. The replay has a new token and budget.
+`application start` reconciles the stopped SDK state before starting traffic.
+
+The raw application requires the verified 100/full-only AN profile for start
+and a fresh resolved 100/full link for admission.
+`application send` accepts no bytes or destination arguments. It queues the
+build's opt-in fixed test frame for later release to the SDK through ordinary
+owner service. Queue acceptance carries no transmit result. The network
+application leaves local-peer probing to the fixture operator.
 
 ### Typed profile syntax
 
@@ -308,6 +341,33 @@ contiguous span of at most 256 bytes to the nonblocking writer. The writer
 returns the length of its accepted prefix, including zero for backpressure.
 The queue retains all remaining bytes. No controller lock spans output work.
 
+Both P4 builds use the board's UART0 serial bridge at 115200 baud, 8 data
+bits, no parity and one stop bit. The application pins ESP-IDF log V1 and
+disables the secondary USB console. Its UART task alone calls the driver's
+TX path. The driver takes a TX mutex before accepting bytes into the FIFO.
+Keeping TX with one task prevents contention on that path. A zero-byte return
+leaves the suffix for a later pump turn. The owner continues servicing the
+processor, application events and due operations without waiting for UART.
+
+The driver has a 1024-byte RX buffer and a 16-event queue. The UART pump reads
+up to 128 bytes and offers up to 256 output bytes per turn. The owner shares a
+512-byte input ring and 2048-byte processor-output ring with the pump. UART
+overflow, frame, parity or break events and event queue saturation mark an
+ordered input gap. Checks before and after a read keep a damaged fragment away
+from dispatch. The pump discards the affected driver input and reports the
+gap to the owner. The processor finishes older retained bytes, discards any
+damaged line through its delimiter and resumes on the following line. The
+reported input-byte loss is a lower bound when its exact size is unknown.
+
+The application status lines and ESP log V1 hook use a separate queue of
+eight ordinary lines of up to 384 rendered bytes, plus one line being drained.
+Formatting uses a local buffer. Queue insertion uses a short try-lock and
+drops a whole line on contention, capacity exhaustion, invalid framing or
+truncation. The pump prefixes ordinary lines with `[log] ` and keeps them
+outside in-progress machine records. Their storage is independent of required
+terminal records. SDK log V2 can fragment a line across hook calls. ROM,
+panic and direct `printf` output can bypass the hook and corrupt a record.
+
 After queuing output, `tick` advances at most one owner call or one
 discovery/dump row. These ranges use a single 2 s exclusive deadline and
 a frame allowance for the whole range. A row can consume one C22 frame,
@@ -360,8 +420,8 @@ complete record on the other end.
 
 The prompt is `> ` and the title is `=== DP8382x CLI Help ===`. Human output
 and machine output use the same cursor tracking. ROM, panic or other direct
-output that bypasses the queue can corrupt a record. Native log routing enters
-in prompt 47. The host must not reconstruct a corrupted record from fragments.
+output that bypasses the queue can corrupt a record. The host must reject a
+corrupted candidate and keep its evidence as received.
 
 ## Schema 1
 
@@ -419,9 +479,11 @@ write/operation receipt. They never invent successful ordinary read output.
 | Command | Additional fields in a successful record |
 | --- | --- |
 | `help` | None. The human help remains optional output. |
-| `session`, `version`, `local board` | `nonce library firmware tree sdk target backend clock variant interface address`. Non-session commands use `nonce=none`. The address is 0–31, and the interface is MII or RMII. |
+| `session`, `version`, `local board` | `nonce library firmware tree sdk target backend clock variant interface address console baud`. Non-session commands use `nonce=none`. The address is 0–31, and the interface is MII or RMII. `baud` is the UART rate where applicable. Zero denotes an unavailable or inapplicable rate. |
 | `local color`, `local quiet` | The setting's name with value 0 or 1. |
-| `local console` | `queued dropped_human stalled_writes`. The first is bytes, the other two are saturating uint32 counters. |
+| `local console` | `queued dropped_human stalled_writes`. The first is processor queue bytes, the other two are saturating uint32 counts. The P4 builds add `input_queued output_queued lines_queued input_dropped input_gaps lines_dropped lines_truncated uart_stalls output_backpressure`. The first three are queue depths in bytes, bytes and lines. The other values are uint32 totals modulo 2³². `input_dropped` is a lower bound when the driver reports possible loss. `output_backpressure` counts short or refused writes from processor to pump. |
+| `application status` | The P4 network view uses `installed traffic maintenance retired shutdown carrier ip events`. The raw owner view reports its phase, generation, readiness, restart and maintenance state, frame accounting and retained SDK errors. |
+| `application send` | `queued=1 generation` on raw-frame queue acceptance. Later SDK and frame outcomes remain in `application status`. |
 | `capabilities` | `valid modes interfaces copper fiber gigabit`. Masks are the portable `LINK_*` and `INTERFACE_*` values and zero if invalid. |
 | `cached health` | `health initialized successes failures consecutive last_error last_detail last_ok_valid last_ok_us last_error_valid last_error_us`. Health names are UNINIT, READY, DEGRADED and OFFLINE. Counts are uint32. |
 | `cached link` | `valid stale up resolved speed_mbps duplex negotiation pause_valid pause_rx pause_tx observed_valid observed_us`. A current result requires valid=1 and stale=0. Unresolved fields use 0 or `unknown`; duplex is `half` or `full` when resolved. Negotiation is `disabled`, `in_progress`, `complete` or `unknown`. Observed time may be historical. |
@@ -429,6 +491,23 @@ write/operation receipt. They never invent successful ordinary read output.
 | `cached operation` | `slot token slot_status slot_detail cleanup_owed temporary slot_deadline_us`. Slot is `idle`, `running` or `result_pending`. An occupied slot carries its own token and deadline. The query's terminal outcome does not advance that slot. |
 | `cached transport` | `batches attempted completed stopped clock_invalid controller_reusable`. Counts are uint32 and can include application startup or other owner traffic. |
 | `owner status` | The same payload as `cached operation`. |
+
+### Application payloads
+
+In the network application, `installed` indicates an installed owner.
+`traffic`, `maintenance`, `retired`, `shutdown` and `carrier` are 0/1
+indications. `ip` is the last application IPv4 address in dotted decimal
+and `0.0.0.0` means no address. `events` counts received Ethernet and IP callbacks.
+
+In the raw-frame application, `phase` is `unconfigured`, `waiting`, `ready`,
+`active`, `withdrawn` or `maintenance`. `gen` is the raw-frame generation.
+`ready`, `restart`, `maintenance` and `retired` are 0/1 indications. `rx`,
+`rxd`, `rxexp` and `rxother` count accepted, dropped, experimental and other RX
+frames. `tx` and `txd` count queued and dropped submissions. `dma`, `txdenied`,
+`txbp`, `txdown` and `txfailed` count DMA queue acceptance, admission denials,
+backpressure, cached link-down and other SDK failures. `txattempted` qualifies
+the SDK transmit history. `txfirst` and `txsdk` carry the signed first and
+latest SDK error evidence. Use `owner status` for the PHY's operation slot.
 
 ### Lifecycle, link and run payloads
 

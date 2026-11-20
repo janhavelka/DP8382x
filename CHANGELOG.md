@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Integrate the shared CLI in both ESP32-P4 examples. Add a UART0 pump, bounded
+  queues and ESP log V1 routing, and keep periodic status and raw frame controls
+  on the existing application owners. Exercise stopped SDK reconciliation and
+  retained terminal output through a stalled console on the host.
+
 - Enforce CLI deadlines even when the native owner refuses a poll. Preserve
   terminal and cleanup evidence through output stalls and fail passive checks
   on incomplete receipts or a lost clock. Gate exact-part reads on fresh

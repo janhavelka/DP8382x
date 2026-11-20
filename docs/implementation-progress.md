@@ -1,5 +1,12 @@
 # Implementation progress
 
+Prompt 47 attaches the shared CLI to both P4 applications on `main` from
+synchronized `12085ea`. The owner task retains all PHY and application state.
+UART0 and SDK log V1 share the bounded writer, and the P4 applications expose
+their maintenance and frame policies through the same command table. The
+[stage report](reports/implementation/47-cli-native-integration.md) records
+the host and pinned SDK evidence. Physical UART and board qualification remain open.
+
 The [independent review of prompts 45 and 46](reports/implementation/45-46-independent-review.md)
 starts from synchronized `d0d018b` on `main`. It closes CLI deadline and
 cancellation gaps, checks passive sample and identity evidence, constrains

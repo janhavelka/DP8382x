@@ -66,8 +66,10 @@ I/O or a new maintenance grant. Explicit CLI link/event acquisition requires a
 stopped native owner and shares the core collector with framework polling.
 Watch copies cached link evidence. The application provides a release hook for
 CLI end and independent external disposition for abandon. The release hook owns
-SDK stop and fencing and preserves storage still reachable by callbacks. Console
-attachment is stage 47.
+SDK stop and fencing and preserves storage still reachable by callbacks. Both
+P4 examples run the processor on the application task. The UART0 pump and the
+ESP log V1 hook exchange bounded bytes or lines, independently of SDK and PHY
+gates. [Console service](cli.md#console-service)
 
 Typed CLI feature acquisitions use the stopped instance gate and check current
 identity before accessing exact-part registers. The feature templates accept

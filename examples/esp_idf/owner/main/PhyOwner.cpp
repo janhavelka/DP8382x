@@ -39,6 +39,13 @@ void PhyOwner::withdraw() noexcept {
   else if (_state.phase == OwnerPhase::READY) _state.phase = OwnerPhase::WAITING;
 }
 
+bool PhyOwner::verifiedProfile(const SettingsSnapshot& settings) const noexcept {
+  return _state.phase != OwnerPhase::UNCONFIGURED &&
+      settings.trust == ConfigurationTrust::VERIFIED && settings.desiredValid && settings.observedValid &&
+      !settings.observedStale && settings.lastVerificationStatus.ok() &&
+      matches(settings.desired, _profile) && matches(settings.observed, _profile);
+}
+
 bool PhyOwner::checkTime(uint64_t nowUs) noexcept {
   if (nowUs < _lastClockUs) _clockInvalid = true;
   _lastClockUs = nowUs;
@@ -63,9 +70,7 @@ void PhyOwner::observe(uint64_t nowUs, const HealthSnapshot& health, const Setti
   _state.settings = settings;
   _state.link = link;
   const bool usable = !_clockInvalid && _state.frameworkReady && health.initialized && health.state == DriverState::READY &&
-      settings.trust == ConfigurationTrust::VERIFIED && settings.desiredValid && settings.observedValid &&
-      !settings.observedStale && settings.lastVerificationStatus.ok() &&
-      matches(settings.desired, _profile) && matches(settings.observed, _profile) &&
+      verifiedProfile(settings) &&
       link.valid && !link.stale && link.lastRefreshStatus.ok() && link.linkUp &&
       !link.temporaryMayBeActive && link.negotiation == NegotiationState::COMPLETE &&
       link.resolvedModeValid && link.speed == LinkSpeed::MBPS_100 && link.duplex == Duplex::FULL &&

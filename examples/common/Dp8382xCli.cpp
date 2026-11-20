@@ -361,6 +361,12 @@ const Processor::Command Processor::COMMANDS[] = {
     {"local color", "", 0, 1, COLOR, &Processor::configure, "", "Set or show ANSI style"},
     {"local quiet", "", 0, 1, QUIET, &Processor::configure, "", "Set or show human-output filter"},
     {"local console", "", 0, 0, 0, &Processor::console, "", "Console backpressure counters"},
+    {"application status", "", 0, 0, unsigned(ApplicationCommand::STATUS), &Processor::application, "", "Cached application evidence"},
+    {"application start", "", 0, 0, unsigned(ApplicationCommand::START), &Processor::application, "", "Start with verified settings"},
+    {"application stop", "", 0, 0, unsigned(ApplicationCommand::STOP), &Processor::application, "", "Stop and enter maintenance"},
+    {"application admit", "", 0, 0, unsigned(ApplicationCommand::ADMIT), &Processor::application, "", "Admit a raw frame session"},
+    {"application release", "", 0, 0, unsigned(ApplicationCommand::RELEASE), &Processor::application, "", "Release a raw frame session"},
+    {"application send", "", 0, 0, unsigned(ApplicationCommand::SEND), &Processor::application, "", "Queue the opt-in test frame"},
     {"cached health", "drv|health", 0, 0, unsigned(SnapshotKind::HEALTH), &Processor::cached, "", "Managed MDIO health"},
     {"cached link", "", 0, 0, unsigned(SnapshotKind::LINK), &Processor::cached, "", "Last link and resolution"},
     {"cached settings", "cfg|settings", 0, 0, unsigned(SnapshotKind::SETTINGS), &Processor::cached, "", "Configuration intent and trust"},
@@ -413,7 +419,7 @@ bool Processor::setup(const Platform& platform, const Identity& identity) {
   if (_platform.write || !platform.write || !platform.readCached ||
       !safeString(identity.firmware) || !safeString(identity.tree) ||
       !safeString(identity.sdk) || !safeString(identity.target) ||
-      !safeString(identity.backend) || !safeString(identity.clock) ||
+      !safeString(identity.backend) || !safeString(identity.clock) || !safeString(identity.console) ||
       !isValidPhyAddress(identity.phyAddress) ||
       (identity.variant != Variant::UNKNOWN && !isValidVariant(identity.variant)) ||
       (identity.interface != MacInterface::RMII && identity.interface != MacInterface::MII)) return false;
@@ -674,11 +680,11 @@ void Processor::identity(const Command& command, const Args& args, std::size_t, 
   if (session) reply.type = "session";
   const auto nonce = session ? args[0] : std::string_view("none");
   reply.fields(" nonce=%.*s library=%s firmware=%s tree=%s sdk=%s target=%s backend=%s"
-               " clock=%s variant=%s interface=%s address=%" PRIu32,
+               " clock=%s variant=%s interface=%s address=%" PRIu32 " console=%s baud=%" PRIu32,
                int(nonce.size()), nonce.data(), VERSION_STRING, _identity.firmware, _identity.tree,
                _identity.sdk, _identity.target, _identity.backend, _identity.clock,
                _identity.variant == Variant::DP83826I ? "DP83826I" : "unknown",
-               interfaceName(_identity.interface), _identity.phyAddress);
+               interfaceName(_identity.interface), _identity.phyAddress, _identity.console, _identity.baud);
 }
 
 void Processor::configure(const Command& command, const Args& args, std::size_t count, Reply& reply) {
@@ -702,9 +708,30 @@ void Processor::configure(const Command& command, const Args& args, std::size_t 
 }
 
 void Processor::console(const Command&, const Args&, std::size_t, Reply& reply) {
-  reply.fields(" queued=%zu dropped_human=%" PRIu64 " stalled_writes=%" PRIu64,
+  FeatureFields fields;
+  if (_platform.consoleStats) _platform.consoleStats(_platform.context, fields);
+  reply.fields(" queued=%zu dropped_human=%" PRIu64 " stalled_writes=%" PRIu64 "%s",
                _output.queuedBytes(), uint64_t(_output.droppedHuman()),
-               uint64_t(_output.stalledWrites()));
+               uint64_t(_output.stalledWrites()), fields.text.data());
+  reply.checkFeatureFields(fields);
+}
+
+void Processor::application(const Command& command, const Args&, std::size_t, Reply& reply) {
+  if (!_platform.execute) {
+    reply.status = Status::Error(Err::UNSUPPORTED, "No application command route");
+    return;
+  }
+  Request request;
+  request.action = Action::APPLICATION;
+  request.application = static_cast<ApplicationCommand>(command.flags);
+  if (request.application != ApplicationCommand::STATUS) {
+    schedule(command.name, request, Work::CALL, CONFIG_US, reply);
+    return;
+  }
+  Receipt receipt{};
+  reply.status = checkedTerminal(_platform.execute(_platform.context, request, receipt));
+  reply.fields("%s", receipt.featureFields.text.data());
+  reply.checkFeatureFields(receipt.featureFields);
 }
 
 void Processor::cached(const Command& command, const Args&, std::size_t, Reply& reply) {
@@ -1329,7 +1356,7 @@ void Processor::serviceJob() {
       } else if (request.action == Action::COLLECT_EVENTS) {
         if (!reply.status.ok()) receipt.counters.lastStatus = reply.status;
         reply.eventFields(receipt.counters, receipt.eventValidMask, receipt.eventWords);
-      } else if (featureCall) {
+      } else if (featureCall || request.action == Action::APPLICATION) {
         reply.fields("%s", receipt.featureFields.text.data());
         reply.checkFeatureFields(receipt.featureFields);
       } else if (isWrite(request.action)) {
