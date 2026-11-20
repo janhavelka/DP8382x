@@ -100,8 +100,10 @@ owns per-field encodings/access effects and exact procedure-only actions. Add
 later variants only with their individual register/procedure and qualification
 evidence; family names never grant compatibility.
 
-Examples own board resources and actual SDK links. The shared CLI routes every
-request through the same application owner. Python sessions retain bounded raw
+Examples own board resources and actual SDK links. The [shared CLI](cli.md)
+routes passive queries through the application owner and holds a complete
+terminal record when the console queue fills. The host fixture runs this
+processor and the core on simulated MDIO. Planned Python sessions retain bounded raw
 transcripts and correlated identities/outcomes. Runs use two artifacts: a text
 transcript and an atomically finalized JSON record with verdict, case results,
 fixture/identity, cleanup, hash/length and truncation. Zero/skipped-only or failed

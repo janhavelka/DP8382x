@@ -1,5 +1,8 @@
 # Planning audits and later implementation evidence
 
+The [prompt 43 report](implementation/43-cli-foundation.md) records the
+portable CLI source audit, terminal retention and real-core fixture tests.
+
 The [prompt 40 report](implementation/40-p4-network-example.md) records the
 ordinary P4 Ethernet application, native image and failure tests. Its
 [board source audit](implementation/40-board-source-audit.md) verifies the latest

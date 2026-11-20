@@ -1,5 +1,12 @@
 # Implementation progress
 
+Prompt 43 implements the [shared CLI grammar and record schema](cli.md) on
+`main` from synchronized `468e269`. The processor has fixed input/output
+bounds, passive owner queries, session correlation and terminal backpressure.
+The [stage report](reports/implementation/43-cli-foundation.md) records host
+fixture evidence. Prompts 44–46 add live handlers and prompt 47 attaches the
+native console.
+
 The [third auditor follow-up](reports/implementation/40-p4-network-example.md#third-auditor-follow-up)
 closes the expired-entry POR floor, the STOP check after journal retries and
 pre-install journal retention. It defers the remaining minor items to prompt 54.
@@ -577,7 +584,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [40 Build the complete ESP32-P4 ordinary Ethernet example](prompts/40-p4-network-example.md) | COMPLETE for software/image | [Report](reports/implementation/40-p4-network-example.md), [board audit](reports/implementation/40-board-source-audit.md), [example](../examples/esp_idf/basic/README.md); 35 application tests, pinned P4 image. Physical PHY power/link/DHCP NOT RUN; reusable installed teardown BLOCKED. |
 | [41 Implement explicit application admission and maintenance ownership](prompts/41-owner-admission-example.md) | Software complete | [Host and P4 link evidence](reports/implementation/41-owner-admission-example.md). Physical session qualification remains open. |
 | [42 Demonstrate bounded native MAC frame handoff](prompts/42-owner-frame-boundary.md) | Software complete | [Host handoff and P4 image link](reports/implementation/42-owner-frame-boundary.md). Reusable teardown remains blocked by the SDK RX lifetime. |
-| [43 Implement the portable CLI, bounded console and record schema](prompts/43-cli-foundation.md) | NOT STARTED | None |
+| [43 Implement the portable CLI, bounded console and record schema](prompts/43-cli-foundation.md) | COMPLETE | [Grammar and schema](cli.md), [source audit and verification](reports/implementation/43-cli-foundation.md). Real-core host fixture and eight CLI CTests. Native console and physical evidence follow. |
 | [44 Add complete identity, configuration and register CLI routes](prompts/44-cli-configuration-registers.md) | NOT STARTED | None |
 | [45 Add link, lifecycle and retained-operation CLI commands](prompts/45-cli-link-lifecycle.md) | NOT STARTED | None |
 | [46 Expose every diagnostic and opt-in feature through typed commands](prompts/46-cli-diagnostics-controls.md) | NOT STARTED | None |

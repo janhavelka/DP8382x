@@ -1,5 +1,12 @@
 # Verification
 
+Prompt 43 registers CLI processor, console and subprocess transcript cases.
+Configure the portable Release build with `DP8382X_BUILD_TESTS=ON`,
+build it and run `ctest --test-dir build/host -R '^cli_' --output-on-failure
+--no-tests=error`. Python 3.10 or newer enables the transcript case. The C++
+cases run independently of Python. See the [CLI fixture](cli/README.md) for
+simulated partner, error, reboot and output controls.
+
 Use the pinned-host CTest filter `board_deadline_domains|board_reset_window|shared_quarantine`
 to rerun board deadline admission, release-on-failure and application-directed
 controller recovery at 100, 333 and 1,000 Hz. These tests run with an

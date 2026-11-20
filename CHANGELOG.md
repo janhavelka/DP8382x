@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add the portable example CLI, strict byte parsing, cached owner queries and
+  schema 1 session records. Keep terminal output across stalled writes and test
+  the byte stream with the real core and simulated MDIO.
+
 - Publish a reported power event's POR silence, and withdraw the native owner's
   earlier board readiness, before `prepareBoard` can reject the call. The basic
   P4 example now checks for an unexpected STOP after journal confirmation and
