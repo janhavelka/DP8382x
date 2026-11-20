@@ -1,6 +1,7 @@
 """Failure and byte-identity checks for the direct compiled-fixture transport."""
 
 import pathlib
+import subprocess
 import sys
 import time
 import unittest
@@ -76,7 +77,7 @@ class FixtureProcessTest(unittest.TestCase):
         captured = []
         started = time.monotonic()
         with self.assertRaisesRegex(FixtureError, "deadline"):
-            with FixtureProcess(child("import time;time.sleep(20)"), 0.4, 4_000_000,
+            with FixtureProcess(child("import time;time.sleep(20)"), 0.4, 1024,
                                 captured.append) as process:
                 process.send(b"z" * 2_000_000)
         self.assertLess(time.monotonic() - started, 2.0)
@@ -121,13 +122,29 @@ class FixtureProcessTest(unittest.TestCase):
                 raise RuntimeError("caller failed")
         self.assertIsNotNone(process.returncode)
 
+    def test_interruption_reaps_and_termination_escalates(self):
+        with self.assertRaises(KeyboardInterrupt):
+            with FixtureProcess(child("import time;time.sleep(20)"), 3, 100, lambda _: None) as process:
+                raise KeyboardInterrupt
+        self.assertIsNotNone(process.returncode)
+        child_process = mock.Mock(stdin=None)
+        child_process.poll.side_effect = [None, -9]
+        child_process.wait.side_effect = [subprocess.TimeoutExpired("fixture", 0.2), -9]
+        process = FixtureProcess(["fixture"], 3, 100, lambda _: None)
+        process._process = child_process
+        process._abort()
+        child_process.terminate.assert_called_once()
+        child_process.kill.assert_called_once()
+        self.assertEqual(child_process.wait.call_count, 2)
+        self.assertEqual(process.returncode, -9)
+
     def test_invalid_arguments_and_start_error(self):
         with self.assertRaises(FixtureError):
             FixtureProcess([], 1, 1, lambda _: None)
-        for timeout in (0, -1, float("nan"), float("inf"), True):
+        for timeout in (0, -1, float("nan"), float("inf"), True, 121, 10**400):
             with self.subTest(timeout=timeout), self.assertRaises(FixtureError):
                 FixtureProcess(["program"], timeout, 1, lambda _: None)
-        for limit in (0, -1, True, 1.5):
+        for limit in (0, -1, True, 1.5, 1_048_577):
             with self.subTest(limit=limit), self.assertRaises(FixtureError):
                 FixtureProcess(["program"], 1, limit, lambda _: None)
         with self.assertRaisesRegex(FixtureError, "start failed"):

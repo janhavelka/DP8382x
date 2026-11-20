@@ -52,6 +52,9 @@ output at EOF exit with status 1. Bad process arguments or setup exit with
 status 2.
 
 See the grammar and machine record requirements in [the CLI guide](../../docs/cli.md).
+The registered `cli_hil_runner` test drives this executable through the
+[offline evidence runner](../../docs/hil-runner.md), verifies the artifact
+pair and checks admission-only and wrong-token transcripts.
 
 The registered processor checks inject a refused poll, a temporarily refused
 take, a stalled writer, a clock regression during final-sample recording and

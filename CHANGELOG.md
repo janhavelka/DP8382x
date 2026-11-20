@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add the standard-library offline runner with strict session correlation,
+  bounded compiled-fixture execution and durable transcript/JSON evidence.
+  Verify recorded identity, terminal and restoration claims through replay.
+
 - Integrate the shared CLI in both ESP32-P4 examples. Add a UART0 pump, bounded
   queues and ESP log V1 routing, and keep periodic status and raw frame controls
   on the existing application owners. Exercise stopped SDK reconciliation and

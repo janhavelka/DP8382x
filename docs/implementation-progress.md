@@ -1,5 +1,11 @@
 # Implementation progress
 
+Prompt 48 adds [offline protocol verification](hil-runner.md) on `main`
+from synchronized `37059a0`. The compiled host fixture and supplied raw
+transcripts share one strict decoder, case plan and durable evidence pair.
+The [stage report](reports/implementation/48-runner-protocol-artifacts.md)
+records the offline checks. Serial sessions follow in prompt 49.
+
 Prompt 47 attaches the shared CLI to both P4 applications on `main` from
 synchronized `12085ea`. The owner task retains all PHY and application state.
 UART0 and SDK log V1 share the bounded writer, and the P4 applications expose

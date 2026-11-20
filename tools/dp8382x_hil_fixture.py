@@ -6,7 +6,6 @@ bytes, bounds both pipes, and reaps one child. No shell or serial port is used.
 
 from __future__ import annotations
 
-import math
 import os
 import queue
 import subprocess
@@ -38,10 +37,10 @@ class FixtureProcess:
         if (not argv or isinstance(argv, (str, bytes)) or
                 any(not isinstance(part, str) or not part for part in argv)):
             raise FixtureError("fixture argv must contain nonempty strings")
-        if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or not math.isfinite(timeout) or timeout <= 0:
-            raise FixtureError("fixture timeout must be finite and positive")
-        if not isinstance(limit, int) or isinstance(limit, bool) or limit <= 0:
-            raise FixtureError("fixture byte limit must be a positive integer")
+        if type(timeout) not in (int, float) or not 0 < timeout <= 120:
+            raise FixtureError("fixture timeout must be finite and in (0, 120] seconds")
+        if type(limit) is not int or not 1 <= limit <= 1_048_576:
+            raise FixtureError("fixture byte limit must be an integer in 1..1048576")
         if not callable(on_stdout):
             raise FixtureError("fixture stdout callback is required")
         self._argv = tuple(argv)
@@ -235,8 +234,8 @@ class FixtureProcess:
         incomplete closure raises ``FixtureError`` and preserves that prefix.
         """
         process = self._require_live()
-        if not isinstance(closure, (int, float)) or isinstance(closure, bool) or not math.isfinite(closure) or closure <= 0:
-            raise FixtureError("fixture closure must be finite and positive")
+        if type(closure) not in (int, float) or not 0 < closure <= 5:
+            raise FixtureError("fixture closure must be finite and in (0, 5] seconds")
         local_deadline = time.monotonic() + closure
         try:
             if process.stdin is not None and not process.stdin.closed:

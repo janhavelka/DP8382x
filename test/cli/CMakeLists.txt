@@ -32,6 +32,9 @@ endforeach()
 
 find_package(Python3 3.10 QUIET COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
+  add_test(NAME cli_hil_runner COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../test_hil_runner.py" --fixture "$<TARGET_FILE:dp8382x_cli_fixture>")
+  set_tests_properties(cli_hil_runner PROPERTIES TIMEOUT 30)
   add_test(NAME cli_fixture_transcript COMMAND "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/fixture_transcript.py" "$<TARGET_FILE:dp8382x_cli_fixture>")
   add_test(NAME cli_diagnostic_transcript COMMAND "${Python3_EXECUTABLE}"
