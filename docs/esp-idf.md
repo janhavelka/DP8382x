@@ -61,7 +61,9 @@ an installed owner and an application maintenance check. It uses stopped
 typed apply/verify, the existing token/result path, and public SDK
 reconciliation. Raw probe, discovery and register access provide fresh
 receipts captured under the native gate, including failed prefixes and
-transport audit status. Application console attachment is stage 47.
+the audited release status. The bridge can cancel an admitted token without
+I/O or a new maintenance grant if the CLI clock regresses. Application console
+attachment is stage 47.
 
 If a core clock fault during initialization prevents establishing the
 shared reset silence floor, the adapter quarantines the bus before releasing

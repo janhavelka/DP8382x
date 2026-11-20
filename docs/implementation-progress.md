@@ -1,5 +1,10 @@
 # Implementation progress
 
+The [independent review of prompts 43 and 44](reports/implementation/43-44-independent-review.md)
+starts from synchronized `0f493d4` on `main`. It corrects CLI clock-fault
+handling, frame-count and release evidence, and expands the compiled CLI and
+native owner regressions. The prompt 47 console and physical gates remain open.
+
 Prompt 44 adds owner-routed [CLI identity, profile and register commands](cli.md)
 on `main` from synchronized `d1cdb0c`. It preserves partial scan and dump
 evidence, enforces maintenance for disruptive work and reconciles stopped SDK

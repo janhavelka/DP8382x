@@ -46,6 +46,7 @@ enum class Action {
   START_CONFIGURE, ///< Admit typed profile application under maintenance.
   START_VERIFY,    ///< Admit read-only verification.
   POLL,            ///< Advance the admitted operation by at most one batch.
+  CANCEL,          ///< Freeze retained evidence without I/O on a CLI clock fault.
   TAKE,            ///< Copy a terminal result and release that operation's slot.
   RECONCILE        ///< Apply verified intent to stopped SDK cache where applicable.
 };
@@ -69,6 +70,7 @@ struct Receipt {
   BatchResult batch{};       ///< Fresh raw transport receipt when batchValid.
   bool batchValid{false};    ///< This call acquired the receipt, never historical.
   TransportViolation violation{TransportViolation::NONE}; ///< Core audit of that receipt.
+  Status releaseStatus{};    ///< Audited release outcome, available with a fresh raw write receipt.
   uint16_t value{0};         ///< Ordinary register output only on successful read.
   OperationToken token{};    ///< Accepted start token only on IN_PROGRESS.
   Status result{};           ///< Core operation status when TAKE returned OK.
@@ -92,11 +94,14 @@ struct Platform {
   /// @note Destination is borrowed for the call. Return a terminal Status.
   Status (*readCached)(void*, SnapshotKind, CachedSnapshot&){nullptr};
   /// @brief Optional nonwrapping firmware clock, in microseconds since its local origin.
-  /// @note Called at record creation. Null means the record has no timestamp.
+  /// @note Sampled for live admission and records. Null means no timestamp.
+  /// A detected regression invalidates CLI time for the life of the processor.
   uint64_t (*nowUs)(void*){nullptr};
   /// @brief Optional live command route; requires the same clock used by the owner.
   /// @note Application grants maintenance for disruptive actions before any I/O.
   /// START/POLL may return IN_PROGRESS; TAKE preserves the original core result.
+  /// CANCEL freezes the active token without performing I/O. A successful range
+  /// row supplies a fresh audited batch receipt for frame accounting.
   /// A portable RECONCILE is a local success. Native reconciliation uses public
   /// stopped SDK controls and supplies the independent SDK error.
   Status (*execute)(void*, const Request&, Receipt&){nullptr};
@@ -176,7 +181,6 @@ private:
     Status firstError{};
     Status stop{};
     uint64_t requestId{0};
-    uint64_t lastUs{0};
     uint32_t end{0};
     uint32_t rows{0};
     uint32_t errors{0};
@@ -188,11 +192,13 @@ private:
   static const Command COMMANDS[];
   static const ConfigOption CONFIG[];
   void finishLine();
+  bool sampleClock(uint64_t& now);
   void record(std::string_view name, uint64_t req, const Reply& reply);
   void flushRecord();
   void serviceJob();
   void sequenceStep();
   void human(std::string_view bytes);
+  void profileHelp();
   void help(const Command&, const Args&, std::size_t, Reply&);
   void identity(const Command&, const Args&, std::size_t, Reply&);
   void configure(const Command&, const Args&, std::size_t, Reply&);
@@ -210,7 +216,9 @@ private:
   std::size_t _lineSize{0};
   std::size_t _recordSize{0};
   uint64_t _request{0};
+  uint64_t _lastUs{0};
   const char* _discardReason{nullptr};
+  bool _clockFault{false};
   bool _afterCr{false};
   bool _quiet{false};
   bool _color{false};

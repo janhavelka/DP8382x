@@ -148,6 +148,8 @@ deadline errors stop the range. Independent transport errors are retained
 per row and do not authorize a retry. Monotonic time and shared quiet floor
 checks use the owner's actual clock. A copy of an expired floor or a failed
 prior receipt cannot deny or replace fresh evidence.
+A successful row requires a fresh batch receipt. A missing or invalid
+receipt stops the range and leaves only a known prefix of the frame count.
 
 The typed operation uses a 5 s exclusive deadline, 512 frames, 1 ms
 scheduled poll interval and 4096 stalled core polls. Follow
@@ -157,6 +159,13 @@ terminal result after transient contention. It must keep maintenance and
 stopped SDK conditions through apply and reconciliation. Result delivery
 waits for a record slot. Polling an already admitted operation can continue
 while output is stalled.
+
+A detected clock regression disables new live CLI commands until the processor
+is replaced. The CLI cancels any operation that still needs polling through
+its owner without advancing hardware work, then takes the retained result.
+The terminal record keeps the core status, possible effects and any cleanup
+owed. A clock fault also prevents SDK reconciliation. Local and cached queries
+remain available.
 
 A complete record occupies at most 1024 bytes including CRLF. The queue admits
 the entire record and any needed leading CRLF together, using its logical tail
@@ -203,7 +212,7 @@ is stable on output and immaterial to validation.
 | `state` | `terminal` for a final outcome. `admitted` with `primary=IN_PROGRESS` and a nonzero token is emitted by apply and verify when the core accepts work. `progress` marks a single `sample` in a range. |
 | `primary`, `detail` | Exact printable `Err` and signed int32 detail. Only terminal `OK` is command success. Details never narrow a backend error. |
 | `cleanup`, `cleanup_detail` | Separate printable cleanup outcome, or `none` and 0 when no cleanup was executed. A later cleanup cannot replace a primary error. |
-| `time_valid`, `time_us` | 0/1 and uint64 firmware clock in microseconds, sampled when the record is created. With no clock, both are zero. With a valid clock zero is usable. |
+| `time_valid`, `time_us` | 0/1 and uint64 firmware clock in microseconds, sampled when the record is created. Both are zero when the clock is absent or a fault is detected. On a valid clock, zero is usable. |
 | `deadline_valid`, `deadline_us` | 0/1 and uint64 exclusive command deadline on that clock. Local commands and early validation errors use zero. |
 | `reason` | `none`, or the fixed local reason listed below. |
 
@@ -254,7 +263,9 @@ batch_violation release release_detail`. Effect values are `applied` for a
 completed target frame, `possible` for uncertainty, `none` when a fresh receipt
 excludes a target effect, and `unknown` when no receipt exists. A completed
 write still needs verified configuration. Release is an independent batch
-result, distinct from operation cleanup. `batch_valid=1` means this call
+result, distinct from operation cleanup. `release` uses the core's audited
+status, with the signed detail retained even for a malformed report.
+`batch_valid=1` means this call
 produced the receipt, and `batch_violation` is the core's audit enum ordinal
 with 0 for none. A malformed receipt does not authorize publishing ordinary
 values or counting its attempts as exact.

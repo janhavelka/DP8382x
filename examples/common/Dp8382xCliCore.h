@@ -73,6 +73,8 @@ public:
         return _driver.startVerify(request.budget, receipt.token);
       case Action::POLL:
         return _driver.pollOperation(request.token, request.budget.io.maxFrames);
+      case Action::CANCEL:
+        return _driver.cancel(request.token);
       case Action::TAKE:
         return takeResult(request.token, receipt);
       case Action::INVALIDATE:
@@ -172,6 +174,7 @@ private:
           receipt.violation == TransportViolation::NONE && receipt.batch.frames[0].attempted) {
         receipt.identity = _driver.identitySnapshot();
       }
+      receipt.releaseStatus = transport.lastReleaseStatus;
     }
     return status;
   }

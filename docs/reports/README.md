@@ -1,5 +1,8 @@
 # Planning audits and later implementation evidence
 
+The [prompts 43 and 44 review](implementation/43-44-independent-review.md)
+records CLI clock, transport receipt and transcript fixes with local verification.
+
 The [prompt 44 report](implementation/44-cli-configuration-registers.md)
 records live CLI routes, bounded discovery and pinned SDK owner verification.
 

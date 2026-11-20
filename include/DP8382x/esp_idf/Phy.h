@@ -160,6 +160,7 @@ struct RawBatchReceipt {
   BatchResult batch{}; ///< Complete callback report, including failed frames and release status.
   bool valid{false}; ///< The current call reached the terminal transport callback.
   TransportViolation violation{TransportViolation::NONE}; ///< Audit of this callback report, valid with batch.
+  Status releaseStatus{}; ///< Audited release outcome, valid with the batch.
 };
 /// @brief Validated native construction input. Address and MAC identity are immutable.
 struct PhyConfig {

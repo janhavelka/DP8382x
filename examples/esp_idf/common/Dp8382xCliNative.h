@@ -120,6 +120,7 @@ private:
       receipt.batch = evidence.batch;
       receipt.batchValid = true;
       receipt.violation = evidence.violation;
+      receipt.releaseStatus = evidence.releaseStatus;
       if (request.action == Action::PROBE && !status.ok() && evidence.violation == TransportViolation::NONE) {
         const auto& first = evidence.batch.frames[0];
         const auto& second = evidence.batch.frames[1];
@@ -154,6 +155,7 @@ private:
         return phy.startConfigure(request.settings, request.options, request.budget, receipt.token);
       case Action::START_VERIFY: return phy.startVerify(request.budget, receipt.token);
       case Action::POLL: return phy.pollOperation(request.token, request.budget.io.maxFrames);
+      case Action::CANCEL: return phy.cancel(request.token);
       case Action::TAKE: return take(phy, request.token, receipt);
       case Action::RECONCILE: {
         const auto status = phy.reconcileSdkState(request.budget.io.deadlineUs);

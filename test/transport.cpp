@@ -527,6 +527,7 @@ void testOwnership() {
     CHECK(value == SENTINEL && failed.quarantined);
     const auto receipt = driver.transportSnapshot();
     CHECK(receipt.lastBatch.releaseStatus.detail == -37);
+    CHECK(receipt.lastReleaseStatus.is(Err::MDIO_ERROR) && receipt.lastReleaseStatus.detail == -37);
     CHECK(!receipt.controllerReusable);
     CHECK(driver.readClause22(2, value, BUDGET).is(Err::BUSY));
     CHECK(failed.launches == 1U);
@@ -561,8 +562,10 @@ void testOwnership() {
     value = SENTINEL;
     CHECK(driver.readClause22(2, value, BUDGET).is(Err::MDIO_ERROR));
     CHECK(value == SENTINEL);
-    CHECK(driver.transportSnapshot().lastBatch.releaseStatus.detail == release.detail);
-    CHECK(driver.transportSnapshot().violation == TransportViolation::RELEASE_REPORT);
+    const auto receipt = driver.transportSnapshot();
+    CHECK(receipt.lastBatch.releaseStatus.code == release.code && receipt.lastBatch.releaseStatus.detail == release.detail);
+    CHECK(receipt.lastReleaseStatus.is(Err::MDIO_ERROR) && receipt.lastReleaseStatus.detail == release.detail);
+    CHECK(receipt.violation == TransportViolation::RELEASE_REPORT);
     CHECK(driver.end().ok());
   }
   {

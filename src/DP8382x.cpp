@@ -1287,6 +1287,7 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
     }
   }
   _transport.violation = report.violation;
+  _transport.lastReleaseStatus = report.release;
   if (identityAddress == 32U) {
     // Discovery is raw ID evidence, even at the bound address. Never feed a
     // different PHY's receipt into pending semantic collectors or acceptance.

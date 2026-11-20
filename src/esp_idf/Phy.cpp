@@ -1125,7 +1125,7 @@ Status Phy::stoppedRaw(RawBatchReceipt* receipt, Call call) noexcept {
   const auto status = call(receipt ? &invoked : nullptr);
   if (receipt && invoked) {
     const auto transport = _core.transportSnapshot();
-    *receipt = {transport.lastBatch, true, transport.violation};
+    *receipt = {transport.lastBatch, true, transport.violation, transport.lastReleaseStatus};
   }
   refreshAgreement();
   leave();

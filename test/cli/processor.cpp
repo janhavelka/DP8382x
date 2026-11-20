@@ -18,6 +18,8 @@ struct Stream {
   SnapshotKind lastRead{SnapshotKind::CAPABILITIES};
   Status outcome{};
   bool staleLink{false};
+  bool discoveryReceipt{true};
+  bool cancelled{false};
   uint64_t timeUs{1234};
   std::vector<Request> requests;
 
@@ -50,17 +52,30 @@ struct Stream {
   static Status live(void* ptr, const Request& request, Receipt& receipt) {
     auto& s = *static_cast<Stream*>(ptr);
     s.requests.push_back(request);
-    if (request.action == Action::DISCOVER) {
+    if (request.action == Action::DISCOVER && s.discoveryReceipt) {
       receipt.batchValid = true;
       receipt.batch.frames[0].attempted = receipt.batch.frames[1].attempted = true;
       receipt.identity.id1 = 0x2000;
       receipt.identity.id2 = 0xA131;
       receipt.identity.id1Valid = receipt.identity.id2Valid = true;
+    } else if (request.action == Action::WRITE_C22) {
+      receipt.batchValid = true;
+      receipt.batch.frames[0].attempted = receipt.batch.frames[0].completed = true;
+      receipt.batch.releaseStatus = {static_cast<Err>(255), -71, "Malformed release"};
+      receipt.violation = TransportViolation::RELEASE_REPORT;
+      receipt.releaseStatus = Status::Error(Err::MDIO_ERROR, "Invalid release report", -71);
+      return receipt.releaseStatus;
     } else if (request.action == Action::START_CONFIGURE) {
       receipt.token.value = 81;
       return {Err::IN_PROGRESS, 0, ""};
+    } else if (request.action == Action::CANCEL) {
+      s.cancelled = true;
     } else if (request.action == Action::TAKE) {
       receipt.mutationCompleted = true;
+      if (s.cancelled) {
+        receipt.result = Status::Error(Err::CANCELLED, "Clock invalid");
+        receipt.cleanupOwed = true;
+      }
     } else if (request.action == Action::RECONCILE) {
       receipt.sdkError = 0x103;
     }
@@ -143,7 +158,11 @@ void grammar() {
   has(r[16], "reason=arity");
   has(r[17], "reason=topic");
   has(s.bytes, "\x1b[36m=== DP8382x CLI Help ===\x1b[0m");
-  has(s.bytes, "cached health");
+  const auto profileHelp = s.bytes.find("  an <modes");
+  assert(s.bytes.find("\r\nconfiguration\r\n") < profileHelp);
+  assert(profileHelp < s.bytes.find("\r\nregisters\r\n"));
+  has(s.bytes, "Up to 32 policy-checked rows\r\n");
+  has(s.bytes, "LEDCR 0x18 or 31:0x18 allows bits 0x0692.");
 }
 
 void loss() {
@@ -190,8 +209,10 @@ void cached() {
   s.send("caps\n");
   s.outcome = {Err::IN_PROGRESS, -48, ""};
   s.send("cached transport\n");
+  s.outcome = {Err::OK, 5, nullptr};
+  s.send("cached transport\n");
   const auto r = s.records();
-  assert(s.reads == 7 && r.size() == 7);
+  assert(s.reads == 8 && r.size() == 8);
   has(r[0], "health=READY");
   has(r[0], "last_detail=-2147483648");
   has(r[1], "up=1 resolved=1 speed_mbps=10 duplex=half");
@@ -202,6 +223,9 @@ void cached() {
   has(r[5], "primary=BUSY detail=-47");
   has(r[6], "primary=INVALID_CONFIG detail=-48");
   has(r[6], "reason=callback");
+  has(r[7], "primary=INVALID_CONFIG detail=5");
+  has(r[7], "time_valid=1 time_us=18446744073709551615");
+  has(r[7], "reason=callback");
 }
 
 void retention() {
@@ -269,15 +293,51 @@ void routes() {
   assert(regression.requests.size() == 1 && !regression.cli.workPending());
   regression.drain();
   has(regression.records()[1], "primary=INVALID_CONFIG");
+  has(regression.records()[1], "time_valid=0 time_us=0");
   has(regression.records()[1], "rows=1 errors=0 skipped=0 attempted=2 complete=0");
+  regression.timeUs += 2;
+  regression.send("connection discover 0 2\n");
+  assert(regression.requests.size() == 1);
+  has(regression.records().back(), "primary=INVALID_CONFIG detail=5");
+
+  Stream expiry;
+  expiry.attachLive();
+  assert(expiry.cli.feed("connection discover 0 2\n") == 24);
+  expiry.timeUs = 2001233;
+  expiry.cli.tick();
+  expiry.timeUs = 2001234;
+  expiry.cli.tick();
+  expiry.drain();
+  assert(expiry.requests.size() == 1);
+  has(expiry.records()[1], "primary=OPERATION_TIMEOUT");
+  has(expiry.records()[1], "rows=1 errors=0 skipped=0 attempted=2 complete=0");
+
+  Stream incomplete;
+  incomplete.discoveryReceipt = false;
+  incomplete.attachLive();
+  incomplete.send("connection discover 0 2\n");
+  assert(incomplete.requests.size() == 1);
+  has(incomplete.records()[0], "primary=INVALID_CONFIG detail=1");
+  has(incomplete.records()[1], "attempted=0 complete=0 attempted_known=0 end_status=INVALID_CONFIG");
+
+  Stream write;
+  write.attachLive();
+  write.send("registers write c22 24 16\n");
+  assert(write.requests.size() == 1);
+  has(write.records()[0], "primary=MDIO_ERROR detail=-71");
+  has(write.records()[0], "effect=possible batch_valid=1 batch_violation=4 release=MDIO_ERROR release_detail=-71");
 
   Stream configure;
   configure.attachLive();
-  const std::string_view command = "configuration apply forced 100 full auto 1\n";
+  const std::string_view command = "configuration apply an 15 both auto 1 2 20040003\n";
   assert(configure.cli.feed(command) == command.size());
   configure.acceptedPerWrite = 0;
   configure.cli.tick(); // Owner admits the job, queues the admission record.
   assert(configure.requests.size() == 1);
+  const auto& pages = configure.requests.front().options.nextPages;
+  assert(pages.maxPartnerPages == 2 && pages.pageCount == 2);
+  assert(pages.pages[0].message && !pages.pages[0].acknowledge2 && pages.pages[0].data == 4);
+  assert(!pages.pages[1].message && !pages.pages[1].acknowledge2 && pages.pages[1].data == 3);
   for (unsigned i = 0; i < 100 && configure.cli.feed("ver\n") != 0; ++i) {}
   assert(configure.cli.feed("session waiting\n") == 0);
   configure.cli.tick(); // An admitted core poll continues even if output is stalled.
@@ -293,6 +353,24 @@ void routes() {
   has(results.back(), "req=1 type=result cmd=configuration.apply op=81 state=terminal primary=INVALID_CONFIG");
   has(results.back(), "core_status=OK core_detail=0 sdk_error=259 mutation_completed=1");
   assert(configure.requests.size() == 4);
+
+  Stream cancel;
+  cancel.attachLive();
+  assert(cancel.cli.feed(command) == command.size());
+  cancel.cli.tick(); // Admit at 1234 us. Session observes a later time than the owner.
+  cancel.timeUs = 2000;
+  assert(cancel.cli.feed("session upstream\n") == 17);
+  cancel.timeUs = 1999;
+  cancel.cli.tick();
+  cancel.cli.tick();
+  cancel.drain();
+  assert(cancel.requests.size() == 3);
+  assert(cancel.requests[1].action == Action::CANCEL && cancel.requests[2].action == Action::TAKE);
+  has(cancel.records().back(), "req=1 type=result cmd=configuration.apply op=81 state=terminal");
+  has(cancel.records().back(), "primary=INVALID_CONFIG detail=5");
+  has(cancel.records().back(), "time_valid=0 time_us=0");
+  has(cancel.records().back(), "core_status=CANCELLED core_detail=0 sdk_error=0 mutation_completed=1");
+  has(cancel.records().back(), "cleanup_owed=1");
 }
 } // namespace
 

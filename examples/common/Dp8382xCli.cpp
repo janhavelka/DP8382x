@@ -137,14 +137,27 @@ unsigned profileFlags(const LinkSettings& profile) {
       (unsigned(profile.extendedFullDuplex) << 2U);
 }
 
+bool validTerminal(Status status) {
+  return status.msg && !status.inProgress() && std::strcmp(errorName(status.code), "UNKNOWN") != 0;
+}
+
 Status checkedTerminal(Status status) {
-  if (status.inProgress() || std::strcmp(errorName(status.code), "UNKNOWN") == 0)
+  if (!validTerminal(status))
     return Status::Error(Err::INVALID_CONFIG, "Invalid CLI owner result", status.detail);
   return status;
 }
 
 Status timeout(TimeoutDetail detail) {
   return Status::Error(Err::OPERATION_TIMEOUT, "CLI work allowance expired", static_cast<int32_t>(detail));
+}
+
+Status clockError() {
+  return Status::Error(Err::INVALID_CONFIG, "CLI clock regressed",
+                       static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT));
+}
+
+bool isClockError(Status status) {
+  return status.is(Err::INVALID_CONFIG) && status.detail == static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT);
 }
 
 bool safeRegisterWidth(bool mmd, uint32_t value) { return value <= (mmd ? 65535U : 31U); }
@@ -412,16 +425,29 @@ void Processor::finishLine() {
   if (!reply.deferred) record(selected ? selected->name : "unknown", _request, reply);
 }
 
+bool Processor::sampleClock(uint64_t& now) {
+  if (!_platform.nowUs || _clockFault) return false;
+  const auto sampled = _platform.nowUs(_platform.context);
+  if (sampled < _lastUs) {
+    _clockFault = true;
+    return false;
+  }
+  _lastUs = now = sampled;
+  return true;
+}
+
 void Processor::record(std::string_view name, uint64_t req, const Reply& reply) {
   char commandName[TOKEN_BYTES + 1]{};
   std::transform(name.begin(), name.end(), commandName, [](char c) { return c == ' ' ? '.' : c; });
-  const uint64_t nowUs = _platform.nowUs ? _platform.nowUs(_platform.context) : 0;
+  if (isClockError(reply.status) && std::strcmp(reply.reason, "none") == 0) _clockFault = true;
+  uint64_t nowUs = 0;
+  const bool timeValid = sampleClock(nowUs);
   const int length = std::snprintf(_record.data(), _record.size(),
       "%sschema=1 boot=%" PRIu32 " req=%" PRIu64 " type=%s cmd=%s op=%" PRIu64 " state=%s"
       " primary=%s detail=%" PRId32 " cleanup=none cleanup_detail=0"
       " time_valid=%u time_us=%" PRIu64 " deadline_valid=%u deadline_us=%" PRIu64 " reason=%s%s\r\n",
       PREFIX, _identity.boot, req, reply.type, commandName, reply.op, reply.state, errorName(reply.status.code),
-      reply.status.detail, unsigned(_platform.nowUs != nullptr), nowUs,
+      reply.status.detail, unsigned(timeValid), nowUs,
       unsigned(reply.deadline != 0), reply.deadline, reply.reason,
       reply.payload.data());
   // All fields have static size limits. Keep the acceptance invariant if a
@@ -460,8 +486,10 @@ void Processor::help(const Command&, const Args& args, std::size_t count, Reply&
     if (!topic.empty() && topic != command.name.substr(0, space)) continue;
 
     if (group != previousGroup) {
-      human(group);
-      human("\r\n");
+      if (previousGroup == "configuration") profileHelp();
+      char heading[32]{};
+      std::snprintf(heading, sizeof(heading), "%.*s\r\n", int(group.size()), group.data());
+      human(heading);
       previousGroup = group;
     }
     char usage[96]{};
@@ -475,22 +503,31 @@ void Processor::help(const Command&, const Args& args, std::size_t count, Reply&
 
     char line[224]{};
     const char* alias = command.alias.empty() ? "" : command.alias.data();
-    std::snprintf(line, sizeof(line), "  %-17s %-15s %-14s %s\r\n",
+    std::snprintf(line, sizeof(line), "  %-24s %-38s %-12s %s\r\n",
                   command.name.data(), usage, alias, command.summary);
     human(line);
   }
-  if (topic.empty() || topic == "configuration") {
-    char profileHelp[480]{};
-    std::snprintf(profileHelp, sizeof(profileHelp),
-        "  an <modes %u..%u> <%s> <%s> <flags %u..%u>\r\n"
-        "     Optional: wait, or <partner-limit 1..16> <packed four-digit hex pages>\r\n"
-        "  forced <%s> <%s> <%s> <flags>\r\n"
-        "  flags: 1 robust, 2 coupled pair/polarity mirror, 4 extended full duplex\r\n",
-        unsigned(CONFIG[MODES].min), unsigned(CONFIG[MODES].max), CONFIG[PAUSE].enumValues.data(),
-        CONFIG[PAIR].enumValues.data(), unsigned(CONFIG[FLAGS].min), unsigned(CONFIG[FLAGS].max),
-        CONFIG[SPEED].enumValues.data(), CONFIG[DUPLEX].enumValues.data(), CONFIG[PAIR].enumValues.data());
-    human(profileHelp);
+  if (previousGroup == "configuration") profileHelp();
+  if (previousGroup == "registers") {
+    human("  C22 offsets 0..31. MMD takes an explicit DEVAD and 16-bit offset.\r\n"
+          "  Dumps skip protected registers. Writes require maintenance.\r\n"
+          "  LEDCR 0x18 or 31:0x18 allows bits 0x0692. BMCR allows mask 0x3100.\r\n");
   }
+}
+
+void Processor::profileHelp() {
+  char lines[600]{};
+  std::snprintf(lines, sizeof(lines),
+      "  an <modes %u..%u> <%s> <%s> <flags %u..%u>\r\n"
+      "     Modes: 1 10/half, 2 10/full, 4 100/half, 8 100/full. Combine bits.\r\n"
+      "     Optional: wait, or <partner-limit 1..16> <packed four-digit hex pages>\r\n"
+      "  forced <%s> <%s> <%s> <flags>\r\n"
+      "  Flags: 1 robust, 2 coupled pair/polarity mirror, 4 extended full duplex.\r\n"
+      "  Forced requires robust. Extended duplex excludes forced 10 and native half duplex.\r\n",
+      unsigned(CONFIG[MODES].min), unsigned(CONFIG[MODES].max), CONFIG[PAUSE].enumValues.data(),
+      CONFIG[PAIR].enumValues.data(), unsigned(CONFIG[FLAGS].min), unsigned(CONFIG[FLAGS].max),
+      CONFIG[SPEED].enumValues.data(), CONFIG[DUPLEX].enumValues.data(), CONFIG[PAIR].enumValues.data());
+  human(lines);
 }
 
 void Processor::identity(const Command& command, const Args& args, std::size_t, Reply& reply) {
@@ -539,7 +576,7 @@ void Processor::cached(const Command& command, const Args&, std::size_t, Reply& 
   const auto kind = static_cast<SnapshotKind>(command.flags);
   CachedSnapshot copy{};
   reply.status = _platform.readCached(_platform.context, kind, copy);
-  if (reply.status.inProgress() || std::strcmp(errorName(reply.status.code), "UNKNOWN") == 0) {
+  if (!validTerminal(reply.status)) {
     reply.status = Status::Error(Err::INVALID_CONFIG, "Invalid cached callback result", reply.status.detail);
     reply.reason = "callback";
   }
@@ -762,7 +799,11 @@ void Processor::route(const Command& command, const Args& args, std::size_t coun
                                  static_cast<int32_t>(BusyDetail::OPERATION_ACTIVE));
     return;
   }
-  const auto now = _platform.nowUs(_platform.context);
+  uint64_t now = 0;
+  if (!sampleClock(now)) {
+    reply.status = clockError();
+    return;
+  }
   if (now > std::numeric_limits<uint64_t>::max() - durationUs) {
     reply.status = timeout(TimeoutDetail::BOUND_ADMISSION);
     return;
@@ -775,7 +816,6 @@ void Processor::route(const Command& command, const Args& args, std::size_t coun
   _job.request = request;
   _job.requestId = _request;
   _job.command = command.name;
-  _job.lastUs = now;
   _job.end = end;
   reply.deferred = true;
 }
@@ -783,10 +823,22 @@ void Processor::route(const Command& command, const Args& args, std::size_t coun
 void Processor::serviceJob() {
   auto& request = _job.request;
   Receipt receipt{};
+  const auto call = [&](Action action) {
+    request.action = action;
+    return _platform.execute(_platform.context, request, receipt);
+  };
   if (_job.step == Work::POLL) {
-    request.action = Action::POLL;
-    // The core owns timing and cleanup. Output backpressure cannot withhold polls.
-    if (!_platform.execute(_platform.context, request, receipt).inProgress()) _job.step = Work::TAKE;
+    uint64_t now = 0;
+    if (!sampleClock(now)) {
+      // Freeze the token without advancing its hardware work on a broken clock.
+      if (call(Action::CANCEL).is(Err::BUSY)) return;
+      _job.stop = clockError();
+    } else {
+      const auto status = call(Action::POLL);
+      if (status.inProgress()) return; // Output backpressure cannot withhold polls.
+      if (isClockError(status)) _clockFault = true;
+    }
+    _job.step = Work::TAKE;
     return;
   }
   if (_recordSize != 0) return;
@@ -798,10 +850,6 @@ void Processor::serviceJob() {
   Reply reply;
   reply.op = request.token.value;
   reply.deadline = request.budget.io.deadlineUs;
-  const auto call = [&](Action action) {
-    request.action = action;
-    return _platform.execute(_platform.context, request, receipt);
-  };
   if (_job.step == Work::TAKE || _job.step == Work::RECONCILE) {
     if (_job.step == Work::TAKE) {
       const auto delivered = checkedTerminal(call(Action::TAKE));
@@ -809,19 +857,22 @@ void Processor::serviceJob() {
         _job.step = Work::POLL;
         return;
       }
-      if (!delivered.ok()) receipt.result = delivered;
+      receipt.result = delivered.ok() ? checkedTerminal(receipt.result) : delivered;
       _job.result = receipt;
-      if (delivered.ok() && receipt.result.ok() && _job.command == "configuration apply") {
+      if (_job.stop.ok() && receipt.result.ok() && _job.command == "configuration apply") {
         _job.step = Work::RECONCILE;
         return;
       }
+      if (!_job.stop.ok() && (receipt.result.ok() || receipt.result.is(Err::CANCELLED)))
+        reply.status = _job.stop;
     } else {
-      reply.status = checkedTerminal(call(Action::RECONCILE));
+      uint64_t now = 0;
+      reply.status = sampleClock(now) ? checkedTerminal(call(Action::RECONCILE)) : clockError();
       if (reply.status.ok() && receipt.sdkError != 0)
         reply.status = Status::Error(Err::INVALID_CONFIG, "SDK reconciliation failed");
     }
     const auto& result = _job.result;
-    if (reply.status.ok()) reply.status = checkedTerminal(result.result);
+    if (reply.status.ok()) reply.status = result.result;
     const auto& pages = result.nextPages;
     char received[4 * MAX_NEXT_PAGES + 1]{};
     const auto pageCount = std::min(pages.receivedPages, MAX_NEXT_PAGES);
@@ -845,10 +896,9 @@ void Processor::serviceJob() {
                  unsigned(pages.transmittedPages), unsigned(pageCount), pages.duplicatePages,
                  pageCount == 0 ? "none" : received);
   } else {
-    const auto now = _platform.nowUs(_platform.context);
-    if (now < _job.lastUs) {
-      reply.status = Status::Error(Err::INVALID_CONFIG, "CLI clock regressed",
-                                   static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT));
+    uint64_t now = 0;
+    if (!sampleClock(now)) {
+      reply.status = clockError();
     } else if (now >= reply.deadline) {
       reply.status = timeout(TimeoutDetail::DEADLINE);
     } else {
@@ -866,11 +916,11 @@ void Processor::serviceJob() {
       if (request.action == Action::PROBE) {
         reply.identityFields(receipt.identity);
       } else if (isWrite(request.action)) {
-        const auto release = receipt.batchValid ? errorName(receipt.batch.releaseStatus.code) : "none";
+        const auto release = receipt.batchValid ? errorName(receipt.releaseStatus.code) : "none";
         reply.fields(" effect=%s batch_valid=%u batch_violation=%u release=%s release_detail=%" PRId32,
                      effect(request.action, reply.status, receipt), unsigned(receipt.batchValid),
                      unsigned(receipt.violation), release,
-                     receipt.batchValid ? receipt.batch.releaseStatus.detail : 0);
+                     receipt.batchValid ? receipt.releaseStatus.detail : 0);
       } else if (reply.status.ok() && request.action != Action::INVALIDATE) {
         reply.fields(" address=%" PRIu32 " devad=%" PRIu32 " value=%u",
                      request.address, request.devad, unsigned(receipt.value));
@@ -887,13 +937,12 @@ void Processor::sequenceStep() {
   const bool scan = job.step == Work::DISCOVERY;
   Reply reply;
   reply.deadline = request.budget.io.deadlineUs;
-  const auto now = _platform.nowUs(_platform.context);
   Status stop = job.stop;
+  if (stop.ok() && _clockFault) stop = clockError();
   if (stop.ok() && request.address <= job.end) {
-    if (now < job.lastUs) {
-      stop = Status::Error(Err::INVALID_CONFIG, "CLI clock regressed",
-                           static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT));
-    } else if (now >= reply.deadline) stop = timeout(TimeoutDetail::DEADLINE);
+    uint64_t now = 0;
+    if (!sampleClock(now)) stop = clockError();
+    else if (now >= reply.deadline) stop = timeout(TimeoutDetail::DEADLINE);
   }
   if (!stop.ok() || request.address > job.end) {
     reply.status = job.firstError.ok() ? stop : job.firstError;
@@ -906,18 +955,21 @@ void Processor::sequenceStep() {
     return;
   }
 
-  job.lastUs = now;
   Receipt receipt{};
   reply.status = checkedTerminal(_platform.execute(_platform.context, request, receipt));
   const bool skipped = !scan && reply.status.is(Err::INVALID_PARAM) &&
       reply.status.detail == static_cast<int32_t>(ParamDetail::ACCESS_POLICY);
   uint32_t attempted = 0;
-  if (receipt.violation != TransportViolation::NONE) {
+  if (receipt.violation != TransportViolation::NONE || (reply.status.ok() && !receipt.batchValid)) {
+    if (reply.status.ok()) {
+      reply.status = Status::Error(Err::INVALID_CONFIG, "Range owner did not supply an audited batch",
+                                   static_cast<int32_t>(ConfigDetail::TRANSPORT));
+    }
     job.attemptedKnown = false;
     job.stop = reply.status;
   } else if (receipt.batchValid) {
     for (const auto& frame : receipt.batch.frames) if (frame.attempted) ++attempted;
-  } else if (reply.status.ok()) attempted = scan ? 2U : request.action == Action::READ_MMD ? 4U : 1U;
+  }
   job.attempted += attempted;
   auto& remainingFrames = request.budget.io.maxFrames;
   remainingFrames = attempted > remainingFrames ? 0 : remainingFrames - attempted;
@@ -947,8 +999,7 @@ void Processor::sequenceStep() {
   record(job.command, job.requestId, reply);
   ++request.address;
   if (reply.status.is(Err::BUSY) || reply.status.is(Err::OPERATION_TIMEOUT) ||
-      reply.status.is(Err::NOT_BOUND) || (reply.status.is(Err::INVALID_CONFIG) &&
-      reply.status.detail == static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT))) {
+      reply.status.is(Err::NOT_BOUND) || isClockError(reply.status)) {
     // Global denial ends the range. The sample keeps the attempted address and prefix.
     job.stop = reply.status;
   }

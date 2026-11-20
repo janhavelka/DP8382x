@@ -2,8 +2,10 @@
 
 Prompt 44 expands `cli_fixture_transcript` and adds `cli_processor_routes`.
 The pinned SDK cases named `native_cli_*` exercise owner admission, discovery,
-raw access, shared silence and AN/forced reconciliation. Run the separate
-portable and pinned host builds to cover the byte stream and SDK owner.
+raw access, shared silence, AN/forced reconciliation and cancellation after
+clock regression. The fixture transcripts exercise safe MMD dumps, rejected
+mutations and retained next-page timeout evidence. Run the separate portable
+and pinned host builds to cover the byte stream and SDK owner.
 
 Prompt 43 registers CLI processor, console and subprocess transcript cases.
 Configure the portable Release build with `DP8382X_BUILD_TESTS=ON`,

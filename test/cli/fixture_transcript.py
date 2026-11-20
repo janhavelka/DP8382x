@@ -106,6 +106,16 @@ class FixtureTranscript(unittest.TestCase):
         self.assertEqual(oversized["reason"], "line_length")
         self.assertEqual((version["req"], version["cmd"]), ("3", "version"))
 
+    def test_invalid_line_cannot_execute_a_mutation_suffix(self):
+        stream = (b"cached transport\n" + b"x" * 193 + b"\bregisters write c22 24 16\n"
+                  b"registers write c22 24 1\x00\b6\n"
+                  b"cached transport\nregisters read c22 24\n")
+        before, overlong, poisoned, after, led = records(run(stream))
+        self.assertEqual((overlong["reason"], poisoned["reason"]), ("line_length", "byte"))
+        for field in ("batches", "attempted", "completed"):
+            self.assertEqual(before[field], after[field])
+        self.assertEqual(led["value"], "0")
+
     def test_identity_discovery_and_safe_dump(self):
         rows = records(run(b"connection identity\nconnection probe\nconnection discover 0 2\n"
                            b"registers dump c22 0x0c 0x10\nregisters read mmd 31 0x0467\n"
@@ -126,6 +136,20 @@ class FixtureTranscript(unittest.TestCase):
         default_scan = records(run(b"connection discover\n"))
         self.assertEqual([r["address"] for r in default_scan[:-1]], [str(a) for a in range(8)])
         self.assertEqual(default_scan[-1]["attempted"], "16")
+
+    def test_mmd_dump_reports_atomic_reads_and_skips(self):
+        stream = (b"registers dump mmd 31 0x0467 0x0468\n"
+                  b"registers dump mmd 31 0x0c 0x0e\n")
+        first, second, summary, *skips, skipped = records(run(stream))
+        for row, address, literal in ((first, 0x0467, 0xA567), (second, 0x0468, 0xA568)):
+            self.assertEqual((row["req"], row["type"], row["state"]), ("1", "sample", "progress"))
+            self.assertEqual((row["devad"], row["valid"], row["attempted"]), ("31", "1", "4"))
+            self.assertEqual((int(row["address"]), int(row["value"])), (address, literal))
+            self.assertEqual(row["deadline_us"], summary["deadline_us"])
+        self.assertEqual((summary["primary"], summary["attempted"], summary["complete"]), ("OK", "8", "1"))
+        self.assertEqual([(r["address"], r["skipped"], r["attempted"]) for r in skips],
+                         [(str(a), "1", "0") for a in range(12, 15)])
+        self.assertEqual((skipped["primary"], skipped["skipped"], skipped["attempted"]), ("OK", "3", "0"))
 
     def test_profile_verify_and_guarded_mutations(self):
         reply = records(run(
@@ -197,6 +221,16 @@ class FixtureTranscript(unittest.TestCase):
                          ("terminal", "OPERATION_TIMEOUT", "0"))
         self.assertEqual((result["op"], result["deadline_us"]),
                          (admission["op"], admission["deadline_us"]))
+
+    def test_packed_next_page_apply_preserves_cleanup_on_timeout(self):
+        admission, result = records(run(b"configuration apply an 15 both auto 1 2 20040003\n"))
+        self.assertEqual((admission["state"], admission["primary"]), ("admitted", "IN_PROGRESS"))
+        for field in ("boot", "req", "op", "deadline_us"):
+            self.assertEqual(result[field], admission[field])
+        self.assertEqual((result["state"], result["primary"], result["core_status"], result["sdk_error"]),
+                         ("terminal", "OPERATION_TIMEOUT", "OPERATION_TIMEOUT", "0"))
+        self.assertEqual((result["np_requested"], result["np_complete"], result["np_owed"], result["cleanup_owed"]),
+                         ("1", "0", "1", "1"))
 
 
 if __name__ == "__main__":

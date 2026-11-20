@@ -172,7 +172,9 @@ independently valid requested prefix. Successful frames remain counted on later
 primary/release/time failure. Raw access does not feed the separate
 [managed-health](health.md) success/failure statistics. The normalized primary error
 takes precedence over release/unsafe-controller error, then clock fault, then
-deadline failure. `late` records positive raw-clock evidence only;
+deadline failure. `lastReleaseStatus` keeps the audited release outcome even
+when a primary error takes precedence. `lastBatch` keeps the original callback
+report. `late` records positive raw-clock evidence only;
 an upper-bound overlap alone does not deny publication. Clock-lag uncertainty
 remains a declared limitation rather than a second publication reserve.
 

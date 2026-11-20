@@ -230,6 +230,37 @@ void reconciliation() {
   CHECK(endpoint.phy->stop(now() + 100000) == ESP_OK);
 }
 
+void clockFault() {
+  Host::reset();
+  SharedBus bus;
+  Endpoint endpoint;
+  if (!install(endpoint, bus) || !endpoint.initialize()) { CHECK(false); return; }
+  Processor cli;
+  endpoint.owner.write = Endpoint::write;
+  Identity identity{};
+  identity.boot = 45;
+  identity.variant = Variant::DP83826I;
+  CHECK(cli.setup(endpoint.owner.platform(), identity));
+  constexpr std::string_view command = "configuration apply an 8 none auto 1\n";
+  CHECK(cli.feed(command) == command.size());
+  cli.tick(); // The core accepts the token without taking a frame.
+  const auto frames = endpoint.mac.frames.size();
+  Host::state().nowUs += 10000;
+  CHECK(cli.feed("session later\n") == 14);
+  --Host::state().nowUs; // Still beyond the core's last sample.
+  endpoint.maintenance = false; // Delivery must not require a new maintenance grant.
+  for (unsigned i = 0; i < 16 && (cli.workPending() || cli.outputPending()); ++i) cli.tick();
+  CHECK(!cli.workPending() && !cli.outputPending());
+  CHECK(endpoint.mac.frames.size() == frames && endpoint.maintenanceChecks == 1);
+  CHECK(endpoint.transcript.find("cmd=configuration.apply op=2 state=terminal primary=INVALID_CONFIG detail=5") !=
+        std::string::npos);
+  CHECK(endpoint.transcript.find("time_valid=0 time_us=0") != std::string::npos);
+  CHECK(endpoint.transcript.find("core_status=CANCELLED core_detail=0 sdk_error=0 mutation_completed=0") !=
+        std::string::npos);
+  OperationSnapshot operation{};
+  CHECK(endpoint.phy->operationSnapshot(operation).ok() && operation.state == OperationState::IDLE);
+}
+
 void discovery() {
   Host::reset();
   SharedBus bus;
@@ -339,6 +370,7 @@ void rawAccess() {
         !receipt.batch.frames[3].completed && receipt.batch.frames[3].effectPossible && bus.quarantined);
   CHECK(receipt.batch.releaseStatus.is(Err::MDIO_ERROR) &&
         receipt.batch.releaseStatus.detail == ESP_ERR_TIMEOUT);
+  CHECK(receipt.releaseStatus.is(Err::MDIO_ERROR) && receipt.releaseStatus.detail == ESP_ERR_TIMEOUT);
   const auto explicitInvalidation = endpoint.mac.frames.size();
   CHECK(endpoint.call(request(Action::INVALIDATE), receipt).ok());
   CHECK(!receipt.batchValid && endpoint.mac.frames.size() == explicitInvalidation);
@@ -406,6 +438,6 @@ void sharedSilence() {
 int main(int argc, char** argv) {
   const test::Suite suites[] = {{"admission", admission}, {"reconciliation", reconciliation},
                                 {"discovery", discovery}, {"raw_access", rawAccess},
-                                {"shared_silence", sharedSilence}};
+                                {"shared_silence", sharedSilence}, {"clock_fault", clockFault}};
   return test::runSuites(argc, argv, suites);
 }

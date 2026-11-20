@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Reject live CLI work on clock regression, freeze admitted configuration
+  through its owner and retain its result. Stop a scan or dump when the owner
+  cannot account for a successful row's frames.
+
 - Route CLI identity, discovery, typed profile configuration and safe register
   access through the existing owners. Preserve partial samples and mutation
   effects, verify stopped SDK cache reconciliation and keep peers quarantined

@@ -153,6 +153,7 @@ struct TransportSnapshot {
   bool late{false};           ///< Raw post-call time reached deadline; invalid if clockInvalid.
   bool clockInvalid{false};   ///< Latched timeline fault; repair requires end/rebind.
   bool controllerReusable{false}; ///< Last validated report; never authorizes shared access.
+  Status lastReleaseStatus{}; ///< Audited release outcome for lastBatch; use the raw report for diagnostics.
 };
 
 /// @brief Destructive sources, in acquisition order; PHYSTS precedes mirrors.
