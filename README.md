@@ -74,6 +74,8 @@ The [portable example CLI](docs/cli.md) provides local and cached views, exact
 identity and discovery, typed profile apply/verify, guarded register access,
 explicit link/event observations, cooperative recovery, and typed diagnostics
 and opt-in controls under application admission.
+Live typed reads require current exact-part identity. An admitted operation
+keeps its original deadline and retains its outcome through console stalls.
 The real-core [host fixture](test/cli/README.md) exercises the byte stream and
 simulated MDIO. A separate stopped SDK bridge reconciles verified settings
 through public controls. Native console attachment, further command groups

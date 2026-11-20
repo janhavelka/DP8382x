@@ -42,6 +42,11 @@ public:
   template<auto Method, class Permit, class... Inputs>
   Status call(const Permit& permit, Inputs&... inputs) {
     if constexpr (std::is_same_v<Backend, Core>) {
+      if (_request.feature != Feature::LPI_STOP && !_backend.capabilities().valid) {
+        const auto identity = _backend.identitySnapshot();
+        if (!identity.stale && identity.acceptance == IdentityAcceptance::REJECTED) return identity.admissionStatus;
+        return Status::Error(Err::NOT_INITIALIZED, "Fresh accepted PHY identity required for typed feature");
+      }
       return (_backend.*Method)(inputs..., permit);
     } else {
       return _backend.template callFeature<Method>(permit, inputs...);

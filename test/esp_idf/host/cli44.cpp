@@ -651,12 +651,67 @@ void features() {
         static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED));
   CHECK(peer.mac.frames.size() == peerFrames);
 }
+
+void featureAdmission() {
+  Host::reset();
+  SharedBus bus;
+  Endpoint endpoint;
+  Processor cli;
+  if (!install(endpoint, bus) || !attach(endpoint, cli)) { CHECK(false); return; }
+  auto before = endpoint.mac.frames.size();
+  CHECK(command(cli, "power read\n"));
+  CHECK(endpoint.transcript.find("cmd=power.read op=0 state=terminal primary=NOT_INITIALIZED") != std::string::npos);
+  CHECK(endpoint.mac.frames.size() == before);
+
+  endpoint.mac.registers[3] = 0xA130;
+  Receipt receipt{};
+  CHECK(endpoint.call(request(Action::PROBE), receipt).is(Err::DEVICE_MISMATCH));
+  before = endpoint.mac.frames.size();
+  CHECK(command(cli, "wol read\n"));
+  CHECK(command(cli, "irq service\n"));
+  CHECK(endpoint.transcript.find("cmd=wol.read op=0 state=terminal primary=DEVICE_MISMATCH") != std::string::npos);
+  CHECK(endpoint.transcript.find("cmd=irq.service op=0 state=terminal primary=DEVICE_MISMATCH") != std::string::npos);
+  CHECK(endpoint.mac.frames.size() == before);
+
+  endpoint.mac.registers[3] = 0xA131;
+  CHECK(endpoint.call(request(Action::PROBE), receipt).ok());
+  before = endpoint.mac.frames.size();
+  CHECK(command(cli, "power read\n"));
+  CHECK(endpoint.transcript.find("cmd=power.read op=0 state=terminal primary=OK") != std::string::npos);
+  CHECK(endpoint.mac.frames.size() == before + 3);
+}
+
+void blockedPoll() {
+  Host::reset();
+  SharedBus bus;
+  Endpoint endpoint;
+  Processor cli;
+  if (!install(endpoint, bus) || !endpoint.initialize() || !attach(endpoint, cli)) { CHECK(false); return; }
+  endpoint.owner.featureAttestation = [](void*, Feature, uint32_t) { return true; };
+  constexpr std::string_view start = "power configure normal 0 0\n";
+  CHECK(cli.feed(start) == start.size());
+  cli.tick();
+  OperationSnapshot active{};
+  CHECK(endpoint.phy->operationSnapshot(active).ok() && active.state == OperationState::RUNNING);
+  const auto before = endpoint.mac.frames.size();
+  CHECK(esp_eth_start(endpoint.handle) != ESP_OK);
+  CHECK(endpoint.phy->pollOperation(active.token).is(Err::BUSY));
+  cli.tick();
+  CHECK(cli.workPending());
+  Host::state().nowUs = active.remaining.deadlineUs;
+  CHECK(drain(cli));
+  CHECK(endpoint.phy->operationSnapshot(active).ok() && active.state == OperationState::IDLE);
+  CHECK(endpoint.transcript.find("cmd=power.configure op=2 state=terminal primary=OPERATION_TIMEOUT") != std::string::npos);
+  CHECK(endpoint.transcript.find("core_status=CANCELLED") != std::string::npos);
+  CHECK(endpoint.mac.frames.size() == before);
+}
 } // namespace
 
 int main(int argc, char** argv) {
   const test::Suite suites[] = {{"admission", admission}, {"reconciliation", reconciliation},
                                 {"discovery", discovery}, {"raw_access", rawAccess},
                                 {"shared_silence", sharedSilence}, {"clock_fault", clockFault},
-                                {"link_events", linkEvents}, {"lifecycle", lifecycle}, {"features", features}};
+                                {"link_events", linkEvents}, {"lifecycle", lifecycle}, {"features", features},
+                                {"feature_admission", featureAdmission}, {"blocked_poll", blockedPoll}};
   return test::runSuites(argc, argv, suites);
 }

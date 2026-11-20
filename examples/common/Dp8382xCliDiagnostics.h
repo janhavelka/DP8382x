@@ -129,10 +129,11 @@ Status startBist(Access& io, const FeatureArgs& args) {
   const int mode = featureChoice(args[0], "off|single|checker|both");
   const int counter = featureChoice(args[1], "saturate|wrap");
   const int path = args.size() > 6U ? featureChoice(args[6], "line|digital|analog|external") : 0;
-  uint32_t bytes = 0, gap = 0, observation = 0, flags = 0;
+  uint32_t bytes = 0, gap = 0, flags = 0;
+  uint64_t observation = 0;
   if (mode < 0 || counter < 0 || path < 0 || !featureNumber(args[2], 2047, bytes) ||
       !featureNumber(args[3], 1020, gap) || (gap % 4U) != 0U ||
-      !featureNumber(args[4], UINT32_MAX, observation) || observation == 0U ||
+      !featureNumber(args[4], observation) || observation == 0U ||
       (args.size() > 7U && !featureNumber(args[7], 31, flags))) return featureInvalid();
   const auto selectedSpeed = speed(args[5]);
   if (selectedSpeed == LinkSpeed::UNKNOWN) return featureInvalid();

@@ -69,8 +69,11 @@ CLI end and independent external disposition for abandon. The release hook owns
 SDK stop and fencing and preserves storage still reachable by callbacks. Console
 attachment is stage 47.
 
-Typed CLI feature acquisitions use the stopped instance gate. Reset-bearing
-feature procedures reserve the same shared bus silence as initialization.
+Typed CLI feature acquisitions use the stopped instance gate and check current
+identity before accessing exact-part registers. The feature templates accept
+only the approved typed procedures. Generic configuration and initialization
+use their dedicated native entry points. Reset-bearing feature procedures
+reserve the same shared bus silence as initialization.
 Poll, cancel and result delivery use the existing native slot. The application
 supplies the feature attestation for wiring and fixture prerequisites.
 

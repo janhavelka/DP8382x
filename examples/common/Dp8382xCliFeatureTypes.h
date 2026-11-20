@@ -102,6 +102,12 @@ struct FeatureFields {
 /// @return Whether the complete token is in range.
 bool featureNumber(std::string_view token, uint32_t maximum, uint32_t& value) noexcept;
 
+/// @brief Parse a whole unsigned decimal or 0x-prefixed 64-bit token.
+/// @param[in] token User input with no sign.
+/// @param[out] value Assigned on success.
+/// @return Whether the complete token fits in uint64_t.
+bool featureNumber(std::string_view token, uint64_t& value) noexcept;
+
 /// @brief Find a case-sensitive whole-token choice in a fixed set.
 /// @param[in] token User token.
 /// @param[in] choices Static choices separated by vertical bars.

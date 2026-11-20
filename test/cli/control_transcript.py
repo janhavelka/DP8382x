@@ -47,6 +47,17 @@ class ControlTranscript(unittest.TestCase):
         self.assertLess(writes.index(b"mdio-write 1f 0011 6000"), writes.index(b"mdio-write 1f 0000 3900"))
         self.assertLess(writes.index(b"mdio-write 1f 0000 3900"), writes.index(b"mdio-write 1f 0011 e000"))
 
+    def test_typed_reads_require_fresh_accepted_identity(self):
+        rows, _ = self.run_controls(
+            b"configuration invalidate\ncached transport\npower read\nirq service\nwol read\n"
+            b"cached transport\nconnection probe\npower read\ncached transport\n")
+        for req in (3, 4, 5):
+            self.terminal(rows, req, "NOT_INITIALIZED")
+        self.assertEqual(self.terminal(rows, 2)["attempted"], self.terminal(rows, 6)["attempted"])
+        self.terminal(rows, 7)
+        self.terminal(rows, 8)
+        self.assertEqual(int(self.terminal(rows, 9)["attempted"]) - int(self.terminal(rows, 6)["attempted"]), 5)
+
     def test_eee_recipe_and_forced_lpi_separate_exit(self):
         rows, result = self.run_controls(
             b"configuration apply an 8 none auto 1\neee configure on 2 0\nlink read\neee read\n"

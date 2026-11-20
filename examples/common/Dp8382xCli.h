@@ -242,6 +242,7 @@ private:
   void flushRecord();
   void serviceJob();
   void serviceControl();
+  Status pollJob();
   void sequenceStep();
   void runStep();
   void selftestStep();

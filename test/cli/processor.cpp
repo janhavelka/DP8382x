@@ -20,6 +20,11 @@ struct Stream {
   bool staleLink{false};
   bool discoveryReceipt{true};
   bool cancelled{false};
+  bool pollRefused{false};
+  bool takeRefused{false};
+  bool idleSlot{false};
+  bool regressAfterSample{false};
+  bool invalidFeatureFields{false};
   uint64_t timeUs{1234};
   std::vector<Request> requests;
 
@@ -42,9 +47,12 @@ struct Stream {
     out.link.speed = LinkSpeed::MBPS_10;
     out.link.duplex = Duplex::HALF;
     out.settings.trust = ConfigurationTrust::DIRTY;
-    out.operation.state = OperationState::RUNNING;
-    out.operation.status = {Err::IN_PROGRESS, 0, ""};
-    out.operation.token.value = 99;
+    if (!self.idleSlot) {
+      out.operation.state = OperationState::RUNNING;
+      out.operation.status = {Err::IN_PROGRESS, 0, ""};
+      out.operation.token.value = 99;
+    }
+    if (kind == SnapshotKind::LINK && self.regressAfterSample) --self.timeUs;
     return self.outcome;
   }
   static uint64_t now(void*) { return std::numeric_limits<uint64_t>::max(); }
@@ -65,19 +73,29 @@ struct Stream {
       receipt.violation = TransportViolation::RELEASE_REPORT;
       receipt.releaseStatus = Status::Error(Err::MDIO_ERROR, "Invalid release report", -71);
       return receipt.releaseStatus;
-    } else if (request.action == Action::START_CONFIGURE) {
+    } else if (request.action == Action::START_CONFIGURE || request.action == Action::FEATURE) {
       receipt.token.value = 81;
       return {Err::IN_PROGRESS, 0, ""};
+    } else if (request.action == Action::POLL && s.pollRefused) {
+      return Status::Error(Err::BUSY, "Owner gate refused poll");
     } else if (request.action == Action::CANCEL) {
       s.cancelled = true;
     } else if (request.action == Action::TAKE) {
+      if (s.takeRefused) {
+        s.takeRefused = false;
+        return Status::Error(Err::BUSY, "Owner gate refused take");
+      }
+      if (s.pollRefused && !s.cancelled) return Status::Error(Err::RESULT_NOT_AVAILABLE, "Still running");
       receipt.mutationCompleted = true;
+      receipt.featureFields.valid = !s.invalidFeatureFields;
       if (s.cancelled) {
         receipt.result = Status::Error(Err::CANCELLED, "Clock invalid");
         receipt.cleanupOwed = true;
       }
     } else if (request.action == Action::RECONCILE) {
       receipt.sdkError = 0x103;
+    } else if (request.action == Action::PROBE) {
+      receipt.batchValid = true;
     }
     return Status::Ok();
   }
@@ -374,6 +392,86 @@ void routes() {
   has(cancel.records().back(), "core_status=CANCELLED core_detail=0 sdk_error=0 mutation_completed=1");
   has(cancel.records().back(), "cleanup_owed=1");
 }
+
+void operationEdges() {
+  constexpr std::string_view start = "eee configure off 0 0\n";
+  Stream expiry;
+  expiry.pollRefused = true;
+  expiry.attachLive();
+  assert(expiry.cli.feed(start) == start.size());
+  expiry.cli.tick();
+  expiry.acceptedPerWrite = 0;
+  for (unsigned i = 0; i < 100 && expiry.cli.feed("ver\n") != 0; ++i) {}
+  assert(expiry.cli.feed("ver\n") == 0);
+  expiry.cli.tick();
+  assert(expiry.requests.back().action == Action::POLL);
+  expiry.timeUs = expiry.requests.front().budget.io.deadlineUs;
+  expiry.cli.tick();
+  assert(expiry.requests.back().action == Action::CANCEL && expiry.cli.workPending());
+  expiry.acceptedPerWrite = Processor::WRITE_BYTES;
+  for (unsigned i = 0; i < 128 && expiry.cli.workPending(); ++i) expiry.cli.tick();
+  assert(!expiry.cli.workPending() && expiry.requests.size() == 4);
+  expiry.drain();
+  has(expiry.records().back(), "req=1 type=result cmd=eee.configure op=81 state=terminal primary=OPERATION_TIMEOUT");
+  has(expiry.records().back(), "core_status=CANCELLED core_detail=0 mutation_completed=1");
+  has(expiry.records().back(), "cleanup_owed=1");
+
+  Stream manual;
+  manual.pollRefused = true;
+  manual.attachLive();
+  assert(manual.cli.feed(start) == start.size());
+  manual.cli.tick();
+  manual.cli.tick();
+  constexpr std::string_view cancel = "owner cancel 81\n";
+  assert(manual.cli.feed(cancel) == cancel.size());
+  manual.cli.tick();
+  manual.cli.tick();
+  manual.drain();
+  assert(manual.requests.size() == 4);
+  has(manual.records()[1], "req=2 type=result cmd=owner.cancel op=81 state=terminal primary=OK");
+  has(manual.records()[2], "req=1 type=result cmd=eee.configure op=81 state=terminal primary=CANCELLED");
+
+  Stream format;
+  format.takeRefused = true;
+  format.invalidFeatureFields = true;
+  format.attachLive();
+  assert(format.cli.feed(start) == start.size());
+  for (unsigned i = 0; i < 3; ++i) format.cli.tick();
+  assert(format.requests.back().action == Action::TAKE && format.cli.workPending());
+  format.timeUs = format.requests.front().budget.io.deadlineUs;
+  format.cli.tick();
+  assert(format.requests.back().action == Action::TAKE && !format.cancelled);
+  format.send("owner result 81\n");
+  has(format.records()[1], "state=terminal primary=INVALID_CONFIG");
+  has(format.records()[1], "reason=format");
+  has(format.records()[2], "origin_req=1 outcome=INVALID_CONFIG outcome_detail=0 core_status=OK");
+}
+
+void runEdges() {
+  Stream watch;
+  watch.idleSlot = true;
+  watch.regressAfterSample = true;
+  watch.attachLive();
+  constexpr std::string_view command = "link watch 1 1\n";
+  assert(watch.cli.feed(command) == command.size());
+  watch.cli.tick();
+  watch.cli.tick();
+  watch.drain();
+  assert(watch.requests.empty() && !watch.cli.workPending());
+  has(watch.records()[1], "state=terminal primary=INVALID_CONFIG detail=5");
+
+  Stream selftest;
+  selftest.idleSlot = true;
+  selftest.attachLive();
+  constexpr std::string_view probe = "diagnostics selftest\n";
+  assert(selftest.cli.feed(probe) == probe.size());
+  selftest.cli.tick();
+  selftest.cli.tick();
+  selftest.drain();
+  assert(selftest.requests.size() == 1 && !selftest.cli.workPending());
+  has(selftest.records()[1], "state=terminal primary=INVALID_CONFIG detail=1");
+  has(selftest.records()[1], "rounds=0 requested=2 attempted=0 attempted_known=0");
+}
 } // namespace
 
 int main(int argc, char** argv) {
@@ -384,5 +482,7 @@ int main(int argc, char** argv) {
   else if (suite == "cached") cached();
   else if (suite == "retention") retention();
   else if (suite == "routes") routes();
+  else if (suite == "operation_edges") operationEdges();
+  else if (suite == "run_edges") runEdges();
   else return 2;
 }

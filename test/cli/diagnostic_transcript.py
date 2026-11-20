@@ -92,6 +92,14 @@ class DiagnosticTranscript(unittest.TestCase):
                                                            (31, 0x1B, 0x8004), (31, 0x16, 0x7100),
                                                            (31, 0x1B, 0x8004), (31, 0x1B, 0x007D)])
 
+    def test_bist_observation_supports_a_uint64_interval(self):
+        rows = records(run(PROFILE + b"diagnostics bist-start both wrap 123 16 4294967296 100 line\n"
+                           b"diagnostics bist-stop\n"
+                           b"diagnostics bist-start both wrap 123 16 18446744073709551616 100 line\n", ATTEST))
+        self.terminal(rows, 2)
+        self.terminal(rows, 3)
+        self.terminal(rows, 4, "INVALID_PARAM", cooperative=False)
+
     def test_bist_failed_capture_and_failed_restore_keep_effects(self):
         rows = records(run(PROFILE + b"diagnostics bist-start both saturate 1518 500 1000 100\n"
                            b"$inject-bist-errors\n$fail-next 3\ndiagnostics bist-read\n"

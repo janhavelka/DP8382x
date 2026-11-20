@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Enforce CLI deadlines even when the native owner refuses a poll. Preserve
+  terminal and cleanup evidence through output stalls and fail passive checks
+  on incomplete receipts or a lost clock. Gate exact-part reads on fresh
+  identity, keep native feature calls within their approved routes, and accept
+  64-bit BIST observation intervals.
+
 - Expose the typed DP83826I diagnostics and opt-in controls through the shared
   CLI. Add read-only selftest, explicit stimulus admission, scoped native reset
   reservations and redacted wake records with compiled transcript checks.

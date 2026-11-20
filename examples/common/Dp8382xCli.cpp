@@ -224,6 +224,8 @@ bool featureNumber(std::string_view token, uint32_t maximum, uint32_t& value) no
   return true;
 }
 
+bool featureNumber(std::string_view token, uint64_t& value) noexcept { return unsignedNumber(token, value); }
+
 int featureChoice(std::string_view token, std::string_view choices) noexcept { return choice(choices, token); }
 
 struct Processor::Reply {
@@ -866,7 +868,8 @@ void Processor::owner(const Command& command, const Args& args, std::size_t coun
     }
     return;
   }
-  if (_job.step != Work::POLL) {
+  const bool canCancel = command.flags == OWNER_CANCEL && _job.step == Work::TAKE;
+  if (_job.step != Work::POLL && !canCancel) {
     reply.status = Status::Error(Err::RESULT_NOT_AVAILABLE, "No CLI operation waiting for a poll or cancel");
   } else if (token != _job.request.token.value) {
     reply.status = Status::Error(Err::TOKEN_MISMATCH, "Different active CLI token");
@@ -1142,28 +1145,50 @@ void Processor::serviceControl() {
   Reply reply;
   reply.op = request.token.value;
   if (request.action == Action::POLL) reply.deadline = request.budget.io.deadlineUs;
-  Receipt receipt{};
-  uint64_t now = 0;
-  if (request.action == Action::POLL && !sampleClock(now)) {
-    reply.status = clockError();
+  if (request.action == Action::POLL) {
+    const auto status = pollJob();
+    reply.fields(" origin_req=%" PRIu64 " poll_status=%s poll_detail=%" PRId32,
+                 _job.requestId, errorName(status.code), status.detail);
   } else {
-    auto status = _platform.execute(_platform.context, request, receipt);
-    if (request.action == Action::POLL) {
-      if (!status.inProgress()) {
-        status = checkedTerminal(status);
-        if (isClockError(status)) _clockFault = true;
-        _job.step = Work::TAKE;
-      }
-      reply.fields(" origin_req=%" PRIu64 " poll_status=%s poll_detail=%" PRId32,
-                   _job.requestId, errorName(status.code), status.detail);
-    } else {
-      reply.status = checkedTerminal(status);
-      if (reply.status.ok()) _job.step = Work::TAKE;
-      reply.fields(" origin_req=%" PRIu64, _job.requestId);
-    }
+    Receipt receipt{};
+    reply.status = checkedTerminal(_platform.execute(_platform.context, request, receipt));
+    if (reply.status.ok()) _job.step = Work::TAKE;
+    reply.fields(" origin_req=%" PRIu64, _job.requestId);
   }
   record(_control.command, _control.req, reply);
   _control = {};
+}
+
+Status Processor::pollJob() {
+  auto request = _job.request;
+  if (_job.stop.ok()) {
+    uint64_t now = 0;
+    if (!sampleClock(now)) _job.stop = clockError();
+    else if (now >= request.budget.io.deadlineUs) _job.stop = timeout(TimeoutDetail::DEADLINE);
+  }
+  // A poll might be refused before the core sees time. Freeze the token without
+  // bus access when the CLI's bound expires, even if output remains stalled.
+  request.action = _job.stop.ok() ? Action::POLL : Action::CANCEL;
+  Receipt receipt{};
+  auto status = _platform.execute(_platform.context, request, receipt);
+  if (request.action == Action::CANCEL) {
+    status = checkedTerminal(status);
+    if (status.is(Err::BUSY)) return status;
+    if (status.ok()) status = _job.stop;
+  } else if (status.inProgress()) {
+    return status;
+  } else {
+    status = checkedTerminal(status);
+    if (isClockError(status)) _clockFault = true;
+    if (status.is(Err::BUSY)) {
+      CachedSnapshot copy;
+      const auto copied = _platform.readCached(_platform.context, SnapshotKind::OPERATION, copy);
+      if (!copied.ok() || copy.operation.state != OperationState::RESULT_PENDING ||
+          copy.operation.token.value != request.token.value) return status;
+    }
+  }
+  _job.step = Work::TAKE;
+  return status;
 }
 
 void Processor::serviceJob() {
@@ -1174,17 +1199,7 @@ void Processor::serviceJob() {
     return _platform.execute(_platform.context, request, receipt);
   };
   if (_job.step == Work::POLL) {
-    uint64_t now = 0;
-    if (!sampleClock(now)) {
-      // Freeze the token without advancing its hardware work on a broken clock.
-      if (call(Action::CANCEL).is(Err::BUSY)) return;
-      _job.stop = clockError();
-    } else {
-      const auto status = call(Action::POLL);
-      if (status.inProgress()) return; // Output backpressure cannot withhold polls.
-      if (isClockError(status)) _clockFault = true;
-    }
-    _job.step = Work::TAKE;
+    pollJob();
     return;
   }
   if (_recordSize != 0) return;
@@ -1207,7 +1222,8 @@ void Processor::serviceJob() {
   if (_job.step == Work::TAKE || _job.step == Work::RECONCILE) {
     if (_job.step == Work::TAKE) {
       const auto delivered = checkedTerminal(call(Action::TAKE));
-      if (delivered.is(Err::BUSY) || delivered.is(Err::RESULT_NOT_AVAILABLE)) {
+      if (delivered.is(Err::BUSY)) return;
+      if (delivered.is(Err::RESULT_NOT_AVAILABLE)) {
         _job.step = Work::POLL;
         return;
       }
@@ -1228,10 +1244,6 @@ void Processor::serviceJob() {
     }
     const auto& result = _job.result;
     if (reply.status.ok()) reply.status = result.result;
-    if (result.token.value != 0) {
-      _lastResult = {_job.requestId, result.token, reply.status, result.result, receipt.sdkError,
-                     result.mutationCompleted, result.mutationPossible, result.cleanupOwed, result.temporary};
-    }
     if (_job.initialize) {
       const auto& straps = result.straps;
       reply.fields(" core_status=%s core_detail=%" PRId32 " requested_reset=%s effective_reset=%s"
@@ -1245,11 +1257,7 @@ void Processor::serviceJob() {
                    unsigned(result.temporary), unsigned(result.clockInvalid || _clockFault),
                    unsigned(straps.sor1Valid), unsigned(straps.sor1), unsigned(straps.sor2Valid), unsigned(straps.sor2),
                    unsigned(straps.stale));
-      record(_job.command, _job.requestId, reply);
-      _job = {};
-      return;
-    }
-    if (request.feature != Feature::NONE) {
+    } else if (request.feature != Feature::NONE) {
       reply.fields(" core_status=%s core_detail=%" PRId32 " mutation_completed=%u mutation_possible=%u"
                    " cleanup_owed=%u temporary=%u persistent_restored=%u effective_reset=%s"
                    " reset_accepted=%u reset_complete=%u%s",
@@ -1258,32 +1266,34 @@ void Processor::serviceJob() {
                    unsigned(result.persistentRestored), resetName(result.reset), unsigned(result.commandAccepted),
                    unsigned(result.protocolComplete), result.featureFields.text.data());
       reply.checkFeatureFields(result.featureFields);
-      record(_job.command, _job.requestId, reply);
-      _job = {};
-      return;
+    } else {
+      const auto& pages = result.nextPages;
+      char received[4 * MAX_NEXT_PAGES + 1]{};
+      const auto pageCount = std::min(pages.receivedPages, MAX_NEXT_PAGES);
+      for (std::size_t i = 0; i < pageCount; ++i) {
+        char* const slot = received + 4 * i;
+        if (pages.pages[i].valid)
+          std::snprintf(slot, 5, "%04X", unsigned(pages.pages[i].raw));
+        else std::memcpy(slot, "----", 4);
+      }
+      reply.fields(" core_status=%s core_detail=%" PRId32 " sdk_error=%" PRId32
+                   " mutation_completed=%u mutation_possible=%u cleanup_owed=%u temporary=%u"
+                   " an_complete=%u np_requested=%u np_complete=%u np_owed=%u np_refused=%u"
+                   " np_base_event=%u np_base_valid=%u np_base=%u np_missing=%u"
+                   " np_tx=%u np_rx=%u np_duplicates=%" PRIu32 " np_words=%s",
+                   errorName(result.result.code), result.result.detail, receipt.sdkError,
+                   unsigned(result.mutationCompleted), unsigned(result.mutationPossible),
+                   unsigned(result.cleanupOwed), unsigned(result.temporary),
+                   unsigned(result.negotiationComplete), unsigned(pages.requested), unsigned(pages.complete),
+                   unsigned(pages.npMayRemainSet), unsigned(pages.partnerRefused), unsigned(pages.baseReceived),
+                   unsigned(pages.basePageValid), unsigned(pages.basePage), unsigned(pages.pagePayloadMissing),
+                   unsigned(pages.transmittedPages), unsigned(pageCount), pages.duplicatePages,
+                   pageCount == 0 ? "none" : received);
     }
-    const auto& pages = result.nextPages;
-    char received[4 * MAX_NEXT_PAGES + 1]{};
-    const auto pageCount = std::min(pages.receivedPages, MAX_NEXT_PAGES);
-    for (std::size_t i = 0; i < pageCount; ++i) {
-      char* const slot = received + 4 * i;
-      if (pages.pages[i].valid)
-        std::snprintf(slot, 5, "%04X", unsigned(pages.pages[i].raw));
-      else std::memcpy(slot, "----", 4);
+    if (result.token.value != 0) {
+      _lastResult = {_job.requestId, result.token, reply.status, result.result, receipt.sdkError,
+                     result.mutationCompleted, result.mutationPossible, result.cleanupOwed, result.temporary};
     }
-    reply.fields(" core_status=%s core_detail=%" PRId32 " sdk_error=%" PRId32
-                 " mutation_completed=%u mutation_possible=%u cleanup_owed=%u temporary=%u"
-                 " an_complete=%u np_requested=%u np_complete=%u np_owed=%u np_refused=%u"
-                 " np_base_event=%u np_base_valid=%u np_base=%u np_missing=%u"
-                 " np_tx=%u np_rx=%u np_duplicates=%" PRIu32 " np_words=%s",
-                 errorName(result.result.code), result.result.detail, receipt.sdkError,
-                 unsigned(result.mutationCompleted), unsigned(result.mutationPossible),
-                 unsigned(result.cleanupOwed), unsigned(result.temporary),
-                 unsigned(result.negotiationComplete), unsigned(pages.requested), unsigned(pages.complete),
-                 unsigned(pages.npMayRemainSet), unsigned(pages.partnerRefused), unsigned(pages.baseReceived),
-                 unsigned(pages.basePageValid), unsigned(pages.basePage), unsigned(pages.pagePayloadMissing),
-                 unsigned(pages.transmittedPages), unsigned(pageCount), pages.duplicatePages,
-                 pageCount == 0 ? "none" : received);
   } else {
     uint64_t now = 0;
     const bool local = request.action == Action::ABANDON || request.action == Action::END;
@@ -1339,6 +1349,7 @@ void Processor::serviceJob() {
 }
 
 void Processor::finishRun(Status status) {
+  if (status.ok() && _clockFault) status = clockError();
   Reply reply;
   reply.status = status;
   reply.deadline = _job.request.budget.io.deadlineUs;
@@ -1372,7 +1383,14 @@ void Processor::selftestStep() {
   uint32_t attempted = 0;
   if (receipt.batchValid && receipt.violation == TransportViolation::NONE) {
     for (const auto& frame : receipt.batch.frames) if (frame.attempted) ++attempted;
-  } else if (reply.status.ok() || receipt.violation != TransportViolation::NONE) {
+  }
+  const auto validFrame = [](const auto& frame) {
+    return frame.attempted && frame.completed && frame.valueValid;
+  };
+  const bool complete = receipt.batchValid && attempted == (identity ? 2U : 1U) &&
+      validFrame(receipt.batch.frames[0]) &&
+      (!identity || (validFrame(receipt.batch.frames[1]) && receipt.identity.id1Valid && receipt.identity.id2Valid));
+  if (receipt.violation != TransportViolation::NONE || (reply.status.ok() && !complete)) {
     _job.attemptedKnown = false;
     if (reply.status.ok()) reply.status = Status::Error(Err::INVALID_CONFIG, "No audited selftest batch",
                                                        static_cast<int32_t>(ConfigDetail::TRANSPORT));

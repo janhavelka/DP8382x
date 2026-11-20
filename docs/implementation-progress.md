@@ -1,5 +1,11 @@
 # Implementation progress
 
+The [independent review of prompts 45 and 46](reports/implementation/45-46-independent-review.md)
+starts from synchronized `d0d018b` on `main`. It closes CLI deadline and
+cancellation gaps, checks passive sample and identity evidence, constrains
+native feature dispatch, and exercises the 64-bit BIST interval. Prompt 47
+still owns native console attachment. Physical qualification follows separately.
+
 Prompt 46 adds the [typed diagnostic and opt-in control routes](cli.md#typed-diagnostics)
 on `main` from synchronized `76d900b`. It connects feature settings, validity,
 stimulus approval and separate restoration to the shared owner and record

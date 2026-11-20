@@ -52,3 +52,9 @@ output at EOF exit with status 1. Bad process arguments or setup exit with
 status 2.
 
 See the grammar and machine record requirements in [the CLI guide](../../docs/cli.md).
+
+The registered processor checks inject a refused poll, a temporarily refused
+take, a stalled writer, a clock regression during final-sample recording and
+an incomplete selftest receipt. The pinned SDK host checks also exercise the
+real native stop obligation that can refuse a poll, and assert zero MDIO
+frames when typed reads lack accepted identity.

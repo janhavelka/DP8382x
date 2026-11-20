@@ -211,17 +211,23 @@ traffic and fixture prerequisites before admitting it. The native bridge uses
 the stopped owner for live feature calls and holds shared silence for procedures
 that can reset. Physical operation requires the identified fixture.
 
+Live typed reads require a current accepted PHY identity. Before a successful
+probe or initialization they return `NOT_INITIALIZED` without a transfer.
+A current rejected identity reports the identity admission error. Cached
+queries and the explicit LPI stop keep their existing admission rules.
+
 `diagnostics selftest` reads the bound identity in a two-frame batch and PHYRCR
 in a one-frame batch on a later tick. It stops on the first failure or active
 reset command. The two batches share a 2 s deadline. It acquires no destructive
 counters and enables no stimulus. `check=identity` and `check=reset_status`
-identify samples. The terminal uses the run fields and counts actual attempts.
+identify samples. A successful sample requires complete frame evidence. The
+terminal uses the run fields and counts actual attempts.
 
 | Command family | Input and effect |
 | --- | --- |
 | `diagnostics loopback-start mode speed [flags [fifo]]` | `mii`, `pcs-in`, `pcs-out`, `digital`, `analog`, `reverse`, `external`. Use `10` or `100` Mbit/s. Select the single flag for the path. Flags 1 enables 100M MII line transmission, 2 analog termination, 4 live peer, 8 external path and 16 digital with HARD exit. Ordinary MII/PCS use zero. PCS input requires 10M and digital requires 100M. Reverse FIFO codes 0–3 select 4/5/6/8 nibbles. |
 | `diagnostics loopback-stop`, `diagnostics loopback-status` | Stop with the existing restoration procedure, or copy retained activity and effects. Digital exit can require HARD. |
-| `diagnostics bist-start mode counter bytes ipg observe-us speed [path [flags]]` | `off`, `single`, `checker`, `both`. Counter mode `saturate` or `wrap`. Packet length 0–2047 bytes and IPG 0–1020 bytes in multiples of four. Minimum observation 1–4294967295 µs. Speed `10` or `100`. Path `line` has flag 0. Use the corresponding loopback flag for `digital`, `analog` or `external`. |
+| `diagnostics bist-start mode counter bytes ipg observe-us speed [path [flags]]` | `off`, `single`, `checker`, `both`. Counter mode `saturate` or `wrap`. Packet length 0–2047 bytes and IPG 0–1020 bytes in multiples of four. Give the minimum observation interval as a positive uint64 in µs. The core checks that the interval fits when added to the activation time. Speed `10` or `100`. Path `line` has flag 0. Use the corresponding loopback flag for `digital`, `analog` or `external`. |
 | `diagnostics bist-read [none\|single\|stimulus\|both]`, `diagnostics bist-stop`, `diagnostics bist-status` | Explicit capture consumes a BIST error sample. Optional evidence requests require separate application confirmation. Stop restores the saved settings. Status only copies the last evidence. |
 | `diagnostics cable-start mask flags`, `diagnostics cable-raw channel dc avg segment duration-skip shadow thresholds flags` | SNLA428 run mask 1–63 selects 1A/1B/2/3/4/5. Raw tuning uses `ab`, `ba`, `aa` or `bb`, DC 0/1, averaging code 0–6 and segment 1–5. The remaining words pack the documented fields below. Both commands require flags 3 for a quiet peer and admitted HARD exit. They retain raw captures with per-word qualification. |
 | `diagnostics cable-read`, `diagnostics cable-stop`, `diagnostics cable-status`, `diagnostics cable-interpret delay-ps-per-m` | Reread the current manual capture, stop/restore with HARD, copy history, or interpret a qualified SNLA428 capture. Interpretation needs positive caller-supplied propagation delay in picoseconds per metre. Raw tuning and incomplete capture withhold a distance. |
@@ -238,10 +244,13 @@ at 7:0. `shadow` packs averaging at 6:4 and forward shadow at 3:0. `thresholds`
 packs location at 12:8, short threshold at 7:3 and pulse width at 2:0.
 Reserved high bits must be zero.
 
-Board proof missing from the application returns `BUSY` with owner-admission
-detail. An absent bridge returns `INVALID_CONFIG` with `reason=backend`.
-Source-gated procedures preserve `INVALID_CONFIG` with `SOURCE_GATE` detail.
-The core retains `UNSUPPORTED` for source-proved silicon exclusions.
+A denied application grant returns `BUSY` with owner-admission detail.
+The core also validates individual board and mode prerequisites. An absent
+bridge returns `INVALID_CONFIG` with `reason=backend`. Read the status and
+detail together. `SOURCE_GATE` identifies an unmet procedure prerequisite
+such as missing exact-part evidence or unconfirmed board routing. It may
+accompany `INVALID_CONFIG` or `UNSUPPORTED`. A confirmed silicon exclusion
+such as BASIC mode without LED2 uses `UNSUPPORTED` without that detail.
 Cooperative commands have a 5 s original deadline and up to 512 frames.
 An untimed cache query does no I/O. Terminal acquisitions have a 2 s deadline
 and up to 64 frames, with narrower collector limits where specified.
@@ -319,12 +328,19 @@ stopped SDK conditions through apply and reconciliation. Result delivery
 waits for a record slot. Polling an already admitted operation can continue
 while output is stalled.
 
+At the exclusive deadline the CLI stops advancing the operation. If the result
+is still running, the CLI requests owner cancellation without more MDIO and
+takes the frozen result once a record slot is available. The terminal record
+reports `OPERATION_TIMEOUT` with the separate core cancellation and effect
+evidence. A result already frozen can still be taken after the deadline.
+
 A detected clock regression disables new live CLI commands until the processor
 is replaced. The CLI cancels any operation that still needs polling through
 its owner without advancing hardware work, then takes the retained result.
 The terminal record keeps the core status, possible effects and any cleanup
-owed. A clock fault also prevents SDK reconciliation. Local and cached queries
-remain available.
+owed. A clock fault also prevents SDK reconciliation and prevents a successful
+watch, stress or selftest terminal if detected while recording its final sample.
+Local and cached queries remain available.
 
 The owner status/result views can run during an active operation when the
 console can accept another line. An explicit poll/cancel uses the first available

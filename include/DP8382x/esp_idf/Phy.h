@@ -472,7 +472,7 @@ public:
   Status counterSnapshot(CounterSnapshot& output, EvidenceSnapshot* evidence = nullptr) noexcept;
 
   /// @brief Admit an existing typed feature procedure on the stopped PHY.
-  /// @tparam Method Core member taking typed input, operation budget and token.
+  /// @tparam Method Approved diagnostic or feature procedure taking a budget and token.
   /// @param[in] budget Original absolute allowance and polling limits.
   /// @param[out] token Assigned only on admission.
   /// @param[in] inputs The procedure's own typed settings, if required.
@@ -482,6 +482,7 @@ public:
   /// holds shared silence through delivery, without retaining the controller mutex.
   template<auto Method, class... Inputs>
   Status startFeature(const OperationBudget& budget, OperationToken& token, const Inputs&... inputs) noexcept {
+    static_assert(isFeatureStart<Method>(), "Use the dedicated native route for this core operation");
     const auto admitted = enterFeature(requiresFeatureSilence<Method>());
     if (!admitted.ok()) return admitted;
     const auto status = (_core.*Method)(inputs..., budget, token);
@@ -493,15 +494,26 @@ public:
   }
 
   /// @brief Run a terminal typed feature call under the stopped owner.
-  /// @tparam Method Core member taking the supplied arguments and a trailing budget.
+  /// @tparam Method Approved terminal feature procedure taking a trailing budget.
   /// @param[in] budget The procedure's absolute allowance.
   /// @param[in,out] inputs Typed input and the call's output. Each procedure owns its validity rules.
   /// @return Terminal core or owner admission status. Releases the gate before return.
+  /// @note Requires fresh accepted identity for live features. LPI stop retains
+  /// its core cleanup admission so it can release a previous stimulus.
   /// @pre The application has granted maintenance before a disruptive call.
   template<auto Method, class Budget, class... Inputs>
   Status callFeature(const Budget& budget, Inputs&... inputs) noexcept {
+    static_assert(isFeatureCall<Method>(), "Use the dedicated native route for this core operation");
     const auto admitted = enterFeature(false);
     if (!admitted.ok()) return admitted;
+    if constexpr (!sameProcedure<Method, &DP8382x::stopLpi>()) {
+      if (!_core.capabilities().valid) {
+        const auto identity = _core.identitySnapshot();
+        leave();
+        if (!identity.stale && identity.acceptance == IdentityAcceptance::REJECTED) return identity.admissionStatus;
+        return Status::Error(Err::NOT_INITIALIZED, "Fresh accepted PHY identity required for typed feature");
+      }
+    }
     const auto status = (_core.*Method)(inputs..., budget);
     refreshAgreement();
     leave();
@@ -605,13 +617,35 @@ private:
     using Expected = std::integral_constant<decltype(Candidate), Candidate>;
     return std::is_same_v<Selected, Expected>;
   }
+  template<auto Method, auto... Candidates>
+  static constexpr bool oneOfProcedures() noexcept {
+    return (sameProcedure<Method, Candidates>() || ...);
+  }
+  template<auto Method>
+  static constexpr bool isFeatureStart() noexcept {
+    return oneOfProcedures<Method,
+        &DP8382x::startLoopback, &DP8382x::stopLoopback,
+        &DP8382x::startBist, &DP8382x::startBistAcquire, &DP8382x::stopBist,
+        &DP8382x::startCableTest, &DP8382x::startCableAcquire, &DP8382x::stopCableTest,
+        &DP8382x::startConfigureCableAutorun, &DP8382x::startCableAutorunAcquire,
+        &DP8382x::startConfigureInterrupts, &DP8382x::startInterruptTest, &DP8382x::stopInterruptTest,
+        &DP8382x::startConfigurePower, &DP8382x::startConfigureEee,
+        &DP8382x::startConfigureWake, &DP8382x::acknowledgeWake,
+        &DP8382x::startConfigureQuality, &DP8382x::startConfigureAnalog,
+        &DP8382x::startCompliance, &DP8382x::stopCompliance, &DP8382x::startCollisionTest,
+        &DP8382x::stopCollisionTest, &DP8382x::startCalibrationRecovery>();
+  }
+  template<auto Method>
+  static constexpr bool isFeatureCall() noexcept {
+    return oneOfProcedures<Method, &DP8382x::serviceInterrupts, &DP8382x::readPowerStatus,
+        &DP8382x::readEeeStatus, &DP8382x::startLpi, &DP8382x::stopLpi, &DP8382x::readWakeStatus,
+        &DP8382x::configurePins, &DP8382x::configureInterface, &DP8382x::readSignalQuality>();
+  }
   template<auto Method>
   static constexpr bool requiresFeatureSilence() noexcept {
-    return sameProcedure<Method, &DP8382x::startInitialize>() ||
-        sameProcedure<Method, &DP8382x::stopLoopback>() || sameProcedure<Method, &DP8382x::stopBist>() ||
-        sameProcedure<Method, &DP8382x::stopCableTest>() || sameProcedure<Method, &DP8382x::startConfigureEee>() ||
-        sameProcedure<Method, &DP8382x::startCompliance>() || sameProcedure<Method, &DP8382x::stopCompliance>() ||
-        sameProcedure<Method, &DP8382x::startCalibrationRecovery>();
+    return oneOfProcedures<Method, &DP8382x::stopLoopback, &DP8382x::stopBist, &DP8382x::stopCableTest,
+        &DP8382x::startConfigureEee, &DP8382x::startCompliance, &DP8382x::stopCompliance,
+        &DP8382x::startCalibrationRecovery>();
   }
   bool verifiedSettings() const noexcept;
   void refreshAgreement() noexcept;
