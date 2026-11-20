@@ -1,5 +1,8 @@
 # Planning audits and later implementation evidence
 
+The [prompt 46 report](implementation/46-cli-diagnostics-controls.md) records
+typed diagnostic and control routes, application admission and executing evidence.
+
 The [prompt 45 report](implementation/45-cli-link-lifecycle.md) records shared
 CLI link, event and lifecycle routes and executing verification.
 

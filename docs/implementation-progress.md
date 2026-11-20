@@ -1,5 +1,12 @@
 # Implementation progress
 
+Prompt 46 adds the [typed diagnostic and opt-in control routes](cli.md#typed-diagnostics)
+on `main` from synchronized `76d900b`. It connects feature settings, validity,
+stimulus approval and separate restoration to the shared owner and record
+schema. The [stage report](reports/implementation/46-cli-diagnostics-controls.md)
+and [feature matrix](feature-coverage.md) track host evidence and open source
+and physical gates. Firmware console attachment follows in prompt 47.
+
 Prompt 45 adds owner-routed [link, events and lifecycle CLI commands](cli.md)
 on `main` from synchronized `110b6b0`. It preserves one correlated terminal
 result per operation, keeps replay separate from cancellation, and bounds
@@ -605,7 +612,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [43 Implement the portable CLI, bounded console and record schema](prompts/43-cli-foundation.md) | COMPLETE | [Grammar and schema](cli.md), [source audit and verification](reports/implementation/43-cli-foundation.md). Real-core host fixture and eight CLI CTests. Native console and physical evidence follow. |
 | [44 Add complete identity, configuration and register CLI routes](prompts/44-cli-configuration-registers.md) | COMPLETE | [Grammar](cli.md), [matrix](feature-coverage.md), [verification](reports/implementation/44-cli-configuration-registers.md). SDK console attachment and physical qualification follow. |
 | [45 Add link, lifecycle and retained-operation CLI commands](prompts/45-cli-link-lifecycle.md) | COMPLETE | [CLI guide](cli.md), [matrix](feature-coverage.md), [report](reports/implementation/45-cli-link-lifecycle.md). Portable, pinned SDK host, consumers, P4 links and source checks passed. |
-| [46 Expose every diagnostic and opt-in feature through typed commands](prompts/46-cli-diagnostics-controls.md) | NOT STARTED | None |
+| [46 Expose every diagnostic and opt-in feature through typed commands](prompts/46-cli-diagnostics-controls.md) | COMPLETE | [CLI guide](cli.md#typed-diagnostics), [matrix](feature-coverage.md), [report](reports/implementation/46-cli-diagnostics-controls.md). Portable, pinned SDK host, consumers, P4 links and source checks passed. Source and physical gates remain explicit. |
 | [47 Integrate the shared CLI in both P4 applications and close coverage](prompts/47-cli-native-integration.md) | NOT STARTED | None |
 | [48 Implement the offline protocol verifier and durable evidence bundles](prompts/48-runner-protocol-artifacts.md) | NOT STARTED | None |
 | [49 Implement bounded serial sessions without implicit hardware actions](prompts/49-runner-serial-session.md) | NOT STARTED | None |

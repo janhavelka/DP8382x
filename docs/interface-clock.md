@@ -1,5 +1,7 @@
 # Clock, interface and repeater configuration
 
+The [typed control CLI](cli.md#typed-controls) applies one interface and repeater side per owner and exposes cached clock and mode evidence.
+
 `configureInterface` applies one complete `InterfaceSettings` profile with a
 finite `IoBudget`. `interfaceSnapshot` copies retained desired settings, observed
 words and configuration trust without MDIO or clock sampling. The application

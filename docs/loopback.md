@@ -1,5 +1,7 @@
 # Loopback sessions
 
+The [typed diagnostic CLI](cli.md#typed-diagnostics) exposes all source-qualified modes with application fixture proof, explicit stop and retained status.
+
 `startLoopback(options, budget, token)` and `stopLoopback(budget, token)` are
 separate bounded operations in the existing slot. They return IN_PROGRESS on
 bus/clock-silent admission. Poll at most one complete batch per owner turn and

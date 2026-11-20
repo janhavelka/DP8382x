@@ -1,5 +1,7 @@
 # Power policy and observations
 
+The [typed control CLI](cli.md#typed-controls) exposes power intent, explicit observation and cached status, including the reported deep-power source gate.
+
 `startConfigurePower` copies one complete `PowerSettings` into the existing
 operation slot without bus or clock access. Polling applies active-sleep policy,
 the owned software IEEE power-down request and optional PLL disable. It requires

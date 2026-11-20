@@ -594,12 +594,69 @@ void lifecycle() {
   CHECK(endpoint.phy->lifecycleSnapshot(life).ok() && life.phase == Phase::MAINTENANCE);
   CHECK(endpoint.handle && endpoint.mac.alive && endpoint.mac.frames.size() == beforeEnd);
 }
+void features() {
+  Host::reset();
+  SharedBus bus;
+  Endpoint endpoint;
+  Endpoint peer;
+  if (!install(endpoint, bus) || !peer.install(bus, 1) || !endpoint.initialize()) { CHECK(false); return; }
+  endpoint.owner.write = Endpoint::write;
+  Processor cli;
+  CHECK(cli.setup(endpoint.owner.platform(), Identity{}));
+  const auto original = endpoint.mac.frames.size();
+  CHECK(command(cli, "power status\n"));
+  CHECK(command(cli, "power configure normal 0 0\n"));
+  CHECK(endpoint.transcript.find("cmd=power.configure op=0 state=terminal primary=BUSY") != std::string::npos);
+  CHECK(endpoint.mac.frames.size() == original);
+
+  endpoint.owner.featureAttestation = [](void*, Feature feature, uint32_t proof) {
+    return (feature == Feature::POWER_CONFIGURE && proof == (1U << 6U)) ||
+        (feature == Feature::EEE_CONFIGURE && proof == 0);
+  };
+  endpoint.maintenance = false;
+  CHECK(command(cli, "power configure normal 0 0\n"));
+  CHECK(endpoint.mac.frames.size() == original);
+  endpoint.maintenance = true;
+  endpoint.transcript.clear();
+  CHECK(command(cli, "power configure normal 0 0\n"));
+  CHECK(endpoint.transcript.find("cmd=power.configure op=2 state=terminal primary=OK") != std::string::npos);
+  CHECK(endpoint.mac.frames.size() > original);
+
+  constexpr std::string_view eee = "eee configure off 0 0\n";
+  CHECK(cli.feed(eee) == eee.size());
+  cli.tick();
+  CHECK(bus.admission == BusAdmission::INITIALIZING && cli.workPending());
+  const auto peerFrames = peer.mac.frames.size();
+  Receipt receipt{};
+  CHECK(peer.call(request(Action::DISCOVER, 2), receipt).is(Err::BUSY));
+  CHECK(peer.mac.frames.size() == peerFrames);
+  CHECK(command(cli, "owner cancel 3\n"));
+  CHECK(bus.admission == BusAdmission::AVAILABLE && !cli.workPending());
+  CHECK(endpoint.transcript.find("cmd=eee.configure op=3 state=terminal primary=CANCELLED") != std::string::npos);
+  CHECK(endpoint.transcript.find("effective_reset=hard") != std::string::npos);
+
+  bool issued = false;
+  endpoint.mac.onFrame = [&](const Host::Frame& frame) {
+    if (frame.write && frame.reg == 0x1F && (frame.value & 0x8000U)) {
+      issued = true;
+      Host::state().nowUs = 1;
+    }
+  };
+  CHECK(command(cli, eee));
+  endpoint.mac.onFrame = nullptr;
+  CHECK(issued && bus.quarantined && bus.admission == BusAdmission::AVAILABLE);
+  CHECK(endpoint.transcript.find("cmd=eee.configure op=4 state=terminal primary=INVALID_CONFIG") != std::string::npos);
+  Host::state().nowUs = 1000000; // Give the peer a valid clock; the controller remains quarantined.
+  CHECK(peer.call(request(Action::DISCOVER, 2), receipt).detail ==
+        static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED));
+  CHECK(peer.mac.frames.size() == peerFrames);
+}
 } // namespace
 
 int main(int argc, char** argv) {
   const test::Suite suites[] = {{"admission", admission}, {"reconciliation", reconciliation},
                                 {"discovery", discovery}, {"raw_access", rawAccess},
                                 {"shared_silence", sharedSilence}, {"clock_fault", clockFault},
-                                {"link_events", linkEvents}, {"lifecycle", lifecycle}};
+                                {"link_events", linkEvents}, {"lifecycle", lifecycle}, {"features", features}};
   return test::runSuites(argc, argv, suites);
 }

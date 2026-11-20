@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Dp8382xCli.h"
+#include "Dp8382xCliFeatures.h"
 
 namespace DP8382x::Cli {
 
@@ -95,10 +96,12 @@ public:
   /// @param[in] maintenance Optional application grant for disruptive work.
   /// @param[in] context Borrowed argument for the grant callback.
   /// @param[in] externalDisposition Optional independent application approval for ABANDON.
+  /// @param[in] featureAttestation Optional application proof for requested physical prerequisites.
   explicit CoreOwner(DP8382x& driver, Maintenance maintenance = nullptr,
-                     void* context = nullptr, ExternalDisposition externalDisposition = nullptr) noexcept
+                     void* context = nullptr, ExternalDisposition externalDisposition = nullptr,
+                     FeatureAttestation featureAttestation = nullptr) noexcept
       : _driver(driver), _maintenance(maintenance), _context(context),
-        _externalDisposition(externalDisposition) {}
+        _externalDisposition(externalDisposition), _featureAttestation(featureAttestation) {}
 
   /// @brief Copy one cached value without bus or clock access.
   /// @param[in] kind Selects the one member to populate.
@@ -131,7 +134,8 @@ public:
   /// invocation evidence under owner serialization.
   Status execute(const Request& request, Receipt& receipt) {
     receipt = {};
-    if (requiresMaintenance(request.action)) {
+    if (requiresMaintenance(request.action) ||
+        (request.action == Action::FEATURE && owner_detail::featureMaintenance(request.feature))) {
       if (!_maintenance) {
         return Status::Error(Err::BUSY, "Maintenance not granted",
                              static_cast<int32_t>(BusyDetail::OWNER_ADMISSION));
@@ -155,7 +159,14 @@ public:
       case Action::CANCEL:
         return _driver.cancel(request.token);
       case Action::TAKE:
-        return takeResult(request.token, receipt);
+        return takeResult(request.token, request.feature, receipt);
+      case Action::FEATURE: {
+        if (featureMode(request.feature) != FeatureMode::CACHED) {
+          const auto status = owner_detail::idleSlot(_driver.operationSnapshot());
+          if (!status.ok()) return status;
+        }
+        return owner_detail::executeFeature(_driver, request, receipt, _featureAttestation, _context);
+      }
       case Action::OBSERVE_LINK:
       case Action::COLLECT_EVENTS:
       case Action::ABANDON:
@@ -191,10 +202,13 @@ private:
     }
   }
 
-  Status takeResult(OperationToken token, Receipt& receipt) noexcept {
+  Status takeResult(OperationToken token, Feature feature, Receipt& receipt) noexcept {
     OperationResult result{};
     const Status status = _driver.takeResult(token, result);
-    if (status.ok()) owner_detail::copyOperationResult(result, receipt);
+    if (status.ok()) {
+      owner_detail::copyOperationResult(result, receipt);
+      if (feature != Feature::NONE) owner_detail::describeFeatureResult(feature, result, receipt.featureFields);
+    }
     return status;
   }
 
@@ -287,5 +301,6 @@ private:
   Maintenance _maintenance;
   void* _context;
   ExternalDisposition _externalDisposition;
+  FeatureAttestation _featureAttestation;
 };
 } // namespace DP8382x::Cli

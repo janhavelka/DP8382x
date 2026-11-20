@@ -10,6 +10,7 @@
 #include <freertos/task.h>
 #include <atomic>
 #include <limits>
+#include <type_traits>
 
 /// @brief SDK-only integration; no SDK types enter the portable library.
 namespace DP8382x::EspIdf {
@@ -469,6 +470,56 @@ public:
   /// @param[out] evidence Optional retained partial samples, copied under the same instance gate.
   /// @return OK or BUSY; validity and staleness describe the last complete acquisition.
   Status counterSnapshot(CounterSnapshot& output, EvidenceSnapshot* evidence = nullptr) noexcept;
+
+  /// @brief Admit an existing typed feature procedure on the stopped PHY.
+  /// @tparam Method Core member taking typed input, operation budget and token.
+  /// @param[in] budget Original absolute allowance and polling limits.
+  /// @param[out] token Assigned only on admission.
+  /// @param[in] inputs The procedure's own typed settings, if required.
+  /// @return Core admission status, or BUSY when the owner/controller is unavailable.
+  /// @pre The application has granted maintenance for disruptive procedures.
+  /// @note Poll, cancel and take through this owner. A reset-bearing procedure
+  /// holds shared silence through delivery, without retaining the controller mutex.
+  template<auto Method, class... Inputs>
+  Status startFeature(const OperationBudget& budget, OperationToken& token, const Inputs&... inputs) noexcept {
+    const auto admitted = enterFeature(requiresFeatureSilence<Method>());
+    if (!admitted.ok()) return admitted;
+    const auto status = (_core.*Method)(inputs..., budget, token);
+    constexpr bool observation = sameProcedure<Method, &DP8382x::startBistAcquire>() ||
+        sameProcedure<Method, &DP8382x::startCableAcquire>() ||
+        sameProcedure<Method, &DP8382x::startCableAutorunAcquire>();
+    finishFeatureStart(status, observation);
+    return status;
+  }
+
+  /// @brief Run a terminal typed feature call under the stopped owner.
+  /// @tparam Method Core member taking the supplied arguments and a trailing budget.
+  /// @param[in] budget The procedure's absolute allowance.
+  /// @param[in,out] inputs Typed input and the call's output. Each procedure owns its validity rules.
+  /// @return Terminal core or owner admission status. Releases the gate before return.
+  /// @pre The application has granted maintenance before a disruptive call.
+  template<auto Method, class Budget, class... Inputs>
+  Status callFeature(const Budget& budget, Inputs&... inputs) noexcept {
+    const auto admitted = enterFeature(false);
+    if (!admitted.ok()) return admitted;
+    const auto status = (_core.*Method)(inputs..., budget);
+    refreshAgreement();
+    leave();
+    return status;
+  }
+
+  /// @brief Copy an existing passive getter behind the owner gate.
+  /// @tparam Method Const by-value core getter. It performs no MDIO or clock calls.
+  /// @param[out] output Copy on success. Preserved on gate contention.
+  /// @return Terminal OK or BUSY.
+  template<auto Method, class Output>
+  Status featureSnapshot(Output& output) noexcept {
+    const auto admitted = enterFeatureSnapshot();
+    if (!admitted.ok()) return admitted;
+    output = (static_cast<const DP8382x&>(_core).*Method)();
+    leave();
+    return Status::Ok();
+  }
   /// @brief Copy retained destructive samples locally, without acknowledging hardware.
   /// @param[out] output Copied history on OK, unchanged on BUSY.
   /// @return OK or BUSY; no clock or I/O.
@@ -543,6 +594,25 @@ private:
   void rememberCleanupReceipt(int64_t receipt) noexcept;
   IoBudget callbackBudget(uint32_t frames) const noexcept;
   void shareQuiet() noexcept;
+  Status reserveOperationSilence() noexcept;
+  void releaseOperationSilence() noexcept;
+  Status enterFeature(bool silence) noexcept;
+  Status enterFeatureSnapshot() noexcept;
+  void finishFeatureStart(Status status, bool observation) noexcept;
+  template<auto Method, auto Candidate>
+  static constexpr bool sameProcedure() noexcept {
+    using Selected = std::integral_constant<decltype(Method), Method>;
+    using Expected = std::integral_constant<decltype(Candidate), Candidate>;
+    return std::is_same_v<Selected, Expected>;
+  }
+  template<auto Method>
+  static constexpr bool requiresFeatureSilence() noexcept {
+    return sameProcedure<Method, &DP8382x::startInitialize>() ||
+        sameProcedure<Method, &DP8382x::stopLoopback>() || sameProcedure<Method, &DP8382x::stopBist>() ||
+        sameProcedure<Method, &DP8382x::stopCableTest>() || sameProcedure<Method, &DP8382x::startConfigureEee>() ||
+        sameProcedure<Method, &DP8382x::startCompliance>() || sameProcedure<Method, &DP8382x::stopCompliance>() ||
+        sameProcedure<Method, &DP8382x::startCalibrationRecovery>();
+  }
   bool verifiedSettings() const noexcept;
   void refreshAgreement() noexcept;
   template<class Call> Status stoppedRaw(RawBatchReceipt* receipt, Call call) noexcept;

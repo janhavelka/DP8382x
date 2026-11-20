@@ -32,6 +32,11 @@ STAGE_45_ROWS = {
     "observe_link": {"link read", "link partner", "link cached", "link watch"},
     "collect_event_counters": {"link collect", "cached events"},
 }
+STAGE_46_TABLES = {
+    "Dp8382xCliDiagnosticCommands.inc": "cli_diagnostic_transcript",
+    "Dp8382xCliControlCommands.inc": "cli_control_transcript",
+    "Dp8382xCliPinCommands.inc": "cli_pin_transcript",
+}
 
 
 def registered_tests():
@@ -99,7 +104,7 @@ class CliCoverageTests(unittest.TestCase):
         for owner in sorted(owners):
             with self.subTest(owner=owner):
                 self.assertIn(owner, self.features)
-                self.assertRegex(rows[owner][5], r"^(`[^`]+`|Pending (46|47)\b|N/A\.)")
+                self.assertRegex(rows[owner][5], r"^(`[^`]+`|Pending 47\b|N/A\.)")
 
     def test_listed_commands_have_dispatch_and_evidence(self):
         rows = self.rows()
@@ -107,6 +112,16 @@ class CliCoverageTests(unittest.TestCase):
         # Only the static table establishes that a name is accepted by dispatch.
         table = source.split("Processor::COMMANDS[] = {", 1)[1].split("\n};", 1)[0]
         registered = set(re.findall(r"\{\s*\"([^\"]+)\"\s*,", table))
+        feature_checks = {"diagnostics selftest": "cli_selftest_transcript"}
+        for file, suite in STAGE_46_TABLES.items():
+            self.assertIn(f'#include "{file}"', table)
+            contents = (ROOT / "examples/common" / file).read_text(encoding="utf-8")
+            commands = re.findall(r'^FEATURE\([A-Z0-9_]+, "([^"]+)"', contents, re.M)
+            self.assertTrue(commands, file)
+            for command in commands:
+                self.assertNotIn(command, registered)
+                registered.add(command)
+                feature_checks[command] = suite
         host_checks = registered_tests()
         documented = set()
         for identifier, cells in rows.items():
@@ -114,7 +129,7 @@ class CliCoverageTests(unittest.TestCase):
                 commands = set(re.findall(r"`([^`]+)`", cells[5]))
                 self.assertLessEqual(commands, registered)
                 if not commands:
-                    self.assertRegex(cells[5], r"^(Pending (46|47)\b|N/A\.)")
+                    self.assertRegex(cells[5], r"^(Pending 47\b|N/A\.)")
                 documented.update(commands)
                 named_checks = set(re.findall(r"\b[a-z]+(?:_[a-z]+)+\b", cells[7]))
                 self.assertTrue(named_checks, f"Missing host check: {identifier}")
@@ -125,7 +140,12 @@ class CliCoverageTests(unittest.TestCase):
                     self.assertIn("cli_processor_routes", cells[7])
                 if commands & {"registers dump", "connection discover"}:
                     self.assertIn("`sample`", cells[6])
+                for command in commands & feature_checks.keys():
+                    self.assertIn("`result`", cells[6])
+                    self.assertIn(feature_checks[command], named_checks)
         self.assertLessEqual(STAGE_44_ROUTES, documented)
+        self.assertLessEqual(feature_checks.keys(), documented)
+        self.assertIn("native_cli_features", host_checks)
         for identifier in ("access", "negotiation", "crossover"):
             self.assertIn("native_cli_reconciliation", rows[identifier][7])
 

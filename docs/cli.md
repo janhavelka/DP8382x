@@ -9,8 +9,8 @@ are separate. The application still decides whether a link suits its session.
 
 This processor provides local and cached queries, identity and discovery,
 typed profile configuration, policy-checked register access, link observations,
-event collection and cooperative lifecycle commands. Prompt 46 adds diagnostics
-and opt-in controls. Prompt 47 attaches the owner bridge to the native consoles.
+event collection, cooperative lifecycle commands, diagnostics and opt-in
+controls. Prompt 47 attaches the owner bridge to the native consoles.
 
 ## Input and commands
 
@@ -201,6 +201,89 @@ health transactions. The runs share the CLI work slot and the console record
 budget. Outstanding owner work or cleanup debt blocks a new run. A stop or
 fault ends the run and preserves every queued sample.
 
+## Typed diagnostics
+
+Use `help diagnostics`, `help controls`, `help irq`, `help power`, `help eee`,
+`help lpi` and `help wol` for command forms. The owner validates each complete
+request and uses its own typed settings and procedure. Supplying a flag asks
+for a particular path. The application independently verifies wiring, clock,
+traffic and fixture prerequisites before admitting it. The native bridge uses
+the stopped owner for live feature calls and holds shared silence for procedures
+that can reset. Physical operation requires the identified fixture.
+
+`diagnostics selftest` reads the bound identity in a two-frame batch and PHYRCR
+in a one-frame batch on a later tick. It stops on the first failure or active
+reset command. The two batches share a 2 s deadline. It acquires no destructive
+counters and enables no stimulus. `check=identity` and `check=reset_status`
+identify samples. The terminal uses the run fields and counts actual attempts.
+
+| Command family | Input and effect |
+| --- | --- |
+| `diagnostics loopback-start mode speed [flags [fifo]]` | `mii`, `pcs-in`, `pcs-out`, `digital`, `analog`, `reverse`, `external`. Use `10` or `100` Mbit/s. Select the single flag for the path. Flags 1 enables 100M MII line transmission, 2 analog termination, 4 live peer, 8 external path and 16 digital with HARD exit. Ordinary MII/PCS use zero. PCS input requires 10M and digital requires 100M. Reverse FIFO codes 0–3 select 4/5/6/8 nibbles. |
+| `diagnostics loopback-stop`, `diagnostics loopback-status` | Stop with the existing restoration procedure, or copy retained activity and effects. Digital exit can require HARD. |
+| `diagnostics bist-start mode counter bytes ipg observe-us speed [path [flags]]` | `off`, `single`, `checker`, `both`. Counter mode `saturate` or `wrap`. Packet length 0–2047 bytes and IPG 0–1020 bytes in multiples of four. Minimum observation 1–4294967295 µs. Speed `10` or `100`. Path `line` has flag 0. Use the corresponding loopback flag for `digital`, `analog` or `external`. |
+| `diagnostics bist-read [none\|single\|stimulus\|both]`, `diagnostics bist-stop`, `diagnostics bist-status` | Explicit capture consumes a BIST error sample. Optional evidence requests require separate application confirmation. Stop restores the saved settings. Status only copies the last evidence. |
+| `diagnostics cable-start mask flags`, `diagnostics cable-raw channel dc avg segment duration-skip shadow thresholds flags` | SNLA428 run mask 1–63 selects 1A/1B/2/3/4/5. Raw tuning uses `ab`, `ba`, `aa` or `bb`, DC 0/1, averaging code 0–6 and segment 1–5. The remaining words pack the documented fields below. Both commands require flags 3 for a quiet peer and admitted HARD exit. They retain raw captures with per-word qualification. |
+| `diagnostics cable-read`, `diagnostics cable-stop`, `diagnostics cable-status`, `diagnostics cable-interpret delay-ps-per-m` | Reread the current manual capture, stop/restore with HARD, copy history, or interpret a qualified SNLA428 capture. Interpretation needs positive caller-supplied propagation delay in picoseconds per metre. Raw tuning and incomplete capture withhold a distance. |
+| `diagnostics cable-autorun off\|on`, `diagnostics cable-autorun-read`, `diagnostics cable-autorun-status` | Configure one hardware link-loss TDR policy. An explicit acquisition returns raw hardware results without waiting for a known trigger. Status copies policy. |
+| `diagnostics compliance-start mode mdi\|mdix pattern flags`, `diagnostics compliance-stop` | Modes `tx100`, `nlp10`, `prbs10`, `pattern10` and source-gated `count100`. Pattern is zero except `pattern10` codes 0–13 and gated `count100` codes 0–31. Flags 3 requests the identified stimulus fixture and admitted HARD exit. Stop and persistent reapply use separate receipts. |
+| `diagnostics collision-start 10\|100 3`, `diagnostics collision-stop`, `diagnostics calibration-recover 1`, `diagnostics electrical-status` | Collision requires MII and proven COL/TX_EN control. Recovery requires distinct attestation for the CDCR contingency and HARD. Status copies retained effects and validity. |
+
+Exact raw field ranges, measurement limits and stop semantics are maintained
+with the corresponding procedures. [Loopback](loopback.md), [BIST](bist.md),
+[cable](cable.md), [electrical](electrical.md)
+
+The cable `duration-skip` word packs duration at bits 15:8 and initial skip
+at 7:0. `shadow` packs averaging at 6:4 and forward shadow at 3:0. `thresholds`
+packs location at 12:8, short threshold at 7:3 and pulse width at 2:0.
+Reserved high bits must be zero.
+
+Board proof missing from the application returns `BUSY` with owner-admission
+detail. An absent bridge returns `INVALID_CONFIG` with `reason=backend`.
+Source-gated procedures preserve `INVALID_CONFIG` with `SOURCE_GATE` detail.
+The core retains `UNSUPPORTED` for source-proved silicon exclusions.
+Cooperative commands have a 5 s original deadline and up to 512 frames.
+An untimed cache query does no I/O. Terminal acquisitions have a 2 s deadline
+and up to 64 frames, with narrower collector limits where specified.
+
+## Typed controls
+
+Use `keep` only for an unowned setting. A complete profile includes every
+previously owned field required by the typed procedure. Status commands copy
+retained observations with independent validity and staleness.
+
+| Command family | Input and effect |
+| --- | --- |
+| `controls pins p0 p1 p2 p3 blink stretch swap0 clock1` | Pin tokens `keep`, `led,source,polarity,drive`, `wake`, `irq`, `col3`, `col5`, `col6`, `high`, `tx-error`, `clock`. LED source 0–14, polarity `keep`, `low` or `high`, drive `normal`, `low` or `high`. The core checks pin-specific values and rejects reserved LED3 drive. Blink `keep` or 0–3 for 50/100/200/500 ms, stretch `keep`, `enabled` or `bypass`, swap `keep`, `off` or `on`, clock1 `keep` or `override`. |
+| `controls interface mii\|rmii25\|rmii50 rmii-flags elasticity bytes ppm compat-flags clock isolate` | RMII flags 1 follower-only TX shift, 2 RMII 1.0, 4 RX_DV, 8 repeater. Elasticity codes 0–3 denote 14/2/6/10 bits. Bytes and ppm are signed-independent nonnegative board bounds. Compatibility flags 1 fast RX_DV, 2 **disable** odd-nibble detection, 4 MII COL/full-duplex, 8 120 ns IPG. Clock `keep`, `clkout25`, `led1`, `pll` or `recovered`, with the last two subject to source gates. Isolate `keep`, `off` or `on`. Repeater configures one side and requires application-confirmed topology for both PHYs. |
+| `controls quality fld tx100 tx10 recovery` | Each field group can use `keep`. FLD cause mask is a subset of `0x040f`, MII-only when active. Optional FLD raw codes are `mask,window,errors,descrambler` in ranges 1–63/1–63/0–63. TX100 is `scrambler-bypass,fifo-code,rx-error-idle` with FIFO 0–3. TX10 is `lower-threshold,squelch,nlp-disable,jabber-disable,short-preamble` with squelch 0–8. Boolean tuple values 0/1. Recovery `off` or `on`. |
+| `controls mse`, `controls mse-status` | Acquire one raw DEVAD 31 word at offset `0x0218` with existing link context, or copy it. Preserve the source interpretation gate. |
+| `controls analog amp term mac-slew io-slew gain` | Amplitude tuple is negative MDI/MDIX `0x28..0x38`, positive MDI/MDIX `8..0x18`, and zero code `0..63`. Termination tuple is MDI/MDIX 0–15 and independent 0/1 enables. MAC slew `keep`, `fast` or `slow`; I/O slew `keep`, `slow` or `fast`. Numeric receiver gain 0–31 reaches the source gate. |
+| `controls pins-status`, `controls interface-status`, `controls quality-status`, `controls analog-status` | Copy the matching retained settings and raw readback. |
+| `irq configure misr1 misr2 polarity\|wake intr\|led1\|led2 flags` | Separate 0–255 event enables. Flags 1 active-high, 2 global delivery, 4 enhanced output disable. Pin role and excluded clock/COL users require application evidence. |
+| `irq service [transactions samples frames]`, `irq cached-service`, `irq status`, `irq test-start`, `irq test-stop` | Defaults 2/5/5. Explicit service consumes each MISR once and conditionally reads requested counters. Use cached event history for partial evidence. Test start requires an explicit stimulus grant. Test stop and replay preserve independent outcomes. |
+| `power configure normal\|down\|deep sleep pll-off`, `power read`, `power status` | Active sleep and PLL request are 0/1. PLL-off requires IEEE down. Entry/exit requires management and clock-loss evidence as applicable. Deep-power controls remain source-gated. |
+| `eee configure off\|on advertisement bypass-mask`, `eee read`, `eee status` | Advertisement 0 or 2 for 100BASE-TX. Bypass-mask bits 0 and 1 request bypass of control bits 0 and 3. Configuration uses shared HARD reset and replay, with a compatible owned AN profile for enable. Read acquires local, partner and status evidence, including consuming EEE event words. |
+| `lpi start`, `lpi stop`, `lpi status` | Legacy MAC LPI entry needs application-owned TX drain and current qualified 100/full EEE evidence. Readback of request/stop preserves observed and uncertain effects and carries no packet-readiness proof. |
+| `wol configure off\|magic\|secure status\|irq\|led0\|led1\|led2\|led3 crc level\|pulse width mac [password]`, `wol read`, `wol status`, `wol acknowledge` | CRC 0/1. Width codes 0–3 denote 8/16/32/64 cycles of 125 MHz. MAC and secure password use six colon-separated hex octets. Secure mode requires the password. RX quiescence and admitted pin routes are application responsibilities. LED0/LED3 wake routing remains source-gated. Acknowledge consumes RXFS/MISR2 once before the qualified W0C command and keeps the W1S bit neutral. Records omit address and password bytes. Raw CLI read/dump rejects the vendor password words prior to any I/O. |
+
+Additional exact-part field limits and semantics are documented with the
+procedures. [Interrupts](interrupts.md), [interface and clock](interface-clock.md),
+[quality](quality.md), [power](power.md), [EEE](eee.md), [LPI](lpi.md),
+[WoL](wake-on-lan.md)
+
+The application receives the selected feature and the requested proof mask
+through `FeatureAttestation`. The diagnostic routes pass the applicable flags
+above. A zero mask still asks for a feature grant, for example when arming the
+IRQ stimulus or link-loss cable autorun. Pin bits 0–3 release selected LED pins,
+bit 4 releases LED1/CLKOUT, bit 5 releases MII COL and bit 6 requests quiesced
+outputs. Interface bits 0–3 cover pins, reference, SMI and clock changes, bit 4
+covers repeater wiring and bits 15:8 carry the requested reference MHz. The
+10M quality gate uses bit 0. Analog bits 0 and 1 cover the identified fixture
+and termination override. IRQ, power, LPI and WoL use the `ControlProof` values
+documented in the owner header. A valid grant depends on current application
+state and must survive the admitted procedure's terminal delivery.
+
 ## Console service
 
 Serialize `setup`, `feed`, `discardInput` and `tick` in the application task.
@@ -375,6 +458,58 @@ Wait for `connection.initialize` on the admission's request number with
 `state=terminal primary=CANCELLED`. If it carries `cleanup_owed=1`, an admitted
 `recovery reinitialize hard` has a new request, token and result. The earlier
 `owner.cancel` acknowledgement does not report replay success.
+
+### Typed feature payloads
+
+An admitted feature emits the standard `admitted` record with its token. Its
+terminal record carries `core_status core_detail mutation_completed
+mutation_possible cleanup_owed temporary persistent_restored effective_reset
+reset_accepted reset_complete` plus its typed evidence. Stops and persistent
+replay are separate, so a successful later operation cannot replace the failed
+earlier outcome. A direct control reports its terminal result on the same
+request without `admitted`. Optional fields flagged invalid carry no evidence.
+
+- Loopback emits `mode speed_mbps controls_verified stopped hard_exit
+  physts_valid physts`. Its cache view uses `session_op` and `stimulus_possible`
+  to distinguish retained state from an admitted command token.
+- BIST emits `session_op`, `outcome`, and independently guarded `before`,
+  `counter` and `after` words. `measurement_valid`, `activity`, `lock`,
+  `sync_loss`, `errors`, `saturated`, `wrap_possible`, `interval_uncertain`
+  and `history_lost` describe the acquisition. `active_valid` guards the
+  cached active-state claim. A zero counter can remain `inconclusive`.
+- Cable receipts use `session_op recipe requested_mask complete stale stopped
+  autorun status_changed prerequisite_valid prerequisite`. The six rows
+  `r1a r1b r2 r3 r4 r5` carry uppercase hexadecimal
+  `flags:cdcr:index:amplitude:peak`. Bits 0–3 guard the four words, bits 4–7
+  mark staleness and bits 8/9 denote accepted/possible trigger. Bit 10 marks
+  observed freshness, bit 11 marks CDCR failure and bits 13:12 give row state
+  0 (not run), 1 (started) or 2 (complete). The interpretation command
+  produces a `conclusion` and `distance_um` with `distance_valid`. Autorun's
+  policy receipt preserves `desired` and `observed` with separate validity.
+- Electrical receipts distinguish `compliance`, `collision`, verified controls,
+  `stimulus_possible`, `stopped`, mode/pair/pattern, `collision_mbps`,
+  `cdcr_valid cdcr recovery_needed hard_owed` and `electrical_reset_complete`.
+  These fields describe retained procedure evidence.
+- Pin, interface, quality and analog reports emit `desired trust stale
+  valid_mask` and raw fields in each core snapshot's register order. The mask
+  identifies valid words in output order. Direct pin/interface reports also
+  include `attempted completed transactions batch_primary batch_detail
+  release_status release_detail mutation_attempted mutation_possible verified`.
+  MSE reports `raw_mse` with `valid stale observed_valid observed_us` and
+  separately qualified previous `context_valid context_stale context_up`.
+- IRQ policy and service emit qualified PHYSCR/MISR/RXFS or PHYSTS/MISR data.
+  Service includes `more_pending`, selector attribution and independent
+  `fcscr_requested fcscr_valid fcscr fcscr_lower_bound` and `recr_requested
+  recr_valid recr`. The cache preserves consumed material across later errors.
+- Power reports `power_state requested_down indicated_down requested_sleep
+  requested_pll_off` and independent validity for BMCR, PHYSCR and BISCR.
+  EEE reports requested enable, capability, advertisement, partner, EEE status,
+  wake errors, control and negotiated evidence with independent validity.
+  LPI reports the retained action and its control readback, with `batch_primary`,
+  `batch_release`, their signed details, and completed or uncertain effects.
+- WoL reports `desired_valid trust stale route control_valid control enabled
+  secure level pulse crc magic match_word_mask rxfs_valid rxfs misr2_valid
+  misr2`. The match mask reports word validity and carries no credentials.
 
 ### Identity, registers and profile payloads
 

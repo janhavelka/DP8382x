@@ -1,5 +1,7 @@
 # Wake-on-LAN controls and retained indication
 
+The [typed control CLI](cli.md#typed-controls) exposes policy, explicit observation and acknowledgement. Machine records carry validity while withholding match credentials.
+
 `startConfigureWake` admits a complete `WakeSettings` into the existing operation
 slot. Starts are bus/clock silent; the application polls with finite frame slices
 and consumes the retained `OperationResult::wake`. `acknowledgeWake` starts a

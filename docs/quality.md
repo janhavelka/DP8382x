@@ -1,5 +1,7 @@
 # Quality and hardware link-loss controls
 
+The [typed control CLI](cli.md#typed-controls) applies quality and link-loss settings and exposes raw or cached MSE through the existing owner.
+
 `startConfigureQuality` admits an explicit `QualitySettings` profile into the
 existing operation slot. Starts perform no MDIO or clock calls. The application
 stops MAC traffic, admits maintenance, then polls with a finite deadline, frame

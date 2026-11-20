@@ -1,5 +1,7 @@
 # EEE configuration and observations
 
+The [typed control CLI](cli.md#typed-controls) exposes EEE configure, explicit read and cached status under the existing reset and collector ownership.
+
 `startConfigureEee` owns a complete, explicit `EeeSettings` policy in the existing
 operation slot. `readEeeStatus` acquires bounded live evidence;
 `eeeSnapshot` and `evidenceSnapshot` are passive. No default initialization

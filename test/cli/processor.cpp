@@ -161,8 +161,10 @@ void grammar() {
   const auto profileHelp = s.bytes.find("  an <modes");
   assert(s.bytes.find("\r\nconfiguration\r\n") < profileHelp);
   assert(profileHelp < s.bytes.find("\r\nregisters\r\n"));
-  has(s.bytes, "Up to 32 policy-checked rows\r\n");
+  has(s.bytes, "registers dump\r\n");
   has(s.bytes, "LEDCR 0x18 or 31:0x18 allows bits 0x0692.");
+  s.send("help registers\n");
+  has(s.bytes, "Up to 32 policy-checked rows\r\n");
 }
 
 void loss() {

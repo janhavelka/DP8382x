@@ -69,6 +69,11 @@ CLI end and independent external disposition for abandon. The release hook owns
 SDK stop and fencing and preserves storage still reachable by callbacks. Console
 attachment is stage 47.
 
+Typed CLI feature acquisitions use the stopped instance gate. Reset-bearing
+feature procedures reserve the same shared bus silence as initialization.
+Poll, cancel and result delivery use the existing native slot. The application
+supplies the feature attestation for wiring and fixture prerequisites.
+
 If a core clock fault during initialization prevents establishing the
 shared reset silence floor, the adapter quarantines the bus before releasing
 its initialization reservation. A peer may resume only after application

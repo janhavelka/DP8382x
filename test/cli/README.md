@@ -23,6 +23,10 @@ behavior only.
 | `--hold-reset` | Leaves an accepted reset bit set to exercise timeout and cleanup debt. |
 | `--regress-after-hard` | Moves the simulated clock backwards at the first hard-reset frame. |
 | `--trace-resets` | Writes each literal reset register/value pair to stderr. Stdout remains the CLI byte stream. |
+| `--trace-writes` | Writes each simulated target address and word to stderr. Secure-ON password words are redacted. |
+| `--attest-features` | Supplies synthetic board and fixture proof for the typed command under test. Omit it to verify missing proof rejection. |
+| `--mii` | Selects an MII fixture binding for MII-only routes. |
+| `--hold-tdr` | Leaves the simulated manual capture pending to exercise deadline and restoration handling. |
 
 The fixture intercepts exact lines containing `$pause`, `$resume`, `$tick N`
 or `$output-stall N`. They do not consume CLI request numbers. These controls

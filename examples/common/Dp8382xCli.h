@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ConsoleBuffer.h"
+#include "Dp8382xCliFeatureTypes.h"
 #include <DP8382x/DP8382x.h>
 #include <array>
 #include <cstdint>
@@ -57,7 +58,8 @@ enum class Action {
   OBSERVE_LINK,    ///< Acquire one coherent link observation.
   COLLECT_EVENTS,  ///< Consume the event/counter sources under their existing collector.
   ABANDON,         ///< Withdraw local cleanup debt after app-confirmed external disposition.
-  END              ///< Release the binding through the application's owner route.
+  END,             ///< Release the binding through the application's owner route.
+  FEATURE          ///< Execute one grouped typed feature or copy its cached view.
 };
 
 /// @brief Selected owner inputs, copied at command admission.
@@ -72,6 +74,8 @@ struct Request {
   LinkSettings settings{};    ///< Typed link intent for START_CONFIGURE.
   ConfigureOptions options{}; ///< Bounded negotiation policy for START_CONFIGURE.
   ResetKind reset{ResetKind::NONE}; ///< Requested initialization/reset kind.
+  Feature feature{Feature::NONE}; ///< Typed command selector retained through terminal delivery.
+  FeatureArgs featureArgs{}; ///< Copied arguments for the initial feature call only.
 };
 
 /// @brief Evidence for this call only. Unavailable evidence remains defaulted.
@@ -102,6 +106,7 @@ struct Receipt {
   bool protocolComplete{false}; ///< Reset completion observed within its budget.
   bool persistentRestored{false}; ///< Core verified the owned persistent state.
   bool clockInvalid{false}; ///< Core operation latched a time-contract fault.
+  FeatureFields featureFields{}; ///< Sanitized fields from the current feature call or retained result.
 };
 
 /// @brief Borrowed callbacks called only by the application task that owns the CLI.
@@ -193,7 +198,7 @@ private:
   struct Command;
   struct ConfigOption;
   struct Reply;
-  enum class Work { IDLE, CALL, DISCOVERY, DUMP, WATCH, STRESS, POLL, TAKE, RECONCILE };
+  enum class Work { IDLE, CALL, DISCOVERY, DUMP, WATCH, STRESS, SELFTEST, POLL, TAKE, RECONCILE };
   struct Job {
     Work step{Work::IDLE};
     Request request{};
@@ -239,6 +244,7 @@ private:
   void serviceControl();
   void sequenceStep();
   void runStep();
+  void selftestStep();
   void finishRun(Status status);
   void human(std::string_view bytes);
   void profileHelp();
@@ -252,6 +258,8 @@ private:
   void owner(const Command&, const Args&, std::size_t, Reply&);
   void link(const Command&, const Args&, std::size_t, Reply&);
   void run(const Command&, const Args&, std::size_t, Reply&);
+  void feature(const Command&, const Args&, std::size_t, Reply&);
+  void selftest(const Command&, const Args&, std::size_t, Reply&);
   bool schedule(std::string_view command, const Request& request, Work step, uint64_t durationUs, Reply& reply);
   bool parseProfile(const Args&, std::size_t count, Request&);
 

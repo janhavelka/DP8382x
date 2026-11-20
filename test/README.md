@@ -1,5 +1,11 @@
 # Verification
 
+Prompt 46 registers `cli_diagnostic_transcript`, `cli_control_transcript`,
+`cli_pin_transcript` and `cli_selftest_transcript` against the real-core fixture.
+They check typed admission, literal wire words, result retention and separately
+failed or successful restoration. `native_cli_features` exercises application
+proof, reset reservation and peer quarantine through the pinned SDK owner.
+
 Prompt 45 extends `cli_fixture_transcript` with exact wire reset values, latch-low
 link evidence, partial events, cancellation, cleanup debt and bounded watch and
 stress. `native_cli_link_events` and `native_cli_lifecycle` exercise the pinned

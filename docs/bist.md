@@ -1,5 +1,7 @@
 # BIST generator and checker sessions
 
+The [typed diagnostic CLI](cli.md#typed-diagnostics) exposes BIST start, explicit sample acquisition, cached status and separate stop.
+
 `startBist`, `startBistAcquire` and `stopBist` use the existing operation slot,
 tokens and finite `OperationBudget`. Admission calls neither clock nor MDIO.
 Consume each result before admitting the next operation. The application owns

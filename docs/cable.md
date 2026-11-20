@@ -1,5 +1,7 @@
 # Manual cable capture
 
+The [typed diagnostic CLI](cli.md#typed-diagnostics) exposes manual recipe and raw tuning, cached capture and interpretation, and separate autorun controls.
+
 `startCableTest`, `startCableAcquire` and `stopCableTest` use the existing
 operation slot, terminal MDIO batches and application owner. Admission calls
 neither the clock nor the bus. Poll at most one complete batch per owner turn;

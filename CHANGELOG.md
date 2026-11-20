@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Expose the typed DP83826I diagnostics and opt-in controls through the shared
+  CLI. Add read-only selftest, explicit stimulus admission, scoped native reset
+  reservations and redacted wake records with compiled transcript checks.
+
 - Add owner-routed link and event acquisition, explicit reset and reapply,
   retained operation status/result and cancellation, and finite watch and stress
   to the shared example CLI. Preserve consumed event prefixes and report reset

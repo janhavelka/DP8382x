@@ -26,7 +26,16 @@ find_package(Python3 3.10 QUIET COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
   add_test(NAME cli_fixture_transcript COMMAND "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/fixture_transcript.py" "$<TARGET_FILE:dp8382x_cli_fixture>")
-  set_tests_properties(cli_fixture_transcript PROPERTIES TIMEOUT 30)
+  add_test(NAME cli_diagnostic_transcript COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/diagnostic_transcript.py" "$<TARGET_FILE:dp8382x_cli_fixture>")
+  add_test(NAME cli_control_transcript COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/control_transcript.py" "$<TARGET_FILE:dp8382x_cli_fixture>")
+  add_test(NAME cli_pin_transcript COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pin_transcript.py" "$<TARGET_FILE:dp8382x_cli_fixture>")
+  add_test(NAME cli_selftest_transcript COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/selftest_transcript.py" "$<TARGET_FILE:dp8382x_cli_fixture>")
+  set_tests_properties(cli_fixture_transcript cli_diagnostic_transcript cli_control_transcript
+    cli_pin_transcript cli_selftest_transcript PROPERTIES TIMEOUT 30)
 else()
   message(STATUS "Python unavailable: CLI subprocess transcript check not registered")
 endif()

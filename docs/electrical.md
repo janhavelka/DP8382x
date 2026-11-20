@@ -1,5 +1,7 @@
 # Electrical controls and finite maintenance sessions
 
+The [typed diagnostic CLI](cli.md#typed-diagnostics) exposes explicit compliance, collision and calibration requests. [Typed controls](cli.md#typed-controls) exposes analog intent.
+
 `startConfigureAnalog` applies an explicitly owned `AnalogSettings` profile.
 `startCompliance`/`stopCompliance` and `startCollisionTest`/`stopCollisionTest`
 are separate bounded calls around application-controlled instrument dwell.

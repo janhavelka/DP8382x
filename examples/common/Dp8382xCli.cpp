@@ -217,6 +217,15 @@ const char* effect(Action action, Status status, const Receipt& receipt) {
 }
 } // namespace
 
+bool featureNumber(std::string_view token, uint32_t maximum, uint32_t& value) noexcept {
+  uint32_t parsed = 0;
+  if (!unsignedNumber(token, parsed) || parsed > maximum) return false;
+  value = parsed;
+  return true;
+}
+
+int featureChoice(std::string_view token, std::string_view choices) noexcept { return choice(choices, token); }
+
 struct Processor::Reply {
   Status status{};
   const char* reason{"none"};
@@ -231,6 +240,12 @@ struct Processor::Reply {
   void reject(const char* why) {
     status = Status::Error(Err::INVALID_PARAM, "Invalid CLI input");
     reason = why;
+  }
+
+  void checkFeatureFields(const FeatureFields& report) {
+    if (report.valid) return;
+    if (status.ok()) status = Status::Error(Err::INVALID_CONFIG, "Feature field capacity exceeded");
+    reason = "format";
   }
 
   void fields(const char* format, ...) {
@@ -383,6 +398,13 @@ const Processor::Command Processor::COMMANDS[] = {
     {"test stress", "", 2, 2, STRESS, &Processor::run, "count duration-ms", "Count safe PHYID1 reads"},
     {"test stop", "", 0, 0, STOP, &Processor::run, "", "Stop a watch or stress run"},
     {"test stats", "", 0, 0, STATS, &Processor::run, "", "Copy latest finished watch or stress counts"},
+    {"diagnostics selftest", "", 0, 0, 0, &Processor::selftest, "", "Read identity and reset status without stimulus"},
+#define FEATURE(id, name, minimum, maximum, mode, usage, summary) \
+    {name, "", minimum, maximum, unsigned(Feature::id), &Processor::feature, usage, summary},
+#include "Dp8382xCliDiagnosticCommands.inc"
+#include "Dp8382xCliControlCommands.inc"
+#include "Dp8382xCliPinCommands.inc"
+#undef FEATURE
 };
 
 bool Processor::setup(const Platform& platform, const Identity& identity) {
@@ -415,6 +437,7 @@ std::size_t Processor::feed(std::string_view bytes) {
     if (ch == '\r' || ch == '\n') {
       _afterCr = ch == '\r';
       finishLine();
+      _line.fill('\0'); // A completed line can include wake credentials.
       _lineSize = 0;
       _discardReason = nullptr;
     } else if (_discardReason) {
@@ -604,7 +627,7 @@ void Processor::help(const Command&, const Args& args, std::size_t count, Reply&
     const char* alias = command.alias.empty() ? "" : command.alias.data();
     char line[224]{};
     if (topic.empty()) {
-      std::snprintf(line, sizeof(line), "  %-24s %s%s%s%s\r\n", command.name.data(), command.summary,
+      std::snprintf(line, sizeof(line), "  %s%s%s%s\r\n", command.name.data(),
                     *alias ? " (" : "", alias, *alias ? ")" : "");
       human(line);
       continue;
@@ -901,6 +924,42 @@ void Processor::run(const Command& command, const Args& args, std::size_t count,
   }
 }
 
+void Processor::feature(const Command& command, const Args& args, std::size_t count, Reply& reply) {
+  if (!_platform.execute) {
+    reply.status = Status::Error(Err::INVALID_CONFIG, "No typed owner route");
+    reply.reason = "backend";
+    return;
+  }
+  Request request;
+  request.action = Action::FEATURE;
+  request.feature = static_cast<Feature>(command.flags);
+  auto& copied = request.featureArgs;
+  std::size_t offset = 0;
+  copied.count = static_cast<uint8_t>(count);
+  for (std::size_t i = 0; i < count; ++i) {
+    copied.lengths[i] = static_cast<uint8_t>(args[i].size());
+    std::copy(args[i].begin(), args[i].end(), copied.bytes.begin() + static_cast<std::ptrdiff_t>(offset));
+    offset += args[i].size();
+  }
+  const auto mode = featureMode(request.feature);
+  if (mode == FeatureMode::CACHED) {
+    Receipt receipt;
+    reply.status = checkedTerminal(_platform.execute(_platform.context, request, receipt));
+    reply.fields("%s", receipt.featureFields.text.data());
+    reply.checkFeatureFields(receipt.featureFields);
+    return;
+  }
+  request.budget.io.maxFrames = mode == FeatureMode::READ ? 64 : 512;
+  schedule(command.name, request, Work::CALL, mode == FeatureMode::READ ? DIRECT_US : CONFIG_US, reply);
+}
+
+void Processor::selftest(const Command& command, const Args&, std::size_t, Reply& reply) {
+  Request request;
+  request.action = Action::PROBE;
+  request.budget.io.maxFrames = 3;
+  if (schedule(command.name, request, Work::SELFTEST, DIRECT_US, reply)) _job.end = 2;
+}
+
 bool Processor::parseProfile(const Args& args, std::size_t count, Request& request) {
   auto& profile = request.settings;
   const int mode = choice(CONFIG[MODE].enumValues, args[0]);
@@ -1016,6 +1075,12 @@ void Processor::route(const Command& command, const Args& args, std::size_t coun
           (request.value & ~uint32_t{cmd::MASK_LEDCR_DIRECT})) { reply.reject("access"); return; }
       request.action = mmd ? Action::WRITE_MMD : Action::WRITE_C22;
     }
+    const uint32_t last = route == DUMP ? end : request.address;
+    if ((route == READ || route == DUMP) && mmd && request.devad == cmd::DEVAD_VENDOR &&
+        request.address <= cmd::REG_RXFSOP3 && last >= cmd::REG_RXFSOP1) {
+      reply.reject("access"); // Credentials never enter raw CLI output.
+      return;
+    }
   }
 
   request.budget.io.maxFrames = frames;
@@ -1035,7 +1100,7 @@ bool Processor::schedule(std::string_view command, const Request& request, Work 
                                  static_cast<int32_t>(BusyDetail::OPERATION_ACTIVE));
     return false;
   }
-  if (step == Work::WATCH || step == Work::STRESS) {
+  if (step == Work::WATCH || step == Work::STRESS || step == Work::SELFTEST) {
     CachedSnapshot snapshot;
     reply.status = checkedTerminal(_platform.readCached(_platform.context, SnapshotKind::OPERATION, snapshot));
     if (!reply.status.ok()) return false;
@@ -1131,6 +1196,10 @@ void Processor::serviceJob() {
     runStep();
     return;
   }
+  if (_job.step == Work::SELFTEST) {
+    selftestStep();
+    return;
+  }
 
   Reply reply;
   reply.op = request.token.value;
@@ -1180,6 +1249,19 @@ void Processor::serviceJob() {
       _job = {};
       return;
     }
+    if (request.feature != Feature::NONE) {
+      reply.fields(" core_status=%s core_detail=%" PRId32 " mutation_completed=%u mutation_possible=%u"
+                   " cleanup_owed=%u temporary=%u persistent_restored=%u effective_reset=%s"
+                   " reset_accepted=%u reset_complete=%u%s",
+                   errorName(result.result.code), result.result.detail, unsigned(result.mutationCompleted),
+                   unsigned(result.mutationPossible), unsigned(result.cleanupOwed), unsigned(result.temporary),
+                   unsigned(result.persistentRestored), resetName(result.reset), unsigned(result.commandAccepted),
+                   unsigned(result.protocolComplete), result.featureFields.text.data());
+      reply.checkFeatureFields(result.featureFields);
+      record(_job.command, _job.requestId, reply);
+      _job = {};
+      return;
+    }
     const auto& pages = result.nextPages;
     char received[4 * MAX_NEXT_PAGES + 1]{};
     const auto pageCount = std::min(pages.receivedPages, MAX_NEXT_PAGES);
@@ -1214,8 +1296,12 @@ void Processor::serviceJob() {
       reply.status = timeout(TimeoutDetail::DEADLINE);
     } else {
       reply.status = call(request.action);
+      const bool featureCall = request.action == Action::FEATURE;
+      if (featureCall) request.featureArgs = {}; // Only admission consumes the arguments.
+      const auto mode = featureMode(request.feature);
       const bool start = request.action == Action::START_CONFIGURE || request.action == Action::START_VERIFY ||
-          request.action == Action::START_INITIALIZE;
+          request.action == Action::START_INITIALIZE ||
+          (featureCall && (mode == FeatureMode::START || mode == FeatureMode::RESET || mode == FeatureMode::OBSERVE));
       if (start && reply.status.inProgress() && receipt.token.value != 0) {
         request.token = receipt.token;
         _job.step = Work::POLL;
@@ -1233,6 +1319,9 @@ void Processor::serviceJob() {
       } else if (request.action == Action::COLLECT_EVENTS) {
         if (!reply.status.ok()) receipt.counters.lastStatus = reply.status;
         reply.eventFields(receipt.counters, receipt.eventValidMask, receipt.eventWords);
+      } else if (featureCall) {
+        reply.fields("%s", receipt.featureFields.text.data());
+        reply.checkFeatureFields(receipt.featureFields);
       } else if (isWrite(request.action)) {
         const auto release = receipt.batchValid ? errorName(receipt.releaseStatus.code) : "none";
         reply.fields(" effect=%s batch_valid=%u batch_violation=%u release=%s release_detail=%" PRId32,
@@ -1255,13 +1344,52 @@ void Processor::finishRun(Status status) {
   reply.deadline = _job.request.budget.io.deadlineUs;
   reply.fields(" rounds=%" PRIu32 " requested=%" PRIu32 " attempted=%" PRIu32 " attempted_known=%u managed=0",
                _job.rows, _job.end, _job.attempted, unsigned(_job.attemptedKnown));
-  _lastRunReq = _job.requestId;
-  _lastRounds = _job.rows;
-  _lastAttempts = _job.attempted;
-  _lastAttemptsKnown = _job.attemptedKnown;
-  _lastRunStatus = status;
+  if (_job.step != Work::SELFTEST) {
+    _lastRunReq = _job.requestId;
+    _lastRounds = _job.rows;
+    _lastAttempts = _job.attempted;
+    _lastAttemptsKnown = _job.attemptedKnown;
+    _lastRunStatus = status;
+  }
   record(_job.command, _job.requestId, reply);
   _job = {};
+}
+
+void Processor::selftestStep() {
+  if (!_job.stop.ok() || _job.rows == _job.end) { finishRun(_job.stop); return; }
+  uint64_t now = 0;
+  const auto deadline = _job.request.budget.io.deadlineUs;
+  if (!sampleClock(now)) { finishRun(clockError()); return; }
+  if (now >= deadline) { finishRun(timeout(TimeoutDetail::DEADLINE)); return; }
+  auto& request = _job.request;
+  Receipt receipt;
+  Reply reply;
+  reply.deadline = deadline;
+  reply.type = "sample";
+  reply.state = "progress";
+  reply.status = checkedTerminal(_platform.execute(_platform.context, request, receipt));
+  const bool identity = request.action == Action::PROBE;
+  uint32_t attempted = 0;
+  if (receipt.batchValid && receipt.violation == TransportViolation::NONE) {
+    for (const auto& frame : receipt.batch.frames) if (frame.attempted) ++attempted;
+  } else if (reply.status.ok() || receipt.violation != TransportViolation::NONE) {
+    _job.attemptedKnown = false;
+    if (reply.status.ok()) reply.status = Status::Error(Err::INVALID_CONFIG, "No audited selftest batch",
+                                                       static_cast<int32_t>(ConfigDetail::TRANSPORT));
+  }
+  _job.attempted += attempted;
+  request.budget.io.maxFrames -= std::min(request.budget.io.maxFrames, attempted);
+  if (!identity && reply.status.ok() && (receipt.value & cmd::MASK_PHYRCR_COMMAND) != 0) {
+    reply.status = Status::Error(Err::BUSY, "PHY reset or restart in progress");
+  }
+  reply.fields(" check=%s id1_valid=%u id1=%u id2_valid=%u id2=%u value=%u attempted=%" PRIu32,
+               identity ? "identity" : "reset_status", unsigned(receipt.identity.id1Valid), unsigned(receipt.identity.id1),
+               unsigned(receipt.identity.id2Valid), unsigned(receipt.identity.id2), unsigned(receipt.value), attempted);
+  if (reply.status.ok()) ++_job.rows;
+  else _job.stop = reply.status;
+  request.action = Action::READ_C22;
+  request.address = cmd::REG_PHYRCR;
+  record(_job.command, _job.requestId, reply);
 }
 
 void Processor::runStep() {

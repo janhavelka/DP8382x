@@ -1,5 +1,7 @@
 # Interrupt configuration and bounded service
 
+The [typed control CLI](cli.md#typed-controls) exposes explicit service, cached evidence, mask configuration and separately admitted IRQ test and stop.
+
 `startConfigureInterrupts(settings, budget, token)` owns complete interrupt
 policy. It is opt-in: ordinary initialization adds no IRQ writes until this
 binding explicitly accepts `InterruptSettings`. Start copies intent without

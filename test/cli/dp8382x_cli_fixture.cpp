@@ -25,6 +25,7 @@ constexpr uint8_t PHY_ADDRESS = 1;
 struct Options {
   const char* identity{"unknown"};
   Partner partner{Partner::FULL100};
+  MacInterface interface{MacInterface::RMII};
   uint64_t failAfter{std::numeric_limits<uint64_t>::max()};
   uint64_t rebootAfter{0};
   MaintenancePolicy maintenance{MaintenancePolicy::ALLOWED};
@@ -32,6 +33,9 @@ struct Options {
   bool holdReset{false};
   bool regressHard{false};
   bool traceResets{false};
+  bool traceWrites{false};
+  bool holdTdr{false};
+  bool attestFeatures{false};
 };
 
 bool decimal(std::string_view input, uint64_t& output) {
@@ -49,6 +53,10 @@ bool parseOptions(int argc, char** argv, Options& options) {
     if (option == "--hold-reset") { options.holdReset = true; continue; }
     if (option == "--regress-after-hard") { options.regressHard = true; continue; }
     if (option == "--trace-resets") { options.traceResets = true; continue; }
+    if (option == "--trace-writes") { options.traceWrites = true; continue; }
+    if (option == "--mii") { options.interface = MacInterface::MII; continue; }
+    if (option == "--hold-tdr") { options.holdTdr = true; continue; }
+    if (option == "--attest-features") { options.attestFeatures = true; continue; }
     if (++i == argc) return false;
     const std::string_view value{argv[i]};
     if (option == "--identity") options.identity = argv[i];
@@ -69,14 +77,17 @@ bool parseOptions(int argc, char** argv, Options& options) {
 struct Bus {
   struct MmdWord { uint16_t devad, offset, value; };
   std::array<uint16_t, 32> words{};
-  std::array<MmdWord, 6> extended{{
-      {31, 0x030E, 0x8400}, {31, 0x0467, 0xA567}, {31, 0x0468, 0xA568},
-      {3, 0x0014, 0x0002}, {7, 0x003C, 0x0000}, {7, 0x003D, 0x0000},
+  std::array<uint16_t, 0x0500> vendor{};
+  std::array<MmdWord, 5> extended{{
+      {3, 0x0001, 0x0000}, {3, 0x0014, 0x0002}, {3, 0x0016, 0x0000},
+      {7, 0x003C, 0x0000}, {7, 0x003D, 0x0002},
   }};
   uint16_t selector{0}, offset{0};
+  uint8_t bistErrors{0}, bistCaptured{0}, tdrPolls{0};
   uint64_t nowUs{0}, frames{0}, failAfter{0};
   std::optional<uint64_t> failOnce;
   bool holdReset{false}, regressHard{false}, traceResets{false}, linkLatchedLow{false}, isolated{false};
+  bool traceWrites{false}, holdTdr{false};
 
   void setup(const Options& options) {
     *this = {};
@@ -84,10 +95,38 @@ struct Bus {
     holdReset = options.holdReset;
     regressHard = options.regressHard;
     traceResets = options.traceResets;
+    traceWrites = options.traceWrites;
+    holdTdr = options.holdTdr;
     words[0] = 0x3100; // Autonegotiation enabled, no reset in progress.
     words[2] = 0x2000;
     words[3] = 0xA131; // DP83826 enhanced model, documented revision 1.
     words[4] = 0x01E1;
+    words[22] = 0x0100; // BISCR current power-mode indication.
+    words[23] = options.interface == MacInterface::MII ? 0x0041 : 0x0061;
+    words[25] = 0x8001;
+    words[27] = 0x007D;
+    words[28] = 0x05EE;
+    words[30] = 0x0102; // A pre-existing TDR done bit alone does not prove freshness.
+    vendor[0x0025] = 0x0001;
+    vendor[0x002A] = 0x7998;
+    vendor[0x0117] = 0x8147;
+    vendor[0x0131] = 0x2284;
+    vendor[0x0170] = 0x4010; // Valid saved TDR tuning for restoration.
+    vendor[0x0180] = 6;
+    vendor[0x0185] = 68;
+    vendor[0x0218] = 0x1234;
+    vendor[0x0305] = 0x000B;
+    vendor[0x030B] = 0x3C00;
+    vendor[0x030C] = 0x0410;
+    vendor[0x030E] = 0x8400;
+    vendor[0x0456] = 0x0008;
+    vendor[0x0460] = 0x5665;
+    vendor[0x0461] = 0x0010;
+    vendor[0x0467] = 0xA567;
+    vendor[0x0468] = 0xA568;
+    vendor[0x04A0] = 0x1881; // Wake indication pending with a reset detector profile.
+    vendor[0x04A1] = 0x1000;
+    vendor[0x04D1] = 0x0080;
     if (options.partner == Partner::DOWN) return;
     if (options.partner == Partner::PENDING) {
       words[1] = 0x0004; // Link up, with no accepted AN completion or partner word.
@@ -102,7 +141,7 @@ struct Bus {
 
   // Literal register model for the fixture's latch and read-clear assertions.
   uint16_t readDirect(uint8_t address) {
-    const auto word = words[address];
+    auto word = words[address];
     switch (address) {
       case 1:
         if (linkLatchedLow) {
@@ -114,6 +153,18 @@ struct Bus {
       case 18: case 19: words[address] &= 0x00FFU; break;
       case 20: words[address] &= 0xFF00U; break;
       case 21: words[address] = 0; break;
+      case 22:
+        // Simulated active/locked bits follow the test mode, separate from controls.
+        if ((word & 0x1000U) != 0U) word |= 0x0200U;
+        if ((word & 0x2000U) != 0U) word |= 0x0800U;
+        break;
+      case 27: word = static_cast<uint16_t>(word | (uint16_t{bistCaptured} << 8U)); break;
+      case 30:
+        if ((word & 0x8000U) != 0U && !holdTdr) {
+          if (tdrPolls++ == 0U) word &= 0xFFFDU;
+          else words[address] = word = 0x0102;
+        }
+        break;
       default: break;
     }
     return word;
@@ -122,16 +173,30 @@ struct Bus {
   uint16_t read(uint8_t address) {
     if (address != 14 || (selector & 0xC000U) != 0x4000U) return readDirect(address);
     const auto devad = selector & 0x001FU;
-    if (devad == 31 && offset < words.size()) return readDirect(static_cast<uint8_t>(offset));
+    if (devad == 31) {
+      if (offset < words.size()) return readDirect(static_cast<uint8_t>(offset));
+      if (offset >= vendor.size()) return 0;
+      if (offset == 0x0308U) return (vendor[0x0302] & 0x0040U) != 0U ? 1U : 0U;
+      const auto word = vendor[offset];
+      if (offset == 0x04A1U) vendor[offset] &= 0xFF00U; // RXFS selector survives status consumption.
+      return word;
+    }
     for (const auto& reg : extended) {
       if (reg.devad == devad && reg.offset == offset) return reg.value;
     }
     return 0;
   }
 
-  void write(uint8_t address, uint16_t value) {
-    if (address == 13) { selector = value; return; }
-    if (address != 14) {
+  void writeTarget(uint16_t devad, uint16_t target, uint16_t value) {
+    if (traceWrites) {
+      if (devad == 31 && target >= 0x04A5U && target <= 0x04A7U) {
+        std::fprintf(stderr, "mdio-write %02x %04x redacted\n", unsigned(devad), unsigned(target));
+      } else {
+        std::fprintf(stderr, "mdio-write %02x %04x %04x\n", unsigned(devad), unsigned(target), unsigned(value));
+      }
+    }
+    if (devad == 31 && target < words.size()) {
+      const auto address = target;
       if (address == 0 && value == 0x8000U) {
         if (traceResets) std::fputs("reset 00 8000\n", stderr);
         words[0] = holdReset ? value : uint16_t{0x3100};
@@ -140,24 +205,54 @@ struct Bus {
         words[31] = holdReset ? value : uint16_t{0};
         if (value == 0x8000U) {
           words[0] = 0x3100;
+          words[17] = 0;
+          words[22] = 0x0100;
           words[24] = 0; // Reload the modeled LED register on hard reset.
-          extended[0].value = 0x8400;
+          words[27] = 0x007D;
+          words[28] = 0x05EE;
+          words[30] = 0x0102;
+          vendor[0x0027] = 0;
+          vendor[0x030E] = 0x8400;
+          vendor[0x04D1] = 0x0080;
+          for (auto& reg : extended) {
+            if (reg.devad == 7U && reg.offset == 0x003CU) reg.value = 0;
+          }
           if (regressHard) nowUs = 0;
         }
+      } else if (address == 22) {
+        words[address] = static_cast<uint16_t>((words[address] & 0x0100U) | (value & 0x705FU));
+      } else if (address == 27) {
+        words[address] = value & 0x00FFU;
+        if ((value & 0x8000U) != 0U) { bistCaptured = bistErrors; bistErrors = 0; }
+      } else if (address == 30) {
+        words[address] = value;
+        if ((value & 0x8000U) != 0U) tdrPolls = 0;
       } else {
         // The AN restart bit clears independently of the modeled partner.
         words[address] = address == 0 ? static_cast<uint16_t>(value & 0xFDFFU) : value;
       }
       return;
     }
+    if (devad == 31 && target < vendor.size()) {
+      if (target == 0x04A0U) {
+        // Writing one to acknowledgement bit 11 preserves the pending state.
+        value = static_cast<uint16_t>((value & 0xF7FFU) | (value & vendor[target] & 0x0800U));
+        if ((value & 0x0080U) != 0U) vendor[0x04A1] |= 0x1000U;
+      }
+      vendor[target] = value;
+      return;
+    }
+    for (auto& reg : extended) {
+      if (reg.devad == devad && reg.offset == target) { reg.value = value; return; }
+    }
+  }
+
+  void write(uint8_t address, uint16_t value) {
+    if (address == 13) { selector = value; return; }
+    if (address != 14) { writeTarget(31, address, value); return; }
     const auto mode = selector & 0xC000U;
     if (mode == 0) { offset = value; return; }
-    if (mode != 0x4000U) return;
-    const auto devad = selector & 0x001FU;
-    if (devad == 31 && offset < words.size()) { words[offset] = value; return; }
-    for (auto& reg : extended) {
-      if (reg.devad == devad && reg.offset == offset) { reg.value = value; return; }
-    }
+    if (mode == 0x4000U) writeTarget(selector & 0x001FU, offset, value);
   }
 
   static uint64_t clock(void* context) noexcept { return static_cast<Bus*>(context)->nowUs; }
@@ -217,7 +312,7 @@ public:
     _bus.setup(_options);
     Config config{};
     config.variant = Variant::DP83826I;
-    config.interface = MacInterface::RMII;
+    config.interface = _options.interface;
     config.phyAddress = PHY_ADDRESS;
     config.transport = {&_bus, Bus::execute, Bus::clock, {8, 4, 1}};
     if (!_driver->bind(config).ok()) return false;
@@ -249,7 +344,7 @@ public:
     identity.variant = config.variant;
     identity.interface = config.interface;
     identity.phyAddress = config.phyAddress;
-    _owner.emplace(*_driver, maintenance, this, externalDisposition);
+    _owner.emplace(*_driver, maintenance, this, externalDisposition, attestFeature);
     _processor.emplace();
     return _processor->setup({this, write, readCached, clock, execute}, identity);
   }
@@ -315,6 +410,8 @@ private:
 
   bool control(std::string_view line) {
     if (line == "$pause") _paused = true;
+    else if (line == "$raise-calibration") _bus.words[30] |= 0x4000U;
+    else if (line == "$inject-bist-errors") _bus.bistErrors = 5;
     else if (line == "$latch-link-low") _bus.linkLatchedLow = true;
     else if (line == "$isolate") _bus.isolated = true;
     else if (line == "$inject-events") {
@@ -425,6 +522,11 @@ private:
     return static_cast<Fixture*>(context)->_bus.isolated;
   }
 
+  static bool attestFeature(void* context, Feature, uint32_t) noexcept {
+    const auto& fixture = *static_cast<Fixture*>(context);
+    return fixture._options.attestFeatures && !fixture._bus.isolated;
+  }
+
   static std::size_t write(void* context, const char* bytes, std::size_t size) noexcept {
     auto& fixture = *static_cast<Fixture*>(context);
     if (fixture._outputStall != 0) {
@@ -459,7 +561,8 @@ int main(int argc, char** argv) {
   constexpr const char* usage =
       "Usage: dp8382x_cli_fixture [--identity TOKEN] [--partner down|pending|100-full|10-half] "
       "[--fail-after N] [--reboot-after N] [--partial-record] [--deny-maintenance|--no-maintenance] "
-      "[--hold-reset] [--regress-after-hard] [--trace-resets]\n";
+      "[--hold-reset] [--regress-after-hard] [--trace-resets] [--trace-writes] [--mii] [--hold-tdr] "
+      "[--attest-features]\n";
   if (argc == 2 && std::string_view(argv[1]) == "--help") {
     std::fputs(usage, stdout);
     return 0;

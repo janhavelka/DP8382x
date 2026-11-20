@@ -1,5 +1,7 @@
 # Forced TX LPI owner calls
 
+The [typed control CLI](cli.md#typed-controls) exposes legacy LPI start, stop and cached status. The application separately confirms TX drain.
+
 `startLpi(options, result, budget)` and `stopLpi(result, budget)` implement
 SNLS647I section 8.3.4 on the declared DP83826I. Both return synchronously after
 at most nine frames in two terminal callbacks: one complete five-frame MMD RMW,

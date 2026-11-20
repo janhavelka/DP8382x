@@ -29,6 +29,7 @@ struct NativeOwner {
   /// CLI could not supply a trusted deadline. Return terminal status and keep storage reachable
   /// by SDK or CLI callbacks alive. Null means the application has no END route.
   Status (*end)(void*, uint64_t deadlineUs){nullptr};
+  FeatureAttestation featureAttestation{nullptr}; ///< Independent application proof for typed feature prerequisites.
 
   /// @brief Build the processor's borrowed platform callbacks without I/O.
   /// @return Platform with a null writer if the bridge has no console sink.
@@ -101,10 +102,13 @@ private:
     return status;
   }
 
-  static Status take(EspIdf::Phy& phy, OperationToken token, Receipt& receipt) {
+  static Status take(EspIdf::Phy& phy, OperationToken token, Feature feature, Receipt& receipt) {
     OperationResult result{};
     const auto taken = phy.takeResult(token, result);
-    if (taken.ok()) owner_detail::copyOperationResult(result, receipt);
+    if (taken.ok()) {
+      owner_detail::copyOperationResult(result, receipt);
+      if (feature != Feature::NONE) owner_detail::describeFeatureResult(feature, result, receipt.featureFields);
+    }
     return taken;
   }
 
@@ -170,7 +174,9 @@ private:
     auto& bridge = *static_cast<NativeOwner*>(opaque);
     receipt = {};
     if (!bridge.phy) return missing();
-    if (requiresMaintenance(request.action) &&
+    const bool maintenance = requiresMaintenance(request.action) ||
+        (request.action == Action::FEATURE && owner_detail::featureMaintenance(request.feature));
+    if (maintenance &&
         (!bridge.maintenanceAllowed || !bridge.maintenanceAllowed(bridge.context))) {
       return Status::Error(Err::BUSY, "Application maintenance is unavailable",
                            static_cast<int32_t>(BusyDetail::OWNER_ADMISSION));
@@ -185,7 +191,8 @@ private:
       case Action::START_INITIALIZE: return phy.startInitialize({request.reset}, request.budget, receipt.token);
       case Action::POLL: return phy.pollOperation(request.token, request.budget.io.maxFrames);
       case Action::CANCEL: return phy.cancel(request.token);
-      case Action::TAKE: return take(phy, request.token, receipt);
+      case Action::TAKE: return take(phy, request.token, request.feature, receipt);
+      case Action::FEATURE: return owner_detail::executeFeature(phy, request, receipt, bridge.featureAttestation, bridge.context);
       case Action::OBSERVE_LINK: return phy.readLinkStatus(receipt.link, request.budget.io);
       case Action::ABANDON:
         if (!bridge.externalDisposition || !bridge.externalDisposition(bridge.context)) {

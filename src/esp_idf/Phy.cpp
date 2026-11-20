@@ -1029,34 +1029,74 @@ void Phy::shareQuiet() noexcept {
   if (_ownsSilence && _core.transportSnapshot().clockInvalid)
     _config.bus->quarantined.store(true);
 }
-Status Phy::startInitialize(const InitializeOptions& options, const OperationBudget& budget, OperationToken& token) noexcept {
-  if (!enter()) return busy();
-  if (!stoppedAdmission()) { leave(); return busy(); }
+Status Phy::reserveOperationSilence() noexcept {
   auto& bus = *_config.bus;
   // Claim silence before draining: another PHY's board reset cannot replace
   // this reservation between polls. Only this core may issue its own batches.
   auto admission = BusAdmission::AVAILABLE;
   if (bus.quarantined.load() || !bus.admission.compare_exchange_strong(admission, BusAdmission::INITIALIZING)) {
-    leave(); return busDenied(bus.quarantined.load());
+    return busDenied(bus.quarantined.load());
   }
   if (xSemaphoreTake(bus.mutex, 0) != pdTRUE) {
-    bus.admission.store(BusAdmission::AVAILABLE); leave(); return busy();
+    bus.admission.store(BusAdmission::AVAILABLE); return busy();
   }
   if (bus.quarantined.load()) {
     const bool released = xSemaphoreGive(bus.mutex) == pdTRUE;
     bus.admission.store(released ? BusAdmission::AVAILABLE : BusAdmission::FAILED_CLOSED);
     if (!released) record(ESP_FAIL);
-    leave(); return busDenied(true);
+    return busDenied(true);
   }
   _ownsSilence = true;
   if (xSemaphoreGive(bus.mutex) != pdTRUE) {
     bus.quarantined.store(true); bus.admission.store(BusAdmission::FAILED_CLOSED);
-    _ownsSilence = false; record(ESP_FAIL); leave(); return busDenied(true);
+    _ownsSilence = false; record(ESP_FAIL); return busDenied(true);
   }
+  return Status::Ok();
+}
+
+void Phy::releaseOperationSilence() noexcept {
+  if (_ownsSilence) {
+    _ownsSilence = false;
+    _config.bus->admission.store(BusAdmission::AVAILABLE);
+  }
+}
+
+Status Phy::enterFeature(bool silence) noexcept {
+  if (!enter()) return busy();
+  if (!stoppedAdmission()) { leave(); return busy(); }
+  const auto slot = _core.operationSnapshot().state;
+  if (slot != OperationState::IDLE) {
+    const auto detail = slot == OperationState::RUNNING ? BusyDetail::OPERATION_ACTIVE : BusyDetail::RESULT_PENDING;
+    leave();
+    return Status::Error(Err::BUSY, "Native feature operation slot occupied", static_cast<int32_t>(detail));
+  }
+  const auto admitted = silence ? reserveOperationSilence() : Status::Ok();
+  if (!admitted.ok()) leave();
+  return admitted;
+}
+
+Status Phy::enterFeatureSnapshot() noexcept {
+  return enter() ? Status::Ok() : busy();
+}
+
+void Phy::finishFeatureStart(Status status, bool observation) noexcept {
+  if (status.inProgress()) {
+    _phase = Phase::CONTROL;
+    _record.stage = LifecycleStage::CONFIGURE;
+    if (!observation) _sdkState.reconciled = false;
+  } else {
+    releaseOperationSilence();
+  }
+  leave();
+}
+
+Status Phy::startInitialize(const InitializeOptions& options, const OperationBudget& budget, OperationToken& token) noexcept {
+  const auto admitted = enterFeature(true);
+  if (!admitted.ok()) return admitted;
   const auto status = _core.startInitialize(options, budget, token);
   if (status.inProgress()) {
     _phase = Phase::CONTROL; _record.stage = LifecycleStage::INITIALIZE; _sdkState.reconciled = false;
-  } else { _ownsSilence = false; bus.admission.store(BusAdmission::AVAILABLE); }
+  } else { releaseOperationSilence(); }
   leave(); return status;
 }
 Status Phy::startConfigure(const LinkSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept {
@@ -1095,8 +1135,8 @@ Status Phy::takeResult(OperationToken token, OperationResult& output) noexcept {
   if (status.ok()) recordCore(output.status);
   if (status.ok()) {
     if (_phase == Phase::CONTROL) _phase = _frameworkStopOwed ? Phase::STOPPING : Phase::STOPPED;
-    if (_ownsSilence) { shareQuiet(); _ownsSilence = false; _config.bus->admission.store(BusAdmission::AVAILABLE); }
-    if (output.kind == OperationKind::VERIFY) refreshAgreement();
+    if (_ownsSilence) { shareQuiet(); releaseOperationSilence(); }
+    refreshAgreement();
   }
   leave(); return status;
 }

@@ -1,5 +1,7 @@
 # LED and GPIO profiles
 
+The [typed control CLI](cli.md#typed-controls) accepts pin profiles and cached readback. Owner attestation is required before a pin role changes.
+
 `configurePins` applies one complete `PinSettings` profile through bounded direct
 calls. It returns a `PinResult` containing partial evidence even when an admitted
 application fails. `pinsSnapshot` copies retained intent, raw observations and
