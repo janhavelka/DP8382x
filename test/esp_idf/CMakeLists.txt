@@ -96,6 +96,17 @@ foreach(suite IN ITEMS admission reconciliation discovery raw_access shared_sile
   set_tests_properties(native_cli_${suite} PROPERTIES TIMEOUT 30)
 endforeach()
 
+add_executable(dp8382x_uart_host_tests host/uart_console.cpp "${repo}/examples/common/Dp8382xCli.cpp")
+target_link_libraries(dp8382x_uart_host_tests PRIVATE DP8382x)
+target_include_directories(dp8382x_uart_host_tests PRIVATE "${host}/uart" ${sdk_includes}
+    "${sdk}/components/esp_driver_uart/include" "${sdk}/components/esp_hal_uart/include"
+    "${sdk}/components/soc/esp32p4/register/hw_ver1")
+target_compile_definitions(dp8382x_uart_host_tests PRIVATE
+    CONFIG_LOG_VERSION_1=1 CONFIG_ESP_CONSOLE_UART_DEFAULT=1 CONFIG_ESP_CONSOLE_SECONDARY_NONE=1)
+target_compile_options(dp8382x_uart_host_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+add_test(NAME native_uart_error_latch COMMAND dp8382x_uart_host_tests)
+set_tests_properties(native_uart_error_latch PROPERTIES TIMEOUT 15)
+
 # The application lifecycle tests include the actual P4 example translation
 # unit with SDK boundary calls injected by the host test. No duplicate owner.
 add_executable(dp8382x_example_host_tests host/example.cpp "${repo}/examples/common/Dp8382xCli.cpp")

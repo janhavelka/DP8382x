@@ -1,5 +1,11 @@
 # Implementation progress
 
+The [independent review of prompts 47 and 48](reports/implementation/47-48-independent-review.md)
+starts from synchronized `683270b` on `main`. It corrects P4 deadline and UART
+loss handling, and hardens the offline verifier and fixture teardown. The
+offline fixes were synchronized at `28dc14a`. Physical console and PHY
+qualification remain open.
+
 Prompt 48 adds [offline protocol verification](hil-runner.md) on `main`
 from synchronized `37059a0`. The compiled host fixture and supplied raw
 transcripts share one strict decoder, case plan and durable evidence pair.
@@ -632,8 +638,8 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [44 Add complete identity, configuration and register CLI routes](prompts/44-cli-configuration-registers.md) | COMPLETE | [Grammar](cli.md), [matrix](feature-coverage.md), [verification](reports/implementation/44-cli-configuration-registers.md). SDK console attachment and physical qualification follow. |
 | [45 Add link, lifecycle and retained-operation CLI commands](prompts/45-cli-link-lifecycle.md) | COMPLETE | [CLI guide](cli.md), [matrix](feature-coverage.md), [report](reports/implementation/45-cli-link-lifecycle.md). Portable, pinned SDK host, consumers, P4 links and source checks passed. |
 | [46 Expose every diagnostic and opt-in feature through typed commands](prompts/46-cli-diagnostics-controls.md) | COMPLETE | [CLI guide](cli.md#typed-diagnostics), [matrix](feature-coverage.md), [report](reports/implementation/46-cli-diagnostics-controls.md). Portable, pinned SDK host, consumers, P4 links and source checks passed. Source and physical gates remain explicit. |
-| [47 Integrate the shared CLI in both P4 applications and close coverage](prompts/47-cli-native-integration.md) | NOT STARTED | None |
-| [48 Implement the offline protocol verifier and durable evidence bundles](prompts/48-runner-protocol-artifacts.md) | NOT STARTED | None |
+| [47 Integrate the shared CLI in both P4 applications and close coverage](prompts/47-cli-native-integration.md) | COMPLETE for software/image | [Report](reports/implementation/47-cli-native-integration.md) and [coverage matrix](feature-coverage.md). Shared console, pinned native host and both P4 links verified. Physical UART and PHY qualification remain open. |
+| [48 Implement the offline protocol verifier and durable evidence bundles](prompts/48-runner-protocol-artifacts.md) | COMPLETE | [Report](reports/implementation/48-runner-protocol-artifacts.md) and [runner guide](hil-runner.md). Compiled host fixture and offline evidence verified. Serial follows in prompt 49. |
 | [49 Implement bounded serial sessions without implicit hardware actions](prompts/49-runner-serial-session.md) | NOT STARTED | None |
 | [50 Build finite observation, configuration and link-mode campaigns](prompts/50-hil-observation-modes.md) | NOT STARTED | None |
 | [51 Build diagnostic and opt-in control fixture campaigns](prompts/51-hil-diagnostic-fixtures.md) | NOT STARTED | None |

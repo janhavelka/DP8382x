@@ -492,6 +492,8 @@ Status applicationCommand(void*, ApplicationCommand command, uint64_t until, Fea
   }
   if (command != ApplicationCommand::START && command != ApplicationCommand::STOP)
     return Status::Error(Err::UNSUPPORTED, "Raw frame session belongs to the owner example");
+  if (until == 0 || nowUs() >= until)
+    return Status::Error(Err::OPERATION_TIMEOUT, "Application deadline expired");
   if (!console.native.phy || app.consoleRetired)
     return Status::Error(Err::NOT_BOUND, "No available installed network owner");
   const auto idle = applicationSlot(*app.phy);

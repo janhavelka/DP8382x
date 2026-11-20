@@ -353,11 +353,15 @@ The driver has a 1024-byte RX buffer and a 16-event queue. The UART pump reads
 up to 128 bytes and offers up to 256 output bytes per turn. The owner shares a
 512-byte input ring and 2048-byte processor-output ring with the pump. UART
 overflow, frame, parity or break events and event queue saturation mark an
-ordered input gap. Checks before and after a read keep a damaged fragment away
-from dispatch. The pump discards the affected driver input and reports the
-gap to the owner. The processor finishes older retained bytes, discards any
-damaged line through its delimiter and resumes on the following line. The
-reported input-byte loss is a lower bound when its exact size is unknown.
+ordered input gap. The pinned driver's ISR notification latches FIFO overflow,
+frame and parity errors even when the event queue drops the report. Startup
+enables framing-error detection explicitly. Draining 16 events during a
+check marks possible queue loss. Checks before and after a read keep a
+damaged fragment away from dispatch. The pump discards the affected driver
+input and reports the gap to the owner. The processor finishes older retained
+bytes, discards any damaged line through its delimiter and resumes on the
+following line. The reported input-byte loss is a lower bound when its exact
+size is unknown.
 
 The application status lines and ESP log V1 hook use a separate queue of
 eight ordinary lines of up to 384 rendered bytes, plus one line being drained.
@@ -672,7 +676,7 @@ For example, a successful session after boot 42 has these bytes followed by
 CRLF:
 
 ```text
-@DP8382X schema=1 boot=42 req=1 type=session cmd=session op=0 state=terminal primary=OK detail=0 cleanup=none cleanup_detail=0 time_valid=1 time_us=7600 deadline_valid=0 deadline_us=0 reason=none nonce=host-87 library=0.1.0 firmware=unknown tree=unknown sdk=unknown target=host backend=sim-mdio clock=simulated variant=DP83826I interface=RMII address=1
+@DP8382X schema=1 boot=42 req=1 type=session cmd=session op=0 state=terminal primary=OK detail=0 cleanup=none cleanup_detail=0 time_valid=1 time_us=7600 deadline_valid=0 deadline_us=0 reason=none nonce=host-87 library=0.1.0 firmware=unknown tree=unknown sdk=unknown target=host backend=sim-mdio clock=simulated variant=DP83826I interface=RMII address=1 console=host-stdio baud=0
 ```
 
 An invalid line at request 2 produces:

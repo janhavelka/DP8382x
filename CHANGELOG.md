@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Reject missing or expired P4 application control deadlines and retain UART error
+  notifications when its event queue fills. Reject inconsistent offline
+  receipts, accept earlier schema-1 recordings, and retain separate fixture
+  teardown errors alongside the original failure.
+
 - Add the standard-library offline runner with strict session correlation,
   bounded compiled-fixture execution and durable transcript/JSON evidence.
   Verify recorded identity, terminal and restoration claims through replay.

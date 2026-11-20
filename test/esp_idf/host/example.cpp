@@ -785,6 +785,17 @@ void cliNetwork() {
     attachTestConsole();
     assert(app.phy->start(deadlineUs()) == ESP_OK);
     app.traffic = true;
+    Host::state().nowUs += 1000U;
+    Cli::FeatureFields fields{};
+    const auto expired = nowUs();
+    const auto calls = Host::state().calls.size();
+    assert(applicationCommand(nullptr, Cli::ApplicationCommand::STATUS, 0, fields).ok());
+    assert(applicationCommand(nullptr, Cli::ApplicationCommand::STOP, 0, fields).is(Err::OPERATION_TIMEOUT));
+    assert(applicationCommand(nullptr, Cli::ApplicationCommand::STOP, expired, fields).is(Err::OPERATION_TIMEOUT));
+    assert(!app.manualControl && !app.cliMaintenance && app.traffic && app.expectedStops.load() == 0);
+    assert(Host::state().calls.size() == calls);
+    LifecycleRecord unchanged{};
+    assert(app.phy->lifecycleSnapshot(unchanged).ok() && unchanged.phase == Phase::RUNNING);
     ConsoleSink sink;
     auto before = mac->frames.size();
     sink.command("session network\n");

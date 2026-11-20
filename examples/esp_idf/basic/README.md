@@ -114,7 +114,9 @@ and IP lines. A separate UART task drains bounded output. A withheld or slow
 sink can drop ordinary status lines while the owner continues lifecycle service.
 `local console` reports the output queues, backpressure and drops. An unexpected
 STOP callback requests shutdown. The CLI runs on the same owner task and the
-framework timer remains the link poller.
+framework timer remains the link poller. Start and stop requests require a
+live deadline before changing the application mode. The UART task also latches
+receive errors that the driver's event queue can drop.
 
 Every 100 ms service step also copies the adapter's lifecycle journal (no PHY
 I/O) and acts on its obligations:

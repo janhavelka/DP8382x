@@ -58,7 +58,8 @@ Each owner turn calls the bounded shared console service. A cooperative CLI
 poll executes at most one indivisible core batch and releases the controller
 before the next turn. Backpressure retains pending terminal evidence while
 owner servicing and cleanup can continue. `local console` reports queue
-depths, drops and stalls. Startup still uses its own 5 s, 2,048-frame owner
+depths, drops and stalls. The UART task latches receive errors that the
+driver's event queue can drop. Startup still uses its own 5 s, 2,048-frame owner
 allowance. CLI operations use the limits in the CLI guide.
 
 ## Raw frame service
