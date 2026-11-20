@@ -21,8 +21,8 @@ STATUS_NAMES = frozenset("OK IN_PROGRESS INVALID_PARAM INVALID_CONFIG NOT_BOUND 
 TERMINAL_STATUS = STATUS_NAMES - {"IN_PROGRESS"}
 SYNTAX_REASONS = frozenset("empty command topic arity enum number nonce token_count token_length line_length "
                            "byte input_loss profile range space access".split())
-_IDENTITY_FIELDS = frozenset("nonce library firmware tree sdk target backend clock variant interface "
-                             "address console baud".split())
+_IDENTITY_FIELDS = frozenset("nonce library firmware tree sdk target backend clock variant interface address".split())
+_CONSOLE_FIELDS = frozenset({"console", "baud"})
 _IDENTITY_REQUIRED = frozenset({"target", "backend", "variant", "interface", "address"})
 _IDENTITY_OPTIONAL = frozenset({"firmware", "firmware_prefix", "tree", "sdk", "clock", "console", "baud"})
 _FIELD = re.compile(rb"([a-z][a-z0-9_]*)=([A-Za-z0-9_.:-]+)")
@@ -118,8 +118,9 @@ def _keys(fields: dict[str, str], payload: frozenset[str] = frozenset()) -> None
 
 
 def _wire_identity(fields: dict[str, str]) -> None:
-    _keys(fields, _IDENTITY_FIELDS)
-    for name in ("nonce", "firmware", "sdk", "target", "backend", "clock", "console"):
+    has_console = bool(fields.keys() & _CONSOLE_FIELDS)
+    _keys(fields, _IDENTITY_FIELDS | _CONSOLE_FIELDS if has_console else _IDENTITY_FIELDS)
+    for name in ("nonce", "firmware", "sdk", "target", "backend", "clock"):
         _token(fields[name], name)
     version = fields["library"].split(".")
     if len(version) != 3:
@@ -130,7 +131,9 @@ def _wire_identity(fields: dict[str, str]) -> None:
     _choice(fields["variant"], _VARIANTS | {"unknown"}, "PHY variant")
     _choice(fields["interface"], _INTERFACES, "MAC interface")
     _numbers(fields, "address", 0, 31)
-    _numbers(fields, "baud", 0, U32_MAX)
+    if has_console:
+        _token(fields["console"], "console")
+        _numbers(fields, "baud", 0, U32_MAX)
     if fields["firmware"] == "unknown" and fields["tree"] != "unknown":
         raise ProtocolError("unknown firmware requires unknown tree evidence")
     if fields["cmd"] != "session" and fields["nonce"] != "none":
@@ -176,9 +179,11 @@ def observed_identity(record: Record) -> dict[str, object]:
             fields.get("primary") != "OK" or fields.get("state") != "terminal"):
         raise ProtocolError("identity requires a successful identity record")
     _wire_identity(fields)
-    observed: dict[str, object] = {key: fields[key] for key in sorted(_IDENTITY_FIELDS - {"nonce"})}
+    keys = fields.keys() - COMMON_FIELDS - {"nonce"}
+    observed: dict[str, object] = {key: fields[key] for key in sorted(keys)}
     observed["address"] = integer(fields["address"], 0, 31)
-    observed["baud"] = integer(fields["baud"], 0, U32_MAX)
+    if "baud" in fields:
+        observed["baud"] = integer(fields["baud"], 0, U32_MAX)
     observed["firmware_strength"] = "unverified"
     return observed
 
@@ -189,7 +194,7 @@ def identity(record: Record, expected: dict[str, object]) -> dict[str, object]:
     observed = observed_identity(record)
     for name in ("target", "backend", "variant", "interface", "address", "tree", "sdk", "clock", "console", "baud"):
         value = expected.get(name)
-        if value is not None and observed[name] != value:
+        if value is not None and observed.get(name) != value:
             raise ProtocolError(f"firmware identity mismatch: {name}")
 
     firmware = record.fields["firmware"]
@@ -231,6 +236,9 @@ _SIMPLE = {"help": frozenset(), "unknown": frozenset(), "local.color": frozenset
 
 def _validate_payload(record: Record) -> None:
     fields, cmd = record.fields, record.cmd
+    if fields["deadline_valid"] == "1" and (
+            cmd.startswith("cached.") or cmd in ("session", "version", "local.board", "owner.status")):
+        raise ProtocolError("passive record carries a command deadline")
     if cmd in ("session", "version", "local.board"):
         if record.state != "terminal" or record.op != 0:
             raise ProtocolError("identity query cannot carry an operation token")
@@ -270,6 +278,11 @@ def _validate_payload(record: Record) -> None:
         _choice(fields["last_error"], TERMINAL_STATUS, "last health error")
         _numbers(fields, "successes failures consecutive", 0, U32_MAX)
         _numbers(fields, "initialized", 0, 1)
+        health = fields["health"]
+        initialized = fields["initialized"] == "1"
+        if initialized != (health != "UNINIT") or (
+                initialized and (health == "READY") != (fields["consecutive"] == "0")):
+            raise ProtocolError("transport health conflicts with initialization or failure streak")
         _numbers(fields, "last_detail", I32_MIN, I32_MAX)
         _timestamp(fields, "last_ok_valid", "last_ok_us")
         _timestamp(fields, "last_error_valid", "last_error_us")
@@ -360,7 +373,8 @@ def _decode(line: bytearray) -> Record:
 
     kind, state, command = fields["type"], fields["state"], fields["cmd"]
     if state == "admitted":
-        if kind != "result" or primary != "IN_PROGRESS" or fields["op"] == "0" or fields["deadline_valid"] != "1":
+        if (kind != "result" or primary != "IN_PROGRESS" or cleanup != "none" or
+                fields["op"] == "0" or fields["deadline_valid"] != "1"):
             raise ProtocolError("invalid operation admission")
     elif state == "progress":
         if kind != "sample" or primary == "IN_PROGRESS" or fields["op"] != "0":
@@ -369,7 +383,7 @@ def _decode(line: bytearray) -> Record:
         session = command == "session" and primary == "OK"
         if kind != ("session" if session else "result") or primary == "IN_PROGRESS":
             raise ProtocolError("invalid terminal record")
-        if session and (fields["op"] != "0" or fields["cleanup"] != "none" or fields["deadline_valid"] != "0"):
+        if session and (fields["op"] != "0" or cleanup != "none"):
             raise ProtocolError("session handshake carries an operation or cleanup")
     else:
         raise ProtocolError("invalid record state")
@@ -415,6 +429,8 @@ class Decoder:
                     continue
                 size = len(self._line)
                 if size < len(PREFIX) and byte != PREFIX[size]:
+                    if size == len(PREFIX) - 1:
+                        raise ProtocolError("machine record marker requires one space")
                     self._line.clear()
                     self._noise = byte != 10
                     continue

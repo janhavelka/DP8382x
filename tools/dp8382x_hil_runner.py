@@ -130,6 +130,7 @@ class Session:
         self.admission = None
         self.samples = []
         self.last_time = None
+        self.clock_unavailable = False
         self.used_tokens = set()
 
     def issue(self):
@@ -165,9 +166,13 @@ class Session:
             raise ProtocolError(f"expected {command.name}, received {record.cmd}")
         if record.fields["time_valid"] == "1":
             timestamp = int(record.fields["time_us"])
+            if self.clock_unavailable:
+                raise ProtocolError("device record clock became valid again in the same boot")
             if self.last_time is not None and timestamp < self.last_time:
                 raise ProtocolError("device record clock regressed")
             self.last_time = timestamp
+        else:
+            self.clock_unavailable = True
         if record.state == "admitted":
             if command.form != "operation" or self.admission or record.op in self.used_tokens:
                 raise ProtocolError("unplanned, duplicate or reused operation admission")
@@ -406,17 +411,21 @@ def capture(args, suite, nonce, expected):
             sent = [command.text for command in commands]
             session.issued = len(commands)
             read_capture(args.path, args.max_bytes, files.write, offline_consume)
-        decoder.finish()
-        session.finish()
+        if not issues:
+            decoder.finish()
+            session.finish()
     except KeyboardInterrupt:
         interrupted = True
         issues.append("interrupted by operator")
     except (OSError, ProtocolError, FixtureError, EvidenceError) as error:
         issues.append(str(error))
     try:
-        if fixture and fixture.truncated:
-            files.mark_truncated()
-            issues.append("fixture capture limit reached")
+        if fixture:
+            if fixture.truncated:
+                files.mark_truncated()
+                issues.append("fixture capture limit reached")
+            if fixture.cleanup_issue:
+                issues.append(fixture.cleanup_issue)
         data = files.finish({
             "suite": suite, "fixture": label, "started_utc": started, "ended_utc": utc_now(),
             "complete": not issues, "commands": sent, "cases": cases_for(suite, session.results, session.samples),

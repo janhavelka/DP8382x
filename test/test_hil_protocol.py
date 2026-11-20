@@ -84,6 +84,7 @@ class DecoderTests(unittest.TestCase):
     def test_corrupt_candidates_are_not_repaired(self):
         valid = frame()
         for candidate in (valid[:-2] + b"\n", valid[:-2] + b" \r\n", valid[:-2] + b"\x1b[0m\r\n",
+                          b"@DP8382X\r\n", valid.replace(b"@DP8382X ", b"@DP8382X\t", 1),
                           valid.replace(b"cmd=help", b"cmd=he\x00lp"), valid.replace(b"cmd=help", b"cmd=h\xfflp"),
                           valid.replace(b" boot=17", b"\tboot=17"), valid.replace(b" boot=17", b"  boot=17"),
                           valid.replace(b" boot=17", b" Boot=17"), valid.replace(b" boot=17", b" bo-ot=17"),
@@ -145,6 +146,8 @@ class DecoderTests(unittest.TestCase):
                           {"primary": "OK", "detail": "2"}, {"cleanup": "OK", "cleanup_detail": "-5"},
                           {"cmd": "configuration.verify", "state": "admitted", "primary": "IN_PROGRESS", "op": "3",
                            "deadline_valid": "1", "deadline_us": "200", "detail": "5"},
+                          {"cmd": "configuration.verify", "state": "admitted", "primary": "IN_PROGRESS", "op": "3",
+                           "deadline_valid": "1", "deadline_us": "200", "cleanup": "OK"},
                           {"time_valid": "0", "time_us": "7"}, {"time_valid": "2"},
                           {"deadline_valid": "1"}, {"deadline_us": "1"}, {"cleanup_detail": "-7"},
                           {"reason": "new_reason"}, {"reason": "arity"}, {"type": "sample"},
@@ -178,6 +181,11 @@ class DecoderTests(unittest.TestCase):
 
 
 class IdentityTests(unittest.TestCase):
+    def test_console_identity_extension_requires_both_fields(self):
+        for field in (b" console=host-stdio", b" baud=0"):
+            with self.subTest(field=field), self.assertRaises(ProtocolError):
+                decode(frame(**IDENTITY).replace(field, b""))
+
     def test_full_identity_and_version_serialize_as_stable_verified_values(self):
         for firmware in (SHA40, SHA64):
             with self.subTest(length=len(firmware)):

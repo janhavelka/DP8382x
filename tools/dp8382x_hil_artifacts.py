@@ -232,13 +232,17 @@ class EvidenceFiles:
                 _write_all(stream, _encoded(placeholder))
                 _sync(stream)
             self._stream = self.transcript_path.open("xb")
-        except (OSError, EvidenceError) as error:
+        except (OSError, EvidenceError, KeyboardInterrupt) as error:
             # Never leave our JSON paired with somebody else's pre-existing transcript.
             if reserved_json:
                 try:
                     self.path.unlink()
                 except OSError as cleanup:
+                    if isinstance(error, KeyboardInterrupt):
+                        raise error from cleanup
                     raise EvidenceError(f"Cannot reserve evidence: {error}; {cleanup}") from error
+            if isinstance(error, KeyboardInterrupt):
+                raise
             raise EvidenceError(f"Cannot reserve evidence: {error}") from error
 
     def write(self, data: bytes) -> int:

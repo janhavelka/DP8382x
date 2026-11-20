@@ -3,6 +3,8 @@
 import pathlib
 import subprocess
 import sys
+import tempfile
+import threading
 import time
 import unittest
 from unittest import mock
@@ -13,6 +15,13 @@ from tools.dp8382x_hil_fixture import FixtureError, FixtureProcess
 
 def child(source):
     return [sys.executable, "-u", "-c", source]
+
+
+def stop_test_child(fixture):
+    process = fixture._process
+    if process is not None and process.poll() is None:
+        process.kill()
+        process.wait(timeout=2)
 
 
 class FixtureProcessTest(unittest.TestCase):
@@ -63,6 +72,38 @@ class FixtureProcessTest(unittest.TestCase):
         self.assertTrue(process.truncated)
         self.assertIsNotNone(process.returncode)
 
+    def test_output_limit_delivers_queued_prefix_before_failure(self):
+        captured = []
+        decoded = []
+        prefix = b"completed evidence\r\n"
+        script = ("import sys; sys.stdin.buffer.readline(); "
+                  f"sys.stdout.buffer.write({prefix!r} + b'x' * 8192)")
+        process = FixtureProcess(child(script), 3, 32, captured.append)
+        with self.assertRaisesRegex(FixtureError, "byte limit"):
+            with process:
+                process.send(b"query\n")
+                while chunk := process.read():
+                    decoded.append(chunk)
+        expected = prefix + b"x" * (32 - len(prefix))
+        self.assertEqual(b"".join(decoded), expected)
+        self.assertEqual(b"".join(captured), expected)
+        self.assertIsNotNone(process.returncode)
+
+    def test_known_reader_failure_stops_new_commands(self):
+        script = ("import sys; sys.stdout.buffer.write(b'x' * 8192); "
+                  "sys.stdout.buffer.flush(); sys.stdin.buffer.readline()")
+        process = FixtureProcess(child(script), 3, 32, lambda _: None)
+        with process:
+            deadline = time.monotonic() + 2
+            while not process.truncated and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertTrue(process.truncated)
+            with mock.patch("tools.dp8382x_hil_fixture.os.write") as write:
+                with self.assertRaisesRegex(FixtureError, "byte limit"):
+                    process.send(b"do not send\n")
+            write.assert_not_called()
+        self.assertIsNotNone(process.returncode)
+
     def test_read_timeout_terminates_and_reaps(self):
         captured = []
         started = time.monotonic()
@@ -104,6 +145,32 @@ class FixtureProcessTest(unittest.TestCase):
         self.assertEqual(b"".join(captured), b"partial")
         self.assertIsNotNone(process.returncode)
 
+    def test_late_exit_after_last_wait_is_not_success(self):
+        script = ("import os, pathlib, sys, time; os.close(1); sys.stdin.buffer.read();\n"
+                  "while not pathlib.Path(sys.argv[1]).exists(): time.sleep(0.01)")
+        with tempfile.TemporaryDirectory() as directory:
+            ready = pathlib.Path(directory) / "may-exit"
+            process = FixtureProcess(child(script) + [str(ready)], 3, 100, lambda _: None)
+            with process:
+                self.assertEqual(process.read(), b"")
+                now = time.monotonic()
+
+                def delayed_wake(_):
+                    nonlocal now
+                    ready.touch()
+                    process._process.wait(timeout=2)
+                    for reader in process._readers.values():
+                        reader.join(timeout=1)
+                    now += 0.08
+
+                with mock.patch("tools.dp8382x_hil_fixture.time") as clock:
+                    clock.monotonic.side_effect = lambda: now
+                    clock.sleep.side_effect = delayed_wake
+                    with self.assertRaisesRegex(FixtureError, "closure deadline"):
+                        process.finish(closure=0.04)
+                    clock.sleep.assert_called_once()
+            self.assertEqual(process.returncode, 0)  # The correct exit was outside the closure allowance.
+
     def test_callback_failure_is_typed_and_child_reaped(self):
         def fail(_):
             raise OSError("disk full")
@@ -137,6 +204,49 @@ class FixtureProcessTest(unittest.TestCase):
         child_process.kill.assert_called_once()
         self.assertEqual(child_process.wait.call_count, 2)
         self.assertEqual(process.returncode, -9)
+
+    def test_thread_start_failures_keep_the_primary_and_reap(self):
+        script = child("import time; time.sleep(20)")
+        start = threading.Thread.start
+        for failing_index in (0, 1):
+            with self.subTest(reader=failing_index):
+                process = FixtureProcess(script, 3, 100, lambda _: None)
+                self.addCleanup(stop_test_child, process)
+                starts = 0
+
+                def start_reader(thread):
+                    nonlocal starts
+                    index = starts
+                    starts += 1
+                    if index == failing_index:
+                        raise RuntimeError("simulated reader thread exhaustion")
+                    start(thread)
+
+                with mock.patch.object(threading.Thread, "start", autospec=True, side_effect=start_reader):
+                    with self.assertRaisesRegex(FixtureError, "reader start failed: simulated"):
+                        with process:
+                            self.fail("fixture should not enter")
+                self.assertIsNotNone(process.returncode)
+                self.assertTrue(process._process.stdout.closed and process._process.stderr.closed)
+
+        process = FixtureProcess(script, 3, 100, lambda _: None)
+        self.addCleanup(stop_test_child, process)
+        with process:
+            with mock.patch.object(threading.Thread, "start", side_effect=RuntimeError("simulated writer")):
+                with self.assertRaisesRegex(FixtureError, "writer start failed: simulated"):
+                    process.send(b"line\n")
+        self.assertIsNotNone(process.returncode)
+
+    def test_unreaped_child_has_separate_cleanup_evidence(self):
+        child_process = mock.Mock(stdin=None, stdout=None, stderr=None)
+        child_process.poll.return_value = None
+        child_process.wait.side_effect = [subprocess.TimeoutExpired("fixture", 0.2), OSError("wait failed")]
+        process = FixtureProcess(["fixture"], 3, 100, lambda _: None)
+        process._process = child_process
+        self.assertFalse(process.__exit__(RuntimeError, RuntimeError("primary failure"), None))
+        self.assertIn("wait failed", process.cleanup_issue)
+        self.assertIn("child was not reaped", process.cleanup_issue)
+        self.assertIsNone(process.returncode)
 
     def test_invalid_arguments_and_start_error(self):
         with self.assertRaises(FixtureError):

@@ -56,28 +56,32 @@ an error immediately.
 
 ## Protocol and limits
 
-The decoder accepts the exact schema-1 prefix at column zero and the
-1024-byte machine record limit including CRLF. It keeps only a bounded
-candidate across reads. It skips ordinary echo, prompts and ANSI output
-as bytes. A malformed, duplicate-field or unterminated candidate fails
-verification. The implemented suites require the declared enums, widths and
-validity flags. [CLI schema](cli.md#schema-1)
+The decoder recognizes the schema-1 marker `@DP8382X` at column zero. A
+record requires one space after the marker and fits in 1024 bytes including
+CRLF. The decoder keeps only a bounded candidate across reads. It skips
+ordinary echo, prompts and ANSI output as bytes. A malformed, duplicate-field
+or unterminated candidate fails verification. The implemented suites require
+the declared enums, widths and validity flags. [CLI schema](cli.md#schema-1)
 
 The matching nonce establishes the boot and first request. Prior well-formed
 unrelated traffic cannot establish that session. After synchronization,
 each issued request must match the exact boot, request, command and
-operation token. A valid admission is progress; a duplicate or conflicting
+operation token. An admission only records progress. A duplicate or conflicting
 terminal, including a late one during closure, invalidates the run. Reboot,
 reordering, request rollover and mismatched deadlines also fail correlation.
-The offline verifier consumes the bounded file through EOF.
+Admissions carry no cleanup result. Cached queries carry no command deadline.
+The record clock may be unavailable, including throughout a passive run. A
+valid timestamp cannot follow an unavailable clock within one boot. The offline
+verifier consumes the bounded file through EOF.
 
 `--timeout` bounds the child lifetime from launch in seconds, with a default
 of 5 and a maximum of 120. `--closure` bounds the final drain to EOF and exit.
 It defaults to 0.5 seconds, is at most 5 seconds, and must be shorter than the
 aggregate timeout. On failure the runner requests termination, then kills
-if necessary and waits for the direct child in bounded steps. Stdout and
-stderr are drained concurrently. A short stdin write ends the session with
-no repeated command or suffix. Fixture selection is an explicit executable
+if necessary and waits for the direct child in bounded steps. A failed teardown
+is recorded alongside the original error. Stdout and stderr are drained
+concurrently. A short stdin write ends the session without repeating the
+command or writing its suffix. Fixture selection is an explicit executable
 path. The runner launches the direct child without a shell.
 
 `--max-bytes` accepts 1 through 1,048,576 bytes and defaults to the upper
@@ -92,10 +96,12 @@ An observed abbreviated revision can prove only a prefix that fits entirely
 within it. The receipt keeps the observed spelling and records the strength
 as `exact`, `prefix` or `unverified`. A known expectation fails on
 `unknown` or an incompatible revision. `--fixture-identity` is an optional
-value reported by the simulated producer for host tests. The runner's Git
-revision and tracked tree state are recorded separately and are never used
-as firmware identity. Host UTC timestamps and device monotonic microseconds
-remain separate.
+value reported by the simulated producer for host tests. Older schema-1
+recordings may omit both `console` and `baud`. A recording with one of the
+two is malformed. An explicit console or baud expectation requires those
+fields in the recording. The runner records its Git revision and tracked
+tree state separately from firmware identity. Host UTC timestamps and device
+monotonic microseconds remain separate.
 
 ## Files and exit status
 
@@ -110,7 +116,8 @@ The `stderr` field is base64 for the captured stderr bytes.
 The runner flushes, syncs and closes the transcript before hashing it. It
 writes and syncs a temporary JSON file and atomically replaces its placeholder.
 Failed or interrupted finalization may leave the placeholder and captured
-prefix, which remain nonpassing. Offline verification checks JSON schema,
+prefix, which remain nonpassing. An interruption before transcript reservation
+releases the new placeholder. Offline verification checks JSON schema,
 byte length, SHA-256 and verdict, and replays complete protocol evidence.
 
 | Exit | Meaning |

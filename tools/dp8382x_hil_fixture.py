@@ -25,7 +25,8 @@ class FixtureProcess:
     ``limit`` bounds the sum of accepted stdout and stderr bytes. ``on_stdout``
     receives accepted bytes once, on the calling thread, before ``read`` returns
     them or ``finish`` delivers trailing bytes. On failure, captured unread
-    stdout is delivered to ``on_stdout`` before cleanup when possible.
+    stdout is delivered to ``on_stdout`` when possible. ``cleanup_issue``
+    records a separate failed teardown, if any.
     """
 
     _CHUNK = 4096
@@ -50,7 +51,7 @@ class FixtureProcess:
         self._process: subprocess.Popen[bytes] | None = None
         self._deadline = 0.0
         self._chunks: queue.Queue[bytes | None] = queue.Queue()
-        self._threads: list[threading.Thread] = []
+        self._readers: dict[str, threading.Thread] = {}
         self._writer: threading.Thread | None = None
         self._lock = threading.Lock()
         self._bytes = 0
@@ -60,6 +61,7 @@ class FixtureProcess:
         self._stdout_eof = False
         self._finished = False
         self.returncode: int | None = None
+        self.cleanup_issue = ""
 
     @property
     def stderr(self) -> bytes:
@@ -83,13 +85,19 @@ class FixtureProcess:
                                              bufsize=0)
         except (OSError, ValueError) as exc:
             raise FixtureError(f"fixture start failed: {exc}") from exc
-        for name, pipe in (("stdout", self._process.stdout), ("stderr", self._process.stderr)):
-            if pipe is None:
-                self._abort()
-                raise FixtureError(f"fixture {name} pipe unavailable")
-            thread = threading.Thread(target=self._drain, args=(name, pipe), daemon=True)
-            self._threads.append(thread)
-            thread.start()
+        try:
+            for name, pipe in (("stdout", self._process.stdout), ("stderr", self._process.stderr)):
+                if pipe is None:
+                    raise FixtureError(f"fixture {name} pipe unavailable")
+                thread = threading.Thread(target=self._drain, args=(name, pipe), daemon=True)
+                self._readers[name] = thread
+                thread.start()
+        except (OSError, RuntimeError) as exc:
+            self._abort()
+            raise FixtureError(f"fixture reader start failed: {exc}") from exc
+        except BaseException:
+            self._abort()
+            raise
         return self
 
     def __exit__(self, error_type, error, traceback) -> bool:
@@ -104,18 +112,19 @@ class FixtureProcess:
         end = min(self._deadline, local_deadline) if local_deadline is not None else self._deadline
         return end - time.monotonic()
 
-    def _reserve(self, chunk: bytes, stderr: bool) -> bytes:
+    def _retain(self, chunk: bytes, stderr: bool) -> None:
         with self._lock:
             available = max(0, self._limit - self._bytes)
             accepted = chunk[:available]
             self._bytes += len(accepted)
             if stderr:
                 self._stderr.extend(accepted)
+            elif accepted:
+                self._chunks.put(accepted)
             if len(accepted) != len(chunk) and self._reader_error is None:
                 self._reader_error = FixtureError("fixture output byte limit exceeded")
             if len(accepted) != len(chunk):
                 self._truncated = True
-        return accepted
 
     def _drain(self, name: str, pipe) -> None:
         try:
@@ -123,20 +132,21 @@ class FixtureProcess:
                 chunk = os.read(pipe.fileno(), self._CHUNK)
                 if not chunk:
                     break
-                accepted = self._reserve(chunk, name == "stderr")
-                if name == "stdout" and accepted:
-                    self._chunks.put(accepted)
+                self._retain(chunk, name == "stderr")
         except OSError as exc:
-            with self._lock:
-                if self._reader_error is None:
-                    self._reader_error = FixtureError(f"fixture {name} read failed: {exc}")
+            self._record_reader_error(f"fixture {name} read failed: {exc}")
         finally:
-            if name == "stdout":
-                self._chunks.put(None)
             try:
                 pipe.close()
-            except OSError:
-                pass
+            except OSError as exc:
+                self._record_reader_error(f"fixture {name} close failed: {exc}")
+            if name == "stdout":
+                self._chunks.put(None)
+
+    def _record_reader_error(self, message: str) -> None:
+        with self._lock:
+            if self._reader_error is None:
+                self._reader_error = FixtureError(message)
 
     def _failure(self) -> FixtureError | None:
         with self._lock:
@@ -150,17 +160,23 @@ class FixtureProcess:
 
     def _next(self, local_deadline: float | None = None) -> bytes | None:
         while True:
-            failure = self._failure()
-            if failure is not None:
-                raise failure
             remaining = self._remaining(local_deadline)
             if remaining <= 0:
                 label = "fixture closure deadline expired" if local_deadline is not None and local_deadline <= self._deadline else "fixture deadline expired"
                 raise FixtureError(label)
+            # A later pipe failure does not erase already queued output.
+            failure = self._failure()
+            if failure is not None and self._chunks.empty():
+                raise failure
             try:
-                return self._chunks.get(timeout=min(self._POLL, remaining))
+                chunk = self._chunks.get(timeout=min(self._POLL, remaining))
             except queue.Empty:
                 continue
+            if chunk is None:
+                failure = self._failure()
+                if failure is not None:
+                    raise failure
+            return chunk
 
     def _require_live(self) -> subprocess.Popen[bytes]:
         if self._process is None or self._finished:
@@ -172,6 +188,10 @@ class FixtureProcess:
         process = self._require_live()
         if not isinstance(line, bytes) or not line:
             raise FixtureError("fixture command must be nonempty bytes")
+        reader_failure = self._failure()
+        if reader_failure is not None:
+            self._abort()
+            raise reader_failure
         if self._remaining() <= 0:
             self._abort()
             raise FixtureError("fixture deadline expired")
@@ -191,10 +211,9 @@ class FixtureProcess:
             finally:
                 done.set()
 
-        worker = threading.Thread(target=write, daemon=True)
-        self._writer = worker
-        worker.start()
         try:
+            self._writer = threading.Thread(target=write, daemon=True)
+            self._writer.start()
             while not done.wait(min(self._POLL, max(0, self._remaining()))):
                 reader_failure = self._failure()
                 if reader_failure is not None:
@@ -205,7 +224,10 @@ class FixtureProcess:
                 raise FixtureError(f"fixture stdin write failed: {failure[0]}")
             if self._remaining() <= 0:
                 raise FixtureError("fixture stdin write completed after the deadline")
-        except FixtureError:
+        except (OSError, RuntimeError) as exc:
+            self._abort()
+            raise FixtureError(f"fixture writer start failed: {exc}") from exc
+        except BaseException:
             self._abort()
             raise
 
@@ -216,10 +238,13 @@ class FixtureProcess:
             return b""
         try:
             chunk = self._next()
+            if chunk is not None:
+                self._capture(chunk)
+            if self._remaining() <= 0:
+                raise FixtureError("fixture deadline expired")
             if chunk is None:
                 self._stdout_eof = True
                 return b""
-            self._capture(chunk)
             return chunk
         except FixtureError:
             self._abort()
@@ -246,15 +271,20 @@ class FixtureProcess:
                     self._stdout_eof = True
                 else:
                     self._capture(chunk)
+                    if self._remaining(local_deadline) <= 0:
+                        raise FixtureError("fixture closure deadline expired")
                     if on_trailing is not None:
                         on_trailing(chunk)
-            while process.poll() is None or any(thread.is_alive() for thread in self._threads):
+            while process.poll() is None or any(thread.is_alive() for thread in self._readers.values()):
                 failure = self._failure()
                 if failure is not None:
                     raise failure
-                if self._remaining(local_deadline) <= 0:
+                remaining = self._remaining(local_deadline)
+                if remaining <= 0:
                     raise FixtureError("fixture closure deadline expired")
-                time.sleep(min(self._POLL, self._remaining(local_deadline)))
+                time.sleep(min(self._POLL, remaining))
+            if self._remaining(local_deadline) <= 0:
+                raise FixtureError("fixture closure deadline expired")
             failure = self._failure()
             if failure is not None:
                 raise failure
@@ -275,6 +305,7 @@ class FixtureProcess:
         process = self._process
         if process is None or self._finished:
             return
+        issues = []
         if process.poll() is None:
             try:
                 process.terminate()
@@ -283,18 +314,25 @@ class FixtureProcess:
                 try:
                     process.kill()
                     process.wait(timeout=self._TERM_GRACE)
-                except (OSError, subprocess.TimeoutExpired):
-                    pass
+                except (OSError, subprocess.TimeoutExpired) as exc:
+                    issues.append(f"fixture kill or wait failed: {exc}")
         self.returncode = process.poll()
-        if process.stdin is not None and not process.stdin.closed:
-            try:
-                process.stdin.close()
-            except OSError:
-                pass
-        for thread in self._threads:
-            thread.join(timeout=self._TERM_GRACE)
-        if self._writer is not None:
-            self._writer.join(timeout=self._TERM_GRACE)
+        if self.returncode is None:
+            issues.append("fixture child was not reaped")
+        workers = [("stdin", self._writer), ("stdout", self._readers.get("stdout")),
+                   ("stderr", self._readers.get("stderr"))]
+        for name, worker in workers:
+            if worker is not None and worker.ident is not None:
+                worker.join(timeout=self._TERM_GRACE)
+                if worker.is_alive():
+                    issues.append(f"fixture {name} worker did not stop")
+                    continue
+            pipe = getattr(process, name)
+            if pipe is not None and not pipe.closed:
+                try:
+                    pipe.close()
+                except OSError as exc:
+                    issues.append(f"fixture {name} close failed: {exc}")
         # Preserve already drained stdout, including bytes after the last read.
         while True:
             try:
@@ -304,6 +342,8 @@ class FixtureProcess:
             if chunk:
                 try:
                     self._capture(chunk)
-                except FixtureError:
+                except FixtureError as exc:
+                    issues.append(str(exc))
                     break
+        self.cleanup_issue = ". ".join(issues)
         self._finished = True

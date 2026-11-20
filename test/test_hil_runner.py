@@ -100,6 +100,7 @@ class RunnerTests(unittest.TestCase):
             "missing": b"".join(rows[:-1]),
             "wrong-order": b"".join(rows[:7] + rows[7:9][::-1] + rows[9:]),
             "malformed-tail": b"".join(rows) + b"@DP8382X schema=1\x1b[0m\r\n",
+            "bad-separator-tail": b"".join(rows) + rows[-1].replace(b"@DP8382X ", b"@DP8382X\t", 1),
             "partial-tail": b"".join(rows) + b"@DP8382X schema=1",
             "malformed-stale": wire(19, "diagnostics.selftest", "bogus_field=malformed") + b"".join(rows),
             "rollover": rows[0].replace(b"req=1 ", b"req=18446744073709551615 ") + b"".join(rows[1:]),
@@ -120,6 +121,42 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(status, 2)
         self.assertTrue(data["transcript"]["truncated"])
         self.assertEqual(data["transcript"]["length"], 120)
+
+    def test_schema_one_before_console_identity_was_added(self):
+        rows = passive()
+        rows[0] = rows[0].replace(b" console=host-stdio baud=0", b"")
+        text = b"".join(rows)
+        status, message, data = self.recorded(text)
+        self.assertEqual(status, 0, message)
+        self.assertNotIn("console", data["identity"])
+        self.assertNotIn("baud", data["identity"])
+        self.assertEqual(invoke("verify-artifacts", self.path / "runs/run.json")[0], 0)
+        for option, value in (("--console", "host-stdio"), ("--baud", "0")):
+            with self.subTest(option=option):
+                status, _, data = self.recorded(text, option[2:], (option, value))
+                self.assertEqual(status, 2)
+                self.assertIn("firmware identity mismatch", data["issues"][0])
+
+    def test_clock_revival_and_inconsistent_cached_health_cannot_pass(self):
+        for name, old, new in (
+            ("clock-revival", b"time_valid=1 time_us=1003", b"time_valid=0 time_us=0"),
+            ("health-streak", b"consecutive=0", b"consecutive=1"),
+            ("health-initialized", b"initialized=1", b"initialized=0"),
+            ("cached-deadline", b"deadline_valid=0 deadline_us=0", b"deadline_valid=1 deadline_us=999"),
+        ):
+            with self.subTest(name=name):
+                rows = passive()
+                rows[2] = rows[2].replace(old, new)
+                status, message, data = self.recorded(b"".join(rows), name)
+                self.assertEqual(status, 2, message)
+                self.assertFalse(data["complete"])
+                self.assertEqual(len(data["issues"]), 1)
+
+    def test_untimed_passive_replay(self):
+        rows = [row.replace(f"time_valid=1 time_us={1000 + request} ".encode(), b"time_valid=0 time_us=0 ")
+                for request, row in enumerate(passive(), 1)]
+        status, message, _ = self.recorded(b"".join(rows))
+        self.assertEqual(status, 0, message)
 
     def test_exact_rejection_requires_unchanged_state_unsaturated_counts_and_clean_status(self):
         rows = passive()
@@ -191,6 +228,24 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(target.with_suffix(".txt").read_bytes(), b"")
         self.assertEqual(invoke("verify-artifacts", target)[0], 2)
 
+    def test_live_duplicate_during_closure_invalidates_pass(self):
+        rows = passive()
+        script = ("import sys\n"
+                  f"rows = {rows!r}\n"
+                  "for row in rows:\n"
+                  "    if not sys.stdin.buffer.readline(): sys.exit(4)\n"
+                  "    sys.stdout.buffer.write(row)\n"
+                  "sys.stdin.buffer.read()\n"
+                  "sys.stdout.buffer.write(rows[-1])\n")
+        fixture = runner.FixtureProcess
+        with patch.object(runner, "FixtureProcess",
+                          side_effect=lambda _, *args: fixture([sys.executable, "-u", "-c", script], *args)):
+            status, _, message = invoke("run-fixture", sys.executable, "--suite", "passive", "--nonce", NONCE,
+                                        *EXPECTED, "--out-dir", self.path, "--run", "late")
+        self.assertEqual(status, 2, message)
+        self.assertIn("duplicate record", message)
+        self.assertEqual((self.path / "late.txt").read_bytes(), b"".join(rows + rows[-1:]))
+
     def test_compiled_fixture_and_full_identity(self):
         if FIXTURE is None:
             self.skipTest("compiled fixture supplied by cli_hil_runner CTest")
@@ -205,8 +260,7 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual({case["verdict"] for case in data["cases"]}, {"PASS"})
         self.assertEqual(invoke("verify-artifacts", target)[0], 0)
 
-        # Preserve a real operation admission while discarding its terminal,
-        # and test wrong operation tokens on a complete fixture transcript.
+        # Mutate framing and correlation on the compiled producer's transcript.
         original = target.with_suffix(".txt").read_bytes()
         decoder = runner.Decoder()
         records = decoder.feed(original)
@@ -215,8 +269,12 @@ class RunnerTests(unittest.TestCase):
                         if record.cmd == "connection.initialize" and record.state == "terminal")
         line = next(line for line in original.splitlines(keepends=True)
                     if b"cmd=connection.initialize " in line and b"state=terminal " in line)
+        admission = next(line for line in original.splitlines(keepends=True)
+                         if b"cmd=connection.initialize " in line and b"state=admitted " in line)
         for name, sample in {
             "admission-only": original[:original.index(line)],
+            "admitted-cleanup": original.replace(admission, admission.replace(
+                b"cleanup=none cleanup_detail=0", b"cleanup=MDIO_ERROR cleanup_detail=-51")),
             "wrong-op": original.replace(line, line.replace(f"op={terminal.op} ".encode(), b"op=99 ")),
         }.items():
             source = self.path / f"{name}.input"

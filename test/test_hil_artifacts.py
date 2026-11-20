@@ -114,6 +114,14 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(files.path.read_bytes(), original)
         self.assert_pair()
 
+    def test_interrupted_reservation_releases_only_the_new_placeholder(self):
+        with mock.patch.object(artifacts, "_sync", side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                self.open_run()
+        self.assertEqual(list(self.directory.iterdir()), [])
+        self.open_run()
+        self.assert_pair()
+
     def test_truncated_prefix_and_upstream_limit_cannot_pass(self):
         files = self.open_run("prefix", 4)
         self.assertEqual(files.write(b"\xffbc"), 3)
