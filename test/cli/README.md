@@ -58,3 +58,8 @@ take, a stalled writer, a clock regression during final-sample recording and
 an incomplete selftest receipt. The pinned SDK host checks also exercise the
 real native stop obligation that can refuse a poll, and assert zero MDIO
 frames when typed reads lack accepted identity.
+
+The `cli_native_console_*` tests use the same bounded console queues as the
+P4 applications. They exercise an ordered input gap, partial and withheld
+sink writes, concurrent task logs between drains, and retained terminal
+delivery during restoration. A host sink stands in for the UART.
