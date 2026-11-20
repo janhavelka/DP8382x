@@ -34,7 +34,8 @@ enum class LifecycleStage : uint8_t {
   STOP, ///< Framework stop request.
   FENCE, ///< Timer-task callback fence.
   MAC_STOP, ///< Direct actual MAC stop observation.
-  RETAINED ///< Admission closed; objects retained until restart.
+  RETAINED, ///< Admission closed; objects retained until restart.
+  VERIFY ///< Typed read-only verification and retained result.
 };
 /// @brief Native outcome keeps portable chip/admission errors distinct from SDK errors.
 /// @note At most one member is non-success. SDK queue, timer and MAC-policy
@@ -150,6 +151,15 @@ struct DiscoverySnapshot {
   std::array<DiscoveryEntry, 32> entries{}; ///< Per-address partial samples.
   Status status{Err::RESULT_NOT_AVAILABLE, 0, "No discovery"}; ///< Terminal aggregate status.
   BatchResult lastBatch{}; ///< Last attempted complete identity batch, including failure.
+  bool lastBatchValid{false}; ///< The last address reached the terminal transport callback.
+  TransportViolation lastBatchViolation{TransportViolation::NONE}; ///< Audit of the latest callback.
+};
+
+/// @brief Receipt captured under the same native gate as a stopped access.
+struct RawBatchReceipt {
+  BatchResult batch{}; ///< Complete callback report, including failed frames and release status.
+  bool valid{false}; ///< The current call reached the terminal transport callback.
+  TransportViolation violation{TransportViolation::NONE}; ///< Audit of this callback report, valid with batch.
 };
 /// @brief Validated native construction input. Address and MAC identity are immutable.
 struct PhyConfig {
@@ -310,6 +320,12 @@ public:
   /// @return Core admission status or BUSY; SDK reconciliation is a separate explicit call.
   Status startConfigure(const LinkSettings& settings, const ConfigureOptions& options,
                         const OperationBudget& budget, OperationToken& token) noexcept;
+  /// @brief Admit shared-core read-only verification while stopped.
+  /// @param[in] budget Original aggregate clock/frame/poll allowance.
+  /// @param[out] token Assigned only when the core accepts the operation.
+  /// @return IN_PROGRESS when admitted, or the actual gate or core refusal.
+  /// @note Advance through pollOperation and deliver through takeResult.
+  Status startVerify(const OperationBudget& budget, OperationToken& token) noexcept;
   /// @brief Reconcile already verified stopped settings through public SDK setters/getter.
   /// @param[in] deadlineUs Exclusive absolute esp_timer allowance for all controls, microseconds.
   /// @return Terminal status; partial/late SDK acceptance stays in sdkStateSnapshot.
@@ -355,46 +371,73 @@ public:
   /// @param[out] output Copied snapshot on OK.
   /// @return OK or BUSY; no clock or I/O.
   Status operationSnapshot(OperationSnapshot& output) noexcept;
+  /// @brief Copy cached identity without reading the PHY or changing acceptance.
+  /// @param[out] output Copied on OK, unchanged on contention.
+  /// @return OK or BUSY.
+  Status identitySnapshot(DeviceIdentity& output) noexcept;
+  /// @brief Copy capabilities derived from fresh accepted identity without MDIO.
+  /// @param[out] output Copied on OK, unchanged on contention.
+  /// @return OK or BUSY. Capability validity is separate from status.
+  Status capabilitiesSnapshot(Capabilities& output) noexcept;
+  /// @brief Probe the bound address through the shared two-frame core procedure.
+  /// @param[out] output Identity assigned only on complete accepted probe.
+  /// @param[in] budget Whole terminal transaction allowance.
+  /// @param[out] receipt Optional fresh transaction report, invalid on rejection before the callback.
+  /// @return Core probe status or native BUSY. A failed/rejected probe may withdraw trust.
+  Status readIdentity(DeviceIdentity& output, const IoBudget& budget,
+                      RawBatchReceipt* receipt = nullptr) noexcept;
   /// @brief Owner-routed policy-checked C22 read while stopped; output unchanged on failure.
   /// @param[in] address Core-admitted C22 register, 0..31 before policy checking.
   /// @param[out] output Assigned only on complete success.
   /// @param[in] budget Aggregate absolute deadline/frame allowance.
+  /// @param[out] receipt Optional fresh transaction report, invalid if the callback did not run.
   /// @return Core validation/transport status or native BUSY.
-  Status readClause22(uint32_t address, uint16_t& output, const IoBudget& budget) noexcept;
+  Status readClause22(uint32_t address, uint16_t& output, const IoBudget& budget,
+                      RawBatchReceipt* receipt = nullptr) noexcept;
   /// @brief Owner-routed complete MMD read while stopped; output unchanged on failure.
   /// @param[in] devad Core-admitted MMD device address, 0..31.
   /// @param[in] address Core-admitted wire offset, 0..65535.
   /// @param[out] output Assigned only on complete success.
   /// @param[in] budget Aggregate absolute deadline/frame allowance.
+  /// @param[out] receipt Optional fresh transaction report, invalid if the callback did not run.
   /// @return Core validation/transport status or native BUSY.
-  Status readMmd(uint32_t devad, uint32_t address, uint16_t& output, const IoBudget& budget) noexcept;
+  Status readMmd(uint32_t devad, uint32_t address, uint16_t& output, const IoBudget& budget,
+                 RawBatchReceipt* receipt = nullptr) noexcept;
   /// @brief Stopped owner raw write through the core's LEDCR-only policy.
   /// @param[in] address C22 LEDCR (0x18); selectors/commands reject.
   /// @param[in] value Sixteen-bit allowed field value.
   /// @param[in] budget Whole terminal transaction allowance.
+  /// @param[out] receipt Optional fresh transaction report, invalid if the callback did not run.
   /// @return Core status or BUSY; accepted/uncertain mutation withdraws SDK agreement.
-  Status writeClause22(uint32_t address, uint32_t value, const IoBudget& budget) noexcept;
+  Status writeClause22(uint32_t address, uint32_t value, const IoBudget& budget,
+                       RawBatchReceipt* receipt = nullptr) noexcept;
   /// @brief Stopped owner complete four-frame MMD maintenance through core policy.
   /// @param[in] devad Vendor 31 only for writes.
   /// @param[in] address LEDCR alias only (0x0018); selectors/other aliases reject.
   /// @param[in] value Sixteen-bit permitted field word.
   /// @param[in] budget Whole unsplit batch allowance.
+  /// @param[out] receipt Optional fresh transaction report, invalid if the callback did not run.
   /// @return Core terminal status or BUSY; failure preserves uncertain effects.
-  Status writeMmd(uint32_t devad, uint32_t address, uint32_t value, const IoBudget& budget) noexcept;
+  Status writeMmd(uint32_t devad, uint32_t address, uint32_t value, const IoBudget& budget,
+                  RawBatchReceipt* receipt = nullptr) noexcept;
   /// @brief Stopped owner atomic five-frame stable LEDCR RMW.
   /// @param[in] devad Vendor 31 only.
   /// @param[in] address LEDCR alias 0x0018.
   /// @param[in] mask Nonzero sixteen-bit permitted stable field mask.
   /// @param[in] value Replacement subset of mask.
   /// @param[in] budget Whole unsplit transaction allowance.
+  /// @param[out] receipt Optional fresh transaction report, invalid if the callback did not run.
   /// @return Core status or BUSY; no public selector or recursive lock path.
-  Status modifyMmd(uint32_t devad, uint32_t address, uint32_t mask, uint32_t value, const IoBudget& budget) noexcept;
+  Status modifyMmd(uint32_t devad, uint32_t address, uint32_t mask, uint32_t value,
+                   const IoBudget& budget, RawBatchReceipt* receipt = nullptr) noexcept;
   /// @brief Explicit raw BMCR stable-field maintenance; never persistent desired configuration.
   /// @param[in] mask Nonzero subset of AN/speed/duplex mask 0x3100.
   /// @param[in] value Replacement subset of mask; commands/power fields reject.
   /// @param[in] budget Complete two-frame read/write allowance.
+  /// @param[out] receipt Optional fresh transaction report, invalid if the callback did not run.
   /// @return Core status or BUSY; reinitialize/replay and public-reconcile before restart.
-  Status modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget& budget) noexcept;
+  Status modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget& budget,
+                            RawBatchReceipt* receipt = nullptr) noexcept;
   /// @brief Explicit stopped destructive acquisition through the sole core collector.
   /// @param[in] sourceMask Nonzero subset of ALL_EVIDENCE.
   /// @param[out] output Assigned on aggregate success; consumed prefixes remain cached on error.
@@ -413,9 +456,12 @@ public:
   /// @param[in] addressMask Nonzero bit mask; no address is automatically selected.
   /// @param[out] output Complete scan only on OK, unchanged on failure; partial receipt stays cached.
   /// @param[in] budget Whole-scan absolute deadline and physical-frame allowance.
+  /// @param[out] fresh Optional distinct destination for this call's receipt, including
+  /// partial failures after admission. Unchanged for local rejection or if it aliases output.
   /// @return OK for complete raw reads, otherwise input/admission/transport/deadline failure.
   /// @note Only fixed PHYIDR1/2 reads; returned raw words do not establish exact-part support.
-  Status discover(uint32_t addressMask, DiscoverySnapshot& output, const IoBudget& budget) noexcept;
+  Status discover(uint32_t addressMask, DiscoverySnapshot& output, const IoBudget& budget,
+                  DiscoverySnapshot* fresh = nullptr) noexcept;
   /// @brief Copy retained discovery prefixes/status locally; unchanged on gate contention.
   /// @param[out] output Value copy on OK, including partial failed acquisitions.
   /// @return OK or BUSY; no I/O or clock.
@@ -474,6 +520,7 @@ private:
   void shareQuiet() noexcept;
   bool verifiedSettings() const noexcept;
   void refreshAgreement() noexcept;
+  template<class Call> Status stoppedRaw(RawBatchReceipt* receipt, Call call) noexcept;
   void unexpectedStart(bool startPosted) noexcept;
   void deferStart(bool startPosted) noexcept;
   bool stoppedAdmission() const noexcept;

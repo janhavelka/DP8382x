@@ -191,7 +191,8 @@ Status DP8382x::restartAutoNegotiation(const IoBudget& budget) noexcept {
   return status;
 }
 
-Status DP8382x::modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget& budget) noexcept {
+Status DP8382x::modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget& budget, bool* invoked) noexcept {
+  if (invoked) *invoked = false;
   if (mask > 0xFFFFU || value > 0xFFFFU) {
     return Status::Error(Err::INVALID_PARAM, "BMCR value exceeds wire width", static_cast<int32_t>(ParamDetail::VALUE_WIDTH));
   }
@@ -207,11 +208,10 @@ Status DP8382x::modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget
   // This is an explicit raw mutation, not configuration. The ordinary collector
   // invalidates on accepted/uncertain writes and keeps persistent desired intent.
   return _execute(updateRegister(cmd::REG_BMCR,
-      static_cast<uint16_t>(BMCR_PRESERVE | (0x3100U & ~mask)), static_cast<uint16_t>(value)), budget);
+      static_cast<uint16_t>(BMCR_PRESERVE | (0x3100U & ~mask)), static_cast<uint16_t>(value)), budget, invoked);
 }
 
-Status DP8382x::startConfigure(const LinkSettings& settings, const ConfigureOptions& options,
-                              const OperationBudget& budget, OperationToken& token) noexcept {
+Status validateConfiguration(const LinkSettings& settings, const ConfigureOptions& options) noexcept {
   auto status = validateLinkSettings(settings);
   if (!status.ok()) { return status; }
   status = validatePages(options.nextPages);
@@ -220,6 +220,13 @@ Status DP8382x::startConfigure(const LinkSettings& settings, const ConfigureOpti
       (options.waitForCompletion || options.nextPages.pageCount != 0U)) {
     return invalidSettings("Forced mode has no negotiation wait or next pages");
   }
+  return Status::Ok();
+}
+
+Status DP8382x::startConfigure(const LinkSettings& settings, const ConfigureOptions& options,
+                              const OperationBudget& budget, OperationToken& token) noexcept {
+  const auto status = validateConfiguration(settings, options);
+  if (!status.ok()) return status;
   if (budget.pollIntervalUs == 0U || budget.maxStalledPolls == 0U) {
     return Status::Error(Err::INVALID_PARAM, "Invalid polling budget",
                          static_cast<int32_t>(ParamDetail::BUDGET_RANGE));

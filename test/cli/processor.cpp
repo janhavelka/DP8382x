@@ -18,6 +18,8 @@ struct Stream {
   SnapshotKind lastRead{SnapshotKind::CAPABILITIES};
   Status outcome{};
   bool staleLink{false};
+  uint64_t timeUs{1234};
+  std::vector<Request> requests;
 
   static std::size_t write(void* context, const char* data, std::size_t length) {
     auto& self = *static_cast<Stream*>(context);
@@ -44,6 +46,33 @@ struct Stream {
     return self.outcome;
   }
   static uint64_t now(void*) { return std::numeric_limits<uint64_t>::max(); }
+  static uint64_t liveClock(void* ptr) { return static_cast<Stream*>(ptr)->timeUs; }
+  static Status live(void* ptr, const Request& request, Receipt& receipt) {
+    auto& s = *static_cast<Stream*>(ptr);
+    s.requests.push_back(request);
+    if (request.action == Action::DISCOVER) {
+      receipt.batchValid = true;
+      receipt.batch.frames[0].attempted = receipt.batch.frames[1].attempted = true;
+      receipt.identity.id1 = 0x2000;
+      receipt.identity.id2 = 0xA131;
+      receipt.identity.id1Valid = receipt.identity.id2Valid = true;
+    } else if (request.action == Action::START_CONFIGURE) {
+      receipt.token.value = 81;
+      return {Err::IN_PROGRESS, 0, ""};
+    } else if (request.action == Action::TAKE) {
+      receipt.mutationCompleted = true;
+    } else if (request.action == Action::RECONCILE) {
+      receipt.sdkError = 0x103;
+    }
+    return Status::Ok();
+  }
+
+  void attachLive() {
+    Identity i;
+    i.boot = 44;
+    i.variant = Variant::DP83826I;
+    assert(cli.setup({this, write, read, liveClock, live}, i));
+  }
 
   void attach(bool clock = true) {
     Identity identity;
@@ -203,6 +232,68 @@ void retention() {
   has(r[admitted], "time_valid=1 time_us=18446744073709551615");
   has(r[admitted + 1], "stalled_writes=1");
 }
+
+void routes() {
+  Stream scan;
+  scan.attachLive();
+  scan.send("connection discover 0 2\nconnection discover 0 0\nsession Scan44\n");
+  // Each tick can call the owner once, even when the next tick uses the same clock.
+  while (scan.cli.workPending()) {
+    const auto before = scan.requests.size();
+    scan.cli.tick();
+    assert(scan.requests.size() <= before + 1);
+  }
+  scan.drain();
+  assert(scan.requests.size() == 3);
+  for (uint32_t i = 0; i < 3; ++i) {
+    assert(scan.requests[i].action == Action::DISCOVER);
+    assert(scan.requests[i].address == i);
+    assert(scan.requests[i].budget.io.deadlineUs == 2001234U);
+    assert(scan.requests[i].budget.io.maxFrames == 6U - 2U * i);
+  }
+  const auto rows = scan.records();
+  assert(rows.size() == 6);
+  has(rows[0], "req=2 type=result cmd=connection.discover op=0 state=terminal primary=BUSY");
+  has(rows[1], "req=3 type=session cmd=session");
+  has(rows[1], "nonce=Scan44");
+  has(rows[2], "req=1 type=sample");
+  has(rows[5], "rows=3 errors=0 skipped=0 attempted=6 complete=1");
+
+  Stream regression;
+  regression.attachLive();
+  assert(regression.cli.feed("connection discover 0 2\n") == 24);
+  ++regression.timeUs;
+  regression.cli.tick();
+  regression.timeUs -= 1;
+  regression.cli.tick();
+  assert(regression.requests.size() == 1 && !regression.cli.workPending());
+  regression.drain();
+  has(regression.records()[1], "primary=INVALID_CONFIG");
+  has(regression.records()[1], "rows=1 errors=0 skipped=0 attempted=2 complete=0");
+
+  Stream configure;
+  configure.attachLive();
+  const std::string_view command = "configuration apply forced 100 full auto 1\n";
+  assert(configure.cli.feed(command) == command.size());
+  configure.acceptedPerWrite = 0;
+  configure.cli.tick(); // Owner admits the job, queues the admission record.
+  assert(configure.requests.size() == 1);
+  for (unsigned i = 0; i < 100 && configure.cli.feed("ver\n") != 0; ++i) {}
+  assert(configure.cli.feed("session waiting\n") == 0);
+  configure.cli.tick(); // An admitted core poll continues even if output is stalled.
+  assert(configure.requests.size() == 2 && configure.requests[1].action == Action::POLL);
+  configure.cli.tick();
+  assert(configure.requests.size() == 2 && configure.cli.workPending());
+  configure.acceptedPerWrite = 2;
+  for (unsigned i = 0; i < 5000 && configure.cli.workPending(); ++i) configure.cli.tick();
+  assert(!configure.cli.workPending());
+  configure.drain();
+  const auto results = configure.records();
+  has(results.front(), "req=1 type=result cmd=configuration.apply op=81 state=admitted primary=IN_PROGRESS");
+  has(results.back(), "req=1 type=result cmd=configuration.apply op=81 state=terminal primary=INVALID_CONFIG");
+  has(results.back(), "core_status=OK core_detail=0 sdk_error=259 mutation_completed=1");
+  assert(configure.requests.size() == 4);
+}
 } // namespace
 
 int main(int argc, char** argv) {
@@ -212,5 +303,6 @@ int main(int argc, char** argv) {
   else if (suite == "loss") loss();
   else if (suite == "cached") cached();
   else if (suite == "retention") retention();
+  else if (suite == "routes") routes();
   else return 2;
 }

@@ -1,5 +1,8 @@
 # Planning audits and later implementation evidence
 
+The [prompt 44 report](implementation/44-cli-configuration-registers.md)
+records live CLI routes, bounded discovery and pinned SDK owner verification.
+
 The [prompt 43 report](implementation/43-cli-foundation.md) records the
 portable CLI source audit, terminal retention and real-core fixture tests.
 

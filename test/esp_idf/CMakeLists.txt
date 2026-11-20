@@ -36,7 +36,7 @@ foreach(source IN LISTS sdk_sources)
 endforeach()
 list(APPEND verify_command --source "${host}/probe.c")
 list(APPEND verify_command --source "${host}/probe.cpp")
-foreach(source IN ITEMS Fakes.cpp InstrumentedMac.cpp driver.cpp native.cpp)
+foreach(source IN ITEMS Fakes.cpp InstrumentedMac.cpp driver.cpp native.cpp cli44.cpp)
   list(APPEND verify_command --source "${host}/${source}")
 endforeach()
 list(APPEND verify_command --include "${host}" --source "${repo}/src/esp_idf/Phy.cpp")
@@ -86,6 +86,14 @@ set(owner_sources "${repo}/examples/esp_idf/owner/main/PhyOwner.cpp"
 add_executable(dp8382x_native_host_tests host/native.cpp ${owner_sources})
 target_link_libraries(dp8382x_native_host_tests PRIVATE dp8382x_native_host)
 target_compile_options(dp8382x_native_host_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+
+add_executable(dp8382x_native_cli_tests host/cli44.cpp "${repo}/examples/common/Dp8382xCli.cpp")
+target_link_libraries(dp8382x_native_cli_tests PRIVATE dp8382x_native_host)
+target_compile_options(dp8382x_native_cli_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+foreach(suite IN ITEMS admission reconciliation discovery raw_access shared_silence)
+  add_test(NAME native_cli_${suite} COMMAND dp8382x_native_cli_tests ${suite})
+  set_tests_properties(native_cli_${suite} PROPERTIES TIMEOUT 30)
+endforeach()
 
 # The application lifecycle tests include the actual P4 example translation
 # unit with SDK boundary calls injected by the host test. No duplicate owner.

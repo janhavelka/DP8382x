@@ -1,5 +1,5 @@
 // Host process for byte-oriented CLI tests. All MDIO runs on a simulated bus.
-#include "../../examples/common/Dp8382xCli.h"
+#include "../../examples/common/Dp8382xCliCore.h"
 
 #include <array>
 #include <charconv>
@@ -20,12 +20,14 @@ using namespace ::DP8382x::Cli;
 using Driver = ::DP8382x::DP8382x;
 
 enum class Partner { DOWN, FULL100, HALF10 };
+constexpr uint8_t PHY_ADDRESS = 1;
 struct Options {
   const char* identity{"unknown"};
   Partner partner{Partner::FULL100};
   uint64_t failAfter{std::numeric_limits<uint64_t>::max()};
   uint64_t rebootAfter{0};
   bool partialRecord{false};
+  bool denyMaintenance{false};
 };
 
 bool decimal(std::string_view input, uint64_t& output) {
@@ -37,8 +39,9 @@ bool decimal(std::string_view input, uint64_t& output) {
 bool parseOptions(int argc, char** argv, Options& options) {
   for (int i = 1; i < argc; ++i) {
     const std::string_view option{argv[i]};
-    if (option == "--partial-record") {
-      options.partialRecord = true;
+    if (option == "--partial-record" || option == "--deny-maintenance") {
+      if (option == "--partial-record") options.partialRecord = true;
+      else options.denyMaintenance = true;
       continue;
     }
     if (++i == argc) return false;
@@ -58,8 +61,13 @@ bool parseOptions(int argc, char** argv, Options& options) {
 }
 
 struct Bus {
+  struct MmdWord { uint16_t devad, offset, value; };
   std::array<uint16_t, 32> words{};
-  uint16_t selector{0}, offset{0}, vod{0x8400};
+  std::array<MmdWord, 6> extended{{
+      {31, 0x030E, 0x8400}, {31, 0x0467, 0xA567}, {31, 0x0468, 0xA568},
+      {3, 0x0014, 0x0002}, {7, 0x003C, 0x0000}, {7, 0x003D, 0x0000},
+  }};
+  uint16_t selector{0}, offset{0};
   uint64_t nowUs{0}, frames{0}, failAfter{0};
 
   void setup(Partner partner, uint64_t fail) {
@@ -77,15 +85,30 @@ struct Bus {
   }
 
   uint16_t read(uint8_t address) const {
-    if (address == 14 && selector == 0x401F && offset == 0x030E) return vod;
-    return words[address];
+    if (address != 14 || (selector & 0xC000U) != 0x4000U) return words[address];
+    const auto devad = selector & 0x001FU;
+    if (devad == 31 && offset < words.size()) return words[offset];
+    for (const auto& reg : extended) {
+      if (reg.devad == devad && reg.offset == offset) return reg.value;
+    }
+    return 0;
   }
 
   void write(uint8_t address, uint16_t value) {
-    if (address == 13) selector = value;
-    else if (address == 14 && selector == 0x001F) offset = value;
-    else if (address == 14 && selector == 0x401F && offset == 0x030E) vod = value;
-    else words[address] = value;
+    if (address == 13) { selector = value; return; }
+    if (address != 14) {
+      // The restart bit clears independently of the modeled partner evidence.
+      words[address] = address == 0 ? static_cast<uint16_t>(value & 0xFDFFU) : value;
+      return;
+    }
+    const auto mode = selector & 0xC000U;
+    if (mode == 0) { offset = value; return; }
+    if (mode != 0x4000U) return;
+    const auto devad = selector & 0x001FU;
+    if (devad == 31 && offset < words.size()) { words[offset] = value; return; }
+    for (auto& reg : extended) {
+      if (reg.devad == devad && reg.offset == offset) { reg.value = value; return; }
+    }
   }
 
   static uint64_t clock(void* context) noexcept { return static_cast<Bus*>(context)->nowUs; }
@@ -102,14 +125,17 @@ struct Bus {
       receipt.attempted = true;
       bus.nowUs += 2;
       if (bus.frames++ >= bus.failAfter) {
+        receipt.effectPossible = frame.kind == FrameKind::WRITE;
         result.status = Status::Error(Err::MDIO_ERROR, "Simulated MDIO failure", -43);
         break;
       }
       receipt.completed = true;
       if (frame.kind == FrameKind::READ) {
-        receipt.value = bus.read(frame.registerAddress);
+        // Cover both no-response words while leaving address zero legal to scan.
+        receipt.value = batch.phyAddress == PHY_ADDRESS ? bus.read(frame.registerAddress) :
+            batch.phyAddress == 0 ? uint16_t{0} : uint16_t{0xFFFF};
         receipt.valueValid = true;
-      } else {
+      } else if (batch.phyAddress == PHY_ADDRESS) {
         uint16_t value = frame.value;
         if (frame.readIndex != NO_READ_INDEX) {
           value = static_cast<uint16_t>(value |
@@ -131,12 +157,13 @@ public:
   }
 
   bool setup() {
+    _owner.reset();
     _driver.emplace();
     _bus.setup(_options.partner, _options.failAfter);
     Config config{};
     config.variant = Variant::DP83826I;
     config.interface = MacInterface::RMII;
-    config.phyAddress = 1;
+    config.phyAddress = PHY_ADDRESS;
     config.transport = {&_bus, Bus::execute, Bus::clock, {8, 4, 1}};
     if (!_driver->bind(config).ok()) return false;
 
@@ -167,8 +194,9 @@ public:
     identity.variant = config.variant;
     identity.interface = config.interface;
     identity.phyAddress = config.phyAddress;
+    _owner.emplace(*_driver, maintenance, this);
     _processor.emplace();
-    return _processor->setup({this, write, readCached, clock}, identity);
+    return _processor->setup({this, write, readCached, clock, execute}, identity);
   }
 
   bool receive(char byte) {
@@ -204,20 +232,22 @@ public:
     }
     _controlSize = 0;
     if (_rebootPending && !reboot()) return false;
-    if (!pump(MAX_TICKS)) return false;
-    if (_rebootPending && (!reboot() || !pump(MAX_TICKS))) return false;
-    return _inputSize == 0 && !_processor->outputPending();
+    if (!pump(AUTO_TICKS)) return false;
+    if (_rebootPending && (!reboot() || !pump(AUTO_TICKS))) return false;
+    return _inputSize == 0 && !_processor->outputPending() && !_processor->workPending();
   }
 
-  bool startOutput() { return pump(MAX_TICKS); }
+  bool startOutput() { return pump(AUTO_TICKS); }
 
 private:
   static constexpr uint64_t TICK_US = 1000;
-  static constexpr uint64_t MAX_TICKS = 4096;
+  static constexpr uint64_t AUTO_TICKS = 8192; // Covers the 5 s profile deadline plus final output.
+  static constexpr uint64_t CONTROL_LIMIT = 4096;
   static constexpr std::string_view PREFIX = "@DP8382X ";
   Options _options;
   Bus _bus{};
   std::optional<Driver> _driver;
+  std::optional<CoreOwner> _owner;
   std::optional<Processor> _processor;
   std::array<char, 4096> _input{};
   std::array<char, 64> _control{};
@@ -232,14 +262,14 @@ private:
     if (line == "$pause") _paused = true;
     else if (line == "$resume") {
       _paused = false;
-      _failed = !pump(MAX_TICKS);
+      _failed = !pump(AUTO_TICKS);
     } else if (line.substr(0, 6) == "$tick ") {
       uint64_t ticks{};
-      if (!decimal(line.substr(6), ticks) || ticks > MAX_TICKS) return false;
+      if (!decimal(line.substr(6), ticks) || ticks > CONTROL_LIMIT) return false;
       _failed = !pump(ticks, true);
     } else if (line.substr(0, 14) == "$output-stall ") {
       uint64_t calls{};
-      if (!decimal(line.substr(14), calls) || calls > MAX_TICKS) return false;
+      if (!decimal(line.substr(14), calls) || calls > CONTROL_LIMIT) return false;
       _outputStall = calls;
     } else return false;
     return true;
@@ -251,7 +281,7 @@ private:
     ++_inputSize;
     if (!acceptInput()) return false;
     if (_rebootPending && _inputSize == 0) return true;
-    if (!_paused && (byte == '\r' || byte == '\n' || _inputSize != 0)) return pump(MAX_TICKS);
+    if (!_paused && (byte == '\r' || byte == '\n' || _inputSize != 0)) return pump(AUTO_TICKS);
     return true;
   }
 
@@ -290,7 +320,8 @@ private:
 
   bool pump(uint64_t limit, bool explicitTicks = false) {
     for (uint64_t i = 0; i < limit; ++i) {
-      if (!explicitTicks && _inputSize == 0 && !_processor->outputPending()) break;
+      if (!explicitTicks && _inputSize == 0 && !_processor->outputPending() &&
+          !_processor->workPending()) break;
       _bus.nowUs += TICK_US;
       if (!_rebootPending) _processor->tick();
       if (_failed || !acceptInput()) return false;
@@ -301,16 +332,17 @@ private:
   static uint64_t clock(void* context) noexcept { return static_cast<Fixture*>(context)->_bus.nowUs; }
 
   static Status readCached(void* context, SnapshotKind kind, CachedSnapshot& output) noexcept {
-    const auto& driver = *static_cast<Fixture*>(context)->_driver;
-    switch (kind) {
-      case SnapshotKind::CAPABILITIES: output.capabilities = driver.capabilities(); break;
-      case SnapshotKind::HEALTH: output.health = driver.healthSnapshot(); break;
-      case SnapshotKind::LINK: output.link = driver.linkSnapshot(); break;
-      case SnapshotKind::SETTINGS: output.settings = driver.settingsSnapshot(); break;
-      case SnapshotKind::OPERATION: output.operation = driver.operationSnapshot(); break;
-      case SnapshotKind::TRANSPORT: output.transport = driver.transportSnapshot(); break;
-    }
-    return Status::Ok();
+    return static_cast<Fixture*>(context)->_owner->readCached(kind, output);
+  }
+
+  static Status execute(void* context, const Request& request, Receipt& receipt) {
+    return static_cast<Fixture*>(context)->_owner->execute(request, receipt);
+  }
+
+  static Status maintenance(void* context) noexcept {
+    if (!static_cast<Fixture*>(context)->_options.denyMaintenance) return Status::Ok();
+    return Status::Error(Err::BUSY, "Simulated application session active",
+                         static_cast<int32_t>(BusyDetail::OWNER_ADMISSION));
   }
 
   static std::size_t write(void* context, const char* bytes, std::size_t size) noexcept {
@@ -346,7 +378,7 @@ private:
 int main(int argc, char** argv) {
   constexpr const char* usage =
       "Usage: dp8382x_cli_fixture [--identity TOKEN] [--partner down|100-full|10-half] "
-      "[--fail-after N] [--reboot-after N] [--partial-record]\n";
+      "[--fail-after N] [--reboot-after N] [--partial-record] [--deny-maintenance]\n";
   if (argc == 2 && std::string_view(argv[1]) == "--help") {
     std::fputs(usage, stdout);
     return 0;

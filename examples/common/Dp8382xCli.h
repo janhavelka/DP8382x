@@ -17,7 +17,8 @@ enum class SnapshotKind {
   LINK,         ///< Last acquired link evidence.
   SETTINGS,     ///< Desired, observed and trusted configuration.
   OPERATION,    ///< Occupied slot and pending restoration evidence.
-  TRANSPORT     ///< Attributed batch and physical frame counts.
+  TRANSPORT,    ///< Attributed batch and physical frame counts.
+  IDENTITY      ///< Retained identity, including stale and incomplete words.
 };
 
 /// @brief Copy destination. The callback only fills the requested member.
@@ -28,6 +29,56 @@ struct CachedSnapshot {
   SettingsSnapshot settings{};  ///< Cached configuration intent and readback.
   OperationSnapshot operation{}; ///< Cached slot state, not a consumed result.
   TransportSnapshot transport{}; ///< Cached totals, including non-managed work.
+  DeviceIdentity identity{};     ///< Cached identity, not a fresh failed-call result.
+};
+
+/// @brief One terminal owner call or one step of the existing core operation.
+enum class Action {
+  PROBE,           ///< Acquire accepted identity at the bound address.
+  DISCOVER,        ///< Acquire raw ID words at an explicit address in one batch.
+  READ_C22,        ///< Read one safe Clause 22 register.
+  READ_MMD,        ///< Read one safe MMD register in a complete indirect batch.
+  WRITE_C22,       ///< Write the admitted LEDCR maintenance subset.
+  WRITE_MMD,       ///< Write the admitted vendor LEDCR alias.
+  MODIFY_MMD,      ///< Atomically update selected vendor LEDCR bits.
+  MODIFY_BMCR,     ///< Maintain AN/speed/duplex bits under stopped ownership.
+  INVALIDATE,      ///< Report external mutation without touching hardware.
+  START_CONFIGURE, ///< Admit typed profile application under maintenance.
+  START_VERIFY,    ///< Admit read-only verification.
+  POLL,            ///< Advance the admitted operation by at most one batch.
+  TAKE,            ///< Copy a terminal result and release that operation's slot.
+  RECONCILE        ///< Apply verified intent to stopped SDK cache where applicable.
+};
+
+/// @brief Selected owner inputs, copied at command admission.
+struct Request {
+  Action action{Action::PROBE}; ///< Selects the applicable fields.
+  OperationBudget budget{};   ///< Exclusive absolute deadline in owner microseconds and remaining frames.
+  uint32_t address{0};        ///< PHY address for discovery, register offset for access.
+  uint32_t devad{0};          ///< MMD device address for MMD access.
+  uint32_t mask{0};           ///< Owned replacement mask for RMW.
+  uint32_t value{0};          ///< Literal or masked write value, validated before narrowing.
+  OperationToken token{};     ///< Token returned by the selected owner, for poll/take.
+  LinkSettings settings{};    ///< Typed link intent for START_CONFIGURE.
+  ConfigureOptions options{}; ///< Bounded negotiation policy for START_CONFIGURE.
+};
+
+/// @brief Evidence for this call only. Unavailable evidence remains defaulted.
+struct Receipt {
+  DeviceIdentity identity{}; ///< Fresh probe or raw discovery prefix; flags govern the values.
+  BatchResult batch{};       ///< Fresh raw transport receipt when batchValid.
+  bool batchValid{false};    ///< This call acquired the receipt, never historical.
+  TransportViolation violation{TransportViolation::NONE}; ///< Core audit of that receipt.
+  uint16_t value{0};         ///< Ordinary register output only on successful read.
+  OperationToken token{};    ///< Accepted start token only on IN_PROGRESS.
+  Status result{};           ///< Core operation status when TAKE returned OK.
+  bool mutationCompleted{false}; ///< Operation retained a completed semantic mutation.
+  bool mutationPossible{false};  ///< Operation retained uncertain semantic mutation.
+  bool cleanupOwed{false};   ///< Retained operation requires later restoration.
+  bool temporary{false};     ///< Retained operation may have left temporary state.
+  bool negotiationComplete{false}; ///< Explicit AN completion from the retained procedure.
+  NextPageResult nextPages{}; ///< Collected next-page progress, including partial reads.
+  int32_t sdkError{0};       ///< Separate SDK error on RECONCILE; zero when absent.
 };
 
 /// @brief Borrowed callbacks called only by the application task that owns the CLI.
@@ -43,6 +94,12 @@ struct Platform {
   /// @brief Optional nonwrapping firmware clock, in microseconds since its local origin.
   /// @note Called at record creation. Null means the record has no timestamp.
   uint64_t (*nowUs)(void*){nullptr};
+  /// @brief Optional live command route; requires the same clock used by the owner.
+  /// @note Application grants maintenance for disruptive actions before any I/O.
+  /// START/POLL may return IN_PROGRESS; TAKE preserves the original core result.
+  /// A portable RECONCILE is a local success. Native reconciliation uses public
+  /// stopped SDK controls and supplies the independent SDK error.
+  Status (*execute)(void*, const Request&, Receipt&){nullptr};
 };
 
 /// @brief Values declared by the application, separate from observed silicon.
@@ -93,32 +150,61 @@ public:
   /// Parsing resumes after the next complete line boundary. A queued record survives.
   void discardInput();
 
-  /// @brief Offer one bounded write, then move a retained record into the queue if it fits.
+  /// @brief Offer one bounded write, move pending records and advance at most one owner call.
+  /// @note Core polling can continue under output backpressure. Result delivery
+  /// waits for room to keep all correlated output.
   void tick();
 
   /// @brief Test whether bytes are queued or retained locally.
   /// @return True for pending local output. False does not prove host receipt.
   bool outputPending() const;
 
+  /// @brief True while a live command owns the CLI service slot.
+  /// @return Indicates work for a later tick, including deferred result delivery.
+  bool workPending() const;
+
 private:
   struct Command;
   struct ConfigOption;
   struct Reply;
+  enum class Work { IDLE, CALL, DISCOVERY, DUMP, POLL, TAKE, RECONCILE };
+  struct Job {
+    Work step{Work::IDLE};
+    Request request{};
+    Receipt result{};
+    std::string_view command{};
+    Status firstError{};
+    Status stop{};
+    uint64_t requestId{0};
+    uint64_t lastUs{0};
+    uint32_t end{0};
+    uint32_t rows{0};
+    uint32_t errors{0};
+    uint32_t skipped{0};
+    uint32_t attempted{0};
+    bool attemptedKnown{true};
+  };
   using Args = std::array<std::string_view, MAX_TOKENS>;
   static const Command COMMANDS[];
   static const ConfigOption CONFIG[];
   void finishLine();
+  void record(std::string_view name, uint64_t req, const Reply& reply);
   void flushRecord();
+  void serviceJob();
+  void sequenceStep();
   void human(std::string_view bytes);
   void help(const Command&, const Args&, std::size_t, Reply&);
   void identity(const Command&, const Args&, std::size_t, Reply&);
   void configure(const Command&, const Args&, std::size_t, Reply&);
   void console(const Command&, const Args&, std::size_t, Reply&);
   void cached(const Command&, const Args&, std::size_t, Reply&);
+  void route(const Command&, const Args&, std::size_t, Reply&);
+  bool parseProfile(const Args&, std::size_t count, Request&);
 
   Platform _platform{};
   Identity _identity{};
   ConsoleBuffer _output{};
+  Job _job{};
   std::array<char, LINE_BYTES> _line{};
   std::array<char, ConsoleBuffer::MAX_RECORD_BYTES + 1> _record{};
   std::size_t _lineSize{0};

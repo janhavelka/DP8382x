@@ -1021,6 +1021,10 @@ void Phy::shareQuiet() noexcept {
   if (progress.busQuietValid) {
     extendQuiet(*_config.bus, progress.busQuietUntilUs);
   }
+  // A shared clock fault can leave an attempted HARD reset without a usable
+  // silence anchor. Keep peers closed even after this owner releases its slot.
+  if (_ownsSilence && _core.transportSnapshot().clockInvalid)
+    _config.bus->quarantined.store(true);
 }
 Status Phy::startInitialize(const InitializeOptions& options, const OperationBudget& budget, OperationToken& token) noexcept {
   if (!enter()) return busy();
@@ -1067,6 +1071,13 @@ Status Phy::startConfigure(const LinkSettings& settings, const ConfigureOptions&
   if (status.inProgress()) { _phase = Phase::CONTROL; _record.stage = LifecycleStage::CONFIGURE; _sdkState.reconciled = false; }
   leave(); return status;
 }
+Status Phy::startVerify(const OperationBudget& budget, OperationToken& token) noexcept {
+  if (!enter()) return busy();
+  if (!stoppedAdmission()) { leave(); return busy(); }
+  const auto status = _core.startVerify(budget, token);
+  if (status.inProgress()) { _phase = Phase::CONTROL; _record.stage = LifecycleStage::VERIFY; }
+  leave(); return status;
+}
 Status Phy::pollOperation(OperationToken token, uint32_t maxFrames) noexcept {
   if (!enter()) return busy();
   if (_phase != Phase::CONTROL || !_installed || _notifying || _controlEntry != ControlEntry::NONE || _frameworkStopOwed) { leave(); return busy(); }
@@ -1082,6 +1093,7 @@ Status Phy::takeResult(OperationToken token, OperationResult& output) noexcept {
   if (status.ok()) {
     if (_phase == Phase::CONTROL) _phase = _frameworkStopOwed ? Phase::STOPPING : Phase::STOPPED;
     if (_ownsSilence) { shareQuiet(); _ownsSilence = false; _config.bus->admission.store(BusAdmission::AVAILABLE); }
+    if (output.kind == OperationKind::VERIFY) refreshAgreement();
   }
   leave(); return status;
 }
@@ -1096,35 +1108,55 @@ Status Phy::operationSnapshot(OperationSnapshot& output) noexcept {
   if (!enter()) return busy();
   output = _core.operationSnapshot(); leave(); return Status::Ok();
 }
-Status Phy::readClause22(uint32_t address, uint16_t& output, const IoBudget& budget) noexcept {
+Status Phy::identitySnapshot(DeviceIdentity& output) noexcept {
   if (!enter()) return busy();
-  if (!stoppedAdmission()) { leave(); return busy(); }
-  const auto status = _core.readClause22(address, output, budget); refreshAgreement(); leave(); return status;
+  output = _core.identitySnapshot(); leave(); return Status::Ok();
 }
-Status Phy::readMmd(uint32_t devad, uint32_t address, uint16_t& output, const IoBudget& budget) noexcept {
+Status Phy::capabilitiesSnapshot(Capabilities& output) noexcept {
   if (!enter()) return busy();
-  if (!stoppedAdmission()) { leave(); return busy(); }
-  const auto status = _core.readMmd(devad, address, output, budget); refreshAgreement(); leave(); return status;
+  output = _core.capabilities(); leave(); return Status::Ok();
 }
-Status Phy::writeClause22(uint32_t address, uint32_t value, const IoBudget& budget) noexcept {
+template<class Call>
+Status Phy::stoppedRaw(RawBatchReceipt* receipt, Call call) noexcept {
+  if (receipt) receipt->valid = false;
   if (!enter()) return busy();
   if (!stoppedAdmission()) { leave(); return busy(); }
-  const auto status = _core.writeClause22(address, value, budget); refreshAgreement(); leave(); return status;
+  bool invoked = false;
+  const auto status = call(receipt ? &invoked : nullptr);
+  if (receipt && invoked) {
+    const auto transport = _core.transportSnapshot();
+    *receipt = {transport.lastBatch, true, transport.violation};
+  }
+  refreshAgreement();
+  leave();
+  return status;
 }
-Status Phy::writeMmd(uint32_t devad, uint32_t address, uint32_t value, const IoBudget& budget) noexcept {
-  if (!enter()) return busy();
-  if (!stoppedAdmission()) { leave(); return busy(); }
-  const auto status = _core.writeMmd(devad, address, value, budget); refreshAgreement(); leave(); return status;
+Status Phy::readIdentity(DeviceIdentity& output, const IoBudget& budget, RawBatchReceipt* receipt) noexcept {
+  return stoppedRaw(receipt, [&](bool* invoked) { return _core.readIdentity(output, budget, invoked); });
 }
-Status Phy::modifyMmd(uint32_t devad, uint32_t address, uint32_t mask, uint32_t value, const IoBudget& budget) noexcept {
-  if (!enter()) return busy();
-  if (!stoppedAdmission()) { leave(); return busy(); }
-  const auto status = _core.modifyMmd(devad, address, mask, value, budget); refreshAgreement(); leave(); return status;
+Status Phy::readClause22(uint32_t address, uint16_t& output, const IoBudget& budget,
+                        RawBatchReceipt* receipt) noexcept {
+  return stoppedRaw(receipt, [&](bool* invoked) { return _core.readClause22(address, output, budget, invoked); });
 }
-Status Phy::modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget& budget) noexcept {
-  if (!enter()) return busy();
-  if (!stoppedAdmission()) { leave(); return busy(); }
-  const auto status = _core.modifyBasicControl(mask, value, budget); refreshAgreement(); leave(); return status;
+Status Phy::readMmd(uint32_t devad, uint32_t address, uint16_t& output, const IoBudget& budget,
+                    RawBatchReceipt* receipt) noexcept {
+  return stoppedRaw(receipt, [&](bool* invoked) { return _core.readMmd(devad, address, output, budget, invoked); });
+}
+Status Phy::writeClause22(uint32_t address, uint32_t value, const IoBudget& budget,
+                          RawBatchReceipt* receipt) noexcept {
+  return stoppedRaw(receipt, [&](bool* invoked) { return _core.writeClause22(address, value, budget, invoked); });
+}
+Status Phy::writeMmd(uint32_t devad, uint32_t address, uint32_t value, const IoBudget& budget,
+                     RawBatchReceipt* receipt) noexcept {
+  return stoppedRaw(receipt, [&](bool* invoked) { return _core.writeMmd(devad, address, value, budget, invoked); });
+}
+Status Phy::modifyMmd(uint32_t devad, uint32_t address, uint32_t mask, uint32_t value,
+                      const IoBudget& budget, RawBatchReceipt* receipt) noexcept {
+  return stoppedRaw(receipt, [&](bool* invoked) { return _core.modifyMmd(devad, address, mask, value, budget, invoked); });
+}
+Status Phy::modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget& budget,
+                              RawBatchReceipt* receipt) noexcept {
+  return stoppedRaw(receipt, [&](bool* invoked) { return _core.modifyBasicControl(mask, value, budget, invoked); });
 }
 Status Phy::acquireEvidence(uint32_t mask, EvidenceSnapshot& output, const IoBudget& budget) noexcept {
   if (!enter()) return busy();
@@ -1158,11 +1190,12 @@ Status Phy::evidenceSnapshot(EvidenceSnapshot& output) noexcept {
   if (!enter()) return busy();
   output = _core.evidenceSnapshot(); leave(); return Status::Ok();
 }
-Status Phy::discover(uint32_t addressMask, DiscoverySnapshot& output, const IoBudget& budget) noexcept {
+Status Phy::discover(uint32_t addressMask, DiscoverySnapshot& output, const IoBudget& budget,
+                    DiscoverySnapshot* fresh) noexcept {
   if (!addressMask) return Status::Error(Err::INVALID_PARAM, "Empty discovery mask", static_cast<int32_t>(ParamDetail::ACCESS_POLICY));
   if (!enter()) return busy();
   const auto operation = _core.operationSnapshot();
-  if (!_installed || _phase != Phase::STOPPED || _notifying || operation.cleanupOwed ||
+  if (!stoppedAdmission() || operation.cleanupOwed ||
       operation.temporaryMayBeActive || operation.state != OperationState::IDLE) { leave(); return busy(); }
   if (_core.transportSnapshot().clockInvalid) {
     leave(); return Status::Error(Err::INVALID_CONFIG, "Core clock contract is latched", static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT));
@@ -1185,13 +1218,21 @@ Status Phy::discover(uint32_t addressMask, DiscoverySnapshot& output, const IoBu
     bool invoked = false;
     auto status = _core.readIdentityAt(address, id1, id2,
         {budget.deadlineUs, budget.maxFrames - _discovery.framesAttempted}, &invoked);
-    _discovery.lastBatch = invoked ? _core.transportSnapshot().lastBatch : BatchResult{};
+    _discovery.lastBatchValid = invoked;
+    if (invoked) {
+      const auto transport = _core.transportSnapshot();
+      _discovery.lastBatch = transport.lastBatch;
+      _discovery.lastBatchViolation = transport.violation;
+    } else {
+      _discovery.lastBatch = {};
+      _discovery.lastBatchViolation = TransportViolation::NONE;
+    }
     const auto& report = _discovery.lastBatch;
     auto& entry = _discovery.entries[address];
     for (uint8_t index = 0; index < 2; ++index) {
       const auto& frame = report.frames[index];
       if (frame.attempted) ++_discovery.framesAttempted;
-      if (frame.completed && frame.valueValid) {
+      if (_discovery.lastBatchViolation == TransportViolation::NONE && frame.completed && frame.valueValid) {
         if (index == 0) { entry.id1 = frame.value; entry.id1Valid = true; }
         else { entry.id2 = frame.value; entry.id2Valid = true; }
       }
@@ -1209,6 +1250,7 @@ Status Phy::discover(uint32_t addressMask, DiscoverySnapshot& output, const IoBu
   }
   const auto status = _discovery.status;
   if (status.ok()) output = _discovery;
+  if (fresh && fresh != &output) *fresh = _discovery;
   leave(); return status;
 }
 Status Phy::discoverySnapshot(DiscoverySnapshot& output) noexcept {

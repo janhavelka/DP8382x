@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Route CLI identity, discovery, typed profile configuration and safe register
+  access through the existing owners. Preserve partial samples and mutation
+  effects, verify stopped SDK cache reconciliation and keep peers quarantined
+  when an attempted reset lacks a usable silence anchor.
+
 - Add the portable example CLI, strict byte parsing, cached owner queries and
   schema 1 session records. Keep terminal output across stalled writes and test
   the byte stream with the real core and simulated MDIO.

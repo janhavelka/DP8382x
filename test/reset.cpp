@@ -556,6 +556,19 @@ void failures() {
   CHECK(drain(clean, noEffect, token).is(Err::MDIO_TIMEOUT));
   CHECK(!take(clean, token).cleanupOwed);
   CHECK(clean.operationSnapshot().busQuietValid);
+  const auto floor = clean.operationSnapshot().busQuietUntilUs;
+  const auto before = noEffect.frames;
+  uint16_t id1 = 0xBEEF, id2 = 0xCAFE;
+  bool invoked = true;
+  noEffect.now = floor - 1U; // Clock lag is also 1 us. Raw time must reach the floor.
+  CHECK(clean.readIdentityAt(0, id1, id2, {100000, 2}, &invoked).is(Err::BUSY));
+  CHECK(!invoked && id1 == 0xBEEF && id2 == 0xCAFE && noEffect.frames == before);
+  noEffect.now = floor;
+  CHECK(clean.operationSnapshot().busQuietValid); // Cached anchor remains until owner admission.
+  CHECK(clean.readIdentityAt(0, id1, id2, {100000, 2}, &invoked).ok());
+  CHECK(invoked && id1 == 0x2000 && id2 == 0xA131 && noEffect.frames == before + 2U);
+  CHECK(clean.readIdentityAt(1, id1, id2, {100000, 2}, &invoked).ok());
+  CHECK(invoked && noEffect.frames == before + 4U);
 
   for (const auto reset : {ResetKind::HARD, ResetKind::RESTART}) {
     Controller bus;

@@ -17,7 +17,7 @@ foreach(target IN ITEMS dp8382x_example_cli dp8382x_cli_fixture dp8382x_console_
       -Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion -UNDEBUG)
   endif()
 endforeach()
-foreach(suite IN ITEMS grammar loss cached retention)
+foreach(suite IN ITEMS grammar loss cached retention routes)
   add_test(NAME cli_processor_${suite} COMMAND dp8382x_cli_tests ${suite})
   set_tests_properties(cli_processor_${suite} PROPERTIES TIMEOUT 15)
 endforeach()

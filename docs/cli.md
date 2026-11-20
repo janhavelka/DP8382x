@@ -7,9 +7,10 @@ snapshot callback once. That callback copies values under the existing owner
 admission and performs no MDIO. Health, link resolution and configuration trust
 are separate. The application still decides whether a link suits its session.
 
-This stage provides the commands below. Live configuration, diagnostics and
-operations enter the table with their executing handlers in prompts 44–46.
-Prompt 47 attaches the processor to the native examples.
+This processor provides local and cached queries, identity and discovery,
+typed profile configuration and policy-checked register access. Prompts 45–46
+add lifecycle, live link, collector and diagnostic commands. Prompt 47
+attaches the already implemented owner bridge to the native consoles.
 
 ## Input and commands
 
@@ -34,7 +35,7 @@ An argument or token failure rejects the entire line before dispatch.
 
 | Command | Alias | Arguments and effect |
 | --- | --- | --- |
-| `help [topic]` | `?` | Show aligned help from the command and settings tables. Topics are `local`, `cached` and each canonical general command. |
+| `help [topic]` | `?` | Show aligned help from the command and settings tables. Topics include `local`, `cached`, `connection`, `configuration`, `registers` and each general command. |
 | `version` | `ver` | Report library and application identity. |
 | `session <nonce>` | | Echo a 1–64 byte protocol token and report identity for synchronization. |
 | `capabilities` | `caps` | Show passive capability evidence from accepted silicon identity. |
@@ -47,13 +48,82 @@ An argument or token failure rejects the entire line before dispatch.
 | `cached settings` | `cfg`, `settings` | Copy desired and observed link profile summaries and configuration trust. |
 | `cached operation` | | Copy the owner slot and cleanup barrier. Does not poll or take a result. |
 | `cached transport` | | Copy all-source MDIO batch/frame counts and controller flags. |
+| `connection identity` | | Copy retained identity, including validity, admission and staleness. |
+| `connection probe` | | Read both identity words at the bound address and check exact-part admission. No scan or selection. |
+| `connection discover [first last]` | | Read raw ID words at each address in an inclusive range. Default DP83826I range is 0–7. Explicit ranges can use 0–31. |
+| `configuration desired`, `configuration observed` | | Copy the named profile and trust, with observed staleness separate. |
+| `configuration validate <profile>` | | Check a complete profile and optional page exchange without changing it or calling the owner. |
+| `configuration apply <profile>` | | Verify a complete profile through the typed operation and reconcile the stopped SDK cache where applicable. |
+| `configuration verify` | | Recheck identity and stable owned fields. No semantic writes. |
+| `configuration invalidate` | | Attest external mutation under maintenance, without MDIO. Leaves history and cleanup obligations intact. |
+| `registers read c22 <reg>` | | Read one policy-approved Clause 22 register, 0–31. |
+| `registers read mmd <devad> <reg>` | | Read one admitted DEVAD/offset in a complete four-frame transaction. |
+| `registers write c22 <reg> <value>` | | Write LEDCR at 0x18 under maintenance. |
+| `registers write mmd <devad> <reg> <value>` | | Write vendor LEDCR alias 31:0x0018 under maintenance. |
+| `registers modify <devad> <reg> <mask> <value>` | | Update selected LEDCR alias bits in one five-frame transaction under maintenance. |
+| `registers bmcr <mask> <value>` | | Update only mask 0x3100 bits in one stopped two-frame operation under maintenance. |
+| `registers dump c22 <first> <last>` | | Inspect up to 32 consecutive addresses through safe read policy. |
+| `registers dump mmd <devad> <first> <last>` | | Inspect up to 32 offsets in one explicit MMD space through safe read policy. |
 
 Unsigned input uses decimal or explicit `0x`/`0X` hex. Leading zeros do not
 select octal. Require at least one digit, reject signs, partial conversions and
 values above 4294967295, then check the command range before using the value.
-The only numeric input here is `local quiet`, with range 0–1. The wire's signed
-details use decimal with an optional minus and retain the whole int32 range.
+The wire's signed details use decimal with an optional minus and retain the
+whole int32 range.
 Enums match their complete tokens. Missing or extra arguments reject.
+
+### Typed profile syntax
+
+```text
+configuration apply an <modes> <pause> <pair> <flags>
+configuration apply an <modes> <pause> <pair> <flags> wait
+configuration apply an <modes> <pause> <pair> <flags> <partner-limit> <packed-pages>
+configuration apply forced <10|100> <half|full> <pair> <flags>
+```
+
+`configuration validate` accepts the same profiles. AN modes are a nonzero
+mask with bits 1 = 10/half, 2 = 10/full, 4 = 100/half and 8 = 100/full. Pause
+is `none`, `symmetric`, `asymmetric` or `both`. Pair selection is `auto`,
+`mdi` or `mdix`. Flags are a 0–7 mask. Bit 1 enables robust routing, bit 2
+enables coupled pair/polarity mirroring and bit 4 requests extended full
+duplex. Forced profiles require robust routing. Forced 10 cannot enable
+extended duplex. The native stopped route also rejects extended forced
+half duplex because it cannot publish a qualified SDK link mode.
+
+With `wait`, stable setting verification and AN completion are separately
+observed. For next pages supply a partner limit of 1–16 and one token of 1–16
+four-digit hex words. A word uses message bit 0x2000, ACK2 bit 0x1000 and an
+11-bit payload. NP and toggle are owner-controlled. Examples include
+`2001` (final null) and `20040003` (remote fault, code 3). The existing
+typed validator enforces messages 1/4/5/6, ordered unformatted page counts,
+and reserved values. Core checks EEE compatibility and live prerequisites
+under the original budget.
+
+### Direct access limits
+
+C22 addresses have five bits. Register 0x1F is distinct from its reset
+command mask 0x8000. Direct reads reject selectors 0x0D/0x0E, consuming or
+latched fields, reserved holes and procedure-only addresses. Vendor MMD
+DEVAD 31 inherits the same rules for aliases. The additional safe EEE
+tuples are 3:0x0014, 7:0x003C and 7:0x003D. No other DEVAD/offset is inferred
+from a printed EEE address. Dumps report blocked rows as skipped and issue
+no frame for them. Read-clear and follow-up observations stay with the
+typed collector and its later CLI route.
+
+Raw LEDCR writes may set only 0x0692. A write replaces the entire owned
+subset. The vendor mask form preserves other admitted stable bits. BMCR
+maintenance accepts a nonzero subset of 0x3100 and a value contained in
+that mask. It cannot reset the PHY, set loopback or write power controls.
+Both raw forms require explicit admission and the application must confirm
+LED0 electrical use before granting LED maintenance. Accepted or uncertain
+semantic writes withdraw current proof. After BMCR maintenance restore the
+owned profile and reconcile SDK agreement before any native restart.
+
+Discovery samples only PHYIDR1/2 in one batch per address. Address 0 is
+ordinary. A zero or all-ones ID word means no plausible response evidence.
+A transport failure keeps its address, signed detail and any valid first
+word. Results neither select nor initialize a PHY, and cannot infer an
+isolated or powered-down state.
 
 ## Console service
 
@@ -69,6 +139,24 @@ Human chunks can be dropped whole when full. `tick` offers at most one
 contiguous span of at most 256 bytes to the nonblocking writer. The writer
 returns the length of its accepted prefix, including zero for backpressure.
 The queue retains all remaining bytes. No controller lock spans output work.
+
+After queuing output, `tick` advances at most one owner call or one
+discovery/dump row. These ranges use a single 2 s exclusive deadline and
+a frame allowance for the whole range. A row can consume one C22 frame,
+a two-ID batch or one four-frame MMD batch. Global admission, clock and
+deadline errors stop the range. Independent transport errors are retained
+per row and do not authorize a retry. Monotonic time and shared quiet floor
+checks use the owner's actual clock. A copy of an expired floor or a failed
+prior receipt cannot deny or replace fresh evidence.
+
+The typed operation uses a 5 s exclusive deadline, 512 frames, 1 ms
+scheduled poll interval and 4096 stalled core polls. Follow
+`workPending()` even when the console has nothing to send. Application
+scheduling must continue serving an admitted token and permit delivery of a
+terminal result after transient contention. It must keep maintenance and
+stopped SDK conditions through apply and reconciliation. Result delivery
+waits for a record slot. Polling an already admitted operation can continue
+while output is stalled.
 
 A complete record occupies at most 1024 bytes including CRLF. The queue admits
 the entire record and any needed leading CRLF together, using its logical tail
@@ -109,14 +197,14 @@ is stable on output and immaterial to validation.
 | --- | --- |
 | `schema` | Decimal 1. |
 | `boot`, `req` | uint32 application boot identifier and uint64 firmware request counter starting at 1. A fresh processor resets the counter. The application supplies a varying boot value. |
-| `type` | `session` for a successful handshake, `result` otherwise. |
+| `type` | `session` for a successful handshake, `sample` for a range row, otherwise `result`. |
 | `cmd` | Canonical command. Groups use a dot as separator, such as `cached.health`. `unknown` means dispatch could not select one. |
 | `op` | uint64 operation token. Zero when the request has no operation. The cached slot token is a separate payload value. |
-| `state` | `terminal` for a final outcome. `admitted` with `primary=IN_PROGRESS` and a nonzero token is reserved for later operation handlers. Admission is never success. |
+| `state` | `terminal` for a final outcome. `admitted` with `primary=IN_PROGRESS` and a nonzero token is emitted by apply and verify when the core accepts work. `progress` marks a single `sample` in a range. |
 | `primary`, `detail` | Exact printable `Err` and signed int32 detail. Only terminal `OK` is command success. Details never narrow a backend error. |
 | `cleanup`, `cleanup_detail` | Separate printable cleanup outcome, or `none` and 0 when no cleanup was executed. A later cleanup cannot replace a primary error. |
 | `time_valid`, `time_us` | 0/1 and uint64 firmware clock in microseconds, sampled when the record is created. With no clock, both are zero. With a valid clock zero is usable. |
-| `deadline_valid`, `deadline_us` | 0/1 and uint64 exclusive operation deadline on that same clock. Both are zero for commands here. |
+| `deadline_valid`, `deadline_us` | 0/1 and uint64 exclusive command deadline on that clock. Local commands and early validation errors use zero. |
 | `reason` | `none`, or the fixed local reason listed below. |
 
 Decimal wire values have no sign except a leading minus for signed negative
@@ -127,11 +215,14 @@ belong to a boot, with no separate counter-exhaustion rule.
 
 Local syntax errors use `INVALID_PARAM` with detail 0. Reasons are `empty`,
 `command`, `topic`, `arity`, `enum`, `number`, `nonce`, `token_count`,
-`token_length`, `line_length`, `byte`, and `input_loss`. A nonterminal or
+`token_length`, `line_length`, `byte`, `input_loss`, `profile`,
+`range`, `space` and `access`. Missing live owner support uses
+`INVALID_CONFIG` with `reason=backend`. A nonterminal or
 invalid cached callback status becomes `INVALID_CONFIG` with reason
 `callback` and retained signed detail. An internal formatting failure uses
 `INVALID_CONFIG` and reason `format`. Other callback errors are returned with
-their actual status. Error records omit the command payload.
+their actual status. Error records may carry a valid acquired prefix or
+write/operation receipt. They never invent successful ordinary read output.
 
 ### Success payloads
 
@@ -147,6 +238,66 @@ their actual status. Error records omit the command payload.
 | `cached settings` | `trust desired_valid desired_mode desired_modes desired_speed_mbps desired_duplex observed_valid observed_stale observed_mode observed_modes observed_speed_mbps observed_duplex`. Mode is `an`, `forced` or `unknown`. Only the active mode's corresponding data applies. Observed staleness is independent of desired intent. |
 | `cached operation` | `slot token slot_status slot_detail cleanup_owed temporary slot_deadline_us`. Slot is `idle`, `running` or `result_pending`. An occupied slot carries its own token and deadline. The query's terminal outcome does not advance that slot. |
 | `cached transport` | `batches attempted completed stopped clock_invalid controller_reusable`. Counts are uint32 and can include application startup or other owner traffic. |
+
+### Identity, registers and profile payloads
+
+Reads and samples encode raw words in decimal. `id1_valid`, `id2_valid`,
+`decoded_valid` and `stale` govern meaning independently. Cached identity and
+probe carry `id1 id2 oui model revision mode identity_state identity_status
+identity_detail` alongside those flags. Modes are `basic`, `enhanced` or
+`unknown`. Identity state is `accepted`, `rejected` or `unassessed`.
+A zero/default payload on a failed probe does not replace historical identity.
+
+Successful direct reads carry `address devad value`. C22 uses `devad=0`.
+Raw write results after the owner call carry `effect batch_valid
+batch_violation release release_detail`. Effect values are `applied` for a
+completed target frame, `possible` for uncertainty, `none` when a fresh receipt
+excludes a target effect, and `unknown` when no receipt exists. A completed
+write still needs verified configuration. Release is an independent batch
+result, distinct from operation cleanup. `batch_valid=1` means this call
+produced the receipt, and `batch_violation` is the core's audit enum ordinal
+with 0 for none. A malformed receipt does not authorize publishing ordinary
+values or counting its attempts as exact.
+
+Discovery samples carry `address id1_valid id1 id2_valid id2 candidate
+attempted batch_valid batch_violation`. Dump samples carry `address devad
+valid value skipped attempted batch_valid batch_violation`. A skipped row
+reports the original access-policy error and is excluded from the terminal
+error count. A terminal range result carries `rows errors skipped attempted
+complete attempted_known end_status end_detail`. `complete=1` means the
+whole range was visited. `attempted_known=0` means the count is a known
+prefix only. Primary status retains the first error. `end_status` separately
+reports a global stop cause. A complete range can still contain failed rows,
+and a complete dump can contain only skipped rows.
+
+Desired and observed profile views carry `valid stale trust mode modes
+speed_mbps duplex pause_sym pause_asym pair flags`. Stale observed fields
+remain historical. Validate and invalidate have no extra success payload.
+Apply/verify admission has no extra payload. The corresponding terminal
+receipt carries `core_status core_detail sdk_error mutation_completed
+mutation_possible cleanup_owed temporary an_complete`. The core result stays
+visible if SDK reconciliation fails. A nonzero SDK error produces terminal
+`INVALID_CONFIG` unless the owner supplies a more specific core error. The
+portable owner has no SDK error. `cleanup_owed` identifies later restoration
+debt. This command does not perform restoration.
+
+Operation receipts also carry `np_requested np_complete np_owed np_refused
+np_base_event np_base_valid np_base np_missing np_tx np_rx np_duplicates
+np_words`. `np_words` is `none` or a packed sequence of four-character
+uppercase hex words. `----` preserves each missing payload slot. The TX/RX
+counts include completed local loads and consumed partner slots, respectively.
+
+For example, `registers read c22 0x02` can yield a valid terminal record:
+
+```text
+@DP8382X schema=1 boot=42 req=4 type=result cmd=registers.read op=0 state=terminal primary=OK detail=0 cleanup=none cleanup_detail=0 time_valid=1 time_us=9500 deadline_valid=1 deadline_us=2009400 reason=none address=2 devad=0 value=8192
+```
+
+A failed target write can still carry possible effect:
+
+```text
+@DP8382X schema=1 boot=42 req=5 type=result cmd=registers.write op=0 state=terminal primary=MDIO_ERROR detail=-43 cleanup=none cleanup_detail=0 time_valid=1 time_us=9600 deadline_valid=1 deadline_us=2009500 reason=none effect=possible batch_valid=1 batch_violation=0 release=OK release_detail=0
+```
 
 For example, a successful session after boot 42 has these bytes followed by
 CRLF:

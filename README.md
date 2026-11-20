@@ -70,11 +70,12 @@ settings; restoration reuses initialization with retained independent results.
 separate bounded starts/stops, retained temporary state and verified restoration.
 [BIST sessions](docs/bist.md) provide generator/checker controls, bounded raw
 captures and verified stop, with inconclusive outcomes where source evidence is missing.
-The [portable example CLI](docs/cli.md) now provides local controls and cached
-views with bounded console output and correlated records. The real-core
-[host fixture](test/cli/README.md) exercises the byte stream and simulated MDIO
-evidence. Live CLI feature handlers, native console integration, runners and
-hardware qualification have later stages.
+The [portable example CLI](docs/cli.md) provides local and cached views, exact
+identity and discovery, typed profile apply/verify and guarded register access.
+The real-core [host fixture](test/cli/README.md) exercises the byte stream and
+simulated MDIO. A separate stopped SDK bridge reconciles verified settings
+through public controls. Native console attachment, further command groups
+and physical qualification have later stages.
 
 Prompt 6 selects one shared C++17 chip implementation, a terminal batch MDIO
 boundary and explicit native lifecycle/cache/collector ownership in the

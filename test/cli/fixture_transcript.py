@@ -106,6 +106,98 @@ class FixtureTranscript(unittest.TestCase):
         self.assertEqual(oversized["reason"], "line_length")
         self.assertEqual((version["req"], version["cmd"]), ("3", "version"))
 
+    def test_identity_discovery_and_safe_dump(self):
+        rows = records(run(b"connection identity\nconnection probe\nconnection discover 0 2\n"
+                           b"registers dump c22 0x0c 0x10\nregisters read mmd 31 0x0467\n"
+                           b"registers read mmd 3 0x14\nregisters read c22 0x1f\n"))
+        cached, probe, *more = rows
+        for receipt in (cached, probe):
+            self.assertEqual((receipt["id1"], receipt["id2"], receipt["mode"]),
+                             ("8192", "41265", "enhanced"))
+        discovery = [row for row in more if row["cmd"] == "connection.discover"]
+        self.assertEqual([(r["address"], r["id1"], r["candidate"]) for r in discovery[:-1]],
+                         [("0", "0", "0"), ("1", "8192", "1"), ("2", "65535", "0")])
+        self.assertEqual((discovery[-1]["rows"], discovery[-1]["attempted"]), ("3", "6"))
+        dump = [row for row in more if row["cmd"] == "registers.dump"]
+        self.assertEqual([(r["address"], r["skipped"]) for r in dump[:-1]],
+                         [(str(a), "1") for a in range(12, 17)])
+        self.assertEqual((dump[-1]["primary"], dump[-1]["attempted"]), ("OK", "0"))
+        self.assertEqual([int(r["value"]) for r in more[-3:]], [0xA567, 0x0002, 0x0000])
+        default_scan = records(run(b"connection discover\n"))
+        self.assertEqual([r["address"] for r in default_scan[:-1]], [str(a) for a in range(8)])
+        self.assertEqual(default_scan[-1]["attempted"], "16")
+
+    def test_profile_verify_and_guarded_mutations(self):
+        reply = records(run(
+            b"configuration apply an 0xf both auto 3 wait\nconfiguration verify\n"
+            b"configuration apply forced 10 half mdi 1\nconfiguration desired\n"
+            b"configuration observed\nregisters bmcr 0x1000 0x1000\n"
+            b"configuration invalidate\nconnection identity\n"))
+        for req in (1, 2, 3):
+            admission, result = [r for r in reply if r["req"] == str(req)]
+            self.assertEqual((admission["state"], admission["primary"]), ("admitted", "IN_PROGRESS"))
+            self.assertEqual((result["state"], result["primary"], result["op"]),
+                             ("terminal", "OK", admission["op"]))
+        self.assertEqual(reply[1]["an_complete"], "1")
+        for row in reply[6:8]:
+            self.assertEqual((row["trust"], row["mode"], row["speed_mbps"], row["duplex"], row["pair"]),
+                             ("VERIFIED", "forced", "10", "half", "mdi"))
+        self.assertEqual(reply[8]["effect"], "applied")
+        self.assertEqual((reply[9]["primary"], reply[10]["stale"]), ("OK", "1"))
+        writes = records(run(b"registers write c22 24 16\nregisters write mmd 31 24 128\n"
+                             b"registers modify 31 24 2 2\nregisters read c22 24\n"))
+        self.assertEqual([r["effect"] for r in writes[:3]], ["applied"] * 3)
+        self.assertEqual(writes[3]["value"], str(0x0082))
+
+    def test_rejection_preserves_core_state_and_frames(self):
+        reply = records(run(
+            b"cached transport\nconfiguration validate an 15 both auto 1 2 20040000\n"
+            b"configuration validate an 15 both auto 1 2 2004\n"
+            b"configuration apply forced 10 half auto 5\n"
+            b"connection discover 0 32\nregisters read c22 0x8000\n"
+            b"registers read mmd 3 0x3c\nregisters read c22 0x0d\n"
+            b"registers write c22 0x1f 0x8000\nregisters bmcr 0x8000 0x8000\n"
+            b"registers dump mmd 31 0 32\n"
+            b"configuration apply an 8 none auto 1\nregisters write c22 24 0\n"
+            b"configuration invalidate\ncached transport\nconfiguration desired\n",
+            "--deny-maintenance"))
+        by_req = {r["req"]: r for r in reply}
+        self.assertEqual(by_req["2"]["primary"], "OK")
+        for req in ("3", "4"):
+            self.assertEqual(by_req[req]["primary"], "INVALID_CONFIG")
+        for req in range(5, 12):
+            self.assertEqual(by_req[str(req)]["primary"], "INVALID_PARAM")
+        for req in ("12", "13", "14"):
+            self.assertEqual(by_req[req]["primary"], "BUSY")
+        for field in ("batches", "attempted", "completed"):
+            self.assertEqual(by_req["1"][field], by_req["15"][field])
+        self.assertEqual(by_req["16"]["valid"], "0")
+
+    def test_partial_prefix_and_failed_write_are_retained(self):
+        baseline = int(records(run(b"cached transport\n"))[0]["attempted"])
+        failed = records(run(b"connection discover 1 1\n",
+                             "--fail-after", str(baseline + 1)))
+        self.assertEqual((failed[0]["id1_valid"], failed[0]["id2_valid"], failed[0]["detail"]),
+                         ("1", "0", "-43"))
+        self.assertEqual((failed[1]["rows"], failed[1]["errors"], failed[1]["primary"]),
+                         ("1", "1", "MDIO_ERROR"))
+        dump = records(run(b"registers dump c22 2 3\n", "--fail-after", str(baseline + 1)))
+        self.assertEqual((dump[0]["valid"], dump[1]["valid"], dump[2]["errors"]),
+                         ("1", "0", "1"))
+        write = records(run(b"registers write mmd 31 24 0x10\n",
+                            "--fail-after", str(baseline + 3)))[0]
+        self.assertEqual((write["primary"], write["detail"], write["effect"], write["release"]),
+                         ("MDIO_ERROR", "-43", "possible", "OK"))
+
+    def test_negotiation_wait_cannot_report_admission_as_success(self):
+        admission, result = records(run(b"configuration apply an 8 none auto 1 wait\n",
+                                        "--partner", "down"))
+        self.assertEqual((admission["state"], admission["primary"]), ("admitted", "IN_PROGRESS"))
+        self.assertEqual((result["state"], result["primary"], result["an_complete"]),
+                         ("terminal", "OPERATION_TIMEOUT", "0"))
+        self.assertEqual((result["op"], result["deadline_us"]),
+                         (admission["op"], admission["deadline_us"]))
+
 
 if __name__ == "__main__":
     unittest.main()

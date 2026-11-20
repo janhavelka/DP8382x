@@ -1,5 +1,11 @@
 # Implementation progress
 
+Prompt 44 adds owner-routed [CLI identity, profile and register commands](cli.md)
+on `main` from synchronized `d1cdb0c`. It preserves partial scan and dump
+evidence, enforces maintenance for disruptive work and reconciles stopped SDK
+settings. The [stage report](reports/implementation/44-cli-configuration-registers.md)
+and [feature matrix](feature-coverage.md) record host coverage and open physical cases.
+
 Prompt 43 implements the [shared CLI grammar and record schema](cli.md) on
 `main` from synchronized `468e269`. The processor has fixed input/output
 bounds, passive owner queries, session correlation and terminal backpressure.
@@ -585,7 +591,7 @@ local checks. Record the actual CI-tested SHA separately from later results.
 | [41 Implement explicit application admission and maintenance ownership](prompts/41-owner-admission-example.md) | Software complete | [Host and P4 link evidence](reports/implementation/41-owner-admission-example.md). Physical session qualification remains open. |
 | [42 Demonstrate bounded native MAC frame handoff](prompts/42-owner-frame-boundary.md) | Software complete | [Host handoff and P4 image link](reports/implementation/42-owner-frame-boundary.md). Reusable teardown remains blocked by the SDK RX lifetime. |
 | [43 Implement the portable CLI, bounded console and record schema](prompts/43-cli-foundation.md) | COMPLETE | [Grammar and schema](cli.md), [source audit and verification](reports/implementation/43-cli-foundation.md). Real-core host fixture and eight CLI CTests. Native console and physical evidence follow. |
-| [44 Add complete identity, configuration and register CLI routes](prompts/44-cli-configuration-registers.md) | NOT STARTED | None |
+| [44 Add complete identity, configuration and register CLI routes](prompts/44-cli-configuration-registers.md) | COMPLETE | [Grammar](cli.md), [matrix](feature-coverage.md), [verification](reports/implementation/44-cli-configuration-registers.md). SDK console attachment and physical qualification follow. |
 | [45 Add link, lifecycle and retained-operation CLI commands](prompts/45-cli-link-lifecycle.md) | NOT STARTED | None |
 | [46 Expose every diagnostic and opt-in feature through typed commands](prompts/46-cli-diagnostics-controls.md) | NOT STARTED | None |
 | [47 Integrate the shared CLI in both P4 applications and close coverage](prompts/47-cli-native-integration.md) | NOT STARTED | None |

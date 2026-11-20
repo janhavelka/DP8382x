@@ -492,17 +492,19 @@ Status DP8382x::end() noexcept {
 }
 
 Status DP8382x::readClause22(uint32_t registerAddress, uint16_t& value,
-                            const IoBudget& budget) noexcept {
+                            const IoBudget& budget, bool* invoked) noexcept {
+  if (invoked) *invoked = false;
   if (registerAddress > 31U) { return paramError(ParamDetail::ADDRESS_RANGE); }
   if (!readable(registerAddress)) { return paramError(ParamDetail::ACCESS_POLICY); }
   const auto batch = directBatch(static_cast<uint8_t>(registerAddress), FrameKind::READ);
-  const Status status = _execute(batch, budget);
+  const Status status = _execute(batch, budget, invoked);
   if (status.ok()) { value = _transport.lastBatch.frames[0].value; }
   return status;
 }
 
-Status DP8382x::readIdentity(DeviceIdentity& identity, const IoBudget& budget) noexcept {
-  return _readIdentity(identity, budget, false);
+Status DP8382x::readIdentity(DeviceIdentity& identity, const IoBudget& budget, bool* invoked) noexcept {
+  if (invoked) *invoked = false;
+  return _readIdentity(identity, budget, false, invoked);
 }
 
 Status DP8382x::readIdentityAt(uint32_t phyAddress, uint16_t& id1, uint16_t& id2,
@@ -597,7 +599,8 @@ Status DP8382x::_checkMutation() noexcept {
 }
 
 Status DP8382x::writeClause22(uint32_t registerAddress, uint32_t value,
-                             const IoBudget& budget) noexcept {
+                             const IoBudget& budget, bool* invoked) noexcept {
+  if (invoked) *invoked = false;
   if (registerAddress > 31U) { return paramError(ParamDetail::ADDRESS_RANGE); }
   if (value > 0xFFFFU) { return paramError(ParamDetail::VALUE_WIDTH); }
   const auto allowed = writableMask(registerAddress);
@@ -608,11 +611,12 @@ Status DP8382x::writeClause22(uint32_t registerAddress, uint32_t value,
   if (!admission.ok()) { return admission; }
   const auto batch = directBatch(static_cast<uint8_t>(registerAddress), FrameKind::WRITE,
                                  static_cast<uint16_t>(value));
-  return _execute(batch, budget);
+  return _execute(batch, budget, invoked);
 }
 
 Status DP8382x::readMmd(uint32_t devad, uint32_t registerAddress, uint16_t& value,
-                       const IoBudget& budget) noexcept {
+                       const IoBudget& budget, bool* invoked) noexcept {
+  if (invoked) *invoked = false;
   const Status addressStatus = checkMmdCall(devad, registerAddress);
   if (!addressStatus.ok()) { return addressStatus; }
   bool admitted = devad == cmd::DEVAD_VENDOR && readable(registerAddress);
@@ -620,13 +624,14 @@ Status DP8382x::readMmd(uint32_t devad, uint32_t registerAddress, uint16_t& valu
     if (row.devad == devad && row.address == registerAddress && row.safeRead) { admitted = true; }
   }
   if (!admitted) { return paramError(ParamDetail::ACCESS_POLICY); }
-  const Status status = _execute(_mmdBatch(static_cast<uint16_t>(registerAddress), FrameKind::READ, 0, static_cast<uint16_t>(devad)), budget);
+  const Status status = _execute(_mmdBatch(static_cast<uint16_t>(registerAddress), FrameKind::READ, 0, static_cast<uint16_t>(devad)), budget, invoked);
   if (status.ok()) { value = _transport.lastBatch.frames[3].value; }
   return status;
 }
 
 Status DP8382x::writeMmd(uint32_t devad, uint32_t registerAddress, uint32_t value,
-                        const IoBudget& budget) noexcept {
+                        const IoBudget& budget, bool* invoked) noexcept {
+  if (invoked) *invoked = false;
   const Status addressStatus = checkMmdCall(devad, registerAddress, value <= 0xFFFFU);
   if (!addressStatus.ok()) { return addressStatus; }
   const auto allowed = devad == cmd::DEVAD_VENDOR ? writableMask(registerAddress) : uint16_t{0};
@@ -634,11 +639,12 @@ Status DP8382x::writeMmd(uint32_t devad, uint32_t registerAddress, uint32_t valu
   const auto admission = _checkMutation();
   if (!admission.ok()) { return admission; }
   return _execute(_mmdBatch(static_cast<uint16_t>(registerAddress), FrameKind::WRITE,
-                           static_cast<uint16_t>(value)), budget);
+                           static_cast<uint16_t>(value)), budget, invoked);
 }
 
 Status DP8382x::modifyMmd(uint32_t devad, uint32_t registerAddress, uint32_t mask,
-                         uint32_t value, const IoBudget& budget) noexcept {
+                         uint32_t value, const IoBudget& budget, bool* invoked) noexcept {
+  if (invoked) *invoked = false;
   const Status addressStatus = checkMmdCall(devad, registerAddress, mask <= 0xFFFFU && value <= 0xFFFFU);
   if (!addressStatus.ok()) { return addressStatus; }
   const auto allowed = devad == cmd::DEVAD_VENDOR ? writableMask(registerAddress) : uint16_t{0};
@@ -652,7 +658,7 @@ Status DP8382x::modifyMmd(uint32_t devad, uint32_t registerAddress, uint32_t mas
   // LEDCR forces reserved zero; other targets use their per-register preserve policy.
   batch.frames[4] = {FrameKind::WRITE, cmd::REG_ADDAR, static_cast<uint16_t>(value),
                      static_cast<uint16_t>(uint32_t{registerPolicy(registerAddress)->preserveMask} & ~mask), 3};
-  return _execute(batch, budget);
+  return _execute(batch, budget, invoked);
 }
 
 void DP8382x::_invalidateEvidence() noexcept {

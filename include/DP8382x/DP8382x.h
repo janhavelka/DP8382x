@@ -576,6 +576,12 @@ struct ConfigureOptions {
   bool waitForCompletion{false}; ///< Observe BMSR AN-complete, independently of register verification.
   NextPageExchange nextPages{}; ///< Nonempty exchange always waits for AN-complete.
 };
+/// @brief Validate a complete link profile and negotiation policy with no I/O.
+/// @param[in] settings Desired link settings.
+/// @param[in] options Negotiation wait and ordered next-page policy.
+/// @return OK for legal input or the same syntax/combination error as startConfigure.
+/// @note Runtime admission, device evidence and deadlines are checked by the owner.
+Status validateConfiguration(const LinkSettings& settings, const ConfigureOptions& options) noexcept;
 /// @brief Current foundational configuration evidence, separate from desired intent.
 enum class ConfigurationTrust : uint8_t {
   UNKNOWN, ///< No established configuration evidence.
@@ -1785,15 +1791,17 @@ public:
   /// @param[in] mask Nonzero subset of 0x3100; no reset, power, loopback or selector commands.
   /// @param[in] value Sixteen-bit replacement subset of mask, not persistent desired intent.
   /// @param[in] budget Absolute deadline and at least two frames.
+  /// @param[out] invoked Optional flag cleared on entry. True identifies this call's lastBatch.
   /// @pre Initialized accepted exact part, awake normal profile, stopped application traffic.
   /// @return Validation/admission/transport status; successful or uncertain write invalidates
   /// identity/readiness/trust. Reinitialize/replay before managed use; no automatic retry.
   /// @note SNLS647I table 8-19: neutralize RESET/RESTART and never echo the power-pin OR.
-  Status modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget& budget) noexcept;
+  Status modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget& budget, bool* invoked = nullptr) noexcept;
 
   /// @brief Acquire and accept identity at the bound address in one two-read batch.
   /// @param[out] identity Assigned only after complete in-budget transport and identity acceptance.
   /// @param[in] budget Aggregate microsecond deadline and at least two frames.
+  /// @param[out] invoked Optional flag cleared on entry. True identifies this call's lastBatch.
   /// @return Transport/admission errors unchanged; DEVICE_NOT_FOUND for either
   /// required word zero/all-ones; DEVICE_MISMATCH for OUI/model/revision/mode,
   /// checked in that order. No error implies physical absence or an MDIO ACK.
@@ -1802,7 +1810,7 @@ public:
   /// stays in identitySnapshot; never combine words from different calls.
   /// @pre Bound, serialized owner with clock/power/reset readiness established.
   /// Uses the ordinary raw-read guard; no reset, scan, write or retry is performed.
-  Status readIdentity(DeviceIdentity& identity, const IoBudget& budget) noexcept;
+  Status readIdentity(DeviceIdentity& identity, const IoBudget& budget, bool* invoked = nullptr) noexcept;
   /// @brief Read raw PHYIDR1/2 at an explicit bus address without accepting or retargeting a device.
   /// @param[in] phyAddress Clause 22 address 0..31; all other values reject before callbacks.
   /// @param[out] id1 First sixteen-bit ID word, assigned only on complete success.
@@ -1827,6 +1835,7 @@ public:
   /// @param[in] registerAddress Five-bit address, validated before narrowing.
   /// @param[out] value Assigned only on complete valid in-budget success.
   /// @param[in] budget Original exclusive microsecond deadline and frame allowance.
+  /// @param[out] invoked Optional flag cleared on entry. True identifies this call's lastBatch.
   /// @return INVALID_PARAM for width/access, NOT_BOUND, BUSY, clock/configuration
   /// error, transport failure or OPERATION_TIMEOUT; never IN_PROGRESS.
   /// @note SNLS647I tables 8-19..48. Selectors, holes, consuming reads and CDCR
@@ -1835,11 +1844,12 @@ public:
   /// A valid active-reset observation invalidates affected current evidence even
   /// if release/timing fails; it interrupts an interleaved operation, not a frozen result.
   Status readClause22(uint32_t registerAddress, uint16_t& value,
-                      const IoBudget& budget) noexcept;
+                      const IoBudget& budget, bool* invoked = nullptr) noexcept;
   /// @brief Write the safe maintenance subset in one terminal owned batch.
   /// @param[in] registerAddress Only LEDCR (0x18) is currently admitted.
   /// @param[in] value Sixteen-bit word; only mask 0x0692 may be nonzero.
   /// @param[in] budget Original exclusive microsecond deadline and frame allowance.
+  /// @param[out] invoked Optional flag cleared on entry. True identifies this call's lastBatch.
   /// @pre Application establishes exact part/address and safe LED0 electrical use,
   /// and serializes maintenance. Binding alone does not verify those facts.
   /// @return Direct-access errors or the retained failed identity status; OK is
@@ -1849,24 +1859,26 @@ public:
   /// Replaces all four fields: unset bits select 20 Hz blink and active-low
   /// polarity, overriding the strap. Use modifyMmd to change one field.
   Status writeClause22(uint32_t registerAddress, uint32_t value,
-                       const IoBudget& budget) noexcept;
+                       const IoBudget& budget, bool* invoked = nullptr) noexcept;
   /// @brief Read one admitted nonconsuming MMD word in one four-frame batch.
   /// @param[in] devad Device selector; vendor 31 plus the three source-implied EEE reads.
   /// @param[in] registerAddress Sixteen-bit documented offset; no indirect selectors.
   /// @param[out] value Unchanged unless all frames, release and timing succeed.
   /// @param[in] budget Original exclusive deadline and at least four frames.
+  /// @param[out] invoked Optional flag cleared on entry. True identifies this call's lastBatch.
   /// @return Direct-access terminal errors; INVALID_PARAM for holes, consuming reads
   /// or unadmitted DEVAD/offsets. EEE mappings remain physically unqualified.
   /// @note SNLS647I 8.3.11.1/.5, tables 8-31/32. Clause 22 aliases inherit the
   /// same policy. Raw TDR/MSE/strap words do not establish freshness or units.
   /// Vendor reset aliases retain the same invalidation effects as readClause22.
   Status readMmd(uint32_t devad, uint32_t registerAddress, uint16_t& value,
-                 const IoBudget& budget) noexcept;
+                 const IoBudget& budget, bool* invoked = nullptr) noexcept;
   /// @brief Write one admitted vendor-MMD word in one four-frame batch.
   /// @param[in] devad Device selector; only 31 is admitted for mutation.
   /// @param[in] registerAddress Currently only the LEDCR alias (0x0018).
   /// @param[in] value Sixteen-bit word; reserved bits must be zero.
   /// @param[in] budget Original exclusive deadline and at least four frames.
+  /// @param[out] invoked Optional flag cleared on entry. True identifies this call's lastBatch.
   /// @pre Same exact-part, maintenance and pin-use preconditions as writeClause22.
   /// @return Terminal status; errors retain selector/possible target effects.
   /// @note SNLS647I 8.3.11.4 and table 8-42. Always reselects the address;
@@ -1874,13 +1886,14 @@ public:
   /// Replaces all four fields: unset bits select 20 Hz blink and active-low
   /// polarity, overriding the strap. Use modifyMmd to change one field.
   Status writeMmd(uint32_t devad, uint32_t registerAddress, uint32_t value,
-                  const IoBudget& budget) noexcept;
+                  const IoBudget& budget, bool* invoked = nullptr) noexcept;
   /// @brief Modify safe stable fields under one five-frame MMD transaction.
   /// @param[in] devad Device selector; only 31 is admitted for mutation.
   /// @param[in] registerAddress Currently only the LEDCR alias (0x0018).
   /// @param[in] mask Nonzero sixteen-bit subset of LEDCR's documented stable bits.
   /// @param[in] value Sixteen-bit replacement bits; must be a subset of mask.
   /// @param[in] budget Original exclusive deadline and at least five frames.
+  /// @param[out] invoked Optional flag cleared on entry. True identifies this call's lastBatch.
   /// @pre Owner excludes reset/external writers and meets writeClause22 preconditions.
   /// @return Terminal status; a failed or late dependent write may have applied.
   /// @note Five frames are inferred from SNLS647I 8.3.11.1, not a printed sequence.
@@ -1890,7 +1903,7 @@ public:
   /// Never replay commands or update mixed/destructive fields through generic RMW.
   /// No readback verification, automatic retry or separate public lock scope.
   Status modifyMmd(uint32_t devad, uint32_t registerAddress, uint32_t mask,
-                   uint32_t value, const IoBudget& budget) noexcept;
+                   uint32_t value, const IoBudget& budget, bool* invoked = nullptr) noexcept;
   /// @brief Explicitly acquire destructive words through the sole private collector.
   /// @param[in] sourceMask Nonzero subset of ALL_EVIDENCE; no implicit sources.
   /// @param[out] evidence Assigned only when every requested read/release succeeds on time.
