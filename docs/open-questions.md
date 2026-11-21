@@ -1,20 +1,20 @@
 # Open questions
 
-These are product and bench choices for the DP83826I integration. The
-[design decisions](design-decisions.md) record the accepted library behavior.
-The [feature coverage](feature-coverage.md) and
-[implementation progress](implementation-progress.md) carry detailed gates
-and actual evidence.
+These questions cover how to use the DP83826I Ethernet chip in a product
+and what to check on the bench. The [design decisions](design-decisions.md)
+record the accepted library behavior. The [feature coverage](feature-coverage.md)
+and [implementation progress](implementation-progress.md) show which checks
+have been run and which still need evidence.
 
 ## When should Ethernet recovery require a board restart?
 
 **Example.** If the drive cable is unplugged, close the active EtherCAT
 session. When the cable is back, the application can use the same installed
 Ethernet driver after the required recovery and link checks. A different kind
-of failure may require removing and reinstalling the driver. With the pinned
-ESP-IDF, the receive task may still be using driver memory after Ethernet has
-stopped. Restarting the board is the supported way to recover from that
-situation.
+of failure may require removing and reinstalling the driver. With the selected
+version of ESP-IDF, a background task that receives Ethernet data may still
+be using the old driver after Ethernet has stopped. Restarting the board is
+the supported way to recover from that situation.
 
 | Option | Pros | Cons |
 | --- | --- | --- |
@@ -22,9 +22,11 @@ situation.
 | Validate an ESP-IDF version that can stop, remove and reinstall the Ethernet driver safely while the board keeps running | Can restore Ethernet without interrupting other services when the installed driver must be replaced. | Needs a supported SDK method that proves the receive task has finished using the old driver, plus tests under traffic and failure conditions. The pinned SDK does not establish this. |
 
 **Suggested starting point.** Keep the existing driver when recovery can
-verify it still works. Check the link again and open a new session before
-using it. Consider qualifying driver reinstallation without rebooting if
-the machine needs its other services to stay up through a driver failure.
+verify it still works. Check that the link came back at the expected speed
+in full duplex and that the Ethernet controller is running before opening a
+new session.
+Consider testing driver reinstallation without rebooting if the machine's
+other services need to keep running through a driver failure.
 [Native lifecycle decision](design-decisions.md#6-public-lifecycle-route-for-the-pinned-sdk) ·
 [EtherCAT integration](ethercat-integration.md)
 
@@ -37,10 +39,15 @@ master knows when the next reply is due. A drive can also stop replying
 while the Ethernet link still reports up.
 
 - **EtherCAT process data.** The master exchanges commands and feedback on
-  a regular schedule. The drive fields are mapped as PDOs, the same kind of
-  process data as CANopen PDOs. EtherCAT carries them in Ethernet frames
-  sent by the master. For a 1 ms cycle, the master sets a receive deadline
-  inside each cycle and checks the working counter for each datagram.
+  a regular schedule. A process data object (PDO) groups the fields sent
+  in one direction, such as target speed sent to a drive or actual speed
+  sent back. The idea is the same as a CANopen PDO, and EtherCAT carries
+  the fields in Ethernet frames sent by the master. For a 1 ms cycle, the
+  master sets a reply deadline inside that cycle and checks the working
+  counter in each datagram, the part of the frame that requests a read,
+  a write, or both. The devices update the counter when they carry out the
+  operation. A frame can return on time with a counter that differs from
+  the expected value, so a reply alone does not establish a valid exchange.
 - **PHY status polling.** The firmware reads the Ethernet chip's link
   status on a schedule. A bounded poll has a set time or amount of work
   it may spend before returning an error or giving control back. The gap
@@ -49,12 +56,13 @@ while the Ethernet link still reports up.
   setting belongs to the demo's link checks. The EtherCAT master sets its
   own cycle and reply deadline.
 
-The DP83826I supports a hardware interrupt. In Enhanced mode its
-`PWRDN/INT` pin is pin 21 and can be configured as an active-low interrupt
-output. The checked ESP32P4X netlist connects it to the `ETHPDN` test point
-and a pull-up, with no ESP32 GPIO connection. The interrupt can help report
-a physical link event sooner. A 1 ms EtherCAT exchange and the master's
-reply deadline do not require this pin.
+The DP83826I can signal an event to the processor through a hardware
+interrupt. In Enhanced mode it can be configured to pull pin 21
+(`PWRDN/INT`) low when an interrupt occurs. In the saved ESP32P4X schematic,
+the pin reaches the `ETHPDN` test point and a pull-up resistor that holds it
+high at idle. It has no connection to an ESP32 input (GPIO). The interrupt
+can help report a physical link event sooner. A 1 ms EtherCAT exchange and
+the master's reply deadline do not require this pin.
 [Board wiring](esp32p4-board.md#phy-interrupt-wiring) ·
 [TI datasheet, table 5-1](https://www.ti.com/lit/ds/symlink/dp83826i.pdf) ·
 [EtherCAT process data](https://www.ethercat.org/en/technology.html) ·
@@ -78,22 +86,23 @@ and CST for torque. Confirm what `CPT` means for the intended drive before
 choosing its PDO mapping.
 [A6-EC user guide](https://omc-stepperonline.com/download/A6-EC_series_servo_drive_manual.pdf)
 
-## Which fixture leads physical qualification?
+## Which test setup should we use first?
 
-**Example.** A known-good desktop peer establishes 100/full on the product
-board. That can exercise board power-up and link recovery. It cannot prove
-10 Mbit/s behavior, interrupt edges or a drive's cyclic response without the
-applicable peer, wiring or observer.
+**Example.** A known-good desktop Ethernet port connects to the product
+board at 100 Mbit/s full duplex, which means both ends can send and receive
+at the same time. This can test power-up and link recovery. Separate tests
+need a 10 Mbit/s partner for that speed, a wired interrupt for measuring
+interrupt timing, or a drive for testing its replies to repeating commands.
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| Start with the intended P4 board and a known 100/full peer once the board is ready | Collects evidence for the actual RMII clock, reset, straps, MDIO and application port first. | Needs the final board/netlist and independent power, clock and reset evidence. Cannot cover features absent from that board. |
-| Use a verified exact-part development or evaluation fixture for PHY-only cases | Can exercise additional peers, PHY modes or wired INT without modifying the product board. | Its wiring or host may differ. Results apply to that fixture and do not qualify the product board. |
+| Start with the intended P4 board and a known 100 Mbit/s full-duplex Ethernet partner once the board is ready | Tests the actual product port, including the clock for the chip-to-processor interface (RMII), reset, hardware startup settings (straps) and register access (MDIO). | Needs the final board wiring record and independent measurements of power, clock and reset. This setup covers the features the board provides. |
+| Use an evaluation board with the same DP83826I to test the chip | Can test other Ethernet partners, chip modes or a wired interrupt without modifying the product board. | The evaluation board can have different wiring or a different processor. Its results apply to that setup. |
 
-**Suggested starting point.** Record the first available exact board/PHY
-combination, peer, cable, instruments and approved recovery route. Prioritize
-the intended 100/full product path when its board is ready. Use a second
-fixture for additional supported features where needed.
+**Suggested starting point.** Record the exact board and chip, device at
+the other end of the cable, instruments and approved steps to recover the
+setup after a fault. Test the intended 100 Mbit/s product link first when
+the board is ready. Use a second setup for additional features if needed.
 [Fixture and case requirements](hardware-validation.md#common-fixture-and-owner-admission)
 
 ## Deep power-down for later library support
@@ -103,20 +112,21 @@ library's design and implement it when the full entry and exit behavior
 can be verified. The first EtherCAT application does not need it and is
 expected to keep the PHY in normal operation.
 
-**Example.** A product powers down the PHY while idle and later requests
-normal operation without rebooting. Its MAC expects a usable reference clock
-again. A successful management read alone cannot establish clock or link
-readiness after the transition.
+**Example.** A product puts the Ethernet chip into a low-power mode while
+idle and later asks it to wake without rebooting. The Ethernet controller
+(MAC) needs the chip's reference clock again. The processor may be able to
+read a chip register before the clock or Ethernet link is ready, so test
+those separately.
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| Keep the PHY in normal operation during idle | Has the fewest transitions to qualify and keeps the existing clock and link path available in idle. | Idle current may exceed the product budget. |
-| Qualify the implemented active-sleep mode on the actual board | Can reduce idle power with the existing driver and retains an explicit wake check. | Wake time, management access and the PHY-supplied MAC clock need measurement under the actual peer conditions. |
-| Qualify deep power-down if measured idle power still misses the requirement | Can address a tighter standby-current target if the full transition is supported. | Needs exact-part evidence for entry, exit, clock readiness and restoration before the library can enable it. |
+| Keep the PHY in normal operation during idle | Has the fewest power changes to test and keeps the existing clock and link path available in idle. | Idle current may exceed the product budget. |
+| Test the implemented active-sleep mode on the actual board | Can reduce idle power using the existing driver, with a separate check that wake-up worked. | Measure wake time, register access and the clock supplied to the Ethernet controller under the expected conditions at the other end of the cable. |
+| Test deep power-down if measured idle power still misses the requirement | Can address a tighter standby-current target if wake-up can be verified. | Before enabling the mode, verify how this exact chip enters and leaves it, when its clock is usable, and what configuration has to be restored. |
 
 **What remains open.** Establish the complete deep-power-down exit and
-recovery sequence for this exact chip, including management access, the
-PHY-supplied clock and restored configuration. Keep entry disabled until
-that evidence is available. If a future product has a standby-current
+recovery sequence for this exact chip, including register access, the
+clock supplied to the processor and restored settings. Keep entry disabled
+until that evidence is available. If a future product has a standby-current
 requirement, compare the supported power modes against that requirement.
 [Power policy and source gate](power.md)
