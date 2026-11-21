@@ -305,3 +305,61 @@ and Ninja 1.12.1.
 
 Stage (d) owns the completion checks and progress record. The wrapper owns
 the review checkpoint commit and synchronization.
+
+## Stage (d) completion
+
+The wrapper's 2026-11-21 09:55 Prague-time run log records the stage (c)
+commit and remote equality at `f54b0c1b375d7cf1a7a0dc8935657705e0999614`
+in `janhavelka/DP8382x`. Stage (d) began on clean `main` with that same
+local and tracking SHA, 0 ahead and 0 behind. The four read-only sibling
+runner, CLI and test references were still clean at the revisions in the
+source audit. There is no prompt-49 ledger procedure or public C++ API change.
+README, CHANGELOG and the runner, CLI, architecture, P4 and test guides
+already carry the shipped behavior. Stage (d) adds the report and progress
+record. The wrapper records the completion commit and sync after this run.
+
+Verification used Windows x86-64, Python 3.12.10, GNU 15.1.0, CMake 4.0.1
+and Ninja 1.12.1.
+
+| Layer | Result | Evidence |
+| --- | --- | --- |
+| Release host and compiled producer | PASS | 263/263 CTests. `cli_hil_runner` ran 14 tests and `cli_hil_serial` ran 17, including the compiled producer through the injected serial bridge. Release test assertions remain enabled. |
+| Python without site-packages | PASS | 180 discovered, 178 passed and two compiled-fixture cases skipped by unittest discovery. Both cases executed under CTest. |
+| Offline runner and replay | PASS | Global and serial help, UART0 serial preview with no evidence directory, and five `fixture-operations` cases on the compiled simulator. The original and replayed artifact pairs both verified as `host_protocol`. The manual fixture run reported firmware revision `unknown` with no firmware revision expectation. The serial bridge test supplied a known simulated revision and checked the receipt. |
+| Portable tests-OFF consumers | PASS | `portable_consumer` and `portable_cable_consumer` built and passed in a separate Release configuration. |
+| Source and documentation | PASS | 29 reference artifacts, 27 extracts and 2153 local links. Ledger verification covered 97 registers, 52 procedures and 35 features. Version, Doxygen (293 pages and two rejected negative fixtures) and whitespace checks passed. |
+| Exported package consumer | NOT RUN | Prompt 49 changes the runner and its evidence format. Export and clean package checks are owned by prompts 69–70. |
+| Native ESP-IDF link | NOT RUN | No component, example firmware or SDK input changed in prompt 49. |
+| Remote CI | NOT RUN | First-execution remote CI is reserved for prompt 71. |
+| Physical serial and PHY | NOT RUN | No identified fixture authorizes an unattended attachment with reset-silent open and close. A fixture record for the exact port, driver, wiring and running image is needed before live use. |
+
+Build and test commands, from the repository root:
+
+```powershell
+cmake -S . -B build/p49-final -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON
+cmake --build build/p49-final --parallel 4
+ctest --test-dir build/p49-final --output-on-failure --no-tests=error
+cmake -S test/consumer -B build/p49-final-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF
+cmake --build build/p49-final-consumer --parallel 2
+ctest --test-dir build/p49-final-consumer --output-on-failure --no-tests=error
+python -S -m unittest discover -s test -p 'test_*.py' -v
+python -S tools/dp8382x_hil_runner.py --help
+python -S tools/dp8382x_hil_runner.py run-serial --help
+python tools/verify_references.py
+python tools/verify_ledger.py
+python tools/check_doxygen.py
+python scripts/generate_version.py check
+git diff --check
+```
+
+The dry-run and offline artifact paths used the [runner guide commands](../../hil-runner.md)
+with `build/p49-final-preview` and `build/p49-final/evidence`, respectively.
+The offline run and replay used nonce `p49-final` and basenames `compiled`
+and `replay`. Tests exercise port admission and open failures, partial or
+zero writes, framing loss, late fragments, identity mismatch, interruption,
+device loss, aggregate deadline and recovery expiry, close errors, stalled
+lifecycle calls and incomplete publication. The native POSIX single-write
+rule was exercised with an injected descriptor and write function.
+
+Prompt 49 is complete for software. Prompt 50 may use the bounded serial
+transport, decoder and evidence carrier for offline campaign development.
