@@ -160,3 +160,72 @@ Doxygen, version, reference, ledger and whitespace checks passed.
 Portable/package consumer, ESP-IDF link, remote CI and physical evidence
 are NOT RUN in phase (c). Native feature grants and first-board INT remain
 BLOCKED. Phase (d) owns final verification and the completion decision.
+
+## Phase (d) completion
+
+On 2026-11-21, verification started from a clean index and worktree on
+`main` at `be41f2b4052970336c06d2cc7814a0e342e34362`. The wrapper
+recorded remote equality after the review fixes and the local comparison
+confirmed zero ahead and behind. The code, tests and guides are already in
+the synchronized implementation and review commits. The completion request
+adds this report and the progress status. The wrapper records the resulting
+commit and sync for `janhavelka/DP8382x`.
+
+One read-only subagent used the inherited model to check prerequisites,
+source receipts and coverage while the lead ran local verification. Prompts
+46 and 50 are complete. The three sibling revisions in the evidence table
+were still clean. The audit reopened their rules, driver headers and source,
+examples, tests and classifiers. MB85RC's complete-counter oracle,
+PCA9555's recovery after primary failure and TCA9548A's lost-boundary and
+readback cases support the retained-evidence and guarded cleanup rules.
+The lead reviewed the README, CHANGELOG, CLI and HIL guides, fixture
+instructions and feature coverage. The native sources and SDK build inputs
+are outside this prompt's diff. No ledger procedure assigns implementation
+ownership to stage 51.
+
+Windows x86-64 10.0.26300, GNU 15.1.0, CMake 4.0.1, Ninja 1.12.1 and
+Python 3.12.10. The local SDK checkout resolved to ESP-IDF v6.1
+`fff9895c82d744c7237be8847347bdd1b07c6643`.
+
+| Layer | Result and scope |
+| --- | --- |
+| Release host | PASS · 265/265 CTests with assertions enabled. The compiled feature registration passes all 44 positive cases, checks all bound field removals, corruptions and duplicates, and verifies the deep-power source block. Compiled negatives exercise denied admission, failed readback, output pressure, timeout, reboot and interruption with separate primary and restoration evidence. |
+| Focused UBSan trap | PASS · 9/9 CTests using the compiled CLI fixture. |
+| Python and source checks | PASS · 186 passed of 215 discovered tests, with 29 compiled-only skips. Doxygen generated 293 pages and rejected two negative fixtures. The final reference check covered 29 payloads, 27 extracts and 2,202 local links. Ledger verification covered 97 registers, 52 procedures and 35 features. Generated version and whitespace checks passed. |
+| Portable consumer | PASS · 2/2 separately configured tests-OFF consumer CTests. Exported package consumer NOT RUN. |
+| SDK link | NOT RUN in prompt 51. Both default-closed P4 images linked in the [prior native review](47-48-independent-review.md#verification). |
+| Remote CI | NOT RUN. First-execution CI belongs to prompt 71. |
+| Physical | NOT RUN. Stock native feature grants and first-board INT remain BLOCKED. The hardware guide retains the required fixture grants, wiring, readback, recovery routes and independent measurements. |
+
+```powershell
+cmake -S . -B build/p51-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON
+cmake --build build/p51-release --parallel 4
+ctest --test-dir build/p51-release --output-on-failure --no-tests=error -j 4
+cmake -S . -B build/p51-ubsan -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON '-DCMAKE_CXX_FLAGS=-fsanitize=undefined -fsanitize-undefined-trap-on-error'
+cmake --build build/p51-ubsan --target dp8382x_cli_fixture --parallel 3
+ctest --test-dir build/p51-ubsan -R '^cli_(hil_(features|campaign|runner|serial)|.*transcript)$' --output-on-failure --no-tests=error -j 3
+cmake -S test/consumer -B build/p51-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF
+cmake --build build/p51-consumer --parallel 2
+ctest --test-dir build/p51-consumer --output-on-failure --no-tests=error
+python -S -m unittest discover -s test -p 'test_*.py' -q
+python -S tools/check_doxygen.py
+python -S scripts/generate_version.py check
+python -S tools/verify_references.py
+python -S tools/verify_ledger.py
+git diff --check a13485a
+```
+
+Offline artifact smoke PASS. The [runner guide](../../hil-runner.md) commands
+`dry-run`, `run-fixture` and `verify-artifacts` used the Release fixture with
+simulated identity `abcdef0`, host/sim-mdio, DP83826I ENHANCED, RMII address 1
+and exclusive polling. The `loopback-digital` and `irq` artifacts replayed
+with exit 0. The `power-deep` artifact retained a BLOCKED case and both
+execution and replay returned the expected inconclusive exit 2. A first
+smoke invocation used the invalid case name `interrupt` and failed argument
+validation. The corrected `irq` invocation produced the passing evidence.
+
+| Transcript in `build/p51-release/phase-d-evidence` | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `loopback-digital.txt` | 13077 | `5d34e6d6d0f6a34cda9ff2cd28f2c25ea2115518a0cc3f58b856974bb4b13de2` |
+| `irq.txt` | 18873 | `f8e46b2b97b948b8f7d1c034572725aa6877f3c7edb001c4121058795c0a8dc5` |
+| `power-deep.txt` | 7675 | `1a1bacf7cfc0175f3c5f9c600b12826fafed1e89ed5a6d32fb7f0e0cf9e7ae90` |
