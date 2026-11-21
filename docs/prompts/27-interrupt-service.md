@@ -27,7 +27,7 @@ polarity/WoL source in MISR2. Implement both interrupt-source maps and retain ea
 Test every source, consumed events after later failure and explicit test-IRQ stop.
 
 Reopen INA228 `DiagAlert`/`readDiagAlert`, PCA9555 deferred input
-and interrupt cleanup tests, and current LDC1614 deferred interrupt source/tests.
+and interrupt cleanup tests, and current LDC161x deferred interrupt source/tests.
 Inspect SCD41/RV3032-C7 explicit IRQ commands when adopting their conventions;
 record actual paths/symbols, not repository-name guesses. Recheck SNLS647I
 interrupt configuration, MISR read-clear, pin mux and software test tables.

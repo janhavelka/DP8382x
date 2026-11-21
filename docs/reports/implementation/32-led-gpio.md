@@ -43,7 +43,7 @@ Fresh clean sibling revisions and actual reopened paths, relative to each root:
 | Reference/revision | Inspected declarations, implementation and executing cases |
 | --- | --- |
 | PCA9555 `8b461b2afe9910b5b15fe32cc049d52e3b498970` | `include/PCA9555/PCA9555.h` settings/operation declarations; `src/PCA9555.cpp`261-334 shadow invalidation and tracked writes; `test/test_basic.cpp`1124/1143 ambiguous effects and registrations; example CLI cached settings, runner and agent guidance. |
-| LDC1614 `da104689de49ab8f492e7905f3eb7496f0866624` | `include/LDC1614/LDC1614.h` interrupt/pin contract; `src/LDC1614.cpp`1092 readDataReady/1270 readIntb; `test/test_basic.cpp`2954 optional INTB case/3137 registration; live versus cached CLI, runner and guidance. |
+| LDC161x `da104689de49ab8f492e7905f3eb7496f0866624` | `include/LDC1614/LDC1614.h` interrupt/pin contract; `src/LDC1614.cpp`1092 readDataReady/1270 readIntb; `test/test_basic.cpp`2954 optional INTB case/3137 registration; live versus cached CLI, runner and guidance. |
 | SCD41 `0b9d3d02c27feacf9b1354dc2a8b83a9e5a04879` | `include/SCD41/SCD41.h` readDataReady declaration 639; `src/SCD41.cpp` 1129/1544 command/response path, tests/dispatcher/examples and guidance. No public IRQ API exists; data-ready response does not define PHY pin behavior. |
 | RV3032-C7 `15d7a2782f7d6e136d29ff7339c1bee27bc5b8aa` | `include/RV3032/RV3032.h` IRQ/CLKOUT controls; `src/RV3032.cpp`1330 clock guard; `test/test_native/test_datetime.cpp`8970 final-byte mismatch/11089 registration, CLI, runner and guidance. |
 

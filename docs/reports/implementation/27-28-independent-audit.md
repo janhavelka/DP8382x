@@ -44,7 +44,7 @@ actual paths documented in [27](27-interrupt-service.md#fresh-sibling-audit) and
 | MB85RC | `3ace168eb01d687ab60e9fe88cc72322e5cae260` |
 | INA228 | `4de84f2564eb6382835ca9a72d8688377657dcb4` |
 | PCA9555 | `8b461b2afe9910b5b15fe32cc049d52e3b498970` |
-| LDC1614 | `da104689de49ab8f492e7905f3eb7496f0866624` |
+| LDC161x | `da104689de49ab8f492e7905f3eb7496f0866624` |
 | SCD41 | `0b9d3d02c27feacf9b1354dc2a8b83a9e5a04879` |
 | RV3032-C7 | `15d7a2782f7d6e136d29ff7339c1bee27bc5b8aa` |
 

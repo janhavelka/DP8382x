@@ -6,7 +6,7 @@ independent of CLI, UART, ANSI, JSON and Python.
 
 ## Grammar and commands
 
-Re-audit relevant TMP1x2, SHT3x, INA228, LDC1614 and TCA9548A dispatchers/runners.
+Re-audit relevant TMP1x2, SHT3x, INA228, LDC161x and TCA9548A dispatchers/runners.
 Use `=== DP8382x CLI Help ===`, grouped aligned help and prompt `> `. Support
 plain/color-off output; optional sibling colors reset after each styled field.
 Prompt 43 freezes tokenization, aliases, numeric parsing, group names,

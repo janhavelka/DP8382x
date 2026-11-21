@@ -51,7 +51,7 @@ Projects):
   `src/PCA9555.cpp`, registered primary/cleanup, ambiguous-write, cancellation
   and detach tests in `test/test_basic.cpp`, cached
   `examples/common/HealthDiag.h` and fixture/parser cases.
-- LDC1614 `da104689de49ab8f492e7905f3eb7496f0866624`:
+- LDC161x `da104689de49ab8f492e7905f3eb7496f0866624`:
   public declarations, `src/LDC1614.cpp`, `test/test_basic.cpp`,
   `examples/common/Ldc1614Cli.cpp` and `tools/test_ldc1614_hil_runner.py`.
 

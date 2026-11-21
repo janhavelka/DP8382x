@@ -26,7 +26,7 @@ variants, reference index and shared prompt contracts. Actual implementation,
 declarations and selected native assertions were inspected, with focused CLI,
 Python and CMake/workflow source review. No remote CI results were requested.
 This was not an exhaustive code review of five repositories. SCD41, RV3032-C7,
-LDC1614 and other stage-specific references remain explicit future live-audit
+LDC161x and other stage-specific references remain explicit future live-audit
 targets; their behavior is not asserted from a filename or historical report.
 
 ## Observed behavior and selected adaptations

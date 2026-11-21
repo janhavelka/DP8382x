@@ -37,7 +37,7 @@ An additional manifest/layout inventory found these chip-driver precedents:
 
 | Group | Repositories | Useful comparison; limits of this pass |
 | --- | --- | --- |
-| Other I2C devices | `24Cxx`, `ADS1115`, `INA3221`, `LDC1614`, `LSM6DS3TR`, `MCP45HVX1`, `OPT4001`, `RV3032-C7`, `SSD1315` | Same public-header family, bring-up CLI and Python/CI pattern; inventory only here, not a behavioral audit |
+| Other I2C devices | `24Cxx`, `ADS1115`, `INA3221`, `LDC161x`, `LSM6DS3TR`, `MCP45HVX1`, `OPT4001`, `RV3032-C7`, `SSD1315` | Same public-header family, bring-up CLI and Python/CI pattern; inventory only here, not a behavioral audit |
 | SPI devices | `ADS1261`, `MAX31865` | Explicit `Transport.h`, `Protocol.h`, optional `ArduinoBackend.h`, separate sampling/maintenance/CLI examples; transport adaptation precedent, not MDIO behavior |
 | Other wire protocols | `AT21CS11`, `EE871-E2`, `VTN4xx` | Separate protocol/transport or externally owned service boundaries; no justification to copy timing implementations |
 | Broader networking | `SIM7080G-Core` | Task/queue/platform modem architecture; unsuitable as the core ownership template for a PHY |

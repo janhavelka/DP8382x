@@ -273,7 +273,7 @@ filename alone.
 | --- | --- |
 | ADS1115 `235af3e8c722661a89a44766a4ccd903a654f6fe` | `include/ADS1115/`, `src/ADS1115.cpp`; inventory only |
 | INA3221 `41b6184b75f3c152611d4236f7ea41a5ce77bc2c` | `include/INA3221/`, `src/INA3221.cpp`; inventory only |
-| LDC1614 `1db38b63cb93a561b6e0bea51017ab94102ebd24` | `include/LDC1614/`, `src/LDC1614.cpp`; inventory only |
+| LDC161x `1db38b63cb93a561b6e0bea51017ab94102ebd24` | `include/LDC1614/`, `src/LDC1614.cpp`; inventory only |
 | LSM6DS3TR `362b140990bc4ba2bc7f32cef50f8d9f30b4d3cc` | `include/LSM6DS3TR/`, `src/LSM6DS3TR.cpp`; repository is `LSM6DS3TR`, chip label includes `-C` |
 | OPT4001 `dab818e575fc25a0949d962bc0df600eb2ed5200` | `include/OPT4001/`, `src/OPT4001.cpp`; inventory only |
 | RV3032-C7 `aabd8d9204e75072403fefb60cf8d2679a7f56de` | `include/RV3032/`, `src/RV3032.cpp`; repository and include directory differ |
