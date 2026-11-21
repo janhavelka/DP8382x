@@ -171,3 +171,9 @@ Finish with the verified commit/sync result and remaining gates.
 First-execution workflow policy: create automatic CI triggers at prompt 71;
 none exists yet. Preserve existing hooks and required checks. Prompts 72–80
 retain the recorded CI-tested SHA and their own local evidence.
+
+## Commit and pull request attribution
+
+Credit human contributors for their work. Omit AI co-author trailers, AI-generated
+signatures or sign-offs, generated-by footers, session links, and other AI
+attribution from commit messages and pull request titles and descriptions.
