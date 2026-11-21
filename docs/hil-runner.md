@@ -67,12 +67,24 @@ cleanup allowance. Closure has its own remaining allowance.
 For example, select `--case loopback-digital` with the compiled RMII fixture.
 `compliance-*` and `calibration-recovery` additionally require
 `--reinitialize` for separate saved-profile replay after verified HARD exit.
+After an autorun enable is admitted, restore the saved disabled policy even
+if the failed request completed no writes. Autorun cleanup debt requires
+`--reinitialize` and verified retained intent before no-reset replay and
+the typed disable. Pins, quality and analog use their own known-intent
+checks before the corresponding no-reset replay.
 The host diagnostic/control cases prove their typed software paths, with
 simulated inputs for packet errors, calibration, interrupt and wake status.
 They cannot qualify the cable, signals, timing, packet generator, power or
 wake behavior of a real board. Stock native feature cases are BLOCKED
 before stimulus. Their instrument requirements and controlled procedures
 are in the [feature fixture guide](hardware-validation.md#feature-fixtures).
+The runner blocks an incompatible operating mode or interface before sending
+the fixture prelude. A feature case samples the ordinary link before stimulus
+and verifies the same link state, including partner ability when valid, after
+restoration. A correlated reply with malformed feature payload fails the
+primary assertion. The runner may still attempt a typed stop after checking
+the owner, slot and transport. Primary and restoration outcomes remain
+independent. Lost framing or boot continuity stops further commands.
 
 For a compiled offline example, first build `dp8382x_cli_fixture`, then run:
 

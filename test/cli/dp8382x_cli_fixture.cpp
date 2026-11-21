@@ -481,7 +481,11 @@ private:
     if (line == "$pause") _paused = true;
     else if (line == "$raise-calibration") _bus.words[30] |= 0x4000U;
     else if (line == "$inject-bist-errors") _bus.bistErrors = 5;
-    else if (line == "$inject-wake") _bus.vendor[0x04A0] |= 0x0800U;
+    else if (line == "$inject-wake") {
+      if ((_bus.vendor[0x04A0] & 0x0100U) != 0U) _bus.vendor[0x04A0] |= 0x0800U;
+      _bus.vendor[0x04A1] |= 0x0001U;
+      _bus.words[19] |= 0x0200U;
+    }
     else if (line == "$latch-link-low") _bus.linkLatchedLow = true;
     else if (line == "$isolate") _bus.isolated = true;
     else if (line.substr(0, 15) == "$campaign-peer ") {

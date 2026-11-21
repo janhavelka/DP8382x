@@ -4,12 +4,12 @@ from dataclasses import dataclass
 
 if __package__:
     from .dp8382x_hil_campaign import (
-        I32, WORD, AssertionFailed, Intervention, Profile, bits, clean, exact_fields, matches, payload, require,
+        I32, WORD, AssertionFailed, Intervention, Profile, bits, clean, feature_fields, matches, payload, require,
     )
     from .dp8382x_hil_protocol import TERMINAL_STATUS, U64_MAX
 else:
     from dp8382x_hil_campaign import (
-        I32, WORD, AssertionFailed, Intervention, Profile, bits, clean, exact_fields, matches, payload, require,
+        I32, WORD, AssertionFailed, Intervention, Profile, bits, clean, feature_fields, matches, payload, require,
     )
     from dp8382x_hil_protocol import TERMINAL_STATUS, U64_MAX
 
@@ -37,6 +37,7 @@ CASES = {
     "analog": ("calibrated differential MDI load and amplitude, impedance and slew instruments", True),
 }
 MII_CASES = {"interface-mii", "quality"}
+RMII_CASES = {"pins", "interface-rmii25", "interface-rmii50", "repeater-leader", "repeater-follower"}
 MODES = {"pins": "enhanced", "pins-basic": "basic", "interface-mii": "enhanced"}
 PEERS = dict.fromkeys(("eee", "lpi", "mse", "irq"), "an-100-full")
 BLOCKED_CASES = {"power-deep"}
@@ -209,7 +210,7 @@ def inspect(c, text, schema, expected, *, cleanup=False, verdict="FAIL"):
     row = yield from c.command(text, cleanup=cleanup)
     # Failed reads may omit payloads or report an older retained prefix.
     require(clean(row), row, f"{text} did not complete cleanly", verdict)
-    exact_fields(payload(row), schema)
+    feature_fields(row, schema, verdict)
     evidence(row, expected, f"{text} does not prove the required observed control state", verdict)
     return row
 
@@ -223,8 +224,11 @@ def effect_possible(row):
             "BUSY", "INVALID_CONFIG", "INVALID_PARAM", "NOT_INITIALIZED", "UNSUPPORTED"):
         return False
     if row.cmd == "lpi.start" and fields:
-        exact_fields(fields, LPI)
-        return not matches(fields, effect_completed=0, effect_possible=0, attempted=0)
+        try:
+            feature_fields(row, LPI)
+        except AssertionFailed:
+            return True
+        return not matches(fields, lpi=0, effect_completed=0, effect_possible=0)
     return True
 
 
@@ -238,7 +242,7 @@ def issue_mutation(c, text, form):
 
 def operation(row, schema, expected, *, reset=False, temporary=False):
     require(clean(row), row, f"{row.cmd} did not complete cleanly")
-    exact_fields(payload(row), {**OP, **schema})
+    feature_fields(row, {**OP, **schema})
     evidence(row, dict(core_status="OK", core_detail=0, mutation_completed=1, mutation_possible=1,
                        cleanup_owed=int(temporary), temporary=int(temporary), persistent_restored=int(not temporary),
                        effective_reset="hard" if reset else "none", reset_accepted=int(reset),
@@ -248,7 +252,7 @@ def operation(row, schema, expected, *, reset=False, temporary=False):
 
 def direct(row, schema, expected):
     require(clean(row), row, f"{row.cmd} did not complete cleanly")
-    exact_fields(payload(row), {**DIRECT, **schema})
+    feature_fields(row, {**DIRECT, **schema})
     evidence(row, dict(batch_primary="OK", batch_detail=0, release_status="OK", release_detail=0,
                        mutation_attempted=1, mutation_possible=1, verified=1, **expected),
              f"{row.cmd} lacks verified effects or independent release")
@@ -354,7 +358,7 @@ def irq(c):
         operation(row, IRQ, target)
         yield from inspect(c, "irq status", IRQ, target)
         row = yield from issue_mutation(c, "irq test-start", "operation")
-        test_owed = effect_possible(row)
+        test_owed = bool(row.op) and not matches(row.fields, test_active=0, cleanup_owed=0, temporary=0)
         operation(row, IRQ, active, temporary=True)
         yield from inspect(c, "irq status", IRQ, active)
         yield from inject(c, "inject-events")
@@ -366,7 +370,7 @@ def irq(c):
             yield from c.command("cached events", cleanup=True)
             yield from c.command("irq cached-service", cleanup=True)
             raise c.failed
-        exact_fields(payload(sample), IRQ_SERVICE)
+        feature_fields(sample, IRQ_SERVICE)
         evidence(sample, dict(valid=1, stale=0, more_pending=1, physts=21, misr1=0xA520, misr2=0x5A02,
                               shared_source=2, fcscr_requested=0, fcscr_valid=0, fcscr=0, fcscr_lower_bound=0,
                               recr_requested=1, recr_valid=1, recr=0, last_status="OK"),
@@ -427,7 +431,7 @@ def eee_terminal(row, enabled):
 
 def lpi_result(row, enabled):
     require(clean(row), row, f"{row.cmd} did not complete cleanly")
-    exact_fields(payload(row), LPI)
+    feature_fields(row, LPI)
     evidence(row, dict(lpi=int(enabled), readback_valid=1, control=139 | int(enabled) << 12,
                        batch_primary="OK", primary_detail=0, batch_release="OK", release_detail=0,
                        attempted=9, completed=9, transactions=2, effect_completed=1, effect_possible=1),
@@ -481,11 +485,11 @@ def eee(c, saved):
         c.restoration = "PASS"
 
 
-def wake_view(enabled=False, secure=False, pulse=0, pending=False):
+def wake_view(enabled=False, secure=False, pulse=0, pending=False, event=False):
     control = 0x1000 | int(not pulse) << 8 | pulse << 9 | int(enabled) * 0x81 | int(secure) << 5 | int(pending) << 11
     return dict(desired_valid=1, trust=1, stale=0, route=0, control_valid=1, control=control, enabled=int(enabled),
                 secure=int(secure), level=int(not pulse), pulse=pulse, crc=1, magic=int(enabled), match_word_mask=63,
-                rxfs_valid=1, rxfs=4096, misr2_valid=1, misr2=0)
+                rxfs_valid=1, rxfs=0x1000 | int(event), misr2_valid=1, misr2=int(event) << 9)
 
 
 def wol(c):
@@ -502,14 +506,14 @@ def wol(c):
         operation(row, WOL, target)
         yield from inspect(c, "wol read", WOL, target)
         yield from inspect(c, "wol status", WOL, target)
-        if not pulse:
-            pending = True
-            yield from inject(c, "inject-wake")
-            yield from inspect(c, "wol read", WOL, wake_view(True, secure, pending=True))
+        pending = not pulse
+        yield from inject(c, "inject-wake")
+        yield from inspect(c, "wol read", WOL, wake_view(True, secure, pulse, pending=pending, event=True))
+        if pending:
             row = yield from c.command("wol acknowledge", "operation")
             operation(row, WOL, target)
-            yield from inspect(c, "wol read", WOL, target)
-            pending = False
+        yield from inspect(c, "wol read", WOL, target)
+        pending = False
     except AssertionFailed as error:
         c.failed = error
     if not c.may_change:
@@ -520,9 +524,12 @@ def wol(c):
             yield from persistent_guard(c)
             row = yield from c.command("wol read", cleanup=True)
             require(clean(row), row, "current wake policy unavailable during cleanup")
-            exact_fields(payload(row), WOL)
+            feature_fields(row, WOL)
             if int(row.fields["control"]) & 0x0800:
-                evidence(row, wake_view(True, secure, pending=True), "owned level wake cannot be proved for cleanup")
+                owned = wake_view(True, secure, pending=True)
+                del owned["rxfs"], owned["misr2"]
+                evidence(row, owned, "owned level wake cannot be proved for cleanup")
+                require(int(row.fields["rxfs"]) & 0x1000, row, "wake selector is unavailable during cleanup")
                 row = yield from c.command("wol acknowledge", "operation", True)
                 operation(row, WOL, target)
         except AssertionFailed as error:
@@ -569,8 +576,6 @@ def deep_gate(c):
 def run(c, saved):
     """Run only the selected control case under the shared campaign owner and budgets."""
     case_id = c.spec.id
-    mode = MODES.get(case_id)
-    require(mode is None or c.declaration["mode"] == mode, None, f"{case_id} requires {mode} mode", "BLOCKED")
     if case_id in CONTROLS:
         yield from persistent_case(c, saved)
     elif case_id == "irq":

@@ -111,3 +111,52 @@ Live Secure-ON values stay outside the generic runner. Preserve the named
 source gates for deep-power exit, BIST interpretation, pin/clock routes,
 analog receiver gain and COUNT100. No local serial, peer, power or bench
 action was performed in this phase.
+
+## Phase (c) independent review
+
+The wrapper committed and verified remote equality for
+`cad68249178468525315dca3254739ab62e6a145`. Phase (c) started at that
+clean checkpoint on `main`. Two read-only reviewers used the current Sol
+model at high effort for diagnostic and control ownership, effects and
+source semantics. The lead reviewed shared correlation and evidence,
+integrated the fixes and reviewed their final diff. Both reviewers finished.
+
+The review reopened the sibling revisions above, including their public
+drivers, CLI examples, runner classifiers and actual failure tests. Their
+qualified recovery and readback precedents apply to the same-boot owner
+and independent result receipts. SNLS647I tables 8-19, 8-35 through 8-40
+and 8-90/91 anchor collision timing, IRQ/BIST and wake evidence. SNLA428
+and SNLA266B remain the TDR and electrical fixture references. The local
+ESP-IDF checkout still resolves to `fff9895c82d744c7237be8847347bdd1b07c6643`.
+
+- A malformed feature payload in a correlated reply fails the assertion
+  and leaves the independently guarded typed stop eligible. Broken framing,
+  boot continuity or operation correlation still ends command admission.
+  A failed restoration keeps the successful primary receipt intact. Exit
+  compares the ordinary link state and valid partner evidence to entry.
+- An admitted autorun enable retains desired intent even after a prewrite
+  failure. A clean slot permits the typed disable. Retained persistent debt
+  requires explicit no-reset replay authorization, verified saved link
+  intent and known autorun target. Restoration then disables the policy
+  and verifies both the retained state and CR1. Reversible stimulus paths
+  for IRQ and LPI require evidence of a possible temporary effect before
+  sending a stop.
+- Interface gates run before a fixture prelude. WoL fixtures exercise
+  modeled RXFS and MISR2 event history, plus separate level acknowledgment
+  in level mode. The hardware guide specifies COL timing and the selected
+  nominal wake pulse width. Packet matching, endpoint wake and waveforms
+  remain physical qualification work.
+
+Windows x86-64 Release GNU 15.1.0 passed the same focused CTest selection
+above, 9/9. The feature suite covers all 44 positive nonce-correlated
+transcripts and the source-blocked deep-power path. It exercises every bound
+field by removal, corruption and duplication, and includes regressions for
+the review findings. A separate supported-mode sweep passed 50 diagnostic
+and 35 control sessions, with two deep-power BLOCKED cases. Including
+prelude, the respective command maxima were 44 and 50, with two and one
+interventions. Python discovery ran 215 tests with 29 compiled-only skips.
+Doxygen, version, reference, ledger and whitespace checks passed.
+
+Portable/package consumer, ESP-IDF link, remote CI and physical evidence
+are NOT RUN in phase (c). Native feature grants and first-board INT remain
+BLOCKED. Phase (d) owns final verification and the completion decision.

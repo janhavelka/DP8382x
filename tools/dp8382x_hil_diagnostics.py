@@ -103,8 +103,7 @@ BASELINES = {"cable-autorun": ("diagnostics cable-autorun off",)}
 def equal_fields(row, expected):
     """Check the entire supplied schema and the independent fixture values."""
     fields = payload(row)
-    if fields.keys() != expected.keys():
-        raise ProtocolError(f"{row.cmd} missing or unexpected evidence fields")
+    require(fields.keys() == expected.keys(), row, f"{row.cmd} missing or unexpected evidence fields")
     require(matches(fields, **expected), row, f"{row.cmd} evidence differs from the selected procedure")
 
 
@@ -121,20 +120,16 @@ def result(row, expected, **effects):
     equal_fields(row, {**effects, **expected})
 
 
-def begin(c, text):
+def begin(c, text, *, persistent=False):
     """Retain possible mutation before sending, including an interrupted reply."""
     c.may_change = True
     row = yield from c.command(text, "operation")
     if row.op == 0:
-        if payload(row):
-            raise ProtocolError(f"{row.cmd} local rejection contains effect data")
-        if row.primary != "OK" and row.fields["cleanup"] == "none":
+        if row.primary != "OK" and row.fields["cleanup"] == "none" and not payload(row):
             c.may_change = False
-    elif not clean(row):
+    elif not persistent and not clean(row):
         fields = row.fields
         indicators = ("mutation_completed", "mutation_possible", "cleanup_owed", "temporary", "reset_accepted")
-        if any(fields.get(key) not in ("0", "1") for key in indicators):
-            raise ProtocolError(f"{row.cmd} failure does not establish effect bounds")
         if fields["cleanup"] == "none" and matches(fields, **dict.fromkeys(indicators, 0)):
             c.may_change = False
     return row
@@ -313,11 +308,25 @@ def autorun_up(c, saved, cleanup=False):
             "the selected autorun peer did not resolve 100/full")
 
 
+def replay_autorun(c, slot, saved):
+    """Clear retained policy debt only through the authorized known-intent route."""
+    require(c.declaration["reinitialize"], slot, "autorun debt requires a qualified no-reset replay route")
+    desired = yield from c.profile("desired", True)
+    require(matches(desired.fields, valid=1, stale=0) and Profile.read(desired.fields) == saved,
+            desired, "saved link intent was lost before autorun replay")
+    policy = yield from c.read("diagnostics cable-autorun-status", cleanup=True)
+    require(matches(policy.fields, desired_valid=1, desired=1), policy, "autorun target intent is unavailable")
+    yield from c.reset("none", True)
+    yield from autorun_readback(c, 1, True)
+    ready = yield from c.guard_feature_cleanup()
+    require(matches(ready.fields, temporary=0, cleanup_owed=0), ready, "autorun replay left cleanup debt")
+
+
 def autorun(c, saved):
     try:
         yield from autorun_readback(c, 0)
         yield from autorun_up(c, saved)
-        changed = yield from begin(c, "diagnostics cable-autorun on")
+        changed = yield from begin(c, "diagnostics cable-autorun on", persistent=True)
         result(changed, autorun_policy(1), **effect(1, restored=1))
         yield from autorun_readback(c, 1)
         yield from c.intervene("unplug")
@@ -335,7 +344,10 @@ def autorun(c, saved):
     if c.may_change:
         c.restoration = "INCONCLUSIVE"
         try:
-            yield from c.guard_feature_cleanup()
+            slot = yield from c.guard_feature_cleanup()
+            require(slot.fields["temporary"] == "0", slot, "temporary activity bars autorun policy restore")
+            if slot.fields["cleanup_owed"] == "1":
+                yield from replay_autorun(c, slot, saved)
             restored = yield from c.command("diagnostics cable-autorun off", "operation", True)
             result(restored, autorun_policy(0), **effect(1, restored=1))
             yield from autorun_readback(c, 0, True)

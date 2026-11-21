@@ -31,6 +31,7 @@ CONTRADICTIONS = {
     "power-ieee": (b"power.read", b"indicated_down=1", b"indicated_down=0"),
     "eee": (b"eee.read", b"negotiated=1", b"negotiated=0"),
     "wol-magic": (b"wol.read", b"magic=1", b"magic=0"),
+    "wol-pulse": (b"wol.read", b"rxfs=4097", b"rxfs=4096"),
     "mse": (b"controls.mse", b"raw_mse=4660", b"raw_mse=4661"),
 }
 
@@ -57,6 +58,8 @@ class FeaturePlanTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             args = serial_arguments(Path(folder))
             args[args.index("passive")] = "campaign"
+            args += ["--case", "loopback-mii", "--operating-mode", "enhanced",
+                     "--polling", "exclusive", "--clock", "simulated"]
             port = None
 
             def factory(**options):
@@ -64,13 +67,19 @@ class FeaturePlanTests(unittest.TestCase):
                 port = Port(**options)
                 return port
 
-            code, _, err = serial_invoke(args + ["--case", "loopback-mii", "--operating-mode", "enhanced",
-                                                 "--polling", "exclusive", "--clock", "simulated"], factory)
+            code, _, err = serial_invoke(args, factory)
             self.assertEqual(code, 2, err)
             self.assertEqual(port.lines, [f"session {NONCE}\n".encode("ascii")])
             result = runner.verify(Path(folder) / "live.json")
             self.assertEqual((result["verdict"], result["cases"][0]["verdict"]), ("INCONCLUSIVE", "BLOCKED"))
             self.assertEqual(port.closes, 1)
+
+            port = None
+            args[args.index("--backend") + 1] = "sim-mdio"
+            args[args.index("--run") + 1] = "invalid-device-simulation"
+            code, _, err = serial_invoke(args, factory)
+            self.assertEqual(code, 2, err)
+            self.assertIsNone(port)
 
 
 @unittest.skipUnless(FIXTURE or "--fixture" in sys.argv, "run with the compiled CLI fixture")
@@ -180,7 +189,13 @@ class CompiledFeatureTests(unittest.TestCase):
         self.assertIn("irq cached-service", data["commands"])
         self.assertIn("irq test-stop", data["commands"])
         self.assertNotIn("irq configure 0 0 polarity intr 0", data["commands"])
-        self.assertTrue(any(r.cmd == "irq.test-stop" and r.primary == "MDIO_ERROR" for r in decoded(raw)))
+        rows = decoded(raw)
+        events = next(r for r in rows if r.cmd == "cached.events")
+        self.assertEqual((events.fields["misr1"], events.fields["misr2"]), (str(0xA520), str(0x5A02)))
+        cached = next(r for r in rows if r.cmd == "irq.cached-service")
+        self.assertEqual((cached.fields["valid"], cached.fields["stale"], cached.fields["last_status"]),
+                         ("0", "1", "MDIO_ERROR"))
+        self.assertTrue(any(r.cmd == "irq.test-stop" and r.primary == "MDIO_ERROR" for r in rows))
 
     def test_persistent_debt_requires_known_replay_before_baseline_restore(self):
         send = runner.FixtureProcess.send
@@ -200,9 +215,13 @@ class CompiledFeatureTests(unittest.TestCase):
 
     def test_successful_typed_stop_does_not_cover_failed_link_readback(self):
         send = runner.FixtureProcess.send
+        stopping = False
 
         def inject(fixture, line, deadline=None):
-            if line == b"link read 15\n":
+            nonlocal stopping
+            if line == b"diagnostics loopback-stop\n":
+                stopping = True
+            if stopping and line == b"link read 15\n":
                 send(fixture, b"$fail-next 0\n", deadline)
             return send(fixture, line, deadline)
 
@@ -210,8 +229,106 @@ class CompiledFeatureTests(unittest.TestCase):
             result, data, raw = self.run_case("loopback-mii", "-bad-exit-readback")
         row = data["cases"][0]
         self.assertEqual((result, row["restoration"]["verdict"]), (1, "FAIL"))
+        self.assertEqual(row["primary"], {"code": "OK", "detail": 0})
         self.assertTrue(any(r.cmd == "diagnostics.loopback-stop" and r.primary == "OK" for r in decoded(raw)))
         self.assertIn("link read 15 did not complete cleanly", row["message"])
+
+    def test_exit_requires_the_entry_peer_state(self):
+        send = runner.FixtureProcess.send
+
+        def inject(fixture, line, deadline=None):
+            if line == b"diagnostics loopback-stop\n":
+                send(fixture, b"$campaign-peer open\n", deadline)
+            return send(fixture, line, deadline)
+
+        with patch.object(runner.FixtureProcess, "send", inject):
+            result, data, _ = self.run_case("loopback-reverse", "-peer-lost")
+        row = data["cases"][0]
+        self.assertEqual((result, row["primary"]["code"], row["restoration"]["verdict"]), (1, "OK", "FAIL"))
+        self.assertIn("ordinary link state differs", row["message"])
+
+    def test_correlated_payload_error_allows_guarded_stop(self):
+        send = runner.FixtureProcess.send
+        receive = runner.FixtureProcess._next
+        cases = (("loopback-mii", "diagnostics loopback-status", b" stimulus_possible=1",
+                  "diagnostics loopback-stop"),
+                 ("irq", "irq service 2 5 5", b" recr_valid=1", "irq test-stop"))
+        for name, command, field, stop in cases:
+            with self.subTest(case=name):
+                pending = False
+
+                def arm(fixture, line, deadline=None):
+                    nonlocal pending
+                    if line == command.encode("ascii") + b"\n" and stop not in sent:
+                        pending = True
+                    sent.append(line.decode("ascii").strip())
+                    return send(fixture, line, deadline)
+
+                def omit(fixture, deadline=None):
+                    nonlocal pending
+                    chunk = receive(fixture, deadline)
+                    if not pending or chunk is None:
+                        return chunk
+                    raw = bytearray(chunk)
+                    while b"@DP8382X " not in raw or b"\r\n" not in raw.split(b"@DP8382X ", 1)[1]:
+                        chunk = receive(fixture, deadline)
+                        self.assertIsNotNone(chunk)
+                        raw.extend(chunk)
+                    pending = False
+                    self.assertIn(field, raw)
+                    return bytes(raw).replace(field, b"", 1)
+
+                sent = []
+                with (patch.object(runner.FixtureProcess, "send", arm),
+                      patch.object(runner.FixtureProcess, "_next", omit)):
+                    result, data, _ = self.run_case(name, "-bad-payload")
+                row = data["cases"][0]
+                self.assertEqual((result, row["verdict"], row["restoration"]["verdict"]), (1, "FAIL", "PASS"), data)
+                self.assertIn("missing or unexpected", row["message"])
+                self.assertEqual(sent.count(stop), 1)
+
+    def test_autorun_retains_admitted_intent_and_requires_authorized_debt_replay(self):
+        send = runner.FixtureProcess.send
+        for offset, permitted, restoration in ((3, False, "PASS"), (8, False, "FAIL"), (8, True, "PASS")):
+            with self.subTest(offset=offset, replay=permitted):
+                def inject(fixture, line, deadline=None):
+                    if line == b"diagnostics cable-autorun on\n":
+                        send(fixture, f"$fail-next {offset}\n".encode("ascii"), deadline)
+                    return send(fixture, line, deadline)
+
+                with patch.object(runner.FixtureProcess, "send", inject):
+                    result, data, _ = self.run_case("cable-autorun", f"-mdio-{offset}-{permitted}",
+                                                    replay_authorized=permitted)
+                row = data["cases"][0]
+                self.assertEqual((result, row["primary"]["code"], row["restoration"]["verdict"]),
+                                 (1, "MDIO_ERROR", restoration), data)
+                self.assertEqual(data["commands"].count("connection initialize none"), int(permitted))
+                self.assertEqual(data["commands"].count("diagnostics cable-autorun off"), int(restoration == "PASS"))
+
+    def test_failed_start_without_temporary_effect_does_not_send_stop(self):
+        send = runner.FixtureProcess.send
+        for name, start, stop in (("lpi", b"lpi start\n", "lpi stop"), ("irq", b"irq test-start\n", "irq test-stop")):
+            with self.subTest(case=name):
+                def inject(fixture, line, deadline=None):
+                    if line == start:
+                        send(fixture, b"$fail-next 0\n", deadline)
+                    return send(fixture, line, deadline)
+
+                with patch.object(runner.FixtureProcess, "send", inject):
+                    result, data, _ = self.run_case(name, "-no-temporary-effect")
+                row = data["cases"][0]
+                self.assertEqual((result, row["primary"]["code"]), (1, "MDIO_ERROR"), data)
+                self.assertNotIn(stop, data["commands"])
+                if name == "lpi":
+                    self.assertEqual(row["restoration"]["verdict"], "PASS")
+
+    def test_incompatible_interface_blocks_before_baseline_prelude(self):
+        cases = (("collision-10", "RMII"), ("repeater-leader", "MII"), ("pins", "MII"))
+        for name, interface in cases:
+            with self.subTest(case=name):
+                result, data, raw = self.run_case(name, "-wrong-interface", ("--interface", interface))
+                self.assertEqual((result, data["cases"][0]["verdict"]), (2, "BLOCKED"), data)
+                self.assertEqual([row.cmd for row in decoded(raw)], ["session"])
 
     def test_timeout_with_output_pressure_keeps_primary_and_releases_cable(self):
         start = runner.FixtureProcess.__init__

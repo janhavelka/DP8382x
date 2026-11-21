@@ -236,6 +236,14 @@ def require(condition, record, message, verdict="FAIL"):
         raise AssertionFailed(message, record, verdict)
 
 
+def feature_fields(record, checks, verdict="FAIL"):
+    """Check the payload of an already correlated reply without losing its cleanup route."""
+    try:
+        exact_fields(payload(record), checks)
+    except ProtocolError as error:
+        raise AssertionFailed(f"{record.cmd} {error}", record, verdict) from error
+
+
 def matches(fields, **expected):
     return all(fields.get(key) == str(value) for key, value in expected.items())
 
@@ -274,6 +282,7 @@ class Campaign:
         self.declaration = declaration
         self.expected = expected
         self.backend = expected["backend"]
+        self.primary_record = None
         self.interventions = []
         self.last = None
         self.session = None
@@ -289,10 +298,12 @@ class Campaign:
 
     def feature_gate(self):
         """Return the prerequisite that prevents the selected feature from running."""
-        if self.backend != "sim-mdio":
+        if (self.expected["target"], self.backend) != ("host", "sim-mdio"):
             return "qualified native feature grant and independent measurement route unavailable"
         if self.spec.id in getattr(self.feature, "MII_CASES", ()) and self.expected["interface"] != "MII":
             return "case requires the MII fixture"
+        if self.spec.id in getattr(self.feature, "RMII_CASES", ()) and self.expected["interface"] != "RMII":
+            return "case requires the RMII fixture"
         mode = getattr(self.feature, "MODES", {}).get(self.spec.id, self.declaration["mode"])
         if self.declaration["mode"] != mode:
             return f"case requires {mode} operating mode"
@@ -317,7 +328,9 @@ class Campaign:
 
     def cases(self):
         failure = self.failed
-        record = failure.record if failure else self.last
+        record = self.primary_record if self.feature else self.last
+        if failure:
+            record = failure.record
         verdict = failure.verdict if failure else "PASS" if self.success else "INCONCLUSIVE"
         executed = record is not None and verdict not in ("NOT RUN", "BLOCKED")
         message = str(failure) if failure else "typed campaign assertions" if self.success else "campaign interrupted"
@@ -331,7 +344,10 @@ class Campaign:
                                  "verdict": self.restoration}, "message": message}]
 
     def command(self, text, form="terminal", cleanup=False, delay=0):
-        return (yield Command(text, form, cleanup, delay))
+        row = yield Command(text, form, cleanup, delay)
+        if self.feature and not cleanup and clean(row):
+            self.primary_record = row
+        return row
 
     def read(self, text, checks=None, form="terminal", cleanup=False, delay=0):
         row = yield from self.command(text, form, cleanup, delay)
@@ -468,12 +484,16 @@ class Campaign:
                         slot_detail=0, slot_deadline_us=0), row, "cleanup route has an occupied slot")
         return row
 
-    def prove_feature_exit(self, saved):
-        """Verify the saved link profile and released ownership after feature restoration."""
+    def prove_feature_exit(self, saved, entry_link):
+        """Verify the saved profile, ordinary link state and released ownership after restoration."""
         # A failed feature restore cannot be repaired by verifying only the link settings.
         yield from self.config("configuration verify", False, True)
         require((yield from self.profiles(True)) == saved, self.last, "entry link profile was not restored")
-        yield from self.link(saved, saved.modes, cleanup=True)
+        row = yield from self.link(saved, saved.modes, cleanup=True)
+        keys = ("observation", "up", "resolved", "speed_mbps", "duplex", "negotiation",
+                "partner_valid", "partner_modes", "pause_valid", "pause_rx", "pause_tx")
+        require(matches(row.fields, **{key: entry_link.fields[key] for key in keys}), row,
+                "ordinary link state differs from the entry observation")
         require((yield from self.slot(True)).fields["cleanup_owed"] == "0", self.last, "cleanup debt remains")
         yield from self.application(True)
         yield from self.transport(True)
@@ -481,11 +501,12 @@ class Campaign:
 
     def run_feature(self, saved):
         """Keep the feature's primary result separate from independent exit proof."""
+        entry_link = yield from self.link(saved, saved.modes)
         yield from self.feature.run(self, saved)
         if self.restoration == "PASS":
             self.restoration = "INCONCLUSIVE"
             try:
-                yield from self.prove_feature_exit(saved)
+                yield from self.prove_feature_exit(saved, entry_link)
             except AssertionFailed as error:
                 self.restoration = error.verdict
                 self.cleanup_failure = str(error)
