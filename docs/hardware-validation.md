@@ -1,4 +1,4 @@
-# DP83826I observation, configuration and link validation
+# DP83826I hardware validation
 
 The campaign runner implements the cases below through the shared CLI.
 Prompt 50 exercises them using the compiled host fixture, offline replay and
@@ -126,3 +126,81 @@ slot, application state and management health.
 An initialization replay of changed intent alone cannot prove restoration.
 The application was admitted stopped and remains in maintenance. An
 application owner chooses any later start after checking current readiness.
+
+## Feature fixtures
+
+Select a single diagnostic or control case using `--suite campaign --case ID`.
+The executable cases below currently use the compiled `sim-mdio` fixture. The
+runner requires documented rev 1, the selected BASIC/ENHANCED ID and MII/RMII
+binding, an initialized owner and exclusive polling. It checks a clean slot
+and matches independently observed link settings to the owned entry profile
+before stimulus. The compiled fixture supplies explicit maintenance and
+feature grants. A stock P4 image has no such grants for these cases, and the
+serial campaign returns BLOCKED before stimulus. A board name, option or
+operator response supplies provenance only.
+
+For physical work, qualify the fixture under prompt 73. Record the schematic
+revision and tested points, instrument ID/calibration/settings, load and probe
+loading, selected exact-part source limits, elapsed times, raw captures and
+operator actions. Synchronize each relevant capture with the operation token
+or observed edge. Compare actual samples against the selected source/fixture
+limits. Missing wiring or a compatible peer leaves a measurement NOT RUN.
+Unavailable owner admission or unresolved source behavior leaves it BLOCKED.
+The feature ledger retains source-proved absent modes, such as RGMII, separately.
+
+The fixture profile must identify every changed owned setting and the typed
+command that restores it. Capture entry, target and restored readback. Preflight
+any clock, power, isolation or mux change with a qualified path that keeps
+management and console available and an independently authorized fallback.
+Changing the MDIO address has no automated route here. A partial write, reboot,
+clock fault, unexpected fixture effect or loss of continuity stops stimulus.
+Stop external traffic or stimulus at its own source. With a known usable owner,
+treat the typed stop, supported replay and independent readback as separate
+receipts. A failed primary remains failed after cleanup. If the path is lost,
+record the unresolved effect and leave recovery to the identified fixture owner.
+Keep the MAC fenced through verification and release it only on an explicit
+application decision.
+
+### Diagnostic cases
+
+| Case selection | Typed stimulus and return | Physical connection, acquisition and acceptance |
+| --- | --- | --- |
+| `loopback-mii`, `loopback-mii-line`, `loopback-pcs-in`, `loopback-pcs-out` | `diagnostics loopback-start` with `mii 100`, `mii 100 1`, `pcs-in 10` or `pcs-out 100`. Require verified mode/speed, retained session token in `loopback-status` and released stimulus after `loopback-stop`. | Inject identified frames on the MAC-side path at the selected rate and compare sequence and payload at the return endpoint. For line transmit, also capture the loaded differential MDI trace. Verify the ordinary path after stop. |
+| `loopback-digital`, `loopback-analog`, `loopback-reverse`, `loopback-external` | `diagnostics loopback-start` with `digital 100 16`, `analog 100 2`, `reverse 100 4 1` or `external 100 8`. Retain status and stop. Digital must report its HARD exit and persistent replay. | Digital uses MAC stimulus/capture. Analog uses the documented 100-ohm MDI termination and MAC return. Reverse uses a live compatible 100/full peer as stimulus and observer. External uses a compatible loop fixture and MAC capture. Preserve loss, duplication and erroneous frames. Remove external stimulus before exit and prove the original link path. See [loopback](loopback.md). |
+| `bist-off`, `bist-single`, `bist-checker`, `bist-both`, `bist-digital`, `bist-analog`, `bist-external` | `diagnostics bist-start MODE COUNTER BYTES IPG OBSERVE-US SPEED PATH [FLAGS]`, `bist-read [single\|stimulus]`, `bist-status`, `bist-stop`. Retain the before/counter/after words and all validity, activity, lock, sync, history, saturation, wrap and interval flags. | Use an identified 100/full generator/checker and capture trigger with the chosen line, digital, analog or external path. Confirm disabled behavior, a correlated single packet, or independently known checker stimulus as appropriate. The simulated error injection proves the software reporting path. Physical zero-error and rate claims require a qualified window and counter semantics. See [BIST](bist.md). |
+| `cable-manual`, `cable-raw` | `diagnostics cable-start 63 3` or `diagnostics cable-raw aa 1 4 1 0x0d07 0x24 0x1f7a 3`. Then use `cable-read`, `cable-status`, `cable-interpret 5000` (simulated propagation input), then `cable-stop`. Check each selected row's freshness, completion and raw validity. The raw path rejects interpretation. | Use quiet peer conditions, known good/open/short cable ends and measured lengths. Record independent propagation calibration and uncertainty, all selected raw rows and fault classification. Compare interpreted distance with independently measured length and the selected tolerance. Preserve incomplete captures and require verified HARD stop/replay. See [cable procedures](cable.md). |
+| `cable-autorun` | Verify typed entry policy off and its CR1 readback, enable and verify it, observe known link loss, `diagnostics cable-autorun-read`, then restore off and re-observe the entry peer. | Use a defined cable disturbance and an independent edge/time capture. Raw stale data can prove acquisition but cannot attribute the retained words to the induced loss or supply distance. Accept event attribution only with independent provenance. |
+| `compliance-tx100`, `compliance-nlp10`, `compliance-prbs10`, `compliance-pattern10` | `diagnostics compliance-start` with `tx100 mdi 0 3`, `nlp10 mdi 0 3`, `prbs10 mdix 0 3` or `pattern10 mdix 3 3`. Observe `electrical-status`, stop with `compliance-stop`, then use separately admitted `recovery reinitialize none` and readback. Replay requires `--reinitialize`. | Use the selected MDI/MDIX path, calibrated differential scope and prescribed compliance load. Record the exact pattern and rate, waveform amplitude/mask, timing and pulse observations relevant to that mode, and compare each with the selected SNLA266B and applicable electrical limits. Cover alternate supported paths and PATTERN10 codes when qualifying them. COUNT100 remains source-gated. |
+| `collision-10`, `collision-100`, `calibration-recovery` | `diagnostics collision-start 10 3` or `100 3`, `electrical-status` and `collision-stop`. Calibration uses `calibration-recover 1` with a documented CDCR condition, separate HARD completion and `recovery reinitialize none`. | Wire MII TX_EN and the explicitly routed COL to a calibrated logic analyzer, select a compatible 10/100 peer and compare assert/deassert timing to the applicable source bounds. For CDCR, capture the conditional flag, HARD completion and restored configuration. Prove calibration accuracy separately with the identified resistor and instrument setup. See [electrical controls](electrical.md). |
+
+### Control cases
+
+| Case selection | Typed target and restoration evidence | Physical connection, acquisition and acceptance |
+| --- | --- | --- |
+| `irq` | `irq configure`, `irq test-start`, `irq service`, `irq cached-service`, `irq test-stop` and `irq status`. Use a single destructive collector and compare raw status, masks, requested-counter validity and restored route. | Wire the selected INT/LED alternate to an analyzer with the documented pull and polarity. Establish the ENHANCED INT pin's power-down input role and external levels before changing output enable. Capture assert/deassert edges and cause, compare to the service receipt and prove stimulus clears. First-board INT remains BLOCKED. Polling evidence can be acquired in a separately eligible case. |
+| `pins`, `pins-basic` | `controls pins` and `controls pins-status` validate complete typed saved and target roles and stable owned words. | Probe LED0/LED1 and only routed ENHANCED LED2/LED3 under the specified load, with prior pin consumers released. Exercise each admitted LED source, force, polarity, blink/stretch, swap and alternate role against known traffic/link clocks. Measure edges, level and timing at the pin, then verify original owner settings. Source-gated pin mux paths remain BLOCKED. |
+| `interface-rmii25`, `interface-rmii50`, `interface-mii`, `repeater-leader`, `repeater-follower` | `controls interface` and `controls interface-status` validate mode, clock/mux, compatibility, elasticity/isolation and the selected per-owner repeater control. Restore each admitted owner's complete profile. | Wire the selected MII or RMII arrangement and probe actual clock frequency/direction and signal timing. For repeater, cross RX_D to TX_D and RX_DV to TX_EN with one RMII leader or two followers on one qualified common 50 MHz source. Avoid two driven clock outputs. Capture matched traffic in both directions and save each owner's independent setup and restoration receipts. |
+| `power-ieee`, `power-sleep`, `power-pll`, `power-deep` | `power configure`, `power read` and `power status` distinguish requested fields from independently valid BMCR, PHYSCR and BISCR. Restore PLL before clearing IEEE down. Deep-power entry is source-gated by the unresolved exit. | Measure current, clocks and management continuity before, during and after transition. To qualify active sleep/wake, control peer presence and correlate observed sleep and wake with the traces. Prove original power policy, clocks and management return before release. See [power](power.md). |
+| `eee`, `lpi` | `eee configure`, `eee read`, fresh `link read`, and independently verified entry replay. `lpi start` and `lpi stop` require separately qualified 100/full EEE and TX drain. | Use an identified EEE-capable 100/full AN partner and link analyzer. Capture advertised/local/partner ability and actual LPI entry and exit on the link; confirm traffic resumes only on owner release. The register receipt alone proves the request and observation path. See [EEE](eee.md) and [LPI](lpi.md). |
+| `wol-magic`, `wol-secure`, `wol-pulse` | `wol configure`, `wol read`, `wol acknowledge` for level output, `wol status` and known typed restore. The compiled fixture uses synthetic match vectors and a modeled latched event. | Supply an identified packet source and matching/nonmatching packets with the selected CRC policy. Capture wake at the admitted status/IRQ/LED route or application wake endpoint. Measure level through W0C acknowledgment, or pulse width and polarity, and require the expected response only for admitted packets. Keep live Secure-ON values outside generic artifacts. Custom wake patterns lack exact-part support; unresolved LED routes stay source-gated. See [WoL](wake-on-lan.md). |
+| `quality`, `mse`, `analog` | `controls quality` and `quality-status` verify FLD, 100M/10M and recovery settings. `controls mse` and `mse-status` preserve raw DEVAD 31 offset 0x0218 and prior link context. `controls analog` and `analog-status` verify the admitted amplitude, termination and slew fields. | Use MII for enabled FLD and calibrated 10/100 fault/pattern controls. Compare drop/recovery edges versus the injected energy/symbol/descrambler event, and retain MSE raw without deriving SNR. Probe MDI using the prescribed load and MAC I/O with calibrated bandwidth/impedance. Compare actual amplitude, termination and slew with selected limits. Verify the original settings and route. Receiver gain remains source-gated. See [quality](quality.md) and [electrical controls](electrical.md). |
+
+Run individual submodes and physical measurements only under the fixture
+authorization. The [feature coverage matrix](feature-coverage.md) links the
+ledger procedures to their typed command and physical scope. Physical evidence
+for these feature cases is NOT RUN.
+
+The compiled IRQ target is `irq configure 32 2 wake intr 2` and the entry
+policy is `irq configure 0 0 polarity intr 0`. Capture with `irq service 2 5 5`
+while stimulus is owned. The IEEE target is `power configure down 0 0`, sleep
+policy is `power configure normal 1 0` and PLL target is
+`power configure down 0 1`. For PLL, separately prove IEEE down before
+`power configure down 0 0`, then verify the original
+`power configure normal 0 0`. The EEE target and baseline are
+`eee configure on 2 0` and `eee configure off 0 0`. Complete replay and
+a fresh 100/full AN and EEE observation precede any LPI start. The complete
+literal baseline and target tuples for pins, interface, quality and analog,
+and the synthetic WoL vectors are in the
+[control case definitions](../tools/dp8382x_hil_controls.py).
+The [diagnostic case definitions](../tools/dp8382x_hil_diagnostics.py) list
+the full BIST mode, counter, length, IPG and dwell tuples.

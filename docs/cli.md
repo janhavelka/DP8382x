@@ -709,3 +709,14 @@ handshake for serial attachment to an already-running console. The
 [campaigns](hardware-validation.md) add stopped-owner preflight, full settings
 snapshots, timed live observations and independently correlated cleanup.
 Both paths preserve paired raw and JSON evidence.
+
+Feature campaign correlation follows the command tables. Typed cached
+queries are unscheduled. Scheduled READ uses up to 2 s and 64 frames.
+Scheduled WRITE, START, OBSERVE and RESET use up to 5 s and 512 frames.
+Cooperative success requires an admitted token and a matching terminal;
+direct reads and writes terminate with `op=0`. A rejected command may
+terminate before admission. A terminal failure can retain valid partial
+words, possibly changed settings or cleanup debt. Keep those fields with
+the original request and correlate an owning stop or replay separately.
+The [fixture cases](hardware-validation.md#feature-fixtures) define the
+independent readback, stimulus and measurement needed per family.

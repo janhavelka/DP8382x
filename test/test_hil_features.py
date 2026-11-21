@@ -1,0 +1,276 @@
+"""Verify selected feature cases with the compiled CLI and bounded artifact replay."""
+
+import contextlib
+import io
+import json
+from pathlib import Path
+import re
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+
+from test_hil_campaign import assert_required_fields, decoded, replay, row_lines
+from test_hil_runner import NONCE, REVISION, runner
+from test_hil_serial import Port, arguments as serial_arguments, invoke as serial_invoke
+from dp8382x_hil_campaign import MAX_COMMANDS, MAX_INTERVENTIONS, feature_modules
+
+
+ROOT = Path(__file__).resolve().parents[1]
+FIXTURE = None
+WORK = ROOT / "build" / "hil-feature-tests"
+
+CONTRADICTIONS = {
+    "loopback-digital": (b"diagnostics.loopback-stop", b"hard_exit=1", b"hard_exit=0"),
+    "bist-both": (b"diagnostics.bist-read", b"counter_valid=1", b"counter_valid=0"),
+    "cable-manual": (b"diagnostics.cable-read", b"complete=1", b"complete=0"),
+    "compliance-tx100": (b"diagnostics.compliance-stop", b"cleanup_owed=1", b"cleanup_owed=0"),
+    "irq": (b"irq.service", b"recr_valid=1", b"recr_valid=0"),
+    "pins": (b"controls.pins", b"release_status=OK", b"release_status=MDIO_ERROR"),
+    "interface-mii": (b"controls.interface", b"mode_valid=1", b"mode_valid=0"),
+    "power-ieee": (b"power.read", b"indicated_down=1", b"indicated_down=0"),
+    "eee": (b"eee.read", b"negotiated=1", b"negotiated=0"),
+    "wol-magic": (b"wol.read", b"magic=1", b"magic=0"),
+    "mse": (b"controls.mse", b"raw_mse=4660", b"raw_mse=4661"),
+}
+
+
+class FeaturePlanTests(unittest.TestCase):
+    def test_hardware_guide_names_each_feature_case(self):
+        guide = (ROOT / "docs/hardware-validation.md").read_text(encoding="utf-8").split("## Feature fixtures", 1)[1]
+        cases = {name for line in guide.splitlines() if line.startswith("| `")
+                 for name in re.findall(r"`([^\x60]+)`", line.split("|")[1])}
+        self.assertEqual(cases, feature_modules().keys())
+
+    def test_feature_scheduler_matches_cli_command_tables(self):
+        modes = {}
+        for path in (ROOT / "examples/common").glob("Dp8382xCli*Commands.inc"):
+            for name, mode in re.findall(r'FEATURE\([A-Z0-9_]+, "([^"]+)", \d+, \d+, ([A-Z]+),',
+                                         path.read_text(encoding="utf-8")):
+                modes[name.replace(" ", ".")] = mode
+        self.assertEqual(runner.FEATURE_READS, {name for name, mode in modes.items() if mode == "READ"})
+        self.assertEqual(runner.FEATURE_WRITES, {name for name, mode in modes.items() if mode == "WRITE"})
+        self.assertEqual(runner.FEATURE_OPERATIONS, {name for name, mode in modes.items()
+                                                     if mode in ("START", "RESET", "OBSERVE")})
+
+    def test_native_scope_retains_blocked_disposition(self):
+        with tempfile.TemporaryDirectory() as folder:
+            args = serial_arguments(Path(folder))
+            args[args.index("passive")] = "campaign"
+            port = None
+
+            def factory(**options):
+                nonlocal port
+                port = Port(**options)
+                return port
+
+            code, _, err = serial_invoke(args + ["--case", "loopback-mii", "--operating-mode", "enhanced",
+                                                 "--polling", "exclusive", "--clock", "simulated"], factory)
+            self.assertEqual(code, 2, err)
+            self.assertEqual(port.lines, [f"session {NONCE}\n".encode("ascii")])
+            result = runner.verify(Path(folder) / "live.json")
+            self.assertEqual((result["verdict"], result["cases"][0]["verdict"]), ("INCONCLUSIVE", "BLOCKED"))
+            self.assertEqual(port.closes, 1)
+
+
+@unittest.skipUnless(FIXTURE or "--fixture" in sys.argv, "run with the compiled CLI fixture")
+class CompiledFeatureTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        WORK.mkdir(parents=True, exist_ok=True)
+        folder = tempfile.TemporaryDirectory(dir=WORK)
+        cls.addClassCleanup(folder.cleanup)
+        cls.folder = Path(folder.name)
+
+    def run_case(self, name, suffix="", extra=(), replay_authorized=True):
+        module = feature_modules()[name][1]
+        run = name + suffix
+        args = ["run-fixture", str(FIXTURE), "--suite", "campaign", "--case", name,
+                "--target", "host", "--backend", "sim-mdio", "--variant", "DP83826I",
+                "--interface", "MII" if name in getattr(module, "MII_CASES", ()) else "RMII",
+                "--address", "1", "--firmware", REVISION, "--fixture-identity", REVISION,
+                "--clock", "simulated", "--console", "host-stdio", "--baud", "0",
+                "--operating-mode", getattr(module, "MODES", {}).get(name, "enhanced"), "--polling", "exclusive",
+                "--board", "compiled-P51", "--authorization", "offline-qualification", "--nonce", NONCE,
+                "--out-dir", str(self.folder), "--run", run]
+        if replay_authorized:
+            args.append("--reinitialize")
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
+            result = runner.main(args + list(extra))
+        path = self.folder / (run + ".json")
+        self.assertTrue(path.exists(), err.getvalue())
+        data = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(runner.verify(path), data)
+        return result, data, path.with_suffix(".txt").read_bytes()
+
+    def test_complete_cases_and_every_required_field(self):
+        mutations = 0
+        for name, (_, module) in feature_modules().items():
+            with self.subTest(case=name):
+                result, data, raw = self.run_case(name)
+                prelude = getattr(module, "BASELINES", {}).get(name, ())
+                self.assertLessEqual(len(data["commands"]) + len(prelude), MAX_COMMANDS)
+                self.assertLessEqual(len(data["campaign"]["interventions"]), MAX_INTERVENTIONS)
+                row = data["cases"][0]
+                if name in getattr(module, "BLOCKED_CASES", ()):
+                    self.assertEqual((result, row["verdict"]), (2, "BLOCKED"), data)
+                    continue
+                self.assertEqual((result, row["verdict"]), (0, "PASS"), data)
+                if module.CASES[name][1]:
+                    self.assertEqual(row["restoration"]["verdict"], "PASS")
+                self.assertEqual(replay(data, decoded(raw)), "PASS")
+                mutations += assert_required_fields(self, name, data, raw)
+                if name in CONTRADICTIONS:
+                    command, old, new = CONTRADICTIONS[name]
+                    lines = row_lines(raw)
+                    start = next(index for index, line in enumerate(lines) if b"nonce=" in line)
+                    line = next(line for line in lines[start:] if b"cmd=" + command in line.split()
+                                and old in line.split())
+                    altered = raw.replace(line, line.replace(old, new, 1), 1)
+                    self.assertNotEqual(replay(data, decoded(altered)), "PASS")
+        self.assertGreater(mutations, 30_000)
+
+    def test_primary_partial_capture_and_separate_stop(self):
+        send = runner.FixtureProcess.send
+        for fail_stop in (False, True):
+            def inject(fixture, line, deadline=None):
+                if line.startswith(b"diagnostics bist-read"):
+                    send(fixture, b"$fail-next 3\n", deadline)
+                if fail_stop and line == b"diagnostics bist-stop\n":
+                    send(fixture, b"$fail-next 0\n", deadline)
+                return send(fixture, line, deadline)
+
+            with patch.object(runner.FixtureProcess, "send", inject):
+                result, data, raw = self.run_case("bist-both", f"-partial-{fail_stop}")
+            self.assertEqual(result, 1, data)
+            row = data["cases"][0]
+            self.assertEqual(row["primary"]["code"], "MDIO_ERROR")
+            self.assertEqual(row["restoration"]["verdict"], "FAIL" if fail_stop else "PASS")
+            capture = next(r for r in decoded(raw) if r.cmd == "diagnostics.bist-read" and r.state == "terminal")
+            self.assertEqual((capture.fields["before_valid"], capture.fields["counter_valid"],
+                              capture.fields["after_valid"]), ("1", "1", "0"))
+            self.assertEqual(data["commands"].count("diagnostics bist-stop"), 1)
+
+    def test_denied_admission_and_missing_replay_permission(self):
+        result, data, raw = self.run_case("loopback-mii", "-denied", ("--fixture-deny-maintenance",))
+        row = data["cases"][0]
+        self.assertEqual((result, row["primary"]["code"]), (1, "BUSY"))
+        self.assertNotIn("diagnostics loopback-stop", data["commands"])
+        statuses = [r for r in decoded(raw) if r.cmd == "diagnostics.loopback-start"]
+        self.assertEqual([(r.state, r.op) for r in statuses], [("terminal", 0)])
+        result, data, _ = self.run_case("compliance-tx100", "-no-replay", replay_authorized=False)
+        self.assertEqual((result, data["cases"][0]["verdict"]), (2, "BLOCKED"), data)
+        self.assertFalse(any(command.startswith("diagnostics compliance-start") for command in data["commands"]))
+
+    def test_retained_irq_prefix_and_failed_stop(self):
+        send = runner.FixtureProcess.send
+
+        def inject(fixture, line, deadline=None):
+            if line == b"irq service 2 5 5\n":
+                send(fixture, b"$fail-next 3\n", deadline)
+            if line == b"irq test-stop\n":
+                send(fixture, b"$fail-next 1\n", deadline)
+            return send(fixture, line, deadline)
+
+        with patch.object(runner.FixtureProcess, "send", inject):
+            result, data, raw = self.run_case("irq", "-partial-stop")
+        row = data["cases"][0]
+        self.assertEqual((result, row["primary"]["code"], row["restoration"]["verdict"]), (1, "MDIO_ERROR", "FAIL"))
+        self.assertIn("cached events", data["commands"])
+        self.assertIn("irq cached-service", data["commands"])
+        self.assertIn("irq test-stop", data["commands"])
+        self.assertNotIn("irq configure 0 0 polarity intr 0", data["commands"])
+        self.assertTrue(any(r.cmd == "irq.test-stop" and r.primary == "MDIO_ERROR" for r in decoded(raw)))
+
+    def test_persistent_debt_requires_known_replay_before_baseline_restore(self):
+        send = runner.FixtureProcess.send
+
+        def inject(fixture, line, deadline=None):
+            if line.startswith(b"controls analog 0x28,"):
+                send(fixture, b"$fail-next 5\n", deadline)
+            return send(fixture, line, deadline)
+
+        with patch.object(runner.FixtureProcess, "send", inject):
+            for permitted in (False, True):
+                result, data, _ = self.run_case("analog", f"-debt-{permitted}", replay_authorized=permitted)
+                row = data["cases"][0]
+                self.assertEqual((result, row["primary"]["code"], row["restoration"]["verdict"]),
+                                 (1, "MDIO_ERROR", "PASS" if permitted else "FAIL"), data)
+                self.assertEqual(data["commands"].count("connection initialize none"), int(permitted))
+
+    def test_successful_typed_stop_does_not_cover_failed_link_readback(self):
+        send = runner.FixtureProcess.send
+
+        def inject(fixture, line, deadline=None):
+            if line == b"link read 15\n":
+                send(fixture, b"$fail-next 0\n", deadline)
+            return send(fixture, line, deadline)
+
+        with patch.object(runner.FixtureProcess, "send", inject):
+            result, data, raw = self.run_case("loopback-mii", "-bad-exit-readback")
+        row = data["cases"][0]
+        self.assertEqual((result, row["restoration"]["verdict"]), (1, "FAIL"))
+        self.assertTrue(any(r.cmd == "diagnostics.loopback-stop" and r.primary == "OK" for r in decoded(raw)))
+        self.assertIn("link read 15 did not complete cleanly", row["message"])
+
+    def test_timeout_with_output_pressure_keeps_primary_and_releases_cable(self):
+        start = runner.FixtureProcess.__init__
+        send = runner.FixtureProcess.send
+
+        def hold(fixture, argv, *args):
+            start(fixture, [*argv, "--hold-tdr"], *args)
+
+        def stall(fixture, line, deadline=None):
+            if line.startswith(b"diagnostics cable-start"):
+                send(fixture, b"$output-stall 256\n", deadline)
+            return send(fixture, line, deadline)
+
+        with (patch.object(runner.FixtureProcess, "__init__", hold),
+              patch.object(runner.FixtureProcess, "send", stall)):
+            result, data, raw = self.run_case("cable-manual", "-timeout")
+        row = data["cases"][0]
+        self.assertEqual((result, row["primary"]["code"], row["restoration"]["verdict"]),
+                         (1, "OPERATION_TIMEOUT", "PASS"), data)
+        terminal = next(r for r in decoded(raw) if r.cmd == "diagnostics.cable-start" and r.state == "terminal")
+        self.assertEqual((terminal.fields["complete"], terminal.fields["cleanup_owed"]), ("0", "1"))
+
+    def test_fixture_reboot_prevents_hazardous_commands(self):
+        start = runner.FixtureProcess.__init__
+        _, good, _ = self.run_case("loopback-mii", "-reboot-reference")
+        index = good["commands"].index("diagnostics loopback-status")
+
+        def reboot(fixture, argv, *args):
+            start(fixture, [*argv, "--reboot-after", str(index + 1)], *args)
+
+        with patch.object(runner.FixtureProcess, "__init__", reboot):
+            result, data, _ = self.run_case("loopback-mii", "-reboot", ("--timeout", "2"))
+        self.assertEqual((result, data["verdict"]), (2, "INCONCLUSIVE"), data)
+        self.assertEqual(data["commands"], good["commands"][:index + 1])
+        self.assertIn("restoration was not proved", data["cases"][0]["message"])
+
+    def test_interrupted_fixture_retains_possible_effect_and_stops_sending(self):
+        send = runner.FixtureProcess.send
+
+        def interrupt(fixture, line, deadline=None):
+            if line == b"diagnostics loopback-status\n":
+                raise KeyboardInterrupt
+            return send(fixture, line, deadline)
+
+        with patch.object(runner.FixtureProcess, "send", interrupt):
+            result, data, _ = self.run_case("loopback-mii", "-interrupted")
+        self.assertEqual((result, data["verdict"]), (130, "INCONCLUSIVE"), data)
+        self.assertIn("restoration was not proved", data["cases"][0]["message"])
+        self.assertNotIn("diagnostics loopback-stop", data["commands"])
+
+
+if __name__ == "__main__":
+    for flag in ("--fixture", "--work-dir"):
+        if flag in sys.argv:
+            at = sys.argv.index(flag)
+            value = Path(sys.argv[at + 1]).resolve()
+            del sys.argv[at:at + 2]
+            if flag == "--fixture":
+                FIXTURE = value
+            else:
+                WORK = value
+    unittest.main()

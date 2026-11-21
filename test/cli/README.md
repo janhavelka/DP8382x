@@ -42,6 +42,7 @@ also work with CR, LF or CRLF.
 | --- | --- |
 | `$latch-link-low` | Makes the next BMSR read return historical link-low evidence. |
 | `$inject-events` | Sets simulated MISR1/MISR2 high-byte events. The collector consumes them. |
+| `$inject-wake` | Latches the synthetic WoL indication for read and W0C tests. |
 | `$fail-next N` | Fails the frame after N further successful simulated frames once. N is 0 through 4096. |
 | `$before-quiet-floor`, `$at-quiet-floor` | While paused, service one tick at the current hard-reset floor minus 1 µs or exactly at the floor. |
 | `$isolate` | Models external disposition and lets the application attest it for `owner abandon`. |
@@ -64,6 +65,12 @@ and checks bounded I/O failure paths without using a serial device.
 `cli_hil_campaign` covers each executable [observation/mode case](../../docs/hardware-validation.md),
 the retained INT/equipment dispositions, per-field evidence mutations,
 recovery after simulated failure, and serial/offline replay of the same plan.
+`cli_hil_features` uses the compiled owner and core for the
+[diagnostic and control cases](../../docs/hardware-validation.md#feature-fixtures).
+It checks both direct and admitted receipts, blocked native and source
+routes, separate restoration, worst verdicts and per-field evidence
+mutations. The simulated event/error inputs are child controls, and the
+typed baseline prelude appears before the correlated nonce.
 
 The registered processor checks inject a refused poll, a temporarily refused
 take, a stalled writer, a clock regression during final-sample recording and

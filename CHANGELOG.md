@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add offline DP83826I diagnostic and opt-in control campaigns with typed
+  admission, retained partial results and separately verified restoration.
+  Document the bench evidence each physical feature case requires.
+
 - Add DP83826I observation, reset, legal mode and link-fault campaigns with
   complete profile restoration checks, bounded peer acknowledgments and
   deterministic evidence replay.

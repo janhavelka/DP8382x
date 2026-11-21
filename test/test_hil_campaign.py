@@ -49,10 +49,35 @@ def replay(receipt, records):
     return aggregate({**receipt, **session.evidence()})
 
 
+def assert_required_fields(test, name, data, raw):
+    """Attack all field occurrences in the nonce-correlated command stream."""
+    lines = row_lines(raw)
+    original = decoded(raw)
+    test.assertEqual(len(lines), len(original))
+    start = next(i for i, row in enumerate(original) if row.fields.get("nonce") == NONCE)
+    mutations = 0
+    for index in range(start, len(lines)):
+        fields = lines[index][len(PREFIX):-2].split(b" ")
+        for field_index, field in enumerate(fields):
+            key = field.split(b"=", 1)[0]
+            before, after = fields[:field_index], fields[field_index + 1:]
+            for altered in (before + after, before + [key + b"=__bad__"] + after,
+                            before + [field, field] + after):
+                mutations += 1
+                try:
+                    row, = decoded(PREFIX + b" ".join(altered) + b"\r\n")
+                except ProtocolError:
+                    continue
+                if replay(data, [*original[:index], row, *original[index + 1:]]) == "PASS":
+                    test.fail(f"{name} accepted altered {key!r} at record {index}: {altered!r}")
+    return mutations
+
+
 class PlanTests(unittest.TestCase):
     def test_guide_lists_the_exact_cases(self):
         guide = (ROOT / "docs" / "hardware-validation.md").read_text(encoding="utf-8")
-        names = [line.split("`")[1] for line in guide.splitlines() if line.startswith("| `")]
+        original = guide.split("## Feature fixtures", 1)[0]
+        names = [line.split("`")[1] for line in original.splitlines() if line.startswith("| `")]
         self.assertEqual(set(names), CASES.keys())
         self.assertEqual(len(names), len(CASES))
         self.assertEqual({case.group for case in CASES.values()}, {"observation", "configuration", "modes", "faults"})
@@ -156,25 +181,8 @@ class CompiledCampaignTests(unittest.TestCase):
         self.assertEqual((result, data["verdict"]), (0, "PASS"))
 
     def test_every_field_occurrence_is_required(self):
-        mutations = 0
-        for name, (data, raw) in self.positives.items():
-            lines = row_lines(raw)
-            original = decoded(raw)
-            self.assertEqual(len(lines), len(original))
-            for index, line in enumerate(lines):
-                fields = line[len(PREFIX):-2].split(b" ")
-                for field_index, field in enumerate(fields):
-                    key = field.split(b"=", 1)[0]
-                    before, after = fields[:field_index], fields[field_index + 1:]
-                    for altered in (before + after, before + [key + b"=__bad__"] + after,
-                                    before + [field, field] + after):
-                        mutations += 1
-                        try:
-                            row, = decoded(PREFIX + b" ".join(altered) + b"\r\n")
-                        except ProtocolError:
-                            continue
-                        if replay(data, [*original[:index], row, *original[index + 1:]]) == "PASS":
-                            self.fail(f"{name} accepted altered {key!r} at record {index}: {altered!r}")
+        mutations = sum(assert_required_fields(self, name, data, raw)
+                        for name, (data, raw) in self.positives.items())
         self.assertGreater(mutations, 30_000)
 
     def test_forged_aggregate_and_intervention_order_are_rejected(self):

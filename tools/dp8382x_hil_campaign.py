@@ -1,6 +1,7 @@
 """DP83826I campaign plans and assertions shared by every runner backend."""
 
 from dataclasses import dataclass
+from functools import cache
 import ipaddress
 
 if __package__:
@@ -89,10 +90,11 @@ class Case:
     reset: str = ""
     fault: str = ""
     policy: int = 0
+    feature_mutation: bool = False
 
     @property
     def mutation(self):
-        return bool(self.reset or self.target)
+        return bool(self.reset or self.target or self.feature_mutation)
 
 
 CASES = {
@@ -128,14 +130,41 @@ for mask, (speed, duplex) in TECHNOLOGIES.items():
                                   Profile("forced", 0, speed, duplex, flags=1), "forced-" + name, mask)
 
 RECOVERY_ACTIONS = {"unplug": "replug", "hold-peer-reset": "release-peer-reset"}
+FIXTURE_ACTIONS = {
+    "bist-errors": "$inject-bist-errors",
+    "calibration-flag": "$raise-calibration",
+    "inject-events": "$inject-events",
+    "inject-wake": "$inject-wake",
+}
 DECLARATION_FIELDS = {"case", "board", "authorization", "mode", "polling", "peer", "peer_profile", "cable",
                       "power_record", "previous_boot", "intervention_timeout_ms", "reinitialize"}
+
+
+@cache
+def feature_modules():
+    """Load procedure families after the shared campaign primitives are defined."""
+    if __package__:
+        from . import dp8382x_hil_controls as controls, dp8382x_hil_diagnostics as diagnostics
+    else:
+        import dp8382x_hil_controls as controls
+        import dp8382x_hil_diagnostics as diagnostics
+    return {name: (group, module) for group, module in (("diagnostics", diagnostics), ("controls", controls))
+            for name in module.CASES}
+
+
+@cache
+def all_cases():
+    """Return the observation and feature cases accepted by live and replay entry points."""
+    return {**CASES, **{
+        name: Case(name, group, module.CASES[name][0], feature_mutation=module.CASES[name][1])
+        for name, (group, module) in feature_modules().items()
+    }}
 
 
 def validate_declaration(values):
     """Check admission inputs before I/O and again during evidence replay."""
     if (type(values) is not dict or values.keys() != DECLARATION_FIELDS or
-            type(values["case"]) is not str or values["case"] not in CASES or
+            type(values["case"]) is not str or values["case"] not in all_cases() or
             values["mode"] not in ("basic", "enhanced") or values["polling"] not in ("exclusive", "concurrent") or
             not all(fixture_identifier(values[key]) for key in ("board", "authorization")) or
             any(values[key] != "" and not fixture_identifier(values[key])
@@ -145,7 +174,7 @@ def validate_declaration(values):
             (values["previous_boot"] is not None and
              (type(values["previous_boot"]) is not int or not 0 <= values["previous_boot"] <= U32_MAX))):
         raise ProtocolError("invalid campaign fixture declaration")
-    return CASES[values["case"]]
+    return all_cases()[values["case"]]
 
 
 @dataclass(frozen=True)
@@ -158,8 +187,9 @@ def validate_intervention(row, declaration):
     """Validate bounded declarations before binding them to a particular request."""
     if (type(row) is not dict or row.keys() != {
             "action", "source", "outcome", "after_req", "boot", "elapsed_ms", "budget_ms", "cleanup"} or
-            row["action"] not in (*RECOVERY_ACTIONS, *RECOVERY_ACTIONS.values()) or
+            row["action"] not in (*RECOVERY_ACTIONS, *RECOVERY_ACTIONS.values(), *FIXTURE_ACTIONS) or
             row["source"] not in ("operator", "compiled-fixture") or
+            (row["action"] in FIXTURE_ACTIONS and row["source"] != "compiled-fixture") or
             row["outcome"] not in ("acknowledged", "declined", "timed_out", "failed") or
             type(row["cleanup"]) is not bool or
             any(type(row[key]) is not int for key in ("after_req", "boot", "elapsed_ms", "budget_ms")) or
@@ -239,6 +269,8 @@ class Campaign:
 
     def __init__(self, declaration, expected):
         self.spec = validate_declaration(declaration)
+        self.feature = feature_modules().get(self.spec.id, (None, None))[1]
+        self.baseline = getattr(self.feature, "BASELINES", {}).get(self.spec.id, ())
         self.declaration = declaration
         self.expected = expected
         self.backend = expected["backend"]
@@ -254,6 +286,17 @@ class Campaign:
         self.last_observed = 0
         self.active = self.execute()
         self.next = next(self.active)
+
+    def feature_gate(self):
+        """Return the prerequisite that prevents the selected feature from running."""
+        if self.backend != "sim-mdio":
+            return "qualified native feature grant and independent measurement route unavailable"
+        if self.spec.id in getattr(self.feature, "MII_CASES", ()) and self.expected["interface"] != "MII":
+            return "case requires the MII fixture"
+        mode = getattr(self.feature, "MODES", {}).get(self.spec.id, self.declaration["mode"])
+        if self.declaration["mode"] != mode:
+            return f"case requires {mode} operating mode"
+        return None
 
     def advance(self, value):
         if isinstance(value, dict):
@@ -415,6 +458,39 @@ class Campaign:
                         np_owed=0, np_refused=0, np_base_event=0, np_base_valid=0, np_base=0, np_missing=0,
                         np_tx=0, np_rx=0, np_duplicates=0, np_words="none"),
                 row, f"{text} lacks a complete effect and next-page receipt")
+
+    def guard_feature_cleanup(self):
+        """Recheck the stopped owner, usable bus and available operation slot before cleanup."""
+        yield from self.application(True)
+        yield from self.transport(True)
+        row = yield from self.read("cached operation", cleanup=True)
+        require(matches(row.fields, slot="idle", token=0, slot_status="RESULT_NOT_AVAILABLE",
+                        slot_detail=0, slot_deadline_us=0), row, "cleanup route has an occupied slot")
+        return row
+
+    def prove_feature_exit(self, saved):
+        """Verify the saved link profile and released ownership after feature restoration."""
+        # A failed feature restore cannot be repaired by verifying only the link settings.
+        yield from self.config("configuration verify", False, True)
+        require((yield from self.profiles(True)) == saved, self.last, "entry link profile was not restored")
+        yield from self.link(saved, saved.modes, cleanup=True)
+        require((yield from self.slot(True)).fields["cleanup_owed"] == "0", self.last, "cleanup debt remains")
+        yield from self.application(True)
+        yield from self.transport(True)
+        yield from self.ready_health(True)
+
+    def run_feature(self, saved):
+        """Keep the feature's primary result separate from independent exit proof."""
+        yield from self.feature.run(self, saved)
+        if self.restoration == "PASS":
+            self.restoration = "INCONCLUSIVE"
+            try:
+                yield from self.prove_feature_exit(saved)
+            except AssertionFailed as error:
+                self.restoration = error.verdict
+                self.cleanup_failure = str(error)
+            else:
+                self.restoration = "PASS"
 
     def reset(self, kind, cleanup=False):
         command = {"pcs": "recovery reset pcs", "hard": "recovery reset hard", "restart": "recovery restart",
@@ -604,6 +680,9 @@ class Campaign:
             require(self.backend in ("sim-mdio", BASIC, OWNER), None, "application owner schema unavailable", "BLOCKED")
             require(d["polling"] == "exclusive" or spec.id == "cold-boot", None,
                     "concurrent polling requires command-attributed accounting", "BLOCKED")
+            if self.feature:
+                gate = self.feature_gate()
+                require(gate is None, None, gate, "BLOCKED")
             require(not spec.peer or (d["peer_profile"] == spec.peer and
                     (spec.peer == "open" or (d["peer"] and d["cable"]))), None,
                     f"missing compatible fixture declaration for {spec.peer}", "NOT RUN")
@@ -627,10 +706,13 @@ class Campaign:
                 yield from self.config("configuration verify", False)
                 require((yield from self.profiles()) == saved, self.last, "entry profile changed during verification")
                 require((yield from self.slot()).fields["cleanup_owed"] == "0", self.last, "cleanup debt bars mutation")
-                self.may_change = True
-                if spec.reset:
+                if self.feature:
+                    yield from self.run_feature(saved)
+                elif spec.reset:
+                    self.may_change = True
                     yield from self.reset(spec.reset)
                 else:
+                    self.may_change = True
                     yield from self.config(spec.target.apply(), True)
                     yield from self.config("configuration verify", False)
                     require((yield from self.profiles()) == spec.target, self.last, "target profile readback differs")
@@ -638,9 +720,9 @@ class Campaign:
                         yield from self.mode_or_fault(spec.target)
                     if spec.id == "10base-te":
                         yield from self.vod()
-            self.success = True
+            self.success = self.failed is None
         except AssertionFailed as error:
             self.failed = error
-        if self.may_change:
+        if self.may_change and self.feature is None:
             yield from self.restore(saved)
         yield None

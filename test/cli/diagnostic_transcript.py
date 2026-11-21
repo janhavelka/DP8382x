@@ -236,6 +236,19 @@ class DiagnosticTranscript(unittest.TestCase):
             self.terminal(rows, number, "BUSY", cooperative=False)
         self.assert_same_counters(request(rows, 1)[0], request(rows, 9)[0])
 
+    def test_owned_loopback_rejects_overlapping_stimulus_without_transfers(self):
+        rows = records(run(PROFILE + b"diagnostics loopback-start mii 100\ncached transport\n"
+                           b"diagnostics bist-start off wrap 0 0 1 100\n"
+                           b"diagnostics loopback-start mii 100\ncached transport\ndiagnostics loopback-stop\n",
+                           ATTEST))
+        started = self.terminal(rows, 2)
+        for number in (4, 5):
+            self.assertEqual(self.terminal(rows, number, "BUSY", cooperative=False)["op"], "0")
+        self.assert_same_counters(request(rows, 3)[0], request(rows, 6)[0])
+        stopped = self.terminal(rows, 7)
+        self.assertEqual((stopped["stopped"], stopped["cleanup_owed"]), ("1", "0"))
+        self.assertNotEqual(started["op"], stopped["op"])
+
 
 if __name__ == "__main__":
     unittest.main()

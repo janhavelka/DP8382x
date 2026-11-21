@@ -19,8 +19,8 @@ from dp8382x_hil_artifacts import (
     MAX_TRANSCRIPT_BYTES, SERIAL_SCOPE, EvidenceError, EvidenceFiles, validate_destination, verify_artifacts,
 )
 from dp8382x_hil_campaign import (
-    CASES, MAX_COMMANDS, MAX_INTERVENTIONS, Campaign, Command, Intervention, clean, exact_fields, link_changed, payload,
-    validate_declaration, validate_intervention,
+    FIXTURE_ACTIONS, MAX_COMMANDS, MAX_INTERVENTIONS, Campaign, Command, Intervention, all_cases, bits, clean,
+    exact_fields, link_changed, payload, validate_declaration, validate_intervention,
 )
 from dp8382x_hil_fixture import FixtureError, FixtureProcess
 from dp8382x_hil_protocol import (
@@ -37,6 +37,7 @@ TOKEN = re.compile(r"[A-Za-z0-9_.:-]{1,64}\Z")
 REVISION = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 TARGET_FIELDS = ("target", "backend", "variant", "interface", "address")
 OPTIONAL_FIELDS = ("firmware", "firmware_prefix", "tree", "sdk", "clock", "console", "baud")
+FEATURE_EXCHANGE_SECONDS = 2.0
 
 
 PASSIVE = tuple(map(Command, (
@@ -68,7 +69,7 @@ def check_payload(record):
     if record.cmd == "registers.write" and record.primary == "INVALID_PARAM":
         if fields:
             raise ProtocolError("a syntactic write rejection has unexpected effect evidence")
-    elif record.cmd in ("connection.initialize", "recovery.reset", "recovery.restart"):
+    elif record.cmd in ("connection.initialize", "recovery.reset", "recovery.restart", "recovery.reinitialize"):
         if record.state == "admitted" or record.op == 0:
             if fields:
                 raise ProtocolError("initialization admission has unexpected fields")
@@ -194,9 +195,37 @@ class Session:
 
 # Dp8382xCli.cpp CONFIG_US and DIRECT_US. Admission and terminal clocks
 # may be sampled later than the scheduling timestamp.
+FEATURE_READS = frozenset("irq.service power.read eee.read wol.read controls.mse".split())
+FEATURE_WRITES = frozenset("lpi.start lpi.stop controls.pins controls.interface".split())
+FEATURE_OPERATIONS = frozenset(("""
+    diagnostics.loopback-start diagnostics.loopback-stop diagnostics.bist-start diagnostics.bist-read
+    diagnostics.bist-stop diagnostics.cable-start diagnostics.cable-raw diagnostics.cable-read
+    diagnostics.cable-stop diagnostics.cable-autorun diagnostics.cable-autorun-read
+    diagnostics.compliance-start diagnostics.compliance-stop diagnostics.collision-start
+    diagnostics.collision-stop diagnostics.calibration-recover irq.configure irq.test-start irq.test-stop
+    power.configure eee.configure wol.configure wol.acknowledge controls.quality controls.analog
+""").split())
 TIMED_COMMANDS = {**dict.fromkeys(("configuration.apply", "configuration.verify", "recovery.reset",
-                                 "recovery.restart", "connection.initialize"), 5_000_000),
-                  **dict.fromkeys(("link.read", "link.partner", "registers.read"), 2_000_000)}
+                                 "recovery.restart", "recovery.reinitialize", "connection.initialize",
+                                 *FEATURE_OPERATIONS, *FEATURE_WRITES), 5_000_000),
+                  **dict.fromkeys(("link.read", "link.partner", "registers.read", *FEATURE_READS), 2_000_000)}
+
+
+def check_feature_envelope(record):
+    """Validate the shared operation fields while retaining feature-specific partial samples."""
+    if record.cmd not in FEATURE_OPERATIONS:
+        return
+    if record.state == "admitted":
+        exact_fields(payload(record), {})
+    elif record.op:
+        checks = {**bits("mutation_completed mutation_possible cleanup_owed temporary persistent_restored "
+                         "reset_accepted reset_complete"), "core_status": tuple(TERMINAL_STATUS),
+                  "core_detail": (-2**31, 2**31 - 1),
+                  "effective_reset": ("none", "pcs", "hard", "restart", "unknown")}
+        fields = {key: record.fields[key] for key in checks if key in record.fields}
+        exact_fields(fields, checks)
+        if record.primary == "OK" and (fields["core_status"], fields["core_detail"]) != ("OK", "0"):
+            raise ProtocolError("feature terminal disagrees with the successful core status")
 
 
 class CampaignSession(Session):
@@ -206,8 +235,8 @@ class CampaignSession(Session):
         if not isinstance(nonce, str) or not TOKEN.fullmatch(nonce):
             raise ProtocolError("invalid session nonce")
         super().__init__([Command("session " + nonce)], nonce, expected)
-        self.request_limit = MAX_COMMANDS
         self.campaign = Campaign(declaration, expected)
+        self.request_limit = MAX_COMMANDS - len(self.campaign.baseline)
         self.recorded = recorded
 
     @property
@@ -222,7 +251,7 @@ class CampaignSession(Session):
 
     def _queue(self):
         if isinstance(self.next, Command):
-            if len(self.commands) >= MAX_COMMANDS:
+            if len(self.commands) >= self.request_limit:
                 raise ProtocolError("campaign command ceiling reached")
             self.commands.append(self.next)
 
@@ -243,11 +272,13 @@ class CampaignSession(Session):
         if not self.identity:
             return
         fields = record.fields
-        timed_success = record.primary == "OK" and record.cmd in TIMED_COMMANDS
+        limit = TIMED_COMMANDS.get(record.cmd)
+        timed_success = record.primary == "OK" and limit is not None
         retryable_link = record.cmd in ("link.read", "link.partner") and link_changed(record)
+        check_feature_envelope(record)
         if record.state == "admitted" or timed_success or retryable_link:
             duration = int(fields["deadline_us"]) - int(fields["time_us"])
-            if fields["deadline_valid"] != "1" or not 0 < duration <= TIMED_COMMANDS[record.cmd]:
+            if limit is None or fields["deadline_valid"] != "1" or not 0 < duration <= limit:
                 raise ProtocolError("campaign command has no valid bounded deadline")
         if len(self.results) == index:
             return
@@ -517,6 +548,42 @@ def operator_acknowledgment(action, deadline):
     return "timed_out"
 
 
+def prepare_feature_fixture(fixture, decoder, commands, deadline):
+    """Install a fixed offline baseline and drain its receipts before opening the nonce session."""
+    if len(commands) > 8:
+        raise FixtureError("compiled feature baseline exceeds eight commands")
+    prior = None
+    for text in commands:
+        command = Command(text)
+        exchange_end = min(deadline, time.monotonic() + FEATURE_EXCHANGE_SECONDS)
+        fixture.send(text.encode("ascii") + b"\n", exchange_end)
+        admission = None
+        complete = False
+        while not complete:
+            chunk = fixture.read(exchange_end)
+            if not chunk:
+                raise FixtureError("compiled feature baseline closed before completion")
+            for record in decoder.feed(chunk):
+                if (complete or record.cmd != command.name or
+                        (prior and (record.boot != prior.boot or record.req != prior.req + 1))):
+                    raise ProtocolError("compiled feature baseline reply is out of sequence")
+                check_payload(record)
+                check_feature_envelope(record)
+                if record.state == "admitted" and command.name in FEATURE_OPERATIONS and admission is None:
+                    admission = record
+                    continue
+                if (record.state != "terminal" or not clean(record) or
+                        (command.name in FEATURE_OPERATIONS) != (admission is not None) or
+                        record.op != (admission.op if admission else 0) or
+                        (admission and (record.req, record.boot, record.fields["deadline_us"]) !=
+                         (admission.req, admission.boot, admission.fields["deadline_us"]))):
+                    raise FixtureError(f"compiled feature baseline did not complete: {text} ({record.primary})")
+                prior = record
+                complete = True
+        if decoder.has_partial_record:
+            raise ProtocolError("unfinished record after compiled feature baseline")
+
+
 def capture(args, suite, nonce, expected, declaration=None, recorded=None):
     """Execute a host fixture or verify a supplied transcript and finalize its pair."""
     session = make_session(suite, nonce, expected, declaration, recorded)
@@ -549,9 +616,18 @@ def capture(args, suite, nonce, expected, declaration=None, recorded=None):
             argv = [executable]
             if args.fixture_identity:
                 argv += ["--identity", args.fixture_identity]
+            baseline = ()
+            feature = None
             if declaration:
-                spec = CASES[declaration["case"]]
+                spec = session.campaign.spec
+                feature = session.campaign.feature
                 peer = spec.peer or "an-100-full"
+                if feature:
+                    peer = getattr(feature, "PEERS", {}).get(spec.id, "open")
+                    if declaration["polling"] == "exclusive" and session.campaign.feature_gate() is None:
+                        argv.append("--attest-features")
+                        if not args.fixture_deny_maintenance:
+                            baseline = session.campaign.baseline
                 argv += ["--campaign", declaration["mode"], "--campaign-peer", peer]
                 if expected["interface"] == "MII":
                     argv.append("--mii")
@@ -561,10 +637,17 @@ def capture(args, suite, nonce, expected, declaration=None, recorded=None):
             with fixture:
                 end = time.monotonic() + args.timeout - args.closure
                 active = end - min(1, (args.timeout - args.closure) / 3)
+                prepare_feature_fixture(fixture, decoder, baseline, active)
+
                 def fixture_action(action, deadline):
-                    peer = spec.peer if action in ("replug", "release-peer-reset") else "open"
-                    control = "$campaign-peer-delayed" if spec.id == "bounded-recovery" and peer != "open" else "$campaign-peer"
-                    fixture.send(f"{control} {peer}\n".encode("ascii"), deadline)
+                    if action in FIXTURE_ACTIONS:
+                        line = FIXTURE_ACTIONS[action]
+                    else:
+                        selected = peer if action in ("replug", "release-peer-reset") else "open"
+                        control = ("$campaign-peer-delayed" if spec.id == "bounded-recovery" and selected != "open"
+                                   else "$campaign-peer")
+                        line = f"{control} {selected}"
+                    fixture.send(f"{line}\n".encode("ascii"), deadline)
                     return "acknowledged"
 
                 for command in live_steps(session):
@@ -574,6 +657,8 @@ def capture(args, suite, nonce, expected, declaration=None, recorded=None):
                     if isinstance(command, Intervention):
                         intervention(session, command, "compiled-fixture", deadline, fixture_action)
                         continue
+                    if feature:
+                        deadline = min(deadline, time.monotonic() + FEATURE_EXCHANGE_SECONDS)
                     fixture.send(command.text.encode("ascii") + b"\n", deadline)
                     sent.append(command.text)
                     session.issue()
@@ -891,7 +976,7 @@ def parser():
     ):
         command = modes.add_parser(name, help=description)
         command.add_argument("--suite", choices=(*SUITES, "campaign"), required=True)
-        command.add_argument("--case", choices=CASES, help="one case for the campaign suite")
+        command.add_argument("--case", choices=all_cases(), help="one case for the campaign suite")
         command.add_argument("--operating-mode", choices=("basic", "enhanced"))
         command.add_argument("--polling", choices=("exclusive", "concurrent"))
         command.add_argument("--board", help="identified board or fixture")
@@ -991,7 +1076,7 @@ def preview_plan(args, expected, nonce, declaration, **details):
     result = {"scope": "serial_session" if args.mode == "run-serial" else "host_protocol", "executed": False,
               "suite": args.suite, "expectations": expected, "commands": [step.text for step in initial.commands]}
     if declaration:
-        spec = CASES[declaration["case"]]
+        spec = initial.campaign.spec
         result["campaign"] = {"declaration": declaration, "group": spec.group, "equipment": spec.fixture,
                               "peer_profile": spec.peer, "target": spec.target.apply() if spec.target else None,
                               "reset": spec.reset or None, "mutates_phy": spec.mutation,

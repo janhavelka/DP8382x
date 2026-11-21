@@ -188,3 +188,10 @@ Record the cable and peer's exact mode and pause policy for link tests. The
 example's application admission uses 100/full. Other legal PHY profiles can
 be exercised in stopped maintenance with a matching peer. Check restored
 configuration and application readiness before a later start.
+
+The stock image leaves the feature attestation hook unset. The
+[diagnostic and control fixture cases](../../../docs/hardware-validation.md#feature-fixtures)
+require case-specific application grants, qualified wiring, a known typed
+restore path and independent measurements. First-board INT remains blocked
+pending wiring proof. Preserve the installed, stopped owner and the exact
+console, clock and management route during any authorized fixture work.

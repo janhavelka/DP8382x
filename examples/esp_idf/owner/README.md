@@ -108,3 +108,10 @@ the framework fence. Require `phase=maintenance`, `maintenance=1` and
 leaves maintenance in place. A later owner decision to start or admit raw
 frames requires restored settings, current readiness and a fresh 100/full
 observation.
+
+The stock image leaves the feature attestation hook unset. The
+[diagnostic and control fixture cases](../../../docs/hardware-validation.md#feature-fixtures)
+require an authorized fixture owner to establish the transmit drain, feature
+grant, instrumentation and exit route for each case. Where two repeater
+owners are involved, capture each owner's separate typed readback and restore
+receipt along with the two-direction traffic and clock traces.

@@ -51,6 +51,29 @@ a retained NOT RUN case. A dry-run prints the initial handshake and the
 conditional case definition. Later commands depend on the responses and
 saved entry profile.
 
+Diagnostic and control case IDs use the same suite and artifact schema.
+Choose the exact BASIC/ENHANCED mode and MII/RMII binding from the
+[feature fixture guide](hardware-validation.md#feature-fixtures). Case
+selection in `run-fixture` enables the compiled fixture's synthetic
+feature attestations. When a case needs owned settings, a fixed prelude
+of up to eight typed commands installs them before the nonce. That traffic
+is retained as an uncorrelated prefix. The case then independently verifies
+the owned entry baseline in the correlated session. `commands` records
+only the nonce and later requests. The 64-command ceiling includes reserved
+prelude slots. A case may request up to four interventions. Each feature
+command exchange has a two-second host ceiling inside its primary or
+cleanup allowance. Closure has its own remaining allowance.
+
+For example, select `--case loopback-digital` with the compiled RMII fixture.
+`compliance-*` and `calibration-recovery` additionally require
+`--reinitialize` for separate saved-profile replay after verified HARD exit.
+The host diagnostic/control cases prove their typed software paths, with
+simulated inputs for packet errors, calibration, interrupt and wake status.
+They cannot qualify the cable, signals, timing, packet generator, power or
+wake behavior of a real board. Stock native feature cases are BLOCKED
+before stimulus. Their instrument requirements and controlled procedures
+are in the [feature fixture guide](hardware-validation.md#feature-fixtures).
+
 For a compiled offline example, first build `dp8382x_cli_fixture`, then run:
 
 ```powershell
@@ -198,6 +221,11 @@ record that begins in received bytes before the next write ends live command
 admission even if its delimiter is pending. Reboot, reordering, request
 rollover and mismatched deadlines also fail correlation.
 Admissions carry no cleanup result. Cached queries carry no command deadline.
+Scheduled feature reads use the producer's 2-second bound. Scheduled writes,
+starts, observations and resets use 5 seconds. Starts, observations and
+resets require their admitted token when successful. Direct feature reads and
+writes require a direct terminal. Clean stopped-owner, controller and slot
+checks precede eligible restoration, with a separately verified feature exit.
 The record clock may be unavailable, including throughout a passive run. A
 valid timestamp cannot follow an unavailable clock within one boot. The offline
 verifier consumes the bounded file through EOF.
