@@ -15,11 +15,15 @@ import tempfile
 import time
 
 if __package__:
+    from .dp8382x_hil_campaign import MAX_COMMANDS, MAX_INTERVENTIONS, validate_declaration, validate_intervention
+    from .dp8382x_hil_protocol import ProtocolError
     from .dp8382x_hil_serial import (
         CALL_STATES, INJECTED_BACKEND, LIMITS, NATIVE_BACKEND, UART_CONSOLE, USB_CONSOLE, USB_DRIVER_BAUD,
         fixture_identifier, valid_port,
     )
 else:
+    from dp8382x_hil_campaign import MAX_COMMANDS, MAX_INTERVENTIONS, validate_declaration, validate_intervention
+    from dp8382x_hil_protocol import ProtocolError
     from dp8382x_hil_serial import (
         CALL_STATES, INJECTED_BACKEND, LIMITS, NATIVE_BACKEND, UART_CONSOLE, USB_CONSOLE, USB_DRIVER_BAUD,
         fixture_identifier, valid_port,
@@ -126,7 +130,7 @@ def _validate_serial(data):
             or serial["backend"] not in (NATIVE_BACKEND, INJECTED_BACKEND)
             or serial["reset_silent"] is not True or serial["clean_input"] is not True
             or serial["requested_dtr"] is not False or serial["requested_rts"] is not False
-            or data["suite"] != "passive" or data["fixture"] != serial["board"] or data["stderr"] != ""
+            or data["suite"] not in ("passive", "campaign") or data["fixture"] != serial["board"] or data["stderr"] != ""
             or type(serial["max_bytes"]) is not int or not 1 <= serial["max_bytes"] <= MAX_TRANSCRIPT_BYTES
             or any(type(serial[key]) is not bool for key in ("hard_exit", "framing_uncertain"))):
         raise EvidenceError("Invalid serial fixture declarations")
@@ -149,7 +153,8 @@ def _validate_serial(data):
             (recovery["state"] == "continuous" and not recovery["identity"])):
         raise EvidenceError("Invalid serial resynchronization outcome")
     writes = serial["writes"]
-    if type(writes) is not list or len(writes) > 11:
+    campaign = data.get("campaign")
+    if type(writes) is not list or len(writes) > (MAX_COMMANDS + 1 if campaign else 11):
         raise EvidenceError("Invalid serial write attempts")
     for row in writes:
         if (not _object(row, {"command", "bytes", "state", "detail"}) or not _text(row["command"])
@@ -161,16 +166,21 @@ def _validate_serial(data):
                 or (row["state"] == "ok" and row["bytes"] != len(row["command"]) + 1)):
             raise EvidenceError("Invalid serial write receipt")
     confirmed = [row["command"] for row in writes if row["state"] == "ok"]
+    restoration = "reported_by_case" if campaign else "not_requested" if data["complete"] else "unavailable"
     if (confirmed != data["commands"] or any(row["state"] != "ok" for row in writes[:-1])
-            or serial["restoration"] != ("not_requested" if data["complete"] else "unavailable")
+            or serial["restoration"] != restoration
             or (data["complete"] and
                 (serial["hard_exit"] or serial["framing_uncertain"] or len(confirmed) != len(writes)
                  or recovery["state"] != "not_started" or
                  any(serial[phase]["state"] != "ok" for phase in ("open", "close"))))):
         raise EvidenceError("Serial receipt disagrees with execution and closure")
+    if campaign and campaign["declaration"]["authorization"] != serial["authorization"]:
+        raise EvidenceError("Serial and campaign authorization disagree")
 
 
 def _validate_data(data, fields, scope):
+    if type(data) is dict and data.get("suite") == "campaign":
+        fields = fields | {"campaign"}
     if not _object(data, fields):
         raise EvidenceError("Invalid evidence fields")
     if (type(data["complete"]) is not bool or not _text(data["suite"]) or not _text(data["fixture"])
@@ -186,6 +196,20 @@ def _validate_data(data, fields, scope):
         if case["id"] in seen:
             raise EvidenceError("Duplicate case ID")
         seen.add(case["id"])
+    if data["suite"] == "campaign":
+        campaign = data["campaign"]
+        if (not _object(campaign, {"declaration", "interventions"}) or
+                type(campaign["interventions"]) is not list or len(campaign["interventions"]) > MAX_INTERVENTIONS or
+                len(data["commands"]) > MAX_COMMANDS):
+            raise EvidenceError("Invalid campaign receipt")
+        try:
+            spec = validate_declaration(campaign["declaration"])
+            for receipt in campaign["interventions"]:
+                validate_intervention(receipt, campaign["declaration"])
+        except ProtocolError as error:
+            raise EvidenceError(str(error)) from error
+        if seen != {spec.id} or data["fixture"] != campaign["declaration"]["board"]:
+            raise EvidenceError("Campaign case or board receipt disagrees with its declaration")
     identity, expectations, runner = data["identity"], data["expectations"], data["runner"]
     if identity and (type(identity.get("boot")) is not int or not 0 <= identity["boot"] < (1 << 32)
                      or type(identity.get("session_req")) is not int or not 1 <= identity["session_req"] < (1 << 64)

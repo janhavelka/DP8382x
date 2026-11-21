@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add DP83826I observation, reset, legal mode and link-fault campaigns with
+  complete profile restoration checks, bounded peer acknowledgments and
+  deterministic evidence replay.
+
 - Add bounded passive serial attachment with explicit fixture and firmware
   identity, reset-silent open/close declarations and replayable evidence.
   Retain driver failures, uncertain writes and timed nonce resynchronization.

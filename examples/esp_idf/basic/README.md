@@ -179,3 +179,12 @@ The source Git commit and clean/dirty state refresh into a build-directory
 header on each build; archives report `unknown`. Semantic library version is
 separate. Physical link, DHCP, peer reachability, waveform and usable board
 power remain **NOT RUN**.
+
+For an approved [PHY campaign](../../../docs/hardware-validation.md), record
+the exact image and console, confirm a reset-silent attachment, and use
+`application stop` before stopped-owner cases. Confirm
+`application status` shows installed maintenance with traffic disabled.
+Record the cable and peer's exact mode and pause policy for link tests. The
+example's application admission uses 100/full. Other legal PHY profiles can
+be exercised in stopped maintenance with a matching peer. Check restored
+configuration and application readiness before a later start.

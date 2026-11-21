@@ -14,7 +14,7 @@ its own fixture cases and evidence.
   `host` and `sim-mdio`. It sends one complete command at a time and writes
   a new evidence pair. The default nonce is generated for this run.
 - `run-serial` attaches once to an explicitly identified, already-running
-  console using the `passive` suite. Add `--dry-run` to validate and print
+  console using the `passive` or `campaign` suite. Add `--dry-run` to validate and print
   the same plan and declarations without importing pySerial or creating files.
 - `verify-transcript` reads a raw recorded stdout file and writes a new
   evidence pair. Supply the suite, expected target and the session nonce
@@ -41,6 +41,40 @@ the two-sample passive selftest and a final idle-slot check. The operation
 must complete on its admitted token and produce persistent replay evidence
 without cleanup debt. Missing terminal evidence or a successful cleanup
 cannot erase an observed primary failure.
+
+The `campaign` suite selects one case from the [hardware validation table](hardware-validation.md)
+with `--case`. The session and wire identity, full entry/target/restored
+profiles, resolved link, and bounded peer action declarations form one
+evidence pair. The same case definitions drive the compiled fixture,
+serial execution and offline replay. Missing compatible equipment yields
+a retained NOT RUN case. A dry-run prints the initial handshake and the
+conditional case definition. Later commands depend on the responses and
+saved entry profile.
+
+For a compiled offline example, first build `dp8382x_cli_fixture`, then run:
+
+```powershell
+$opts = @(
+  '--suite', 'campaign', '--case', '10base-te', '--target', 'host', '--backend', 'sim-mdio',
+  '--variant', 'DP83826I', '--interface', 'RMII', '--address', '1',
+  '--clock', 'simulated', '--console', 'host-stdio', '--baud', '0',
+  '--firmware-prefix', 'abcdef0', '--operating-mode', 'enhanced', '--polling', 'exclusive',
+  '--board', 'compiled-fixture', '--authorization', 'offline-simulation',
+  '--peer', 'simulated-peer', '--peer-profile', 'an-10-half', '--cable', 'simulated-cable'
+)
+python -S tools/dp8382x_hil_runner.py dry-run @opts
+python -S tools/dp8382x_hil_runner.py run-fixture build/host/test/cli/dp8382x_cli_fixture.exe @opts --fixture-identity abcdef0 --out-dir build/evidence --run campaign-10base-te
+python -S tools/dp8382x_hil_runner.py verify-artifacts build/evidence/campaign-10base-te.json
+```
+
+For offline replay of an intervention case via `verify-transcript`, pass
+the original declarations and the captured `campaign.interventions` array
+as `--interventions FILE`. It is bounded to 4096 bytes. `verify-artifacts`
+reads the array from the existing manifest. The replay derives the expected
+case, step order, actions, outcome and restoration from the case definition,
+correlated records and acknowledgment receipts. A compiled fixture control
+stays in the child harness. Serial intervention receipts are manual
+declarations tied to an action, boot, preceding request and finite budget.
 
 ```powershell
 python tools/dp8382x_hil_runner.py --help
@@ -99,8 +133,10 @@ object. It requests deasserted DTR and RTS, disables flow control, assigns the
 port and opens once. The requested line states are software settings.
 The OS acquires the handle before pySerial applies those settings, and
 pySerial's own open sequence can purge queued bytes. The runner issues no
-flush, drain, reset-buffer or break calls. It performs no port discovery,
-flash, reset, power-cycle, reconnect or replay. [pySerial 3.5 API](https://pyserial.readthedocs.io/en/latest/pyserial_api.html)
+flush, drain, reset-buffer or break calls. Attachment itself has no reset or
+power-cycle action. An explicitly selected campaign can issue the specified
+CLI software reset after an admitted entry snapshot.
+[pySerial 3.5 API](https://pyserial.readthedocs.io/en/latest/pyserial_api.html)
 
 Attachment starts with `session <fresh-nonce>`. It needs no startup banner
 and requires the matching reply and an explicitly verified firmware revision
@@ -198,7 +234,9 @@ placeholder and `<run>.txt` for the raw stdout bytes. The finalized JSON
 records the suite, target evidence and expected identity, fixture, UTC
 timestamps, commands, case verdicts and primary/restoration outcomes. For
 a subprocess, commands lists writes that completed before their deadline.
-For a supplied transcript, commands records the declared replay plan.
+For a supplied legacy transcript, commands records the declared replay plan.
+For a campaign transcript it records the validated request prefix derived from
+the case and retained records.
 The `stderr` field is base64 for the captured stderr bytes.
 
 The runner flushes, syncs and closes the transcript before hashing it. It

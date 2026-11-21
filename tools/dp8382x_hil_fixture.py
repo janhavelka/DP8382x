@@ -183,7 +183,7 @@ class FixtureProcess:
             raise FixtureError("fixture is not running")
         return self._process
 
-    def send(self, line: bytes) -> None:
+    def send(self, line: bytes, deadline: float | None = None) -> None:
         """Write all bytes or fail by the aggregate deadline; no implicit newline."""
         process = self._require_live()
         if not isinstance(line, bytes) or not line:
@@ -192,7 +192,7 @@ class FixtureProcess:
         if reader_failure is not None:
             self._abort()
             raise reader_failure
-        if self._remaining() <= 0:
+        if self._remaining(deadline) <= 0:
             self._abort()
             raise FixtureError("fixture deadline expired")
         done = threading.Event()
@@ -214,15 +214,15 @@ class FixtureProcess:
         try:
             self._writer = threading.Thread(target=write, daemon=True)
             self._writer.start()
-            while not done.wait(min(self._POLL, max(0, self._remaining()))):
+            while not done.wait(min(self._POLL, max(0, self._remaining(deadline)))):
                 reader_failure = self._failure()
                 if reader_failure is not None:
                     raise reader_failure
-                if self._remaining() <= 0:
+                if self._remaining(deadline) <= 0:
                     raise FixtureError("fixture stdin write deadline expired")
             if failure:
                 raise FixtureError(f"fixture stdin write failed: {failure[0]}")
-            if self._remaining() <= 0:
+            if self._remaining(deadline) <= 0:
                 raise FixtureError("fixture stdin write completed after the deadline")
         except (OSError, RuntimeError) as exc:
             self._abort()
@@ -231,16 +231,16 @@ class FixtureProcess:
             self._abort()
             raise
 
-    def read(self) -> bytes:
+    def read(self, deadline: float | None = None) -> bytes:
         """Return the next stdout chunk, or empty bytes after its EOF."""
         self._require_live()
         if self._stdout_eof:
             return b""
         try:
-            chunk = self._next()
+            chunk = self._next(deadline)
             if chunk is not None:
                 self._capture(chunk)
-            if self._remaining() <= 0:
+            if self._remaining(deadline) <= 0:
                 raise FixtureError("fixture deadline expired")
             if chunk is None:
                 self._stdout_eof = True

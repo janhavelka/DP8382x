@@ -130,8 +130,8 @@ def serial_settings(args, expected):
         raise SerialError("use --console uart0 with UART baud 1..4000000 or --console usb-serial-jtag with baud 0")
     if "firmware" not in expected and "firmware_prefix" not in expected:
         raise SerialError("serial requires --firmware or --firmware-prefix")
-    if args.suite != "passive" or expected["target"] == "host":
-        raise SerialError("serial requires the passive suite and a device target")
+    if args.suite not in ("passive", "campaign") or expected["target"] == "host":
+        raise SerialError("serial requires a device target and the passive or campaign suite")
     limits = {name: getattr(args, name) for name in LIMITS}
     if (limits["cleanup_timeout"] + limits["finalize_timeout"] >= limits["session_timeout"] or
             limits["tail_timeout"] >= min(limits["duration"], limits["session_timeout"] -

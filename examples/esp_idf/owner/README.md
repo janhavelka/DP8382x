@@ -99,3 +99,12 @@ unadmitted. An RX callback can still finish freeing its SDK buffer or enter
 later against the retained context. A DMA-queued frame may still be on its
 way to the wire. Installed storage stays alive until system restart.
 See the [application ownership guide](../../../docs/ethercat-integration.md).
+
+For an approved [PHY campaign](../../../docs/hardware-validation.md), record
+the exact image and console and confirm a reset-silent attachment. Use
+`application release` for a raw session and `application stop` to establish
+the framework fence. Require `phase=maintenance`, `maintenance=1` and
+`retired=0` in `application status` before stopped-owner cases. The runner
+leaves maintenance in place. A later owner decision to start or admit raw
+frames requires restored settings, current readiness and a fresh 100/full
+observation.

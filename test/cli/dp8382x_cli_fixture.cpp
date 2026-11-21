@@ -36,7 +36,24 @@ struct Options {
   bool traceWrites{false};
   bool holdTdr{false};
   bool attestFeatures{false};
+  std::string_view campaignPeer{"open"};
+  std::string_view campaignMode{};
 };
+
+// Literal simulated copper/AN profiles. Inputs are confined to this child.
+uint16_t campaignPartner(std::string_view name) {
+  if (name == "open") return 0;
+  if (name == "an-10-half") return 0x0021;
+  if (name == "an-10-full") return 0x0041;
+  if (name == "an-100-half") return 0x0081;
+  if (name == "an-100-full") return 0x0101;
+  if (name == "an-100-full-asym") return 0x0901;
+  if (name == "forced-10-half") return 0x0020;
+  if (name == "forced-10-full") return 0x0040;
+  if (name == "forced-100-half") return 0x0080;
+  if (name == "forced-100-full") return 0x0100;
+  return 0xFFFF;
+}
 
 bool decimal(std::string_view input, uint64_t& output) {
   if (input.empty()) return false;
@@ -66,6 +83,12 @@ bool parseOptions(int argc, char** argv, Options& options) {
       else if (value == "100-full") options.partner = Partner::FULL100;
       else if (value == "10-half") options.partner = Partner::HALF10;
       else return false;
+    } else if (option == "--campaign") {
+      if (value != "basic" && value != "enhanced") return false;
+      options.campaignMode = value;
+    } else if (option == "--campaign-peer") {
+      if (campaignPartner(value) == 0xFFFFU) return false;
+      options.campaignPeer = value;
     } else if (option == "--fail-after") {
       if (!decimal(value, options.failAfter)) return false;
     } else if (option != "--reboot-after" || !decimal(value, options.rebootAfter) ||
@@ -88,6 +111,9 @@ struct Bus {
   std::optional<uint64_t> failOnce;
   bool holdReset{false}, regressHard{false}, traceResets{false}, linkLatchedLow{false}, isolated{false};
   bool traceWrites{false}, holdTdr{false};
+  bool campaign{false};
+  uint16_t peer{0};
+  uint64_t peerReadyUs{0};
 
   void setup(const Options& options) {
     *this = {};
@@ -97,9 +123,11 @@ struct Bus {
     traceResets = options.traceResets;
     traceWrites = options.traceWrites;
     holdTdr = options.holdTdr;
+    campaign = !options.campaignMode.empty();
+    peer = campaignPartner(options.campaignPeer);
     words[0] = 0x3100; // Autonegotiation enabled, no reset in progress.
     words[2] = 0x2000;
-    words[3] = 0xA131; // DP83826 enhanced model, documented revision 1.
+    words[3] = options.campaignMode == "basic" ? 0xA111 : 0xA131;
     words[4] = 0x01E1;
     words[22] = 0x0100; // BISCR current power-mode indication.
     words[23] = options.interface == MacInterface::MII ? 0x0041 : 0x0061;
@@ -141,6 +169,26 @@ struct Bus {
 
   // Literal register model for the fixture's latch and read-clear assertions.
   uint16_t readDirect(uint8_t address) {
+    if (campaign) {
+      const bool an = (words[0] & 0x1000U) != 0U;
+      const bool negotiation = an && (peer & 1U) != 0U;
+      const auto common = static_cast<uint16_t>(words[4] & peer & 0x01E0U);
+      const auto forced = (words[0] & 0x2000U) != 0U ?
+          ((words[0] & 0x0100U) != 0U ? 0x0100U : 0x0080U) :
+          ((words[0] & 0x0100U) != 0U ? 0x0040U : 0x0020U);
+      const bool up = nowUs >= peerReadyUs && (negotiation ? common != 0U : !an && peer == forced);
+      const bool complete = up && negotiation;
+      const bool speed10 = (common & 0x0180U) == 0U;
+      const bool full = (common & 0x0100U) != 0U || (speed10 && (common & 0x0040U) != 0U);
+      words[1] = static_cast<uint16_t>((up ? 4U : 0U) | (complete ? 0x20U : 0U));
+      words[5] = complete ? peer : 0;
+      words[6] = complete ? 1 : 0;
+      words[16] = static_cast<uint16_t>((up ? 1U : 0U) | (complete ? 0x10U : 0U) |
+                                       (speed10 ? 2U : 0U) | (full ? 4U : 0U));
+      // The asymmetric campaign peer raises local RX only with local both.
+      words[25] = static_cast<uint16_t>((words[25] & 0xCFFFU) |
+          (complete && peer == 0x0901U && (words[4] & 0x0C00U) == 0x0C00U ? 0x2000U : 0U));
+    }
     auto word = words[address];
     switch (address) {
       case 1:
@@ -331,6 +379,20 @@ public:
     OperationResult result{};
     if (!_driver->takeResult(token, result).ok()) return false;
     if (result.status.ok()) {
+      if (!_options.campaignMode.empty()) {
+        LinkSettings entry{};
+        entry.advertisement.technologyMask = 15;
+        entry.advertisement.asymmetricPause = true;
+        entry.crossover.pairSelection = PairSelection::MDIX;
+        entry.crossover.robust = true;
+        entry.crossover.swapPair = entry.crossover.swapPolarity = true;
+        status = _driver->startConfigure(entry, budget, token);
+        for (unsigned i = 0; i < 128 && status.inProgress(); ++i) {
+          status = _driver->pollOperation(token);
+          if (status.inProgress()) _bus.nowUs += TICK_US;
+        }
+        if (!status.ok() || !_driver->takeResult(token, result).ok() || !result.status.ok()) return false;
+      }
       LinkSnapshot link{};
       (void)_driver->readLinkStatus(link, {1000000, 10});
     }
@@ -415,6 +477,17 @@ private:
     else if (line == "$inject-bist-errors") _bus.bistErrors = 5;
     else if (line == "$latch-link-low") _bus.linkLatchedLow = true;
     else if (line == "$isolate") _bus.isolated = true;
+    else if (line.substr(0, 15) == "$campaign-peer ") {
+      const auto peer = campaignPartner(line.substr(15));
+      if (!_bus.campaign || peer == 0xFFFFU) return false;
+      _bus.peer = peer;
+      _bus.peerReadyUs = 0;
+    } else if (line.substr(0, 23) == "$campaign-peer-delayed ") {
+      const auto peer = campaignPartner(line.substr(23));
+      if (!_bus.campaign || peer == 0xFFFFU) return false;
+      _bus.peer = peer;
+      _bus.peerReadyUs = _bus.nowUs + 6000U;
+    }
     else if (line == "$inject-events") {
       _bus.words[18] |= 0xA500U;
       _bus.words[19] |= 0x5A00U;
@@ -563,7 +636,7 @@ int main(int argc, char** argv) {
       "Usage: dp8382x_cli_fixture [--identity TOKEN] [--partner down|pending|100-full|10-half] "
       "[--fail-after N] [--reboot-after N] [--partial-record] [--deny-maintenance|--no-maintenance] "
       "[--hold-reset] [--regress-after-hard] [--trace-resets] [--trace-writes] [--mii] [--hold-tdr] "
-      "[--attest-features]\n";
+      "[--attest-features] [--campaign basic|enhanced] [--campaign-peer PROFILE]\n";
   if (argc == 2 && std::string_view(argv[1]) == "--help") {
     std::fputs(usage, stdout);
     return 0;

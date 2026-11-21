@@ -18,9 +18,13 @@ import time
 from dp8382x_hil_artifacts import (
     MAX_TRANSCRIPT_BYTES, SERIAL_SCOPE, EvidenceError, EvidenceFiles, validate_destination, verify_artifacts,
 )
+from dp8382x_hil_campaign import (
+    CASES, MAX_COMMANDS, MAX_INTERVENTIONS, Campaign, Command, Intervention, clean, exact_fields, payload,
+    validate_declaration, validate_intervention,
+)
 from dp8382x_hil_fixture import FixtureError, FixtureProcess
 from dp8382x_hil_protocol import (
-    COMMON_FIELDS, TERMINAL_STATUS, U32_MAX, U64_MAX, Decoder, ProtocolError, Record,
+    TERMINAL_STATUS, U32_MAX, U64_MAX, Decoder, ProtocolError, Record,
     identity, integer, observed_identity, validate_expected_identity,
 )
 from dp8382x_hil_serial import (
@@ -33,19 +37,6 @@ TOKEN = re.compile(r"[A-Za-z0-9_.:-]{1,64}\Z")
 REVISION = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 TARGET_FIELDS = ("target", "backend", "variant", "interface", "address")
 OPTIONAL_FIELDS = ("firmware", "firmware_prefix", "tree", "sdk", "clock", "console", "baud")
-
-
-@dataclass(frozen=True)
-class Command:
-    """Known input line and its allowed response form."""
-
-    text: str
-    form: str = "terminal"
-
-    @property
-    def name(self):
-        """Return the canonical schema command name used by this plan."""
-        return ".".join(self.text.split()[:2]) if not self.text.startswith("session ") else "session"
 
 
 PASSIVE = tuple(map(Command, (
@@ -71,18 +62,13 @@ class Response:
     samples: list[Record] = field(default_factory=list)
 
 
-def payload(record):
-    """Return command fields without the common record envelope."""
-    return {key: value for key, value in record.fields.items() if key not in COMMON_FIELDS}
-
-
 def check_payload(record):
     """Check typed operation and sequencer data consumed by the built-in plans."""
     fields = payload(record)
     if record.cmd == "registers.write" and record.primary == "INVALID_PARAM":
         if fields:
             raise ProtocolError("a syntactic write rejection has unexpected effect evidence")
-    elif record.cmd == "connection.initialize":
+    elif record.cmd in ("connection.initialize", "recovery.reset", "recovery.restart"):
         if record.state == "admitted" or record.op == 0:
             if fields:
                 raise ProtocolError("initialization admission has unexpected fields")
@@ -104,18 +90,6 @@ def check_payload(record):
         elif record.primary == "OK" or fields:
             exact_fields(fields, {"rounds": (0, 2), "requested": (2, 2), "attempted": (0, 3),
                                   "attempted_known": ("0", "1"), "managed": ("0",)})
-
-
-def exact_fields(fields, checks):
-    """Require exactly the supplied field names and check every corresponding value."""
-    if fields.keys() != checks.keys():
-        raise ProtocolError("missing or unexpected command fields")
-    for name, allowed in checks.items():
-        value = fields[name]
-        if isinstance(allowed[0], int):
-            integer(value, *allowed)
-        elif value not in allowed:
-            raise ProtocolError(f"invalid {name}: {value}")
 
 
 def plan(suite, nonce):
@@ -140,6 +114,7 @@ class Session:
         self.last_time = None
         self.clock_unavailable = False
         self.used_tokens = set()
+        self.request_limit = len(commands)
 
     def issue(self):
         """Mark the next full command write. Never advance an outstanding request."""
@@ -162,7 +137,7 @@ class Session:
             except ProtocolError:
                 self.identity = dict(observed_identity(record), boot=record.boot, session_req=record.req)
                 raise
-            if record.req > U64_MAX - (len(self.commands) - 1):
+            if record.req > U64_MAX - (self.request_limit - 1):
                 raise ProtocolError("request counter cannot accommodate the plan without rollover")
             self.identity = dict(observed, boot=record.boot, session_req=record.req)
         if index >= self.issued:
@@ -217,10 +192,82 @@ class Session:
             raise ProtocolError("missing session reply or terminal evidence")
 
 
-def clean(record):
-    """Check a successful command with no independent cleanup failure."""
-    return (record.primary, record.fields["detail"], record.fields["cleanup"],
-            record.fields["reason"]) == ("OK", "0", "none", "none")
+# Dp8382xCli.cpp CONFIG_US and DIRECT_US. Admission and terminal clocks
+# may be sampled later than the scheduling timestamp.
+TIMED_COMMANDS = {**dict.fromkeys(("configuration.apply", "configuration.verify", "recovery.reset",
+                                 "recovery.restart", "connection.initialize"), 5_000_000),
+                  **dict.fromkeys(("link.read", "link.partner", "registers.read"), 2_000_000)}
+
+
+class CampaignSession(Session):
+    """Correlate the dynamic case with the same one-request record owner."""
+
+    def __init__(self, nonce, expected, declaration, recorded=None):
+        if not isinstance(nonce, str) or not TOKEN.fullmatch(nonce):
+            raise ProtocolError("invalid session nonce")
+        super().__init__([Command("session " + nonce)], nonce, expected)
+        self.request_limit = MAX_COMMANDS
+        self.campaign = Campaign(declaration, expected)
+        self.recorded = recorded
+
+    @property
+    def next(self):
+        if not self.results:
+            return self.commands[0]
+        return self.campaign.next
+
+    def intervene(self, row):
+        self.campaign.advance(row)
+        self._queue()
+
+    def _queue(self):
+        if isinstance(self.next, Command):
+            if len(self.commands) >= MAX_COMMANDS:
+                raise ProtocolError("campaign command ceiling reached")
+            self.commands.append(self.next)
+
+    def accept(self, record):
+        if self.recorded is not None and self.issued == len(self.results):
+            if not self.identity and (record.cmd != "session" or record.fields.get("nonce") != self.nonce):
+                super().accept(record)
+                return
+            while isinstance(self.next, Intervention):
+                index = len(self.campaign.interventions)
+                if index >= len(self.recorded):
+                    raise ProtocolError("missing intervention receipt before next command")
+                self.intervene(self.recorded[index])
+            if self.next is not None:
+                self.issue()
+        index = len(self.results)
+        super().accept(record)
+        if not self.identity:
+            return
+        fields = record.fields
+        if record.state == "admitted" or (record.primary == "OK" and record.cmd in TIMED_COMMANDS):
+            duration = int(fields["deadline_us"]) - int(fields["time_us"])
+            if fields["deadline_valid"] != "1" or not 0 < duration <= TIMED_COMMANDS[record.cmd]:
+                raise ProtocolError("campaign command has no valid bounded deadline")
+        if len(self.results) == index:
+            return
+        if fields["time_valid"] != "1":
+            raise ProtocolError("campaign record clock is unavailable")
+        if record.cmd not in TIMED_COMMANDS and fields["deadline_valid"] != "0":
+            raise ProtocolError("campaign cached record carries a deadline")
+        self.campaign.advance(record)
+        self._queue()
+
+    def finish(self):
+        if self.recorded is not None:
+            while isinstance(self.next, Intervention) and len(self.campaign.interventions) < len(self.recorded):
+                self.intervene(self.recorded[len(self.campaign.interventions)])
+            if len(self.recorded) != len(self.campaign.interventions):
+                raise ProtocolError("unexpected intervention receipt after case")
+        super().finish()
+        if self.next is not None:
+            raise ProtocolError("missing campaign command or intervention")
+
+    def evidence(self):
+        return {"cases": self.campaign.cases(), "campaign": self.campaign.receipt()}
 
 
 def case(name, record=None, passed=None, message="missing terminal evidence", restore=None):
@@ -355,6 +402,11 @@ def expectations(values, suite):
     validate_expected_identity(values)
     if suite == "fixture-operations" and (values["target"], values["backend"]) != ("host", "sim-mdio"):
         raise ProtocolError("fixture-operations requires the host sim-mdio producer")
+    if suite == "campaign" and (
+            not ({"firmware", "firmware_prefix"} & values.keys()) or
+            not all(key in values and values[key] != "unknown" for key in ("clock", "console", "baud")) or
+            (values["target"] == "host") != (values["backend"] == "sim-mdio")):
+        raise ProtocolError("campaign requires verified firmware, clock, console and baud")
     return values
 
 
@@ -380,15 +432,92 @@ def read_capture(path, limit, save, consume):
             remaining -= len(data)
 
 
-def capture(args, suite, nonce, expected):
+def make_session(suite, nonce, expected, declaration=None, recorded=None):
+    if suite == "campaign":
+        return CampaignSession(nonce, expected, declaration, recorded)
+    return Session(plan(suite, nonce), nonce, expected)
+
+
+def live_steps(session):
+    """Yield one admitted step at a time after its predecessor has a receipt."""
+    if isinstance(session, CampaignSession):
+        while session.next is not None:
+            yield session.next
+    else:
+        yield from session.commands
+
+
+def case_evidence(suite, session):
+    if isinstance(session, CampaignSession):
+        return session.evidence()
+    return {"cases": cases_for(suite, session.results, session.samples)}
+
+
+def intervention(session, step, source, ceiling, act):
+    """Bind the bounded external declaration to its preceding correlated terminal."""
+    started = time.monotonic()
+    budget = session.campaign.declaration["intervention_timeout_ms"]
+    budget = min(budget, max(0, int((ceiling - started) * 1000)))
+    deadline = started + budget / 1000
+    failure = None
+    try:
+        outcome = act(step.action, deadline) if budget else "timed_out"
+    except (OSError, FixtureError, KeyboardInterrupt) as error:
+        failure = error
+        outcome = "failed"
+    if time.monotonic() >= deadline:
+        outcome = "timed_out"
+    elapsed = min(budget, max(0, int((time.monotonic() - started) * 1000)))
+    if outcome == "timed_out":
+        elapsed = budget
+    last = session.campaign.last
+    session.intervene({"action": step.action, "source": source, "outcome": outcome, "after_req": last.req,
+                       "boot": last.boot, "elapsed_ms": elapsed, "budget_ms": budget, "cleanup": step.cleanup})
+    if failure is not None:
+        raise failure
+
+
+def operator_acknowledgment(action, deadline):
+    """Read at most one bounded console line. The answer declares operator action."""
+    if not sys.stdin.isatty():
+        return "declined"
+    print(f"Perform {action} on the declared fixture. Type {action} to acknowledge.", file=sys.stderr, flush=True)
+    line = ""
+    if os.name == "nt":
+        import msvcrt
+        while time.monotonic() < deadline:
+            if not msvcrt.kbhit():
+                time.sleep(min(IDLE_POLL, max(0, deadline - time.monotonic())))
+                continue
+            char = msvcrt.getwch()
+            if char in ("\r", "\n"):
+                return "acknowledged" if line == action else "declined"
+            line += char
+            if len(line) > 64:
+                return "declined"
+    else:
+        import select
+        while time.monotonic() < deadline:
+            if not select.select([sys.stdin], [], [], max(0, deadline - time.monotonic()))[0]:
+                break
+            char = os.read(sys.stdin.fileno(), 1)
+            if not char or char == b"\n":
+                return "acknowledged" if line == action else "declined"
+            line += char.decode("ascii", "replace")
+            if len(line) > 64:
+                return "declined"
+    return "timed_out"
+
+
+def capture(args, suite, nonce, expected, declaration=None, recorded=None):
     """Execute a host fixture or verify a supplied transcript and finalize its pair."""
-    commands = plan(suite, nonce)
-    session = Session(commands, nonce, expected)
+    session = make_session(suite, nonce, expected, declaration, recorded)
     decoder = Decoder(max_bytes=args.max_bytes)
     started = utc_now()
     provenance = runner_identity()
     live = args.mode == "run-fixture"
-    label = str(args.path.absolute()) if live else "recorded-offline"
+    executable = str(args.path.absolute())
+    label = declaration["board"] if declaration else executable if live else "recorded-offline"
     files = EvidenceFiles(args.out_dir, args.run, args.max_bytes)
     issues = []
     sent = []
@@ -409,25 +538,50 @@ def capture(args, suite, nonce, expected):
         if live:
             if not args.path.is_file():
                 raise FixtureError("compiled fixture must be a regular executable file")
-            argv = [label]
+            argv = [executable]
             if args.fixture_identity:
                 argv += ["--identity", args.fixture_identity]
+            if declaration:
+                spec = CASES[declaration["case"]]
+                peer = spec.peer or "an-100-full"
+                argv += ["--campaign", declaration["mode"], "--campaign-peer", peer]
+                if expected["interface"] == "MII":
+                    argv.append("--mii")
+                if args.fixture_deny_maintenance:
+                    argv.append("--deny-maintenance")
             fixture = FixtureProcess(argv, args.timeout, args.max_bytes, files.write)
             with fixture:
-                for command in commands:
-                    fixture.send(command.text.encode("ascii") + b"\n")
+                end = time.monotonic() + args.timeout - args.closure
+                active = end - min(1, (args.timeout - args.closure) / 3)
+                def fixture_action(action, deadline):
+                    peer = spec.peer if action in ("replug", "release-peer-reset") else "open"
+                    control = "$campaign-peer-delayed" if spec.id == "bounded-recovery" and peer != "open" else "$campaign-peer"
+                    fixture.send(f"{control} {peer}\n".encode("ascii"), deadline)
+                    return "acknowledged"
+
+                for command in live_steps(session):
+                    if declaration and decoder.has_partial_record:
+                        raise ProtocolError("unsolicited record began before the next step")
+                    deadline = (end if command.cleanup else active) if declaration else None
+                    if isinstance(command, Intervention):
+                        intervention(session, command, "compiled-fixture", deadline, fixture_action)
+                        continue
+                    fixture.send(command.text.encode("ascii") + b"\n", deadline)
                     sent.append(command.text)
                     session.issue()
                     while len(session.results) < session.issued:
-                        chunk = fixture.read()
+                        chunk = fixture.read(deadline)
                         if not chunk:
                             raise ProtocolError("fixture stdout closed before a correlated terminal")
                         consume(chunk)
                 fixture.finish(args.closure, consume)
         else:
-            sent = [command.text for command in commands]
-            session.issued = len(commands)
+            if declaration is None:
+                sent = [command.text for command in session.commands]
+                session.issued = len(sent)
             read_capture(args.path, args.max_bytes, files.write, offline_consume)
+            if declaration is not None:
+                sent = [command.text for command in session.commands[:session.issued]]
         if not issues:
             decoder.finish()
             session.finish()
@@ -445,7 +599,7 @@ def capture(args, suite, nonce, expected):
                 issues.append(fixture.cleanup_issue)
         data = files.finish({
             "suite": suite, "fixture": label, "started_utc": started, "ended_utc": utc_now(),
-            "complete": not issues, "commands": sent, "cases": cases_for(suite, session.results, session.samples),
+            "complete": not issues, "commands": sent, **case_evidence(suite, session),
             "identity": session.identity, "expectations": expected, "runner": provenance,
             "stderr": base64.b64encode(fixture.stderr).decode("ascii") if fixture else "",
             "issues": issues,
@@ -537,10 +691,9 @@ def serial_hard_exit(issues, reason, deadline):
         os._exit(2)
 
 
-def capture_serial(args, nonce, expected, settings, factory):
+def capture_serial(args, nonce, expected, settings, factory, declaration=None):
     """Run one admitted serial session and publish before releasing its receipt."""
-    commands = plan(args.suite, nonce)
-    session = Session(commands, nonce, expected)
+    session = make_session(args.suite, nonce, expected, declaration)
     port = SerialPort(settings, factory)
     exchange = SerialExchange(port, args.max_bytes)
     limits = settings["limits"]
@@ -551,7 +704,8 @@ def capture_serial(args, nonce, expected, settings, factory):
     def receipt(complete):
         return {**settings, "open": port.opened.receipt(), "close": port.closed.receipt(),
                 "writes": port.writes, "recovery": recovery, "framing_uncertain": port.framing_uncertain,
-                "hard_exit": bool(port.exit_reason), "restoration": "not_requested" if complete else "unavailable"}
+                "hard_exit": bool(port.exit_reason), "restoration": (
+                    "reported_by_case" if declaration else "not_requested" if complete else "unavailable")}
 
     start = time.monotonic()
     end = start + limits["session_timeout"]
@@ -564,8 +718,9 @@ def capture_serial(args, nonce, expected, settings, factory):
         base["runner"] = runner_identity(active)
         if time.monotonic() >= active:
             raise EvidenceError("active deadline expired during provenance collection")
+        campaign = session.evidence() if declaration else {}
         return EvidenceFiles(args.out_dir, args.run, args.max_bytes,
-                             provisional={**base, "serial": receipt(False)})
+                             provisional={**base, "serial": receipt(False), **campaign})
 
     reservation = bounded_call(reserve, active)
     if reservation.pending:
@@ -582,12 +737,22 @@ def capture_serial(args, nonce, expected, settings, factory):
         raise EvidenceError(f"evidence reservation {reservation.state}: {reservation.detail}")
     files = reservation.value
     timeout = None
+    cleanup_start = None
+    ceiling = active
     try:
         port.open(active)
-        for command in commands:
+        for command in live_steps(session):
             if exchange.decoder.has_partial_record:
                 raise ProtocolError("unsolicited record began before the next command")
-            deadline = min(active, time.monotonic() + limits["command_timeout"])
+            if command.cleanup and cleanup_start is None:
+                cleanup_start = time.monotonic()
+                ceiling = min(cleanup_ceiling, cleanup_start + limits["cleanup_timeout"] * 0.75)
+            if isinstance(command, Intervention):
+                intervention(session, command, "operator", ceiling, operator_acknowledgment)
+                continue
+            if command.delay:
+                time.sleep(min(command.delay, max(0, ceiling - time.monotonic())))
+            deadline = min(ceiling, time.monotonic() + limits["command_timeout"])
             port.send(command.text, deadline)
             session.issue()
             try:
@@ -596,9 +761,9 @@ def capture_serial(args, nonce, expected, settings, factory):
                 timeout = error
                 raise
         tail = time.monotonic() + limits["tail_timeout"]
-        exchange.receive(min(active, tail), session.accept)
-        if tail > active:
-            raise SerialError("active deadline clipped the receive tail")
+        exchange.receive(min(ceiling, tail), session.accept)
+        if tail > ceiling:
+            raise SerialError("execution deadline clipped the receive tail")
         exchange.decoder.finish()
         session.finish()
     except KeyboardInterrupt:
@@ -607,11 +772,13 @@ def capture_serial(args, nonce, expected, settings, factory):
     except (ProtocolError, SerialError) as error:
         issues.append(str(error))
     finally:
-        cleanup_start = time.monotonic()
+        if cleanup_start is None:
+            cleanup_start = time.monotonic()
         cleanup_end = min(cleanup_ceiling, cleanup_start + limits["cleanup_timeout"])
         recovery_end = min(cleanup_end, cleanup_start + limits["cleanup_timeout"] / 2)
         try:
-            if timeout is not None and not (port.pending or port.framing_uncertain or port.cancelled or interrupted):
+            if timeout is not None and not (port.pending or port.framing_uncertain or port.cancelled or interrupted or
+                                            (declaration and exchange.decoder.has_partial_record)):
                 try:
                     exchange.resynchronize(session, recovery_end, recovery, timeout.late)
                 except (ProtocolError, SerialError, KeyboardInterrupt) as error:
@@ -627,7 +794,7 @@ def capture_serial(args, nonce, expected, settings, factory):
     complete = not issues and not interrupted
     data = {**base, "ended_utc": utc_now(), "complete": complete,
             "commands": [row["command"] for row in port.writes if row["state"] == "ok"],
-            "cases": cases_for(args.suite, session.results, session.samples), "identity": session.identity,
+            **case_evidence(args.suite, session), "identity": session.identity,
             "issues": list(issues), "serial": receipt(complete)}
     final_deadline = min(end, time.monotonic() + limits["finalize_timeout"])
 
@@ -664,18 +831,20 @@ def verify(path):
         nonce = commands[0][len("session "):]
         suite = data["suite"]
         expected = expectations(data["expectations"], suite)
-        selected = plan(suite, nonce)
-        if commands != [command.text for command in selected]:
-            raise EvidenceError("recorded commands differ from the known suite")
-        session = Session(selected, nonce, expected)
-        session.issued = len(selected)
+        campaign = data.get("campaign")
+        session = make_session(suite, nonce, expected, campaign["declaration"] if campaign else None,
+                               campaign["interventions"] if campaign else None)
+        if campaign is None:
+            session.issued = len(session.commands)
         decoder = Decoder(max_bytes=data["serial"]["max_bytes"] if data["scope"] == SERIAL_SCOPE
                           else MAX_TRANSCRIPT_BYTES)
         for index in range(0, len(transcript), 4096):
             decode_chunk(decoder, session.accept, transcript[index:index + 4096])
         decoder.finish()
         session.finish()
-        if session.identity != data["identity"] or cases_for(suite, session.results) != data["cases"]:
+        if commands != [command.text for command in session.commands]:
+            raise EvidenceError("recorded commands differ from the known suite")
+        if session.identity != data["identity"] or case_evidence(suite, session)["cases"] != data["cases"]:
             raise EvidenceError("manifest identity or case claims do not match the transcript")
     return data
 
@@ -710,7 +879,20 @@ def parser():
         ("run-serial", "attach once to an explicitly qualified running serial console"),
     ):
         command = modes.add_parser(name, help=description)
-        command.add_argument("--suite", choices=SUITES, required=True)
+        command.add_argument("--suite", choices=(*SUITES, "campaign"), required=True)
+        command.add_argument("--case", choices=CASES, help="one case for the campaign suite")
+        command.add_argument("--operating-mode", choices=("basic", "enhanced"))
+        command.add_argument("--polling", choices=("exclusive", "concurrent"))
+        command.add_argument("--board", help="identified board or fixture")
+        command.add_argument("--authorization", help="record authorizing this exact attachment or campaign")
+        command.add_argument("--peer", default="", help="identified compatible link partner")
+        command.add_argument("--peer-profile", default="", help="declared peer profile or open topology")
+        command.add_argument("--cable", default="", help="identified copper cable")
+        command.add_argument("--power-record", default="", help="authorized power/boot and board-wait record")
+        command.add_argument("--previous-boot", type=int, help="prior session boot cookie on this board")
+        command.add_argument("--intervention-timeout-ms", type=int, default=10_000)
+        command.add_argument("--reinitialize", action="store_true",
+                             help="authorize cleanup-only no-reset initialization of the admitted profile")
         if name != "run-serial":
             command.add_argument("--nonce", required=name == "verify-transcript")
         for key in TARGET_FIELDS + OPTIONAL_FIELDS:
@@ -727,10 +909,12 @@ def parser():
             command.add_argument("--timeout", type=positive_seconds, default=5.0)
             command.add_argument("--closure", type=positive_seconds, default=0.5)
             command.add_argument("--fixture-identity", help="explicit simulated identity reported by the host fixture")
+            command.add_argument("--fixture-deny-maintenance", action="store_true",
+                                 help="exercise the compiled fixture's denied mutation route")
+        elif name == "verify-transcript":
+            command.add_argument("--interventions", type=Path, help="bounded JSON array of recorded intervention receipts")
         elif name == "run-serial":
             command.add_argument("--port", required=True, help="explicit local COM port or /dev tty path")
-            command.add_argument("--board", required=True, help="physical board or fixture identifier")
-            command.add_argument("--authorization", required=True, help="record authorizing this exact attachment")
             command.add_argument("--reset-silent", action="store_true",
                                  help="declare qualified open/close without reset on this exact setup")
             command.add_argument("--clean-input", action="store_true",
@@ -751,6 +935,56 @@ def parser():
     return cli
 
 
+def campaign_arguments(args):
+    if args.suite != "campaign":
+        if args.case or getattr(args, "interventions", None) or getattr(args, "fixture_deny_maintenance", False):
+            raise ProtocolError("campaign options require --suite campaign")
+        return None, None
+    declared = {"case": args.case, "mode": args.operating_mode, "polling": args.polling, "board": args.board,
+                "authorization": args.authorization, "peer": args.peer, "peer_profile": args.peer_profile,
+                "cable": args.cable, "power_record": args.power_record, "previous_boot": args.previous_boot,
+                "intervention_timeout_ms": args.intervention_timeout_ms, "reinitialize": args.reinitialize}
+    validate_declaration(declared)
+    recorded = None
+    if args.mode == "verify-transcript":
+        recorded = []
+        if args.interventions:
+            def unique(pairs):
+                values = dict(pairs)
+                if len(values) != len(pairs):
+                    raise ProtocolError("duplicate intervention JSON fields")
+                return values
+
+            if not args.interventions.is_file():
+                raise ProtocolError("intervention receipts require a regular file")
+            with args.interventions.open("rb") as stream:
+                content = stream.read(4097)
+            if len(content) > 4096:
+                raise ProtocolError("intervention receipts exceed 4096 bytes")
+            try:
+                recorded = json.loads(content, object_pairs_hook=unique)
+            except (ValueError, RecursionError) as error:
+                raise ProtocolError(f"invalid intervention JSON: {error}") from error
+            if type(recorded) is not list or len(recorded) > MAX_INTERVENTIONS:
+                raise ProtocolError("invalid intervention receipt count")
+            for row in recorded:
+                validate_intervention(row, declared)
+    return declared, recorded
+
+
+def preview_plan(args, expected, nonce, declaration, **details):
+    initial = make_session(args.suite, nonce, expected, declaration)
+    result = {"scope": "serial_session" if args.mode == "run-serial" else "host_protocol", "executed": False,
+              "suite": args.suite, "expectations": expected, "commands": [step.text for step in initial.commands]}
+    if declaration:
+        spec = CASES[declaration["case"]]
+        result["campaign"] = {"declaration": declaration, "group": spec.group, "equipment": spec.fixture,
+                              "peer_profile": spec.peer, "target": spec.target.apply() if spec.target else None,
+                              "reset": spec.reset or None, "mutates_phy": spec.mutation,
+                              "command_ceiling": MAX_COMMANDS, "conditional": True}
+    print(json.dumps({**result, **details}, indent=2))
+
+
 def main(argv=None, *, serial_factory=None):
     """Return 0 for PASS, 1 for FAIL, 2 if incomplete, and 130 if interrupted."""
     cli = parser()
@@ -767,7 +1001,7 @@ def main(argv=None, *, serial_factory=None):
             nonce = getattr(args, "nonce", None)
             if nonce is None:
                 nonce = "preview" if preview else secrets.token_hex(12)
-            commands = plan(args.suite, nonce)
+            declaration, recorded = campaign_arguments(args)
             if args.mode == "run-fixture":
                 if (expected["target"], expected["backend"]) != ("host", "sim-mdio"):
                     raise ProtocolError("compiled fixture must expect host sim-mdio")
@@ -779,21 +1013,18 @@ def main(argv=None, *, serial_factory=None):
                 settings = serial_settings(args, expected)
                 validate_destination(args.run, args.max_bytes)
                 if preview:
-                    print(json.dumps({"scope": SERIAL_SCOPE, "executed": False,
-                                      "suite": args.suite, "expectations": expected, "serial": settings,
-                                      "destination": {"directory": str(args.out_dir), "run": args.run},
-                                      "commands": [command.text for command in commands]}, indent=2))
+                    preview_plan(args, expected, nonce, declaration, serial=settings,
+                                 destination={"directory": str(args.out_dir), "run": args.run})
                     return 0
                 if serial_factory is not None:
                     settings["backend"] = INJECTED_BACKEND
-                data, interrupted = capture_serial(args, nonce, expected, settings, serial_factory or native_port)
+                data, interrupted = capture_serial(args, nonce, expected, settings, serial_factory or native_port,
+                                                   declaration)
             else:
                 if preview:
-                    print(json.dumps({"scope": "host_protocol", "executed": False,
-                                      "suite": args.suite, "expectations": expected,
-                                      "commands": [command.text for command in commands]}, indent=2))
+                    preview_plan(args, expected, nonce, declaration)
                     return 0
-                data, interrupted = capture(args, args.suite, nonce, expected)
+                data, interrupted = capture(args, args.suite, nonce, expected, declaration, recorded)
     except KeyboardInterrupt:
         print("interrupted", file=sys.stderr)
         return 130

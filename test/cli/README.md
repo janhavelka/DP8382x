@@ -27,6 +27,8 @@ behavior only.
 | `--attest-features` | Supplies synthetic board and fixture proof for the typed command under test. Omit it to verify missing proof rejection. |
 | `--mii` | Selects an MII fixture binding for MII-only routes. |
 | `--hold-tdr` | Leaves the simulated manual capture pending to exercise deadline and restoration handling. |
+| `--campaign basic\|enhanced` | Selects the revision-1 mode ID and prepares a restorable owned AN profile through the real core on startup. |
+| `--campaign-peer PROFILE` | Supplies a modeled peer from the campaign case table. In campaign mode, coherent link registers follow the modeled local and peer profiles. |
 
 The fixture intercepts exact lines containing `$pause`, `$resume`, `$tick N`
 or `$output-stall N`. They do not consume CLI request numbers. These controls
@@ -43,6 +45,8 @@ also work with CR, LF or CRLF.
 | `$fail-next N` | Fails the frame after N further successful simulated frames once. N is 0 through 4096. |
 | `$before-quiet-floor`, `$at-quiet-floor` | While paused, service one tick at the current hard-reset floor minus 1 µs or exactly at the floor. |
 | `$isolate` | Models external disposition and lets the application attest it for `owner abandon`. |
+| `$campaign-peer PROFILE` | In campaign mode, changes the simulated connected peer. |
+| `$campaign-peer-delayed PROFILE` | In campaign mode, delays the simulated peer signal for six milliseconds of fixture time. |
 
 All other bytes reach the CLI unchanged, including controls with invalid
 arguments. The fixture pumps up to 8192 owner ticks at input boundaries and
@@ -57,6 +61,9 @@ The registered `cli_hil_runner` test drives this executable through the
 checks admission-only and wrong-token transcripts. `cli_hil_serial` routes
 the passive suite through an injected serial backend connected to this fixture
 and checks bounded I/O failure paths without using a serial device.
+`cli_hil_campaign` covers each executable [observation/mode case](../../docs/hardware-validation.md),
+the retained INT/equipment dispositions, per-field evidence mutations,
+recovery after simulated failure, and serial/offline replay of the same plan.
 
 The registered processor checks inject a refused poll, a temporarily refused
 take, a stalled writer, a clock regression during final-sample recording and

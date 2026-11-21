@@ -7,6 +7,11 @@ in the [prompt 41 report](reports/implementation/41-owner-admission-example.md).
 Its [raw frame handoff](reports/implementation/42-owner-frame-boundary.md)
 uses that admission decision for each submission. Chip register coverage is unchanged.
 
+The [hardware validation case table](hardware-validation.md#case-table) maps
+identity, initialization, reset, profile, link and 10BASE-Te evidence to
+executable campaign cases. Host transcripts and injected serial tests
+establish software behavior. Physical case evidence remains open.
+
 This matrix summarizes the [authoritative ledger](registers/dp83826i.json),
 without duplicating its numeric map. All 35 families have complete source
 dispositions. All 79 detailed entries, 18 opaque recipe records and five
