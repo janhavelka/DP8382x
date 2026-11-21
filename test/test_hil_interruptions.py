@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -43,6 +44,19 @@ def fixture_args(folder, case, name):
 class Exchange:
     line: bytes
     response: bytearray = field(default_factory=bytearray)
+
+
+def native_reply(entry):
+    raw = device_identity(b"".join(row_lines(bytes(entry.response))))
+    if entry.line == b"local console\n":
+        native = (b" input_queued=0 output_queued=0 lines_queued=0 input_dropped=0 input_gaps=0"
+                  b" lines_dropped=0 lines_truncated=0 uart_stalls=0 output_backpressure=0")
+        return b"".join(r.rstrip(b"\r\n") + native + b"\r\n" for r in row_lines(raw))
+    if entry.line == b"application status\n":
+        return raw.replace(b"primary=UNSUPPORTED ", b"primary=OK ").replace(
+            b"reason=none\r\n", b"reason=none installed=1 traffic=0 maintenance=1 "
+            b"retired=0 shutdown=0 carrier=0 ip=0.0.0.0 events=0\r\n")
+    return raw
 
 
 class CutFixture:
@@ -336,6 +350,35 @@ class Interruptions(unittest.TestCase):
                          ["prior.json", "prior.txt", "unpublished.json", "unpublished.txt"])
         self.assertEqual([p.read_bytes() for p in (prior, prior.with_suffix(".txt"))], prior_contents)
 
+    def test_final_declined_intervention_needs_no_following_command(self):
+        intervene = runner.intervention
+
+        def decline(session, step, source, deadline, act):
+            intervene(session, step, source, deadline, lambda action, end: "declined")
+
+        with patch.object(runner, "intervention", decline):
+            code, result, path, err = self.run_case("calibration-recovery", "declined")
+        self.assertEqual(code, 2, err)
+        self.assertTrue(result["complete"])
+        self.assertEqual(result["campaign"]["interventions"][-1]["outcome"], "declined")
+        self.assertEqual(result, runner.verify(path))
+
+    def test_host_publication_stall_leaves_only_the_reserved_pair(self):
+        result = subprocess.run([sys.executable, "-S", __file__, "--stall-manifest", str(FIXTURE), str(self.folder)],
+                                capture_output=True, text=True, timeout=8)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("soak publication", result.stderr)
+        self.assertEqual(sorted(p.name for p in self.folder.iterdir()), ["stalled.json", "stalled.txt"])
+        manifest = json.loads((self.folder / "stalled.json").read_bytes())
+        self.assertEqual(manifest["verdict"], "INCONCLUSIVE")
+        self.assertGreater((self.folder / "stalled.txt").stat().st_size, 0)
+
+    def test_stalled_final_console_exits_with_the_published_verdict(self):
+        result = subprocess.run([sys.executable, "-S", __file__, "--stall-report", str(FIXTURE), str(self.folder)],
+                                capture_output=True, text=True, timeout=8)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(runner.verify(self.folder / "stalled.json")["verdict"], "PASS")
+
     def test_serial_loss_during_target_or_restore(self):
         tape, _, reference = self.compile_tape("owned-apply")
         commands = reference["commands"]
@@ -357,15 +400,7 @@ class Interruptions(unittest.TestCase):
                         if index > at or line != traces[index].line:
                             raise AssertionError(f"unexpected write after {fault}: {line!r}")
                         self.lines.append(line)
-                        raw = device_identity(b"".join(row_lines(bytes(traces[index].response))))
-                        if line == b"local console\n":
-                            native = (b" input_queued=0 output_queued=0 lines_queued=0 input_dropped=0 input_gaps=0"
-                                      b" lines_dropped=0 lines_truncated=0 uart_stalls=0 output_backpressure=0")
-                            raw = b"".join(r.rstrip(b"\r\n") + native + b"\r\n" for r in row_lines(raw))
-                        if line == b"application status\n":
-                            raw = raw.replace(b"primary=UNSUPPORTED ", b"primary=OK ").replace(
-                                b"reason=none\r\n", b"reason=none installed=1 traffic=0 maintenance=1 "
-                                b"retired=0 shutdown=0 carrier=0 ip=0.0.0.0 events=0\r\n")
+                        raw = native_reply(traces[index])
                         if index == at:
                             if fault == "short":
                                 return 3
@@ -414,8 +449,73 @@ class Interruptions(unittest.TestCase):
                 else:
                     self.assertEqual(data["commands"], commands[:at + 1])
 
+    def test_stalled_operator_console_releases_owner_for_cleanup_and_close(self):
+        tape, _, _ = self.compile_tape("unplug-replug")
+        before = next(i for i, entry in enumerate(tape) if entry.line.startswith(b"$"))
+        # After the timed-out unplug, the recovery prompt cannot reuse the
+        # occupied console. The independent restore still checks application ownership.
+        class InjectedPort(Port):
+            def write(port, line):
+                index = len(port.lines)
+                port.lines.append(line)
+                if index == before:
+                    self.assertEqual(line, b"application status\n")
+                    raise OSError("fixture lost during restoration")
+                self.assertEqual(line, tape[index].line)
+                port.rx.extend(native_reply(tape[index]))
+                return len(line)
+
+        port = InjectedPort(port=None, timeout=0, write_timeout=0.2, xonxoff=False, rtscts=False, dsrdtr=False)
+        args = serial_arguments(self.folder, "blocked-console") + [
+            "--suite", "campaign", "--case", "unplug-replug", "--peer", "sim-peer", "--cable", "sim-cable",
+            "--peer-profile", "an-100-full", "--operating-mode", "enhanced", "--polling", "exclusive",
+            "--clock", "simulated", "--soak-count", "2", "--soak-duration-ms", "4000",
+            "--duration", "4", "--session-timeout", "10", "--intervention-timeout-ms", "50"]
+        release = threading.Event()
+        workers = []
+
+        def stalled(action, deadline, cancel):
+            workers.append(threading.current_thread())
+            release.wait(4)
+            return "acknowledged"
+
+        try:
+            with (patch.object(runner, "operator_acknowledgment", stalled),
+                  patch.object(runner.os, "_exit", side_effect=SystemExit) as hard_exit,
+                  self.assertRaises(SystemExit)):
+                invoke(args, lambda **opts: port)
+            hard_exit.assert_called_once_with(2)
+            self.assertEqual(len(workers), 1)
+            self.assertTrue(workers[0].is_alive())
+            self.assertEqual(port.closes, 1)
+            result = runner.verify(self.folder / "blocked-console.json")
+            self.assertEqual([r["outcome"] for r in result["campaign"]["interventions"]], ["timed_out", "declined"])
+            self.assertEqual(result["serial"]["close"]["state"], "ok")
+            self.assertNotEqual(result["verdict"], "PASS")
+        finally:
+            release.set()
+            for worker in workers:
+                worker.join(4)
+
 
 if __name__ == "__main__":
+    if len(sys.argv) == 4 and sys.argv[1] in ("--stall-manifest", "--stall-report"):
+        FIXTURE = Path(sys.argv[2])
+        sync = artifacts._sync
+
+        def stall_manifest(stream):
+            if sys.argv[1] == "--stall-manifest" and str(stream.name).endswith(".tmp"):
+                threading.Event().wait()
+            sync(stream)
+
+        if sys.argv[1] == "--stall-report":
+            class BlockedConsole:
+                def write(self, text):
+                    threading.Event().wait()
+            sys.stdout = BlockedConsole()
+        with patch.object(artifacts, "_sync", stall_manifest):
+            args = fixture_args(Path(sys.argv[3]), "observe", "stalled")
+            raise SystemExit(runner.main([*args, "--timeout", "2", "--closure", "0.2"]))
     for flag in ("--fixture", "--work-dir"):
         if flag in sys.argv:
             at = sys.argv.index(flag)

@@ -443,18 +443,19 @@ class SerialTests(unittest.TestCase):
             runner.verify(self.path / "live.json")
 
     def test_stalled_driver_calls_finalize_then_hard_exit(self):
-        for phase in ("open", "write", "read", "close", "finalize"):
+        for phase in ("open", "write", "read", "close", "finalize", "manifest-sync"):
             with self.subTest(phase=phase):
                 child = subprocess.run([sys.executable, "-S", __file__, "--stall", phase, str(self.path)],
                                        capture_output=True, text=True, timeout=6)
                 self.assertEqual(child.returncode, 2, child.stderr)
                 self.assertIn("worker is pending", child.stderr)
-                if phase == "finalize":
-                    path = self.path / "finalize.json"
+                if phase in ("finalize", "manifest-sync"):
+                    path = self.path / (phase + ".json")
                     data = json.loads(path.read_text(encoding="utf-8"))
                     self.assertEqual(data["issues"], ["Run not finalized"])
                     self.assertEqual(data["verdict"], "INCONCLUSIVE")
                     self.assertEqual(path.with_suffix(".txt").read_bytes(), b"".join(responses()))
+                    self.assertEqual(list(self.path.glob("*.tmp")), [])
                     continue
                 data, raw = artifacts.verify_artifacts(self.path / f"{phase}.json")
                 self.assertEqual(data["verdict"], "INCONCLUSIVE")
@@ -529,6 +530,16 @@ if __name__ == "__main__":
                            return_value={"revision": "unknown", "tracked_tree": "unknown"})):
             if phase == "finalize":
                 with patch.object(artifacts, "_publish", side_effect=stall):
+                    raise SystemExit(runner.main(args, serial_factory=NeverReturns))
+            if phase == "manifest-sync":
+                sync = artifacts._sync
+
+                def stall_manifest(stream):
+                    if str(stream.name).endswith(".tmp"):
+                        stall()
+                    sync(stream)
+
+                with patch.object(artifacts, "_sync", stall_manifest):
                     raise SystemExit(runner.main(args, serial_factory=NeverReturns))
             raise SystemExit(runner.main(args, serial_factory=NeverReturns))
     if len(sys.argv) == 3 and sys.argv[1] == "--fixture":

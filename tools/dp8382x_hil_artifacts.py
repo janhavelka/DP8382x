@@ -11,8 +11,8 @@ import os
 from pathlib import Path
 import re
 import stat
-import tempfile
 import time
+import uuid
 
 if __package__:
     from .dp8382x_hil_campaign import MAX_COMMANDS, MAX_INTERVENTIONS, validate_declaration, validate_intervention
@@ -212,6 +212,14 @@ def _validate_soak(data):
     soak = data["soak"]
     keys = {"plan", "requested", "attempted", "completed", "remaining", "stop_reason", "telemetry",
             "elapsed_ms", "primary_window_ms", "setup", "received_records", "unconfirmed_command"}
+    if type(soak) is dict and "cleanup_boundary" in soak:
+        keys.add("cleanup_boundary")
+        boundary = soak["cleanup_boundary"]
+        if (not _object(boundary, {"records", "interventions"}) or
+                any(type(value) is not int or value < 0 for value in boundary.values()) or
+                data["complete"] or soak.get("stop_reason") != "duration" or
+                "soak primary duration expired" not in data["issues"]):
+            raise EvidenceError("invalid soak cleanup boundary")
     if not _object(soak, keys) or type(soak["plan"]) is not dict:
         raise EvidenceError("invalid soak receipt")
     claim = soak["plan"]
@@ -377,21 +385,35 @@ def _sync(stream):
     os.fsync(stream.fileno())
 
 
-def _publish(path, content, deadline=None):
-    temporary = None
+def _create_temporary(path, flags):
+    """Create exclusively and allow unlink during a stalled write or sync."""
+    if os.name != "nt":
+        return os.open(path, flags, 0o600)
+    import _winapi
+    import msvcrt
+    # CREATE_NEW, FILE_SHARE_DELETE. Transfer handle ownership to the stream.
+    handle = _winapi.CreateFile(path, _winapi.GENERIC_WRITE, 4, 0, 1, 0, 0)
     try:
-        with tempfile.NamedTemporaryFile(mode="wb", dir=path.parent, prefix=path.name + ".",
-                                         suffix=".tmp", delete=False) as stream:
-            temporary = Path(stream.name)
+        return msvcrt.open_osfhandle(handle, os.O_WRONLY | os.O_BINARY)
+    except BaseException:
+        _winapi.CloseHandle(handle)
+        raise
+
+
+def _publish(files, content, deadline=None):
+    temporary = files.path.with_name(files.path.name + "." + uuid.uuid4().hex + ".tmp")
+    try:
+        with open(temporary, "xb", opener=_create_temporary) as stream:
+            files.temporary = temporary
             _write_all(stream, content)
             _sync(stream)
-        if deadline is not None and time.monotonic() >= deadline:
+        if files.publication_cancelled or (deadline is not None and time.monotonic() >= deadline):
             raise EvidenceError("Evidence finalization deadline expired before publication")
-        os.replace(temporary, path)
-        temporary = None
+        os.replace(temporary, files.path)
     finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
+        if files.temporary is not None:
+            files.temporary.unlink(missing_ok=True)
+            files.temporary = None
 
 
 def validate_destination(run, limit):
@@ -414,6 +436,8 @@ class EvidenceFiles:
         self._length = 0
         self._digest = hashlib.sha256()
         self._write_failed = False
+        self.temporary = None
+        self.publication_cancelled = False
         self._truncated = False
         self._scope = SERIAL_SCOPE if provisional is not None and "serial" in provisional else "host_protocol"
         placeholder = {
@@ -488,6 +512,13 @@ class EvidenceFiles:
         except OSError as error:
             raise EvidenceError(f"Cannot sync or close transcript: {error}") from error
 
+    def cancel_publication(self):
+        """Withdraw only this run's exclusive temporary name before a bounded hard exit."""
+        self.publication_cancelled = True
+        temporary = self.temporary
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
     def finish(self, data: dict, deadline=None) -> dict:
         """Close and hash stdout, then atomically publish validated outcome data."""
         if self._stream is None:
@@ -509,10 +540,7 @@ class EvidenceFiles:
             result = {**data, "schema": 1, "scope": self._scope, "run": self._run, "transcript": info}
             result["verdict"] = aggregate(result)
             encoded = _encoded(result)
-            if deadline is None:
-                _publish(self.path, encoded)
-            else:
-                _publish(self.path, encoded, deadline)
+            _publish(self, encoded, deadline)
         except OSError as error:
             raise EvidenceError(f"Cannot finalize evidence: {error}") from error
         return result

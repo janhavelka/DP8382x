@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 from copy import deepcopy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -15,7 +16,9 @@ from unittest.mock import patch
 
 from test_hil_campaign import assert_required_fields, decoded, row_lines
 from test_hil_runner import EXPECTED, NONCE, REVISION, invoke, runner
-from test_hil_serial import Port, arguments as serial_arguments, device_identity, invoke as serial_invoke
+from test_hil_serial import (
+    Port, RECOVERY, arguments as serial_arguments, device_identity, invoke as serial_invoke, recovery_reply,
+)
 from dp8382x_hil_artifacts import EvidenceError, aggregate
 from dp8382x_hil_protocol import ProtocolError
 
@@ -31,20 +34,22 @@ def soak_replay(data, records):
     nonce = data["commands"][0].split(" ", 1)[1]
     session = runner.CampaignSession(nonce, data["expectations"], campaign["declaration"],
                                      campaign["interventions"], data["soak"]["plan"])
+    setup = runner.SetupReplay(session)
     try:
         for record in records:
-            session.accept(record)
+            if not setup.accept(record):
+                session.accept(record)
         session.finish()
     except ProtocolError:
         return "INCONCLUSIVE"
     summary = session.campaign.summary()
-    if any(data["soak"][key] != value for key, value in summary.items()):
+    if session.setup != data["soak"]["setup"] or any(data["soak"][key] != value for key, value in summary.items()):
         return "INCONCLUSIVE"
     return aggregate({**data, **session.evidence()})
 
 
 def assert_soak_required_fields(test, name, data, raw):
-    return assert_required_fields(test, name, data, raw, replay_fn=soak_replay)
+    return assert_required_fields(test, name, data, raw, replay_fn=soak_replay, include_setup=True)
 
 
 def arguments(name, count=2, duration_ms=4000):
@@ -55,6 +60,47 @@ def arguments(name, count=2, duration_ms=4000):
 
 
 class SoakPlanTests(unittest.TestCase):
+    def test_recovery_requires_an_outstanding_full_write_and_the_fresh_identity(self):
+        for fault, outcome in (("timeout", "continuous"), ("no-handshake", "unproven"),
+                                ("changed-boot", "failed"), ("damaged-tail", "failed"), ("short", "not_started")):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory:
+                class RecoveringPort(Port):
+                    def write(port, line):
+                        port.lines.append(line)
+                        if line == f"session {NONCE}\n".encode():
+                            if fault != "no-handshake":
+                                port.rx.extend(port.rows[0])
+                        elif line == f"session {RECOVERY}\n".encode():
+                            port.rx.extend(recovery_reply(boot=43 if fault == "changed-boot" else 42,
+                                                          req=2 if fault == "no-handshake" else 3))
+                            if fault == "damaged-tail":
+                                port.rx.extend(b"@DP8382X bad")
+                        elif line == b"local console\n":
+                            if fault == "short":
+                                return 1
+                        else:
+                            raise AssertionError(line)
+                        return len(line)
+
+                    def read(port, size):
+                        chunk = bytes(port.rx[:size])
+                        del port.rx[:size]
+                        return chunk
+
+                args = serial_arguments(Path(directory), fault) + [
+                    "--suite", "campaign", "--case", "observe", "--operating-mode", "enhanced",
+                    "--polling", "exclusive", "--clock", "simulated", "--soak-count", "2",
+                    "--soak-duration-ms", "2000"]
+                code, _, err = serial_invoke(args, RecoveringPort)
+                self.assertEqual(code, 2, err)
+                path = Path(directory) / (fault + ".json")
+                data = runner.verify(path)
+                self.assertEqual(data["serial"]["recovery"]["state"], outcome)
+                data["serial"]["recovery"].update(state="continuous", identity={"boot": 1234})
+                path.write_text(json.dumps(data), encoding="utf-8")
+                with self.assertRaises((EvidenceError, ProtocolError)):
+                    runner.verify(path)
+
     def test_rejected_plans_never_reserve_or_open(self):
         with (tempfile.TemporaryDirectory() as folder,
               patch.object(runner, "EvidenceFiles") as reserve,
@@ -177,6 +223,18 @@ class CompiledSoakTests(unittest.TestCase):
             self.assertEqual(replay["soak"][key], data["soak"][key])
         for key in ("commands", "cases", "identity", "campaign", "transcript"):
             self.assertEqual(replay[key], data[key])
+
+    def test_corrupt_compiled_setup_fails_with_an_accurate_transcript_hash(self):
+        data, raw = self.positives["irq"]
+        damaged = raw.replace(b" rxfs_valid=1", b"", 1)
+        self.assertNotEqual(damaged, raw)
+        path = self.folder / "irq-missing-setup-field.json"
+        receipt = deepcopy(data)
+        receipt["run"] = path.stem
+        receipt["transcript"].update(sha256=hashlib.sha256(damaged).hexdigest(), length=len(damaged))
+        path.with_suffix(".txt").write_bytes(damaged)
+        path.write_text(json.dumps(receipt), encoding="utf-8")
+        self.assertEqual(invoke("verify-artifacts", path)[0], 2)
 
     def test_injected_serial_repetitions_and_failure_before_stalled_close(self):
         data, raw = self.positives["observe"]
@@ -312,6 +370,43 @@ class CompiledSoakTests(unittest.TestCase):
         first = positive["identity"]["session_req"]
         self.assertEqual(data["commands"], positive["commands"][:last - first + 1])
         self.assertEqual(runner.verify(self.folder / "expired.json"), data)
+
+    def test_clean_expiry_after_effect_executes_only_the_guarded_restoration(self):
+        original = runner.SoakBudget.step
+        for case, target, restore, at_cleanup in (
+                ("owned-apply", "configuration apply an 9 symmetric auto 0",
+                 "configuration apply an 15 asymmetric mdix 3", False),
+                ("owned-apply", "configuration apply an 9 symmetric auto 0",
+                 "configuration apply an 15 asymmetric mdix 3", True),
+                ("irq", "irq test-start", "irq test-stop", False)):
+            with self.subTest(case=case, at_cleanup=at_cleanup):
+                run = f"clean-expiry-{case}-{at_cleanup}"
+                prefix = []
+
+                @contextmanager
+                def expire(budget, cleanup):
+                    with original(budget, cleanup) as deadline:
+                        yield deadline
+                        session = budget.session
+                        sent = [cmd.text for cmd in session.commands[:session.issued]]
+                        if (not prefix and not cleanup and target in sent and session.next and
+                                (session.next.cleanup if at_cleanup else sent[-1] == target)):
+                            prefix.extend(sent)
+                            budget.primary_end = time.monotonic()
+                            raise runner.SoakDuration("primary expired after the correlated terminal")
+
+                with patch.object(runner.SoakBudget, "step", expire):
+                    code, result, _, error = self.run_case(case, run)
+                self.assertEqual(code, 2, error)
+                self.assertTrue(prefix)
+                suffix = result["commands"][len(prefix):]
+                self.assertEqual(suffix[0], "application status")
+                self.assertEqual(suffix.count(restore), 1)
+                self.assertNotIn(target, suffix)
+                self.assertEqual(result["soak"]["stop_reason"], "duration")
+                self.assertEqual(result["cases"][0]["restoration"]["verdict"], "PASS")
+                self.assertEqual(result["cases"][1]["verdict"], "NOT RUN")
+                self.assertEqual(result, runner.verify(self.folder / (run + ".json")))
 
     def test_skipped_case_and_definite_failure_stop_later_admission(self):
         for name, run, extra, code, attempted, completed, verdict in (

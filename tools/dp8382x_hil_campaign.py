@@ -608,8 +608,14 @@ class Campaign:
 
     def intervene(self, action, cleanup=False):
         # The physical effect may have happened even if acknowledgment is lost.
+        previous = self.peer_may_change
         self.peer_may_change = True
-        receipt = yield Intervention(action, cleanup)
+        try:
+            receipt = yield Intervention(action, cleanup)
+        except AssertionFailed:
+            # The host stopped at a clean boundary before offering this action.
+            self.peer_may_change = previous
+            raise
         require(receipt["outcome"] == "acknowledged", self.last, f"{action}: {receipt['outcome']}", "INCONCLUSIVE")
 
     def wait_link(self, profile, policy, wanted, *, cleanup=False, partner=False):

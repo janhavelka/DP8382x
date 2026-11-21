@@ -37,6 +37,7 @@ class _MeasuredCase(Campaign):
         self.telemetry_error = None
         self.telemetry_complete = False
         self.command_count = 0
+        self.effect_attempted = False
         self.attempted_command = None
         super().__init__(declaration, expected)
 
@@ -80,8 +81,14 @@ class _MeasuredCase(Campaign):
         while step is not None:
             if step.cleanup and self.before_restore is None:
                 self.before_restore = super().cases()[0]["primary"]
-            answer = yield step
-            step = procedure.send(answer)
+            try:
+                answer = yield step
+            except AssertionFailed as error:
+                # Stop before the unsent primary step. Let the owning procedure
+                # decide which stop/restore commands its observed state admits.
+                step = procedure.throw(error)
+            else:
+                step = procedure.send(answer)
         self.primary_case, = super().cases()
         if self.before_restore is not None:
             self.primary_case["primary"] = self.before_restore
@@ -146,7 +153,22 @@ class SoakCampaign:
 
     @property
     def next(self):
-        return self.current.next if self.stop_reason == "pending" else None
+        step = self.current.next
+        if self.stop_reason == "pending" or (self.stop_reason == "duration" and step and step.cleanup):
+            return step
+        return None
+
+    def expire_primary(self):
+        """At a clean request boundary, allow only this iteration's admitted cleanup."""
+        step = self.next
+        if step is None:
+            return
+        case = self.current
+        if (not step.cleanup and case.primary_case is None and case.failed is None and
+                case.effect_attempted and case.may_change and case.restoration == "NOT RUN"):
+            case.next = case.active.throw(AssertionFailed("soak primary duration expired", case.last,
+                                                         "INCONCLUSIVE"))
+        self.stop_reason = "duration"
 
     def attempt(self):
         """Count the first attempted case write even when its receipt never arrives."""
@@ -156,6 +178,7 @@ class SoakCampaign:
                 raise ProtocolError("soak iteration command ceiling reached")
             self.current.attempted_command = step
             self.current.command_count += 1
+            self.current.effect_attempted |= self.current.may_change and not step.cleanup
             self.attempted = len(self.finished) + 1
 
     def advance(self, value):
@@ -179,6 +202,8 @@ class SoakCampaign:
         if row["executed"] and self.attempted == len(self.finished):
             self.completed += 1
         restore = row["restoration"]
+        if self.stop_reason == "duration":
+            return
         if row["verdict"] != "PASS" or (restore["required"] and restore["verdict"] != "PASS"):
             self.stop_reason = "fault"
         elif len(self.finished) == self.count:

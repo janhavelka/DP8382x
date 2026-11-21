@@ -135,6 +135,11 @@ a write can leave the PHY or peer changed. Record the unconfirmed command
 and the last proved restoration step before deciding on a separately
 authorized recovery. The remaining iterations stay unattempted.
 
+On primary expiry at a clean boundary, inspect the separate restore verdict.
+The saved profile or held stimulus can have a verified exit even though the
+iteration stopped early. If an operator prompt stalls, its action remains
+uncertain. Subsequent prompts on that same console cannot attest recovery.
+
 To exercise these paths offline, run the two-iteration compiled example and
 replay its exclusive artifact pair. The interruption tests inject loss during
 setup, admitted operations, peer actions, restore/readback and publication.

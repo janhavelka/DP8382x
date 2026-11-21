@@ -141,6 +141,15 @@ write, boot change or damaged record ends further case writes. A timed-out
 full serial write at a clean boundary permits only the bounded continuity
 handshake. A later response cannot complete the interrupted case.
 
+If primary time expires between correlated commands after a mutation, the
+case owner can use its remaining cleanup allowance for the guarded stop or
+saved-profile restore. The receipt records the consumed record and intervention
+counts in `cleanup_boundary` so replay can follow the same decision. The run
+keeps its duration stop even when restoration succeeds. An outstanding write,
+partial record or carrier failure prevents this transition. A stalled operator
+prompt retires that console. The runner can still service independent PHY
+cleanup, close the port and publish the observed results.
+
 The `soak` receipt gives requested, attempted, terminally completed and
 remaining iterations, the stop reason, the consumed record count, possible
 unconfirmed write, compiled setup steps and elapsed host milliseconds
@@ -161,6 +170,11 @@ the run that wrote the pair. For `verify-transcript` it measures offline
 processing time. Keep the original pair for the carrier timing evidence.
 If publication fails, bounded diagnostics report known case and restoration
 outcomes and the reserved result remains nonpassing.
+
+Replay checks the command-specific setup effects before the nonce and the
+last intervention even when it ends the case. A serial continuity claim
+requires the fully written fresh nonce, its reply and the original boot,
+request sequence and identity.
 
 For offline replay of an intervention case via `verify-transcript`, pass
 the original declarations and the captured `campaign.interventions` array
@@ -372,5 +386,9 @@ The in-memory RX prefix includes ordinary
 text and machine records. It is persisted after serial teardown, so abrupt
 process loss can leave only an empty transcript or a partial prefix. If final
 publication fails or misses admission to atomic replacement, the INCONCLUSIVE
-placeholder remains. Filesystem operations already in the kernel may complete
-as the process exits, and abrupt termination may leave a temporary JSON file.
+placeholder remains. On a publication stall the runner allows up to 50 ms
+to unlink its exclusive temporary file before hard exit. A forced process
+kill or an unresponsive filesystem can interrupt that removal. Filesystem
+operations already in the kernel may complete as the process exits.
+After publication the soak allows 50 ms to print its verdict. If the host
+console stays full, the process exits with the published result.

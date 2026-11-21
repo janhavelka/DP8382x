@@ -49,15 +49,15 @@ def replay(receipt, records):
     return aggregate({**receipt, **session.evidence()})
 
 
-def assert_required_fields(test, name, data, raw, replay_fn=replay):
-    """Attack all field occurrences in the nonce-correlated command stream."""
+def assert_required_fields(test, name, data, raw, replay_fn=replay, include_setup=False):
+    """Mutate every required field, including setup when the replay consumes it."""
     lines = row_lines(raw)
     original = decoded(raw)
     test.assertEqual(len(lines), len(original))
     nonce = data["commands"][0].split(" ", 1)[1]
     start = next(i for i, row in enumerate(original) if row.fields.get("nonce") == nonce)
     mutations = 0
-    for index in range(start, len(lines)):
+    for index in range(0 if include_setup else start, len(lines)):
         fields = lines[index][len(PREFIX):-2].split(b" ")
         for field_index, field in enumerate(fields):
             key = field.split(b"=", 1)[0]

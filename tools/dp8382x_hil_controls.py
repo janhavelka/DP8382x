@@ -492,6 +492,27 @@ def wake_view(enabled=False, secure=False, pulse=0, pending=False, event=False):
                 rxfs_valid=1, rxfs=0x1000 | int(event), misr2_valid=1, misr2=int(event) << 9)
 
 
+def check_baseline(row, text, mode):
+    """Validate the simulator's pre-session write using its normal typed effect receipt."""
+    for spec in CONTROLS.values():
+        if text == spec.baseline.command:
+            check = operation if spec.form == "operation" else direct
+            check(row, spec.schema, spec.baseline.fields)
+            return
+    if text == BASELINES["pins"][0]:
+        direct(row, INTERFACE, {**RMII50_BASE.fields, "valid_mask": 255, "io_cfg1": 64, "clk_led_status": 1})
+    elif text == IRQ_BASE:
+        operation(row, IRQ, dict(valid=1, stale=0, trust=1, selector=1, test_active=0,
+                                 physcr_valid=1, physcr=8 | int(mode == "enhanced"), misr1_valid=1, misr1=0,
+                                 misr2_valid=1, misr2=0, rxfs_valid=1, rxfs=0))
+    elif text == EEE_BASE:
+        eee_terminal(row, False)
+    elif text in (WOL_BASE, "wol acknowledge"):
+        operation(row, WOL, wake_view(pending=text == WOL_BASE))
+    else:
+        raise AssertionFailed("unrecognized compiled control setup", row)
+
+
 def wol(c):
     """Check the synthetic detector and W0C receipt, with an independently sampled restore."""
     secure = c.spec.id == "wol-secure"

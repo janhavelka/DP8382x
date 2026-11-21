@@ -93,6 +93,56 @@ Python discovery ran 231 tests with 43 compiled-only skips. Doxygen checked
 293 generated pages and rejected both negative fixtures. Version, reference,
 ledger and whitespace checks passed.
 
-Phase (c) reviews the wrapper's actual implementation commit for deadline
-ownership, interrupted replay, authorization and worst-verdict behavior.
-Phase (d) owns full local verification and completion.
+## Independent review, 2026-11-21
+
+Two read-only reviewers examined `93390a8..de7a27c` in parallel on the
+inherited high-reasoning model. One traced clock ownership, framing,
+mutations and restoration. The other reconstructed interruption prefixes,
+aggregate decisions and file publication. They reproduced failures under
+`build/p52-review-timing` and `build/p52-review-artifacts`. The lead owned
+all changes and ran separate reproductions under `build/p52-review-lead`.
+The implementation checkpoint was clean and wrapper-verified at
+`de7a27cf3d4f5c01287dcd5aa810410b8e8e3e6b` on entry. The three sibling
+revisions and adopted conventions in the table above were rechecked.
+
+| Observed defect | Review fix and executing regression |
+| --- | --- |
+| Removing `rxfs_valid` or `physcr_valid` from the pre-nonce IRQ terminal could leave a passing pair with a correct hash. | Live setup and replay now run the feature's typed write and readback assertions, check timing and carry used tokens into the nonce session. The required-field matrix starts at the first setup record. The runner rejects a rehashed IRQ pair missing its setup field. |
+| Primary expiry could leave the target profile active after a confirmed write, even when cleanup was already queued. | At a clean request boundary, the owner drops the unissued primary step and runs its guarded cleanup within the original remaining allowance. Replay checks the exact record and intervention counts at that boundary. The compiled tests expire after the target apply, at entry to restoration, and with an active IRQ test. They require one restore or stop, successful exit proof, a duration stop and a second NOT RUN row. |
+| A blocked operator prompt held the serial owner beyond its deadline. | Console I/O has a bounded worker. After a stall, further operator prompts are declined, while independent cleanup and serial close proceed. The injected peer case verifies one prompt, two intervention outcomes and one close while that worker is still blocked. A separate subprocess with blocked final output exits with its published verdict. |
+| Replay accepted an invented continuous session after a short write. | The verifier matches the fresh nonce write and response to the timed-out request. The live checker and replay share boot, request and identity checks. Injected tests cover a short write, continuous and unproven sessions, a changed boot and an incomplete recovery tail. |
+| A declined final calibration intervention yielded a complete INCONCLUSIVE receipt that failed replay. | Replay consumes the last intervention before checking for outstanding work. The regression compares the entire live and replayed receipts. |
+| A hard exit during temporary-manifest sync could leave a third file. | The timeout path withdraws the runner's exclusive temporary name under a finite allowance. Windows grants delete sharing to that handle. Both a compiled fixture and an injected serial subprocess stall inside manifest sync, exit 2 and leave the reserved JSON and transcript. External process kill and unavailable storage retain the limits in the runner guide. |
+
+README and CHANGELOG still describe the same commands and scope. The runner
+and hardware-validation guides now explain the clean expiry boundary and
+the consequences of a stalled operator prompt. No silicon fact, permission,
+native source or feature-coverage mapping changed.
+
+### Phase (c) receipts
+
+The phase (b) Release build and command block above reproduce the focused
+checks on this Windows host. The build was current. All 16 registered CTests
+passed in 144.79 seconds. The interruption matrix replayed 2,927 cuts and
+rejected 436,290 field mutations including pre-nonce setup. The other soak
+tests rejected 19,224 compiled and 4,245 injected-serial mutations.
+Standalone Python discovery passed 189 tests and skipped 49 compiled-fixture
+tests. Doxygen passed with 293 pages and two rejected negative fixtures.
+Version, reference, ledger and diff checks passed.
+
+Replaying the reviewers' original pairs in `build/p52-review-artifacts`
+accepted `irq` as PASS, and `short` and `declined-final` as INCONCLUSIVE.
+It rejected `missing`, `wrong` and `false-continuity`. The existing phase
+(b) `phase-b-10base-te.json` also replayed as PASS.
+
+| Evidence layer | Phase (c) |
+| --- | --- |
+| Host and offline replay | PASS on the compiled CLI and injected serial carriers. |
+| Portable and exported package consumer | NOT RUN. |
+| ESP-IDF image link | NOT RUN. |
+| Remote CI | NOT RUN. First-execution CI belongs to prompt 71. |
+| Physical | NOT RUN. |
+
+The full Release suite, focused UBSan trap checks and portable consumer
+remain assigned to phase (d). This review retains the existing first-board
+INT, native feature and deep-power gates. No fixture was attached.

@@ -294,6 +294,12 @@ def autorun_policy(enabled):
     return dict(desired_valid=1, desired=enabled, observed_valid=1, observed=enabled, stale=0, trust=1)
 
 
+def check_baseline(row, text, mode):
+    """The cable fixture starts with a verified disabled autorun policy."""
+    require(text == BASELINES["cable-autorun"][0], row, "unrecognized compiled diagnostic setup")
+    result(row, autorun_policy(0), **effect(1, restored=1))
+
+
 def autorun_readback(c, enabled, cleanup=False):
     row = yield from c.read("diagnostics cable-autorun-status", cleanup=cleanup)
     equal_fields(row, autorun_policy(enabled))
