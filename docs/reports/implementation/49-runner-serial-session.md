@@ -235,3 +235,73 @@ Portable/package consumer, SDK link, remote CI and physical were NOT RUN.
 No identified fixture is authorized for an unattended serial attachment.
 The offline producer check is evidence for runner behavior. It establishes
 no measured line-state, console-driver or PHY qualification result.
+
+## Stage (c) independent review
+
+The wrapper log verified clean `main` and `origin/main` at
+`fe16a8c660756878bdce7a1e19cd06ec7b56aadd`. The solo review read the landed
+diff from `10cd59f357f145780544bc6a6dbb7da01feb30a0`, the producer's
+`feed`, `discardInput`, `finishLine` and `identity` paths, and the current
+serial, receiver and two-file publication code. The four sibling checkouts
+were clean at the revisions above. Their runner, tests, CLI producers and
+agent rules support the same decisions. No CI workflow or ledger procedure
+changes apply to this review.
+
+The installed pySerial 3.5 source confirmed that the Windows backend opens the
+handle before applying the requested DTR/RTS in `SetCommState`. A positive
+write timeout uses overlapped completion and checks the resulting count.
+The POSIX backend opens with `O_NONBLOCK` before applying control-line ioctls.
+It can ignore unsupported ioctls. Both paths can discard queued input during
+open. The exact console and reset-silent wiring declarations remain required.
+
+Review findings and corrections
+
+- `serialposix.py::Serial.write` can send the remaining bytes after a short
+  OS write with a positive timeout. Its zero-timeout path can keep retrying
+  on EAGAIN. The native POSIX adapter uses one nonblocking `os.write` through
+  pySerial's `fileno()` with the same host deadline. A short count or
+  would-block error ends the run with uncertain framing.
+- The receiver previously could carry an unsolicited machine reply prefix
+  from the preceding read into the next command. The serial owner now stops
+  before sending when the decoder holds a partial machine candidate. The
+  received prefix stays in evidence. Timeout recovery keeps its separate
+  allowance and consumes late fragments without credit to an expired request.
+- The serial session budget now includes Git provenance and evidence
+  reservation. The provenance queries use clipped timeouts, with time left
+  for subprocess cleanup. A pending provenance worker cannot admit a port.
+  Hard-exit diagnostics are bounded by the remaining session time so a
+  stalled stderr cannot hold up exit after evidence finalization.
+- Artifact validation now reuses the port and fixture identifier rules,
+  rejects a host target or unidentified backend in serial scope and accepts
+  either supported port syntax for cross-platform read-only replay.
+
+The review traced one full write per line, exact nonce selection and same-boot
+request increments through the compiled producer and decoder. The recovery
+query expects the initial session request plus the count of full issued lines.
+A missing initial boot remains unproven even if a fresh identity arrives.
+A short, uncertain or interrupted write never sends recovery or restoration
+bytes. Open, I/O and close have one owner. Stalled calls retain ownership
+through bounded finalization and a nonzero hard exit.
+
+Stage (c) verification used Windows Python 3.12.10, GNU 15.1.0, CMake 4.0.1
+and Ninja 1.12.1.
+
+- Host PASS. `python -S -m unittest discover -s test -p 'test_*.py' -q`
+  discovered 180 tests. Two compiled-fixture tests were deferred to CTest.
+- Host PASS. Configured `build/p49-review` with Ninja, Release and
+  `DP8382X_BUILD_TESTS=ON`, then built `dp8382x_cli_fixture`,
+  `dp8382x_console_tests`, `dp8382x_cli_tests` and `dp8382x_native_console_tests`.
+  `ctest --test-dir build/p49-review -R '^cli_' --output-on-failure --no-tests=error`
+  passed 21/21 suites including both compiled-fixture runner checks.
+- PASS. Global and serial help and the UART0 `run-serial --dry-run` with
+  `python -S`. The dry-run created no evidence directory.
+- PASS. `python tools/verify_references.py`, `python tools/verify_ledger.py`,
+  `python tools/check_doxygen.py`, `python scripts/generate_version.py check`
+  and whitespace checks.
+- Portable/package consumer NOT RUN. SDK link NOT RUN. Remote CI NOT RUN.
+  Physical NOT RUN. POSIX write behavior was exercised with an injected
+  descriptor and write function. Real open/close line state still requires a
+  documented authorized fixture.
+
+Stage (d) owns the completion checks and progress record. The wrapper owns
+the review checkpoint commit and synchronization.

@@ -10,11 +10,13 @@ import sys
 import tempfile
 import threading
 import time
+from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
 from test_hil_runner import NONCE, REVISION, passive, runner
 import dp8382x_hil_artifacts as artifacts
+import dp8382x_hil_serial as serial_transport
 from dp8382x_hil_fixture import FixtureProcess
 
 
@@ -195,6 +197,13 @@ class SerialTests(unittest.TestCase):
         self.assertEqual(data["serial"]["writes"][0]["bytes"], len(self.backend.lines[0]))
         self.assertEqual(data["serial"]["restoration"], "not_requested")
         self.assertEqual(runner.verify(path), data)
+        for key, invalid in (("port", "socket://localhost:7000"), ("authorization", "unknown"),
+                             ("backend", "unidentified")):
+            with self.subTest(key=key):
+                changed = {**data, "serial": {**data["serial"], key: invalid}}
+                path.write_text(json.dumps(changed), encoding="utf-8")
+                with self.assertRaisesRegex(artifacts.EvidenceError, "fixture declarations"):
+                    runner.verify(path)
         data["serial"]["close"]["state"] = "not_started"
         path.write_text(json.dumps(data), encoding="utf-8")
         with self.assertRaisesRegex(artifacts.EvidenceError, "closure"):
@@ -261,6 +270,63 @@ class SerialTests(unittest.TestCase):
                 self.assertEqual(data["serial"]["recovery"]["state"], "not_started")
                 self.assertEqual(self.backend.closes, 1)
                 self.assertEqual(raw, b"".join(responses()[:5]))
+
+    def test_posix_native_short_write_and_would_block_have_no_retry(self):
+        class NativePosix:
+            __module__ = "serial.serialposix"
+
+            def __init__(self, **options):
+                self.options = options
+
+            def open(self):
+                pass
+
+            def fileno(self):
+                return 17
+
+            def write(self, line):
+                raise AssertionError("pySerial's retrying writer was invoked")
+
+        serial = SimpleNamespace(__version__="3.5", Serial=NativePosix)
+        text = f"session {NONCE}"
+        for count in (3, None):
+            with self.subTest(count=count):
+                write = Mock(return_value=count, side_effect=BlockingIOError("would block") if count is None else None)
+                platform = SimpleNamespace(name="posix", write=write)
+                with (patch.dict(sys.modules, {"serial": serial}), patch.object(serial_transport, "os", platform)):
+                    owner = serial_transport.SerialPort({"port": "/dev/ttyUSB11", "driver_baud": 115200,
+                                                         "limits": {"command_timeout": 0.2}},
+                                                        serial_transport.native_port)
+                    deadline = time.monotonic() + 1
+                    owner.open(deadline)
+                    self.assertEqual(owner.port.options["write_timeout"], 0)
+                    with self.assertRaises(serial_transport.SerialError):
+                        owner.send(text, deadline)
+                    with self.assertRaisesRegex(serial_transport.SerialError, "framing is uncertain"):
+                        owner.send(f"session {RECOVERY}", deadline)
+                    write.assert_called_once_with(17, (text + "\n").encode("ascii"))
+                    self.assertEqual(owner.writes[0]["bytes"], count)
+
+    def test_record_started_before_write_cannot_supply_next_terminal(self):
+        prefix_length = len(b"@DP8382X schema=1")
+
+        class Unsolicited(Port):
+            def __init__(self, **options):
+                super().__init__(**options)
+                self.rows[0] += self.rows[1][:prefix_length]
+                self.rows[1] = self.rows[1][prefix_length:]
+
+            def read(self, size):
+                chunk = bytes(self.rx[:size])
+                del self.rx[:size]
+                return chunk
+
+        code, error, data, raw = self.run_port(Unsolicited)
+        self.assertEqual(code, 2, error)
+        self.assertIn("unsolicited record began", error)
+        self.assertEqual(self.backend.lines, [f"session {NONCE}\n".encode()])
+        self.assertFalse(data["complete"])
+        self.assertEqual(raw, responses()[0] + responses()[1][:prefix_length])
 
     def test_disconnect_and_identity_mismatch_keep_available_evidence(self):
         class Disconnect(Port):
@@ -397,6 +463,21 @@ class SerialTests(unittest.TestCase):
                                  "stalled" if phase == "close" else "not_started")
                 self.assertEqual(raw, b"".join(responses()) if phase == "close" else b"")
 
+    def test_stalled_provenance_and_diagnostics_cannot_extend_session(self):
+        for phase in ("provenance", "stderr"):
+            with self.subTest(phase=phase):
+                child = subprocess.run([sys.executable, "-S", __file__, "--stall", phase, str(self.path)],
+                                       capture_output=True, text=True, timeout=6)
+                self.assertEqual(child.returncode, 2, child.stderr)
+                path = self.path / f"{phase}.json"
+                if phase == "provenance":
+                    self.assertIn("evidence reservation stalled", child.stderr)
+                    self.assertFalse(path.exists() or path.with_suffix(".txt").exists())
+                else:
+                    data, raw = artifacts.verify_artifacts(path)
+                    self.assertEqual((data["verdict"], data["serial"]["open"]["state"], raw),
+                                     ("INCONCLUSIVE", "stalled", b""))
+
     def test_compiled_producer_through_serial_owner(self):
         if FIXTURE is None:
             self.skipTest("compiled fixture supplied by cli_hil_serial CTest")
@@ -431,15 +512,25 @@ class SerialTests(unittest.TestCase):
 
 if __name__ == "__main__":
     if len(sys.argv) == 4 and sys.argv[1] == "--stall":
-        NeverReturns.phase = sys.argv[2]
+        phase = sys.argv[2]
+        NeverReturns.phase = "open" if phase == "stderr" else phase
+        args = arguments(Path(sys.argv[3]), phase)
+
+        def stall(*args):
+            threading.Event().wait()
+
+        if phase == "provenance":
+            with patch.object(runner, "runner_identity", side_effect=stall):
+                raise SystemExit(runner.main(args, serial_factory=NeverReturns))
+        if phase == "stderr":
+            sys.stderr = SimpleNamespace(write=stall, flush=stall)
         with (patch.object(runner.secrets, "token_hex", side_effect=[NONCE, RECOVERY]),
               patch.object(runner, "runner_identity",
                            return_value={"revision": "unknown", "tracked_tree": "unknown"})):
-            if NeverReturns.phase == "finalize":
-                with patch.object(artifacts, "_publish", side_effect=lambda *args: threading.Event().wait()):
-                    raise SystemExit(runner.main(arguments(Path(sys.argv[3]), sys.argv[2]),
-                                                 serial_factory=NeverReturns))
-            raise SystemExit(runner.main(arguments(Path(sys.argv[3]), sys.argv[2]), serial_factory=NeverReturns))
+            if phase == "finalize":
+                with patch.object(artifacts, "_publish", side_effect=stall):
+                    raise SystemExit(runner.main(args, serial_factory=NeverReturns))
+            raise SystemExit(runner.main(args, serial_factory=NeverReturns))
     if len(sys.argv) == 3 and sys.argv[1] == "--fixture":
         FIXTURE = Path(sys.argv[2]).resolve()
         del sys.argv[1:3]

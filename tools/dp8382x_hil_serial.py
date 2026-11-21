@@ -11,15 +11,19 @@ import time
 UART_CONSOLE = "uart0"
 USB_CONSOLE = "usb-serial-jtag"
 USB_DRIVER_BAUD = 115200
+NATIVE_BACKEND = "pySerial 3.5 native"
+INJECTED_BACKEND = "injected serial backend"
 READ_CHUNK = 256
 IDLE_POLL = 0.005
 CALL_STATES = frozenset({"not_started", "ok", "error", "late", "stalled", "interrupted"})
 LIMITS = ("session_timeout", "duration", "command_timeout", "cleanup_timeout",
           "finalize_timeout", "tail_timeout")
 DECLARATION = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}")
-WINDOWS_PORT = re.compile(r"COM[1-9][0-9]{0,3}", re.IGNORECASE)
-POSIX_PORT = re.compile(r"/dev/(?:tty[A-Za-z0-9_.:-]+|cu\.[A-Za-z0-9_.:-]+|"
-                        r"serial/(?:by-id|by-path)/[A-Za-z0-9][A-Za-z0-9_.:-]*)")
+PORT_PATTERNS = {
+    "nt": re.compile(r"COM[1-9][0-9]{0,3}", re.IGNORECASE),
+    "posix": re.compile(r"/dev/(?:tty[A-Za-z0-9_.:-]+|cu\.[A-Za-z0-9_.:-]+|"
+                        r"serial/(?:by-id|by-path)/[A-Za-z0-9][A-Za-z0-9_.:-]*)"),
+}
 
 
 class SerialError(ValueError):
@@ -99,13 +103,24 @@ def bounded_call(work, deadline, cancel=None):
     return result
 
 
+def valid_port(port, system=None):
+    """Check a local port name for admission or cross-platform evidence replay."""
+    return (type(port) is str and len(port) <= 240 and
+            any(pattern.fullmatch(port) for name, pattern in PORT_PATTERNS.items()
+                if system is None or system == name))
+
+
+def fixture_identifier(value):
+    """Recognize a supplied board or authorization identifier."""
+    return (type(value) is str and bool(DECLARATION.fullmatch(value)) and
+            value.casefold() not in ("none", "unknown"))
+
+
 def serial_settings(args, expected):
     """Validate the declared local fixture and limits without importing pySerial."""
-    pattern = {"nt": WINDOWS_PORT, "posix": POSIX_PORT}.get(os.name)
-    if pattern is None or len(args.port) > 240 or not pattern.fullmatch(args.port):
+    if not valid_port(args.port, os.name):
         raise SerialError("use an explicit local COM port or local /dev tty path for this OS")
-    if not all(DECLARATION.fullmatch(item) and item.casefold() not in ("none", "unknown")
-               for item in (args.board, args.authorization)):
+    if not all(map(fixture_identifier, (args.board, args.authorization))):
         raise SerialError("board and authorization must be explicit identifiers, at most 128 characters")
     if not args.reset_silent or not args.clean_input:
         raise SerialError("require qualified reset-silent open/close and exclusive attachment at a clean input line")
@@ -126,7 +141,7 @@ def serial_settings(args, expected):
         "port": args.port, "board": args.board, "authorization": args.authorization,
         "reset_silent": True, "clean_input": True, "console": console, "baud_applies": baud_applies,
         "driver_baud": baud if baud_applies else USB_DRIVER_BAUD, "requested_dtr": False,
-        "requested_rts": False, "backend": "pySerial 3.5 native", "limits": limits,
+        "requested_rts": False, "backend": NATIVE_BACKEND, "limits": limits,
         "max_bytes": args.max_bytes,
     }
 
@@ -141,6 +156,16 @@ def native_port(**settings):
     if (getattr(serial, "__version__", None) != "3.5" or
             getattr(getattr(serial, "Serial", None), "__module__", None) != backend):
         raise SerialError(f"live serial requires pySerial 3.5 with {backend}")
+    if os.name == "posix":
+        class SingleWriteSerial(serial.Serial):
+            def write(self, data):
+                # pySerial's POSIX writer can loop after a short count or EAGAIN.
+                # The native descriptor is already nonblocking. Let the owner
+                # retire the session on either outcome instead of retrying.
+                return os.write(self.fileno(), data)
+
+        settings["write_timeout"] = 0
+        return SingleWriteSerial(**settings)
     return serial.Serial(**settings)
 
 

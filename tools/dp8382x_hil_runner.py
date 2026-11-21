@@ -24,7 +24,8 @@ from dp8382x_hil_protocol import (
     identity, integer, observed_identity, validate_expected_identity,
 )
 from dp8382x_hil_serial import (
-    IDLE_POLL, READ_CHUNK, ReplyTimeout, SerialError, SerialPort, bounded_call, native_port, serial_settings,
+    IDLE_POLL, INJECTED_BACKEND, READ_CHUNK, ReplyTimeout, SerialError, SerialPort, bounded_call, native_port,
+    serial_settings,
 )
 
 
@@ -321,8 +322,17 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
-def runner_identity():
+def runner_identity(deadline=None):
     """Record Git provenance for this runner checkout, or unknown for an archive."""
+    def git_timeout():
+        if deadline is None:
+            return 2
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired("runner provenance", 0)
+        # Leave time for subprocess.run to terminate and reap a timed-out Git query.
+        return min(2, remaining / 2)
+
     root = Path(__file__).resolve().parents[1]
     unknown = {"revision": "unknown", "tracked_tree": "unknown"}
     if not (root / ".git").exists():
@@ -330,9 +340,9 @@ def runner_identity():
     try:
         git = ["git", "-C", str(root)]
         head = subprocess.run(git + ["rev-parse", "HEAD"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                              timeout=2, check=True, text=True).stdout.strip()
+                              timeout=git_timeout(), check=True, text=True).stdout.strip()
         diff = subprocess.run(git + ["diff-index", "--quiet", "HEAD", "--"], stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL, timeout=2, check=False)
+                              stderr=subprocess.DEVNULL, timeout=git_timeout(), check=False)
     except (OSError, subprocess.SubprocessError):
         return unknown
     if not REVISION.fullmatch(head):
@@ -513,12 +523,16 @@ class SerialExchange:
         self.receive(deadline, accept, lambda: receipt["state"] != "failed")
 
 
-def serial_hard_exit(issues, reason):
+def serial_hard_exit(issues, reason, deadline):
     """Exit without waiting for stalled I/O or invoking backend destruction."""
-    try:
+
+    def report():
         for issue in issues:
             print(issue, file=sys.stderr, flush=True)
         print(f"INCONCLUSIVE (serial session): {reason}", file=sys.stderr, flush=True)
+
+    try:
+        bounded_call(report, min(deadline, time.monotonic() + 0.05))
     finally:
         os._exit(2)
 
@@ -533,8 +547,6 @@ def capture_serial(args, nonce, expected, settings, factory):
     recovery = {"state": "not_started", "detail": "", "identity": {}}
     issues = []
     interrupted = False
-    base = {"suite": args.suite, "fixture": settings["board"], "started_utc": utc_now(),
-            "expectations": expected, "runner": runner_identity(), "stderr": ""}
 
     def receipt(complete):
         return {**settings, "open": port.opened.receipt(), "close": port.closed.receipt(),
@@ -545,17 +557,26 @@ def capture_serial(args, nonce, expected, settings, factory):
     end = start + limits["session_timeout"]
     cleanup_ceiling = end - limits["finalize_timeout"]
     active = min(start + limits["duration"], cleanup_ceiling - limits["cleanup_timeout"])
-    reservation = bounded_call(lambda: EvidenceFiles(args.out_dir, args.run, args.max_bytes,
-                                                     provisional={**base, "serial": receipt(False)}), active)
+    base = {"suite": args.suite, "fixture": settings["board"], "started_utc": utc_now(),
+            "expectations": expected, "stderr": ""}
+
+    def reserve():
+        base["runner"] = runner_identity(active)
+        if time.monotonic() >= active:
+            raise EvidenceError("active deadline expired during provenance collection")
+        return EvidenceFiles(args.out_dir, args.run, args.max_bytes,
+                             provisional={**base, "serial": receipt(False)})
+
+    reservation = bounded_call(reserve, active)
     if reservation.pending:
         serial_hard_exit([f"evidence reservation {reservation.state}: {reservation.detail}"],
-                         "an evidence reservation worker is pending")
+                         "an evidence reservation worker is pending", end)
     if reservation.state != "ok":
         if reservation.value is not None:
             aborted = bounded_call(reservation.value.abort, end)
             if aborted.pending:
                 serial_hard_exit([f"evidence reservation cleanup {aborted.state}: {aborted.detail}"],
-                                 "an evidence cleanup worker is pending")
+                                 "an evidence cleanup worker is pending", end)
         if reservation.cancelled:
             raise KeyboardInterrupt
         raise EvidenceError(f"evidence reservation {reservation.state}: {reservation.detail}")
@@ -564,6 +585,8 @@ def capture_serial(args, nonce, expected, settings, factory):
     try:
         port.open(active)
         for command in commands:
+            if exchange.decoder.has_partial_record:
+                raise ProtocolError("unsolicited record began before the next command")
             deadline = min(active, time.monotonic() + limits["command_timeout"])
             port.send(command.text, deadline)
             session.issue()
@@ -622,7 +645,7 @@ def capture_serial(args, nonce, expected, settings, factory):
         issues.append(f"evidence finalization {finalized.state}: {finalized.detail}")
     exit_reason = port.exit_reason
     if exit_reason or finalized.pending:
-        serial_hard_exit(issues, exit_reason or "an evidence finalization worker is pending")
+        serial_hard_exit(issues, exit_reason or "an evidence finalization worker is pending", end)
     if finalized.state != "ok":
         if interrupted or finalized.cancelled:
             print("; ".join(issues), file=sys.stderr)
@@ -762,7 +785,7 @@ def main(argv=None, *, serial_factory=None):
                                       "commands": [command.text for command in commands]}, indent=2))
                     return 0
                 if serial_factory is not None:
-                    settings["backend"] = "injected serial backend"
+                    settings["backend"] = INJECTED_BACKEND
                 data, interrupted = capture_serial(args, nonce, expected, settings, serial_factory or native_port)
             else:
                 if preview:

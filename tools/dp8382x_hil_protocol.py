@@ -413,6 +413,11 @@ class Decoder:
         self._noise = False
         self._closed = False
 
+    @property
+    def has_partial_record(self) -> bool:
+        """Whether bytes received since the last LF could form a machine record."""
+        return bool(self._line)
+
     def feed(self, chunk: bytes) -> list[Record]:
         """Read raw bytes and return complete records in arrival order."""
         if self._closed:
@@ -450,5 +455,5 @@ class Decoder:
         if self._closed:
             raise ProtocolError("decoder already closed")
         self._closed = True
-        if self._line:
+        if self.has_partial_record:
             raise ProtocolError("unterminated machine record or prefix")

@@ -15,9 +15,15 @@ import tempfile
 import time
 
 if __package__:
-    from .dp8382x_hil_serial import CALL_STATES, LIMITS, UART_CONSOLE, USB_CONSOLE, USB_DRIVER_BAUD
+    from .dp8382x_hil_serial import (
+        CALL_STATES, INJECTED_BACKEND, LIMITS, NATIVE_BACKEND, UART_CONSOLE, USB_CONSOLE, USB_DRIVER_BAUD,
+        fixture_identifier, valid_port,
+    )
 else:
-    from dp8382x_hil_serial import CALL_STATES, LIMITS, UART_CONSOLE, USB_CONSOLE, USB_DRIVER_BAUD
+    from dp8382x_hil_serial import (
+        CALL_STATES, INJECTED_BACKEND, LIMITS, NATIVE_BACKEND, UART_CONSOLE, USB_CONSOLE, USB_DRIVER_BAUD,
+        fixture_identifier, valid_port,
+    )
 
 
 MAX_TRANSCRIPT_BYTES = 1_048_576
@@ -115,7 +121,9 @@ def _validate_serial(data):
                           not 1 <= serial["driver_baud"] <= 4_000_000))
             or (not uart and (serial["driver_baud"] != USB_DRIVER_BAUD or expected.get("baud") != 0))
             or ("firmware" in expected) == ("firmware_prefix" in expected)
-            or any(not _text(serial[key]) for key in ("port", "board", "authorization", "backend"))
+            or expected.get("target") == "host" or not valid_port(serial["port"])
+            or not all(fixture_identifier(serial[key]) for key in ("board", "authorization"))
+            or serial["backend"] not in (NATIVE_BACKEND, INJECTED_BACKEND)
             or serial["reset_silent"] is not True or serial["clean_input"] is not True
             or serial["requested_dtr"] is not False or serial["requested_rts"] is not False
             or data["suite"] != "passive" or data["fixture"] != serial["board"] or data["stderr"] != ""

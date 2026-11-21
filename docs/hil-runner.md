@@ -116,8 +116,8 @@ restoration command. [Session handshake](cli.md#session-handshake)
 
 | Serial option | Default | Scope |
 | --- | --- | --- |
-| `--session-timeout` | 30 s | Absolute monotonic budget from evidence reservation through finalization |
-| `--duration` | 20 s | Reservation, open, commands and receive tail, clipped to leave cleanup and finalization time |
+| `--session-timeout` | 30 s | Absolute monotonic budget from provenance collection through finalization |
+| `--duration` | 20 s | Provenance, reservation, open, commands and receive tail, clipped to leave cleanup and finalization time |
 | `--command-timeout` | 1.5 s | One write and its correlated response within the active budget |
 | `--tail-timeout` | 0.15 s | Observe the stream after the last terminal without sending another command |
 | `--cleanup-timeout` | 3 s | At most half for resynchronization, with the remainder available for close |
@@ -126,16 +126,19 @@ restoration command. [Session handshake](cli.md#session-handshake)
 All times are finite and at most 120 seconds. Cleanup and publication are
 also clipped to their remaining session time. A single owner supervises
 one daemon backend call at a time. Reads poll in chunks of at most 256 bytes
-using a nonblocking driver setting. An empty read means idle. Writes use a
-finite driver timeout and one backend call for the complete line. The absolute
-host deadline also bounds driver calls that ignore their timeouts.
+using a nonblocking driver setting. An empty read means idle. On Windows the
+runner uses pySerial's positive write timeout to wait for the reported count
+from one overlapped write. On POSIX it makes one nonblocking OS write to
+pySerial's descriptor. A short count or a would-block error ends the session
+without issuing another write. The absolute host deadline bounds either path.
 
 The owner closes once after completed I/O, including a returned open failure if
 a serial object was created. It never closes concurrently with a stalled I/O
 call. A still-pending backend call is recorded as INCONCLUSIVE and the process
-uses `os._exit(2)` after bounded artifact finalization. Hard exit also avoids
-backend destruction if a failed native close could run again. Use this runner
-as a standalone Python command. The serial transport uses no child process.
+uses `os._exit(2)` after bounded artifact finalization. Console diagnostics on
+this path use only remaining session time. Hard exit also avoids backend
+destruction if a failed native close could run again. Use this runner as a
+standalone Python command. The serial transport uses no child process.
 
 ## Protocol and limits
 
@@ -150,8 +153,10 @@ The matching nonce establishes the boot and first request. Prior well-formed
 unrelated traffic cannot establish that session. After synchronization,
 each issued request must match the exact boot, request, command and
 operation token. An admission only records progress. A duplicate or conflicting
-terminal, including a late one during closure, invalidates the run. Reboot,
-reordering, request rollover and mismatched deadlines also fail correlation.
+terminal, including a late one during closure, invalidates the run. A machine
+record that begins in received bytes before the next write ends live command
+admission even if its delimiter is pending. Reboot, reordering, request
+rollover and mismatched deadlines also fail correlation.
 Admissions carry no cleanup result. Cached queries carry no command deadline.
 The record clock may be unavailable, including throughout a passive run. A
 valid timestamp cannot follow an unavailable clock within one boot. The offline
