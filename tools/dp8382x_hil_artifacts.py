@@ -1,4 +1,4 @@
-"""Write and verify bounded two-file host protocol evidence."""
+"""Write and verify bounded two-file console evidence."""
 
 from __future__ import annotations
 
@@ -12,6 +12,12 @@ from pathlib import Path
 import re
 import stat
 import tempfile
+import time
+
+if __package__:
+    from .dp8382x_hil_serial import CALL_STATES, LIMITS, UART_CONSOLE, USB_CONSOLE, USB_DRIVER_BAUD
+else:
+    from dp8382x_hil_serial import CALL_STATES, LIMITS, UART_CONSOLE, USB_CONSOLE, USB_DRIVER_BAUD
 
 
 MAX_TRANSCRIPT_BYTES = 1_048_576
@@ -29,6 +35,11 @@ DATA_FIELDS = {"suite", "fixture", "started_utc", "ended_utc", "complete", "comm
                "cases", "identity", "expectations", "runner", "stderr", "issues"}
 ARTIFACT_FIELDS = {"schema", "scope", "run", "verdict", "transcript"}
 TARGET_FIELDS = {"target", "backend", "variant", "interface", "address"}
+SERIAL_SCOPE = "serial_session"
+SERIAL_FIELDS = {"port", "board", "authorization", "reset_silent", "clean_input", "console",
+                 "baud_applies", "driver_baud", "requested_dtr", "requested_rts", "backend",
+                 "limits", "max_bytes", "open", "close", "writes", "recovery",
+                 "framing_uncertain", "hard_exit", "restoration"}
 
 
 class EvidenceError(ValueError):
@@ -92,7 +103,66 @@ def _stderr_size(value):
     return len(content)
 
 
-def _validate_data(data, fields):
+def _validate_serial(data):
+    serial = data["serial"]
+    if not _object(serial, SERIAL_FIELDS):
+        raise EvidenceError("Invalid serial receipt fields")
+    expected = data["expectations"]
+    uart = serial["console"] == UART_CONSOLE
+    if (serial["console"] not in (UART_CONSOLE, USB_CONSOLE) or expected.get("console") != serial["console"]
+            or serial["baud_applies"] is not uart or type(serial["driver_baud"]) is not int
+            or (uart and (serial["driver_baud"] != expected.get("baud") or
+                          not 1 <= serial["driver_baud"] <= 4_000_000))
+            or (not uart and (serial["driver_baud"] != USB_DRIVER_BAUD or expected.get("baud") != 0))
+            or ("firmware" in expected) == ("firmware_prefix" in expected)
+            or any(not _text(serial[key]) for key in ("port", "board", "authorization", "backend"))
+            or serial["reset_silent"] is not True or serial["clean_input"] is not True
+            or serial["requested_dtr"] is not False or serial["requested_rts"] is not False
+            or data["suite"] != "passive" or data["fixture"] != serial["board"] or data["stderr"] != ""
+            or type(serial["max_bytes"]) is not int or not 1 <= serial["max_bytes"] <= MAX_TRANSCRIPT_BYTES
+            or any(type(serial[key]) is not bool for key in ("hard_exit", "framing_uncertain"))):
+        raise EvidenceError("Invalid serial fixture declarations")
+    limits = serial["limits"]
+    if (not _object(limits, set(LIMITS)) or
+            any(type(value) not in (int, float) or not 0 < value <= 120 for value in limits.values()) or
+            limits["tail_timeout"] >= min(limits["duration"], limits["session_timeout"] -
+                                          limits["cleanup_timeout"] - limits["finalize_timeout"])):
+        raise EvidenceError("Invalid serial limits")
+    for phase in ("open", "close"):
+        result = serial[phase]
+        if (not _object(result, {"state", "detail"}) or type(result["state"]) is not str
+                or result["state"] not in CALL_STATES or type(result["detail"]) is not str
+                or (result["state"] == "stalled" and not serial["hard_exit"])):
+            raise EvidenceError("Invalid serial lifecycle outcome")
+    recovery = serial["recovery"]
+    if (not _object(recovery, {"state", "detail", "identity"}) or
+            recovery["state"] not in ("not_started", "continuous", "unproven", "failed") or
+            type(recovery["detail"]) is not str or type(recovery["identity"]) is not dict or
+            (recovery["state"] == "continuous" and not recovery["identity"])):
+        raise EvidenceError("Invalid serial resynchronization outcome")
+    writes = serial["writes"]
+    if type(writes) is not list or len(writes) > 11:
+        raise EvidenceError("Invalid serial write attempts")
+    for row in writes:
+        if (not _object(row, {"command", "bytes", "state", "detail"}) or not _text(row["command"])
+                or not row["command"].isascii() or not 1 <= len(row["command"]) <= 96
+                or type(row["state"]) is not str or row["state"] not in CALL_STATES
+                or type(row["detail"]) is not str
+                or (row["bytes"] is not None and
+                    (type(row["bytes"]) is not int or not 0 <= row["bytes"] <= len(row["command"]) + 1))
+                or (row["state"] == "ok" and row["bytes"] != len(row["command"]) + 1)):
+            raise EvidenceError("Invalid serial write receipt")
+    confirmed = [row["command"] for row in writes if row["state"] == "ok"]
+    if (confirmed != data["commands"] or any(row["state"] != "ok" for row in writes[:-1])
+            or serial["restoration"] != ("not_requested" if data["complete"] else "unavailable")
+            or (data["complete"] and
+                (serial["hard_exit"] or serial["framing_uncertain"] or len(confirmed) != len(writes)
+                 or recovery["state"] != "not_started" or
+                 any(serial[phase]["state"] != "ok" for phase in ("open", "close"))))):
+        raise EvidenceError("Serial receipt disagrees with execution and closure")
+
+
+def _validate_data(data, fields, scope):
     if not _object(data, fields):
         raise EvidenceError("Invalid evidence fields")
     if (type(data["complete"]) is not bool or not _text(data["suite"]) or not _text(data["fixture"])
@@ -123,11 +193,15 @@ def _validate_data(data, fields):
         if (type(revision) is not str or (revision != "unknown" and not REVISION.fullmatch(revision))
                 or runner.get("tracked_tree") not in ("clean", "dirty", "unknown")):
             raise EvidenceError("Invalid runner provenance")
+    if scope == SERIAL_SCOPE:
+        _validate_serial(data)
     return _stderr_size(data["stderr"])
 
 
 def aggregate(data: dict) -> str:
     """Combine validated case evidence and closure into PASS, FAIL or INCONCLUSIVE."""
+    if data.get("scope") == SERIAL_SCOPE and data["serial"]["hard_exit"]:
+        return "INCONCLUSIVE"
     cases = data["cases"]
     if any(case["verdict"] == "FAIL" or case["restoration"]["verdict"] == "FAIL" for case in cases):
         return "FAIL"
@@ -184,7 +258,7 @@ def _sync(stream):
     os.fsync(stream.fileno())
 
 
-def _publish(path, content):
+def _publish(path, content, deadline=None):
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(mode="wb", dir=path.parent, prefix=path.name + ".",
@@ -192,6 +266,8 @@ def _publish(path, content):
             temporary = Path(stream.name)
             _write_all(stream, content)
             _sync(stream)
+        if deadline is not None and time.monotonic() >= deadline:
+            raise EvidenceError("Evidence finalization deadline expired before publication")
         os.replace(temporary, path)
         temporary = None
     finally:
@@ -199,14 +275,19 @@ def _publish(path, content):
             temporary.unlink(missing_ok=True)
 
 
+def validate_destination(run, limit):
+    """Check evidence path components and limits without accessing the filesystem."""
+    if type(run) is not str or not RUN_NAME.fullmatch(run):
+        raise EvidenceError("Invalid evidence run name")
+    if type(limit) is not int or not 1 <= limit <= MAX_TRANSCRIPT_BYTES:
+        raise EvidenceError("Invalid transcript byte limit")
+
+
 class EvidenceFiles:
     """Own a JSON placeholder and a bounded raw stdout transcript in one directory."""
 
-    def __init__(self, directory: Path, run: str, limit: int = MAX_TRANSCRIPT_BYTES):
-        if type(run) is not str or not RUN_NAME.fullmatch(run):
-            raise EvidenceError("Invalid evidence run name")
-        if type(limit) is not int or not 1 <= limit <= MAX_TRANSCRIPT_BYTES:
-            raise EvidenceError("Invalid transcript byte limit")
+    def __init__(self, directory: Path, run: str, limit: int = MAX_TRANSCRIPT_BYTES, *, provisional=None):
+        validate_destination(run, limit)
         self.path = directory / f"{run}.json"
         self.transcript_path = directory / f"{run}.txt"
         self._run = run
@@ -215,8 +296,9 @@ class EvidenceFiles:
         self._digest = hashlib.sha256()
         self._write_failed = False
         self._truncated = False
+        self._scope = SERIAL_SCOPE if provisional is not None else "host_protocol"
         placeholder = {
-            "schema": 1, "scope": "host_protocol", "run": run, "verdict": "INCONCLUSIVE",
+            "schema": 1, "scope": self._scope, "run": run, "verdict": "INCONCLUSIVE",
             "suite": "unknown", "fixture": "unknown", "started_utc": datetime.now(timezone.utc).isoformat(),
             "ended_utc": "", "complete": False, "commands": [],
             "cases": [{"id": "pending", "executed": False, "verdict": "NOT RUN", "primary": None,
@@ -224,6 +306,9 @@ class EvidenceFiles:
             "identity": {}, "expectations": {}, "runner": {}, "stderr": "", "issues": ["Run not finalized"],
             "transcript": _transcript_info(b"", False),
         }
+        if provisional is not None:
+            placeholder.update(provisional)
+            _validate_data(placeholder, DATA_FIELDS | ARTIFACT_FIELDS | {"serial"}, self._scope)
         reserved_json = False
         try:
             directory.mkdir(parents=True, exist_ok=True)
@@ -283,14 +368,15 @@ class EvidenceFiles:
         except OSError as error:
             raise EvidenceError(f"Cannot sync or close transcript: {error}") from error
 
-    def finish(self, data: dict) -> dict:
+    def finish(self, data: dict, deadline=None) -> dict:
         """Close and hash stdout, then atomically publish validated outcome data."""
         if self._stream is None:
             raise EvidenceError("Transcript is already closed")
         self.abort()
         if self._write_failed:
             raise EvidenceError("Transcript write failed before finalization")
-        stderr_size = _validate_data(data, DATA_FIELDS)
+        fields = DATA_FIELDS | {"serial"} if self._scope == SERIAL_SCOPE else DATA_FIELDS
+        stderr_size = _validate_data(data, fields, self._scope)
         try:
             content = _bounded_read(self.transcript_path, self._limit)
             if len(content) != self._length:
@@ -300,9 +386,13 @@ class EvidenceFiles:
             info = _transcript_info(content, self.truncated)
             if info["sha256"] != self._digest.hexdigest():
                 raise EvidenceError("Transcript bytes changed before finalization")
-            result = {**data, "schema": 1, "scope": "host_protocol", "run": self._run, "transcript": info}
+            result = {**data, "schema": 1, "scope": self._scope, "run": self._run, "transcript": info}
             result["verdict"] = aggregate(result)
-            _publish(self.path, _encoded(result))
+            encoded = _encoded(result)
+            if deadline is None:
+                _publish(self.path, encoded)
+            else:
+                _publish(self.path, encoded, deadline)
         except OSError as error:
             raise EvidenceError(f"Cannot finalize evidence: {error}") from error
         return result
@@ -344,9 +434,13 @@ def verify_artifacts(path: Path) -> tuple[dict, bytes]:
     try:
         raw = _bounded_read(path, MAX_MANIFEST_BYTES)
         data = _decode(raw)
-        stderr_size = _validate_data(data, DATA_FIELDS | ARTIFACT_FIELDS)
+        scope = data.get("scope") if type(data) is dict else None
+        if scope not in ("host_protocol", SERIAL_SCOPE):
+            raise EvidenceError("Invalid evidence scope")
+        fields = DATA_FIELDS | ARTIFACT_FIELDS | ({"serial"} if scope == SERIAL_SCOPE else set())
+        stderr_size = _validate_data(data, fields, scope)
         run = data["run"]
-        if (type(data["schema"]) is not int or data["schema"] != 1 or data["scope"] != "host_protocol"
+        if (type(data["schema"]) is not int or data["schema"] != 1
                 or type(run) is not str or not RUN_NAME.fullmatch(run) or path.name != f"{run}.json"
                 or not _verdict(data["verdict"])):
             raise EvidenceError("Invalid evidence schema or run identity")
@@ -357,6 +451,8 @@ def verify_artifacts(path: Path) -> tuple[dict, bytes]:
                 or type(info["truncated"]) is not bool):
             raise EvidenceError("Invalid transcript receipt")
         content = _bounded_read(path.with_suffix(".txt"), MAX_TRANSCRIPT_BYTES)
+        if scope == SERIAL_SCOPE and len(content) > data["serial"]["max_bytes"]:
+            raise EvidenceError("Transcript exceeds its declared serial capture limit")
         if len(content) + stderr_size > MAX_TRANSCRIPT_BYTES:
             raise EvidenceError("Combined stdout and stderr exceed the capture limit")
         if _transcript_info(content, info["truncated"]) != info:

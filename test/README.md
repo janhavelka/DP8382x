@@ -1,5 +1,10 @@
 # Verification
 
+Prompt 49 registers `cli_hil_serial` in the portable Release build. It uses
+Python with site-packages disabled and drives the real CLI fixture through an
+injected serial backend. It checks passive attachment, write framing, timeouts,
+teardown and evidence publication without a physical fixture.
+
 Prompt 46 registers `cli_diagnostic_transcript`, `cli_control_transcript`,
 `cli_pin_transcript` and `cli_selftest_transcript` against the real-core fixture.
 They check typed admission, literal wire words, result retention and separately

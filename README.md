@@ -81,8 +81,9 @@ The P4 console uses UART0 at 115200 bit/s with a separate bounded I/O task.
 Explicit application stop opens maintenance and verified settings reconcile
 through public SDK controls before start. Physical console and PHY qualification
 remain open. [CLI and console guide](docs/cli.md), [host fixture](test/cli/README.md)
-The [offline runner](docs/hil-runner.md) verifies compiled-fixture and recorded
-CLI sessions and preserves raw transcripts with replayable JSON evidence.
+The [console runner](docs/hil-runner.md) verifies compiled-fixture and recorded
+CLI sessions and can attach to an explicitly qualified running serial console.
+It preserves raw transcripts with replayable JSON evidence.
 
 Prompt 6 selects one shared C++17 chip implementation, a terminal batch MDIO
 boundary and explicit native lifecycle/cache/collector ownership in the

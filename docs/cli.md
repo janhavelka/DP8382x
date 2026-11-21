@@ -704,5 +704,6 @@ do not reconfigure the processor or discard pending work.
 
 The [host fixture](../test/cli/README.md) produces software transcripts from the
 real processor and core. Its fault controls are confined to the executable.
-The [offline runner](hil-runner.md) verifies those transcripts and preserves
-the paired raw and JSON evidence.
+The [console runner](hil-runner.md) verifies those transcripts and uses this
+handshake for passive serial attachment to an already-running console. Both
+paths preserve paired raw and JSON evidence.

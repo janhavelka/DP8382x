@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add bounded passive serial attachment with explicit fixture and firmware
+  identity, reset-silent open/close declarations and replayable evidence.
+  Retain driver failures, uncertain writes and timed nonce resynchronization.
+
 - Reject missing or expired P4 application control deadlines and retain UART error
   notifications when its event queue fills. Reject inconsistent offline
   receipts, accept earlier schema-1 recordings, and retain separate fixture

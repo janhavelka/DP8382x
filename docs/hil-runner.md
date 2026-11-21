@@ -1,9 +1,10 @@
-# Offline protocol and evidence runner
+# Console protocol and evidence runner
 
-`tools/dp8382x_hil_runner.py` uses Python 3.10+ and the standard library.
-It checks the shared CLI on a recorded byte stream or the compiled host
-fixture. A PASS is host protocol evidence. Serial sessions and physical
-qualification have their own stages.
+`tools/dp8382x_hil_runner.py` uses Python 3.10+ and the standard library for
+help, dry-runs, recorded streams and the compiled host fixture. Live serial
+attachment also uses the optional pySerial 3.5 native backend. A serial PASS
+records the specified console cases for one session. PHY qualification needs
+its own fixture cases and evidence.
 
 ## Commands
 
@@ -12,6 +13,9 @@ qualification have their own stages.
 - `run-fixture` starts the explicitly supplied compiled CLI fixture for
   `host` and `sim-mdio`. It sends one complete command at a time and writes
   a new evidence pair. The default nonce is generated for this run.
+- `run-serial` attaches once to an explicitly identified, already-running
+  console using the `passive` suite. Add `--dry-run` to validate and print
+  the same plan and declarations without importing pySerial or creating files.
 - `verify-transcript` reads a raw recorded stdout file and writes a new
   evidence pair. Supply the suite, expected target and the session nonce
   actually used in the recording.
@@ -53,6 +57,85 @@ Use the fixture without the `.exe` suffix on POSIX. A failed fixture launch
 or transcript read gets an incomplete evidence pair after valid arguments
 and successful reservation. Argument errors and output collisions return
 an error immediately.
+
+## Live serial attachment
+
+Supply an explicit local COM port on Windows or a local tty device path on
+POSIX, a board or fixture identifier, and the record authorizing that attachment.
+`--reset-silent` declares that open and close on this exact driver, port and
+wiring are qualified to leave the device running. `--clean-input` declares
+exclusive attachment while the firmware is at a clean CLI input line. Use both
+only when the fixture record supports them. Firmware reports its build context
+but has no per-board identifier. The operator links the board to the run.
+
+`uart0` needs the firmware's actual baud rate. Qualify the bridge reset and
+boot wiring, including drivers that assert or glitch DTR/RTS as they acquire
+the handle. An image that reports `usb-serial-jtag` uses `--baud 0`, which
+declares that baud does not apply on the wire. The driver receives a nominal
+115200. Native USB control lines have their own reset behavior and require
+separate open/close evidence. Both shipped P4 examples report `uart0`.
+
+For an authorized P4 basic image, set `$FixturePort`, `$BoardId`,
+`$AuthorizationId` and `$FirmwareRevision` from the fixture record. Confirm the
+firmware's address, bus interface and console values before running.
+
+```powershell
+$serialPlan = @(
+  'run-serial', '--suite', 'passive', '--target', 'esp32p4', '--backend', 'p4-netlist-basic',
+  '--variant', 'DP83826I', '--interface', 'RMII', '--address', '0',
+  '--console', 'uart0', '--baud', '115200', '--firmware', $FirmwareRevision,
+  '--port', $FixturePort, '--board', $BoardId, '--authorization', $AuthorizationId,
+  '--reset-silent', '--clean-input', '--out-dir', 'build/evidence', '--run', 'p4-passive-01'
+)
+python -S tools/dp8382x_hil_runner.py @serialPlan --dry-run
+python tools/dp8382x_hil_runner.py @serialPlan
+python tools/dp8382x_hil_runner.py verify-artifacts build/evidence/p4-passive-01.json
+```
+
+Install pySerial 3.5 in the Python environment for live runs. The runner
+accepts only its platform-native Windows or POSIX serial backend. It reserves
+the INCONCLUSIVE JSON and transcript before constructing a closed serial
+object. It requests deasserted DTR and RTS, disables flow control, assigns the
+port and opens once. The requested line states are software settings.
+The OS acquires the handle before pySerial applies those settings, and
+pySerial's own open sequence can purge queued bytes. The runner issues no
+flush, drain, reset-buffer or break calls. It performs no port discovery,
+flash, reset, power-cycle, reconnect or replay. [pySerial 3.5 API](https://pyserial.readthedocs.io/en/latest/pyserial_api.html)
+
+Attachment starts with `session <fresh-nonce>`. It needs no startup banner
+and requires the matching reply and an explicitly verified firmware revision
+or prefix. The cached before/after case requires a quiesced owner and usable
+cached state. If a timely full write receives no terminal, the runner can
+issue one new nonce query using its recovery allowance. A successful recovery
+requires the same boot, full reported identity and the expected next request.
+Late replies stay in the raw transcript. A fresh reply without an earlier
+verified boot is recorded as unproven continuity. The run retains its original
+failure either way. A short, zero or uncertain write leaves the input framing
+unsafe, so the runner sends no further bytes. The passive suite has no firmware
+restoration command. [Session handshake](cli.md#session-handshake)
+
+| Serial option | Default | Scope |
+| --- | --- | --- |
+| `--session-timeout` | 30 s | Absolute monotonic budget from evidence reservation through finalization |
+| `--duration` | 20 s | Reservation, open, commands and receive tail, clipped to leave cleanup and finalization time |
+| `--command-timeout` | 1.5 s | One write and its correlated response within the active budget |
+| `--tail-timeout` | 0.15 s | Observe the stream after the last terminal without sending another command |
+| `--cleanup-timeout` | 3 s | At most half for resynchronization, with the remainder available for close |
+| `--finalize-timeout` | 2 s | Write, sync, hash and atomically publish the evidence pair |
+
+All times are finite and at most 120 seconds. Cleanup and publication are
+also clipped to their remaining session time. A single owner supervises
+one daemon backend call at a time. Reads poll in chunks of at most 256 bytes
+using a nonblocking driver setting. An empty read means idle. Writes use a
+finite driver timeout and one backend call for the complete line. The absolute
+host deadline also bounds driver calls that ignore their timeouts.
+
+The owner closes once after completed I/O, including a returned open failure if
+a serial object was created. It never closes concurrently with a stalled I/O
+call. A still-pending backend call is recorded as INCONCLUSIVE and the process
+uses `os._exit(2)` after bounded artifact finalization. Hard exit also avoids
+backend destruction if a failed native close could run again. Use this runner
+as a standalone Python command. The serial transport uses no child process.
 
 ## Protocol and limits
 
@@ -122,7 +205,7 @@ byte length, SHA-256 and verdict, and replays complete protocol evidence.
 
 | Exit | Meaning |
 | --- | --- |
-| `0` | Verified host protocol PASS, or successful help or dry-run output. |
+| `0` | Verified console evidence PASS, or successful help or dry-run output. |
 | `1` | FAIL asserted by a case or its restoration evidence. |
 | `2` | INCONCLUSIVE, invalid input, or unverifiable evidence. |
 | `130` | Interrupted execution. |
@@ -131,3 +214,14 @@ FAIL dominates incomplete evidence. INCONCLUSIVE includes blocked, skipped,
 zero-executed, unfinished, corrupt and truncated evidence. PASS requires
 complete closure and a passing executed case set with any required
 restoration proved.
+
+Serial JSON uses scope `serial_session` and adds typed fixture declarations,
+console and baud applicability, requested control-line states, limits, write
+attempts, open/close and resynchronization results. `commands` contains only
+timely full writes. A hard exit remains INCONCLUSIVE and retains any observed
+case failure as a separate receipt. The in-memory RX prefix includes ordinary
+text and machine records. It is persisted after serial teardown, so abrupt
+process loss can leave only an empty transcript or a partial prefix. If final
+publication fails or misses admission to atomic replacement, the INCONCLUSIVE
+placeholder remains. Filesystem operations already in the kernel may complete
+as the process exits, and abrupt termination may leave a temporary JSON file.

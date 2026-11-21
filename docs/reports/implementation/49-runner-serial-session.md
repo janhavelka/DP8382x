@@ -187,3 +187,51 @@ Ninja 1.12.1:
   Portable/package consumer, SDK link, remote CI and physical verification
   were NOT RUN for this brief. No hardware receipt exists for open/close line
   behavior on an authorized fixture. Remote CI remains prompt 71.
+
+## Stage (b) implementation checkpoint
+
+Implementation began on clean `main` at
+`10cd59f357f145780544bc6a6dbb7da01feb30a0`, with the tracking ref at the same
+commit. The four read-only sibling checkouts were clean at the revisions
+listed above. The Windows pySerial 3.5 native open, read and close paths were
+reopened for line-state ordering, overlapped completion and close ownership.
+No ledger procedure has owner 49. The unattended wrapper owns Git writes
+and synchronization. This checkpoint is for independent review in stage (c).
+
+- `tools/dp8382x_hil_serial.py` owns native port admission, pre-open settings,
+  finite daemon-thread I/O and close. A short, zero or uncertain write retires
+  command admission. Stalled I/O retains exclusive ownership until hard exit.
+- The serial path in `tools/dp8382x_hil_runner.py` and the two-file carrier use
+  the existing decoder, correlation and case classifier. Recovery records
+  continuity after timeout while preserving the original failure and raw RX.
+  Live evidence adds a typed `serial_session` scope. Existing host receipts
+  remain readable.
+- The Release `cli_hil_serial` test exercises lifecycle stalls and injected
+  faults with Python site-packages disabled. Its in-process bridge forwards
+  the passive sequence to the bounded compiled CLI fixture and projects
+  its target, backend and console identity onto a simulated serial setup.
+  Command records and the fixture's reported revision are left intact.
+- The [runner guide](../../hil-runner.md) covers usage, authorization,
+  deadlines, serial ownership and filesystem limits. The CLI, architecture,
+  ESP-IDF example and test guides link the affected behavior. README and
+  CHANGELOG record the new mode. No public C++ declarations changed.
+
+Stage (b) host verification on Windows used Python 3.12.10, GNU 15.1.0,
+CMake 4.0.1 and Ninja 1.12.1.
+
+- PASS. `python -S -m unittest discover -s test -p 'test_*.py' -q` ran
+  177 tests with two fixture-dependent tests deferred to CTest.
+- PASS. `cmake -S . -B build/p49-serial -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON`,
+  `cmake --build build/p49-serial --target dp8382x_cli_fixture --parallel 4`
+  and `ctest --test-dir build/p49-serial -R '^cli_hil_(runner|serial)$' --output-on-failure --no-tests=error`
+  built the compiled producer and passed both runner registrations.
+- PASS. Global help, serial help and the UART0 serial dry-run with
+  `python -S`. The preview created no evidence directory.
+- PASS. `python tools/verify_references.py`, `python tools/verify_ledger.py`,
+  `python tools/check_doxygen.py`, `python scripts/generate_version.py check`
+  and Git whitespace checks.
+
+Portable/package consumer, SDK link, remote CI and physical were NOT RUN.
+No identified fixture is authorized for an unattended serial attachment.
+The offline producer check is evidence for runner behavior. It establishes
+no measured line-state, console-driver or PHY qualification result.

@@ -53,8 +53,10 @@ status 2.
 
 See the grammar and machine record requirements in [the CLI guide](../../docs/cli.md).
 The registered `cli_hil_runner` test drives this executable through the
-[offline evidence runner](../../docs/hil-runner.md), verifies the artifact
-pair and checks admission-only and wrong-token transcripts.
+[console runner](../../docs/hil-runner.md), verifies the artifact pair and
+checks admission-only and wrong-token transcripts. `cli_hil_serial` routes
+the passive suite through an injected serial backend connected to this fixture
+and checks bounded I/O failure paths without using a serial device.
 
 The registered processor checks inject a refused poll, a temporarily refused
 take, a stalled writer, a clock regression during final-sample recording and

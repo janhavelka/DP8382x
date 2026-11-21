@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify DP8382x console protocol and preserve host-only evidence."""
+"""Verify DP8382x console protocol and preserve bounded evidence."""
 
 import argparse
 import base64
@@ -7,17 +7,24 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
 import math
+import os
 from pathlib import Path
 import re
 import secrets
 import subprocess
 import sys
+import time
 
-from dp8382x_hil_artifacts import MAX_TRANSCRIPT_BYTES, EvidenceError, EvidenceFiles, verify_artifacts
+from dp8382x_hil_artifacts import (
+    MAX_TRANSCRIPT_BYTES, SERIAL_SCOPE, EvidenceError, EvidenceFiles, validate_destination, verify_artifacts,
+)
 from dp8382x_hil_fixture import FixtureError, FixtureProcess
 from dp8382x_hil_protocol import (
     COMMON_FIELDS, TERMINAL_STATUS, U32_MAX, U64_MAX, Decoder, ProtocolError, Record,
     identity, integer, observed_identity, validate_expected_identity,
+)
+from dp8382x_hil_serial import (
+    IDLE_POLL, READ_CHUNK, ReplyTimeout, SerialError, SerialPort, bounded_call, native_port, serial_settings,
 )
 
 
@@ -341,11 +348,11 @@ def expectations(values, suite):
     return values
 
 
-def decode_chunk(decoder, session, chunk):
+def decode_chunk(decoder, accept, chunk):
     """Keep complete prior receipts even when a later line in the same chunk is invalid."""
     for part in chunk.splitlines(keepends=True):
         for record in decoder.feed(part):
-            session.accept(record)
+            accept(record)
 
 
 def read_capture(path, limit, save, consume):
@@ -379,7 +386,7 @@ def capture(args, suite, nonce, expected):
     interrupted = False
 
     def consume(data):
-        decode_chunk(decoder, session, data)
+        decode_chunk(decoder, session.accept, data)
 
     def offline_consume(data):
         if not issues:
@@ -439,6 +446,191 @@ def capture(args, suite, nonce, expected):
     return data, interrupted
 
 
+class SerialExchange:
+    """Use the canonical decoder and retain a bounded raw RX prefix."""
+
+    def __init__(self, port, limit):
+        self.port = port
+        self.limit = limit
+        self.capture = bytearray()
+        self.truncated = False
+        self.decoder = Decoder(max_bytes=limit)
+
+    def _retain(self, data):
+        remaining = self.limit - len(self.capture)
+        self.capture.extend(data[:remaining])
+        self.truncated |= len(data) > remaining
+
+    def receive(self, deadline, accept, done=None):
+        """Read through a terminal or observe a timed tail with no new request."""
+        while time.monotonic() < deadline:
+            remaining = self.limit - len(self.capture)
+            chunk = self.port.read(min(READ_CHUNK, remaining + 1), deadline, self._retain)
+            if chunk:
+                decode_chunk(self.decoder, accept, chunk[:remaining])
+                if self.truncated:
+                    raise SerialError("serial capture limit reached")
+                if done is not None and done():
+                    return
+            else:
+                time.sleep(min(IDLE_POLL, max(0, deadline - time.monotonic())))
+        if done is not None:
+            raise ReplyTimeout("serial receive deadline expired")
+
+    def resynchronize(self, session, deadline, receipt, late):
+        """Try one fresh reply without accepting late records into the case results."""
+        nonce = secrets.token_hex(12)
+        if nonce == session.nonce:
+            nonce += "-recovery"
+        receipt["state"] = "failed"
+
+        def accept(record):
+            if record.cmd != "session" or record.fields.get("nonce") != nonce:
+                return
+            if receipt["identity"]:
+                raise ProtocolError("duplicate resynchronization reply")
+            receipt["identity"] = dict(observed_identity(record), boot=record.boot, session_req=record.req)
+            verified = identity(record, session.expected)
+            receipt["identity"] = dict(verified, boot=record.boot, session_req=record.req)
+            if not session.identity:
+                receipt["state"] = "unproven"
+                receipt["detail"] = "fresh identity observed without prior boot/request evidence"
+                return
+            previous = dict(session.identity)
+            if record.boot != previous.pop("boot"):
+                raise ProtocolError("boot changed during resynchronization")
+            if record.req != previous.pop("session_req") + session.issued:
+                raise ProtocolError("unexpected request number during resynchronization")
+            if verified != previous:
+                raise ProtocolError("identity changed during resynchronization")
+            receipt["state"] = "continuous"
+
+        if self.truncated:
+            raise SerialError("serial capture limit reached before resynchronization")
+        # Advance partial RX framing without crediting anything to the old request.
+        decode_chunk(self.decoder, lambda _: None, late)
+        self.port.send("session " + nonce, deadline)
+        self.receive(deadline, accept, lambda: receipt["state"] != "failed")
+
+
+def serial_hard_exit(issues, reason):
+    """Exit without waiting for stalled I/O or invoking backend destruction."""
+    try:
+        for issue in issues:
+            print(issue, file=sys.stderr, flush=True)
+        print(f"INCONCLUSIVE (serial session): {reason}", file=sys.stderr, flush=True)
+    finally:
+        os._exit(2)
+
+
+def capture_serial(args, nonce, expected, settings, factory):
+    """Run one admitted serial session and publish before releasing its receipt."""
+    commands = plan(args.suite, nonce)
+    session = Session(commands, nonce, expected)
+    port = SerialPort(settings, factory)
+    exchange = SerialExchange(port, args.max_bytes)
+    limits = settings["limits"]
+    recovery = {"state": "not_started", "detail": "", "identity": {}}
+    issues = []
+    interrupted = False
+    base = {"suite": args.suite, "fixture": settings["board"], "started_utc": utc_now(),
+            "expectations": expected, "runner": runner_identity(), "stderr": ""}
+
+    def receipt(complete):
+        return {**settings, "open": port.opened.receipt(), "close": port.closed.receipt(),
+                "writes": port.writes, "recovery": recovery, "framing_uncertain": port.framing_uncertain,
+                "hard_exit": bool(port.exit_reason), "restoration": "not_requested" if complete else "unavailable"}
+
+    start = time.monotonic()
+    end = start + limits["session_timeout"]
+    cleanup_ceiling = end - limits["finalize_timeout"]
+    active = min(start + limits["duration"], cleanup_ceiling - limits["cleanup_timeout"])
+    reservation = bounded_call(lambda: EvidenceFiles(args.out_dir, args.run, args.max_bytes,
+                                                     provisional={**base, "serial": receipt(False)}), active)
+    if reservation.pending:
+        serial_hard_exit([f"evidence reservation {reservation.state}: {reservation.detail}"],
+                         "an evidence reservation worker is pending")
+    if reservation.state != "ok":
+        if reservation.value is not None:
+            aborted = bounded_call(reservation.value.abort, end)
+            if aborted.pending:
+                serial_hard_exit([f"evidence reservation cleanup {aborted.state}: {aborted.detail}"],
+                                 "an evidence cleanup worker is pending")
+        if reservation.cancelled:
+            raise KeyboardInterrupt
+        raise EvidenceError(f"evidence reservation {reservation.state}: {reservation.detail}")
+    files = reservation.value
+    timeout = None
+    try:
+        port.open(active)
+        for command in commands:
+            deadline = min(active, time.monotonic() + limits["command_timeout"])
+            port.send(command.text, deadline)
+            session.issue()
+            try:
+                exchange.receive(deadline, session.accept, lambda: len(session.results) == session.issued)
+            except ReplyTimeout as error:
+                timeout = error
+                raise
+        tail = time.monotonic() + limits["tail_timeout"]
+        exchange.receive(min(active, tail), session.accept)
+        if tail > active:
+            raise SerialError("active deadline clipped the receive tail")
+        exchange.decoder.finish()
+        session.finish()
+    except KeyboardInterrupt:
+        interrupted = True
+        issues.append("interrupted by operator")
+    except (ProtocolError, SerialError) as error:
+        issues.append(str(error))
+    finally:
+        cleanup_start = time.monotonic()
+        cleanup_end = min(cleanup_ceiling, cleanup_start + limits["cleanup_timeout"])
+        recovery_end = min(cleanup_end, cleanup_start + limits["cleanup_timeout"] / 2)
+        try:
+            if timeout is not None and not (port.pending or port.framing_uncertain or port.cancelled or interrupted):
+                try:
+                    exchange.resynchronize(session, recovery_end, recovery, timeout.late)
+                except (ProtocolError, SerialError, KeyboardInterrupt) as error:
+                    interrupted |= isinstance(error, KeyboardInterrupt)
+                    recovery.update(state="failed", detail=str(error) or "interrupted by operator")
+        finally:
+            closed = port.close(cleanup_end)
+            if closed.detail:
+                issues.append(f"serial close {closed.state}: {closed.detail}")
+    if exchange.truncated and "serial capture limit reached" not in issues:
+        issues.append("serial capture limit reached")
+    interrupted |= port.cancelled
+    complete = not issues and not interrupted
+    data = {**base, "ended_utc": utc_now(), "complete": complete,
+            "commands": [row["command"] for row in port.writes if row["state"] == "ok"],
+            "cases": cases_for(args.suite, session.results, session.samples), "identity": session.identity,
+            "issues": list(issues), "serial": receipt(complete)}
+    final_deadline = min(end, time.monotonic() + limits["finalize_timeout"])
+
+    def finalize():
+        try:
+            files.write(bytes(exchange.capture))
+            if exchange.truncated:
+                files.mark_truncated()
+            return files.finish(data, final_deadline)
+        finally:
+            files.abort()
+
+    finalized = bounded_call(finalize, final_deadline)
+    if finalized.state != "ok":
+        issues.append(f"evidence finalization {finalized.state}: {finalized.detail}")
+    exit_reason = port.exit_reason
+    if exit_reason or finalized.pending:
+        serial_hard_exit(issues, exit_reason or "an evidence finalization worker is pending")
+    if finalized.state != "ok":
+        if interrupted or finalized.cancelled:
+            print("; ".join(issues), file=sys.stderr)
+            raise KeyboardInterrupt
+        raise EvidenceError("; ".join(issues))
+    return finalized.value, interrupted
+
+
 def verify(path):
     """Verify the pair and replay complete evidence with the same protocol and assertions."""
     data, transcript = verify_artifacts(path)
@@ -454,9 +646,10 @@ def verify(path):
             raise EvidenceError("recorded commands differ from the known suite")
         session = Session(selected, nonce, expected)
         session.issued = len(selected)
-        decoder = Decoder(max_bytes=MAX_TRANSCRIPT_BYTES)
+        decoder = Decoder(max_bytes=data["serial"]["max_bytes"] if data["scope"] == SERIAL_SCOPE
+                          else MAX_TRANSCRIPT_BYTES)
         for index in range(0, len(transcript), 4096):
-            decode_chunk(decoder, session, transcript[index:index + 4096])
+            decode_chunk(decoder, session.accept, transcript[index:index + 4096])
         decoder.finish()
         session.finish()
         if session.identity != data["identity"] or cases_for(suite, session.results) != data["cases"]:
@@ -491,15 +684,19 @@ def parser():
         ("dry-run", "print a host-only suite without opening files or a device"),
         ("verify-transcript", "verify a recorded raw stdout transcript into a new evidence pair"),
         ("run-fixture", "run the explicit compiled host CLI fixture and write a new evidence pair"),
+        ("run-serial", "attach once to an explicitly qualified running serial console"),
     ):
         command = modes.add_parser(name, help=description)
         command.add_argument("--suite", choices=SUITES, required=True)
-        command.add_argument("--nonce", required=name == "verify-transcript")
+        if name != "run-serial":
+            command.add_argument("--nonce", required=name == "verify-transcript")
         for key in TARGET_FIELDS + OPTIONAL_FIELDS:
-            command.add_argument("--" + key.replace("_", "-"), required=key in TARGET_FIELDS,
+            required = key in TARGET_FIELDS or (name == "run-serial" and key in ("baud", "console"))
+            command.add_argument("--" + key.replace("_", "-"), required=required,
                                  type=int if key in ("address", "baud") else str)
         if name != "dry-run":
-            command.add_argument("path", type=Path, help="raw transcript or compiled fixture path")
+            if name != "run-serial":
+                command.add_argument("path", type=Path, help="raw transcript or compiled fixture path")
             command.add_argument("--out-dir", type=Path, required=True)
             command.add_argument("--run", required=True, help="exclusive output basename")
             command.add_argument("--max-bytes", type=byte_limit, default=MAX_TRANSCRIPT_BYTES)
@@ -507,24 +704,46 @@ def parser():
             command.add_argument("--timeout", type=positive_seconds, default=5.0)
             command.add_argument("--closure", type=positive_seconds, default=0.5)
             command.add_argument("--fixture-identity", help="explicit simulated identity reported by the host fixture")
+        elif name == "run-serial":
+            command.add_argument("--port", required=True, help="explicit local COM port or /dev tty path")
+            command.add_argument("--board", required=True, help="physical board or fixture identifier")
+            command.add_argument("--authorization", required=True, help="record authorizing this exact attachment")
+            command.add_argument("--reset-silent", action="store_true",
+                                 help="declare qualified open/close without reset on this exact setup")
+            command.add_argument("--clean-input", action="store_true",
+                                 help="declare exclusive access beginning at a clean CLI input line")
+            command.add_argument("--dry-run", action="store_true", help="validate and print without I/O")
+            for name, default, purpose in (
+                ("session-timeout", 30.0, "whole session budget"),
+                ("duration", 20.0, "active setup and command budget"),
+                ("command-timeout", 1.5, "single write and response budget"),
+                ("cleanup-timeout", 3.0, "resynchronization and close budget"),
+                ("finalize-timeout", 2.0, "reserved evidence publication budget"),
+                ("tail-timeout", 0.15, "final receive observation interval"),
+            ):
+                command.add_argument("--" + name, type=positive_seconds, default=default,
+                                     help=f"{purpose} in seconds (default {default:g})")
     modes.add_parser("verify-artifacts", help="read-only verification of an existing evidence pair").add_argument(
         "path", type=Path, help="path to the run JSON")
     return cli
 
 
-def main(argv=None):
-    """Return 0 for verified host evidence, 1 for FAIL, 2 if incomplete, and 130 if interrupted."""
+def main(argv=None, *, serial_factory=None):
+    """Return 0 for PASS, 1 for FAIL, 2 if incomplete, and 130 if interrupted."""
     cli = parser()
     args = cli.parse_args(argv)
     interrupted = False
+    label = "serial session" if args.mode == "run-serial" else "console evidence"
     try:
         if args.mode == "verify-artifacts":
             data = verify(args.path)
         else:
             expected = expectations({key: getattr(args, key) for key in TARGET_FIELDS + OPTIONAL_FIELDS
                                      if getattr(args, key) is not None}, args.suite)
-            nonce = args.nonce if args.nonce is not None else (
-                "preview" if args.mode == "dry-run" else secrets.token_hex(12))
+            preview = args.mode == "dry-run" or getattr(args, "dry_run", False)
+            nonce = getattr(args, "nonce", None)
+            if nonce is None:
+                nonce = "preview" if preview else secrets.token_hex(12)
             commands = plan(args.suite, nonce)
             if args.mode == "run-fixture":
                 if (expected["target"], expected["backend"]) != ("host", "sim-mdio"):
@@ -533,20 +752,34 @@ def main(argv=None):
                     raise ProtocolError("closure must be at most 5 seconds and shorter than the total timeout")
                 if args.fixture_identity is not None and not TOKEN.fullmatch(args.fixture_identity):
                     raise ProtocolError("invalid simulated fixture identity")
-            if args.mode == "dry-run":
-                print(json.dumps({"scope": "host_protocol", "executed": False,
-                                  "suite": args.suite, "expectations": expected,
-                                  "commands": [command.text for command in commands]}, indent=2))
-                return 0
-            data, interrupted = capture(args, args.suite, nonce, expected)
+            if args.mode == "run-serial":
+                settings = serial_settings(args, expected)
+                validate_destination(args.run, args.max_bytes)
+                if preview:
+                    print(json.dumps({"scope": SERIAL_SCOPE, "executed": False,
+                                      "suite": args.suite, "expectations": expected, "serial": settings,
+                                      "destination": {"directory": str(args.out_dir), "run": args.run},
+                                      "commands": [command.text for command in commands]}, indent=2))
+                    return 0
+                if serial_factory is not None:
+                    settings["backend"] = "injected serial backend"
+                data, interrupted = capture_serial(args, nonce, expected, settings, serial_factory or native_port)
+            else:
+                if preview:
+                    print(json.dumps({"scope": "host_protocol", "executed": False,
+                                      "suite": args.suite, "expectations": expected,
+                                      "commands": [command.text for command in commands]}, indent=2))
+                    return 0
+                data, interrupted = capture(args, args.suite, nonce, expected)
     except KeyboardInterrupt:
         print("interrupted", file=sys.stderr)
         return 130
-    except (OSError, ProtocolError, FixtureError, EvidenceError) as error:
-        print(f"INCONCLUSIVE (host protocol): {error}", file=sys.stderr)
+    except (OSError, ProtocolError, FixtureError, EvidenceError, SerialError) as error:
+        print(f"INCONCLUSIVE ({label}): {error}", file=sys.stderr)
         return 2
     verdict = data["verdict"]
-    print(f"{verdict} (host protocol)")
+    label = "serial session" if data["scope"] == SERIAL_SCOPE else "host protocol"
+    print(f"{verdict} ({label})")
     for issue in data["issues"]:
         print(issue, file=sys.stderr)
     return 130 if interrupted else {"PASS": 0, "FAIL": 1}.get(verdict, 2)

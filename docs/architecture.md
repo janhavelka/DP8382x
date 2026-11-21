@@ -108,9 +108,11 @@ The application attests wiring and fixture prerequisites. Typed profile apply us
 operation and native public SDK reconciliation. Discovery, dumps and stress
 advance one complete transaction per tick. Watch copies cached link. The CLI holds a complete
 terminal record when the console queue fills. The host fixture runs this
-processor and the core on simulated MDIO. Planned Python sessions retain bounded raw
-transcripts and correlated identities/outcomes. Runs use two artifacts: a text
-transcript and an atomically finalized JSON record with verdict, case results,
+processor and the core on simulated MDIO. Python fixture, offline and passive
+serial sessions use the same decoder, correlation and case classifier. One
+serial owner admits bounded I/O on an explicitly qualified running console.
+Each run produces a raw transcript and an atomically finalized JSON record
+with verdict, case results,
 fixture/identity, cleanup, hash/length and truncation. Zero/skipped-only or failed
 restoration evidence cannot be PASS. Physical fixture actions need separate scope.
 

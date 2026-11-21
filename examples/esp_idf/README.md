@@ -1,5 +1,10 @@
 # ESP-IDF examples
 
+Both P4 examples report their configured `uart0` baud in the session identity.
+The [console runner](../../docs/hil-runner.md#live-serial-attachment) can check
+an already-running example through a qualified serial fixture. Confirm the
+active image identity, PHY address and reset-silent wiring before attachment.
+
 ## The first native Ethernet application
 
 The [P4 basic example](basic/README.md) now links the actual ESP32-P4 MAC,
