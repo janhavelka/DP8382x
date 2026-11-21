@@ -6,52 +6,77 @@ The [feature coverage](feature-coverage.md) and
 [implementation progress](implementation-progress.md) carry detailed gates
 and actual evidence.
 
-## Is a system restart acceptable after native Ethernet retirement?
+## When should Ethernet recovery require a board restart?
 
-**Example.** A machine withdraws an EtherCAT session after the cable is
-unplugged. Once the cable is back, verified maintenance and a new session
-can recover using the same installed objects. A failure that instead
-requires retiring those objects raises a separate question about product
-downtime.
+**Example.** If the drive cable is unplugged, close the active EtherCAT
+session. When the cable is back, the application can use the same installed
+Ethernet driver after the required recovery and link checks. A different kind
+of failure may require removing and reinstalling the driver. With the pinned
+ESP-IDF, the receive task may still be using driver memory after Ethernet has
+stopped. Restarting the board is the supported way to recover from that
+situation.
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| Recover in place when maintenance can verify the existing installation. Restart after terminal retirement. | Uses the existing routes. Ordinary link recovery keeps other services up, and a terminal failure retains resources until restart. | A terminal failure interrupts other services during restart. The product needs a defined restart and resume procedure. |
-| Qualify stop, teardown and reinstallation on an SDK baseline with a proven public RX shutdown boundary | Can restore Ethernet after terminal retirement while other services stay up. | The pinned SDK has an unresolved RX lifetime gap. This route needs source review and start/stop/failure tests on a suitable baseline before it can be selected. |
+| Keep the installed driver for ordinary link recovery. Restart the board if recovery requires reinstalling the driver. | Uses the existing recovery paths. A cable reconnect can be handled while other services keep running. | The board restart interrupts other services. The machine needs a defined restart and resume procedure. |
+| Validate an ESP-IDF version that can stop, remove and reinstall the Ethernet driver safely while the board keeps running | Can restore Ethernet without interrupting other services when the installed driver must be replaced. | Needs a supported SDK method that proves the receive task has finished using the old driver, plus tests under traffic and failure conditions. The pinned SDK does not establish this. |
 
-**Suggested starting point.** Use verified in-place recovery whenever it
-applies and decide how much terminal-outage downtime the product can accept.
-Recovery must establish a fresh resolved link and admit a new session before
-using it. Pursue the SDK route only when restarting would violate a real
-availability requirement. A callback count of zero alone leaves the SDK RX
-lifetime unresolved.
+**Suggested starting point.** Keep the existing driver when recovery can
+verify it still works. Check the link again and open a new session before
+using it. Consider qualifying driver reinstallation without rebooting if
+the machine needs its other services to stay up through a driver failure.
 [Native lifecycle decision](design-decisions.md#6-public-lifecycle-route-for-the-pinned-sdk) ·
 [EtherCAT integration](ethercat-integration.md)
 
-## What link-loss response does the first application require?
+## How quickly must the machine detect a failed EtherCAT exchange?
 
-**Example.** The drive-port cable is unplugged during cyclic traffic. The
-application needs to decide when to stop admitting frames and invalidate the
-old session. Specify a maximum acceptable interval from the observed cable
-event or loss of usable traffic to session withdrawal. Define how the machine
-handles that interval independently of the PHY.
+**Example.** While the master exchanges drive commands and feedback every
+1 ms, someone unplugs the drive cable. The unplug has the same physical
+effect whenever it happens. The repeating exchange matters because the
+master knows when the next reply is due. A drive can also stop replying
+while the Ethernet link still reports up.
+
+- **EtherCAT process data.** The master exchanges commands and feedback on
+  a regular schedule. The drive fields are mapped as PDOs, the same kind of
+  process data as CANopen PDOs. EtherCAT carries them in Ethernet frames
+  sent by the master. For a 1 ms cycle, the master sets a receive deadline
+  inside each cycle and checks the working counter for each datagram.
+- **PHY status polling.** The firmware reads the Ethernet chip's link
+  status on a schedule. A bounded poll has a set time or amount of work
+  it may spend before returning an error or giving control back. The gap
+  between polls and the maximum age of a link reading are separate
+  settings. The owner demo polls PHY link status every 1,000 ms. That
+  setting belongs to the demo's link checks. The EtherCAT master sets its
+  own cycle and reply deadline.
+
+The DP83826I supports a hardware interrupt. In Enhanced mode its
+`PWRDN/INT` pin is pin 21 and can be configured as an active-low interrupt
+output. The checked ESP32P4X netlist connects it to the `ETHPDN` test point
+and a pull-up, with no ESP32 GPIO connection. The interrupt can help report
+a physical link event sooner. A 1 ms EtherCAT exchange and the master's
+reply deadline do not require this pin.
+[Board wiring](esp32p4-board.md#phy-interrupt-wiring) ·
+[TI datasheet, table 5-1](https://www.ti.com/lit/ds/symlink/dp83826i.pdf) ·
+[EtherCAT process data](https://www.ethercat.org/en/technology.html) ·
+[Demo polling settings](../examples/esp_idf/owner/README.md)
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| Use bounded PHY polling with an application observation-age limit | Fits the recorded first-board wiring and can be measured on the intended RMII path. | Poll interval, scheduler load and PHY transition time limit detection. Shorter polls consume more owner time. |
-| Combine PHY polling with the application's cyclic traffic timeout | The master can reject a stale session after missing cyclic traffic even when link status has yet to change. | Requires a tested application timeout policy. Missing traffic can have several causes and does not identify a physical cable event. |
-| Use a wired PHY interrupt as a service hint, then confirm the link through the owner | Can reduce the wait before checking a physical link event. | The recorded first board has no verified PHY INT wiring. A wired fixture adds pin-mux, polarity and timing tests and still needs fallback checks. |
+| Check each EtherCAT exchange and poll PHY link status for diagnostics and recovery | Fits the current board. Detects late or invalid drive traffic even when the Ethernet link stays up. | The master needs a tested deadline and a policy for invalid exchanges. A timeout alone does not identify the physical cause. |
+| Use the same EtherCAT checks and add a PHY interrupt if the product needs faster physical-link reporting | Can shorten the time between a PHY link event and the firmware checking its cause. | Needs wiring and measured interrupt handling. The master still needs its reply deadline and working-counter check. |
 
-**Suggested starting point.** Use the existing polling path and ask the
-consumer for its withdrawal budget. Measure from an independent event marker
-through session withdrawal under realistic cyclic load. Also check a peer
-that stops exchanging usable traffic while the electrical link stays up.
-Use the existing cyclic timeout if PHY polling cannot cover that case.
-Revisit wired INT
-only if the application requires it or the measured polling path misses the
-budget. Board readiness, a resolved 100/full link and machine-level response
-remain separate checks. [First-board wiring and link policy](esp32p4-board.md) ·
+**Suggested starting point.** Keep the present wiring. On the first
+MotorControl-EC firmware, measure the 1 ms exchange under the intended
+load and check both a cable pull and a drive that stops replying with the
+link up. Measure the time until the master marks the exchange invalid and
+the time until the machine responds as separate results. Use the actual
+drive modes and PDO mapping in those tests.
 [Timing evidence](esp-idf.md#timing-declarations)
+
+For the A6-EC, the drive manual names CSV for velocity, CSP for position
+and CST for torque. Confirm what `CPT` means for the intended drive before
+choosing its PDO mapping.
+[A6-EC user guide](https://omc-stepperonline.com/download/A6-EC_series_servo_drive_manual.pdf)
 
 ## Which fixture leads physical qualification?
 
@@ -71,7 +96,12 @@ the intended 100/full product path when its board is ready. Use a second
 fixture for additional supported features where needed.
 [Fixture and case requirements](hardware-validation.md#common-fixture-and-owner-admission)
 
-## Does a consumer need deep power-down?
+## Deep power-down for later library support
+
+**Owner direction, 2026-11-22.** Keep deep power-down in the reusable
+library's design and implement it when the full entry and exit behavior
+can be verified. The first EtherCAT application does not need it and is
+expected to keep the PHY in normal operation.
 
 **Example.** A product powers down the PHY while idle and later requests
 normal operation without rebooting. Its MAC expects a usable reference clock
@@ -84,8 +114,9 @@ readiness after the transition.
 | Qualify the implemented active-sleep mode on the actual board | Can reduce idle power with the existing driver and retains an explicit wake check. | Wake time, management access and the PHY-supplied MAC clock need measurement under the actual peer conditions. |
 | Qualify deep power-down if measured idle power still misses the requirement | Can address a tighter standby-current target if the full transition is supported. | Needs exact-part evidence for entry, exit, clock readiness and restoration before the library can enable it. |
 
-**Suggested starting point.** Measure normal operation against the product's
-standby-current target. If it misses, compare active sleep using the same
-fixture and check elapsed time to a usable fresh link. Treat deep power-down
-as a candidate only if a simpler mode misses the target and the required
-exit evidence is available. [Power policy and source gate](power.md)
+**What remains open.** Establish the complete deep-power-down exit and
+recovery sequence for this exact chip, including management access, the
+PHY-supplied clock and restored configuration. Keep entry disabled until
+that evidence is available. If a future product has a standby-current
+requirement, compare the supported power modes against that requirement.
+[Power policy and source gate](power.md)
