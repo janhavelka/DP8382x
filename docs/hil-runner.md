@@ -75,6 +75,10 @@ case, step order, actions, outcome and restoration from the case definition,
 correlated records and acknowledgment receipts. A compiled fixture control
 stays in the child harness. Serial intervention receipts are manual
 declarations tied to an action, boot, preceding request and finite budget.
+Enter the action and prompt code shown for that intervention. The code changes
+even when cleanup repeats the same action. An acknowledgment at the deadline
+is a timeout. If a late receive leaves an incomplete machine record, a
+campaign closes the session without sending a resynchronization command.
 
 ```powershell
 python tools/dp8382x_hil_runner.py --help

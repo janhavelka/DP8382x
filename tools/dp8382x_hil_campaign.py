@@ -20,6 +20,7 @@ SPEED = ("0", "10", "100")
 DUPLEX = ("unknown", "half", "full")
 NEGOTIATION = ("unknown", "disabled", "in_progress", "complete")
 TRUST = ("UNKNOWN", "DIRTY", "VERIFIED")
+OBSERVATION_CHANGED = 6  # BusyDetail::OBSERVATION_CHANGED in Status.h
 TECHNOLOGIES = {1: (10, "half"), 2: (10, "full"), 4: (100, "half"), 8: (100, "full")}
 BASIC = "p4-netlist-basic"
 OWNER = "P4-raw-frame"
@@ -164,8 +165,7 @@ def validate_intervention(row, declaration):
             any(type(row[key]) is not int for key in ("after_req", "boot", "elapsed_ms", "budget_ms")) or
             not 1 <= row["after_req"] <= U64_MAX or not 0 <= row["boot"] <= U32_MAX or
             not 0 <= row["elapsed_ms"] <= row["budget_ms"] <= declaration["intervention_timeout_ms"] or
-            (row["budget_ms"] == 0 and row["outcome"] != "timed_out") or
-            (row["outcome"] == "timed_out" and row["elapsed_ms"] != row["budget_ms"])):
+            (row["outcome"] == "timed_out") != (row["elapsed_ms"] == row["budget_ms"])):
         raise ProtocolError("invalid campaign intervention receipt")
 
 
@@ -208,6 +208,11 @@ def require(condition, record, message, verdict="FAIL"):
 
 def matches(fields, **expected):
     return all(fields.get(key) == str(value) for key, value in expected.items())
+
+
+def link_changed(record):
+    """Recognize the native owner's exact inconsistent-sample terminal."""
+    return matches(record.fields, primary="BUSY", detail=OBSERVATION_CHANGED, cleanup="none", reason="none")
 
 
 def bits(names):
@@ -275,6 +280,8 @@ class Campaign:
         message = str(failure) if failure else "typed campaign assertions" if self.success else "campaign interrupted"
         if self.cleanup_failure:
             message += ". Cleanup: " + self.cleanup_failure
+        elif self.may_change and self.restoration in ("NOT RUN", "INCONCLUSIVE"):
+            message += ". Mutation effects are unresolved and restoration was not proved"
         return [{"id": self.spec.id, "executed": executed, "verdict": verdict,
                  "primary": {"code": record.primary, "detail": int(record.fields["detail"])} if executed else None,
                  "restoration": {"required": self.spec.mutation or self.spec.fault in RECOVERY_ACTIONS,
@@ -342,7 +349,8 @@ class Campaign:
                                                   (0, U64_MAX)), "txfirst": I32, "txsdk": I32})
             available = fields["retired"] == "0" and fields["phase"] not in ("unconfigured", "withdrawn")
             stopped = available and matches(fields, phase="maintenance", maintenance=1)
-        require(stopped or (available and self.spec.id == "cold-boot" and not cleanup), row,
+        running_boot = self.spec.id == "cold-boot" and self.declaration["polling"] == "concurrent"
+        require(stopped or (available and running_boot), row,
                 "application stop/fence and maintenance must be proved", "BLOCKED")
         return row
 
@@ -427,11 +435,25 @@ class Campaign:
         require(matches(row.fields, address=0x030E, devad=31, value=0x4A40), row,
                 "10BASE-Te VOD initialization readback must be DEVAD 31 offset 0x030E value 0x4A40")
 
-    def link(self, profile, policy, *, cleanup=False, delay=0, partner=False):
+    def link(self, profile, policy, *, cleanup=False, delay=0, partner=False, retry_changed=False):
         verb = "link partner" if partner else "link read"
         previous = int(self.last.fields["time_us"])
-        row = yield from self.read(f"{verb} {policy}", LINK, cleanup=cleanup, delay=delay)
+        row = yield from self.command(f"{verb} {policy}", cleanup=cleanup, delay=delay)
         f = row.fields
+        if retry_changed and link_changed(row):
+            exact_fields(payload(row), {
+                **LINK, "observation": ("unavailable",), "last_status": ("BUSY",),
+                "last_detail": (OBSERVATION_CHANGED, OBSERVATION_CHANGED),
+            })
+            require(matches(f, valid=0, stale=1, up=0, resolved=0, speed_mbps=0, duplex="unknown",
+                            negotiation="unknown", pause_valid=0, pause_rx=0, pause_tx=0,
+                            observed_valid=0, observed_us=0, policy_mask=policy, advertised_valid=0,
+                            advertised_modes=0, partner_valid=0, partner_modes=0, bmsr_first=0,
+                            bmsr_current=0, anar=0, anlpar=0, aner=0),
+                    row, "inconsistent link sample supplied usable evidence")
+            return row
+        require(clean(row), row, f"{verb} {policy} did not complete cleanly")
+        exact_fields(payload(row), LINK)
         at = int(f["observed_us"])
         current = int(f["bmsr_current"])
         envelope_time = int(f["time_us"])
@@ -454,13 +476,15 @@ class Campaign:
                     row, "forced link exposes unqualified AN evidence")
         return row
 
-    def link_down(self, row, profile, pending=False):
+    def link_down(self, row, profile, pending=False, allow_completed=False):
         f = row.fields
         mode = ("down", "pending") if pending else ("down",)
-        negotiation = "disabled" if profile.mode == "forced" else "in_progress"
+        negotiation = ("disabled",) if profile.mode == "forced" else ("in_progress",)
+        if allow_completed and profile.mode == "an" and f["observation"] == "down":
+            negotiation += ("complete",)
         require(f["observation"] in mode and matches(f, resolved=0, partner_valid=0, partner_modes=0,
                                                      pause_valid=0, pause_rx=0, pause_tx=0,
-                                                     up=int(f["observation"] == "pending"), negotiation=negotiation),
+                                                     up=int(f["observation"] == "pending")) and f["negotiation"] in negotiation,
                 row, "down or pending link must withhold resolved mode, partner ability and pause")
 
     def link_up(self, row, profile, wrong=False):
@@ -492,14 +516,18 @@ class Campaign:
         require(receipt["outcome"] == "acknowledged", self.last, f"{action}: {receipt['outcome']}", "INCONCLUSIVE")
 
     def wait_link(self, profile, policy, wanted, *, cleanup=False, partner=False):
-        # Anchor the PHY observation window after the first command is sent.
+        # Include rejected, inconsistent bookends in the observation window.
         # Operator acknowledgment and host exchange each have separate bounds.
         anchor = None
         for index in range(8):
-            row = yield from self.link(profile, policy, cleanup=cleanup, delay=0.25 if index else 0, partner=partner)
+            row = yield from self.link(profile, policy, cleanup=cleanup, delay=0.25 if index else 0,
+                                       partner=partner, retry_changed=True)
+            finished = int(row.fields["time_us"])
             if anchor is None:
-                anchor = self.last_observed
-            require(self.last_observed - anchor <= 3_000_000, row, "link observation window expired")
+                anchor = finished
+            require(finished - anchor <= 3_000_000, row, "link observation window expired")
+            if link_changed(row):
+                continue
             observation = row.fields["observation"]
             if observation in ("up", "wrong_policy"):
                 self.link_up(row, profile, wrong=wanted == "wrong_policy")
@@ -507,7 +535,7 @@ class Campaign:
                     self.peer_may_change = False
                     return
             else:
-                self.link_down(row, profile, pending=True)
+                self.link_down(row, profile, pending=True, allow_completed=True)
                 if observation == wanted:
                     return
         raise AssertionFailed("link did not reach the requested state after eight live observations", row)
@@ -534,13 +562,14 @@ class Campaign:
         yield from self.application()
 
     def restore(self, saved):
-        self.restoration = "FAIL"
+        self.restoration = "INCONCLUSIVE"
         if self.peer_may_change:
             try:
                 yield from self.intervene(RECOVERY_ACTIONS[self.spec.fault], True)
                 yield from self.wait_link(self.spec.target, 8, "up", cleanup=True)
             except AssertionFailed as error:
                 self.cleanup_failure = str(error)
+                self.restoration = error.verdict
         try:
             yield from self.application(True)
             yield from self.transport(True)
@@ -562,6 +591,8 @@ class Campaign:
                 self.restoration = "PASS"
         except AssertionFailed as error:
             self.cleanup_failure = ". ".join(filter(None, (self.cleanup_failure, str(error))))
+            if self.restoration != "FAIL":
+                self.restoration = error.verdict
 
     def execute(self):
         self.session = yield Command("session")

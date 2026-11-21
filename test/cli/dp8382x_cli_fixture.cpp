@@ -114,6 +114,7 @@ struct Bus {
   bool campaign{false};
   uint16_t peer{0};
   uint64_t peerReadyUs{0};
+  bool peerStartsDuringSample{false};
 
   void setup(const Options& options) {
     *this = {};
@@ -170,6 +171,11 @@ struct Bus {
   // Literal register model for the fixture's latch and read-clear assertions.
   uint16_t readDirect(uint8_t address) {
     if (campaign) {
+      if (address == 1U && peerStartsDuringSample) {
+        // Become ready between the two bookends of the next link read.
+        peerReadyUs = nowUs + 10U;
+        peerStartsDuringSample = false;
+      }
       const bool an = (words[0] & 0x1000U) != 0U;
       const bool negotiation = an && (peer & 1U) != 0U;
       const auto common = static_cast<uint16_t>(words[4] & peer & 0x01E0U);
@@ -482,11 +488,18 @@ private:
       if (!_bus.campaign || peer == 0xFFFFU) return false;
       _bus.peer = peer;
       _bus.peerReadyUs = 0;
+      _bus.peerStartsDuringSample = false;
     } else if (line.substr(0, 23) == "$campaign-peer-delayed ") {
       const auto peer = campaignPartner(line.substr(23));
       if (!_bus.campaign || peer == 0xFFFFU) return false;
       _bus.peer = peer;
       _bus.peerReadyUs = _bus.nowUs + 6000U;
+      _bus.peerStartsDuringSample = false;
+    } else if (line.substr(0, 22) == "$campaign-peer-change ") {
+      const auto peer = campaignPartner(line.substr(22));
+      if (!_bus.campaign || peer == 0xFFFFU) return false;
+      _bus.peer = peer;
+      _bus.peerStartsDuringSample = true;
     }
     else if (line == "$inject-events") {
       _bus.words[18] |= 0xA500U;

@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -62,6 +63,45 @@ class PlanTests(unittest.TestCase):
         for cases in ([], [{"id": "int-pin", "verdict": "BLOCKED", "executed": False, "primary": None,
                             "restoration": {"required": False, "verdict": "NOT RUN"}}]):
             self.assertEqual(aggregate({**base, "cases": cases}), "INCONCLUSIVE")
+
+    def test_operator_acknowledgment_is_specific_to_the_current_prompt(self):
+        for response, verdict in (("replug 0123456789ab", "acknowledged"),
+                                  ("replug abcdef012345", "declined"), ("replug", "declined")):
+            with self.subTest(response=response), contextlib.ExitStack() as stack:
+                stdin = SimpleNamespace(isatty=lambda: True, fileno=lambda: 7)
+                stack.enter_context(patch.object(runner.sys, "stdin", stdin))
+                stack.enter_context(patch.object(runner.secrets, "token_hex", return_value="0123456789ab"))
+                stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+                if runner.os.name == "nt":
+                    import msvcrt
+                    stack.enter_context(patch.object(msvcrt, "kbhit", return_value=True))
+                    stack.enter_context(patch.object(msvcrt, "getwch", side_effect=response + "\r"))
+                else:
+                    import select
+                    stack.enter_context(patch.object(select, "select", return_value=([stdin], [], [])))
+                    stack.enter_context(patch.object(runner.os, "read",
+                                                     side_effect=[c.encode("ascii") for c in response + "\n"]))
+                self.assertEqual(runner.operator_acknowledgment("replug", runner.time.monotonic() + 1), verdict)
+
+    def test_operator_read_failure_supplies_a_recoverable_receipt(self):
+        receipts = []
+        campaign = SimpleNamespace(declaration={"intervention_timeout_ms": 1_000}, last=SimpleNamespace(req=3, boot=2))
+        session = SimpleNamespace(campaign=campaign, intervene=receipts.append)
+
+        def disconnected(_action, _deadline):
+            raise OSError("simulated console input failure")
+
+        runner.intervention(session, runner.Intervention("unplug", False), "operator",
+                            runner.time.monotonic() + 1, disconnected)
+        self.assertEqual(len(receipts), 1)
+        self.assertEqual((receipts[0]["outcome"], receipts[0]["after_req"], receipts[0]["boot"]), ("failed", 3, 2))
+
+    def test_campaign_mutation_option_cannot_select_the_passive_suite(self):
+        args = ["dry-run", "--suite", "passive", "--target", "host", "--backend", "sim-mdio",
+                "--variant", "DP83826I", "--interface", "RMII", "--address", "1", "--reinitialize"]
+        with contextlib.redirect_stderr(io.StringIO()) as stderr:
+            self.assertEqual(runner.main(args), 2)
+        self.assertIn("campaign options require --suite campaign", stderr.getvalue())
 
 
 @unittest.skipUnless(FIXTURE or "--fixture" in sys.argv, "run with the compiled CLI fixture")
@@ -149,6 +189,8 @@ class CompiledCampaignTests(unittest.TestCase):
             lambda result: result["campaign"]["interventions"].pop(),
             lambda result: result["campaign"]["interventions"][0].update(after_req=1),
             lambda result: result["campaign"]["interventions"][0].update(elapsed_ms=20001),
+            lambda result: result["campaign"]["interventions"][0].update(
+                elapsed_ms=result["campaign"]["interventions"][0]["budget_ms"]),
             lambda result: result["cases"][0]["restoration"].update(required=False),
         ):
             changed = deepcopy(data)
@@ -244,6 +286,25 @@ class CompiledCampaignTests(unittest.TestCase):
                              [("unplug", outcome, False), ("replug", "acknowledged", True)])
             self.assertEqual(runner.verify(self.folder / f"unplug-replug-{outcome}.json"), data)
 
+    def test_real_link_bookend_change_can_retry_within_the_observation_budget(self):
+        send = runner.FixtureProcess.send
+
+        def inject(fixture, line, deadline=None):
+            if line == b"$campaign-peer-delayed an-100-full\n":
+                line = b"$campaign-peer-change an-100-full\n"
+            return send(fixture, line, deadline)
+
+        with patch.object(runner.FixtureProcess, "send", inject):
+            code, data, raw = self.run_case("bounded-recovery", "-bookends")
+        self.assertEqual(code, 0, data)
+        self.assertEqual(data["commands"].count("link read 8"), 4)
+        self.assertEqual(runner.verify(self.folder / "bounded-recovery-bookends.json"), data)
+        row = next(line for line in row_lines(raw) if b"primary=BUSY detail=6 " in line)
+        self.assertIn(b"observation=unavailable valid=0 stale=1", row)
+        for change in (row.replace(b"primary=BUSY detail=6 ", b"primary=BUSY detail=3 "),
+                       row.replace(b"observation=unavailable valid=0 ", b"observation=unavailable valid=1 ")):
+            self.assertNotEqual(replay(data, decoded(raw.replace(row, change, 1))), "PASS")
+
     def test_offline_transcript_uses_the_same_intervention_receipts(self):
         data, _ = self.positives["peer-reset"]
         receipts = self.folder / "interventions.json"
@@ -259,15 +320,16 @@ class CompiledCampaignTests(unittest.TestCase):
             self.assertEqual(runner.main(args + ["--run", "offline-replay", "--interventions", str(receipts)]), 0)
         self.assertEqual(runner.verify(self.folder / "offline-replay.json")["cases"], data["cases"])
 
-    def test_injected_serial_runs_the_complete_case_without_fixture_controls(self):
-        data, raw = self.positives["unplug-replug"]
+    def serial_case(self, case, run, *, app="traffic=0 maintenance=1", failure_at=None,
+                    late=False, extra=()):
+        data, raw = self.positives[case]
         requests = {}
         for line in row_lines(device_identity(raw)):
             (record,) = decoded(line)
             if record.cmd == "application.status":
                 line = line.replace(b"primary=UNSUPPORTED ", b"primary=OK ").replace(
-                    b"reason=none\r\n", b"reason=none installed=1 traffic=0 maintenance=1 retired=0 shutdown=0 "
-                    b"carrier=0 ip=0.0.0.0 events=0\r\n")
+                    b"reason=none\r\n", b"reason=none installed=1 " + app.encode("ascii") +
+                    b" retired=0 shutdown=0 carrier=0 ip=0.0.0.0 events=0\r\n")
             requests[record.req] = requests.get(record.req, b"") + line
 
         class CampaignPort(Port):
@@ -276,21 +338,75 @@ class CompiledCampaignTests(unittest.TestCase):
                 if line != (data["commands"][index] + "\n").encode("ascii"):
                     raise AssertionError(f"unexpected serial command {line!r}")
                 self.lines.append(line)
+                if index == failure_at and not late:
+                    return 5
                 self.rx.extend(requests[index + 1])
                 return len(line)
 
-        args = serial_arguments(self.folder, "injected-campaign") + [
-            "--suite", "campaign", "--case", "unplug-replug", "--clock", "simulated", "--operating-mode", "enhanced",
-            "--polling", "exclusive", "--peer", "injected-peer", "--peer-profile", "an-100-full",
-            "--cable", "injected-cable", "--session-timeout", "10", "--duration", "4", "--cleanup-timeout", "3",
+        port = None
+
+        def factory(**options):
+            nonlocal port
+            port = CampaignPort(**options)
+            return port
+
+        read = runner.SerialPort.read
+
+        def deliver(serial, size, deadline, retain):
+            if late and len(port.lines) == failure_at + 1:
+                fragment = port.read(size)
+                retain(fragment)
+                raise runner.ReplyTimeout("late partial mutation receipt", fragment)
+            return read(serial, size, deadline, retain)
+
+        args = serial_arguments(self.folder, run) + [
+            "--suite", "campaign", "--case", case, "--clock", "simulated", "--operating-mode", "enhanced",
+            "--polling", "exclusive", "--session-timeout", "10", "--duration", "4", "--cleanup-timeout", "3",
         ]
-        with patch.object(runner, "operator_acknowledgment", return_value="acknowledged") as acknowledge:
-            code, _, err = invoke(args, CampaignPort)
+        if CASES[case].peer:
+            args += ["--peer", "injected-peer", "--peer-profile", CASES[case].peer, "--cable", "injected-cable"]
+        with (patch.object(runner, "operator_acknowledgment", return_value="acknowledged") as acknowledge,
+              patch.object(runner.SerialPort, "read", deliver)):
+            code, _, err = invoke(args + list(extra), factory)
+        receipt = runner.verify(self.folder / (run + ".json"))
+        return code, err, receipt, port.lines, acknowledge.call_count
+
+    def test_injected_serial_runs_the_complete_case_without_fixture_controls(self):
+        code, err, receipt, _, acknowledgments = self.serial_case("unplug-replug", "injected-campaign")
         self.assertEqual(code, 0, err)
-        receipt = runner.verify(self.folder / "injected-campaign.json")
-        self.assertEqual(acknowledge.call_count, 2)
+        self.assertEqual(acknowledgments, 2)
         self.assertEqual([x["source"] for x in receipt["campaign"]["interventions"]], ["operator", "operator"])
         self.assertEqual(receipt["scope"], "serial_session")
+
+    def test_injected_serial_cold_boot_needs_stop_for_exclusive_vod_read(self):
+        extra = ("--power-record", "simulated-independent-power-sequence", "--previous-boot", "0")
+        for polling, status, verdict in (("exclusive", 2, "BLOCKED"), ("concurrent", 0, "PASS")):
+            with self.subTest(polling=polling):
+                code, err, data, lines, _ = self.serial_case(
+                    "cold-boot", "injected-cold-" + polling, app="traffic=1 maintenance=0",
+                    extra=(*extra, "--polling", polling))
+                self.assertEqual((code, data["cases"][0]["verdict"]), (status, verdict), err)
+                self.assertFalse(any(line.startswith(b"registers read ") for line in lines))
+
+    def test_framing_loss_during_mutation_or_cleanup_stops_serial_writes(self):
+        commands = self.positives["owned-apply"][0]["commands"]
+        apply = commands.index("configuration apply an 9 symmetric auto 0")
+        restore = commands.index("configuration apply an 15 asymmetric mdix 3")
+        for name, at, late, expected_restoration in (
+            ("short-apply", apply, False, "NOT RUN"),
+            ("late-apply", apply, True, "NOT RUN"),
+            ("short-restore", restore, False, "INCONCLUSIVE"),
+        ):
+            with self.subTest(name=name):
+                code, err, data, lines, _ = self.serial_case("owned-apply", name, failure_at=at, late=late)
+                self.assertEqual((code, data["verdict"]), (2, "INCONCLUSIVE"), err)
+                self.assertEqual(lines, [(item + "\n").encode("ascii") for item in commands[:at + 1]])
+                self.assertEqual(data["cases"][0]["restoration"]["verdict"], expected_restoration)
+                self.assertIn("restoration was not proved", data["cases"][0]["message"])
+                if late:
+                    self.assertIn("incomplete record", data["serial"]["recovery"]["detail"])
+                else:
+                    self.assertTrue(data["serial"]["framing_uncertain"])
 
     def test_vod_trace_from_real_core(self):
         proc = subprocess.run([str(FIXTURE), "--campaign", "enhanced", "--campaign-peer", "an-10-half", "--trace-writes"],

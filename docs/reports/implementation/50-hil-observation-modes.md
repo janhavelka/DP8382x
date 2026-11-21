@@ -108,6 +108,118 @@ Windows x86-64, Python 3.12.10, GNU 15.1.0, CMake 4.0.1 and Ninja 1.12.1.
   are needed for the corresponding physical fault cases. Bench execution
   remains in prompts 72–73.
 
-Stage (c) independently reopens the landed changes, the source evidence
-and the test outcomes. Stage (d) owns confirmation of the final local
-checks and completion record.
+## Stage (c) review
+
+The solo review started from clean `main` at
+`e123226e6687a65bf38c225461b497976a5ea059`. The wrapper verified equality
+with `origin/main` at 10:39:27 on 2026-11-21. The index was empty.
+The three sibling revisions above were unchanged. The review reopened the
+TCA9548A and MB85RC classifiers, PCA9555's classifier, snapshot invariant
+and aggregate recovery tests, and the shared CLI, native owner and both
+native application status producers. The local SDK remained at
+`fff9895c82d744c7237be8847347bdd1b07c6643`.
+
+- The coupled crossover flags round-trip under `validateLinkSettings` in
+  `Config.h`, which requires identical pair and polarity swap intent.
+  Native `Phy::startConfigure` rejects the extended forced half-duplex
+  combination, which the campaign screens before its first mutation.
+  The compiled fixture still proves independent verification and full
+  profile replay after a partial apply, including the separately authorized
+  reinitialization path.
+- `src/DP8382xLink.cpp` rejects inconsistent BMSR/PHYSTS bookends with
+  `BusyDetail::OBSERVATION_CHANGED`. The CLI supplies an unavailable
+  snapshot on that terminal. Count only that exact rejection as a retry
+  within the same attempt/time bounds. Down samples still withhold
+  resolution, qualified partner and pause evidence, independently of
+  the raw AN completion flag. The compiled regression drives a simulated
+  peer transition inside the actual bookends.
+- `Phy::readMmd` uses stopped-only native admission. Exclusive cold-boot
+  now proves the application's stop and maintenance state before the
+  VOD read. The concurrent version uses cached evidence. Both retain
+  the distinct boot, first request and declared power record requirements.
+- Serial operator acknowledgments echo a fresh prompt code and must finish
+  strictly before the deadline. Replay enforces the same deadline receipt.
+  Operator input failure leaves an explicit receipt and allows eligible
+  peer recovery. An incomplete late frame prevents sending the session
+  nonce. Partial mutation or cleanup leaves unresolved effects in the
+  artifact, with incomplete restoration distinct from a reported failure.
+  Compiled and injected tests exercise those boundaries without physical I/O.
+
+Focused host PASS on Windows x86-64, GNU 15.1.0, CMake 4.0.1, Ninja 1.12.1
+and Python 3.12.10. The separate `build/p50-review` Release build used
+`DP8382X_BUILD_TESTS=ON` and linked `dp8382x_cli_fixture`.
+`ctest --test-dir build/p50-review -R '^cli_(hil_(campaign|runner|serial)|.*transcript)$' --output-on-failure --no-tests=error -j 3`
+passed 8/8 registrations. Standalone Python discovery passed 183 tests
+with 15 skipped out of 198. Reference, ledger, Doxygen, generated version
+and whitespace checks passed. Portable/package consumer, SDK link, remote
+CI and physical evidence were NOT RUN in this review. The first-board
+INT case remains BLOCKED. Stage (d) owns the completion checks and record.
+
+## Stage (d) completion
+
+On 2026-11-21, `main` and the local `origin/main` ref both pointed to
+`e123226e6687a65bf38c225461b497976a5ea059`, with zero ahead/behind and an
+empty index. The stage (c) session finished and left exactly the eight
+paths listed in `commit_20261121-104703.json`. The wrapper log contains
+no commit or equality receipt for those changes. Stage (d) verified the
+pending diff again and included it with the completion record in one
+eight-path request. The wrapper records the resulting SHA and upstream
+equality for `janhavelka/DP8382x`.
+
+One read-only subagent used the inherited model for the sibling and receipt
+audit while the lead ran verification and owned the completion record. The
+TCA9548A and MB85RC revisions above were still clean. PCA9555 was clean at
+`b9297a45a6f18fa8251e95857aedea0588a32e27`; the delta changes attribution
+guidance in `AGENTS.md` and `CLAUDE.md` only. The exact rejection, snapshot
+invariant and eligible recovery tests retain the conventions above. The
+lead reopened the archived SNLS647I reference, the CLI identity and link
+producer, stopped-only `Phy::readMmd`, the registered fixture tests, and
+README, CHANGELOG and the runner, example and hardware guides. The code
+under verification changes the runner and simulated fixture. The native
+component and application sources remain at their prior verified inputs.
+
+Windows NT 10.0.26300 x86-64, GNU 15.1.0, CMake 4.0.1, Ninja 1.12.1 and
+Python 3.12.10. The local v6.1 SDK checkout matched
+`fff9895c82d744c7237be8847347bdd1b07c6643`.
+
+- Host PASS. `cmake -S . -B build/p50-final -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON`,
+  `cmake --build build/p50-final --parallel 4` and
+  `ctest --test-dir build/p50-final --output-on-failure --no-tests=error -j 4`.
+  All 264 registrations passed with Release assertions enabled. The campaign
+  registration ran 18 tests. It exercises 22 positive simulated cases,
+  over 30,000 field removal, corruption and duplication checks, and the
+  explicit INT block. The runner and serial registrations ran 14 and 17
+  tests, respectively.
+- Focused UBSan trap PASS, 8/8 CTests. Configured `build/p50-final-ubsan`
+  with the same Release/test options and
+  `-DCMAKE_CXX_FLAGS="-fsanitize=undefined -fsanitize-undefined-trap-on-error"`.
+  Built `dp8382x_cli_fixture` with `--parallel 3` and ran
+  `ctest --test-dir build/p50-final-ubsan -R '^cli_(hil_(campaign|runner|serial)|.*transcript)$' --output-on-failure --no-tests=error -j 3`.
+- Python PASS. `python -S -m unittest discover -s test -p 'test_*.py' -q`
+  discovered 198 tests, with 183 passed and 15 fixture-dependent skips.
+  The registered tests supply the compiled fixture.
+- Offline artifact smoke PASS. Ran the guide's `10base-te` dry-run,
+  `run-fixture` and `verify-artifacts` with `build/p50-final/test/cli/dp8382x_cli_fixture.exe`,
+  simulated identity `abcdef0`, host/sim-mdio, DP83826I ENHANCED and
+  RMII address 1. `build/p50-final/evidence/campaign-10base-te.txt` is
+  14,231 bytes with SHA-256
+  `efa57f2bffd752cca2260c9423442280e84c38d37fc2acb31b0e1c738e345f99`.
+- Portable consumer PASS, 2/2 CTests. Configured
+  `cmake -S test/consumer -B build/p50-final-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF`,
+  built with `cmake --build build/p50-final-consumer --parallel 2` and ran
+  `ctest --test-dir build/p50-final-consumer --output-on-failure --no-tests=error`.
+  Exported/package consumer NOT RUN. Package checks remain with prompts 69–71.
+- Reference, ledger, Doxygen, generated version and whitespace PASS.
+  Ran `python -S tools/verify_references.py`, `python -S tools/verify_ledger.py`,
+  `python -S tools/check_doxygen.py`, `python -S scripts/generate_version.py check`
+  and `git diff --check cc9382f`. The reference check covered 29 archives,
+  27 extracts and 2,171 local links. The ledger checked 97 registers,
+  52 procedures and 35 features. Doxygen generated 293 pages and rejected
+  both negative fixtures.
+- SDK link NOT RUN for this change. Prompt 47 records the linked P4 example
+  inputs. Remote CI NOT RUN under the first-execution prompt 71 policy.
+- Physical evidence NOT RUN. Prompts 72–73 own authorized fixture execution.
+  The reset-silent console, P4 PHY supply, reset/clock/strap readiness,
+  peer/cable and reset-hold equipment remain to be qualified as applicable.
+  First-board INT is BLOCKED by missing wiring. Polled cases are eligible
+  on qualified hardware.

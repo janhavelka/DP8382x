@@ -53,7 +53,7 @@ the entry profile using the procedure below.
 | Case ID | Minimum fixture / peer profile | Commands and evidence beyond the common checks |
 | --- | --- | --- |
 | `observe` | Declared board, exclusive stopped owner, qualified console | Bracket the cached group, perform `registers write c22 24 65536`, require exact range rejection and replay the whole cached group. Require equal state and unchanged, unsaturated frame totals. |
-| `cold-boot` | Authorized power and boot record, known prior boot cookie and qualified console after board waits | Declare `--power-record` and `--previous-boot`. Require a distinct boot, first request, ready initialized health, accepted identity and equal VERIFIED desired/observed profile. In stopped/exclusive mode read `registers read mmd 31 0x030E`. Supply separate instrument records for rails, clock, RESET_N and POR timing. |
+| `cold-boot` | Authorized power and boot record, known prior boot cookie and qualified console after board waits | Declare `--power-record` and `--previous-boot`. Require a distinct boot, first request, ready initialized health, accepted identity and equal VERIFIED desired/observed profile. If the application is already stopped and in maintenance, exclusive mode adds `registers read mmd 31 0x030E`. A running application requires concurrent mode, which uses cached evidence. Supply separate instrument records for rails, clock, RESET_N and POR timing. |
 | `int-pin` | Wired INT_N and identified edge instrument | First board has no verified INT_N wiring. Record BLOCKED. Physical pin stimulus and instrument procedures belong to diagnostic qualification. |
 | `owned-apply` | Stopped board with an owned, verified profile | `A 9 symmetric`; verify and read back all target profile fields, then reapply and verify the saved profile. |
 | `pcs` | Same as owned-apply | `recovery reset pcs`; require requested/effective PCS, required/accepted/complete reset and replay, then verify the unchanged entry profile. |
@@ -91,12 +91,16 @@ physically down link cannot on its own invalidate transport health.
 
 Each command is sequential and uses the host exchange bound and its CLI
 budget. The campaign issues at most 64 commands and accepts at most four
-typed external-action acknowledgments. Live transition sampling stops after
-eight attempts and three seconds of device time from the first new sample.
-Serial retries space live polls by 250 ms, limited by the aggregate budget.
-An intervention acknowledgment must echo its exact action within
-`--intervention-timeout-ms` (default 10000, maximum 20000), clipped to its
-remaining stage allowance. Responses declare completed actions. Timeout,
+typed external-action acknowledgments. Each live link wait allows at most
+eight attempts and three seconds of device time from the first terminal.
+A correlated `BUSY/OBSERVATION_CHANGED` with no usable sample counts as an
+attempt. A down sample may still report completed AN while withholding
+current resolution, partner ability and pause. Serial retries space live
+polls by 250 ms, limited by the aggregate budget.
+An intervention acknowledgment must echo the action and the current prompt
+code before `--intervention-timeout-ms` expires (default 10000, maximum
+20000). The remaining stage allowance can shorten that deadline.
+Responses declare completed actions. Timeout,
 decline, application denial and failed observations stay visible.
 
 Before mutation, read `configuration desired` and `configuration observed`,
@@ -108,9 +112,11 @@ reset receipt and independently verify the unchanged entry profile.
 
 On primary failure stop the main sequence. If a peer intervention may have
 changed starting state, recover the declared entry cable/peer condition
-and require fresh resolved evidence before completing PHY restoration. If
-operation framing or owner continuity is lost, retain the available evidence
-and stop issuing restoration commands. Under the separate finite cleanup
+and require fresh resolved evidence for peer recovery. A known reusable
+owner can still restore and verify the saved profile if peer recovery fails.
+The case retains the peer failure. If operation framing or owner continuity
+is lost, retain the available evidence and stop issuing restoration commands.
+An incomplete restoration stays unproved. Under the separate finite cleanup
 allowance a known reusable owner may reapply the saved entry profile,
 verify it and read it back. Cleanup debt requires the separately authorized
 `--reinitialize` option and a current desired profile matching the saved or

@@ -19,7 +19,7 @@ from dp8382x_hil_artifacts import (
     MAX_TRANSCRIPT_BYTES, SERIAL_SCOPE, EvidenceError, EvidenceFiles, validate_destination, verify_artifacts,
 )
 from dp8382x_hil_campaign import (
-    CASES, MAX_COMMANDS, MAX_INTERVENTIONS, Campaign, Command, Intervention, clean, exact_fields, payload,
+    CASES, MAX_COMMANDS, MAX_INTERVENTIONS, Campaign, Command, Intervention, clean, exact_fields, link_changed, payload,
     validate_declaration, validate_intervention,
 )
 from dp8382x_hil_fixture import FixtureError, FixtureProcess
@@ -243,7 +243,9 @@ class CampaignSession(Session):
         if not self.identity:
             return
         fields = record.fields
-        if record.state == "admitted" or (record.primary == "OK" and record.cmd in TIMED_COMMANDS):
+        timed_success = record.primary == "OK" and record.cmd in TIMED_COMMANDS
+        retryable_link = record.cmd in ("link.read", "link.partner") and link_changed(record)
+        if record.state == "admitted" or timed_success or retryable_link:
             duration = int(fields["deadline_us"]) - int(fields["time_us"])
             if fields["deadline_valid"] != "1" or not 0 < duration <= TIMED_COMMANDS[record.cmd]:
                 raise ProtocolError("campaign command has no valid bounded deadline")
@@ -462,14 +464,18 @@ def intervention(session, step, source, ceiling, act):
     failure = None
     try:
         outcome = act(step.action, deadline) if budget else "timed_out"
-    except (OSError, FixtureError, KeyboardInterrupt) as error:
+    except OSError as error:
+        # Console input failure need not break the PHY session or bar recovery.
+        if source != "operator":
+            failure = error
+        outcome = "failed"
+    except (FixtureError, KeyboardInterrupt) as error:
         failure = error
         outcome = "failed"
-    if time.monotonic() >= deadline:
+    finished = time.monotonic()
+    if finished >= deadline:
         outcome = "timed_out"
-    elapsed = min(budget, max(0, int((time.monotonic() - started) * 1000)))
-    if outcome == "timed_out":
-        elapsed = budget
+    elapsed = budget if outcome == "timed_out" else min(budget - 1, max(0, int((finished - started) * 1000)))
     last = session.campaign.last
     session.intervene({"action": step.action, "source": source, "outcome": outcome, "after_req": last.req,
                        "boot": last.boot, "elapsed_ms": elapsed, "budget_ms": budget, "cleanup": step.cleanup})
@@ -481,7 +487,9 @@ def operator_acknowledgment(action, deadline):
     """Read at most one bounded console line. The answer declares operator action."""
     if not sys.stdin.isatty():
         return "declined"
-    print(f"Perform {action} on the declared fixture. Type {action} to acknowledge.", file=sys.stderr, flush=True)
+    response = f"{action} {secrets.token_hex(6)}"
+    print(f"Perform {action} on the declared fixture. Type '{response}' to acknowledge.",
+          file=sys.stderr, flush=True)
     line = ""
     if os.name == "nt":
         import msvcrt
@@ -491,7 +499,7 @@ def operator_acknowledgment(action, deadline):
                 continue
             char = msvcrt.getwch()
             if char in ("\r", "\n"):
-                return "acknowledged" if line == action else "declined"
+                return "acknowledged" if line == response else "declined"
             line += char
             if len(line) > 64:
                 return "declined"
@@ -502,7 +510,7 @@ def operator_acknowledgment(action, deadline):
                 break
             char = os.read(sys.stdin.fileno(), 1)
             if not char or char == b"\n":
-                return "acknowledged" if line == action else "declined"
+                return "acknowledged" if char and line == response else "declined"
             line += char.decode("ascii", "replace")
             if len(line) > 64:
                 return "declined"
@@ -641,7 +649,7 @@ class SerialExchange:
         if done is not None:
             raise ReplyTimeout("serial receive deadline expired")
 
-    def resynchronize(self, session, deadline, receipt, late):
+    def resynchronize(self, session, deadline, receipt, late, *, require_boundary=False):
         """Try one fresh reply without accepting late records into the case results."""
         nonce = secrets.token_hex(12)
         if nonce == session.nonce:
@@ -673,6 +681,8 @@ class SerialExchange:
             raise SerialError("serial capture limit reached before resynchronization")
         # Advance partial RX framing without crediting anything to the old request.
         decode_chunk(self.decoder, lambda _: None, late)
+        if require_boundary and self.decoder.has_partial_record:
+            raise ProtocolError("late data left an incomplete record before resynchronization")
         self.port.send("session " + nonce, deadline)
         self.receive(deadline, accept, lambda: receipt["state"] != "failed")
 
@@ -780,7 +790,8 @@ def capture_serial(args, nonce, expected, settings, factory, declaration=None):
             if timeout is not None and not (port.pending or port.framing_uncertain or port.cancelled or interrupted or
                                             (declaration and exchange.decoder.has_partial_record)):
                 try:
-                    exchange.resynchronize(session, recovery_end, recovery, timeout.late)
+                    exchange.resynchronize(session, recovery_end, recovery, timeout.late,
+                                           require_boundary=bool(declaration))
                 except (ProtocolError, SerialError, KeyboardInterrupt) as error:
                     interrupted |= isinstance(error, KeyboardInterrupt)
                     recovery.update(state="failed", detail=str(error) or "interrupted by operator")
@@ -937,7 +948,10 @@ def parser():
 
 def campaign_arguments(args):
     if args.suite != "campaign":
-        if args.case or getattr(args, "interventions", None) or getattr(args, "fixture_deny_maintenance", False):
+        if (any((args.case, args.operating_mode, args.polling, args.peer, args.peer_profile, args.cable,
+                 args.power_record, args.reinitialize, getattr(args, "interventions", None),
+                 getattr(args, "fixture_deny_maintenance", False))) or args.previous_boot is not None or
+                args.intervention_timeout_ms != 10_000):
             raise ProtocolError("campaign options require --suite campaign")
         return None, None
     declared = {"case": args.case, "mode": args.operating_mode, "polling": args.polling, "board": args.board,
