@@ -11,6 +11,8 @@ The [hardware validation case table](hardware-validation.md#case-table) maps
 identity, initialization, reset, profile, link and 10BASE-Te evidence to
 executable campaign cases. Host transcripts and injected serial tests
 establish software behavior. Physical case evidence remains open.
+The [finite soak](hil-runner.md#finite-soak) repeats an admitted case through
+the same owner and verifies per-iteration evidence after interruption.
 The feature procedure rows below name their executable
 [diagnostic and control cases](hardware-validation.md#feature-fixtures).
 Raw collector and independent instrument requirements remain in that guide.

@@ -3,6 +3,7 @@
 
 import argparse
 import base64
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
@@ -16,7 +17,7 @@ import sys
 import time
 
 from dp8382x_hil_artifacts import (
-    MAX_TRANSCRIPT_BYTES, SERIAL_SCOPE, EvidenceError, EvidenceFiles, validate_destination, verify_artifacts,
+    MAX_TRANSCRIPT_BYTES, SERIAL_SCOPE, EvidenceError, EvidenceFiles, soak_plan, validate_destination, verify_artifacts,
 )
 from dp8382x_hil_campaign import (
     FIXTURE_ACTIONS, MAX_COMMANDS, MAX_INTERVENTIONS, Campaign, Command, Intervention, all_cases, bits, clean,
@@ -31,6 +32,7 @@ from dp8382x_hil_serial import (
     IDLE_POLL, INJECTED_BACKEND, READ_CHUNK, ReplyTimeout, SerialError, SerialPort, bounded_call, native_port,
     serial_settings,
 )
+from dp8382x_hil_soak import SoakCampaign
 
 
 TOKEN = re.compile(r"[A-Za-z0-9_.:-]{1,64}\Z")
@@ -231,12 +233,18 @@ def check_feature_envelope(record):
 class CampaignSession(Session):
     """Correlate the dynamic case with the same one-request record owner."""
 
-    def __init__(self, nonce, expected, declaration, recorded=None):
+    def __init__(self, nonce, expected, declaration, recorded=None, soak=None):
         if not isinstance(nonce, str) or not TOKEN.fullmatch(nonce):
             raise ProtocolError("invalid session nonce")
         super().__init__([Command("session " + nonce)], nonce, expected)
-        self.campaign = Campaign(declaration, expected)
-        self.request_limit = MAX_COMMANDS - len(self.campaign.baseline)
+        self.soak = soak
+        self.setup = []
+        self.setup_tail = None
+        self.received_records = 0
+        self.unconfirmed_command = None
+        self.campaign = (SoakCampaign(declaration, expected, soak["count"]) if soak else
+                         Campaign(declaration, expected))
+        self.request_limit = soak["command_limit"] if soak else MAX_COMMANDS - len(self.campaign.baseline)
         self.recorded = recorded
 
     @property
@@ -249,6 +257,11 @@ class CampaignSession(Session):
         self.campaign.advance(row)
         self._queue()
 
+    def attempting(self):
+        """A short, late or uncertain write can already have changed the device."""
+        if self.soak and self.results:
+            self.campaign.attempt()
+
     def _queue(self):
         if isinstance(self.next, Command):
             if len(self.commands) >= self.request_limit:
@@ -256,6 +269,12 @@ class CampaignSession(Session):
             self.commands.append(self.next)
 
     def accept(self, record):
+        if self.soak and (self.identity or (record.cmd == "session" and record.fields.get("nonce") == self.nonce)):
+            self.received_records += 1
+        if self.setup_tail and not self.identity and (
+                record.cmd != "session" or record.fields.get("nonce") != self.nonce or
+                record.boot != self.setup_tail.boot or record.req != self.setup_tail.req + 1):
+            raise ProtocolError("nonce does not follow the compiled setup in the same boot")
         if self.recorded is not None and self.issued == len(self.results):
             if not self.identity and (record.cmd != "session" or record.fields.get("nonce") != self.nonce):
                 super().accept(record)
@@ -266,6 +285,7 @@ class CampaignSession(Session):
                     raise ProtocolError("missing intervention receipt before next command")
                 self.intervene(self.recorded[index])
             if self.next is not None:
+                self.attempting()
                 self.issue()
         index = len(self.results)
         super().accept(record)
@@ -465,9 +485,9 @@ def read_capture(path, limit, save, consume):
             remaining -= len(data)
 
 
-def make_session(suite, nonce, expected, declaration=None, recorded=None):
+def make_session(suite, nonce, expected, declaration=None, recorded=None, soak=None):
     if suite == "campaign":
-        return CampaignSession(nonce, expected, declaration, recorded)
+        return CampaignSession(nonce, expected, declaration, recorded, soak)
     return Session(plan(suite, nonce), nonce, expected)
 
 
@@ -548,7 +568,25 @@ def operator_acknowledgment(action, deadline):
     return "timed_out"
 
 
-def prepare_feature_fixture(fixture, decoder, commands, deadline):
+def baseline_reply(record, command, prior, admission):
+    """Check a pre-nonce fixture response using the same rules during execution and replay."""
+    if (record.cmd != command.name or
+            (prior and (record.boot != prior.boot or record.req != prior.req + 1))):
+        raise ProtocolError("compiled feature baseline reply is out of sequence")
+    check_payload(record)
+    check_feature_envelope(record)
+    if record.state == "admitted" and command.name in FEATURE_OPERATIONS and admission is None:
+        return record
+    if (record.state != "terminal" or not clean(record) or
+            (command.name in FEATURE_OPERATIONS) != (admission is not None) or
+            record.op != (admission.op if admission else 0) or
+            (admission and (record.req, record.boot, record.fields["deadline_us"]) !=
+             (admission.req, admission.boot, admission.fields["deadline_us"]))):
+        raise ProtocolError(f"compiled feature baseline did not complete: {command.text} ({record.primary})")
+    return None
+
+
+def prepare_feature_fixture(fixture, decoder, commands, deadline, setup=None):
     """Install a fixed offline baseline and drain its receipts before opening the nonce session."""
     if len(commands) > 8:
         raise FixtureError("compiled feature baseline exceeds eight commands")
@@ -556,7 +594,13 @@ def prepare_feature_fixture(fixture, decoder, commands, deadline):
     for text in commands:
         command = Command(text)
         exchange_end = min(deadline, time.monotonic() + FEATURE_EXCHANGE_SECONDS)
+        if time.monotonic() >= exchange_end:
+            raise FixtureError("compiled feature setup deadline expired")
+        if setup is not None:
+            setup.append({"command": text, "state": "uncertain"})
         fixture.send(text.encode("ascii") + b"\n", exchange_end)
+        if setup is not None:
+            setup[-1]["state"] = "written"
         admission = None
         complete = False
         while not complete:
@@ -564,43 +608,176 @@ def prepare_feature_fixture(fixture, decoder, commands, deadline):
             if not chunk:
                 raise FixtureError("compiled feature baseline closed before completion")
             for record in decoder.feed(chunk):
-                if (complete or record.cmd != command.name or
-                        (prior and (record.boot != prior.boot or record.req != prior.req + 1))):
+                if complete:
                     raise ProtocolError("compiled feature baseline reply is out of sequence")
-                check_payload(record)
-                check_feature_envelope(record)
-                if record.state == "admitted" and command.name in FEATURE_OPERATIONS and admission is None:
-                    admission = record
+                admission = baseline_reply(record, command, prior, admission)
+                if admission is not None:
                     continue
-                if (record.state != "terminal" or not clean(record) or
-                        (command.name in FEATURE_OPERATIONS) != (admission is not None) or
-                        record.op != (admission.op if admission else 0) or
-                        (admission and (record.req, record.boot, record.fields["deadline_us"]) !=
-                         (admission.req, admission.boot, admission.fields["deadline_us"]))):
-                    raise FixtureError(f"compiled feature baseline did not complete: {text} ({record.primary})")
                 prior = record
                 complete = True
+                if setup is not None:
+                    setup[-1]["state"] = "terminal"
         if decoder.has_partial_record:
             raise ProtocolError("unfinished record after compiled feature baseline")
+    return prior
+
+
+class SoakDuration(ProtocolError):
+    """The primary window closed before the next request completed."""
+
+
+class SetupReplay:
+    """Account separately for the simulator's fixed pre-nonce setup commands."""
+
+    def __init__(self, session):
+        self.session = session
+        self.commands = session.campaign.baseline if session.expected["backend"] == "sim-mdio" else ()
+        self.index = 0
+        self.last = self.admission = None
+
+    def accept(self, record):
+        if self.session.identity or not self.commands:
+            return False
+        if record.cmd == "session" and record.fields.get("nonce") == self.session.nonce:
+            if self.admission or (self.last and (self.last.boot != record.boot or self.last.req + 1 != record.req)):
+                raise ProtocolError("nonce does not follow the compiled setup")
+            return False
+        if self.index >= len(self.commands):
+            raise ProtocolError("unexpected record after compiled setup")
+        command = Command(self.commands[self.index])
+        if self.admission is None:
+            self.session.setup.append({"command": command.text, "state": "written"})
+        self.admission = baseline_reply(record, command, self.last, self.admission)
+        if self.admission is None:
+            self.session.setup[-1]["state"] = "terminal"
+            self.index += 1
+            self.last = record
+            self.session.setup_tail = record
+        return True
+
+
+class SoakBudget:
+    """One host clock for setup, primary work, cumulative cleanup, close and publication."""
+
+    def __init__(self, session, start, primary_end, cleanup_seconds, close_start, end):
+        self.session = session
+        self.start = start
+        self.primary_end = min(primary_end, start + session.soak["duration_ms"] / 1000)
+        self.cleanup_left = cleanup_seconds
+        self.close_start = close_start
+        self.end = end
+
+    @contextmanager
+    def step(self, cleanup):
+        entered = time.monotonic()
+        limit = min(self.close_start, entered + self.cleanup_left) if cleanup else self.primary_end
+        if entered >= limit:
+            if not cleanup:
+                raise SoakDuration("soak primary duration expired before next request")
+            raise ProtocolError("soak restoration allowance exhausted")
+        try:
+            yield limit
+            if time.monotonic() >= limit:
+                raise (ProtocolError("soak restoration allowance expired") if cleanup else
+                       SoakDuration("soak primary duration expired during request"))
+        except (FixtureError, SerialError) as error:
+            if not cleanup and "deadline" in str(error) and time.monotonic() >= limit:
+                raise SoakDuration(str(error)) from error
+            raise
+        finally:
+            if cleanup:
+                self.cleanup_left = max(0, self.cleanup_left - (time.monotonic() - entered))
+
+    def evidence(self):
+        return {"soak": {**self.session.campaign.summary(), "plan": self.session.soak,
+                         "setup": self.session.setup,
+                         "received_records": self.session.received_records,
+                         "unconfirmed_command": self.session.unconfirmed_command,
+                         "primary_window_ms": max(0, round((self.primary_end - self.start) * 1000)),
+                         "elapsed_ms": max(0, int((time.monotonic() - self.start) * 1000))}}
+
+
+def finalization_diagnostic(data):
+    """Retain the first failure and each primary/restoration outcome if JSON publication fails."""
+    findings = [issue[:256] for issue in data["issues"][:2]]
+    for row in data["cases"]:
+        if row["verdict"] != "NOT RUN":
+            findings.append(f'{row["id"]} {row["verdict"]} primary={row["primary"]} '
+                            f'restoration={row["restoration"]["verdict"]} {row["message"][:256]}')
+    return " | ".join(findings)
+
+
+def host_io(work, deadline, phase):
+    """Bound filesystem work without operating on a file still owned by a worker."""
+    result = bounded_call(work, deadline)
+    if result.pending:
+        try:
+            bounded_call(lambda: print(f"INCONCLUSIVE: {phase}: {result.detail}", file=sys.stderr, flush=True),
+                         time.monotonic() + 0.05)
+        finally:
+            os._exit(2)
+    if result.cancelled:
+        raise KeyboardInterrupt
+    if result.state != "ok":
+        if isinstance(result.value, EvidenceFiles):
+            host_io(result.value.abort, time.monotonic() + 0.05, "close late reservation")
+        raise EvidenceError(f"{phase}: {result.state}: {result.detail}")
+    return result.value
 
 
 def capture(args, suite, nonce, expected, declaration=None, recorded=None):
     """Execute a host fixture or verify a supplied transcript and finalize its pair."""
-    session = make_session(suite, nonce, expected, declaration, recorded)
+    start = time.monotonic()
+    soak = getattr(args, "soak", None)
+    session = make_session(suite, nonce, expected, declaration, recorded, soak)
     decoder = Decoder(max_bytes=args.max_bytes)
     started = utc_now()
-    provenance = runner_identity()
     live = args.mode == "run-fixture"
     executable = str(args.path.absolute())
     label = declaration["board"] if declaration else executable if live else "recorded-offline"
-    files = EvidenceFiles(args.out_dir, args.run, args.max_bytes)
+    budget = None
+    if soak:
+        total = getattr(args, "timeout", 120.0)
+        closure = getattr(args, "closure", 0.5)
+        work = total - closure
+        finalize = min(2.0, work / 4)
+        restore = min(3.0, work / 4)
+        close_start = start + work - finalize
+        budget = SoakBudget(session, start, close_start - restore, restore, close_start, start + total)
+    provenance = (host_io(lambda: runner_identity(budget.primary_end), budget.close_start,
+                          "collect soak provenance") if budget else runner_identity())
+    base = {"suite": suite, "fixture": label, "started_utc": started,
+            "expectations": expected, "runner": provenance, "stderr": ""}
+    if budget:
+        provisional = {**base, **session.evidence(), **budget.evidence()}
+        files = host_io(lambda: EvidenceFiles(args.out_dir, args.run, args.max_bytes, provisional=provisional),
+                        budget.close_start, "soak reservation")
+    else:
+        files = EvidenceFiles(args.out_dir, args.run, args.max_bytes)
+    # The live carrier owns its bounded RAM prefix. Disk I/O takes place
+    # after child teardown, under the separate publication deadline.
+    captured = bytearray()
+
+    def retain(data):
+        count = min(len(data), args.max_bytes - len(captured))
+        captured.extend(data[:count])
+        if count < len(data):
+            files.mark_truncated()
+        return count
+
     issues = []
     sent = []
     fixture = None
     interrupted = False
 
+    setup_replay = SetupReplay(session) if soak and not live else None
+
+    def accept(record):
+        if setup_replay is None or not setup_replay.accept(record):
+            session.accept(record)
+
     def consume(data):
-        decode_chunk(decoder, session.accept, data)
+        decode_chunk(decoder, accept, data)
 
     def offline_consume(data):
         if not issues:
@@ -633,11 +810,18 @@ def capture(args, suite, nonce, expected, declaration=None, recorded=None):
                     argv.append("--mii")
                 if args.fixture_deny_maintenance:
                     argv.append("--deny-maintenance")
-            fixture = FixtureProcess(argv, args.timeout, args.max_bytes, files.write)
+            if budget and time.monotonic() >= budget.primary_end:
+                raise SoakDuration("soak primary duration expired before fixture launch")
+            lifetime = budget.close_start + args.closure - time.monotonic() if budget else args.timeout
+            fixture = FixtureProcess(argv, lifetime, args.max_bytes, retain if budget else files.write)
             with fixture:
                 end = time.monotonic() + args.timeout - args.closure
                 active = end - min(1, (args.timeout - args.closure) / 3)
-                prepare_feature_fixture(fixture, decoder, baseline, active)
+                if budget:
+                    with budget.step(False) as deadline:
+                        session.setup_tail = prepare_feature_fixture(fixture, decoder, baseline, deadline, session.setup)
+                else:
+                    prepare_feature_fixture(fixture, decoder, baseline, active)
 
                 def fixture_action(action, deadline):
                     if action in FIXTURE_ACTIONS:
@@ -650,16 +834,20 @@ def capture(args, suite, nonce, expected, declaration=None, recorded=None):
                     fixture.send(f"{line}\n".encode("ascii"), deadline)
                     return "acknowledged"
 
-                for command in live_steps(session):
+                def execute(command, deadline):
                     if declaration and decoder.has_partial_record:
                         raise ProtocolError("unsolicited record began before the next step")
-                    deadline = (end if command.cleanup else active) if declaration else None
                     if isinstance(command, Intervention):
                         intervention(session, command, "compiled-fixture", deadline, fixture_action)
-                        continue
+                        return
                     if feature:
                         deadline = min(deadline, time.monotonic() + FEATURE_EXCHANGE_SECONDS)
+                    if budget:
+                        session.attempting()
+                        session.unconfirmed_command = command.text
                     fixture.send(command.text.encode("ascii") + b"\n", deadline)
+                    if budget:
+                        session.unconfirmed_command = None
                     sent.append(command.text)
                     session.issue()
                     while len(session.results) < session.issued:
@@ -667,22 +855,42 @@ def capture(args, suite, nonce, expected, declaration=None, recorded=None):
                         if not chunk:
                             raise ProtocolError("fixture stdout closed before a correlated terminal")
                         consume(chunk)
+                for command in live_steps(session):
+                    if budget:
+                        with budget.step(command.cleanup) as deadline:
+                            execute(command, deadline)
+                    else:
+                        execute(command, (end if command.cleanup else active) if declaration else None)
                 fixture.finish(args.closure, consume)
         else:
             if declaration is None:
                 sent = [command.text for command in session.commands]
                 session.issued = len(sent)
-            read_capture(args.path, args.max_bytes, files.write, offline_consume)
+            if budget:
+                with budget.step(False):
+                    host_io(lambda: read_capture(args.path, args.max_bytes, retain, offline_consume),
+                            budget.primary_end, "read soak transcript")
+            else:
+                read_capture(args.path, args.max_bytes, files.write, offline_consume)
             if declaration is not None:
                 sent = [command.text for command in session.commands[:session.issued]]
         if not issues:
             decoder.finish()
             session.finish()
+            if (setup_replay and session.campaign.summary()["stop_reason"] == "count" and
+                    setup_replay.index != len(setup_replay.commands)):
+                raise ProtocolError("successful soak lacks its compiled baseline evidence")
     except KeyboardInterrupt:
         interrupted = True
         issues.append("interrupted by operator")
     except (OSError, ProtocolError, FixtureError, EvidenceError) as error:
         issues.append(str(error))
+        if budget:
+            if isinstance(error, SoakDuration):
+                issues.append("soak primary duration expired")
+                session.campaign.stop("duration")
+            else:
+                session.campaign.stop("fault")
     try:
         if fixture:
             if fixture.truncated:
@@ -690,15 +898,33 @@ def capture(args, suite, nonce, expected, declaration=None, recorded=None):
                 issues.append("fixture capture limit reached")
             if fixture.cleanup_issue:
                 issues.append(fixture.cleanup_issue)
-        data = files.finish({
-            "suite": suite, "fixture": label, "started_utc": started, "ended_utc": utc_now(),
+        if budget and (interrupted or issues) and session.campaign.summary()["stop_reason"] != "duration":
+            session.campaign.stop("cancelled" if interrupted else "fault")
+        data = {**base, "ended_utc": utc_now(),
             "complete": not issues, "commands": sent, **case_evidence(suite, session),
-            "identity": session.identity, "expectations": expected, "runner": provenance,
+            "identity": session.identity,
             "stderr": base64.b64encode(fixture.stderr).decode("ascii") if fixture else "",
             "issues": issues,
-        })
+        }
+        if budget:
+            data.update(budget.evidence())
+            def publish():
+                try:
+                    files.write(bytes(captured))
+                    return files.finish(data, budget.end)
+                finally:
+                    files.abort()
+            data = host_io(publish, budget.end, "soak publication " + finalization_diagnostic(data))
+        else:
+            data = files.finish(data)
     except BaseException:
-        files.abort()
+        if budget:
+            # A publication worker closes its own stream. If admission itself
+            # expired, leave the reserved placeholder for the standalone caller.
+            if time.monotonic() < budget.end:
+                host_io(files.abort, budget.end, "close soak transcript")
+        else:
+            files.abort()
         raise
     return data, interrupted
 
@@ -743,6 +969,8 @@ class SerialExchange:
 
         def accept(record):
             if record.cmd != "session" or record.fields.get("nonce") != nonce:
+                if session.identity and record.boot != session.identity["boot"]:
+                    raise ProtocolError("boot changed during resynchronization")
                 return
             if receipt["identity"]:
                 raise ProtocolError("duplicate resynchronization reply")
@@ -764,8 +992,13 @@ class SerialExchange:
 
         if self.truncated:
             raise SerialError("serial capture limit reached before resynchronization")
+        if session.identity and session.identity["session_req"] + session.issued > U64_MAX:
+            raise ProtocolError("request counter cannot accommodate a recovery nonce")
         # Advance partial RX framing without crediting anything to the old request.
-        decode_chunk(self.decoder, lambda _: None, late)
+        def check_late(record):
+            if session.identity and record.boot != session.identity["boot"]:
+                raise ProtocolError("boot changed before resynchronization")
+        decode_chunk(self.decoder, check_late, late)
         if require_boundary and self.decoder.has_partial_record:
             raise ProtocolError("late data left an incomplete record before resynchronization")
         self.port.send("session " + nonce, deadline)
@@ -788,7 +1021,9 @@ def serial_hard_exit(issues, reason, deadline):
 
 def capture_serial(args, nonce, expected, settings, factory, declaration=None):
     """Run one admitted serial session and publish before releasing its receipt."""
-    session = make_session(args.suite, nonce, expected, declaration)
+    start = time.monotonic()
+    soak = getattr(args, "soak", None)
+    session = make_session(args.suite, nonce, expected, declaration, soak=soak)
     port = SerialPort(settings, factory)
     exchange = SerialExchange(port, args.max_bytes)
     limits = settings["limits"]
@@ -802,22 +1037,29 @@ def capture_serial(args, nonce, expected, settings, factory, declaration=None):
                 "hard_exit": bool(port.exit_reason), "restoration": (
                     "reported_by_case" if declaration else "not_requested" if complete else "unavailable")}
 
-    start = time.monotonic()
     end = start + limits["session_timeout"]
     cleanup_ceiling = end - limits["finalize_timeout"]
     active = min(start + limits["duration"], cleanup_ceiling - limits["cleanup_timeout"])
+    budget = None
+    if soak:
+        restore = limits["cleanup_timeout"] * 0.75
+        budget = SoakBudget(session, start, active, restore,
+                            cleanup_ceiling - limits["cleanup_timeout"] + restore, end)
+        active = budget.primary_end
     base = {"suite": args.suite, "fixture": settings["board"], "started_utc": utc_now(),
             "expectations": expected, "stderr": ""}
 
     def reserve():
         base["runner"] = runner_identity(active)
-        if time.monotonic() >= active:
+        if not budget and time.monotonic() >= active:
             raise EvidenceError("active deadline expired during provenance collection")
         campaign = session.evidence() if declaration else {}
+        if budget:
+            campaign.update(budget.evidence())
         return EvidenceFiles(args.out_dir, args.run, args.max_bytes,
                              provisional={**base, "serial": receipt(False), **campaign})
 
-    reservation = bounded_call(reserve, active)
+    reservation = bounded_call(reserve, budget.close_start if budget else active)
     if reservation.pending:
         serial_hard_exit([f"evidence reservation {reservation.state}: {reservation.detail}"],
                          "an evidence reservation worker is pending", end)
@@ -835,26 +1077,48 @@ def capture_serial(args, nonce, expected, settings, factory, declaration=None):
     cleanup_start = None
     ceiling = active
     try:
-        port.open(active)
-        for command in live_steps(session):
+        if budget:
+            with budget.step(False) as deadline:
+                port.open(deadline)
+        else:
+            port.open(active)
+
+        def execute(command, ceiling):
+            nonlocal timeout
             if exchange.decoder.has_partial_record:
                 raise ProtocolError("unsolicited record began before the next command")
-            if command.cleanup and cleanup_start is None:
-                cleanup_start = time.monotonic()
-                ceiling = min(cleanup_ceiling, cleanup_start + limits["cleanup_timeout"] * 0.75)
             if isinstance(command, Intervention):
                 intervention(session, command, "operator", ceiling, operator_acknowledgment)
-                continue
+                return
             if command.delay:
                 time.sleep(min(command.delay, max(0, ceiling - time.monotonic())))
             deadline = min(ceiling, time.monotonic() + limits["command_timeout"])
+            if budget and time.monotonic() >= ceiling:
+                raise (ProtocolError("soak restoration allowance expired") if command.cleanup else
+                       SoakDuration("soak primary duration expired before write"))
+            if budget:
+                session.attempting()
+                session.unconfirmed_command = command.text
             port.send(command.text, deadline)
+            if budget:
+                session.unconfirmed_command = None
             session.issue()
             try:
                 exchange.receive(deadline, session.accept, lambda: len(session.results) == session.issued)
             except ReplyTimeout as error:
                 timeout = error
                 raise
+        for command in live_steps(session):
+            if budget:
+                with budget.step(command.cleanup) as deadline:
+                    execute(command, deadline)
+            else:
+                if command.cleanup and cleanup_start is None:
+                    cleanup_start = time.monotonic()
+                    ceiling = min(cleanup_ceiling, cleanup_start + limits["cleanup_timeout"] * 0.75)
+                execute(command, ceiling)
+        if budget:
+            ceiling = budget.close_start
         tail = time.monotonic() + limits["tail_timeout"]
         exchange.receive(min(ceiling, tail), session.accept)
         if tail > ceiling:
@@ -866,11 +1130,20 @@ def capture_serial(args, nonce, expected, settings, factory, declaration=None):
         issues.append("interrupted by operator")
     except (ProtocolError, SerialError) as error:
         issues.append(str(error))
+        if budget:
+            if isinstance(error, SoakDuration):
+                issues.append("soak primary duration expired")
+                session.campaign.stop("duration")
+            else:
+                session.campaign.stop("cancelled" if port.cancelled else "fault")
     finally:
         if cleanup_start is None:
             cleanup_start = time.monotonic()
         cleanup_end = min(cleanup_ceiling, cleanup_start + limits["cleanup_timeout"])
         recovery_end = min(cleanup_end, cleanup_start + limits["cleanup_timeout"] / 2)
+        if budget:
+            cleanup_end = min(cleanup_ceiling, cleanup_start + budget.cleanup_left + limits["cleanup_timeout"] / 4)
+            recovery_end = min(budget.close_start, cleanup_start + budget.cleanup_left / 2)
         try:
             if timeout is not None and not (port.pending or port.framing_uncertain or port.cancelled or interrupted or
                                             (declaration and exchange.decoder.has_partial_record)):
@@ -887,11 +1160,17 @@ def capture_serial(args, nonce, expected, settings, factory, declaration=None):
     if exchange.truncated and "serial capture limit reached" not in issues:
         issues.append("serial capture limit reached")
     interrupted |= port.cancelled
+    if budget and interrupted and "interrupted by operator" not in issues:
+        issues.append("interrupted by operator")
     complete = not issues and not interrupted
+    if budget and not complete and session.campaign.summary()["stop_reason"] != "duration":
+        session.campaign.stop("cancelled" if interrupted else "fault")
     data = {**base, "ended_utc": utc_now(), "complete": complete,
             "commands": [row["command"] for row in port.writes if row["state"] == "ok"],
             **case_evidence(args.suite, session), "identity": session.identity,
             "issues": list(issues), "serial": receipt(complete)}
+    if budget:
+        data.update(budget.evidence())
     final_deadline = min(end, time.monotonic() + limits["finalize_timeout"])
 
     def finalize():
@@ -906,6 +1185,8 @@ def capture_serial(args, nonce, expected, settings, factory, declaration=None):
     finalized = bounded_call(finalize, final_deadline)
     if finalized.state != "ok":
         issues.append(f"evidence finalization {finalized.state}: {finalized.detail}")
+        if budget:
+            issues.append(finalization_diagnostic(data))
     exit_reason = port.exit_reason
     if exit_reason or finalized.pending:
         serial_hard_exit(issues, exit_reason or "an evidence finalization worker is pending", end)
@@ -917,10 +1198,104 @@ def capture_serial(args, nonce, expected, settings, factory, declaration=None):
     return finalized.value, interrupted
 
 
+def verify_soak(data, transcript):
+    """Rebuild the admitted prefix, including one unanswered or possibly transmitted command."""
+    soak, campaign = data["soak"], data["campaign"]
+    expected = expectations(data["expectations"], "campaign")
+    commands = list(data["commands"])
+    uncertain = soak["unconfirmed_command"]
+    serial = data.get("serial")
+    if serial:
+        writes = serial["writes"]
+        if serial["recovery"]["state"] != "not_started" and writes and (
+                writes[-1]["command"].startswith("session ") and len(writes) > 1):
+            if writes[-1]["state"] == "ok":
+                commands.pop()
+            writes = writes[:-1]
+        failed_write = writes[-1]["command"] if writes and writes[-1]["state"] != "ok" else None
+        if failed_write != uncertain:
+            raise EvidenceError("unconfirmed soak command differs from serial write receipt")
+    first = commands[0] if commands else uncertain or "session unissued"
+    if not first.startswith("session "):
+        raise EvidenceError("soak does not start with its nonce handshake")
+    session = CampaignSession(first.split(" ", 1)[1], expected, campaign["declaration"], soak=soak["plan"])
+    decoder = Decoder(max_bytes=soak["plan"]["max_bytes"])
+    setup = SetupReplay(session)
+    setup_rows = soak["setup"]
+    planned_setup = list(session.campaign.baseline)
+    if [row["command"] for row in setup_rows] != planned_setup[:len(setup_rows)]:
+        raise EvidenceError("setup commands differ from the compiled case baseline")
+    received = soak["received_records"]
+    interventions = campaign["interventions"]
+
+    def apply_interventions():
+        while isinstance(session.next, Intervention) and len(session.campaign.interventions) < len(interventions):
+            session.intervene(interventions[len(session.campaign.interventions)])
+
+    def issue():
+        apply_interventions()
+        step = session.next
+        if not isinstance(step, Command) or commands[session.issued] != step.text:
+            raise EvidenceError("outbound soak prefix differs from the admitted step")
+        session.attempting()
+        session.issue()
+
+    def accept(record):
+        if (not session.identity and record.fields.get("nonce") != session.nonce and
+                setup.index < len(setup_rows) and setup_rows[setup.index]["state"] == "terminal"):
+            if setup.accept(record):
+                return
+        if not data["complete"] and session.received_records >= received:
+            return  # Retained after timeout, serial recovery, or while reaping the child.
+        if session.issued == len(session.results) and session.issued < len(commands):
+            issue()
+        session.accept(record)
+
+    try:
+        decode_chunk(decoder, accept, transcript)
+        decoder.finish()
+        if data["complete"]:
+            session.finish()
+    except ProtocolError:
+        if data["complete"]:
+            raise
+    if session.received_records != received:
+        raise EvidenceError("retained transcript does not contain the consumed record prefix")
+    if session.issued == len(session.results) and session.issued < len(commands):
+        issue()
+    apply_interventions()
+    if session.issued != len(commands) or session.campaign.interventions != interventions:
+        raise EvidenceError("outbound soak command or intervention has no matching admission")
+    if uncertain:
+        if (session.issued != len(session.results) or not isinstance(session.next, Command) or
+                session.next.text != uncertain):
+            raise EvidenceError("uncertain write differs from the pending command")
+        session.attempting()
+    if not data["complete"] and data["ended_utc"]:
+        if "soak primary duration expired" in data["issues"]:
+            session.campaign.stop("duration")
+        elif "interrupted by operator" in data["issues"]:
+            session.campaign.stop("cancelled")
+        else:
+            session.campaign.stop("fault")
+    summary = session.campaign.summary()
+    # JSON distinguishes boolean values from numeric register words.
+    if (json.dumps(summary, sort_keys=True) != json.dumps({k: soak[k] for k in summary}, sort_keys=True) or
+            session.campaign.cases() != data["cases"] or session.identity != data["identity"]):
+        raise EvidenceError("soak iterations, telemetry, stop or identity differ from the correlated evidence")
+    terminal_setup = [row for row in setup_rows if row["state"] == "terminal"]
+    if (setup.index != len(terminal_setup) or
+            (data["verdict"] == "PASS" and expected["backend"] == "sim-mdio" and
+             len(terminal_setup) != len(planned_setup))):
+        raise EvidenceError("compiled setup lacks its terminal evidence")
+
+
 def verify(path):
     """Verify the pair and replay complete evidence with the same protocol and assertions."""
     data, transcript = verify_artifacts(path)
-    if data["complete"]:
+    if "soak" in data:
+        verify_soak(data, transcript)
+    elif data["complete"]:
         commands = data["commands"]
         if not commands or not commands[0].startswith("session "):
             raise EvidenceError("complete evidence has no session command")
@@ -977,6 +1352,9 @@ def parser():
         command = modes.add_parser(name, help=description)
         command.add_argument("--suite", choices=(*SUITES, "campaign"), required=True)
         command.add_argument("--case", choices=all_cases(), help="one case for the campaign suite")
+        command.add_argument("--soak-count", type=int, help="explicit number of campaign iterations")
+        command.add_argument("--soak-duration-ms", type=int, help="single primary window for all iterations")
+        command.add_argument("--max-bytes", type=byte_limit, default=MAX_TRANSCRIPT_BYTES)
         command.add_argument("--operating-mode", choices=("basic", "enhanced"))
         command.add_argument("--polling", choices=("exclusive", "concurrent"))
         command.add_argument("--board", help="identified board or fixture")
@@ -1000,7 +1378,6 @@ def parser():
                 command.add_argument("path", type=Path, help="raw transcript or compiled fixture path")
             command.add_argument("--out-dir", type=Path, required=True)
             command.add_argument("--run", required=True, help="exclusive output basename")
-            command.add_argument("--max-bytes", type=byte_limit, default=MAX_TRANSCRIPT_BYTES)
         if name == "run-fixture":
             command.add_argument("--timeout", type=positive_seconds, default=5.0)
             command.add_argument("--closure", type=positive_seconds, default=0.5)
@@ -1032,8 +1409,10 @@ def parser():
 
 
 def campaign_arguments(args):
+    args.soak = None
+    repeat = args.soak_count is not None or args.soak_duration_ms is not None
     if args.suite != "campaign":
-        if (any((args.case, args.operating_mode, args.polling, args.peer, args.peer_profile, args.cable,
+        if (repeat or any((args.case, args.operating_mode, args.polling, args.peer, args.peer_profile, args.cable,
                  args.power_record, args.reinitialize, getattr(args, "interventions", None),
                  getattr(args, "fixture_deny_maintenance", False))) or args.previous_boot is not None or
                 args.intervention_timeout_ms != 10_000):
@@ -1044,6 +1423,9 @@ def campaign_arguments(args):
                 "cable": args.cable, "power_record": args.power_record, "previous_boot": args.previous_boot,
                 "intervention_timeout_ms": args.intervention_timeout_ms, "reinitialize": args.reinitialize}
     validate_declaration(declared)
+    if repeat:
+        args.soak = soak_plan(args.soak_count, args.soak_duration_ms,
+                              getattr(args, "max_bytes", MAX_TRANSCRIPT_BYTES), declared)
     recorded = None
     if args.mode == "verify-transcript":
         recorded = []
@@ -1057,14 +1439,15 @@ def campaign_arguments(args):
             if not args.interventions.is_file():
                 raise ProtocolError("intervention receipts require a regular file")
             with args.interventions.open("rb") as stream:
-                content = stream.read(4097)
-            if len(content) > 4096:
-                raise ProtocolError("intervention receipts exceed 4096 bytes")
+                limit = 4096 * (args.soak["count"] if args.soak else 1)
+                content = stream.read(limit + 1)
+            if len(content) > limit:
+                raise ProtocolError(f"intervention receipts exceed {limit} bytes")
             try:
                 recorded = json.loads(content, object_pairs_hook=unique)
             except (ValueError, RecursionError) as error:
                 raise ProtocolError(f"invalid intervention JSON: {error}") from error
-            if type(recorded) is not list or len(recorded) > MAX_INTERVENTIONS:
+            if type(recorded) is not list or len(recorded) > MAX_INTERVENTIONS * (args.soak_count or 1):
                 raise ProtocolError("invalid intervention receipt count")
             for row in recorded:
                 validate_intervention(row, declared)
@@ -1072,9 +1455,11 @@ def campaign_arguments(args):
 
 
 def preview_plan(args, expected, nonce, declaration, **details):
-    initial = make_session(args.suite, nonce, expected, declaration)
+    initial = make_session(args.suite, nonce, expected, declaration, soak=args.soak)
     result = {"scope": "serial_session" if args.mode == "run-serial" else "host_protocol", "executed": False,
               "suite": args.suite, "expectations": expected, "commands": [step.text for step in initial.commands]}
+    if args.soak:
+        result["soak"] = args.soak
     if declaration:
         spec = initial.campaign.spec
         result["campaign"] = {"declaration": declaration, "group": spec.group, "equipment": spec.fixture,

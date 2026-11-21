@@ -102,9 +102,69 @@ python -S tools/dp8382x_hil_runner.py run-fixture build/host/test/cli/dp8382x_cl
 python -S tools/dp8382x_hil_runner.py verify-artifacts build/evidence/campaign-10base-te.json
 ```
 
+## Finite soak
+
+Supply both `--soak-count` and `--soak-duration-ms` to repeat the selected
+case in one nonce session. Both must be positive integers. Duration is a
+single monotonic primary window of at most 120000 ms, starting before
+provenance, reservation and setup. Each repetition rechecks admission and
+the saved baseline. A cold boot can be observed once per session.
+Using the offline `$opts` and fixture from the example above:
+
+```powershell
+$soak = @('--soak-count', '2', '--soak-duration-ms', '8000')
+python -S tools/dp8382x_hil_runner.py dry-run @opts @soak
+python -S tools/dp8382x_hil_runner.py run-fixture build/host/test/cli/dp8382x_cli_fixture.exe @opts @soak --timeout 15 --fixture-identity abcdef0 --out-dir build/evidence --run soak-10base-te
+python -S tools/dp8382x_hil_runner.py verify-artifacts build/evidence/soak-10base-te.json
+```
+
+For count `N`, admission reserves `C = 1 + 70*N` correlated command
+slots, including six measurement slots per case. It budgets two 1024-byte
+records per command, another eight setup commands and one recovery reply.
+The resulting `(2*(C+8)+1)*1024` bytes must fit `--max-bytes`. That same
+capture limit covers ordinary console output and combined child stdout and
+stderr at runtime. The JSON estimate includes base64 stderr, 32 KiB of
+fixed metadata, 640 bytes per command and 12 KiB per iteration. The
+capture and manifest ceilings are 1 MiB and 2 MiB. Dry-run reports each
+product, including `planned_ms = N * duration_ms`, the sum of the individual
+iteration ceilings before applying the shared window. Up to four
+interventions per iteration fit the receipt budget. Runtime stops at the first applicable
+count, primary deadline or fault.
+
+For a compiled soak, `--timeout` covers setup through publication. After
+reserving `--closure`, the runner sets aside one quarter of the remaining
+time for restoration (up to 3 s) and another quarter for publication (up to
+2 s). For serial it uses the declared session, cleanup and finalize limits.
+Authorized restoration draws from one cumulative allowance. A later
+iteration still uses the original primary deadline. A short or unknown
+write, boot change or damaged record ends further case writes. A timed-out
+full serial write at a clean boundary permits only the bounded continuity
+handshake. A later response cannot complete the interrupted case.
+
+The `soak` receipt gives requested, attempted, terminally completed and
+remaining iterations, the stop reason, the consumed record count, possible
+unconfirmed write, compiled setup steps and elapsed host milliseconds
+through carrier closure. A completed case can have a failing verdict.
+Unstarted iterations retain their own NOT RUN row. Each measured group
+includes its originating request number. Console queue/loss, all-source
+MDIO frames, managed health and cached chip events have separate fields.
+Native pump counters are null on the host fixture. The event mask identifies
+retained source words. Validity, freshness and timestamp describe the last
+complete aggregate. FCSCR contributes its low byte to the false-carrier sum.
+A saturated hardware sample makes that sum a lower bound, while `saturated`
+reports overflow of the software sum. RECR remains a raw word. Host capture
+loss is recorded by `transcript.truncated`.
+
+The verifier reconstructs the outbound prefix and every credited iteration
+from the transcript and intervention receipts. Elapsed host time comes from
+the run that wrote the pair. For `verify-transcript` it measures offline
+processing time. Keep the original pair for the carrier timing evidence.
+If publication fails, bounded diagnostics report known case and restoration
+outcomes and the reserved result remains nonpassing.
+
 For offline replay of an intervention case via `verify-transcript`, pass
 the original declarations and the captured `campaign.interventions` array
-as `--interventions FILE`. It is bounded to 4096 bytes. `verify-artifacts`
+as `--interventions FILE`. It is bounded to 4096 bytes per requested case. `verify-artifacts`
 reads the array from the existing manifest. The replay derives the expected
 case, step order, actions, outcome and restoration from the case definition,
 correlated records and acknowledgment receipts. A compiled fixture control
@@ -305,8 +365,10 @@ restoration proved.
 Serial JSON uses scope `serial_session` and adds typed fixture declarations,
 console and baud applicability, requested control-line states, limits, write
 attempts, open/close and resynchronization results. `commands` contains only
-timely full writes. A hard exit remains INCONCLUSIVE and retains any observed
-case failure as a separate receipt. The in-memory RX prefix includes ordinary
+timely full writes. A stalled serial carrier exits with status 2. Single-case
+receipts retain the historical INCONCLUSIVE hard-exit verdict. Soak receipts
+give a definite case or restoration FAIL precedence, including on replay.
+The in-memory RX prefix includes ordinary
 text and machine records. It is persisted after serial teardown, so abrupt
 process loss can leave only an empty transcript or a partial prefix. If final
 publication fails or misses admission to atomic replacement, the INCONCLUSIVE

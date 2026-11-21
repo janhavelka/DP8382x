@@ -46,6 +46,13 @@ if(Python3_Interpreter_FOUND)
     "${CMAKE_CURRENT_SOURCE_DIR}/../test_hil_features.py" --fixture "$<TARGET_FILE:dp8382x_cli_fixture>"
     --work-dir "${CMAKE_CURRENT_BINARY_DIR}")
   set_tests_properties(cli_hil_features PROPERTIES TIMEOUT 180)
+  foreach(suite soak interruptions)
+    add_test(NAME cli_hil_${suite} COMMAND "${Python3_EXECUTABLE}" -S
+      "${CMAKE_CURRENT_SOURCE_DIR}/../test_hil_${suite}.py" --fixture "$<TARGET_FILE:dp8382x_cli_fixture>"
+      --work-dir "${CMAKE_CURRENT_BINARY_DIR}")
+    set_tests_properties(cli_hil_${suite} PROPERTIES TIMEOUT 240)
+  endforeach()
+  set_tests_properties(cli_hil_interruptions PROPERTIES TIMEOUT 360)
   add_test(NAME cli_fixture_transcript COMMAND "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/fixture_transcript.py" "$<TARGET_FILE:dp8382x_cli_fixture>")
   add_test(NAME cli_diagnostic_transcript COMMAND "${Python3_EXECUTABLE}"

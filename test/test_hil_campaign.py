@@ -49,12 +49,13 @@ def replay(receipt, records):
     return aggregate({**receipt, **session.evidence()})
 
 
-def assert_required_fields(test, name, data, raw):
+def assert_required_fields(test, name, data, raw, replay_fn=replay):
     """Attack all field occurrences in the nonce-correlated command stream."""
     lines = row_lines(raw)
     original = decoded(raw)
     test.assertEqual(len(lines), len(original))
-    start = next(i for i, row in enumerate(original) if row.fields.get("nonce") == NONCE)
+    nonce = data["commands"][0].split(" ", 1)[1]
+    start = next(i for i, row in enumerate(original) if row.fields.get("nonce") == nonce)
     mutations = 0
     for index in range(start, len(lines)):
         fields = lines[index][len(PREFIX):-2].split(b" ")
@@ -68,7 +69,7 @@ def assert_required_fields(test, name, data, raw):
                     row, = decoded(PREFIX + b" ".join(altered) + b"\r\n")
                 except ProtocolError:
                     continue
-                if replay(data, [*original[:index], row, *original[index + 1:]]) == "PASS":
+                if replay_fn(data, [*original[:index], row, *original[index + 1:]]) == "PASS":
                     test.fail(f"{name} accepted altered {key!r} at record {index}: {altered!r}")
     return mutations
 

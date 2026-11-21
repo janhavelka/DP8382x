@@ -72,6 +72,12 @@ routes, separate restoration, worst verdicts and per-field evidence
 mutations. The simulated event/error inputs are child controls, and the
 typed baseline prelude appears before the correlated nonce.
 
+`cli_hil_soak` checks repeated cases, primary and cleanup clock boundaries,
+typed telemetry and manifest replay. `cli_hil_interruptions` cuts compiled
+command streams during setup, mutation and restoration. It also exercises
+short serial writes, failed publication, a held diagnostic under output
+backpressure and explicit watch/stress stops.
+
 The registered processor checks inject a refused poll, a temporarily refused
 take, a stalled writer, a clock regression during final-sample recording and
 an incomplete selftest receipt. The pinned SDK host checks also exercise the

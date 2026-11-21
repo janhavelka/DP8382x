@@ -16,14 +16,14 @@ import time
 
 if __package__:
     from .dp8382x_hil_campaign import MAX_COMMANDS, MAX_INTERVENTIONS, validate_declaration, validate_intervention
-    from .dp8382x_hil_protocol import ProtocolError
+    from .dp8382x_hil_protocol import MAX_RECORD_BYTES, U64_MAX, ProtocolError
     from .dp8382x_hil_serial import (
         CALL_STATES, INJECTED_BACKEND, LIMITS, NATIVE_BACKEND, UART_CONSOLE, USB_CONSOLE, USB_DRIVER_BAUD,
         fixture_identifier, valid_port,
     )
 else:
     from dp8382x_hil_campaign import MAX_COMMANDS, MAX_INTERVENTIONS, validate_declaration, validate_intervention
-    from dp8382x_hil_protocol import ProtocolError
+    from dp8382x_hil_protocol import MAX_RECORD_BYTES, U64_MAX, ProtocolError
     from dp8382x_hil_serial import (
         CALL_STATES, INJECTED_BACKEND, LIMITS, NATIVE_BACKEND, UART_CONSOLE, USB_CONSOLE, USB_DRIVER_BAUD,
         fixture_identifier, valid_port,
@@ -54,6 +54,35 @@ SERIAL_FIELDS = {"port", "board", "authorization", "reset_silent", "clean_input"
 
 class EvidenceError(ValueError):
     """Evidence could not be written, finalized, or verified."""
+
+
+def soak_plan(count, duration_ms, max_bytes, declaration):
+    """Bound a requested plan before allocating cases or reserving either file."""
+    if (type(count) is not int or not 1 <= count <= 120_000 or
+            type(duration_ms) is not int or not 1 <= duration_ms <= 120_000 or
+            type(max_bytes) is not int or not 1 <= max_bytes <= MAX_TRANSCRIPT_BYTES):
+        raise EvidenceError("soak requires positive count, duration (1..120000 ms) and capture limit")
+    if count > 1 and declaration["case"] == "cold-boot":
+        raise EvidenceError("one boot session cannot attest repeated cold boots")
+    # Include the handshake, six telemetry commands per case and the fixed
+    # eight-command prelude. Every command can produce admission and terminal.
+    commands = 1 + count * (MAX_COMMANDS + 6)
+    records = 2 * (commands + 8) + 1  # One possible same-connection nonce.
+    transcript = records * MAX_RECORD_BYTES
+    # Reserve base64 stderr at the combined capture ceiling. Allow 640 bytes
+    # per confirmed command + serial write receipt, one escaped error, typed
+    # iteration snapshots and all four bounded intervention declarations.
+    manifest = 32_768 + 4 * ((max_bytes + 2) // 3) + 640 * commands + 12_288 * count
+    if transcript > max_bytes or manifest > MAX_MANIFEST_BYTES:
+        raise EvidenceError("soak plan exceeds its transcript or manifest byte budget")
+    # Sum the per-iteration ceilings in integer milliseconds. The actual
+    # primary window is shared, and never grows by this product.
+    planned_ms = count * duration_ms
+    if planned_ms * 1000 > U64_MAX or commands + 1 > U64_MAX:
+        raise EvidenceError("soak plan exceeds the duration or request number range")
+    return {"count": count, "duration_ms": duration_ms, "max_bytes": max_bytes,
+            "command_limit": commands, "record_limit": records, "transcript_bytes": transcript,
+            "manifest_bytes": manifest, "planned_ms": planned_ms}
 
 
 def _object(value, fields):
@@ -154,7 +183,8 @@ def _validate_serial(data):
         raise EvidenceError("Invalid serial resynchronization outcome")
     writes = serial["writes"]
     campaign = data.get("campaign")
-    if type(writes) is not list or len(writes) > (MAX_COMMANDS + 1 if campaign else 11):
+    command_limit = data["soak"]["plan"]["command_limit"] if "soak" in data else MAX_COMMANDS
+    if type(writes) is not list or len(writes) > (command_limit + 1 if campaign else 11):
         raise EvidenceError("Invalid serial write attempts")
     for row in writes:
         if (not _object(row, {"command", "bytes", "state", "detail"}) or not _text(row["command"])
@@ -178,9 +208,55 @@ def _validate_serial(data):
         raise EvidenceError("Serial and campaign authorization disagree")
 
 
+def _validate_soak(data):
+    soak = data["soak"]
+    keys = {"plan", "requested", "attempted", "completed", "remaining", "stop_reason", "telemetry",
+            "elapsed_ms", "primary_window_ms", "setup", "received_records", "unconfirmed_command"}
+    if not _object(soak, keys) or type(soak["plan"]) is not dict:
+        raise EvidenceError("invalid soak receipt")
+    claim = soak["plan"]
+    plan = soak_plan(claim.get("count"), claim.get("duration_ms"), claim.get("max_bytes"),
+                     data["campaign"]["declaration"])
+    if (claim != plan or any(type(value) is not int for value in claim.values()) or
+            any(type(soak[key]) is not int for key in ("requested", "attempted", "completed", "remaining",
+                                                       "elapsed_ms", "primary_window_ms", "received_records")) or
+            soak["requested"] != plan["count"] or soak["remaining"] != plan["count"] - soak["completed"] or
+            not 0 <= soak["completed"] <= soak["attempted"] <= plan["count"] or
+            not 0 <= soak["received_records"] <= plan["record_limit"] or soak["elapsed_ms"] < 0 or
+            not 0 <= soak["primary_window_ms"] <= plan["duration_ms"] or
+            (soak["stop_reason"] == "duration" and soak["elapsed_ms"] + 1 < soak["primary_window_ms"]) or
+            soak["stop_reason"] not in ("count", "duration", "cancelled", "fault", "pending") or
+            (soak["stop_reason"] == "count" and soak["remaining"] != 0) or
+            (soak["stop_reason"] == "pending" and (data["ended_utc"] or soak["attempted"])) or
+            (data["complete"] and soak["stop_reason"] not in ("count", "fault"))):
+        raise EvidenceError("inconsistent soak plan, iteration counts or stop reason")
+    pending = soak["unconfirmed_command"]
+    if pending is not None and (not _text(pending) or len(pending) > 96 or data["complete"]):
+        raise EvidenceError("invalid uncertain command receipt")
+    setup = soak["setup"]
+    if (type(setup) is not list or len(setup) > 8 or
+            any(not _object(item, {"command", "state"}) or not _text(item["command"]) or
+                item["state"] not in ("uncertain", "written", "terminal") for item in setup) or
+            any(item["state"] != "terminal" for item in (setup if data["complete"] else setup[:-1]))):
+        raise EvidenceError("invalid compiled setup receipt")
+    observations = soak["telemetry"]
+    if (type(observations) is not list or not soak["attempted"] <= len(observations) <= plan["count"] or
+            any(not _object(row, {"id", "console", "transport", "health", "chip"}) or
+                row["id"] != f'{data["campaign"]["declaration"]["case"]}-{i}' or
+                any(row[key] is not None and type(row[key]) is not dict for key in ("console","transport","health","chip"))
+                for i, row in enumerate(observations, 1))):
+        raise EvidenceError("invalid soak observations")
+    if "serial" in data and (not isinstance(data["serial"], dict) or setup or
+                             data["serial"].get("max_bytes") != plan["max_bytes"]):
+        raise EvidenceError("soak plan disagrees with serial setup")
+    return plan
+
+
 def _validate_data(data, fields, scope):
     if type(data) is dict and data.get("suite") == "campaign":
         fields = fields | {"campaign"}
+        if "soak" in data:
+            fields = fields | {"soak"}
     if not _object(data, fields):
         raise EvidenceError("Invalid evidence fields")
     if (type(data["complete"]) is not bool or not _text(data["suite"]) or not _text(data["fixture"])
@@ -199,16 +275,25 @@ def _validate_data(data, fields, scope):
     if data["suite"] == "campaign":
         campaign = data["campaign"]
         if (not _object(campaign, {"declaration", "interventions"}) or
-                type(campaign["interventions"]) is not list or len(campaign["interventions"]) > MAX_INTERVENTIONS or
-                len(data["commands"]) > MAX_COMMANDS):
+                type(campaign["interventions"]) is not list):
             raise EvidenceError("Invalid campaign receipt")
         try:
             spec = validate_declaration(campaign["declaration"])
+            count = 1
+            command_limit = MAX_COMMANDS
+            case_ids = [spec.id]
+            if "soak" in data:
+                plan = _validate_soak(data)
+                count, command_limit = plan["count"], plan["command_limit"] + 1
+                case_ids = [f"{spec.id}-{i}" for i in range(1, count + 1)]
+            if (len(data["commands"]) > command_limit or
+                    len(campaign["interventions"]) > MAX_INTERVENTIONS * count):
+                raise EvidenceError("campaign receipt exceeds declared limits")
             for receipt in campaign["interventions"]:
                 validate_intervention(receipt, campaign["declaration"])
         except ProtocolError as error:
             raise EvidenceError(str(error)) from error
-        if seen != {spec.id} or data["fixture"] != campaign["declaration"]["board"]:
+        if [case["id"] for case in data["cases"]] != case_ids or data["fixture"] != campaign["declaration"]["board"]:
             raise EvidenceError("Campaign case or board receipt disagrees with its declaration")
     identity, expectations, runner = data["identity"], data["expectations"], data["runner"]
     if identity and (type(identity.get("boot")) is not int or not 0 <= identity["boot"] < (1 << 32)
@@ -232,13 +317,15 @@ def _validate_data(data, fields, scope):
 
 def aggregate(data: dict) -> str:
     """Combine validated case evidence and closure into PASS, FAIL or INCONCLUSIVE."""
-    if data.get("scope") == SERIAL_SCOPE and data["serial"]["hard_exit"]:
+    hard_exit = data.get("scope") == SERIAL_SCOPE and data["serial"]["hard_exit"]
+    if hard_exit and "soak" not in data:
         return "INCONCLUSIVE"
     cases = data["cases"]
     if any(case["verdict"] == "FAIL" or case["restoration"]["verdict"] == "FAIL" for case in cases):
         return "FAIL"
     transcript = data.get("transcript")
-    if (not data["complete"] or not cases or not data["commands"] or not data["identity"] or not data["runner"]
+    if (hard_exit or ("soak" in data and data["soak"]["stop_reason"] != "count") or
+            not data["complete"] or not cases or not data["commands"] or not data["identity"] or not data["runner"]
             or data["issues"]
             or not TARGET_FIELDS <= data["expectations"].keys()
             or (transcript is not None and (transcript["truncated"] or transcript["length"] == 0))):
@@ -328,7 +415,7 @@ class EvidenceFiles:
         self._digest = hashlib.sha256()
         self._write_failed = False
         self._truncated = False
-        self._scope = SERIAL_SCOPE if provisional is not None else "host_protocol"
+        self._scope = SERIAL_SCOPE if provisional is not None and "serial" in provisional else "host_protocol"
         placeholder = {
             "schema": 1, "scope": self._scope, "run": run, "verdict": "INCONCLUSIVE",
             "suite": "unknown", "fixture": "unknown", "started_utc": datetime.now(timezone.utc).isoformat(),
@@ -340,7 +427,8 @@ class EvidenceFiles:
         }
         if provisional is not None:
             placeholder.update(provisional)
-            _validate_data(placeholder, DATA_FIELDS | ARTIFACT_FIELDS | {"serial"}, self._scope)
+            fields = DATA_FIELDS | ARTIFACT_FIELDS
+            _validate_data(placeholder, fields | ({"serial"} if self._scope == SERIAL_SCOPE else set()), self._scope)
         reserved_json = False
         try:
             directory.mkdir(parents=True, exist_ok=True)
@@ -485,6 +573,8 @@ def verify_artifacts(path: Path) -> tuple[dict, bytes]:
         content = _bounded_read(path.with_suffix(".txt"), MAX_TRANSCRIPT_BYTES)
         if scope == SERIAL_SCOPE and len(content) > data["serial"]["max_bytes"]:
             raise EvidenceError("Transcript exceeds its declared serial capture limit")
+        if "soak" in data and len(content) + stderr_size > data["soak"]["plan"]["max_bytes"]:
+            raise EvidenceError("Soak output exceeds its planned capture limit")
         if len(content) + stderr_size > MAX_TRANSCRIPT_BYTES:
             raise EvidenceError("Combined stdout and stderr exceed the capture limit")
         if _transcript_info(content, info["truncated"]) != info:

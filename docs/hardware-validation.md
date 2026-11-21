@@ -127,6 +127,21 @@ An initialization replay of changed intent alone cannot prove restoration.
 The application was admitted stopped and remains in maintenance. An
 application owner chooses any later start after checking current readiness.
 
+For a repeated campaign, the fixture authorization must cover the named case,
+the requested repetition count and the whole maintenance interval. One boot
+and one serial attachment cover the run. Review each iteration's saved-state
+readback, cleanup verdict and counter snapshots. Loss of the session after
+a write can leave the PHY or peer changed. Record the unconfirmed command
+and the last proved restoration step before deciding on a separately
+authorized recovery. The remaining iterations stay unattempted.
+
+To exercise these paths offline, run the two-iteration compiled example and
+replay its exclusive artifact pair. The interruption tests inject loss during
+setup, admitted operations, peer actions, restore/readback and publication.
+The firmware fixture also services a held TDR through a stalled output queue
+and stops watch/stress with the actual partial count.
+[Finite soak commands and limits](hil-runner.md#finite-soak)
+
 ## Feature fixtures
 
 Select a single diagnostic or control case using `--suite campaign --case ID`.

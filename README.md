@@ -12,7 +12,8 @@ DHCP or reachability results.
 The [hardware validation guide](docs/hardware-validation.md) defines the
 observation, configuration/reset, link, diagnostic and opt-in control campaigns
 and their physical gates.
-The [runner guide](docs/hil-runner.md) includes a compiled offline example.
+The runner guide includes a two-iteration compiled example with independent
+restoration receipts and offline replay. [Finite soak](docs/hil-runner.md#finite-soak)
 The [P4 owner example](examples/esp_idf/owner/README.md) adds explicit session
 admission on fresh 100/full evidence, bounded raw RX/TX queues and maintenance
 after release. An SDK transmit reporting cached link-down requires verified

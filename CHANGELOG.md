@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add finite campaign repetitions with one primary deadline, per-iteration
+  console, MDIO, health and chip telemetry, and replay of interrupted writes
+  and restoration outcomes.
+
 - Add offline DP83826I diagnostic and opt-in control campaigns with typed
   admission, retained partial results and separately verified restoration.
   Document the bench evidence each physical feature case requires.
