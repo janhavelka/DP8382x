@@ -8,21 +8,23 @@ and actual evidence.
 
 ## Is a system restart acceptable after native Ethernet retirement?
 
-**Example.** A machine withdraws an EtherCAT session after a port failure.
-Maintenance stops the native Ethernet path. The product either stays out of
-service until it can be restarted or must recreate the installed Ethernet
-objects while the rest of the machine stays up.
+**Example.** A machine withdraws an EtherCAT session after the cable is
+unplugged. Once the cable is back, verified maintenance and a new session
+can recover using the same installed objects. A failure that instead
+requires retiring those objects raises a separate question about product
+downtime.
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| Accept a controlled system restart after terminal retirement | Uses the current supported route. Resources stay alive for any SDK RX work still referencing them. | Restart interrupts other services. The application must own when to restart and how to resume. |
-| Require recovery without a system restart | Lets other services stay up when Ethernet is replaced. | Needs a public SDK lifecycle route that proves the old RX task has relinquished every reference. Until then reusable installed teardown stays blocked. |
+| Recover in place when maintenance can verify the existing installation. Restart after terminal retirement. | Uses the existing routes. Ordinary link recovery keeps other services up, and a terminal failure retains resources until restart. | A terminal failure interrupts other services during restart. The product needs a defined restart and resume procedure. |
+| Qualify stop, teardown and reinstallation on an SDK baseline with a proven public RX shutdown boundary | Can restore Ethernet after terminal retirement while other services stay up. | The pinned SDK has an unresolved RX lifetime gap. This route needs source review and start/stop/failure tests on a suitable baseline before it can be selected. |
 
-**Suggested starting point.** Use restart for terminal retirement if the
-product can tolerate it. Link loss by itself has a separate maintenance and
-readmission route. If in-process replacement is a product requirement, put
-that requirement into the consumer before selecting an SDK change. An
-application callback count of zero cannot close the RX lifetime gap.
+**Suggested starting point.** Use verified in-place recovery whenever it
+applies and decide how much terminal-outage downtime the product can accept.
+Recovery must establish a fresh resolved link and admit a new session before
+using it. Pursue the SDK route only when restarting would violate a real
+availability requirement. A callback count of zero alone leaves the SDK RX
+lifetime unresolved.
 [Native lifecycle decision](design-decisions.md#6-public-lifecycle-route-for-the-pinned-sdk) ·
 [EtherCAT integration](ethercat-integration.md)
 
@@ -38,11 +40,14 @@ handles that interval independently of the PHY.
 | --- | --- | --- |
 | Use bounded PHY polling with an application observation-age limit | Fits the recorded first-board wiring and can be measured on the intended RMII path. | Poll interval, scheduler load and PHY transition time limit detection. Shorter polls consume more owner time. |
 | Combine PHY polling with the application's cyclic traffic timeout | The master can reject a stale session after missing cyclic traffic even when link status has yet to change. | Requires a tested application timeout policy. Missing traffic can have several causes and does not identify a physical cable event. |
-| Qualify an interrupt on a separate fixture or select it for a later board | Gives a hardware event path to measure if polling is insufficient. | The recorded first board has no verified PHY INT wiring. A wired fixture adds pin-mux, polarity and timing tests and still needs an application fallback. |
+| Use a wired PHY interrupt as a service hint, then confirm the link through the owner | Can reduce the wait before checking a physical link event. | The recorded first board has no verified PHY INT wiring. A wired fixture adds pin-mux, polarity and timing tests and still needs fallback checks. |
 
 **Suggested starting point.** Use the existing polling path and ask the
 consumer for its withdrawal budget. Measure from an independent event marker
-through session withdrawal under realistic cyclic load. Revisit wired INT
+through session withdrawal under realistic cyclic load. Also check a peer
+that stops exchanging usable traffic while the electrical link stays up.
+Use the existing cyclic timeout if PHY polling cannot cover that case.
+Revisit wired INT
 only if the application requires it or the measured polling path misses the
 budget. Board readiness, a resolved 100/full link and machine-level response
 remain separate checks. [First-board wiring and link policy](esp32p4-board.md) ·
@@ -75,10 +80,12 @@ readiness after the transition.
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| Leave deep power-down out of the product profile and qualify existing power options as needed | Preserves the current source gate. Active sleep, IEEE power-down or normal operation can be compared on the actual board. | May fail a product's standby-current or wake-time target. Any selected power option still needs its clock and board conditions checked. |
-| Require deep power-down and obtain exact-part exit evidence | Can address a concrete power requirement if the full transition is supported. | Needs the complete entry, exit, clock-readiness and restore contract before the gated operation can be enabled. The current library refuses it. |
+| Keep the PHY in normal operation during idle | Has the fewest transitions to qualify and keeps the existing clock and link path available in idle. | Idle current may exceed the product budget. |
+| Qualify the implemented active-sleep mode on the actual board | Can reduce idle power with the existing driver and retains an explicit wake check. | Wake time, management access and the PHY-supplied MAC clock need measurement under the actual peer conditions. |
+| Qualify deep power-down if measured idle power still misses the requirement | Can address a tighter standby-current target if the full transition is supported. | Needs exact-part evidence for entry, exit, clock readiness and restoration before the library can enable it. |
 
-**Suggested starting point.** Write down the product standby-current and
-wake-time goals before depending on deep power-down. Keep the existing
-library investigation open for exact-part evidence regardless of the first
-product's choice. [Power policy and source gate](power.md)
+**Suggested starting point.** Measure normal operation against the product's
+standby-current target. If it misses, compare active sleep using the same
+fixture and check elapsed time to a usable fresh link. Treat deep power-down
+as a candidate only if a simpler mode misses the target and the required
+exit evidence is available. [Power policy and source gate](power.md)
