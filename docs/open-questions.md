@@ -6,29 +6,41 @@ record the accepted library behavior. The [feature coverage](feature-coverage.md
 and [implementation progress](implementation-progress.md) show which checks
 have been run and which still need evidence.
 
-## When should Ethernet recovery require a board restart?
+## What happens when the EtherCAT cable is unplugged and plugged back in?
 
-**Example.** If the drive cable is unplugged, close the active EtherCAT
-session. When the cable is back, the application can use the same installed
-Ethernet driver after the required recovery and link checks. A different kind
-of failure may require removing and reinstalling the driver. With the selected
-version of ESP-IDF, a background task that receives Ethernet data may still
-be using the old driver after Ethernet has stopped. Restarting the board is
-the supported way to recover from that situation.
+**A cable unplug does not require an MCU reboot.** If a drive cable is
+unplugged, the master marks the exchange invalid and closes the old
+session. When the cable is plugged back in, the board can use the same
+Ethernet driver. The application checks that the link is back at the
+expected speed and duplex, completes its recovery checks, and opens a new
+EtherCAT session. If the Ethernet controller needs to be stopped and
+started during these checks, it can reuse the same driver. The machine
+decides when motion is allowed to resume.
+[EtherCAT integration](ethercat-integration.md)
+
+### Separate SDK question: replacing the Ethernet driver's running state
+
+The Ethernet driver is code already in the firmware. When the MCU starts
+Ethernet, that code sets up memory and callbacks for the Ethernet controller.
+*Reinstalling the driver* means freeing and rebuilding that running state
+without rebooting the MCU. A cable unplug leaves the running driver available
+for reuse. This SDK question only matters if the system needs to discard
+the driver itself and build it again.
+
+With the current ESP-IDF, its Ethernet receive task may still use the old
+driver memory after the Ethernet controller has stopped. Until the SDK can
+prove it has finished using that memory, keep it intact. A board restart
+rebuilds the driver from scratch if that is required.
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| Keep the installed driver for ordinary link recovery. Restart the board if recovery requires reinstalling the driver. | Uses the existing recovery paths. A cable reconnect can be handled while other services keep running. | The board restart interrupts other services. The machine needs a defined restart and resume procedure. |
-| Validate an ESP-IDF version that can stop, remove and reinstall the Ethernet driver safely while the board keeps running | Can restore Ethernet without interrupting other services when the installed driver must be replaced. | Needs a supported SDK method that proves the receive task has finished using the old driver, plus tests under traffic and failure conditions. The pinned SDK does not establish this. |
+| Keep the driver in memory for link recovery. Restart the board only if its Ethernet driver state must be rebuilt. | A cable reconnect can be handled while other services keep running. Uses the current SDK safely. | A board restart briefly interrupts the other services if the driver state has to be rebuilt. |
+| Qualify an ESP-IDF version that can safely rebuild the driver state while the MCU keeps running | The rest of the board can keep running even when the Ethernet driver has to be rebuilt. | Requires an SDK method that proves the receive task has finished using the old memory, plus tests under traffic and failure conditions. |
 
-**Suggested starting point.** Keep the existing driver when recovery can
-verify it still works. Check that the link came back at the expected speed
-in full duplex and that the Ethernet controller is running before opening a
-new session.
-Consider testing driver reinstallation without rebooting if the machine's
-other services need to keep running through a driver failure.
+The current cable-recovery work uses the first route. Revisit rebuilding
+the driver while the board runs only if the product needs that capability.
 [Native lifecycle decision](design-decisions.md#6-public-lifecycle-route-for-the-pinned-sdk) ·
-[EtherCAT integration](ethercat-integration.md)
+[EtherCAT recovery example](../examples/esp_idf/owner/README.md)
 
 ## How quickly must the machine detect a failed EtherCAT exchange?
 
@@ -56,15 +68,24 @@ while the Ethernet link still reports up.
   setting belongs to the demo's link checks. The EtherCAT master sets its
   own cycle and reply deadline.
 
-The DP83826I can signal an event to the processor through a hardware
-interrupt. In Enhanced mode it can be configured to pull pin 21
-(`PWRDN/INT`) low when an interrupt occurs. In the saved ESP32P4X schematic,
-the pin reaches the `ETHPDN` test point and a pull-up resistor that holds it
-high at idle. It has no connection to an ESP32 input (GPIO). The interrupt
-can help report a physical link event sooner. A 1 ms EtherCAT exchange and
-the master's reply deadline do not require this pin.
+Pin 21 on the DP83826I is called `PWRDN/INT` in Enhanced mode. It has
+two possible roles:
+
+- **Power-down input at startup.** Pulling the pin low requests IEEE
+  power-down. The chip's automatic Active Sleep and Deep Power-Down modes
+  have separate settings.
+- **Interrupt output after firmware configures it.** The PHY can pull
+  the pin low to tell the processor an enabled event happened, such as
+  link going up or down. The processor then reads the PHY's status to
+  find out what happened.
+
+In the saved ESP32P4X schematic, the pin reaches the `ETHPDN` test point
+and a pull-up resistor that holds it high at idle. It has no connection
+to an ESP32 GPIO. A wired interrupt could report a physical link change
+sooner. The master's 1 ms EtherCAT exchange and reply deadline work
+independently of the pin.
 [Board wiring](esp32p4-board.md#phy-interrupt-wiring) ·
-[TI datasheet, table 5-1](https://www.ti.com/lit/ds/symlink/dp83826i.pdf) ·
+[TI datasheet, table 5-1 and section 8.3.6](https://www.ti.com/lit/ds/symlink/dp83826i.pdf) ·
 [EtherCAT process data](https://www.ethercat.org/en/technology.html) ·
 [Demo polling settings](../examples/esp_idf/owner/README.md)
 

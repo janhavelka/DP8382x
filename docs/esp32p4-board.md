@@ -45,8 +45,10 @@ does not authorize an assumed ready-to-flash board.
 ## PHY interrupt wiring
 
 Texas Instruments names pin 21 `PWRDN/INT` in Enhanced mode. It starts as
-a power-down input. Firmware can configure it as an active-low open-drain
-interrupt output. [TI datasheet, table 5-1](https://www.ti.com/lit/ds/symlink/dp83826i.pdf)
+an IEEE power-down input, which requests power-down when held low.
+Firmware can switch the pin to an interrupt output. In that role the PHY
+pulls it low on an enabled event such as link going up or down.
+[TI datasheet, table 5-1 and section 8.3.6](https://www.ti.com/lit/ds/symlink/dp83826i.pdf)
 
 In the saved ESP32P4X schematic export
 `current/2026-11-16f-mcu-gnd-dsi-usb/final/erc-and-netlist.json` in
