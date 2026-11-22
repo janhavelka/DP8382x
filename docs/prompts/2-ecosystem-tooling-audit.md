@@ -34,7 +34,7 @@ recording exact paths, revisions, dirty state and adopt/adapt/reject decisions.
   which behavior is still planned. Extract clear prerequisites, path ownership,
   completion evidence and scoped delegation rather than copying product code.
 - Inventory remaining Projects chip drivers, including ADS1115, INA3221,
-  LDC1614, LSM6DS3TR, OPT4001, RV3032-C7, MCP45HVX1, SSD1315 and relevant
+  LDC161x, LSM6DS3TR, OPT4001, RV3032-C7, MCP45HVX1, SSD1315 and relevant
   non-I2C drivers. Discover actual directory names. Sample a deeper source only
   where it adds a useful convention; record inventory versus deep-audit coverage.
 

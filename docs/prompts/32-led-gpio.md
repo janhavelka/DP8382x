@@ -28,7 +28,7 @@ Blink codes 0-3 at `0018[10:9]` mean 50/100/200/500 ms. Resolve per-pin mux
 R-versus-R/W and reserved clock selections for each pin before enabling its programmable path.
 
 Reopen PCA9555 desired/observed and raw shadow-invalidation code/tests,
-LDC1614 deferred interrupt/pin source and relevant SCD41/RV3032-C7 public IRQ
+LDC161x deferred interrupt/pin source and relevant SCD41/RV3032-C7 public IRQ
 controls. Inspect actual declarations, dispatcher/tests and current registration.
 Use peer validation/ownership patterns only; SNLS647I defines PHY pin functions,
 electrical encodings and reset behavior.

@@ -10,7 +10,7 @@ Use actual declarations, implementation and tests for the selected conventions.
 | Portable API/layout | `TMP1x2/include/TMP1x2/`, `INA228/include/INA228/`, `PCA9555/include/PCA9555/`, corresponding `src/` | Names, terminal Status, typed config; not I2C framing |
 | Ownership/effects | `MB85RC/include/MB85RC/`, `PCA9555/src/PCA9555.cpp`, `TMP1x2/docs/owner-operations.md`, `24Cxx/include/EEPROM24Cxx/` | Borrowed transport, uncertainty, retained operation evidence; no EEPROM timing or split-MMD polling |
 | Health | INA228, SHT3x-main, PCA9555, TCA9548A public snapshots and implementations | Vocabulary differs; distinguish MDIO health, config trust and link |
-| Shared CLI | `TMP1x2/examples/common/`, `SHT3x-main/examples/common/`, `24Cxx/examples/common/`, LDC1614 dispatcher/tests | Actual help, strict parsing, owner ingress, bounded output |
+| Shared CLI | `TMP1x2/examples/common/`, `SHT3x-main/examples/common/`, `24Cxx/examples/common/`, LDC161x dispatcher/tests | Actual help, strict parsing, owner ingress, bounded output |
 | Native IDF lifecycle | INA228 `examples/esp_idf/basic/`, TCA9548A/PCA9555 `examples/espidf_basic/` | Cleanup, ownership and diagnostics; their I2C drivers are not PHY/MAC backends |
 | Python HIL | `TMP1x2/tools/hil_tmp1x2_runner.py`, INA228/PCA9555 `tools/run_i2c_hil.py`, TCA9548A `tools/tca9548a_hil.py`, MB85RC `tools/hil_runner.py` | Provenance, strict outcomes, restoration and parser tests; inspect current grammar |
 | Host/package/CI | TMP1x2/24Cxx CMake, tools and workflows; SCD41 package consumers; MB85RC metadata tools | Test registration, clean consumption and version source; no copied S2/S3 Ethernet support claim |
@@ -18,7 +18,7 @@ Use actual declarations, implementation and tests for the selected conventions.
 | Prompt organization | `FieldCore-node/docs/prompts/`, guidelines and implementation plan; `TUSB32x/docs/prompts/` | Contracts, source maps, scope/ownership, closure; no inherited Git/CI/model authorizations |
 | Consumer integration | `FieldCore-node/src/devices/i2c/Ina228Module.h` and `.cpp`, `FieldCore-node/include/TunnelMonitor/contracts/`, current integration guidelines | Module-owned I/O, cached projection, status translation; no existing Ethernet module claim |
 
-Broaden the initial inventory to ADS1115, INA3221, LDC1614, LSM6DS3TR, OPT4001,
+Broaden the initial inventory to ADS1115, INA3221, LDC161x, LSM6DS3TR, OPT4001,
 RV3032-C7, MCP45HVX1, SSD1315 and applicable non-I2C drivers such as MAX31865.
 Use their actual current directory names discovered by `rg --files`. Do not
 copy obsolete reports or claimed API names without finding the implementation.

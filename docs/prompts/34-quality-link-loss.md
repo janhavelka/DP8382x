@@ -30,7 +30,7 @@ Test CR2 bit 1 clear=odd-nibble detection enabled/set=disabled, including mode
 constraints, and CR2 bit 2 RX_ER-during-IDLE independently of GENCFG IPG.
 
 Reopen INA228 raw diagnostic validity/destructive reads, TMP1x2 cached
-snapshots/configuration verification and current LDC1614 deferred-event source/
+snapshots/configuration verification and current LDC161x deferred-event source/
 tests. Inspect their CLI/error projections and registration. Recheck exact
 SNLS647I quality, PHYCR/next-page, event/error and Fast Link Drop feature text;
 TI C2000/ESC app notes provide context, not ESP32-P4 master recipes.

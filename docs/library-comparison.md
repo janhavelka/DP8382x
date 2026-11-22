@@ -273,14 +273,14 @@ filename alone.
 | --- | --- |
 | ADS1115 `235af3e8c722661a89a44766a4ccd903a654f6fe` | `include/ADS1115/`, `src/ADS1115.cpp`; inventory only |
 | INA3221 `41b6184b75f3c152611d4236f7ea41a5ce77bc2c` | `include/INA3221/`, `src/INA3221.cpp`; inventory only |
-| LDC1614 `1db38b63cb93a561b6e0bea51017ab94102ebd24` | `include/LDC1614/`, `src/LDC1614.cpp`; inventory only |
+| LDC161x `1db38b63cb93a561b6e0bea51017ab94102ebd24` | `include/LDC1614/`, `src/LDC1614.cpp`; inventory only |
 | LSM6DS3TR `362b140990bc4ba2bc7f32cef50f8d9f30b4d3cc` | `include/LSM6DS3TR/`, `src/LSM6DS3TR.cpp`; repository is `LSM6DS3TR`, chip label includes `-C` |
 | OPT4001 `dab818e575fc25a0949d962bc0df600eb2ed5200` | `include/OPT4001/`, `src/OPT4001.cpp`; inventory only |
 | RV3032-C7 `aabd8d9204e75072403fefb60cf8d2679a7f56de` | `include/RV3032/`, `src/RV3032.cpp`; repository and include directory differ |
 | MCP45HVX1 `c6c7feefd79b9fc16ddc7b7786ad187e5185fde6` | `include/MCP45HVX1/`, `src/MCP45HVX1.cpp`; inventory only |
 | SSD1315 `9586b61363b2b70966f84e218f786bcfe9906e76` | `include/ssd1315/`, compatibility `include/SSD1315.h`, `src/SSD1315.cpp`; casing differs |
 | MAX31865 `eb44f3463328a0a893b82102fcdfee4f7f9a39d1` | `include/MAX31865/Transport.h`, `src/MAX31865_Protocol.cpp`, `src/platform/arduino/`; sampled contract below |
-| ADS1261_ESP32 `c4420ae197ce7da7c884c6e5b39acba133fa13f4` | `include/ADS1261_ESP32/Transport.h`, `src/ADS1261_Protocol.cpp`, `src/platform/arduino/`; sampled contract below |
+| ADS1261 `c4420ae197ce7da7c884c6e5b39acba133fa13f4` | `include/ADS1261_ESP32/Transport.h`, `src/ADS1261_Protocol.cpp`, `src/platform/arduino/`; sampled contract below |
 | MotorControl-RS `bd831c859daa9c8c07b8d27a2dd879bb4e750511` | `include/MotorControlRS/`, multiple `src/` units; other-protocol inventory only |
 | MotorControl-CAN `aa8a3bc2613843174ec25eab195f27ebcb596fcf` | No current `include/`, `src/`, `examples/` or `test/` located; planned repository, no implemented behavior inferred |
 | VTN4xx `c825c125b87b4f7f2b47bf4352d76367322447b4` | `include/VTN4XX/`, `src/VTN4XX.cpp`; other-protocol inventory only |
@@ -288,7 +288,7 @@ filename alone.
 
 The deeper sample `MAX31865/include/MAX31865/Transport.h` explicitly borrows
 SPI callbacks/context, separates controller lock, chip select and transfer, and
-documents callback lifetime. `ADS1261_ESP32/include/ADS1261_ESP32/Transport.h`
+documents callback lifetime. `ADS1261/include/ADS1261_ESP32/Transport.h`
 also separates callback roles and platform backend. **Adapt** the explicit
 transport/platform boundary where appropriate, but SPI framing, CS timing and
 pin roles are not MDIO rules. The other inventory rows are not additional

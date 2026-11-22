@@ -50,7 +50,7 @@ Fresh clean sibling revisions and inspected paths (relative to Projects):
   validate/verify/update; `test/test_core.cpp` mismatch cases and registration;
   `examples/common/Tmp1x2Cli.cpp` snapshot/snapshotread;
   `tools/test_hil_tmp1x2_runner.py` trust/restoration-failure cases.
-- LDC1614 `da104689de49ab8f492e7905f3eb7496f0866624`:
+- LDC161x `da104689de49ab8f492e7905f3eb7496f0866624`:
   `include/LDC1614/LDC1614.h` deferred status declarations;
   `src/LDC1614.cpp`1076-1124; `test/test_basic.cpp`357/386/2730 and registration;
   `examples/common/Ldc1614Cli.cpp` first destructive-status acquisition and

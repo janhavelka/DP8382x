@@ -82,7 +82,7 @@ Fresh read-only sibling checks, all clean:
 - PCA9555 `8b461b2`: src/PCA9555.cpp shadow invalidation/establishment,
   test/test_basic.cpp ambiguous-write/read-proof cases and registration,
   tools/test_run_i2c_hil_parser.py failure/strict-output cases.
-- LDC1614 `da104689`: public readDeviceStatus/readDataReady,
+- LDC161x `da104689`: public readDeviceStatus/readDataReady,
   src/LDC1614.cpp deferred INTB versus destructive STATUS and test_basic cases.
 - SCD41 `0b9d3d02`: src/SCD41.cpp runtimeSnapshot/data-ready implementation;
   no public IRQ surface was invented from unrelated sensor behavior.

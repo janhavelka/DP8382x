@@ -135,6 +135,8 @@ intent. Native reusable teardown remains gated on RX lifetime safety.
   tooling and PHY findings behind the plan.
 - [Implementation progress](docs/implementation-progress.md): execution branch,
   completed evidence stages and remaining work.
+- [Open questions](docs/open-questions.md) for product requirements and the
+  first physical fixtures, with examples and tradeoffs.
 - [Reference archive](docs/reference/README.md): downloaded TI datasheets,
   application notes, EVM guides and hardware collateral, with provenance.
 - [Official source references](docs/reference/source-code.md): pinned TI and

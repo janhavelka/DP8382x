@@ -11,7 +11,7 @@ handlers follow; expose only working commands here.
 Reopen TMP1x2's `examples/common/Tmp1x2Cli.h` and `Tmp1x2Cli.cpp` (`setup`, `feed`,
 `processCommand`, `tick`, `printHelp`) and `ConsoleBuffer.h` (`format`,
 `drain`). Compare 24Cxx's `discardInput`, `Platform::outputReady` and
-session/result retention; inspect SHT3x dispatch, LDC1614 help/parser tests
+session/result retention; inspect SHT3x dispatch, LDC161x help/parser tests
 and INA228's native framing with
 `tools/run_i2c_hil.py::{hilrun_end_re,strip_hilrun_frame}`. Record current
 revisions, source/test/runner paths and adopted/adapted/rejected choices.
