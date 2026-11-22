@@ -374,8 +374,11 @@ class FixtureTranscript(unittest.TestCase):
         self.assertEqual((restore["state"], restore["op"], restored["state"], restored["op"],
                           restored["primary"], restored["persistent_restored"], restored["cleanup_owed"]),
                          ("admitted", "3", "terminal", "3", "OK", "1", "0"))
-        # The owner took the cancelled result during the four stalled ticks.
-        self.assertLessEqual(int(terminal["time_us"]) - int(cancel["time_us"]), 4000)
+        # Cancellation ran on the first of four stalled ticks. The first
+        # resumed tick is 4,000 us later and is already outside this window.
+        elapsed = int(terminal["time_us"]) - int(cancel["time_us"])
+        self.assertGreaterEqual(elapsed, 0)
+        self.assertLess(elapsed, 4000)
         self.assertGreater(int(console["stalled_writes"]), 4)
 
     def test_reset_timeout_and_recovery_failure_are_separate(self):

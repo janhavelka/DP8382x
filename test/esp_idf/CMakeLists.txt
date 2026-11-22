@@ -147,7 +147,6 @@ set_tests_properties(example_profile_mismatch PROPERTIES PASS_REGULAR_EXPRESSION
 set_tests_properties(example_profile_aged PROPERTIES PASS_REGULAR_EXPRESSION "linkEvidence=AGED[^\n]*profile100full=unknown")
 set_tests_properties(example_profile_busy PROPERTIES PASS_REGULAR_EXPRESSION "linkEvidence=BUSY[^\n]*profile100full=unknown[^\n]*nativePhase=BUSY")
 set_tests_properties(example_journal_failed_call PROPERTIES PASS_REGULAR_EXPRESSION "primary stage=start cause=reported core=OK detail=0 SDK=INJECTED_OR_SDK_ERROR")
-set_tests_properties(example_terminal_snapshot_delivery PROPERTIES PASS_REGULAR_EXPRESSION "undelivered operation status=MDIO_ERROR detail=264")
 set_tests_properties(example_glue_allocation_failure PROPERTIES PASS_REGULAR_EXPRESSION "primary stage=netif glue cause=unreported core=OK detail=0 SDK=ESP_OK")
 
 add_executable(dp8382x_owner_cli_host_tests host/owner_cli.cpp
@@ -187,7 +186,7 @@ set(native_suites factory board_install_failures raw_routing raw_rx_retention
     timer_publication_during_stop stop_before_admission persistent_disconnected_during_stop
     raw_uninstall_during_stop raw_uninstall_during_initialization retire_after_stop_admission_timeout
     native_cleanup_error_domains observation_cable_flap observation_bus_contention observation_miss_bound
-    peer_board_observation event_retry_observation board_deadline_domains board_reset_window board_clock_regression
+    peer_board_observation event_retry_observation board_deadline_domains board_reset_window board_clock_regression board_release_at_deadline
     mdio_elapsed_deadlines cancelled_reset_board_floor
     late_stop_gate raw_uninstall_already_down failed_start_cleanup_admission minimal_cleanup_allowance
     observation_reset_trust peer_board_failure_observation observation_gate_denial

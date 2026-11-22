@@ -147,8 +147,10 @@ result delivery then each allow up to 100 attempts with one-tick yields.
 Only successful delivery releases CONTROL. An undelivered token remains
 owed and preserves the frozen operation status and detail, including when
 a transient gate BUSY led the owner to discover it through the snapshot.
-Later shared CLI commands
-use the separate budgets and terminal record rules in the CLI guide.
+If the next operation is inaccessible throughout the owner wait, its terminal
+status reads `RESULT_NOT_AVAILABLE`. The previous delivered result keeps its
+own token. Later shared CLI commands use the separate budgets and terminal
+record rules in the CLI guide.
 
 Link evidence prints `CURRENT` only when the cached sample is valid, not stale
 and at most three poll periods old (`linkAgeMs`); otherwise `AGED`, `STALE`,
@@ -161,6 +163,9 @@ netif and the owned default loop in dependency order: the PHY borrows the MAC
 and bus, so it goes first, and a PHY that cannot be destroyed keeps both alive.
 Destruction deletes the adapter journal, so a PHY whose final journal copy
 cannot be confirmed is also kept, with its dependencies, for an explicit retry.
+After attempting MAC deletion the owner drops its callable pointer. If deletion
+returns an error, the shutdown report retains the SDK code and identifies the
+unresolved MAC lifetime. A later cleanup cannot call through that pointer.
 A quarantined bus may still hold its mutex, which is then retained. A null SDK
 factory result reports no cause, so it is recorded by stage, not as an
 invented SDK error code. The failed-start cleanup allowance is set to 500 ms,
@@ -172,7 +177,9 @@ restart, including failures after attachment. `esp_netif_attach` can publish
 the netif RX pointer before reporting failure. `Phy::retire` stops/fences and
 closes admission; a failure keeps everything alive for inspection. The first
 primary result, first cleanup error and native lifecycle journal remain
-separate. Posting STOP queues the glue handler. The owner has no receipt
+separate. When shutdown retires an active traffic session directly, the owner
+reserves one expected STOP before entering the SDK, just as for an explicit
+stop. Posting STOP queues the glue handler. The owner has no receipt
 confirming that netif traffic has ended. Even after the glue calls
 `esp_netif_action_stop`, RX that already loaded the mediator can still
 reach the retained netif input path. No event handler waits for its own unregister, and no installed glue

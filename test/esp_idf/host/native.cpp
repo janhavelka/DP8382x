@@ -2720,6 +2720,52 @@ void boardResetWindow() {
         assert(!Host::semaphoreHeld(f.bus.mutex) && f.mac.frames.empty() && f.owner->destroy() == ESP_OK);
     }
 }
+void boardReleaseAtDeadline() {
+    constexpr uint64_t deadline = 160001;
+    constexpr uint64_t assertedAt = 60001;
+    enum class Release { OK, ERROR, OVERRUN };
+    for (const auto release : {Release::OK, Release::ERROR, Release::OVERRUN}) {
+        Host::reset(); Fixture f; f.create(); Host::state().nowUs = assertedAt;
+        struct Pins { unsigned calls; Release release; } pins{0, release};
+        BoardControl board; board.context = &pins;
+        board.setReset = [](void* ctx, bool asserted) {
+            auto& p = *static_cast<Pins*>(ctx);
+            assert(asserted == (p.calls++ == 0));
+            if (asserted) {
+                assert(Host::state().nowUs == assertedAt);
+                return ESP_OK;
+            }
+            assert(Host::state().nowUs == deadline);
+            if (p.release == Release::OVERRUN) Host::state().nowUs += 1001;
+            return p.release == Release::ERROR ? ESP_FAIL : ESP_OK;
+        };
+        // Count only samples at or beyond the 100 us hold plus 1 us lag.
+        // An initial tick wake can still be too early at 333 Hz.
+        unsigned holdSamples = 0;
+        Host::state().clockSample = [&](uint64_t raw) {
+            if (pins.calls == 1 && raw >= assertedAt + 101 && ++holdSamples == 2) {
+                Host::state().nowUs = deadline;
+                return deadline;
+            }
+            return raw;
+        };
+        assert(f.owner->prepareBoard(board, deadline) == ESP_ERR_TIMEOUT);
+        Host::state().clockSample = nullptr;
+        const auto record = f.journal();
+        assert(pins.calls == 2 && holdSamples == 2 && record.phase == Phase::STOPPED);
+        assert(record.firstError.sdkError == ESP_OK && record.firstError.is(Err::OPERATION_TIMEOUT));
+        assert(record.firstError.coreStatus.detail == static_cast<int32_t>(TimeoutDetail::DEADLINE));
+        assert(record.cleanupError.sdkError == (release == Release::ERROR ? ESP_FAIL : ESP_OK));
+        if (release == Release::OVERRUN) {
+            assert(record.cleanupError.is(Err::OPERATION_TIMEOUT));
+            assert(record.cleanupError.coreStatus.detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
+        } else assert(record.cleanupError.coreStatus.ok());
+        assert(f.bus.admission == BusAdmission::FAILED_CLOSED && !Host::semaphoreHeld(f.bus.mutex));
+        assert(f.bus.quietUntilUs == Host::state().nowUs + 2001 && f.mac.frames.empty());
+        assert(f.owner->destroy() == ESP_OK);
+    }
+}
+
 void boardClockRegression() {
     enum class Cut { BEFORE_DRAIN, AFTER_DRAIN, READY_WAKE, BEFORE_ASSERT, ASSERT_RETURN,
                      HOLD_WAKE, BEFORE_RELEASE, RELEASE_RETURN, QUIET_WAKE };
@@ -3581,6 +3627,7 @@ int main(int argc, char** argv) {
     else if (suite == "event_retry_observation") eventRetryObservation();
     else if (suite == "board_deadline_domains") boardDeadlineDomains();
     else if (suite == "board_reset_window") boardResetWindow();
+    else if (suite == "board_release_at_deadline") boardReleaseAtDeadline();
     else if (suite == "board_clock_regression") boardClockRegression();
     else if (suite == "mdio_elapsed_deadlines") mdioElapsedDeadlines();
     else if (suite == "board_deadline_before_drain") boardDeadlineBeforeDrain();

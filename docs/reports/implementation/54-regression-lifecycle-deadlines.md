@@ -291,3 +291,105 @@ ctest --test-dir build/p53-consumer --no-tests=error --output-on-failure
 In phase (c), review the actual implementation commit against `a741d0d`.
 Independently trace the sample order, remaining poll allowance and write
 effects, and the callback, event, result and borrowed-context lifetimes.
+
+## Phase (c) independent review
+
+The wrapper verified the implementation commit `bafaeddffdaf276339e8b369652b5ddde9448b28`
+on `main` and `origin/main`. The index and worktree were clean, 0 ahead and
+0 behind. Two read-only reviewers independently traced the diff from
+`a741d0d406660f8aafd3265ccf36310f941946fc`. Both used the current
+high-reasoning model to trace clock, callback and borrowed-object lifetimes.
+The lead integrated the corrections below. The private reproductions are in
+`build/p54-c-timing` and `build/p54-c-retirement`.
+
+| Boundary | Observation at the implementation commit | Correction and regression |
+| --- | --- | --- |
+| Deadline at RESET_N release entry | The hold completed before expiry. The next sample reached 160001 µs. A failing release became the primary SDK error. An overlong successful release lost its cleanup error. | Freeze DEADLINE at that entry sample, then attempt release once. `native_board_release_at_deadline` tests successful, failed and 1001 µs releases with a 1000 µs callback bound. It checks both domains, the shared quiet floor, FAILED_CLOSED and zero MDIO at all three tick rates. |
+| MAC lifetime after pre-install cleanup | The host MAC modeled deletion before returning ESP_FAIL. A second cleanup called its deleter again. The pinned P4 `emac_esp32_del` frees the object and returns ESP_OK. | The basic example relinquishes its callable pointer on the first deletion and reports the exact unresolved deletion error. `example_mac_cleanup_failure` repeats shutdown and counts one deletion. `example_live_cleanup_denied` retains the separate retry when a live PHY still borrows the MAC. |
+| STOP queued by retirement | Directly retiring the active application queued STOP with zero expected deliveries. Later dispatch incorrectly requested an unexpected shutdown. | Reserve the active session's STOP before retirement can post. The two `example_retired_rx_*` registrations run the demo through two sessions, then use direct retirement or an explicit stop. Dispatch consumes one expected STOP in both orderings. Both late RX calls reach retained glue and release one buffer. |
+| Owed result across tokens | After delivery of token 3's MDIO_ERROR/264, gate contention throughout token 4's wait made shutdown print the old error for token 4. | Clear the owed status at delivery and associate each observation with its token. `example_terminal_snapshot_delivery` reads both diagnostic lines through the actual console queue. It checks later delivery, duplicate rejection and zero additional frames. The C++ test now checks output and exit status together. |
+| CLI result delivery during output stall | A deliberately delayed producer that took CANCELLED only on the first resumed tick still passed. That tick was exactly 4000 µs after cancellation. | Require the original result timestamp to fall before the first resumed tick. The real producer passes. The delayed executable fails the revised assertion at exactly 4000 µs. |
+
+The clock reviewer also verified the fine and coarse OP-5 loops, short-slice
+admission equality, the 13-frame PCS trace and the 38-frame allocation
+measurement with both positive controls. The application reviewer checked
+the direct event-retry code and post count, including a late accepted retry,
+and the stricter injected timer-stop failure. STOP posting, delivery to the
+glue and netif session closure remain separate observations.
+
+The reviewers and lead reopened the source paths listed under **Sources and
+decisions** above. TMP1x2 and 24Cxx remained clean at the recorded revisions.
+The shared convention is to retain accepted effects and correlate terminal
+results with their owner. Clock bounds still come from the exact device and
+SDK. The P4 MAC deleter in `components/esp_eth/src/mac/esp_eth_mac_esp.c`,
+framework stop in `components/esp_eth/src/esp_eth.c` and glue in
+`components/esp_eth/src/esp_eth_netif_glue.c` were checked at `fff9895c`.
+The review changed no silicon values or procedure ownership. README and
+the feature matrix still describe the supported scope. The changelog,
+board API, native guide, basic example guide and test guide record the
+corrected behavior.
+
+### Phase (c) verification
+
+Both reviewers rechecked the fixes. The timing reviewer linked the private
+reproduction against the corrected adapter. All three releases gave direct
+ESP_ERR_TIMEOUT and primary DEADLINE. Cleanup was respectively OK, SDK
+ESP_FAIL and core BOUND_ADMISSION. The application reviewer repeated the MAC,
+STOP, two-token and delayed-output probes. All five findings are closed.
+
+An initial regression run exposed an early wake at 333 Hz. From assertion at
+60001 µs the first wake at 60061 µs is short of the 60102 µs hold floor.
+The corrected test counts the first sample meeting the floor, then injects
+expiry on the subsequent release-entry sample. Both final selections passed.
+
+Windows x86-64, GNU 15.1.0, Ninja, CMake 4.0.1 and Python 3.12.10. Use the
+same process-local Git settings and ESP-IDF environment as phase (b).
+
+```powershell
+cmake --build build/p53-baseline --parallel 4
+$release = '^(example_|native_|owner_|pinned_driver_|operation_|reset_|cli_fixture_transcript$|cli_processor_|cli_native_console_)'
+ctest --test-dir build/p53-baseline -R $release --output-on-failure --no-tests=error -j 3
+cmake --build build/p53-review-ubsan --parallel 4
+$native = '^(example_|native_(board|mdio_elapsed|incomplete_negotiation|cli_link_events$))'
+ctest --test-dir build/p53-review-ubsan -R $native --output-on-failure --no-tests=error -j 3
+ctest --test-dir build/p54-portable-ubsan -R '^(dp8382x_operation_tests_failure_path|operation_)' --output-on-failure --no-tests=error
+cmake --build build/p53-consumer --clean-first --parallel 4
+ctest --test-dir build/p53-consumer --output-on-failure --no-tests=error
+```
+
+| Evidence layer | Stage (c) result |
+| --- | --- |
+| Host | **PASS**. 426/426 Release CTests in 3.65 s, 107/107 native UBSan in 1.42 s and 10/10 portable UBSan in 0.21 s. The builds verified 45 pinned SDK inputs. Standalone Python discovery ran 238 tests with 49 fixture-dependent skips. The Release transcript registration executes the compiled producer. |
+| Portable consumer | **PASS**. Both separate tests-OFF consumers rebuilt and passed. Exported package **NOT RUN**. |
+| Source and documentation | **PASS**. Doxygen verified 293 generated pages and rejected both negative fixtures. The phase (a) reference, ledger, version and whitespace commands passed. |
+| ESP32-P4 SDK link | **PASS**. The phase (b) three-project `scripts/idf.cmd` loop produced an ELF and binary for each target. All firmware identity headers record `bafaeddffdaf276339e8b369652b5ddde9448b28` and a dirty tree. |
+| Remote CI and physical | **NOT RUN**. First-execution CI belongs to prompt 71. Physical qualification needs an authorized, identified fixture. Reusable installed teardown remains **BLOCKED** on RX quiescence. Netif session closure remains unproved after STOP dispatch. |
+
+| Binary | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `53l/dp8382x_adapter_link.bin` | 387520 | `796ae6f82b9a0aa5f575346bf456884e05888354270ccbc67135a1bdd1837baa` |
+| `53b/dp8382x_p4_ethernet.bin` | 683248 | `f869e7b7c2097ce94e8ec12596fbafdb196dea3ddfbb43180547e4f2d3659eae` |
+| `53o/dp8382x_p4_owner.bin` | 561328 | `e06e07ee5de7e434711d8b58779c34c03647704f6fd596ec955a252a0b4c172e` |
+
+Prompt 54 remains in progress. Stage (d) starts from the wrapper-verified
+review commit and runs final local checks on that checkpoint.
+
+### Phase (c) checkpoint recovery
+
+The earlier wrapper stopped before committing the review. On recovery, all
+13 modified paths matched its saved request on `bafaedd`, with an empty index.
+Two read-only reviewers rechecked the saved fixes. The board API comment and
+native guide now specify that an assertion or hold error keeps precedence
+when release starts at expiry. The compiled CLI fixture passed again and
+the deliberately delayed producer failed at the 4,000 µs boundary.
+
+The clean TMP1x2 and 24Cxx checkouts had advanced to
+`0791429f8fce1170e2082f1b011456fc461318b8` and
+`139e76cd38ecdeec40be5fdb1ce5e633158ea59a`, respectively. Only peer
+documentation changed since the source review above.
+
+Recovery passed all 426 focused Release tests, 107 native UBSan tests,
+ten portable UBSan tests and two tests-OFF consumer tests.
+Python discovery ran 238 tests with 49 fixture-dependent skips.
+Doxygen, reference, ledger, version and whitespace checks passed. Rebuilding
+the three ESP32-P4 targets reproduced every image hash in the phase (c) table.

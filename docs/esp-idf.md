@@ -315,6 +315,10 @@ wake, both sides of the pin calls and final readiness. A backward sample
 leaves shared admission FAILED_CLOSED even when GPIO has not been touched.
 The initial readiness wait consumes the same poll allowance as the hold and
 release waits. Before assertion, both must fit the remaining allowance.
+An earlier assertion or hold error stays primary. If both succeeded and the
+valid release-entry sample reaches or exceeds the deadline, the owner records
+DEADLINE before attempting release. With a primary error already recorded,
+an SDK release error or a pin callback overrun goes in the cleanup receipt.
 
 Elapsed-time checks and finite poll caps apply. A floor-rounded RTOS delay
 alone is insufficient. Quiet

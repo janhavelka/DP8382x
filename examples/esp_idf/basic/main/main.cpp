@@ -25,11 +25,14 @@ using namespace ::DP8382x;
 using namespace ::DP8382x::EspIdf;
 using namespace ::DP8382x::Cli;
 
+constexpr Status UNKNOWN_TERMINAL{Err::RESULT_NOT_AVAILABLE, 0, "Terminal operation status unavailable"};
+
 /// Static callback context survives every installed SDK resource until restart.
 struct Application {
   SharedBus bus{};
   Phy* phy{nullptr};
   esp_eth_mac_t* mac{nullptr};
+  esp_err_t macDeleteError{ESP_OK}; ///< A failed deletion leaves the MAC lifetime unknown.
   esp_eth_handle_t driver{nullptr};
   esp_netif_t* netif{nullptr};
   esp_eth_netif_glue_handle_t glue{nullptr};
@@ -58,7 +61,7 @@ struct Application {
   const char* sessionEnd{"not started"}; ///< Why serve() ended its traffic session.
   bool resultOwed{false}; ///< An admitted core result could not be delivered; CONTROL remains.
   OperationToken owedToken{}; ///< Retained undelivered token, valid while resultOwed.
-  Status owedTerminal{Err::RESULT_NOT_AVAILABLE, 0, "Terminal operation status unavailable"};
+  Status owedTerminal{UNKNOWN_TERMINAL};
   OperationResult lastResult{}; ///< Last delivered operation, including possible effects.
   unsigned eventRetries{0}; ///< Consecutive owner retries of one lost link event.
   bool eventRetryAttempted{false};
@@ -194,9 +197,12 @@ void releaseBeforeInstall() {
     if (error == ESP_OK) app.phy = nullptr;
   }
   if (!app.phy && app.mac) {
-    const esp_err_t error = app.mac->del(app.mac);
-    cleanupError(error);
-    if (error == ESP_OK) app.mac = nullptr;
+    // Deletion can consume the object before returning. Relinquish the
+    // callable pointer on the first attempt, including an uncertain outcome.
+    auto* mac = app.mac;
+    app.mac = nullptr;
+    app.macDeleteError = mac->del(mac);
+    cleanupError(app.macDeleteError);
   }
   if (!app.phy && app.bus.mutex && !app.bus.quarantined.load()) {
     vSemaphoreDelete(app.bus.mutex);
@@ -258,14 +264,16 @@ Status finishOperation(OperationToken token) {
     if (taken.is(Err::BUSY)) vTaskDelay(1);
   }
   if (!taken.ok()) {
-    app.resultOwed = true; app.owedToken = token;
     if (terminal) app.owedTerminal = progress;
+    else if (token.value != app.owedToken.value) app.owedTerminal = UNKNOWN_TERMINAL;
+    app.resultOwed = true; app.owedToken = token;
     cleanupError(taken);
     if (!terminal) return outcome;
     return progress.ok() ? taken : progress;
   }
   app.resultOwed = false;
   app.owedToken = {};
+  app.owedTerminal = UNKNOWN_TERMINAL;
   return terminal ? app.lastResult.status : outcome;
 }
 
@@ -454,14 +462,16 @@ bool serviceObligations() {
   return true;
 }
 
-/// Owner stop that keeps the queued STOP receipt until its callback arrives.
-esp_err_t ownerStop(uint64_t until = 0) {
-  // STOP is queued. Keep this receipt until callback delivery, even if it
-  // arrives after the next START; current desired state is not its origin.
+/// Reserve once for the current session before the SDK can post STOP.
+void announceStop() {
   if (!app.stopAnnounced) {
     app.expectedStops.fetch_add(1);
     app.stopAnnounced = true;
   }
+}
+
+esp_err_t ownerStop(uint64_t until = 0) {
+  announceStop();
   const esp_err_t error = app.phy->stop(until ? until : deadlineUs());
   if (error == ESP_OK) app.traffic = false;
   checkAdapter("owner stop", error);
@@ -472,10 +482,17 @@ bool maintenanceAllowed(void*) {
   return app.cliMaintenance && !app.consoleRetired && !app.shutdownRequested.load();
 }
 
+/// Retirement of an active session can post STOP inside the SDK call.
+esp_err_t retireOwner(uint64_t until) {
+  if (app.traffic) announceStop();
+  return app.phy->retire(until);
+}
+
 Status endConsole(void*, uint64_t until) {
   if (until == 0) return Status::Error(Err::INVALID_CONFIG, "Trusted teardown deadline required");
-  const auto error = app.phy->retire(until);
+  const auto error = retireOwner(until);
   if (error == ESP_ERR_NOT_SUPPORTED) {
+    app.traffic = false;
     app.cliMaintenance = false;
     app.consoleRetired = true;
   }
@@ -604,7 +621,7 @@ void finish() {
   if (app.installed) {
     // An undelivered core result keeps CONTROL, so retirement is refused and
     // reported rather than claimed; the token stays recorded below.
-    const esp_err_t error = app.phy->retire(deadlineUs());
+    const esp_err_t error = retireOwner(deadlineUs());
     app.traffic = false;
     if (error == ESP_ERR_NOT_SUPPORTED) app.consoleRetired = true;
     copyLifecycle();
@@ -631,6 +648,9 @@ void finish() {
               app.installed ? "retained until restart" : "released where safe");
   if (app.failedAdapterCall)
     console.print("adapter call=%s SDK=%s\n", app.failedAdapterCall, esp_err_to_name(app.adapterCallError));
+  if (app.macDeleteError != ESP_OK)
+    console.print("MAC deletion unresolved SDK=%s (%ld)\n", esp_err_to_name(app.macDeleteError),
+                  static_cast<long>(app.macDeleteError));
   if (app.eventRetryAttempted)
     console.print("last link event retry SDK=%s (%ld)\n", esp_err_to_name(app.lastEventRetry),
                   static_cast<long>(app.lastEventRetry));

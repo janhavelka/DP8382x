@@ -236,9 +236,10 @@ public:
   /// Before assertion, admission covers both pin calls, the assertion hold,
   /// release quiet interval and tick rounding, within the polls still available
   /// after initial readiness. On failure after an attempted
-  /// assertion the owner still attempts release once, even after expiry. A
-  /// cleanup error is retained separately. Each callback must return within
-  /// its declared allowance for the application to claim bounded wall time.
+  /// assertion the owner still attempts release once, even after expiry. An
+  /// earlier error stays primary. Otherwise a valid sample at release entry
+  /// at or past expiry sets DEADLINE. A subsequent release failure or overrun
+  /// has its own cleanup receipt. Each callback must meet its declared bound.
   /// @note Shared RESET_N requires owner-routed invalidation of every affected
   /// peer and reinitialization/reconciliation before restart. Do not attest a
   /// completed EXTERNAL_RESET after an uncertain pin callback.

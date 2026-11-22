@@ -447,7 +447,10 @@ esp_err_t Phy::prepareBoard(const BoardControl& board, uint64_t deadlineUs) noex
     // Attempt release exactly once. Cleanup has its own finite callback bound.
     const bool releaseEntryValid = sample();
     const bool primaryBeforeRelease = result != ESP_OK;
-    if (!releaseEntryValid && !primaryBeforeRelease) result = OWNER_CLOCK_REGRESSION;
+    if (!primaryBeforeRelease) {
+      if (!releaseEntryValid) result = OWNER_CLOCK_REGRESSION;
+      else if (last >= deadlineUs) result = OWNER_DEADLINE;
+    }
     const auto beforeRelease = last;
     int64_t release = board.setReset(board.context, false);
     const bool releaseClockValid = sample();

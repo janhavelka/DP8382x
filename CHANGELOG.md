@@ -5,6 +5,9 @@
 - Board reset preparation detects a regressing clock across drain, pin calls
   and wakes, and closes shared MDIO admission. The basic P4 application
   reports the direct link-event retry result alongside its lifecycle errors.
+  Board release preserves an expired primary deadline and an independent
+  cleanup failure. The example correlates terminal evidence with the owed
+  operation, accounts for STOP during retirement and attempts MAC deletion once.
 
 - Restrict synchronous ESP-IDF start callbacks to the starting task and the
   next expected callback. A competing link read during AN restart can no

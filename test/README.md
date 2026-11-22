@@ -149,7 +149,10 @@ allocations and SDK allocation are outside this measurement.
 The pinned board tests inject backward samples and exercise the remaining reset
 poll allowance at 100, 333 and 1,000 Hz. The basic application tests cover
 queued STOP delivery on either side of late RX after retirement, event-post
-timing, and delivery of a frozen result across owner contention. See the
+timing, and delivery of a frozen result across owner contention. They also
+check that two different owed tokens produce distinct diagnostic lines.
+`native_board_release_at_deadline` covers timely, failed and overlong reset
+release after the primary deadline expires between the hold and release. See the
 [lifecycle regression report](../docs/reports/implementation/54-regression-lifecycle-deadlines.md).
 
 Prompts 37-38 add four terminal AN restart/BMCR maintenance suites; their independent

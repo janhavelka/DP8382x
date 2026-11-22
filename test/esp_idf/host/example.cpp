@@ -175,14 +175,17 @@ void macCleanupFailure() {
     assert(!app.installed && app.primary.sdkError == ESP_ERR_NO_MEM);
     assert(std::string(app.failedStage) == "PHY create");
     // PHY creation failed. MAC cleanup failed independently.
-    assert(app.cleanup.sdkError == ESP_FAIL && app.mac && !app.phy && !app.bus.mutex);
+    assert(app.cleanup.sdkError == ESP_FAIL && !app.mac && !app.phy && !app.bus.mutex);
     assert(Host::activeNetifs() == 0 && !app.loopOwned);
     assert(Host::state().nextTimerCreateError == ESP_OK && mac->errors.empty());
     assert(app.primary.coreStatus.ok() && app.cleanup.coreStatus.ok() && Host::state().events.empty());
     assert(Host::state().timerCreates == 0);
-    // The deletion returned an error after a modeled effect. Keep the receipt
-    // and pointer for external disposition without dereferencing it again.
-    assert(!mac->alive && app.mac == &mac->native);
+    // Retry all pre-install cleanup. The deletion may already have consumed
+    // the MAC, so its first call is the last, even on the error path.
+    finish();
+    const auto& calls = Host::state().calls;
+    assert(!mac->alive && std::count(calls.begin(), calls.end(), "mac.del") == 1);
+    assert(app.macDeleteError == ESP_FAIL && app.cleanup.sdkError == ESP_FAIL);
 }
 void liveBorrowerCleanup(bool denyDestroy) {
     Host::reset();
@@ -491,38 +494,6 @@ void terminalDeliveryFailure() {
     assert(!app.resultOwed && app.owedToken.value == 0);
     assert(app.phy->lifecycleSnapshot(record).ok() && record.phase == Phase::STOPPED);
 }
-void terminalSnapshotDelivery() {
-    Host::reset();
-    assert(initialize());
-    const auto token = runningConfigure();
-    mac->readResults = {ESP_ERR_INVALID_RESPONSE};
-    Status frozen;
-    for (unsigned i = 0; i < MAX_OWNER_POLLS; ++i) {
-        frozen = app.phy->pollOperation(token);
-        if (!frozen.inProgress()) break;
-        vTaskDelay(1);
-    }
-    assert(mac->readResults.empty() && frozen.is(Err::MDIO_ERROR) && frozen.detail == ESP_ERR_INVALID_RESPONSE);
-    const auto frames = mac->frames.size();
-    // Deny the poll, allow its snapshot, then deny exactly the bounded take attempts.
-    Host::state().failSemaphoreTakes = 1;
-    Host::state().afterSemaphoreGive = [](SemaphoreHandle_t) {
-        Host::state().failSemaphoreTakes = MAX_DELIVERY_TRIES;
-        Host::state().afterSemaphoreGive = nullptr;
-    };
-    const auto status = finishOperation(token);
-    assert(status.is(Err::MDIO_ERROR) && status.detail == ESP_ERR_INVALID_RESPONSE);
-    assert(app.resultOwed && app.owedToken.value == token.value && app.owedTerminal.code == status.code);
-    assert(app.owedTerminal.detail == status.detail && app.cleanup.is(Err::BUSY) && app.primary.ok());
-    assert(Host::state().failSemaphoreTakes == 0 && app.lastResult.token.value != token.value);
-    installedState(Phase::CONTROL, 0, 0, 0);
-    finish(); // Emit the retained status. Retirement cannot take the core result.
-    assert(!app.consoleRetired && app.resultOwed && finishOperation(token).is(Err::MDIO_ERROR));
-    assert(app.lastResult.token.value == token.value && app.lastResult.status.detail == status.detail);
-    OperationResult duplicate{};
-    assert(!app.phy->takeResult(token, duplicate).ok() && !app.resultOwed && mac->frames.size() == frames);
-    installedState(Phase::STOPPED, 0, 0, 0);
-}
 void terminalBusy() {
     Host::reset();
     assert(initialize());
@@ -797,19 +768,21 @@ void queuedExpectedStop() {
 void retiredRx(bool deliverStopFirst) {
     Host::reset();
     assert(initialize());
-    assert(app.phy->start(deadlineUs()) == ESP_OK);
+    serve(); // Two demo sessions. The standalone owner retires the second while active.
+    assert(app.traffic && postedEvents(ETHERNET_EVENT_START) == 2);
     Host::deliverEvents();
-    assert(callCount("netif.start") == 1 && app.linked.load());
+    assert(callCount("netif.start") == 2 && callCount("netif.stop") == 1 && app.linked.load());
+    assert(!app.shutdownRequested.load() && app.expectedStops.load() == 0);
     const unsigned delivered = app.events.load();
     mac->pauseRxAfterMediatorLoad();
-    assert(ownerStop() == ESP_OK);
+    if (deliverStopFirst) assert(ownerStop() == ESP_OK);
     finish();
-    retainedUntilRestart(0, 1, 1);
+    retainedUntilRestart(0, 2, 2);
     assert(app.consoleRetired && app.primary.ok() && app.cleanup.ok());
-    assert(app.events.load() == delivered && app.expectedStops.load() == 1 && callCount("netif.stop") == 0);
+    assert(app.events.load() == delivered && app.expectedStops.load() == 1 && callCount("netif.stop") == 1);
     const auto deliver = [&] {
         Host::deliverEvents();
-        assert(callCount("netif.stop") == 1 && app.expectedStops.load() == 0);
+        assert(callCount("netif.stop") == 2 && app.expectedStops.load() == 0);
         assert(!app.shutdownRequested.load() && !app.linked.load() && app.events.load() == delivered + 2);
     };
     if (deliverStopFirst) deliver();
@@ -908,6 +881,60 @@ void attachTestConsole() {
     assert(Host::state().calls.empty());
     assert(initialize());
     console.native.phy = app.phy;
+}
+
+void terminalSnapshotDelivery() {
+    Host::reset();
+    attachTestConsole();
+    ConsoleSink sink;
+    sink.drain();
+    const auto token = runningConfigure();
+    mac->readResults = {ESP_ERR_INVALID_RESPONSE};
+    Status frozen;
+    for (unsigned i = 0; i < MAX_OWNER_POLLS; ++i) {
+        frozen = app.phy->pollOperation(token);
+        if (!frozen.inProgress()) break;
+        vTaskDelay(1);
+    }
+    assert(mac->readResults.empty() && frozen.is(Err::MDIO_ERROR) && frozen.detail == ESP_ERR_INVALID_RESPONSE);
+    const auto frames = mac->frames.size();
+    // Deny the poll, allow its snapshot, then deny exactly the bounded take attempts.
+    Host::state().failSemaphoreTakes = 1;
+    Host::state().afterSemaphoreGive = [](SemaphoreHandle_t) {
+        Host::state().failSemaphoreTakes = MAX_DELIVERY_TRIES;
+        Host::state().afterSemaphoreGive = nullptr;
+    };
+    const auto status = finishOperation(token);
+    assert(status.is(Err::MDIO_ERROR) && status.detail == ESP_ERR_INVALID_RESPONSE);
+    assert(app.resultOwed && app.owedToken.value == token.value && app.owedTerminal.code == status.code);
+    assert(app.owedTerminal.detail == status.detail && app.cleanup.is(Err::BUSY) && app.primary.ok());
+    assert(Host::state().failSemaphoreTakes == 0 && app.lastResult.token.value != token.value);
+    installedState(Phase::CONTROL, 0, 0, 0);
+    finish(); // Emit the retained status. Retirement cannot take the core result.
+    sink.drain();
+    assert(sink.output.find("undelivered operation status=MDIO_ERROR detail=264") != std::string::npos);
+    assert(!app.consoleRetired && app.resultOwed && finishOperation(token).is(Err::MDIO_ERROR));
+    assert(app.lastResult.token.value == token.value && app.lastResult.status.detail == status.detail);
+    OperationResult duplicate{};
+    assert(!app.phy->takeResult(token, duplicate).ok() && !app.resultOwed && mac->frames.size() == frames);
+    installedState(Phase::STOPPED, 0, 0, 0);
+
+    // The previous MDIO failure belongs only to its delivered token. With
+    // every gate denied, the next token has no observed terminal result.
+    const auto next = runningConfigure();
+    assert(next.value != token.value);
+    Host::state().failSemaphoreTakes = 1U << 30;
+    assert(finishOperation(next).is(Err::OPERATION_TIMEOUT));
+    Host::state().failSemaphoreTakes = 0;
+    assert(app.resultOwed && app.owedToken.value == next.value);
+    assert(app.owedTerminal.is(Err::RESULT_NOT_AVAILABLE) && app.lastResult.token.value == token.value);
+    sink.output.clear();
+    finish();
+    sink.drain();
+    assert(sink.output.find("undelivered operation status=RESULT_NOT_AVAILABLE detail=0") != std::string::npos);
+    assert(app.phy->cancel(next).ok() && finishOperation(next).is(Err::CANCELLED));
+    assert(!app.resultOwed && app.lastResult.token.value == next.value && mac->frames.size() == frames);
+    installedState(Phase::STOPPED, 0, 0, 0);
 }
 
 void cliNetwork() {
