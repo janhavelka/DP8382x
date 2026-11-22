@@ -393,3 +393,56 @@ ten portable UBSan tests and two tests-OFF consumer tests.
 Python discovery ran 238 tests with 49 fixture-dependent skips.
 Doxygen, reference, ledger, version and whitespace checks passed. Rebuilding
 the three ESP32-P4 targets reproduced every image hash in the phase (c) table.
+
+## Phase (d) final verification
+
+Prompt 54 is complete for the DP83826I software paths. Verification ran on
+2026-11-22 on clean `main` at `7fbdab2ad0a9c1c216b2c7cf4f2cef7c7087c044`.
+The wrapper had committed all 13 reviewed paths and verified equality with
+`origin/main`. The index and worktree were clean, zero ahead and behind.
+
+The lead checked the Release registrations against the phase (a) coverage
+table and ran the full suite and source checks. Two agents used the session
+model to verify the instrumented builds and the firmware links in separate
+build directories. The lead checked the image hashes and embedded Git SHA.
+The TMP1x2 and 24Cxx headers, operation sources, CLI, tests, runners,
+registrations and agent rules listed above matched the clean phase (c)
+recovery revisions. The tests retain peer conventions for token identity and
+accepted effects. The reset and controller timing expectations use the
+archived SNLS647I and pinned SDK sources.
+
+| Evidence | Result at the review commit |
+| --- | --- |
+| Host Release | **PASS**, 662/662 CTests in 256.63 s on Windows x86-64, GNU 15.1.0, CMake 4.0.1 and Ninja 1.12.1. The build verified 45 SDK files at `fff9895c82d744c7237be8847347bdd1b07c6643`. All 53 baseline registrations and all 15 added registrations executed. |
+| Lifecycle and deadline regressions | **PASS**. The real driver exercised fine and coarse polling, exact slice admission and zero ordinary C++ allocations in the measured 38-frame interval. At 1,000, 100 and 333 Hz the native tests exercised clock regression, reset release at expiry and MDIO elapsed deadlines. The example tested retained terminal status and late RX on both sides of STOP delivery. While output was stalled, the compiled CLI resynchronized the nonce and retained cancellation for token 2. After output resumed, restoration completed under token 3. The offline interruption suite replayed 2,927 prefixes and rejected 436,290 field mutations. |
+| UBSan trap | **PASS**, 107/107 native C/C++ tests in 0.72 s and 10/10 portable C++ tests in 0.20 s. |
+| Portable build-tree consumer | **PASS**, 2/2 after a clean Release rebuild with library tests OFF. |
+| Python and source checks | **PASS**. Python 3.12.10 discovery ran 238 tests in 48.21 s, with 189 passes and 49 fixture-dependent skips. The Release suite also ran the compiled CLI and offline runner fixtures. Doxygen 1.13.2 verified 293 pages and rejected both negative fixtures. References verified 29 payloads, 27 extracts and 2,246 links. The ledger verified 97 registers, 52 procedures and 35 features. Generated version and whitespace checks passed. |
+| ESP32-P4 SDK link | **PASS**, three ELF files and application binaries linked at ESP-IDF v6.1. Each build's identity header recorded the clean review commit, and all six outputs contained its full SHA. |
+| Exported package consumer | **NOT RUN**. Clean export and relocation verification belongs to prompt 70. |
+| Remote CI | **NOT RUN**. Prompt 71 owns first-execution CI. |
+| Physical | **NOT RUN**. Physical reset, MDIO timing and network qualification require an identified, authorized fixture. Reusable installed teardown remains **BLOCKED** on public RX quiescence. STOP handler delivery provides no receipt for actual netif session closure. |
+
+| Image under `C:/esp/build/dp8382x-loop` | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `53l/dp8382x_adapter_link.bin` | 387520 | `e965e9595d7023b3ed4109964b592fd06d74e661b325d7fae98b9e7f40513b23` |
+| `53b/dp8382x_p4_ethernet.bin` | 683248 | `2ad760b00509235a6f8b331713d4d465054b571ccef755b457e7642ed606f6fd` |
+| `53o/dp8382x_p4_owner.bin` | 561328 | `85b1c6ead155b95f927ae4609eddc2e3bc4839570fb6039aebf0bf37d39427c5` |
+
+Use the process-local SDK Git settings from phase (a) for the Release build.
+
+```powershell
+cmake -S . -B build/p53-baseline -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON -DDP8382X_BUILD_PINNED_IDF_TESTS=ON -DDP8382X_PINNED_IDF_PATH=C:/esp/v6.1/esp-idf
+cmake --build build/p53-baseline --parallel 4
+ctest --test-dir build/p53-baseline --output-on-failure --no-tests=error -j 1
+```
+
+For UBSan and the tests-OFF consumer, repeat the phase (c) commands, building
+`build/p54-portable-ubsan` before its CTest. For the P4 links, use the
+three-project `scripts/idf.cmd` loop referenced in phase (b). The phase (a)
+Python and source commands reproduce the documentation checks. Whitespace
+checks covered `f3f369c..7fbdab2`, the working diff and the index.
+
+The implementation and review commits are `bafaedd` and `7fbdab2`. The
+completion request covers this report and the progress row. The wrapper
+records the completion commit and its upstream verification.
