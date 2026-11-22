@@ -1235,25 +1235,9 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
   if (status.ok()) {
     status = admitBudget(budget, _config.transport.bounds, batch.frameCount, before, upper);
   }
-  if (status.ok() && operation && !_configuring &&
-      ((!_featureProcedureActive() && _initStep == InitStep::COMMAND) || (_loopWorking && _loopStep == LoopStep::RESTART))) {
-    status = admitReset(budget, _config.transport.bounds, before, _commandWaitUs());
-  }
-  if (status.ok() && operation && _electricalWorking && _electricalStep == ElectricalStep::CAL_PAIR) {
-    status = admitReset(budget, _config.transport.bounds, before, _commandWaitUs(), 2);
-  }
-  if (status.ok() && operation && _eeeRecipePending &&
-      ((_eeeWorking && _eeeStep == EeeStep::CAPABILITY) || (!_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && !_analogWorking && !_electricalWorking && _initStep == InitStep::COMMAND))) {
-    // 66 recipe frames + both four-frame self-checks + first reset poll.
-    const uint32_t frames = _eeeCapabilityChecked ? 71U : 75U;
-    const uint32_t callbacks = _eeeCapabilityChecked ? 20U : 21U;
-    const auto& bounds = _config.transport.bounds;
-    const uint64_t floor = uint64_t{4} * bounds.clockLagUs + uint64_t{frames} * bounds.frameUs +
-                           uint64_t{callbacks} * bounds.fixedUs + _commandWaitUs();
-    if (budget.maxFrames < frames || before >= budget.deadlineUs || floor >= budget.deadlineUs - before) {
-      status = timeout(TimeoutDetail::BOUND_ADMISSION);
-    }
-  }
+  // Scheduling after poll admission can consume the reserve before the callback.
+  if (status.ok() && operation) { status = _admitResetStep(budget, before); }
+  if (status.ok() && operation) { status = _admitEeeStep(budget, before); }
   if (!status.ok()) {
     return status;
   }
@@ -1765,6 +1749,40 @@ uint32_t DP8382x::_commandWaitUs() const noexcept {
   return _result.reset == ResetKind::HARD && interval < 2000U ? 2000U : interval;
 }
 
+Status DP8382x::_admitResetStep(const IoBudget& budget, uint64_t raw) const noexcept {
+  // Each reset needs its command, the scheduled wait and a first status read.
+  // Calibration sends the CDCR clear and HARD command in one callback.
+  if (!_configuring && ((!_featureProcedureActive() && _initStep == InitStep::COMMAND) ||
+      (_loopWorking && _loopStep == LoopStep::RESTART))) {
+    const auto status = admitReset(budget, _config.transport.bounds, raw, _commandWaitUs());
+    if (!status.ok()) { return status; }
+  }
+  if (_electricalWorking && _electricalStep == ElectricalStep::CAL_PAIR) {
+    return admitReset(budget, _config.transport.bounds, raw, _commandWaitUs(), 2);
+  }
+  return Status::Ok();
+}
+
+Status DP8382x::_admitEeeStep(const IoBudget& budget, uint64_t raw) const noexcept {
+  if (!_eeeRecipePending) { return Status::Ok(); }
+  const bool capability = _eeeWorking && _eeeStep == EeeStep::CAPABILITY;
+  const bool command = !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking &&
+                       !_qualityWorking && !_analogWorking && !_electricalWorking && _initStep == InitStep::COMMAND;
+  if (!capability && !command) { return Status::Ok(); }
+
+  // The 18 recipe writes use 66 frames. Include two four-frame checks and the
+  // first HARD poll. At command entry the capability check has already run.
+  const uint32_t frames = _eeeCapabilityChecked ? 71U : 75U;
+  const uint32_t callbacks = _eeeCapabilityChecked ? 20U : 21U;
+  const auto& bounds = _config.transport.bounds;
+  const uint64_t floor = uint64_t{4} * bounds.clockLagUs + uint64_t{frames} * bounds.frameUs +
+                         uint64_t{callbacks} * bounds.fixedUs + _commandWaitUs();
+  if (budget.maxFrames < frames || raw >= budget.deadlineUs || floor >= budget.deadlineUs - raw) {
+    return timeout(TimeoutDetail::BOUND_ADMISSION);
+  }
+  return Status::Ok();
+}
+
 bool DP8382x::_quietAt(uint64_t raw) noexcept {
   if (!_quietPending) { return false; }
   if (!_operation.busQuietValid || raw < _operation.busQuietUntilUs) { return true; }
@@ -1873,15 +1891,8 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
   status = admitBudget(_operation.remaining, _config.transport.bounds, batch.frameCount, raw, upper);
   if (!status.ok()) { return _finishOperation(status); }
   if (batch.frameCount > maxFrames) { return _yieldOperation(raw); }
-  if (!_configuring && ((!_featureProcedureActive() && _initStep == InitStep::COMMAND) ||
-      (_loopWorking && _loopStep == LoopStep::RESTART))) {
-    status = admitReset(_operation.remaining, _config.transport.bounds, raw, _commandWaitUs());
-    if (!status.ok()) { return _finishOperation(status); }
-  }
-  if (_electricalWorking && _electricalStep == ElectricalStep::CAL_PAIR) {
-    status = admitReset(_operation.remaining, _config.transport.bounds, raw, _commandWaitUs(), 2);
-    if (!status.ok()) { return _finishOperation(status); }
-  }
+  status = _admitResetStep(_operation.remaining, raw);
+  if (!status.ok()) { return _finishOperation(status); }
   bool called = false;
   if ((!_configuring && !_featureProcedureActive() && (_initStep == InitStep::IDENTIFY || _initStep == InitStep::REIDENTIFY)) ||
       (_wakeWorking && _wakeStep == WakeStep::IDENTIFY) ||

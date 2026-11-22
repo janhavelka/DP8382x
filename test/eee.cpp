@@ -19,6 +19,8 @@ struct Controller {
   std::array<Wire,8192> trace{};
   uint16_t selector{0},address{0},id2{0xA131};
   uint64_t now{100};
+  unsigned jumpClockCall{0};
+  uint64_t jumpClockTo{0};
   unsigned frames{0},calls{0},clocks{0},releases{0},mutations{0},hard{0};
   std::array<unsigned,2048> firstFrame{};
   uint16_t capability{2}; bool corruptAdvertisement{false};
@@ -39,7 +41,11 @@ struct Controller {
     Config c;c.variant=Variant::DP83826I;c.interface=id2==0xA111?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
-  static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context);++b.clocks;return b.now; }
+  static uint64_t clock(void* context) noexcept {
+    auto& bus = *static_cast<Controller*>(context);
+    if (++bus.clocks == bus.jumpClockCall) { bus.now = bus.jumpClockTo; }
+    return bus.now;
+  }
   uint16_t read(uint16_t target,uint16_t devad=31) {
     if(devad==3) {
       CHECK(target<64U);if(target>=64U)return 0xFFFF;
@@ -444,7 +450,77 @@ void replay() {
   const auto after=b.frames;OperationToken t;CHECK(d.startInitialize({ResetKind::NONE},budget(),t).inProgress());CHECK(drain(d,b,t).ok());take(d,t);
   CHECK(writes(b,after,31,0x123)==0U && b.hard==hard+2U);
 }
+void recipeAdmission() {
+  constexpr uint64_t deadline = 1000000;
+  // Identity (2), SOR1/SOR2 (4 each), BMCR and PHYRCR (1 each) precede
+  // capability. Only the remaining frames are available to the recipe.
+  constexpr unsigned preflightFrames = 12;
+  for (bool replay : {false, true}) {
+    for (bool command : {false, true}) {
+      for (unsigned slack : {0U, 1U}) {
+        Controller bus;
+        Driver driver;
+        ready(driver, bus);
+        OperationToken token;
+        const auto allowance = budget(preflightFrames + 75, deadline);
+        if (replay) {
+          configured(driver, bus);
+          CHECK(driver.startInitialize({ResetKind::NONE}, allowance, token).inProgress());
+        } else {
+          CHECK(driver.startConfigureEee(settings(), allowance, token).inProgress());
+        }
+        const auto first = bus.frames;
+        for (unsigned i = 0; i < 5; ++i) { CHECK(poll(driver, bus, token).inProgress()); }
+        CHECK(bus.frames == first + preflightFrames);
+        if (command) {
+          CHECK(poll(driver, bus, token).inProgress());
+          literalMmd(bus, first + preflightFrames, 3, 0x14, FrameKind::READ);
+        }
+        const auto frames = bus.frames, calls = bus.calls, hard = bus.hard;
+        CHECK(driver.operationSnapshot().remaining.maxFrames == (command ? 71U : 75U));
+        // 4 ticks + 4 us/frame + 8 us/callback + HARD's 2000 us wait.
+        // 75 frames/21 callbacks before capability, 71/20 after it.
+        bus.jumpClockCall = bus.clocks + 2;
+        bus.jumpClockTo = deadline - (command ? 2448U : 2472U) - slack;
+        const auto status = poll(driver, bus, token);
+        CHECK(bus.clocks >= bus.jumpClockCall);
+        if (slack == 0U) {
+          CHECK(status.is(Err::OPERATION_TIMEOUT) && status.detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
+          CHECK(bus.frames == frames && bus.calls == calls && bus.hard == hard);
+          const auto result = take(driver, token);
+          CHECK(!result.commandAccepted && !result.mutationAttempted && !result.persistentRestored);
+          if (command) { CHECK(result.eee.capabilityValid && result.eee.capability == 2); }
+        } else {
+          CHECK(status.inProgress() && bus.calls == calls + 1);
+          if (command) {
+            CHECK(bus.frames == frames + 1 && bus.hard == hard + 1);
+            CHECK(bus.trace[frames].kind == FrameKind::WRITE && bus.trace[frames].reg == 0x1F && bus.trace[frames].value == 0x8000);
+          } else {
+            CHECK(bus.frames == frames + 4 && bus.hard == hard);
+            literalMmd(bus, frames, 3, 0x14, FrameKind::READ);
+          }
+          CHECK(driver.cancel(token).ok());
+          take(driver, token);
+        }
+      }
+    }
+  }
+  Controller bus;
+  Driver driver;
+  ready(driver, bus);
+  OperationToken token;
+  CHECK(driver.startConfigureEee(settings(), budget(preflightFrames + 74, deadline), token).inProgress());
+  for (unsigned i = 0; i < 5; ++i) { CHECK(poll(driver, bus, token).inProgress()); }
+  CHECK(driver.operationSnapshot().remaining.maxFrames == 74);
+  const auto frames = bus.frames, calls = bus.calls;
+  CHECK(poll(driver, bus, token, 3).inProgress()); // Yield before admitting the four-frame capability read.
+  const auto status = poll(driver, bus, token, 4);
+  CHECK(status.is(Err::OPERATION_TIMEOUT) && status.detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
+  CHECK(bus.frames == frames && bus.calls == calls && bus.hard == 0 && !take(driver, token).mutationAttempted);
+}
+
 void ownershipTiming() {
+  recipeAdmission();
   for(uint32_t allowance:{0U,73U}) {
     Controller bus;Driver driver;ready(driver,bus);const auto mutation=bus.mutations;OperationToken t{999};
     const auto result=driver.startConfigureEee(settings(),budget(allowance),t);

@@ -660,6 +660,12 @@ np_words`. `np_words` is `none` or a packed sequence of four-character
 uppercase hex words. `----` preserves each missing payload slot. The TX/RX
 counts include completed local loads and consumed partner slots, respectively.
 
+On the native backend, a register read that reenters the same PHY through the
+CLI returns `BUSY` with `OWNER_ADMISSION` detail. It issues no MDIO
+frame, including when the callback runs in the task that owns the transaction.
+The [installed-owner tests](../test/README.md) exercise the command through the
+processor at each indirect frame boundary.
+
 For example, `registers read c22 0x02` can yield a valid terminal record:
 
 ```text

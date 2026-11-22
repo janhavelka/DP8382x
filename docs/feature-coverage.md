@@ -1,5 +1,11 @@
 # DP83826I feature coverage
 
+The [transaction ownership test map](reports/implementation/53-regression-transaction-ownership.md)
+ties the indirect-access, reset, calibration, EEE, link and configuration rows to
+named CTests. The installed-adapter cases cover reentry at each of the four
+read, four write and five masked-update frame boundaries. They record the SDK
+cache and possible MAC effects separately from the MDIO trace.
+
 The [P4 application owner](../examples/esp_idf/owner/README.md) consumes the
 verified configuration, management-health and resolved-link evidence from
 these features to admit sessions. Its host and SDK verification is recorded

@@ -137,3 +137,95 @@ run its two CTests. Link the affected P4 fixture and applications using
 `C:/esp/build/dp8382x-loop`. The physical readiness and reusable native
 teardown gates remain as recorded in the [native guide](../../esp-idf.md).
 Prompt 71 owns remote CI. Phase (b) is ready.
+
+## Phase (b) implementation
+
+The wrapper verified the assessment commit
+`9f7829b65c54cffba6c5e715b49e0733fad03fb4` against `origin/main`.
+The index and worktree were clean on entry. Both implementation agents used the
+session's high-reasoning model because their tasks depend on the ordering of
+deadline samples and SDK callbacks. One owned the portable implementation and
+its four test files. The other owned the installed SDK/CLI tests in `cli44.cpp`.
+The lead owned the private declarations, MAC fault injection, native timeout
+suite, registration, integration, documentation and checked commit request.
+Both agents finished. The live SDK and three sibling checkouts matched the
+phase (a) revisions. The source decisions and test map above still apply.
+
+| Regression | What the implementation executes |
+| --- | --- |
+| Reset and EEE admission | `_admitResetStep` handles init/replay, loopback restart and the calibration clear/HARD pair. It runs at the ordinary poll and fresh callback-entry samples. `_admitEeeStep` checks the 75/71 frames and 21/20 callbacks at callback entry. Both retain the original widened arithmetic, comparison order and error details. The public interface is unchanged. |
+| Strict timing and indivisible batches | `reset_timing` tests HARD/RESTART at 2,028/1,028 µs in its fixture. `loopback_timing` tests 38 µs with the previous analog selection already applied. `electrical_calibration` tests 2,032 µs and separates a one-frame aggregate failure, a short-slice yield and a missing completion-read reserve. `eee_ownership_timing` tests initial enable and owned replay at 2,472/2,448 µs. At equality no callback starts. One more microsecond admits the expected literal batch. |
+| Cross-entry ownership | `native_cli_cross_entry_boundaries` injects both task identities at each of 4 read, 4 write and 5 masked-update positions. SDK raw ioctls and mediators on both installed endpoints exercise a safe word, both indirect ports and a destructive counter. PHY speed, duplex, AN, restart, link and pause callbacks, a real CLI command and an application read run inside the holder's callback. The peer reaches its own terminal callback twice and each one-tick take fails. The holder records one take/give and exactly 4/4/5 physical-model frames. Both counter values survive. A peer read succeeds after release. |
+| SDK effects independent of the bus lock | An identical PHY address succeeds, a different one is rejected, and neither issues a frame. The flow test exercises the typed MAC and PHY halves individually to avoid the pinned raw flow ioctl's incompatible pointer types. A rejected pause callback retains earlier accepted halves and records possible MAC change. Rejected restart and link callbacks retain the SDK stop obligation. |
+| Uncertain writes | `native_raw_accepted_write_timeouts` applies the write before reporting `ESP_ERR_TIMEOUT` at each of the 11 write positions across the three transactions. Each fresh installed fixture compares the literal prefix, modeled selector, mode and target, attempted/completed counts, primary detail, release status and actual lock events. Address-only effects preserve verified settings. A possible final target write retains the desired profile and marks observed settings stale and dirty. Owner and peer are excluded during quarantine. After simulated external idle confirmation, one successful read reports the value while SDK agreement remains withdrawn. |
+| Start after invalidation | `native_cli_restart_after_raw_observation` crosses AN/forced mode with an actual raw BMCR change or an observed PHYRCR HARD bit through the DEVAD 31 alias. A later successful read leaves trust dirty. The public SDK getter retains the old AN policy. A direct SDK start can post START in forced mode before failing. Owner stop accounts for that prefix. Explicit initialization replay and reconciliation restore supported start. |
+
+The new cases passed with the existing native behavior and the extracted
+portable admission checks.
+The existing MMD failure, partial-notification and directional-pause suites
+remain in the run. API, SDK, CLI, testing and feature coverage guides describe
+the added evidence. The root README and CHANGELOG already describe these APIs
+and user-visible behavior. The physical qualification and installed teardown
+gates remain open.
+
+### Local reproduction
+
+Reuse the phase (a) Release/Ninja configure command above. For worktree and
+firmware identity checks, include both the SDK and the actual repository in
+the process-local Git safe directories. Add the exact SDK OpenThread submodule
+path for its configure-time revision query. Run the same host filter with the
+pinned public driver suites included:
+
+```powershell
+$env:GIT_CONFIG_COUNT = '3'
+$env:GIT_CONFIG_KEY_0 = 'safe.directory'
+$env:GIT_CONFIG_VALUE_0 = 'C:/esp/v6.1/esp-idf'
+$env:GIT_CONFIG_KEY_1 = 'safe.directory'
+$env:GIT_CONFIG_VALUE_1 = (Resolve-Path .).Path.Replace('\','/')
+$env:GIT_CONFIG_KEY_2 = 'safe.directory'
+$env:GIT_CONFIG_VALUE_2 = 'C:/esp/v6.1/esp-idf/components/openthread/openthread'
+cmake --build build/p53-baseline --parallel 5
+ctest --test-dir build/p53-baseline -R "($suites)|^pinned_driver_" --output-on-failure --no-tests=error -j 3
+cmake -S test/consumer -B build/p53-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF
+cmake --build build/p53-consumer --parallel 3
+ctest --test-dir build/p53-consumer --output-on-failure --no-tests=error
+```
+
+The sandbox could read the pinned clangd archive but could not access its
+installed executable. The SDK exporter checks this tool during activation.
+The local build used that exact cached archive from `C:/esp/v6.1/tools/dist`,
+SHA-256 `1a91c04bb570e0740eede529b20c98c2dd0be6750eb7d91a7226e19f3d88d490`.
+Extract its `esp-clangd/bin` directory, including the DLLs, into
+`build/p53-baseline/sdk-tools` and prepend the resulting bin path to this
+process's PATH. The first Ninja build stopped progressing in ccache. A new
+cache in the owned SDK build directory allowed compilation to proceed.
+
+```powershell
+$env:CCACHE_DIR = 'C:/esp/build/dp8382x-loop/53cache'
+$projects = [ordered]@{l='test/esp_idf/adapter_link'; b='examples/esp_idf/basic'; o='examples/esp_idf/owner'}
+foreach ($key in $projects.Keys) {
+  $dir = "C:/esp/build/dp8382x-loop/53$key"
+  scripts/idf.cmd -C $projects[$key] -B $dir -D IDF_TARGET=esp32p4 -D "SDKCONFIG=$dir/sdkconfig" build
+  if ($LASTEXITCODE) { throw "SDK build failed for $key" }
+}
+```
+
+### Phase (b) receipts
+
+| Evidence | Result |
+| --- | --- |
+| Windows x86-64 host, GNU 15.1.0, CMake 4.0.1, Ninja, Release | **PASS**. The build verified 45 SDK inputs at `fff9895c82d744c7237be8847347bdd1b07c6643`. The final core, CLI and pinned-driver selection passed 167/167 in 0.94 s. Direct execution of the two new native CLI cases passed 2,606 and 84 checks, respectively. The portable agent also passed all 36 EEE, reset, operation, electrical and loopback registrations in an independent Release build. |
+| Plain tests-OFF consumer | **PASS**, 2/2 in `build/p53-consumer`. Exported package consumer **NOT RUN**. |
+| Python and source checks | **PASS**. Python 3.12.10 discovery ran 238 tests with 49 compiled-fixture skips. Doxygen checked 293 pages and two negative fixtures. Reference verification covered 29 payloads, 27 extracts and 2,234 local links. Ledger verification covered 97 registers, 52 procedures and 35 features. Version and whitespace checks passed. |
+| ESP32-P4 SDK links | **PASS**, adapter link fixture, basic application and owner application. Each ELF contains `Phy::execute`, `_admitResetStep` and `_admitEeeStep`. Each firmware identity header records the phase (a) SHA and dirty worktree. Early builds with only the SDK safe directory produced unknown firmware identity. Relinking with the process-local repository entry above corrected all three. |
+| Remote CI and physical evidence | Both **NOT RUN**. Prompt 71 owns first-execution CI. The host model ran offline and the three firmware images were linked only. |
+
+| Image in `C:/esp/build/dp8382x-loop` | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `53l/dp8382x_adapter_link.bin` | 387040 | `0779b3f699ab4845fee60fcb415a9264ee0be4b5b62bfccddd0a83b23883e8ed` |
+| `53b/dp8382x_p4_ethernet.bin` | 682400 | `ade2f2e495900d604b4db91ce4f39f92ccc6c7deb58bc865c40837b1733dc8c7` |
+| `53o/dp8382x_p4_owner.bin` | 560832 | `eb28551a608e566c80edcfb37257345de0a6586c7518b605720d9e97baa218b1` |
+
+Phase (c) independently reviews the committed diff against the source vectors,
+especially the two admission samples, partial effects and SDK cache behavior.
+The wrapper owns the implementation commit and remote equality check.

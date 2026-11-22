@@ -19,6 +19,8 @@ struct InstrumentedMac {
     std::map<std::string, uint32_t> elapsedUs;
     std::vector<esp_err_t> readResults;
     std::vector<esp_err_t> writeResults;
+    // One-based position in frames. Apply the write before returning the timeout.
+    size_t timeoutAfterWriteAtFrame = 0;
     std::function<void(const char*)> onCall;
     std::function<void(const Frame&)> onFrame;
     std::vector<eth_speed_t> speedRequests;

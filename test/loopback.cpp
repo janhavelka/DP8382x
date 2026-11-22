@@ -21,6 +21,8 @@ struct Controller {
   std::array<uint16_t, 3> opaque{};
   bool holdLinkDown{false}; unsigned phystsReads{0};
   uint64_t now{100}, frameTime{2};
+  unsigned jumpClockCall{0};
+  uint64_t jumpClockTo{0};
   unsigned calls{0}, frames{0}, clocks{0}, releases{0}, semanticWrites{0}, vodWrites{0}, resets{0};
   int failFrame{-1}, releaseCall{-1}, lateCall{-1}, regressCall{-1}, overflowCall{-1};
   int corruptCall{-1}; uint8_t corruptRegister{0}; uint16_t corruptValue{0};
@@ -33,7 +35,9 @@ struct Controller {
     c.phyAddress = phy; c.transport = {this, execute, clock, {8, 4, 1}}; return c;
   }
   static uint64_t clock(void* context) noexcept {
-    auto& bus = *static_cast<Controller*>(context); ++bus.clocks; return bus.now;
+    auto& bus = *static_cast<Controller*>(context);
+    if (++bus.clocks == bus.jumpClockCall) { bus.now = bus.jumpClockTo; }
+    return bus.now;
   }
   uint16_t read(uint8_t reg) noexcept {
     if (reg == 16) { ++phystsReads; return holdLinkDown ? uint16_t{0} : words[16]; }
@@ -615,7 +619,44 @@ void barriers() {
   CHECK(take(subject,cleanup).loopback.stopped); restored(subject,attempted,old);
 }
 
+void restartAdmission() {
+  constexpr uint64_t deadline = 1000000;
+  // Two one-frame callbacks, four lag ticks and a 10 us wait cost 38 us.
+  for (unsigned sample : {1U, 2U}) {
+    for (unsigned slack : {0U, 1U}) {
+      Controller bus;
+      Driver driver;
+      ready(driver, bus);
+      OperationToken token;
+      CHECK(driver.startLoopback(options(LoopbackMode::ANALOG), allowance(512, deadline), token).inProgress());
+      // Analog selection writes BISCR bit 3 immediately before PHYRCR RESTART.
+      for (unsigned i = 0; i < 32 && (bus.words[0x16] & 8U) == 0U; ++i) {
+        CHECK(pollOne(driver, bus, token).inProgress());
+      }
+      CHECK((bus.words[0x16] & 8U) != 0U);
+      CHECK(driver.operationSnapshot().phase == OperationPhase::COMMAND);
+      CHECK(driver.operationSnapshot().temporaryMayBeActive);
+      const auto frames = bus.frames, calls = bus.calls, resets = bus.resets;
+      bus.jumpClockCall = bus.clocks + sample;
+      bus.jumpClockTo = deadline - 38 - slack;
+      const auto status = pollOne(driver, bus, token);
+      if (slack == 0U) {
+        CHECK(status.is(Err::OPERATION_TIMEOUT) && status.detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
+        CHECK(bus.clocks == bus.jumpClockCall && bus.calls == calls && bus.frames == frames && bus.resets == resets);
+        const auto result = take(driver, token);
+        CHECK(!result.commandAccepted && result.mutationCompleted && result.cleanupOwed && result.temporaryMayBeActive);
+      } else {
+        CHECK(status.inProgress() && bus.calls == calls + 1 && bus.frames == frames + 1 && bus.resets == resets + 1);
+        CHECK(bus.trace[frames].kind == FrameKind::WRITE && bus.trace[frames].reg == 0x1F && bus.trace[frames].value == 0x4000);
+        CHECK(driver.cancel(token).ok());
+        CHECK(take(driver, token).commandAccepted);
+      }
+    }
+  }
+}
+
 void timing() {
+  restartAdmission();
   Controller bus; Driver driver; ready(driver,bus);
   const auto token=begin(driver,bus,options(LoopbackMode::DIGITAL));
   const auto calls=bus.calls;

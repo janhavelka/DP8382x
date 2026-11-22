@@ -532,6 +532,12 @@ retains normalized release evidence independently of the operation status.
     recipe rows and first reset poll; the smaller floor excludes the completed capability
     check. Identity/profile replay needs additional allowance.
     [EEE](eee.md) owns the exact procedure and the meaning of this source-selected recipe.
+  At poll entry the ordinary aggregate budget check precedes a short-slice yield.
+  A slice large enough for the batch also checks the reset reserve. Immediately before
+  the callback the executor takes a fresh clock sample, checks the ordinary batch,
+  then checks the applicable reset and EEE reserves in that order. Equality with
+  the deadline rejects the batch before its first frame. Earlier accepted effects
+  remain in the operation result.
   Other cooperative steps admit only the next batch. Direct multibatch calls have their own
   aggregate budgets. Neither look-ahead promises completion if owner polling is late;
   accepted effects and OP-9 obligations remain on subsequent failure.

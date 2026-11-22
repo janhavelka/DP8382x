@@ -1,5 +1,25 @@
 # Verification
 
+The pinned-host suite `native_cli_cross_entry_boundaries` exercises two installed
+adapters at PHY addresses 0 and 1. Reentry from the holding task and a competing
+task checks the public raw ioctls, mediator hooks, PHY callbacks, application
+and CLI against both MAC traces. `native_cli_restart_after_raw_observation`
+checks restart after a raw BMCR change or observed HARD command with the SDK's
+AN cache both enabled and disabled.
+
+`native_raw_accepted_write_timeouts` applies each possible selector, address
+or target write before returning a timeout in the modeled MAC. It checks the
+actual register value, the retained uncertain frame, successful mutex release,
+controller quarantine and the effect of a later explicit read on trust.
+The native harness runs this suite at 1,000, 100 and 333 Hz.
+
+`reset_timing`, `loopback_timing`, `electrical_calibration` and
+`eee_ownership_timing` exercise finite admission across clock jumps. With
+the EEE fixture's 8 µs fixed cost, 4 µs per frame and 1 µs clock lag, equality
+at 2,472 µs before capability or 2,448 µs before HARD rejects without another
+frame. One more microsecond admits that batch. See the [source vectors and
+CTest commands](../docs/reports/implementation/53-regression-transaction-ownership.md).
+
 Prompt 49 registers `cli_hil_serial` in the portable Release build. It uses
 Python with site-packages disabled and drives the real CLI fixture through an
 injected serial backend. It checks passive attachment, write framing, timeouts,

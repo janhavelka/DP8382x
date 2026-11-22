@@ -1497,6 +1497,93 @@ void rawBoundaryFailures() {
         assert(receipts.size() == 2 && receipts[0].take && receipts[0].accepted && !receipts[1].take && receipts[1].accepted);
     }
 }
+void rawAcceptedWriteTimeouts() {
+    enum class Access { READ, WRITE, MODIFY };
+    for (const auto access : {Access::READ, Access::WRITE, Access::MODIFY}) {
+        // SNLS647I 8.3.11.1, tables 8-31/32. LEDCR retains bit 7 on masked update.
+        std::vector<Host::Frame> expected{{true, 0, 13, 0x001F}, {true, 0, 14, 0x0018},
+                                          {true, 0, 13, 0x401F}};
+        if (access != Access::WRITE) expected.push_back({false, 0, 14, 0x0080});
+        if (access == Access::WRITE) expected.push_back({true, 0, 14, 0x0012});
+        if (access == Access::MODIFY) expected.push_back({true, 0, 14, 0x0092});
+
+        for (size_t cut = 0; cut < expected.size(); ++cut) {
+            if (!expected[cut].write) continue;
+            Host::reset(); Fixture f; f.config.pinnedP4Mac = true; f.install(); f.initialize();
+            f.mac.frames.clear();
+            f.mac.selector = 0x1234;
+            f.mac.dataMode = true;
+            f.mac.registers[0x18] = 0x0080;
+            f.mac.timeoutAfterWriteAtFrame = cut + 1;
+            TransportSnapshot before;
+            assert(f.owner->transportSnapshot(before).ok());
+            const auto calls = countCall("mac.read") + countCall("mac.write");
+            Host::state().semaphoreEvents.clear();
+            const IoBudget budget{Host::state().nowUs + 100000, 5};
+            RawBatchReceipt receipt;
+            uint16_t word = 0xCAFE;
+            Status status;
+            switch (access) {
+            case Access::READ: status = f.owner->readMmd(31, 0x18, word, budget, &receipt); break;
+            case Access::WRITE: status = f.owner->writeMmd(31, 0x18, 0x12, budget, &receipt); break;
+            case Access::MODIFY: status = f.owner->modifyMmd(31, 0x18, 0x12, 0x12, budget, &receipt); break;
+            }
+            assert(status.is(Err::MDIO_TIMEOUT) && status.detail == ESP_ERR_TIMEOUT && word == 0xCAFE);
+            assert(receipt.valid && receipt.violation == TransportViolation::NONE);
+            assert(receipt.batch.status.is(Err::MDIO_TIMEOUT) && receipt.batch.status.detail == ESP_ERR_TIMEOUT);
+            assert(receipt.releaseStatus.is(Err::MDIO_ERROR) && receipt.releaseStatus.detail == ESP_ERR_TIMEOUT);
+            assert(!receipt.batch.controllerReusable && f.bus.quarantined);
+            TransportSnapshot after;
+            assert(f.owner->transportSnapshot(after).ok());
+            assert(after.totalBatches == before.totalBatches + 1);
+            assert(after.attemptedFrames == before.attemptedFrames + cut + 1);
+            assert(after.completedFrames == before.completedFrames + cut);
+            const auto locks = controllerEvents(f.bus.mutex);
+            assert(locks.size() == 2 && locks[0].take && locks[0].accepted && !locks[1].take && locks[1].accepted);
+            assert(!Host::semaphoreHeld(f.bus.mutex) && f.mac.frames.size() == cut + 1);
+            for (size_t i = 0; i < expected.size(); ++i) {
+                const auto& frame = receipt.batch.frames[i];
+                assert(frame.attempted == (i <= cut) && frame.completed == (i < cut));
+                assert(frame.effectPossible == (i == cut));
+                if (i > cut) continue;
+                const auto& seen = f.mac.frames[i];
+                assert(seen.write == expected[i].write && seen.address == expected[i].address &&
+                       seen.reg == expected[i].reg && seen.value == expected[i].value);
+            }
+            const bool targetWritten = cut + 1 == expected.size();
+            const auto target = targetWritten ? expected[cut].value : 0x0080U;
+            assert(f.mac.dataMode == (cut >= 2) && f.mac.selector == (cut >= 1 ? 0x0018 : 0x1234));
+            assert(f.mac.registers[0x18] == target);
+            const auto expectedTrust = targetWritten ? ConfigurationTrust::DIRTY : ConfigurationTrust::VERIFIED;
+            SettingsSnapshot settings;
+            SdkStateSnapshot sdk;
+            assert(f.owner->settingsSnapshot(settings).ok() && settings.trust == expectedTrust);
+            assert(settings.observedStale == targetWritten && settings.desiredValid);
+            assert(f.owner->sdkStateSnapshot(sdk).ok() && !sdk.reconciled);
+            const auto denied = f.owner->readClause22(0x18, word, budget);
+            assert(denied.is(Err::BUSY) && denied.detail == static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED));
+            assert(readPeerIdentity(f, word) == ESP_ERR_INVALID_STATE && word == 0xCAFE);
+            assert(f.mac.frames.size() == cut + 1 && controllerEvents(f.bus.mutex).size() == 2);
+            assert(countCall("mac.read") + countCall("mac.write") == calls + cut + 1);
+
+            // Only this stopped fake owns the controller. The synchronous model
+            // has applied the selected write and returned, with no pending work.
+            // Model external confirmation of idle independently of register trust.
+            assert(xSemaphoreTake(f.bus.mutex, 0) == pdTRUE);
+            assert(f.bus.admission == BusAdmission::AVAILABLE && f.bus.quarantined);
+            f.bus.quarantined.store(false);
+            assert(xSemaphoreGive(f.bus.mutex) == pdTRUE);
+            assert(f.owner->readClause22(0x18, word, budget).ok() && word == target);
+            assert(f.mac.frames.size() == cut + 2 && !f.mac.frames.back().write && f.mac.frames.back().reg == 0x18);
+            assert(f.owner->settingsSnapshot(settings).ok() && settings.desiredValid);
+            assert(settings.desired.advertisement.technologyMask == LINK_100_FULL);
+            assert(settings.trust == expectedTrust);
+            assert(settings.observedStale == targetWritten);
+            assert(f.owner->sdkStateSnapshot(sdk).ok() && !sdk.reconciled);
+            assert(f.owner->start(budget.deadlineUs) == ESP_ERR_INVALID_STATE && f.mac.frames.size() == cut + 2);
+        }
+    }
+}
 void p4BusyBeforeCommand() {
     // Exercise each boundary in the 3-write, 1-read MMD transaction. The P4
     // rejects the command before issue while controller ownership is uncertain.
@@ -3207,6 +3294,7 @@ int main(int argc, char** argv) {
     else if (suite == "quarantine_after_batch_unlock") quarantineAfterBatchUnlock();
     else if (suite == "controller_wait_classification") controllerWaitClassification();
     else if (suite == "raw_boundary_failures") rawBoundaryFailures();
+    else if (suite == "raw_accepted_write_timeouts") rawAcceptedWriteTimeouts();
     else if (suite == "p4_busy_before_command") p4BusyBeforeCommand();
     else if (suite == "rejected_raw_reads") rejectedRawReads();
     else if (suite == "forced_lifecycle") forcedLifecycle();

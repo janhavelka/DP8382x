@@ -1347,6 +1347,9 @@ public:
   /// Any attempted HARD write publishes a persistent max(2000, interval) us floor
   /// anchored after callback return; the bus owner also excludes other PHYs.
   /// Waits use conservative post-callback time; no controller lock spans polls.
+  /// Reset commands reserve the command, minimum wait and first completion poll
+  /// at poll entry and again immediately before the batch callback. EEE also
+  /// checks its remaining recipe allowance at that fresh callback-entry sample.
   Status pollOperation(OperationToken token, uint32_t maxFrames = MAX_BATCH_FRAMES) noexcept;
   /// @brief Copy current progress/barrier without MDIO or clock access.
   /// @return Slot state and remaining allowance; not a completion or link promise.
@@ -2235,6 +2238,8 @@ private:
   Status _checkQuiet() noexcept;
   Status _anchorQuiet() noexcept;
   uint32_t _commandWaitUs() const noexcept;
+  Status _admitResetStep(const IoBudget& budget, uint64_t raw) const noexcept;
+  Status _admitEeeStep(const IoBudget& budget, uint64_t raw) const noexcept;
   void _invalidateResetEvidence(bool configurationLost) noexcept;
   MdioBatch _configurationBatch() const noexcept;
   Status _advanceConfiguration(Status status, bool called, const MdioBatch& batch) noexcept;

@@ -590,6 +590,32 @@ void failures() {
 }
 
 void timing() {
+  // The first sample has ample time. A later callback-entry sample must still
+  // reserve both one-frame transfers, four lag ticks and the command's wait.
+  constexpr uint64_t deadline = 100000;
+  for (const auto reset : {ResetKind::HARD, ResetKind::RESTART}) {
+    for (unsigned slack : {0U, 1U}) {
+      Controller bus;
+      Driver driver;
+      CHECK(driver.bind(bus.config()).ok());
+      const auto token = start(driver, reset, budget(128, deadline));
+      toCommand(driver, bus, token);
+      const auto frames = bus.frames, calls = bus.calls;
+      bus.jumpClockCall = bus.clocks + 2;
+      bus.jumpClockTo = deadline - (reset == ResetKind::HARD ? 2028U : 1028U) - slack;
+      const auto status = driver.pollOperation(token);
+      if (slack == 0U) {
+        CHECK(status.is(Err::OPERATION_TIMEOUT) && status.detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
+        CHECK(bus.clocks == bus.jumpClockCall && bus.calls == calls && bus.frames == frames);
+        CHECK(!take(driver, token).mutationAttempted);
+      } else {
+        CHECK(status.inProgress() && bus.calls == calls + 1 && bus.frames == frames + 1);
+        wire(bus, frames, FrameKind::WRITE, 0x1F, reset == ResetKind::HARD ? 0x8000 : 0x4000);
+        CHECK(driver.cancel(token).ok());
+        CHECK(take(driver, token).commandAccepted);
+      }
+    }
+  }
   for (const auto reset : {ResetKind::HARD, ResetKind::RESTART}) {
     for (const bool admit : {false, true}) {
       Controller bus;

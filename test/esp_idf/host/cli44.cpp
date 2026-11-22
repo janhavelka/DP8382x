@@ -251,6 +251,80 @@ void reconciliation() {
   CHECK(endpoint.phy->stop(now() + 100000) == ESP_OK);
 }
 
+void restartAfterRawObservation() {
+  for (const bool forced : {false, true}) for (const bool resetObserved : {false, true}) {
+    Host::reset();
+    SharedBus bus;
+    Endpoint endpoint;
+    if (!install(endpoint, bus) || !endpoint.initialize()) { CHECK(false); return; }
+    auto apply = request(Action::START_CONFIGURE);
+    if (forced) {
+      apply.settings.mode = LinkMode::FORCED;
+      apply.settings.forced = {LinkSpeed::MBPS_10, Duplex::FULL};
+      apply.settings.crossover.pairSelection = PairSelection::MDI;
+    } else {
+      apply.settings.advertisement.technologyMask = LINK_100_FULL;
+    }
+    Receipt receipt{};
+    if (!endpoint.call(apply, receipt).inProgress() || !endpoint.terminal(receipt.token, receipt) ||
+        !receipt.result.ok() || !endpoint.phy->reconcileSdkState(now() + 100000).ok()) { CHECK(false); return; }
+    CHECK(endpoint.phy->start(now() + 100000) == ESP_OK);
+    CHECK(endpoint.phy->stop(now() + 100000) == ESP_OK);
+    if (resetObserved) {
+      // Table 8-48, PHYRCR HARD (0x1F bit 15), read via its DEVAD 31 alias.
+      endpoint.mac.registers[0x1F] = 0x8000;
+      auto raw = request(Action::READ_MMD, 4);
+      raw.devad = 31;
+      raw.address = 0x1F;
+      CHECK(endpoint.call(raw, receipt).ok() && receipt.value == 0x8000);
+      endpoint.mac.registers[0x1F] = 0; // Model later self-clear.
+      CHECK(endpoint.call(raw, receipt).ok() && receipt.value == 0);
+    } else {
+      auto raw = request(Action::MODIFY_BMCR, 2);
+      raw.mask = 0x1000;
+      raw.value = forced ? 0x1000 : 0; // Table 8-19, change the actual AN bit.
+      CHECK(endpoint.call(raw, receipt).ok() && receipt.batch.frames[1].completed);
+      raw = request(Action::READ_C22, 1); // A successful read cannot reauthorize restart.
+      raw.address = 0;
+      CHECK(endpoint.call(raw, receipt).ok() && (receipt.value & 0x1000U) == (forced ? 0x1000U : 0U));
+    }
+    const auto before = endpoint.mac.frames.size();
+    SdkStateSnapshot sdk{};
+    SettingsSnapshot settings{};
+    bool cachedAn = forced;
+    CHECK(endpoint.phy->settingsSnapshot(settings).ok() && settings.trust == ConfigurationTrust::DIRTY &&
+          settings.desiredValid && settings.desired.mode == apply.settings.mode && settings.observedStale);
+    CHECK(endpoint.phy->sdkStateSnapshot(sdk).ok() && !sdk.reconciled && sdk.cacheValid &&
+          sdk.cachedAutoNegotiation == !forced);
+    CHECK(esp_eth_ioctl(endpoint.handle, ETH_CMD_G_AUTONEGO, &cachedAn) == ESP_OK && cachedAn == !forced);
+    CHECK(endpoint.phy->start(now() + 100000) == ESP_ERR_INVALID_STATE);
+    CHECK(endpoint.phy->reconcileSdkState(now() + 100000).is(Err::NOT_INITIALIZED));
+
+    // esp_eth_start changes the SDK FSM first. With AN off it posts START
+    // before the installed PHY rejects get_link; with AN on the restart
+    // callback rejects before the event. Only the owner can finish cleanup.
+    const auto events = Host::state().events.size();
+    CHECK(esp_eth_start(endpoint.handle) == ESP_ERR_INVALID_STATE);
+    CHECK(Host::state().events.size() == events + (forced ? 1U : 0U));
+    if (forced && Host::state().events.size() > events)
+      CHECK(Host::state().events.back().id == ETHERNET_EVENT_START &&
+            Host::state().events.back().handle == endpoint.handle);
+    CHECK(esp_eth_start(endpoint.handle) == ESP_ERR_INVALID_STATE);
+    CHECK(endpoint.phy->stop(now() + 100000) == ESP_OK);
+    CHECK(Host::state().events.size() == events + (forced ? 2U : 0U));
+    if (forced && Host::state().events.size() > events)
+      CHECK(Host::state().events.back().id == ETHERNET_EVENT_STOP &&
+            Host::state().events.back().handle == endpoint.handle);
+    CHECK(endpoint.phy->start(now() + 100000) == ESP_ERR_INVALID_STATE && endpoint.mac.frames.size() == before);
+    if (!endpoint.initialize()) { CHECK(false); return; }
+    CHECK(endpoint.phy->reconcileSdkState(now() + 100000).ok());
+    CHECK(endpoint.phy->sdkStateSnapshot(sdk).ok() && sdk.reconciled && sdk.cachedAutoNegotiation == !forced);
+    CHECK(esp_eth_ioctl(endpoint.handle, ETH_CMD_G_AUTONEGO, &cachedAn) == ESP_OK && cachedAn == !forced);
+    CHECK(((endpoint.mac.registers[0] & 0x1000U) != 0) == !forced);
+    CHECK(endpoint.phy->start(now() + 100000) == ESP_OK && endpoint.phy->stop(now() + 100000) == ESP_OK);
+  }
+}
+
 void clockFault() {
   Host::reset();
   SharedBus bus;
@@ -395,6 +469,164 @@ void rawAccess() {
   const auto explicitInvalidation = endpoint.mac.frames.size();
   CHECK(endpoint.call(request(Action::INVALIDATE), receipt).ok());
   CHECK(!receipt.batchValid && endpoint.mac.frames.size() == explicitInvalidation);
+}
+
+void checkRawHooks(Endpoint& endpoint, uint32_t address, uint32_t otherAddress) {
+  uint32_t reported = 0xCAFE;
+  CHECK(esp_eth_ioctl(endpoint.handle, ETH_CMD_S_PHY_ADDR, &address) == ESP_OK);
+  CHECK(esp_eth_ioctl(endpoint.handle, ETH_CMD_S_PHY_ADDR, &otherAddress) == ESP_ERR_NOT_SUPPORTED);
+  CHECK(esp_eth_ioctl(endpoint.handle, ETH_CMD_G_PHY_ADDR, &reported) == ESP_OK && reported == address);
+
+  // Include an ordinary word, both indirect ports, and a read-clear counter.
+  // The installed hooks reject even an otherwise safe word at the correct PHY.
+  auto* mediator = endpoint.mac.mediator;
+  for (const uint32_t reg : {2U, 0x0DU, 0x0EU, 0x14U}) {
+    uint32_t word = 0xCAFE;
+    esp_eth_phy_reg_rw_data_t raw{reg, &word};
+    CHECK(esp_eth_ioctl(endpoint.handle, ETH_CMD_READ_PHY_REG, &raw) == ESP_ERR_NOT_SUPPORTED);
+    CHECK(esp_eth_ioctl(endpoint.handle, ETH_CMD_WRITE_PHY_REG, &raw) == ESP_ERR_NOT_SUPPORTED);
+    for (const auto target : {address, otherAddress}) {
+      CHECK(mediator->phy_reg_read(mediator, target, reg, &word) == ESP_ERR_NOT_SUPPORTED);
+      CHECK(mediator->phy_reg_write(mediator, target, reg, word) == ESP_ERR_NOT_SUPPORTED);
+    }
+    CHECK(word == 0xCAFE);
+  }
+}
+
+void attemptReentry(Endpoint& holder, Endpoint& peer, Processor& cli) {
+  const auto before = now();
+  checkRawHooks(holder, 0, 1);
+  checkRawHooks(peer, 1, 0);
+  auto* base = holder.phy->nativePhy();
+  bool cachedAn = false;
+  CHECK(base->reset(base) == ESP_ERR_NOT_SUPPORTED);
+  CHECK(base->set_speed(base, ETH_SPEED_10M) == ESP_ERR_INVALID_STATE);
+  CHECK(base->set_duplex(base, ETH_DUPLEX_HALF) == ESP_ERR_INVALID_STATE);
+  CHECK(esp_eth_ioctl(holder.handle, ETH_CMD_S_AUTONEGO, &cachedAn) == ESP_ERR_INVALID_STATE);
+  CHECK(esp_eth_ioctl(holder.handle, ETH_CMD_G_AUTONEGO, &cachedAn) == ESP_OK && cachedAn);
+
+  uint16_t word = 0xCAFE;
+  const auto io = allowance().io;
+  const auto denied = holder.phy->readClause22(2, word, io);
+  CHECK(denied.is(Err::BUSY) && denied.detail == static_cast<int32_t>(BusyDetail::OWNER_ADMISSION));
+  CHECK(word == 0xCAFE);
+  holder.transcript.clear();
+  constexpr std::string_view read = "registers read c22 2\n";
+  CHECK(cli.feed(read) == read.size());
+  for (unsigned i = 0; i < 16 && (cli.workPending() || cli.outputPending()); ++i) cli.tick();
+  CHECK(!cli.workPending() && !cli.outputPending());
+  CHECK(holder.transcript.find("cmd=registers.read op=0 state=terminal primary=BUSY detail=" +
+        std::to_string(static_cast<int32_t>(BusyDetail::OWNER_ADMISSION)) + " ") != std::string::npos);
+
+  RawBatchReceipt evidence{};
+  const auto contended = peer.phy->readMmd(31, 2, word, io, &evidence);
+  // The installed peer has its own instance gate and a one-tick controller allowance.
+  CHECK(contended.is(Err::MDIO_TIMEOUT) && contended.detail == ESP_ERR_TIMEOUT && word == 0xCAFE);
+  CHECK(evidence.valid && evidence.batch.controllerReusable && evidence.releaseStatus.ok());
+  CHECK(!evidence.batch.frames[0].attempted && !evidence.batch.frames[0].effectPossible);
+
+  // A sub-tick allowance admits normal flow callbacks but forbids sleeping
+  // for the busy owner. Exercise the SDK's two typed callback boundaries
+  // separately because its raw flow ioctl aliases bool and uint32_t pointers.
+  const auto effects = holder.mac.flowRequests.size();
+  CHECK(holder.phy->setFlowControl(true, 0, now() + 500) == ESP_ERR_INVALID_STATE);
+  CHECK(holder.mac.flowRequests.size() == effects);
+  CHECK(holder.mac.native.enable_flow_ctrl(&holder.mac.native, true) == ESP_OK);
+  CHECK(base->advertise_pause_ability(base, 0) == ESP_ERR_INVALID_STATE);
+  CHECK(holder.mac.flowRequests.size() == effects + 1 && holder.mac.flowEnabled);
+  // These callbacks can issue MDIO during an admitted SDK start. Rejection
+  // must preserve possible earlier framework effects for the owner's stop.
+  bool enabled = false;
+  CHECK(base->autonego_ctrl(base, ESP_ETH_PHY_AUTONEGO_RESTART, &enabled) == ESP_ERR_INVALID_STATE && !enabled);
+  CHECK(base->get_link(base) == ESP_ERR_INVALID_STATE);
+  CHECK(now() == before);
+}
+
+void crossEntryBoundaries() {
+  for (const auto action : {Action::READ_MMD, Action::WRITE_MMD, Action::MODIFY_MMD}) {
+    const unsigned count = action == Action::MODIFY_MMD ? 5 : 4;
+    for (unsigned cut = 1; cut <= count; ++cut) {
+      Host::reset();
+      SharedBus bus;
+      Endpoint holder, peer;
+      Processor cli;
+      if (!install(holder, bus) || !peer.install(bus, 1) || !attach(holder, cli)) { CHECK(false); return; }
+      // Establish a valid stopped flow-control policy before contention. An
+      // unauthorized callback must invalidate a previously reconciled receipt.
+      auto apply = request(Action::START_CONFIGURE);
+      apply.settings.advertisement = {LINK_100_FULL, false, false};
+      Receipt receipt{};
+      if (!holder.initialize() || !holder.call(apply, receipt).inProgress() ||
+          !holder.terminal(receipt.token, receipt) || !receipt.result.ok() ||
+          !holder.phy->reconcileSdkState(now() + 100000).ok()) { CHECK(false); return; }
+      FlowControlRecord flow{};
+      CHECK(holder.phy->setFlowControl(false, 0, now() + 500) == ESP_OK);
+      CHECK(holder.phy->flowControlSnapshot(flow).ok() && flow.reconciled && !holder.mac.flowEnabled);
+      TransportSnapshot before{};
+      CHECK(holder.phy->transportSnapshot(before).ok());
+      holder.mac.frames.clear();
+      holder.mac.registers[0x18] = 0x0080;
+      holder.mac.registers[0x14] = peer.mac.registers[0x14] = 0x0042;
+      Host::state().semaphoreEvents.clear();
+      unsigned position = 0;
+      holder.mac.onFrame = [&](const Host::Frame&) {
+        if (++position != cut) return;
+        CHECK(Host::semaphoreHeld(bus.mutex) && holder.mac.frames.size() == cut);
+        for (const auto task : {1U, 2U}) {
+          Host::state().currentTask = task;
+          attemptReentry(holder, peer, cli);
+          CHECK(Host::semaphoreHeld(bus.mutex) && holder.mac.frames.size() == cut && peer.mac.frames.empty());
+        }
+        Host::state().currentTask = 1;
+      };
+      auto outer = request(action, count);
+      outer.devad = 31;
+      outer.address = 0x18;
+      outer.mask = outer.value = 0x0012;
+      CHECK(holder.call(outer, receipt).ok() && receipt.batchValid && receipt.releaseStatus.ok());
+      holder.mac.onFrame = nullptr;
+      CHECK(position == count && holder.mac.frames.size() == count && peer.mac.frames.empty());
+      if (holder.mac.frames.size() != count) return;
+      // SNLS647I section 8.3.11.1 and tables 8-31/32. The last write of
+      // the modify preserves the sampled 0x0080 outside mask 0x0012.
+      const uint32_t registers[] = {0x0D, 0x0E, 0x0D, 0x0E, 0x0E};
+      const uint32_t values[] = {0x001F, 0x0018, 0x401F, action == Action::WRITE_MMD ? 0x0012U : 0x0080U, 0x0092};
+      for (unsigned i = 0; i < count; ++i) {
+        const auto& frame = holder.mac.frames[i];
+        CHECK(frame.address == 0 && frame.reg == registers[i] && frame.value == values[i]);
+        CHECK(frame.write == (i != 3 || action == Action::WRITE_MMD));
+        CHECK(receipt.batch.frames[i].attempted && receipt.batch.frames[i].completed);
+      }
+      CHECK(holder.mac.registers[0x18] == values[count - 1]);
+      if (action == Action::READ_MMD) CHECK(receipt.value == 0x0080);
+      CHECK(holder.mac.registers[0x14] == 0x0042 && peer.mac.registers[0x14] == 0x0042);
+
+      std::vector<Host::SemaphoreEvent> controller;
+      for (const auto& event : Host::state().semaphoreEvents)
+        if (event.handle == bus.mutex) controller.push_back(event);
+      CHECK(controller.size() == 4);
+      if (controller.size() != 4) return;
+      CHECK(controller[0].take && controller[0].accepted);
+      for (unsigned i : {1U, 2U}) CHECK(controller[i].take && !controller[i].accepted && controller[i].ticks == 1);
+      CHECK(!controller[3].take && controller[3].accepted && !Host::semaphoreHeld(bus.mutex) && !bus.quarantined);
+      TransportSnapshot transport{};
+      CHECK(holder.phy->transportSnapshot(transport).ok() && transport.totalBatches == before.totalBatches + 1 &&
+            transport.attemptedFrames == before.attemptedFrames + count &&
+            transport.completedFrames == before.completedFrames + count);
+      CHECK(peer.phy->transportSnapshot(transport).ok() && transport.totalBatches == 2 &&
+            transport.attemptedFrames == 0 && transport.completedFrames == 0);
+      // Preserve both accepted halves of the last owned call. An unadmitted
+      // pause callback can only report uncertainty about the later MAC change.
+      CHECK(holder.phy->flowControlSnapshot(flow).ok() && flow.macEffectPossible && !flow.reconciled &&
+            flow.macAccepted && flow.phyAccepted && flow.phyError == ESP_ERR_INVALID_STATE);
+      LifecycleRecord lifecycle{};
+      CHECK(holder.phy->lifecycleSnapshot(lifecycle).ok() && lifecycle.phase == Phase::STOPPING &&
+            lifecycle.stage == LifecycleStage::START && lifecycle.firstError.sdkError == ESP_ERR_INVALID_STATE);
+      uint16_t peerWord = 0xCAFE;
+      CHECK(peer.phy->readClause22(2, peerWord, allowance().io).ok() && peerWord == 0x2000);
+      CHECK(peer.mac.frames.size() == 1 && peer.mac.frames[0].address == 1 && peer.mac.frames[0].reg == 2);
+    }
+  }
 }
 
 bool issueHard(Endpoint& endpoint, OperationToken token, bool regress) {
@@ -710,6 +942,8 @@ void blockedPoll() {
 int main(int argc, char** argv) {
   const test::Suite suites[] = {{"admission", admission}, {"reconciliation", reconciliation},
                                 {"discovery", discovery}, {"raw_access", rawAccess},
+                                {"cross_entry_boundaries", crossEntryBoundaries},
+                                {"restart_after_raw_observation", restartAfterRawObservation},
                                 {"shared_silence", sharedSilence}, {"clock_fault", clockFault},
                                 {"link_events", linkEvents}, {"lifecycle", lifecycle}, {"features", features},
                                 {"feature_admission", featureAdmission}, {"blocked_poll", blockedPoll}};

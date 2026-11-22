@@ -90,7 +90,8 @@ target_compile_options(dp8382x_native_host_tests PRIVATE -Wall -Wextra -Werror -
 add_executable(dp8382x_native_cli_tests host/cli44.cpp "${repo}/examples/common/Dp8382xCli.cpp")
 target_link_libraries(dp8382x_native_cli_tests PRIVATE dp8382x_native_host)
 target_compile_options(dp8382x_native_cli_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
-foreach(suite IN ITEMS admission reconciliation discovery raw_access shared_silence clock_fault
+foreach(suite IN ITEMS admission reconciliation discovery raw_access cross_entry_boundaries
+                       restart_after_raw_observation shared_silence clock_fault
                         link_events lifecycle features feature_admission blocked_poll)
   add_test(NAME native_cli_${suite} COMMAND dp8382x_native_cli_tests ${suite})
   set_tests_properties(native_cli_${suite} PROPERTIES TIMEOUT 30)
@@ -172,7 +173,7 @@ set(native_suites factory board_install_failures raw_routing raw_rx_retention
     board_tick_readiness poll_period_bounds start_completion_contention stop_completion_contention
     forbidden_lifecycle discovery discovery_admission discovery_accounting terminal_event_retry
     installer_contention raw_read_arbitration raw_lock_failures controller_wait_classification raw_boundary_failures
-    rejected_raw_reads forced_lifecycle raw_state_reconciliation
+    raw_accepted_write_timeouts rejected_raw_reads forced_lifecycle raw_state_reconciliation
     direct_start_invalidation flow_control flow_control_callback_bounds sdk_control_callback_bounds raw_mutation_arbitration
     raw_mutation_admission collector_partial_evidence uncertain_basic_control
     configuration_admission hard_reset_silence board_respects_initialization_silence

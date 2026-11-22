@@ -64,6 +64,10 @@ InstrumentedMac::InstrumentedMac() {
         else m.registers[reg] = static_cast<uint16_t>(reg == 0 ? value & ~0x8200U : reg == 31 ? value & ~0xC000U : value);
         const Frame frame{true, address, reg, value};
         if (m.onFrame) m.onFrame(frame);
+        if (m.timeoutAfterWriteAtFrame == m.frames.size()) {
+            m.timeoutAfterWriteAtFrame = 0;
+            return ESP_ERR_TIMEOUT;
+        }
         return ESP_OK;
     };
 }

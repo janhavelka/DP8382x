@@ -532,6 +532,15 @@ unlock, so a later owner's failure cannot corrupt this completed receipt.
 Generic MAC failures and actual
 P4 MDIO timeouts retain uncertain effects and quarantine. Passive health cannot reopen it.
 
+For an indirect access, inspect the failing frame in the original batch receipt.
+A timeout on REGCR or the address write to ADDAR can leave the selector changed.
+A timeout on the final LEDCR data write can leave the target changed as well.
+The latter invalidates configuration trust and retains the desired profile.
+After the owner establishes controller idle, a successful read can report the
+target value. SDK restart still requires verified settings and reconciliation.
+The [transaction regression map](reports/implementation/53-regression-transaction-ownership.md)
+identifies the tests for both outcomes.
+
 ### Recovering a quarantined shared controller
 
 1. Close application traffic and maintenance admission for every bus participant.

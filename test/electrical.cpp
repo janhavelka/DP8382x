@@ -19,6 +19,8 @@ struct Controller {
   uint16_t selector{0},address{0},id2{0xA131};
   MacInterface boardInterface{MacInterface::MII};
   uint64_t now{100};
+  unsigned jumpClockCall{0};
+  uint64_t jumpClockTo{0};
   unsigned frames{0},calls{0},clocks{0},releases{0},mutations{0},hard{0};
   std::array<unsigned,2048> firstFrame{};
   int failFrame{-1},releaseCall{-1},corruptFrame{-1},lateCall{-1},regressCall{-1},invalidCall{-1},badReceiptCall{-1};
@@ -38,7 +40,11 @@ struct Controller {
     Config c;c.variant=Variant::DP83826I;c.interface=boardInterface;c.phyAddress=phy;
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
-  static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context);++b.clocks;return b.now; }
+  static uint64_t clock(void* context) noexcept {
+    auto& bus = *static_cast<Controller*>(context);
+    if (++bus.clocks == bus.jumpClockCall) { bus.now = bus.jumpClockTo; }
+    return bus.now;
+  }
   uint16_t read(uint16_t target,uint16_t devad=31) {
     CHECK(devad==31);
     if(target==2)return 0x2000;
@@ -426,7 +432,66 @@ void collision() {
     CHECK(drain(d,b,t).is(Err::INVALID_CONFIG));CHECK(!take(d,t).mutationAttempted && writes(b,first,0)==0U);
   }
 }
+void calibrationAdmission() {
+  constexpr uint64_t deadline = 1000000;
+  // CDCR clear + HARD share the first callback. Include the separate PHYRCR
+  // status read, four lag ticks and HARD's 2000 us wait: 3*4 + 2*8 + 4 + 2000.
+  for (unsigned sample : {1U, 2U}) {
+    for (unsigned slack : {0U, 1U}) {
+      Controller bus;
+      Driver driver;
+      ready(driver, bus);
+      bus.words[30] = 0x4102;
+      OperationToken token;
+      CHECK(driver.startCalibrationRecovery({true,true,true}, budget(4, deadline), token).inProgress());
+      CHECK(poll(driver, bus, token).inProgress()); // Read CDCR before the pair.
+      const auto frames = bus.frames, calls = bus.calls;
+      bus.jumpClockCall = bus.clocks + sample;
+      bus.jumpClockTo = deadline - 2032 - slack;
+      const auto status = poll(driver, bus, token, 2);
+      if (slack == 0U) {
+        CHECK(status.is(Err::OPERATION_TIMEOUT) && status.detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
+        CHECK(bus.clocks == bus.jumpClockCall && bus.calls == calls && bus.frames == frames);
+        CHECK(bus.words[30] == 0x4102 && bus.hard == 0);
+        const auto result = take(driver, token);
+        CHECK(result.electrical.cdcrValid && result.electrical.rawCdcr == 0x4102 && result.electrical.recoveryNeeded);
+        CHECK(!result.mutationAttempted && !result.commandAccepted && !result.electrical.hardResetOwed);
+      } else {
+        CHECK(status.inProgress() && bus.calls == calls + 1 && bus.frames == frames + 2 && bus.hard == 1);
+        CHECK(bus.trace[frames].kind == FrameKind::WRITE && bus.trace[frames].reg == 0x1E && bus.trace[frames].value == 0x0102);
+        CHECK(bus.trace[frames+1].kind == FrameKind::WRITE && bus.trace[frames+1].reg == 0x1F && bus.trace[frames+1].value == 0x8000);
+        CHECK(driver.cancel(token).ok());
+        CHECK(take(driver, token).commandAccepted);
+      }
+    }
+  }
+  // With one frame left the ordinary batch cannot fit. With two left the
+  // pair fits, so a short slice yields before the missing status-read reserve
+  // can end the operation. Both paths must leave the original CDCR intact.
+  for (unsigned remaining : {1U, 2U}) {
+    Controller bus;
+    Driver driver;
+    ready(driver, bus);
+    bus.words[30] = 0x4102;
+    OperationToken token;
+    CHECK(driver.startCalibrationRecovery({true,true,true}, budget(1 + remaining, deadline), token).inProgress());
+    CHECK(poll(driver, bus, token).inProgress());
+    const auto frames = bus.frames, calls = bus.calls, clocks = bus.clocks;
+    auto status = poll(driver, bus, token, 1);
+    CHECK(bus.clocks == clocks + 1);
+    if (remaining == 2) {
+      CHECK(status.inProgress() && driver.operationSnapshot().remaining.maxFrames == 2);
+      status = poll(driver, bus, token, 2);
+    }
+    const auto detail = remaining == 1 ? TimeoutDetail::FRAME_BUDGET : TimeoutDetail::BOUND_ADMISSION;
+    CHECK(status.is(Err::OPERATION_TIMEOUT) && status.detail == static_cast<int32_t>(detail));
+    CHECK(bus.calls == calls && bus.frames == frames && bus.words[30] == 0x4102 && bus.hard == 0);
+    CHECK(!take(driver, token).mutationAttempted);
+  }
+}
+
 void calibration() {
+  calibrationAdmission();
   for(const uint16_t initial:std::array<uint16_t,2>{{0x0102,0xC142}}) {
     Controller b;Driver d;ready(d,b);b.words[30]=initial;const auto first=b.frames;OperationToken t;
     CHECK(d.startCalibrationRecovery({true,true,true},budget(),t).inProgress());const auto result=complete(d,b,t);
