@@ -48,6 +48,7 @@ struct State {
     std::vector<uint64_t> periodicPeriodsUs;
     bool holdOneShot = false;
     uint64_t nowUs = 0;
+    std::function<uint64_t(uint64_t)> clockSample;
     unsigned timerCreates = 0;
     unsigned timerDeletes = 0;
     unsigned oneShotArms = 0;
@@ -61,6 +62,7 @@ void deliverEvents();
 void tickTimers();
 bool isLive(const void* allocation);
 size_t activeHandlers();
+size_t activePeriodicTimers();
 size_t activeNetifs();
 bool semaphoreHeld(SemaphoreHandle_t semaphore);
 esp_netif_t* makeNetif();

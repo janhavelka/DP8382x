@@ -3,7 +3,29 @@
 
 #include <array>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
+#include <new>
+
+// This single-threaded host executable counts ordinary C++ allocations. The
+// measured interval excludes fixture construction and the test runner.
+namespace {
+std::size_t allocationsObserved = 0;
+void* allocate(std::size_t bytes) {
+  if (void* memory = std::malloc(bytes ? bytes : 1)) {
+    ++allocationsObserved;
+    return memory;
+  }
+  throw std::bad_alloc();
+}
+}
+
+void* operator new(std::size_t bytes) { return allocate(bytes); }
+void* operator new[](std::size_t bytes) { return allocate(bytes); }
+void operator delete(void* memory) noexcept { std::free(memory); }
+void operator delete[](void* memory) noexcept { std::free(memory); }
+void operator delete(void* memory, std::size_t) noexcept { std::free(memory); }
+void operator delete[](void* memory, std::size_t) noexcept { std::free(memory); }
 
 namespace {
 using namespace DP8382x;
@@ -22,14 +44,14 @@ struct Controller {
   struct Phy {
     uint16_t id1{0x2000}, id2{0xA131}, bmcr{0x3100};
     uint16_t sor1{0x1234}, sor2{0x5678}, vod{0x8400}, led{0};
-    uint16_t selector{0}, address{0};
+    uint16_t selector{0}, address{0}, falseCarriers{0};
     unsigned resetReads{0};
   };
   std::array<Phy, 32> phys{};
   std::array<Wire, 512> trace{};
   std::array<uint8_t, 128> batchSizes{};
   std::array<IoBudget, 128> budgets{};
-  uint64_t now{100}, frameTime{2};
+  uint64_t now{100}, frameTime{2}, clockQuantumUs{1};
   TransportBounds bounds{8, 4, 1};
   unsigned clocks{0}, calls{0}, acquisitions{0}, releases{0}, frames{0};
   unsigned jumpClockCall{0};
@@ -57,7 +79,7 @@ struct Controller {
     auto& bus = *static_cast<Controller*>(context);
     ++bus.clocks;
     if (bus.clocks == bus.jumpClockCall) bus.now = bus.jumpClockTo;
-    return bus.now;
+    return bus.now - bus.now % bus.clockQuantumUs;
   }
   uint16_t read(Phy& phy, uint8_t reg) noexcept {
     if (reg == 0x00) {
@@ -70,6 +92,11 @@ struct Controller {
     if (reg == 0x1F) return 0; // No external PHYRCR command in this PCS fixture.
     if (reg == 0x02) return phy.id1;
     if (reg == 0x03) return phy.id2;
+    if (reg == 0x14) {
+      const auto value = phy.falseCarriers;
+      phy.falseCarriers = 0;
+      return value;
+    }
     if (reg == 0x18) return phy.led;
     if (reg == 0x0E && phy.selector == 0x401F) {
       if (phy.address == 0x0467) return phy.sor1;
@@ -533,6 +560,120 @@ void timing() {
   CHECK(sticky.frames == 16 && sticky.phys[1].vod == 0x8400);
 }
 
+void pollSchedules() {
+  Controller fine;
+  Driver driver;
+  CHECK(driver.bind(fine.config()).ok());
+  auto allowance = budget();
+  allowance.pollIntervalUs = 2000;
+  const auto token = start(driver, ResetKind::PCS, allowance);
+  advanceBatches(driver, fine, token, 5);
+  const auto launch = fine.now;
+  CHECK(driver.pollOperation(token).is(Err::IN_PROGRESS));
+  wire(fine, 12, FrameKind::WRITE, 0x00, 0x8000);
+  CHECK(fine.now == launch + 2);
+  const uint64_t completionUpper = fine.now + 1;
+  CHECK(driver.operationSnapshot().nextPollAtUs == completionUpper + 2000);
+  for (unsigned elapsed = 0; elapsed < 2000; elapsed += 100) {
+    fine.now = completionUpper + elapsed;
+    CHECK(driver.pollOperation(token).is(Err::IN_PROGRESS));
+    CHECK(fine.calls == 6 && fine.frames == 13);
+    CHECK(driver.operationSnapshot().stalledPolls == 0);
+  }
+  fine.now = completionUpper + 2000;
+  CHECK(driver.pollOperation(token).is(Err::IN_PROGRESS));
+  CHECK(fine.calls == 7 && fine.frames == 14);
+  wire(fine, 13, FrameKind::READ, 0x00);
+  CHECK(drain(driver, fine, token).ok());
+  CHECK(take(driver, token).protocolComplete);
+
+  Controller coarse;
+  coarse.now = 0;
+  coarse.clockQuantumUs = 10000;
+  coarse.bounds.clockLagUs = 10000;
+  Driver tickDriver;
+  CHECK(tickDriver.bind(coarse.config()).ok());
+  OperationBudget tickBudget;
+  tickBudget.io = {100000, 128};
+  tickBudget.pollIntervalUs = 5000;
+  CHECK(tickBudget.maxStalledPolls == 100000);
+  const auto tickToken = start(tickDriver, ResetKind::PCS, tickBudget);
+  advanceBatches(tickDriver, coarse, tickToken, 6);
+  wire(coarse, 12, FrameKind::WRITE, 0x00, 0x8000);
+  const auto completedAt = coarse.now;
+  CHECK(completedAt == 26);
+  CHECK(tickDriver.operationSnapshot().nextPollAtUs == 15000);
+  // One poll per modeled microsecond. The application sees only whole ticks.
+  for (; coarse.now < 20000; ++coarse.now) {
+    CHECK(tickDriver.pollOperation(tickToken).is(Err::IN_PROGRESS));
+    CHECK(coarse.calls == 6 && coarse.frames == 13);
+    const auto stalled = coarse.now < 10000 ? coarse.now - completedAt + 1 : coarse.now - 10000;
+    CHECK(tickDriver.operationSnapshot().stalledPolls == stalled);
+  }
+  CHECK(tickDriver.pollOperation(tickToken).is(Err::IN_PROGRESS));
+  CHECK(coarse.calls == 7 && coarse.frames == 14);
+  wire(coarse, 13, FrameKind::READ, 0x00);
+  CHECK(tickDriver.operationSnapshot().stalledPolls == 0);
+  CHECK(drain(tickDriver, coarse, tickToken).ok());
+  CHECK(take(tickDriver, tickToken).protocolComplete);
+}
+
+void sliceBound() {
+  Controller bus;
+  Driver driver;
+  CHECK(driver.bind(bus.config()).ok());
+  const auto token = start(driver, ResetKind::NONE, budget(128, 200));
+  CHECK(driver.pollOperation(token).is(Err::IN_PROGRESS));
+  wire(bus, 0, FrameKind::READ, 0x02);
+  wire(bus, 1, FrameKind::READ, 0x03);
+  // For SOR1, raw + lag(1) + lock/release(8) + 4 frames * 4 us must be < 200.
+  bus.now = 174;
+  CHECK(driver.pollOperation(token, 1).is(Err::IN_PROGRESS));
+  CHECK(bus.calls == 1 && bus.frames == 2);
+  bus.now = 175;
+  const auto status = driver.pollOperation(token, 1);
+  CHECK(status.is(Err::OPERATION_TIMEOUT));
+  CHECK(status.detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
+  const auto result = take(driver, token);
+  CHECK(result.status.code == status.code && result.status.detail == status.detail);
+  CHECK(!result.mutationAttempted && !result.cleanupOwed);
+  CHECK(bus.calls == 1 && bus.frames == 2);
+}
+
+void allocations() {
+  Controller bus;
+  Driver driver;
+  CHECK(driver.bind(bus.config()).ok());
+  bus.phys[1].falseCarriers = 7;
+  // Exercise the linked replacement functions through volatile pointers so
+  // an optimized host build must actually make both positive-control calls.
+  using Allocator = void* (*)(std::size_t);
+  Allocator volatile allocateScalar = ::operator new;
+  Allocator volatile allocateArray = ::operator new[];
+  const auto baseline = allocationsObserved;
+  void* scalar = allocateScalar(1);
+  void* array = allocateArray(4);
+  ::operator delete(scalar);
+  ::operator delete[](array);
+  CHECK(allocationsObserved - baseline == 2);
+
+  const auto before = allocationsObserved;
+  const auto token = start(driver, ResetKind::PCS);
+  CHECK(drain(driver, bus, token).ok());
+  CHECK(take(driver, token).persistentRestored);
+  CounterSnapshot counters;
+  CHECK(driver.collectEvents(counters, {100000, 6}).ok());
+  CHECK(counters.rawFcscr == 7 && bus.phys[1].falseCarriers == 0);
+  CHECK(bus.calls == 13 && bus.frames == 38);
+  const auto clocks = bus.clocks;
+  CHECK(driver.counterSnapshot().falseCarrierTotal == 7);
+  CHECK(driver.evidenceSnapshot().lastStatus.ok());
+  CHECK(driver.healthSnapshot().initialized);
+  CHECK(driver.transportSnapshot().completedFrames == 38);
+  CHECK(bus.clocks == clocks && bus.calls == 13);
+  CHECK(allocationsObserved == before);
+}
+
 void failures() {
   for (const auto reset : {ResetKind::NONE, ResetKind::PCS}) {
     const int total = reset == ResetKind::NONE ? 20 : 32;
@@ -858,6 +999,7 @@ void ownership() {
 int main(int argc, char** argv) {
   const test::Suite suites[] = {
     {"initialization", initialization}, {"admission", admission}, {"timing", timing},
+    {"poll_schedules", pollSchedules}, {"slice_bound", sliceBound}, {"allocations", allocations},
     {"failures", failures}, {"lifecycle", lifecycle}, {"ownership", ownership}
   };
   return test::runSuites(argc, argv, suites);

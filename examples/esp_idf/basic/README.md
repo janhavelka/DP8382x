@@ -127,7 +127,10 @@ I/O) and acts on its obligations:
   100 ms is a requested interval during the demo.
 - `eventLost` (the P4 MAC accepted a link change but its event was not
   delivered): the owner calls the event-only `retryLinkEvent`, which never
-  replays MAC UP. After 10 consecutive steps without delivery it stops.
+  replays MAC UP. The application retains the latest direct retry return
+  and prints it at shutdown. After the tenth retry it checks the journal
+  again. An accepted late post returns `ESP_ERR_TIMEOUT` and clears
+  `eventLost`; a still-pending event ends the session.
 
 The final output reports the primary and cleanup causes, why the session
 ended and whether a core result is still owed. Historical lifecycle errors
@@ -142,7 +145,9 @@ task. On `BUSY`, the owner checks for a terminal result pending on that
 token. The polling allowance is 6 s or 10,000 attempts. Cancellation and
 result delivery then each allow up to 100 attempts with one-tick yields.
 Only successful delivery releases CONTROL. An undelivered token remains
-owed and preserves the original operation evidence. Later shared CLI commands
+owed and preserves the frozen operation status and detail, including when
+a transient gate BUSY led the owner to discover it through the snapshot.
+Later shared CLI commands
 use the separate budgets and terminal record rules in the CLI guide.
 
 Link evidence prints `CURRENT` only when the cached sample is valid, not stale
@@ -168,7 +173,9 @@ the netif RX pointer before reporting failure. `Phy::retire` stops/fences and
 closes admission; a failure keeps everything alive for inspection. The first
 primary result, first cleanup error and native lifecycle journal remain
 separate. Posting STOP queues the glue handler. The owner has no receipt
-confirming that netif traffic has ended. No event handler waits for its own unregister, and no installed glue
+confirming that netif traffic has ended. Even after the glue calls
+`esp_netif_action_stop`, RX that already loaded the mediator can still
+reach the retained netif input path. No event handler waits for its own unregister, and no installed glue
 is deleted. Glue deletion has no independent deadline: unregister can wait on
 the default-loop mutex for the longest handler. Handlers here only set atomics.
 

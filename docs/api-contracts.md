@@ -518,6 +518,11 @@ retains normalized release evidence independently of the operation status.
   terminates, within `(frames + 1) * maxStalledPolls + 1` polls. The
   default of 100000 is deliberately large, because this is a fault path: a tight loop on a 100 Hz tick clock must not trip it, while a
   frozen clock still ends in about 100 s at 1 ms polls. Lower it only if the clock's tick is shorter than poll spacing times the value.
+  For example, a reset completed at raw zero with a 10,000 µs lag and a
+  5,000 µs poll interval is due at 15,000 µs. On a 100 Hz floor clock its
+  first eligible sample is 20,000 µs. Early polls at either preceding tick
+  issue no frame. A short slice at exact aggregate bound equality still
+  returns BOUND_ADMISSION before yielding.
 - **OP-6 Procedure look-aheads.** Two additional reservations precede mutation:
   - Reset admission reserves the command batch and first completion read, requiring
     `raw + 4 * clockLagUs + bound(command) + wait + bound(read) < deadline` with checked addition.

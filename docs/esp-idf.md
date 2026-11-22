@@ -309,7 +309,12 @@ it with the actual GPIO implementation and scheduler. If an attempted
 assertion fails or its hold cannot finish, the owner makes one best-effort
 release call. The shared bus stays FAILED_CLOSED. An unsuccessful release
 does not establish pin level, pulse width or readiness. Inspect both the
-primary and cleanup receipts before external disposition.
+primary and cleanup receipts before external disposition. Board preparation
+checks one nondecreasing clock from entry through the controller drain, each
+wake, both sides of the pin calls and final readiness. A backward sample
+leaves shared admission FAILED_CLOSED even when GPIO has not been touched.
+The initial readiness wait consumes the same poll allowance as the hold and
+release waits. Before assertion, both must fit the remaining allowance.
 
 Elapsed-time checks and finite poll caps apply. A floor-rounded RTOS delay
 alone is insufficient. Quiet

@@ -12,13 +12,16 @@ namespace DP8382x::EspIdf {
 static_assert(std::is_standard_layout<PhyHandle>::value && offsetof(PhyHandle, phy) == 0,
               "Public PHY must be the first handle member");
 namespace {
-// Tagged owner timeouts cannot alias a signed 32-bit esp_err_t or the empty sentinel.
+// Tagged owner receipts cannot alias a signed 32-bit esp_err_t or the empty sentinel.
 constexpr int64_t OWNER_TIMEOUT_BASE = int64_t{1} << 32;
+constexpr int64_t OWNER_CLOCK_REGRESSION = -OWNER_TIMEOUT_BASE;
 constexpr int64_t OWNER_DEADLINE = OWNER_TIMEOUT_BASE + static_cast<int32_t>(TimeoutDetail::DEADLINE);
 int64_t timeoutReceipt(TimeoutDetail reason) noexcept {
   return OWNER_TIMEOUT_BASE + static_cast<int32_t>(reason);
 }
 NativeStatus terminalReceipt(int64_t receipt, const char* message) noexcept {
+  if (receipt == OWNER_CLOCK_REGRESSION)
+    return {Status::Error(Err::INVALID_CONFIG, "Board clock regressed", static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT))};
   if (receipt >= OWNER_TIMEOUT_BASE)
     return {Status::Error(Err::OPERATION_TIMEOUT, message, static_cast<int32_t>(receipt - OWNER_TIMEOUT_BASE))};
   return {{}, static_cast<esp_err_t>(receipt)};
@@ -375,28 +378,41 @@ esp_err_t Phy::prepareBoard(const BoardControl& board, uint64_t deadlineUs) noex
   const bool readinessKnown = porKnown && addTime(board.clockStableAtUs, lag, clockStable) &&
       addTime(clockStable > porDue ? clockStable : porDue, 100U, assertionReady);
   bool resetAttempted = false;
+  // A valid interval spans phase transitions as well as the callbacks. A
+  // regression invalidates shared readiness even before either pin is touched.
+  uint64_t last = entry;
+  bool clockRegressed = false;
+  const auto sample = [&]() {
+    const auto current = timeNow();
+    const bool monotonic = current >= last;
+    last = current;
+    if (!monotonic) clockRegressed = true;
+    return monotonic;
+  };
   // Drain existing whole batches. No mutex survives pin callbacks or waits.
   int64_t result = readinessKnown ? ESP_OK : ESP_ERR_INVALID_ARG;
-  const auto beforeDrain = timeNow();
-  if (result == ESP_OK && beforeDrain >= deadlineUs) result = timeoutReceipt(TimeoutDetail::DEADLINE);
-  if (result == ESP_OK && xSemaphoreTake(bus.mutex, ticksWithin(deadlineUs - beforeDrain)) != pdTRUE) {
-    result = timeoutReceipt(timeNow() >= deadlineUs ? TimeoutDetail::DEADLINE : TimeoutDetail::BOUND_ADMISSION);
-  }
-  else if (result == ESP_OK) {
-    if (bus.quarantined.load()) result = ESP_ERR_INVALID_STATE;
-    if (xSemaphoreGive(bus.mutex) != pdTRUE) { bus.quarantined.store(true); result = ESP_FAIL; }
+  if (result == ESP_OK && !sample()) result = OWNER_CLOCK_REGRESSION;
+  if (result == ESP_OK && last >= deadlineUs) result = timeoutReceipt(TimeoutDetail::DEADLINE);
+  if (result == ESP_OK) {
+    if (xSemaphoreTake(bus.mutex, ticksWithin(deadlineUs - last)) != pdTRUE) {
+      result = sample() ? timeoutReceipt(last >= deadlineUs ? TimeoutDetail::DEADLINE : TimeoutDetail::BOUND_ADMISSION)
+                        : OWNER_CLOCK_REGRESSION;
+    } else {
+      if (bus.quarantined.load()) result = ESP_ERR_INVALID_STATE;
+      if (xSemaphoreGive(bus.mutex) != pdTRUE) { bus.quarantined.store(true); result = ESP_FAIL; }
+      if (!sample() && result == ESP_OK) result = OWNER_CLOCK_REGRESSION;
+    }
   }
   uint32_t polls = 0;
   auto waitUntil = [&](uint64_t due) -> int64_t {
-    auto current = timeNow();
-    while (current < due) {
-      if (current >= deadlineUs) return timeoutReceipt(TimeoutDetail::DEADLINE);
+    for (;;) {
+      if (!sample()) return OWNER_CLOCK_REGRESSION;
+      if (last >= deadlineUs) return timeoutReceipt(TimeoutDetail::DEADLINE);
+      if (last >= due) return ESP_OK;
       if (++polls >= board.maxPolls) return timeoutReceipt(TimeoutDetail::POLL_BUDGET);
-      if (!ticksWithin(deadlineUs - current)) return timeoutReceipt(TimeoutDetail::BOUND_ADMISSION);
+      if (!ticksWithin(deadlineUs - last)) return timeoutReceipt(TimeoutDetail::BOUND_ADMISSION);
       vTaskDelay(1);
-      current = timeNow();
     }
-    return current >= deadlineUs ? timeoutReceipt(TimeoutDetail::DEADLINE) : ESP_OK;
   };
   // esp_timer's P4 counter conversion floors ticks/16. Use completion upper
   // bounds, including event timestamps supplied in the same time domain.
@@ -408,31 +424,38 @@ esp_err_t Phy::prepareBoard(const BoardControl& board, uint64_t deadlineUs) noex
   constexpr uint64_t tickUs = (1000000ULL + configTICK_RATE_HZ - 1) / configTICK_RATE_HZ;
   const auto maxDelays = [](uint64_t us) { return (us * configTICK_RATE_HZ + 999999U) / 1000000U + 1; };
   const uint64_t required = holdUs + quietUs + 2 * (board.pinCallbackUs + tickUs);
-  const auto beforePin = timeNow();
   if (result == ESP_OK) {
-    if (beforePin >= deadlineUs) result = timeoutReceipt(TimeoutDetail::DEADLINE);
-    else if (required >= deadlineUs - beforePin) result = timeoutReceipt(TimeoutDetail::BOUND_ADMISSION);
+    if (!sample()) result = OWNER_CLOCK_REGRESSION;
+    else if (last >= deadlineUs) result = timeoutReceipt(TimeoutDetail::DEADLINE);
+    else if (required >= deadlineUs - last) result = timeoutReceipt(TimeoutDetail::BOUND_ADMISSION);
     else if (maxDelays(holdUs) + maxDelays(quietUs) >= board.maxPolls - polls)
       result = timeoutReceipt(TimeoutDetail::POLL_BUDGET);
   }
   if (result == ESP_OK) {
     resetAttempted = true;
+    const auto beforePin = last;
     result = board.setReset(board.context, true);
-    const auto assertedAt = timeNow();
+    const bool assertionClockValid = sample();
     if (result == ESP_OK) {
-      if (assertedAt >= deadlineUs) result = timeoutReceipt(TimeoutDetail::DEADLINE);
-      else if (assertedAt < beforePin || assertedAt - beforePin > board.pinCallbackUs || !addTime(assertedAt, holdUs, due))
+      if (!assertionClockValid) result = OWNER_CLOCK_REGRESSION;
+      else if (last >= deadlineUs) result = timeoutReceipt(TimeoutDetail::DEADLINE);
+      else if (last - beforePin > board.pinCallbackUs || !addTime(last, holdUs, due))
         result = timeoutReceipt(TimeoutDetail::BOUND_ADMISSION);
       else result = waitUntil(due);
     }
     // Even an assertion error or scheduling overrun can leave RESET_N low.
     // Attempt release exactly once. Cleanup has its own finite callback bound.
-    const auto beforeRelease = timeNow();
+    const bool releaseEntryValid = sample();
+    const bool primaryBeforeRelease = result != ESP_OK;
+    if (!releaseEntryValid && !primaryBeforeRelease) result = OWNER_CLOCK_REGRESSION;
+    const auto beforeRelease = last;
     int64_t release = board.setReset(board.context, false);
-    const auto releasedAt = timeNow();
+    const bool releaseClockValid = sample();
+    const auto releasedAt = last;
     if (release == ESP_OK) {
-      if (result == ESP_OK && releasedAt >= deadlineUs) release = timeoutReceipt(TimeoutDetail::DEADLINE);
-      else if (releasedAt < beforeRelease || releasedAt - beforeRelease > board.pinCallbackUs)
+      if (!releaseClockValid || (!releaseEntryValid && primaryBeforeRelease)) release = OWNER_CLOCK_REGRESSION;
+      else if (result == ESP_OK && releasedAt >= deadlineUs) release = timeoutReceipt(TimeoutDetail::DEADLINE);
+      else if (releasedAt - beforeRelease > board.pinCallbackUs)
         release = timeoutReceipt(TimeoutDetail::BOUND_ADMISSION);
     }
     if (result == ESP_OK) result = release;
@@ -448,8 +471,9 @@ esp_err_t Phy::prepareBoard(const BoardControl& board, uint64_t deadlineUs) noex
   // Release shared admission here; the next entry adopts only local readiness.
   _boardOutcome.store(result);
   bus.admission.store(result == ESP_OK ? BusAdmission::AVAILABLE :
-      !resetAttempted && readinessKnown && !bus.quarantined.load() ? admission : BusAdmission::FAILED_CLOSED);
+      !resetAttempted && readinessKnown && !clockRegressed && !bus.quarantined.load() ? admission : BusAdmission::FAILED_CLOSED);
   if (enter()) leave();
+  if (result == OWNER_CLOCK_REGRESSION) return ESP_ERR_INVALID_ARG;
   return result >= OWNER_TIMEOUT_BASE ? ESP_ERR_TIMEOUT : static_cast<esp_err_t>(result);
 }
 

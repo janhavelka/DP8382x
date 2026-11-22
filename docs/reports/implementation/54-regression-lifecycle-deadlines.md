@@ -220,3 +220,74 @@ git diff --check
 
 Phase (b) can proceed after the wrapper verifies this report and progress
 checkpoint against the configured upstream.
+
+## Phase (b) implementation
+
+The wrapper verified `main` and `origin/main` at
+`a741d0d406660f8aafd3265ccf36310f941946fc`. The index and worktree were
+clean. Both implementers used the session's high-reasoning model for clock
+ordering and partial effects. One owned the portable fixture. The other
+owned the board procedure, native fixture and clock hook. The lead integrated
+the shared declarations, registrations, basic application, CLI fixture and
+guides. Both implementers finished. Prompt 54 remains in progress.
+
+The peer paths in phase (a) were reopened at the same clean revisions.
+TMP1x2's clock/cancellation tests and 24Cxx's accepted-prefix and CLI tests
+support retaining frame and token receipts. All timing oracles here use the
+DP83826I and SDK sources listed above. In the pinned SDK, the P4 MAC polling
+loop and generic PHY reset/AN loops use different intervals. In
+`components/esp_timer/src/esp_timer.c`, the initialized timer service
+removes an armed timer under its list lock. The host's injected failing stop
+that leaves it armed exercises a stronger fault model.
+
+| Boundary | Implementation and observed result |
+| --- | --- |
+| OP-5 polling and short slices | `operation_poll_schedules` issued no read on 20 early fine-clock polls or 19,974 early quantized polls. After the PCS write, the first eligible BMCR read was frame 14 in both cases. Both operations completed. `operation_slice_bound` yielded at raw 174 µs and froze BOUND_ADMISSION at 175 µs with the same one-frame slice and zero additional transfers. The existing zero-slice DEADLINE and frozen-clock suites also ran. |
+| Hot-path allocation | After binding fixed caller storage, `operation_allocations` ran reset initialization, polling, delivery, destructive acquisition of six words and cached views. Thirteen batches and 38 frames completed with zero calls to ordinary global scalar or array C++ allocation. Both positive controls fired in Release. Direct C allocation, over-aligned allocation and SDK allocators are outside this result. |
+| Board preparation | `Phy::prepareBoard` checks one sequence of samples through drain, wakes, pin callbacks and final readiness. `native_board_clock_regression` injects nine cuts and checks FAILED_CLOSED, zero MDIO and zero pin calls before assertion or exactly one compensating release after assertion. The SDK entry returns INVALID_ARG for a primary clock fault. The journal records INVALID_CONFIG/CLOCK_CONTRACT, and retains a separate failed release. The reverse error order is also tested. After one readiness wake, the `native_board_reset_window` hold/quiet reservation rejects 5 polls and admits 6 at 100 and 333 Hz. At 1,000 Hz it rejects 7 and admits 8. |
+| Controller and negotiation | `native_mdio_elapsed_deadlines` gives PCS reset 9,000 µs. Twelve prerequisite frames cost 100 µs each, and the accepted reset costs 1,000 µs. Under three cuts, the exact 13-frame trace ends with that write. The next poll rejects at bound equality or expiry, or the callback returns late. Each result retains the accepted write and restoration debt. `native_incomplete_negotiation` checks the literal restart read/write/read before subsequent resolution. |
+| Application failures | `example_start_failure`, `example_stop_failure`, `example_stop_event_failure`, the two timer faults and `example_start_mdio_failure` check injection consumption, both error domains, installed graph, phase, active timer, posted events and subsequent owner admission. The same checks cover running MDIO faults, an unavailable journal, failed CLI stop and denied result delivery. The synthetic active-timer fault enters STOPPING before retirement. Its callback in STOPPED raises unexpected-start cleanup, the owner rejects restart before a second periodic arm, and retirement posts a second STOP after one START. In retained maintenance the active model timer issues zero frames. |
+| Retry and result delivery | `example_last_event_retry` and its on-time counterpart observe the eleventh CONNECTED attempt accepted after ten failures. The direct return is TIMEOUT or OK respectively. Both clear event loss, preserve the original SDK error and issue only one MAC UP before the next start. The application retains and prints the last direct retry receipt. In `example_terminal_snapshot_delivery` the poll gate returns BUSY, the snapshot identifies MDIO_ERROR/264, and all bounded takes fail. The example prints the frozen status and retains the token in CONTROL with cleanup BUSY. One later take succeeds and the duplicate fails. |
+| Late RX | `example_retired_rx_before_stop_delivery` and `example_retired_rx_after_stop_delivery` deliver START, pause RX with a captured mediator and retire with STOP queued. One expected STOP remains until the handlers run. Both orderings reach the retained netif and free the one buffer through the glue. The void netif stop action supplies no acknowledgment of actual session closure. |
+| CLI cancellation | The compiled transcript feeds a partial cancel line, steps the owner, and completes the line while output is stalled. The passive nonce leaves frame/batch counts unchanged. The original request freezes CANCELLED under token 2 after one PCS write. The control request identifies that origin, later result lookup agrees and token 3 restores persistent settings. Consult the [fixture controls](../../../test/cli/README.md). |
+
+### Phase (b) local checks
+
+Windows x86-64, GNU 15.1.0, CMake 4.0.1, Ninja 1.12.1 and Python 3.12.10.
+The pinned build verified 45 SDK sources/headers at `fff9895c`. Use the
+process-local safe directories, cached clangd path, `CCACHE_DIR` and
+three-project `scripts/idf.cmd` loop from the
+[preceding build receipt](53-regression-transaction-ownership.md#phase-b-implementation).
+The selected Release suites include the compiled Python serial, campaign,
+soak and interruption fixtures. The standalone native UBSan build instruments
+both C and C++. The separate portable UBSan build exercises the operation
+suite with the same trap flags.
+
+```powershell
+cmake --build build/p53-baseline --parallel 5
+$selection = '^(operation_|reset_|electrical_|events_|health_|verify_|link_|negotiation_|transport_|eee_ownership_timing$|frame_|forced_replay$|cli_(processor_|native_console_|console_|fixture_transcript$|hil_(runner|serial|campaign|soak|interruptions)$)|native_|example_|owner_|pinned_driver_)'
+ctest --test-dir build/p53-baseline -R $selection --no-tests=error --output-on-failure -j 1
+cmake --build build/p53-review-ubsan --parallel 4
+ctest --test-dir build/p53-review-ubsan -R '^(example_|native_(board|mdio_elapsed|incomplete_negotiation|cli_link_events$))' --no-tests=error --output-on-failure -j 2
+ctest --test-dir build/p54-portable-ubsan -R '^(dp8382x_operation_tests_failure_path|operation_)' --no-tests=error --output-on-failure
+cmake --build build/p53-consumer --clean-first --parallel 4
+ctest --test-dir build/p53-consumer --no-tests=error --output-on-failure
+```
+
+| Evidence layer | Phase (b) result |
+| --- | --- |
+| Host | **PASS**. 497 selected Release registrations in 171.27 s, 104 native UBSan registrations and ten portable UBSan registrations. The dedicated native selection at three tick rates also passed 302/302. After the pre-retirement assertions were added, all 70 application CTests passed again in Release (0.49 s) and UBSan (0.44 s). The initial timer-fault expectation of STOPPED was corrected to STOPPING after tracing the active fake timer. The initial MAC-deletion expectation was also corrected to retain the failed deletion receipt and its modeled effect. |
+| Portable consumer | **PASS**, both clean-rebuilt tests-OFF consumers. Exported package **NOT RUN**. |
+| Source and documentation | **PASS**, Python discovery ran 238 with 49 fixture-dependent skips. Doxygen checked 293 pages and rejected both negative fixtures. Reference, ledger, version and whitespace checks passed. |
+| P4 SDK link | **PASS**, three ELF/binary pairs from the adapter fixture, basic application and owner application. Each identity header records `a741d0d` with a dirty worktree. |
+| Remote CI and physical | Both **NOT RUN**. Prompt 71 owns CI. Board qualification requires an authorized fixture. Reusable installed teardown remains **BLOCKED** on public RX quiescence. |
+
+| ESP32-P4 binary | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `53l/dp8382x_adapter_link.bin` | 387504 | `e29cf482ea7f3e66d99390bf15288292e13661492d32edf291795ccf7f044e7d` |
+| `53b/dp8382x_p4_ethernet.bin` | 682976 | `369ee8943bfd108495400cdb0900138bd471701fc4dcefff84d9dc5d578ef189` |
+| `53o/dp8382x_p4_owner.bin` | 561296 | `f8793c5afcfdaeec60e65e1470e83bf1a25ab68178959dbaa0bd569073025284` |
+
+In phase (c), review the actual implementation commit against `a741d0d`.
+Independently trace the sample order, remaining poll allowance and write
+effects, and the callback, event, result and borrowed-context lifetimes.

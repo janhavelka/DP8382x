@@ -34,6 +34,8 @@ The fixture intercepts exact lines containing `$pause`, `$resume`, `$tick N`
 or `$output-stall N`. They do not consume CLI request numbers. These controls
 exist only in the host executable. `$pause` suspends automatic ticks and
 `$resume` resumes them. `$tick N` advances N owner ticks of 1 ms each.
+While paused, `$fragment TEXT` feeds the text without its line terminator.
+The next ordinary input continues that same CLI line after any explicit ticks.
 `$output-stall N` makes the next N write offers accept zero bytes. N for those
 two controls is decimal 0 through 4096. The following fixture-only controls
 also work with CR, LF or CRLF.

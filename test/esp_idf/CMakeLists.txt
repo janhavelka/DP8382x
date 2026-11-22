@@ -130,12 +130,13 @@ foreach(suite IN ITEMS board_config gate_closed shared_loop netif_init_failure
     app_registration_6 app_registration_7 app_registration_8
     attach_partial_failure event_burst_no_console start_stop start_failure
     stop_failure stop_event_failure start_timer_failure stop_timer_failure
-    start_mdio_failure queued_expected_stop unexpected_stop quarantined_mutex_retained
+    start_mdio_failure queued_expected_stop retired_rx_before_stop_delivery
+    retired_rx_after_stop_delivery unexpected_stop quarantined_mutex_retained
     operation_busy_retry operation_result_owed running_stop_required lost_event_retry
     lost_event_unresolved link_evidence_age board_release_failure last_event_retry last_event_retry_on_time
     unexpected_stop_gap negotiating_start emac_address_failure netif_address_mismatch
     netif_address_read_failure live_cleanup_order live_cleanup_denied terminal_delivery_failure
-    terminal_busy owner_timeout_delivered running_failures journal_retry journal_unavailable journal_failed_call
+    terminal_busy terminal_snapshot_delivery owner_timeout_delivered running_failures journal_retry journal_unavailable journal_failed_call
     cli_network cli_slow_stop
     journal_retry_stop cleanup_journal_unavailable profile_match profile_mismatch profile_aged profile_busy)
   add_test(NAME example_${suite} COMMAND dp8382x_example_host_tests ${suite})
@@ -146,6 +147,7 @@ set_tests_properties(example_profile_mismatch PROPERTIES PASS_REGULAR_EXPRESSION
 set_tests_properties(example_profile_aged PROPERTIES PASS_REGULAR_EXPRESSION "linkEvidence=AGED[^\n]*profile100full=unknown")
 set_tests_properties(example_profile_busy PROPERTIES PASS_REGULAR_EXPRESSION "linkEvidence=BUSY[^\n]*profile100full=unknown[^\n]*nativePhase=BUSY")
 set_tests_properties(example_journal_failed_call PROPERTIES PASS_REGULAR_EXPRESSION "primary stage=start cause=reported core=OK detail=0 SDK=INJECTED_OR_SDK_ERROR")
+set_tests_properties(example_terminal_snapshot_delivery PROPERTIES PASS_REGULAR_EXPRESSION "undelivered operation status=MDIO_ERROR detail=264")
 set_tests_properties(example_glue_allocation_failure PROPERTIES PASS_REGULAR_EXPRESSION "primary stage=netif glue cause=unreported core=OK detail=0 SDK=ESP_OK")
 
 add_executable(dp8382x_owner_cli_host_tests host/owner_cli.cpp
@@ -185,7 +187,8 @@ set(native_suites factory board_install_failures raw_routing raw_rx_retention
     timer_publication_during_stop stop_before_admission persistent_disconnected_during_stop
     raw_uninstall_during_stop raw_uninstall_during_initialization retire_after_stop_admission_timeout
     native_cleanup_error_domains observation_cable_flap observation_bus_contention observation_miss_bound
-    peer_board_observation event_retry_observation board_deadline_domains board_reset_window cancelled_reset_board_floor
+    peer_board_observation event_retry_observation board_deadline_domains board_reset_window board_clock_regression
+    mdio_elapsed_deadlines cancelled_reset_board_floor
     late_stop_gate raw_uninstall_already_down failed_start_cleanup_admission minimal_cleanup_allowance
     observation_reset_trust peer_board_failure_observation observation_gate_denial
     quarantine_after_batch_unlock board_deadline_before_drain

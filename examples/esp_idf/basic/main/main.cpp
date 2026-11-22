@@ -61,6 +61,8 @@ struct Application {
   Status owedTerminal{Err::RESULT_NOT_AVAILABLE, 0, "Terminal operation status unavailable"};
   OperationResult lastResult{}; ///< Last delivered operation, including possible effects.
   unsigned eventRetries{0}; ///< Consecutive owner retries of one lost link event.
+  bool eventRetryAttempted{false};
+  esp_err_t lastEventRetry{ESP_OK}; ///< Latest direct post receipt, retained across journal cycles.
 };
 Application app;
 ExampleConsole console;
@@ -447,7 +449,8 @@ bool serviceObligations() {
     return false;
   }
   ++app.eventRetries;
-  (void)app.phy->retryLinkEvent(nowUs() + 200000U);
+  app.eventRetryAttempted = true;
+  app.lastEventRetry = app.phy->retryLinkEvent(nowUs() + 200000U);
   return true;
 }
 
@@ -628,6 +631,9 @@ void finish() {
               app.installed ? "retained until restart" : "released where safe");
   if (app.failedAdapterCall)
     console.print("adapter call=%s SDK=%s\n", app.failedAdapterCall, esp_err_to_name(app.adapterCallError));
+  if (app.eventRetryAttempted)
+    console.print("last link event retry SDK=%s (%ld)\n", esp_err_to_name(app.lastEventRetry),
+                  static_cast<long>(app.lastEventRetry));
   if (app.resultOwed)
     console.print("undelivered operation status=%s detail=%ld\n", errorName(app.owedTerminal.code),
                 static_cast<long>(app.owedTerminal.detail));

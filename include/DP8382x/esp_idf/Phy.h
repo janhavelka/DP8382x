@@ -229,11 +229,13 @@ public:
   /// A failure before any GPIO invocation restores prior BOOT_CLOSED/AVAILABLE
   /// admission only when controller release and timing are known, preserving the
   /// shared POR/quiet floor. A failed sequence after any attempted pin call, or an
-  /// uncertain controller release, leaves FAILED_CLOSED until external
+  /// uncertain controller release or a backward clock sample observed anywhere
+  /// from admission through the final readiness check, leaves FAILED_CLOSED until external
   /// disposition or system restart. A successful release does not by itself
   /// prove a qualified board pulse.
   /// Before assertion, admission covers both pin calls, the assertion hold,
-  /// release quiet interval and tick rounding. On failure after an attempted
+  /// release quiet interval and tick rounding, within the polls still available
+  /// after initial readiness. On failure after an attempted
   /// assertion the owner still attempts release once, even after expiry. A
   /// cleanup error is retained separately. Each callback must return within
   /// its declared allowance for the application to claim bounded wall time.

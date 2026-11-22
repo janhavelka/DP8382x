@@ -479,6 +479,13 @@ private:
 
   bool control(std::string_view line) {
     if (line == "$pause") _paused = true;
+    else if (_paused && line.substr(0, 10) == "$fragment ") {
+      // Deliver a partial CLI line. Test controls can now step the owner
+      // before the remaining bytes and delimiter reach the same parser.
+      for (char byte : line.substr(10)) {
+        if (!stage(byte)) { _failed = true; break; }
+      }
+    }
     else if (line == "$raise-calibration") _bus.words[30] |= 0x4000U;
     else if (line == "$inject-bist-errors") _bus.bistErrors = 5;
     else if (line == "$inject-wake") {

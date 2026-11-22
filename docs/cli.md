@@ -706,7 +706,10 @@ line sent, including lines the processor rejects. After a timeout send only
 `session <new-nonce>` to resynchronize on an intact stream. Without a valid
 matching reply, stop sending commands. A partial command write can leave the
 input framing uncertain and needs a newly verified connection. Session queries
-do not reconfigure the processor or discard pending work.
+do not reconfigure the processor or discard pending work. Across a nonce
+exchange, a running reset keeps its original request and token. A later
+cancel has its own request ID. The reset terminal retains its accepted
+write and any restoration owed, even while output is stalled.
 
 The [host fixture](../test/cli/README.md) produces software transcripts from the
 real processor and core. Its fault controls are confined to the executable.

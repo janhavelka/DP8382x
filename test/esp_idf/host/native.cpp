@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <iostream>
+#include <iterator>
 #include "../../../examples/esp_idf/owner/main/FramePort.h"
 
 // Count actual frees in the application's stack_input callback. Only its
@@ -590,7 +591,13 @@ void incompleteNegotiation() {
     assert(f.mac.frames.size() == frames); // Acquired observations and accepted SDK fields have different validity.
     Fixture waiting; waiting.config.waitForNegotiatedLink = true; waiting.install(); waiting.initialize();
     waiting.mac.registers[1] = 0x784D; waiting.mac.registers[0x10] = 0x0001;
+    const auto beforeRestart = waiting.mac.frames.size();
     assert(waiting.start() == ESP_OK);
+    assert(waiting.mac.frames.size() > beforeRestart + 3);
+    const auto* restart = waiting.mac.frames.data() + beforeRestart;
+    assert(!restart[0].write && restart[0].reg == 0 && restart[0].value == 0x1000);
+    assert(restart[1].write && restart[1].reg == 0 && restart[1].value == 0x1200);
+    assert(!restart[2].write && restart[2].reg == 0 && restart[2].value == 0x1000);
     assert(waiting.journal().phase == Phase::RUNNING && !waiting.journal().publishedTuple.up);
     assert(waiting.owner->linkSnapshot(observation).ok() && observation.linkUp && !observation.resolvedModeValid);
     waiting.mac.registers[1] = 0x786D; waiting.mac.registers[0x10] = 0x0015;
@@ -1584,6 +1591,63 @@ void rawAcceptedWriteTimeouts() {
         }
     }
 }
+void mdioElapsedDeadlines() {
+    // The P4 polls busy in nominal 100 us steps up to 1,000 us. Here the MAC
+    // models the elapsed contribution of one and ten steps on the real adapter.
+    enum class End { NEXT_BOUND, NEXT_EXPIRED, RETURN_LATE };
+    for (const auto end : {End::NEXT_BOUND, End::NEXT_EXPIRED, End::RETURN_LATE}) {
+        Host::reset(); Fixture f;
+        f.config.lockWaitUs = 100;
+        f.config.core.transport.bounds = {100, 1000, 1};
+        f.install();
+        const auto begin = Host::state().nowUs;
+        const auto deadline = begin + 9000; // Less than one generic SDK reset polling interval.
+        f.mac.elapsedUs["mac.read"] = 100;
+        f.mac.elapsedUs["mac.write"] = 100;
+        OperationToken token;
+        assert(f.owner->startInitialize({ResetKind::PCS}, {{deadline, 64}, 10, 16}, token).inProgress());
+        for (unsigned poll = 0; poll < 5; ++poll) assert(f.owner->pollOperation(token).inProgress());
+        assert(f.mac.frames.size() == 12 && Host::state().nowUs == begin + 1200);
+        f.mac.elapsedUs["mac.write"] = 1000;
+        bool accepted = false;
+        f.mac.onFrame = [&](const Host::Frame& frame) {
+            assert(!accepted && frame.write && frame.reg == 0 && frame.value == 0x8000);
+            assert(Host::state().nowUs == begin + 2200 && Host::semaphoreHeld(f.bus.mutex));
+            accepted = true;
+            if (end == End::RETURN_LATE) Host::state().nowUs = deadline; // Descheduled after acceptance, before return.
+        };
+        auto status = f.owner->pollOperation(token);
+        assert(accepted && !Host::semaphoreHeld(f.bus.mutex));
+        f.mac.onFrame = nullptr;
+        if (end != End::RETURN_LATE) {
+            assert(status.inProgress() && Host::state().nowUs == begin + 2200);
+            OperationSnapshot snapshot;
+            assert(f.owner->operationSnapshot(snapshot).ok() && snapshot.nextPollValid);
+            assert(snapshot.nextPollAtUs == begin + 2211 && snapshot.remaining.deadlineUs == deadline);
+            // At equality the remaining allowance cannot admit another frame.
+            Host::state().nowUs = end == End::NEXT_BOUND ? deadline - 1101 : deadline;
+            status = f.owner->pollOperation(token);
+        }
+        const auto detail = end == End::NEXT_BOUND ? TimeoutDetail::BOUND_ADMISSION : TimeoutDetail::DEADLINE;
+        assert(status.is(Err::OPERATION_TIMEOUT) && status.detail == static_cast<int32_t>(detail));
+        OperationResult result;
+        assert(f.owner->takeResult(token, result).ok() && result.token.value == token.value);
+        assert(result.status.code == status.code && result.status.detail == status.detail);
+        assert(result.commandAccepted && result.mutationCompleted && result.mutationPossible && result.cleanupOwed);
+        assert(!result.protocolComplete && !result.persistentRestored && result.late == (end == End::RETURN_LATE));
+        const Host::Frame expected[] = {
+            {false,0,2,0x2000}, {false,0,3,0xA131}, {true,0,13,31}, {true,0,14,0x0467}, {true,0,13,0x401F},
+            {false,0,14,0}, {true,0,13,31}, {true,0,14,0x0468}, {true,0,13,0x401F}, {false,0,14,0},
+            {false,0,0,0x1000}, {false,0,31,0}, {true,0,0,0x8000}
+        };
+        assert(f.mac.frames.size() == std::size(expected));
+        for (size_t i = 0; i < std::size(expected); ++i) {
+            const auto& actual = f.mac.frames[i];
+            assert(actual.write == expected[i].write && actual.reg == expected[i].reg &&
+                   actual.value == expected[i].value && actual.address == expected[i].address);
+        }
+    }
+}
 void p4BusyBeforeCommand() {
     // Exercise each boundary in the 3-write, 1-read MMD transaction. The P4
     // rejects the command before issue while controller ownership is uncertain.
@@ -2519,6 +2583,34 @@ void boardDeadlineDomains() {
 }
 
 void boardResetWindow() {
+    // One readiness wake is charged before admission for the two remaining
+    // waits. Independent limits include one near-edge wake for each wait.
+    constexpr uint32_t deniedPolls = CONFIG_FREERTOS_HZ == 1000 ? 7 : 5;
+    for (const uint32_t total : {deniedPolls, deniedPolls + 1}) {
+        Host::reset(); Fixture f; f.create(); f.bus.admission = BusAdmission::AVAILABLE;
+        Host::state().nowUs = 50100;
+        struct Pins { uint64_t asserted = 0; uint64_t released = 0; } pins;
+        BoardControl board; board.context = &pins; board.maxPolls = total;
+        board.setReset = [](void* ctx, bool asserted) {
+            auto& pins = *static_cast<Pins*>(ctx);
+            assert(asserted == (pins.asserted == 0) && pins.released == 0);
+            (asserted ? pins.asserted : pins.released) = Host::state().nowUs;
+            return ESP_OK;
+        };
+        const auto status = f.owner->prepareBoard(board, 160000);
+        const auto& delays = Host::state().delays;
+        assert(!delays.empty() && delays.front().beforeUs == 50100 && delays.front().afterUs >= 50101);
+        if (total == deniedPolls) {
+            assert(status == ESP_ERR_TIMEOUT && delays.size() == 1 && pins.asserted == 0 && pins.released == 0);
+            const auto error = f.journal().firstError;
+            assert(error.is(Err::OPERATION_TIMEOUT) && error.coreStatus.detail == static_cast<int32_t>(TimeoutDetail::POLL_BUDGET));
+        } else {
+            assert(status == ESP_OK && delays.size() == (CONFIG_FREERTOS_HZ == 1000 ? 5U : 3U));
+            assert(pins.asserted == delays.front().afterUs && pins.released >= pins.asserted + 101);
+            assert(f.bus.quietUntilUs == pins.released + 2001 && delays.back().afterUs >= pins.released + 2001);
+        }
+        assert(f.bus.admission == BusAdmission::AVAILABLE && f.mac.frames.empty() && f.owner->destroy() == ESP_OK);
+    }
     {
         Host::reset(); Fixture f; f.create();
         BoardControl board;
@@ -2627,6 +2719,75 @@ void boardResetWindow() {
         assert(f.bus.quietUntilUs == floor && f.bus.admission == BusAdmission::FAILED_CLOSED);
         assert(!Host::semaphoreHeld(f.bus.mutex) && f.mac.frames.empty() && f.owner->destroy() == ESP_OK);
     }
+}
+void boardClockRegression() {
+    enum class Cut { BEFORE_DRAIN, AFTER_DRAIN, READY_WAKE, BEFORE_ASSERT, ASSERT_RETURN,
+                     HOLD_WAKE, BEFORE_RELEASE, RELEASE_RETURN, QUIET_WAKE };
+    for (const auto cut : {Cut::BEFORE_DRAIN, Cut::AFTER_DRAIN, Cut::READY_WAKE, Cut::BEFORE_ASSERT,
+                           Cut::ASSERT_RETURN, Cut::HOLD_WAKE, Cut::BEFORE_RELEASE, Cut::RELEASE_RETURN, Cut::QUIET_WAKE}) {
+        Host::reset(); Fixture f; f.create(); f.bus.admission = BusAdmission::AVAILABLE;
+        Host::state().nowUs = 50100;
+        unsigned pins = 0, readySamples = 0, holdSamples = 0;
+        bool drained = false, injected = false;
+        uint64_t previous = Host::state().nowUs;
+        Host::state().afterSemaphoreGive = [&](auto semaphore) {
+            if (semaphore == f.bus.mutex) drained = true;
+        };
+        Host::state().clockSample = [&](uint64_t raw) {
+            if (f.bus.admission != BusAdmission::BOARD_PREPARING || injected) return raw;
+            const auto wakes = Host::state().delays.size();
+            if (pins == 0 && wakes == 1) ++readySamples;
+            if (pins == 1 && wakes == 2) ++holdSamples;
+            const bool atCut =
+                (cut == Cut::BEFORE_DRAIN && !drained) || (cut == Cut::AFTER_DRAIN && drained) ||
+                (cut == Cut::READY_WAKE && readySamples == 1) || (cut == Cut::BEFORE_ASSERT && readySamples == 2) ||
+                (cut == Cut::ASSERT_RETURN && pins == 1) || (cut == Cut::HOLD_WAKE && holdSamples == 1) ||
+                (cut == Cut::BEFORE_RELEASE && holdSamples == 2) || (cut == Cut::RELEASE_RETURN && pins == 2) ||
+                (cut == Cut::QUIET_WAKE && pins == 2 && wakes == 3);
+            if (atCut) { injected = true; return previous - 1; }
+            previous = raw;
+            return raw;
+        };
+        struct Pins { unsigned& count; bool failRelease; } context{pins, cut == Cut::HOLD_WAKE};
+        BoardControl board; board.context = &context;
+        board.setReset = [](void* ctx, bool asserted) {
+            auto& pins = *static_cast<Pins*>(ctx);
+            assert(asserted == (pins.count++ == 0));
+            return !asserted && pins.failRelease ? ESP_FAIL : ESP_OK;
+        };
+        assert(f.owner->prepareBoard(board, 160000) == ESP_ERR_INVALID_ARG && injected);
+        Host::state().clockSample = nullptr;
+        Host::state().afterSemaphoreGive = nullptr;
+        assert(pins == (cut < Cut::ASSERT_RETURN ? 0U : 2U));
+        const auto record = f.journal();
+        assert(record.firstError.is(Err::INVALID_CONFIG) && record.firstError.sdkError == ESP_OK);
+        assert(record.firstError.coreStatus.detail == static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT));
+        assert(record.cleanupError.coreStatus.ok() && record.cleanupError.sdkError == (context.failRelease ? ESP_FAIL : ESP_OK));
+        assert(f.bus.admission == BusAdmission::FAILED_CLOSED && !f.bus.quarantined && !Host::semaphoreHeld(f.bus.mutex));
+        uint16_t id = 0xCAFE;
+        assert(readPeerIdentity(f, id) == ESP_ERR_INVALID_STATE && id == 0xCAFE);
+        assert(f.owner->install(f.handle) == ESP_ERR_INVALID_STATE && !f.handle);
+        assert(f.mac.frames.empty() && f.owner->destroy() == ESP_OK);
+    }
+    // A failed assertion may already have driven the pin. If the clock
+    // regresses during its compensating release, retain both error domains.
+    Host::reset(); Fixture f; f.create(); Host::state().nowUs = 60001;
+    unsigned pins = 0;
+    BoardControl board; board.context = &pins;
+    board.setReset = [](void* ctx, bool asserted) {
+        auto& count = *static_cast<unsigned*>(ctx);
+        assert(asserted == (count++ == 0));
+        if (asserted) return ESP_FAIL;
+        --Host::state().nowUs;
+        return ESP_OK;
+    };
+    assert(f.owner->prepareBoard(board, 160000) == ESP_FAIL && pins == 2);
+    const auto record = f.journal();
+    assert(record.firstError.coreStatus.ok() && record.firstError.sdkError == ESP_FAIL);
+    assert(record.cleanupError.sdkError == ESP_OK && record.cleanupError.is(Err::INVALID_CONFIG));
+    assert(record.cleanupError.coreStatus.detail == static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT));
+    assert(record.lastCleanupError.coreStatus.detail == record.cleanupError.coreStatus.detail);
+    assert(f.bus.admission == BusAdmission::FAILED_CLOSED && f.mac.frames.empty() && f.owner->destroy() == ESP_OK);
 }
 void boardDeadlineBeforeDrain() {
     Host::reset(); Fixture f; f.create();
@@ -3420,6 +3581,8 @@ int main(int argc, char** argv) {
     else if (suite == "event_retry_observation") eventRetryObservation();
     else if (suite == "board_deadline_domains") boardDeadlineDomains();
     else if (suite == "board_reset_window") boardResetWindow();
+    else if (suite == "board_clock_regression") boardClockRegression();
+    else if (suite == "mdio_elapsed_deadlines") mdioElapsedDeadlines();
     else if (suite == "board_deadline_before_drain") boardDeadlineBeforeDrain();
     else if (suite == "cancelled_reset_board_floor") cancelledResetBoardFloor();
     else if (suite == "late_stop_gate") lateStopGate();

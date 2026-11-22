@@ -349,6 +349,35 @@ class FixtureTranscript(unittest.TestCase):
         self.assertNotEqual(restore_admission["op"], cancelled["op"])
         self.assertEqual((restored["primary"], restored["cleanup_owed"]), ("OK", "0"))
 
+    def test_nonce_during_reset_and_fragmented_cancel_with_stalled_output(self):
+        result = invoke(b"$pause\n$output-stall 100\nrecovery reset pcs\n$tick 8\n"
+                        b"cached transport\nsession P54A\ncached transport\nowner status\n"
+                        b"$fragment owner can\n$tick 1\ncel 2\n$tick 4\n"
+                        b"$output-stall 0\n$resume\nowner result 2\n"
+                        b"recovery reinitialize none\nlocal console\n", "--trace-resets")
+        self.assertEqual(result.stderr.splitlines(), [b"reset 00 8000"])
+        rows = records(result.stdout)
+        self.assertEqual(len({row["boot"] for row in rows}), 1)
+        self.assertEqual([int(row["req"]) for row in rows], [1, 2, 3, 4, 5, 6, 1, 7, 8, 8, 9])
+        admission, before, nonce, after, status, cancel, terminal, saved, restore, restored, console = rows
+        self.assertEqual((nonce["type"], nonce["nonce"], nonce["primary"]), ("session", "P54A", "OK"))
+        for field in ("attempted", "completed", "batches"):
+            self.assertEqual(before[field], after[field])
+        self.assertEqual((admission["state"], admission["op"], status["slot"], status["token"]),
+                         ("admitted", "2", "running", "2"))
+        self.assertEqual((cancel["cmd"], cancel["primary"], cancel["origin_req"], cancel["op"]),
+                         ("owner.cancel", "OK", "1", "2"))
+        self.assertEqual((terminal["state"], terminal["primary"], terminal["op"], terminal["reset_accepted"],
+                          terminal["mutation_completed"], terminal["cleanup_owed"]),
+                         ("terminal", "CANCELLED", "2", "1", "1", "1"))
+        self.assertEqual((saved["origin_req"], saved["op"], saved["outcome"]), ("1", "2", "CANCELLED"))
+        self.assertEqual((restore["state"], restore["op"], restored["state"], restored["op"],
+                          restored["primary"], restored["persistent_restored"], restored["cleanup_owed"]),
+                         ("admitted", "3", "terminal", "3", "OK", "1", "0"))
+        # The owner took the cancelled result during the four stalled ticks.
+        self.assertLessEqual(int(terminal["time_us"]) - int(cancel["time_us"]), 4000)
+        self.assertGreater(int(console["stalled_writes"]), 4)
+
     def test_reset_timeout_and_recovery_failure_are_separate(self):
         result = invoke(b"recovery reset hard\nrecovery reinitialize none\nowner status\n"
                         b"cached transport\nlink watch 1 10\ntest stress 1 10\ncached transport\n",

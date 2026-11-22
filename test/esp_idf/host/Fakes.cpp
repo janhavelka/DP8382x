@@ -41,6 +41,11 @@ void reset() {
 }
 bool isLive(const void* allocation) { return allocations.count(const_cast<void*>(allocation)) != 0; }
 size_t activeHandlers() { return handlers.size(); }
+size_t activePeriodicTimers() {
+    return std::count_if(timers.begin(), timers.end(), [](const esp_timer* timer) {
+        return timer->active && timer->periodic;
+    });
+}
 size_t activeNetifs() { return netifs.size(); }
 bool semaphoreHeld(SemaphoreHandle_t semaphore) { return semaphore && semaphore->held; }
 void deliverEvents() {
@@ -154,7 +159,9 @@ esp_err_t esp_timer_stop(esp_timer_handle_t timer) {
     timer->active = false; return ESP_OK;
 }
 bool esp_timer_is_active(esp_timer_handle_t timer) { return timer && (timer->active || timer->running); }
-int64_t esp_timer_get_time(void) { return static_cast<int64_t>(data.nowUs); }
+int64_t esp_timer_get_time(void) {
+    return static_cast<int64_t>(data.clockSample ? data.clockSample(data.nowUs) : data.nowUs);
+}
 void vTaskDelay(TickType_t ticks) {
     const auto before = data.nowUs;
     // A one-tick wait may finish almost immediately just before a tick edge.

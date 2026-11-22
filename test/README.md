@@ -139,6 +139,19 @@ the C++ transport suites below exercise the compiled driver separately.
 
 ## Portable C++17 foundation
 
+`operation_poll_schedules` checks actual reset polling with 1 µs and 100 Hz
+clocks. `operation_slice_bound` checks admission at exact aggregate equality.
+`operation_allocations` counts ordinary global C++ scalar and array allocations
+after binding across real polling, result delivery, collection and cached views.
+Both allocation hooks have a positive control. The C allocator, over-aligned
+allocations and SDK allocation are outside this measurement.
+
+The pinned board tests inject backward samples and exercise the remaining reset
+poll allowance at 100, 333 and 1,000 Hz. The basic application tests cover
+queued STOP delivery on either side of late RX after retirement, event-post
+timing, and delivery of a frozen result across owner contention. See the
+[lifecycle regression report](../docs/reports/implementation/54-regression-lifecycle-deadlines.md).
+
 Prompts 37-38 add four terminal AN restart/BMCR maintenance suites; their independent
 audit adds explicit-address identity probes to the current **236 portable Release CTests**.
 The separate opt-in [native harness](esp_idf/CMakeLists.txt)
