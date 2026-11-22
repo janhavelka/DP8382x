@@ -143,6 +143,99 @@ It rejected `missing`, `wrong` and `false-continuity`. The existing phase
 | Remote CI | NOT RUN. First-execution CI belongs to prompt 71. |
 | Physical | NOT RUN. |
 
-The full Release suite, focused UBSan trap checks and portable consumer
-remain assigned to phase (d). This review retains the existing first-board
-INT, native feature and deep-power gates. No fixture was attached.
+## Completion verification, 2026-11-22
+
+Phase (d) entered on clean `main` at `dac54f5cf6203c145aa7c29468f2398e59bfa8a0`,
+equal to the wrapper-synchronized `origin/main` (0 ahead, 0 behind). This
+merge contains review commit `097a44611b6560005dec640cf55ea1c79e56bca5`
+as its first parent and integrates the upstream documentation changes that
+had blocked the review push. The review checkpoint and merged tree have
+identical build, production and test inputs. Prompts 50 and 51 are complete
+and supply the owner-routed observation, feature and restoration cases.
+
+A read-only agent used the inherited model for the sibling source inventory.
+The three sibling worktrees were clean at the revisions above. The agent
+reopened their `AGENTS.md` files, declarations, producers and executing tests.
+PCA9555's `examples/espidf_basic/main/main.cpp` and
+`test/test_basic.cpp` support the `allhigh` failure followed by a distinct
+recovery receipt in the parser test. DP8382x adopts that ordering and allows
+further writes only under its own framing and continuity checks. MB85RC's
+`examples/01_basic_bringup_cli/main.cpp` and `tools/hil_runner.py` report
+the independently verified restore and counter evidence from the driver.
+TCA9548A's `examples/common/Tca9548aCli.cpp` and `tools/tca9548a_hil.py`
+retain unfinished rows and separate qualified cleanup from interrupted work.
+DP8382x applies its primary deadline within each iteration and preserves the
+two-file transcript and manifest format. The lead owned checks and integration.
+
+The README, CHANGELOG, runner and hardware guides, CLI test guide and
+coverage map already describe the implemented budgets, owner route and
+interruption behavior. No PHY procedure is assigned to this prompt. There
+was no workflow definition at the tested checkout.
+
+The guide's `dry-run`, `run-fixture` and `verify-artifacts` commands each
+exited 0 using `build/p52-release/test/cli/dp8382x_cli_fixture.exe` and
+`build/p52-release/phase-d-evidence/soak-10base-te` for the saved pair.
+Both requested iterations completed and restored, with zero remaining
+and a count stop. The fixture reported DP83826I ENHANCED, RMII address 1,
+firmware prefix `abcdef0` and boot 4220810926. The 8,000 ms primary window
+admitted 83 confirmed commands. Host elapsed time was 172 ms through
+closure. The transcript has 32,165 bytes and SHA-256
+`a4ed9028feb602cc4b8c7562409591f2789c71552104a151e9c9c3b63b069233`.
+
+Replayed the saved phase (b) 10BASE-Te pair and the review `irq` pair
+with exit 0. The `short` and `declined-final` pairs replayed as INCONCLUSIVE
+with exit 2. Replay rejected `missing`, `wrong`, `false-continuity` and
+`stall-fsync/stalled` with exit 2 for the setup, recovery or transcript
+integrity error recorded in each pair.
+
+The initial full Release run passed 266 of 267 registrations while the
+sanitizer and Python checks were also running. The six-second subprocess
+watchdog expired in the `provenance` subcase of `cli_hil_serial`.
+The initial CTest receipt is saved as
+`build/p52-release/phase-d-first-attempt.log`. The isolated provenance and
+diagnostics test passed in 2.08 seconds with the same deadlines. The rerun
+uses the existing assertions and timeouts.
+
+Windows x86-64 NT 10.0.26300, GNU C++ 15.1.0, CMake 4.0.1, Ninja 1.12.1
+and Python 3.12.10. Release CLI assertions remain enabled. The compiled
+fixture links the real CLI and core with simulated MDIO. The pinned native
+SDK host suite was disabled in these CMake configurations.
+
+| Evidence layer | Phase (d) result |
+| --- | --- |
+| Release host | PASS, 267/267 CTests in 130.31 seconds on the rerun. The serial registration passed in 7.87 seconds. |
+| Focused UBSan trap | PASS, 11/11 CTests in 162.44 seconds, including soak and interruptions. |
+| Python | PASS, 189 passed and 49 compiled-fixture skips. CTest supplies the compiled fixture. |
+| Source and documentation checks | PASS. Doxygen generated 293 pages and rejected both negative fixtures. Version and whitespace checks passed. References verified 29 vendor payloads, 27 extracts and 2,222 local links. Ledger checks covered 97 registers, 52 procedures and 35 features. |
+| Portable build-tree consumer | PASS, 2/2 separately configured tests-OFF CTests. |
+| Exported package consumer | NOT RUN. |
+| ESP-IDF image link | NOT RUN. Prompt 52 changes the host runner and tests. The [prior native review](47-48-independent-review.md#verification) records the P4 links. |
+| Remote CI | NOT RUN. First-execution CI belongs to prompt 71. |
+| Physical | NOT RUN. The stock native feature grants and first-board INT remain BLOCKED. Deep-power exit remains source-gated. Prompts 72 and 73 require the identified fixtures and authorization in the [hardware guide](../../hardware-validation.md). |
+
+```powershell
+cmake -S . -B build/p52-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON
+cmake --build build/p52-release --parallel 4
+ctest --test-dir build/p52-release --output-on-failure --no-tests=error -j 2
+cmake -S . -B build/p52-ubsan -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON '-DCMAKE_CXX_FLAGS=-fsanitize=undefined -fsanitize-undefined-trap-on-error'
+cmake --build build/p52-ubsan --target dp8382x_cli_fixture --parallel 3
+ctest --test-dir build/p52-ubsan -R '^cli_(hil_(features|campaign|runner|serial|soak|interruptions)|.*transcript)$' --output-on-failure --no-tests=error -j 3
+cmake -S test/consumer -B build/p52-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF
+cmake --build build/p52-consumer --parallel 2
+ctest --test-dir build/p52-consumer --output-on-failure --no-tests=error
+python -S -m unittest discover -s test -p 'test_*.py' -q
+python -S tools/check_doxygen.py
+python -S scripts/generate_version.py check
+python -S tools/verify_references.py
+python -S tools/verify_ledger.py
+git diff --check 93390a8..097a446
+git diff --check
+git diff --cached --check
+```
+
+The Release and UBSan interruption registrations each replayed 2,927 cut
+prefixes, including 287 after admission, 18 peer or stimulus boundaries and
+23 setup cuts. Each rejected 436,290 field mutations. The soak registrations
+each rejected another 19,224 compiled and 4,245 injected-serial mutations.
+The checked completion request covers this report and the progress ledger.
+The unattended wrapper records the resulting commit and upstream equality.
