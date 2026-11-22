@@ -178,7 +178,7 @@ set(native_suites factory board_install_failures raw_routing raw_rx_retention
     raw_mutation_admission collector_partial_evidence uncertain_basic_control
     configuration_admission hard_reset_silence board_respects_initialization_silence
     board_silence_excludes_other_owners failed_board_silence_remains_closed flow_completion_contention
-    forced_partner_pause stopping_late_poll foreign_flow_effect start_gate_failures
+    forced_partner_pause stopping_late_poll foreign_flow_effect start_gate_failures start_callback_ownership
     initialize_failures configuration_failures retire_and_stop_admission board_completion_contention
     late_start_cleanup uninstall_gate_contention stop_failure_receipts stop_without_start
     stop_repairs_lost_down observation_loss p4_busy_before_command dependent_callback_bounds install_reservation

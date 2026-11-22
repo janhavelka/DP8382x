@@ -12,7 +12,8 @@ ledger; shipped names and declarations belong in headers. Core remains C++17,
 fixed-size and application-serialized, with no allocation, SDK, clock or RTOS owner.
 
 Prompt 37 adds `restartAutoNegotiation(const IoBudget&)` to the shipped core for
-the native framework's synchronous RESTART callback. It requires initialized,
+the native framework's synchronous RESTART callback. The starting task can
+consume this callback once when its reconciled SDK cache enables AN. The core requires initialized,
 verified, awake normal AN configuration and no pending operation/result or cleanup
 barrier. One three-frame BMCR read/write/readback batch uses the existing owned-bit
 composition; it creates no operation token and never waits for negotiation/link.

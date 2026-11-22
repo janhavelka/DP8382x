@@ -7,6 +7,13 @@ and CLI against both MAC traces. `native_cli_restart_after_raw_observation`
 checks restart after a raw BMCR change or observed HARD command with the SDK's
 AN cache both enabled and disabled.
 
+`native_start_callback_ownership` reenters the installed PHY during the
+three-frame AN restart, START publication and periodic timer arming. It checks
+task identity, callback order, read/write counts and subsequent timer observations.
+A failed START post leaves the event trace empty. A posted START followed by
+exhausted link-callback gate attempts leaves exactly one START and one STOP.
+The same registration runs at 1,000, 100 and 333 Hz.
+
 `native_raw_accepted_write_timeouts` applies each possible selector, address
 or target write before returning a timeout in the modeled MAC. It checks the
 actual register value, the retained uncertain frame, successful mutex release,

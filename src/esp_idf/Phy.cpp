@@ -186,9 +186,29 @@ bool Phy::enterUntil(uint64_t deadlineUs, TimeoutDetail* reason) noexcept {
   }
   return denied(TimeoutDetail::POLL_BUDGET);
 }
-bool Phy::enterStartCallback() noexcept {
-  return _phase.load() == Phase::STARTING && _startTask.load() == xTaskGetCurrentTaskHandle()
-      ? enterUntil(_lifecycleDeadline) : enter();
+bool Phy::enterStartCallback(StartEntry entry) noexcept {
+  if (_phase.load() == Phase::STARTING && _startTask.load() == xTaskGetCurrentTaskHandle()) {
+    if (_startEntry != entry) return false;
+    // Consume before any gate wait or MDIO. A nested call in this same task
+    // cannot repeat the step or borrow the next step while this one runs.
+    _startEntry = StartEntry::NONE;
+    if (enterUntil(_lifecycleDeadline)) return true;
+    // The pinned driver posts START before its initial link callback, even
+    // when the callback cannot enter. Cleanup still owes the matching STOP.
+    if (entry == StartEntry::LINK) _deferredStart.fetch_or(uint8_t{3});
+    return false;
+  }
+  if (!enter()) {
+    // An unowned SDK start in STOPPED/CONTROL can already have changed its
+    // FSM. A contending task during an owned start supplies no such evidence.
+    const auto phase = _phase.load();
+    if (phase == Phase::STOPPED || phase == Phase::CONTROL)
+      _deferredStart.fetch_or(entry == StartEntry::LINK ? uint8_t{3} : uint8_t{1});
+    return false;
+  }
+  // enter() first adopts any completed start. A timer can then observe RUNNING.
+  if (_phase == Phase::STARTING) { leave(); return false; }
+  return true;
 }
 bool Phy::enterControlCallback() noexcept {
   return _phase.load() == Phase::CONTROL && _controlTask.load() == xTaskGetCurrentTaskHandle()
@@ -515,8 +535,7 @@ esp_err_t Phy::autonego(esp_eth_phy_t* phy, eth_phy_autoneg_cmd_t command, bool*
   auto& self = owner(phy);
   // Installer reads declared initial AN policy before any hardware I/O.
   if (command == ESP_ETH_PHY_AUTONEGO_G_STAT && self._installing.load()) { *enabled = true; return ESP_OK; }
-  if (!(command == ESP_ETH_PHY_AUTONEGO_RESTART ? self.enterStartCallback() : self.enterControlCallback())) {
-    if (command == ESP_ETH_PHY_AUTONEGO_RESTART) self.deferStart(false);
+  if (!(command == ESP_ETH_PHY_AUTONEGO_RESTART ? self.enterStartCallback(StartEntry::RESTART) : self.enterControlCallback())) {
     return ESP_ERR_INVALID_STATE;
   }
   const auto settings = self._core.settingsSnapshot();
@@ -537,7 +556,7 @@ esp_err_t Phy::autonego(esp_eth_phy_t* phy, eth_phy_autoneg_cmd_t command, bool*
     self.unexpectedStart(false); self.leave(); return ESP_ERR_INVALID_STATE;
   }
   const auto status = self._core.restartAutoNegotiation(self.callbackBudget(3));
-  if (status.ok()) *enabled = true;
+  if (status.ok()) { *enabled = true; self._startEntry = StartEntry::LINK; }
   else self.recordCore(status);
   self.refreshAgreement(); self.shareQuiet(); self.leave(); return nativeError(status);
 }
@@ -572,14 +591,6 @@ void Phy::unexpectedStart(bool startPosted) noexcept {
     record(ESP_ERR_INVALID_STATE);
     if (_phase == Phase::STOPPED) _phase = Phase::STOPPING;
   }
-}
-void Phy::deferStart(bool startPosted) noexcept {
-  // A failed try-lock must not lose earlier SDK FSM/event effects. Atomic phase
-  // inspection excludes ordinary queued RUNNING/STOPPING timer callbacks; all
-  // compound state changes still require the instance gate.
-  const auto phase = _phase.load();
-  if (phase == Phase::STOPPED || phase == Phase::CONTROL || phase == Phase::STARTING)
-    _deferredStart.fetch_or(startPosted ? uint8_t{3} : uint8_t{1});
 }
 esp_err_t Phy::acknowledgeSpeed(esp_eth_phy_t* phy, eth_speed_t speed) noexcept {
   auto& self = owner(phy);
@@ -690,7 +701,7 @@ esp_err_t Phy::publishAdmitted(PublishedTuple tuple, uint64_t deadlineUs, bool s
 }
 esp_err_t Phy::getLink(esp_eth_phy_t* phy) noexcept {
   auto& self = owner(phy);
-  if (!self.enterStartCallback()) { self.deferStart(true); return ESP_ERR_INVALID_STATE; }
+  if (!self.enterStartCallback(StartEntry::LINK)) return ESP_ERR_INVALID_STATE;
   if (self._phase != Phase::STARTING && self._phase != Phase::RUNNING) {
     self.unexpectedStart(true); self.leave(); return ESP_ERR_INVALID_STATE;
   }
@@ -804,6 +815,7 @@ esp_err_t Phy::start(uint64_t deadlineUs) noexcept {
   _phase = Phase::STARTING; _lifecycleDeadline = deadlineUs; _record.stage = LifecycleStage::START;
   _startPosted = false; _stopPosted = false; _macStopAccepted = false; _preStopDownAttempted = false;
   _frameworkStopOwed = true; // SDK changes its FSM before calling the PHY or posting START.
+  _startEntry = _sdkState.cachedAutoNegotiation ? StartEntry::RESTART : StartEntry::LINK;
   _startTask.store(xTaskGetCurrentTaskHandle());
   leave();
   const auto sdkError = esp_eth_start(_ethernet);

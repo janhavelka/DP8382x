@@ -5,6 +5,9 @@ ties the indirect-access, reset, calibration, EEE, link and configuration rows t
 named CTests. The installed-adapter cases cover reentry at each of the four
 read, four write and five masked-update frame boundaries. They record the SDK
 cache and possible MAC effects separately from the MDIO trace.
+The pinned `native_start_callback_ownership` suite checks that a single owner
+start admits at most one AN restart and one initial link observation, including
+when another task calls back during start.
 
 The [P4 application owner](../examples/esp_idf/owner/README.md) consumes the
 verified configuration, management-health and resolved-link evidence from

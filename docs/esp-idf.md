@@ -148,6 +148,15 @@ such acquisition has at most `maxFencePolls` attempts with one-tick delays only
 when remaining allowance permits; synchronous callbacks do not receive a new
 deadline. RUNNING timer callbacks keep their zero-wait instance entry.
 
+During an owner start, only its task can consume the next synchronous callback.
+With cached AN enabled the pinned driver calls RESTART once, posts START, then
+calls `get_link` once. Forced mode begins with the START post. Each callback
+consumes its slot before waiting for the instance gate or touching MDIO. A timer
+that fires while the initial start is still in progress can retry on its next
+period. Applications enter through the owner API. The SDK vtable carries no
+caller token to distinguish application code impersonating the expected callback
+on the same task at that exact point.
+
 | PHY entry | Executing owner / complete transaction | Side effects and notifications | Error/output contract | Supported blocking bound |
 | --- | --- | --- | --- | --- |
 | `set_mediator` | Synchronous installer only; local borrowed pointer | Stores installer mediator before handle publication | OK during installation; otherwise INVALID_STATE; SDK ignores return | L |
@@ -354,8 +363,9 @@ original start result. Failure still calls the existing stop/fence path.
 The single admission phase is STOPPED, CONTROL, STARTING, RUNNING, STOPPING or
 MAINTENANCE. Framework START changes its own state before all later steps can
 succeed. Every start failure therefore attempts SDK stop and preserves the first
-error separately from stop/fence/publication cleanup. Initial `get_link` proves
-the SDK posted START before entering that callback. The unarmed-timer stop path
+error separately from stop/fence/publication cleanup. Entry to the reserved
+initial `get_link` records the prior START post even if its gate wait expires.
+A competing callback during restart contributes no event evidence. The unarmed-timer stop path
 changes the framework state and returns INVALID_STATE without publishing STOP.
 
 Direct framework start outside owner admission also rejects. Cached AN=true

@@ -247,6 +247,7 @@ public:
   esp_err_t install(esp_eth_handle_t& output) noexcept;
   /// @brief Start after verified settings and SDK reconciliation; bounded gate waits, no negotiation wait.
   /// @param[in] deadlineUs Absolute primary allowance, including synchronous start callbacks.
+  /// @details The start task admits one AN restart when enabled, then one initial link observation.
   /// @return Primary error; failed/late start attempts stop with a separate cleanupBudgetUs allowance.
   /// @note The terminal receipt is adopted by the next gated entry, so an already
   /// running timer callback cannot strand STARTING after SDK success.
@@ -592,7 +593,8 @@ private:
   static esp_err_t deletePhy(esp_eth_phy_t*) noexcept;
   bool enter() noexcept;
   bool enterUntil(uint64_t deadlineUs, TimeoutDetail* reason = nullptr) noexcept;
-  bool enterStartCallback() noexcept;
+  enum class StartEntry : uint8_t { NONE, RESTART, LINK };
+  bool enterStartCallback(StartEntry entry) noexcept;
   bool enterControlCallback() noexcept;
   void leave() noexcept;
   void record(esp_err_t error, bool cleanup = false) noexcept;
@@ -651,7 +653,6 @@ private:
   void refreshAgreement() noexcept;
   template<class Call> Status stoppedRaw(RawBatchReceipt* receipt, Call call) noexcept;
   void unexpectedStart(bool startPosted) noexcept;
-  void deferStart(bool startPosted) noexcept;
   bool stoppedAdmission() const noexcept;
   enum class ControlEntry : uint8_t { NONE, AUTONEGO, SPEED, DUPLEX, PAUSE };
   enum class ControlCompletion : uint8_t { NONE, SDK, FLOW };
@@ -690,6 +691,7 @@ private:
   std::atomic<bool> _installing{false};
   std::atomic<bool> _uninstallSeen{false};
   std::atomic<TaskHandle_t> _startTask{nullptr};
+  StartEntry _startEntry{StartEntry::NONE}; ///< Only the synchronous start task consumes or advances this slot.
   bool _preStopDownAttempted{false}; ///< Lifecycle owner tries a lost DOWN once before framework stop.
   std::atomic<Phase> _phase{Phase::STOPPED};
   std::atomic<uint8_t> _deferredStart{0}; ///< Bit 0 FSM changed; bit 1 START was posted before get_link.

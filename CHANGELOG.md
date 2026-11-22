@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Restrict synchronous ESP-IDF start callbacks to the starting task and the
+  next expected callback. A competing link read during AN restart can no
+  longer cause cleanup to post STOP for a START event that failed to post.
+
 - Add finite campaign repetitions with one primary deadline, per-iteration
   console, MDIO, health and chip telemetry, and replay of interrupted writes
   and restoration outcomes.

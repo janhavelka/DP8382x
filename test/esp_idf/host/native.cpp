@@ -2957,6 +2957,87 @@ void nativeCleanupErrorDomains() {
     }
 }
 
+void startCallbackOwnership() {
+    for (const bool forced : {false, true}) {
+        Host::reset(); Fixture f; f.install(); f.initialize();
+        if (forced) f.configure(forcedSettings(LinkSpeed::MBPS_100));
+        auto* phy = f.owner->nativePhy();
+        unsigned starts = 0, arms = 0;
+        Host::state().onEventPost = [&](int32_t id) {
+            if (id != ETHERNET_EVENT_START) return;
+            ++starts;
+            // The SDK has passed the optional restart but has still to call get_link.
+            const auto frames = f.mac.frames.size(), events = Host::state().events.size();
+            for (const auto task : {2U, 1U}) {
+                Host::state().currentTask = task;
+                bool enabled = false;
+                assert(phy->autonego_ctrl(phy, ESP_ETH_PHY_AUTONEGO_RESTART, &enabled) == ESP_ERR_INVALID_STATE);
+                assert(!enabled);
+                if (task == 2) assert(phy->get_link(phy) == ESP_ERR_INVALID_STATE);
+            }
+            assert(f.mac.frames.size() == frames && Host::state().events.size() == events);
+        };
+        Host::state().onTimerPeriodic = [&] {
+            ++arms;
+            // The initial link observation is complete. The SDK has yet to return.
+            const auto frames = f.mac.frames.size(), events = Host::state().events.size();
+            for (const auto task : {2U, 1U}) {
+                Host::state().currentTask = task;
+                assert(phy->get_link(phy) == ESP_ERR_INVALID_STATE);
+            }
+            assert(f.mac.frames.size() == frames && Host::state().events.size() == events);
+        };
+        assert(f.start() == ESP_OK && starts == 1 && arms == 1);
+        Host::state().onTimerPeriodic = nullptr;
+        Host::state().onEventPost = nullptr;
+        const auto frames = f.mac.frames.size();
+        Host::tickTimers();
+        assert(f.mac.frames.size() > frames && f.journal().phase == Phase::RUNNING);
+        assert(!f.journal().stopRequired && f.journal().firstError.ok());
+        assert(f.owner->stop(Host::state().nowUs + 100000) == ESP_OK);
+
+        // On the next start the SDK posts START, but the real initial link
+        // callback exhausts its gate attempts. Cleanup must deliver one STOP.
+        const auto priorEvents = Host::state().events.size();
+        const auto priorFrames = f.mac.frames.size();
+        Host::state().onEventPost = [&](int32_t id) {
+            if (id == ETHERNET_EVENT_START) Host::state().failSemaphoreTakes = f.config.maxFencePolls;
+        };
+        assert(f.owner->start(Host::state().nowUs + 1000000) == ESP_ERR_INVALID_STATE);
+        assert(Host::state().failSemaphoreTakes == 0 && f.journal().phase == Phase::STOPPED);
+        assert(Host::state().events.size() == priorEvents + 2);
+        assert(Host::state().events[priorEvents].id == ETHERNET_EVENT_START &&
+               Host::state().events.back().id == ETHERNET_EVENT_STOP);
+        assert(f.mac.frames.size() == priorFrames + (forced ? 0U : 3U));
+    }
+
+    // A call inside the genuine BMCR restart precedes the SDK's START event.
+    // If event delivery then fails, cleanup must not manufacture a matching STOP.
+    Host::reset(); Fixture f; f.install(); f.initialize();
+    auto* phy = f.owner->nativePhy();
+    bool probed = false;
+    f.mac.onFrame = [&](const Host::Frame&) {
+        if (probed) return;
+        probed = true;
+        const auto before = Host::state().nowUs;
+        const auto frames = f.mac.frames.size();
+        for (const auto task : {2U, 1U}) {
+            Host::state().currentTask = task;
+            assert(phy->get_link(phy) == ESP_ERR_INVALID_STATE);
+            bool enabled = false;
+            assert(phy->autonego_ctrl(phy, ESP_ETH_PHY_AUTONEGO_RESTART, &enabled) == ESP_ERR_INVALID_STATE && !enabled);
+        }
+        assert(Host::state().nowUs == before && f.mac.frames.size() == frames);
+    };
+    Host::state().eventErrorId = ETHERNET_EVENT_START;
+    Host::state().nextEventError = ESP_FAIL;
+    const auto frames = f.mac.frames.size();
+    assert(f.owner->start(Host::state().nowUs + 100000) == ESP_FAIL);
+    assert(probed && f.mac.frames.size() == frames + 3 && eventOrder().empty());
+    const auto record = f.journal();
+    assert(record.phase == Phase::STOPPED && record.firstError.sdkError == ESP_FAIL);
+    assert(record.cleanupError.sdkError == ESP_ERR_INVALID_STATE && countCall("mac.stop") == 1);
+}
 void startGateFailures() {
     const auto eventCount = [](int32_t id) {
         return std::count_if(Host::state().events.begin(), Host::state().events.end(), [id](const auto& e) { return e.id == id; });
@@ -3318,6 +3399,7 @@ int main(int argc, char** argv) {
     else if (suite == "timer_publication_during_stop") timerPublicationDuringStop();
     else if (suite == "foreign_flow_effect") foreignFlowEffect();
     else if (suite == "start_gate_failures") startGateFailures();
+    else if (suite == "start_callback_ownership") startCallbackOwnership();
     else if (suite == "stop_before_admission") stopBeforeAdmission();
     else if (suite == "persistent_disconnected_during_stop") persistentDisconnectedDuringStop();
     else if (suite == "raw_uninstall_during_stop") rawUninstallDuringStop();

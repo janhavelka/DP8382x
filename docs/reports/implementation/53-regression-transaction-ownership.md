@@ -229,3 +229,89 @@ foreach ($key in $projects.Keys) {
 Phase (c) independently reviews the committed diff against the source vectors,
 especially the two admission samples, partial effects and SDK cache behavior.
 The wrapper owns the implementation commit and remote equality check.
+
+## Phase (c) independent review and fix
+
+The wrapper synchronized the 18-file implementation at
+`61ef93f70906679be25135f4175fc73d9c496085`. Review started on clean
+`main` at that SHA, zero ahead and behind `origin/main`. Two read-only
+reviewers used the session's high-reasoning model in parallel. One traced
+portable timing and effects through the diff from `9f7829b`. The other traced
+installed callbacks and receipts through the pinned SDK. The lead reproduced
+the SDK finding, fixed the native adapter and updated its test and contracts.
+The SDK reviewer then rechecked the fix and the order of the deferred receipts.
+
+The portable extraction preserves both clock samples, the ordinary batch
+check before a short-slice yield, strict reset/calibration and EEE reserves,
+and effects from earlier writes. The reviewer independently ran five Release
+suites, totaling 37,407 checks. The SDK reviewer checked both task identities
+at the 13 indirect frame boundaries, the 11 accepted-write timeout cuts,
+the SDK AN cache, typed flow-control halves and separate release receipts.
+The SDK and three clean sibling checkouts match the source decisions above.
+The lead rechecked the sibling registrations, fault/output tests and CLI
+boundaries, SNLS647I section 8.3.11.1 and the pinned SDK's start, stop, raw
+ioctl, 802.3 and P4 controller paths.
+
+### Unreserved callbacks during SDK start
+
+In `components/esp_eth/src/esp_eth.c`, `esp_eth_start` changes the SDK FSM,
+optionally calls RESTART, posts START, calls `get_link`, then arms the timer.
+The adapter previously checked the STARTING phase and used task identity to
+select a gate wait. With the gate free, a competing task could repeat the
+three-frame BMCR restart or perform the initial observation. The starting
+task could also repeat a completed callback. With the gate occupied by the
+genuine restart, a rejected link probe could incorrectly record a START post.
+The reviewer reproduced a duplicate RESTART returning `ESP_OK` on the
+unmodified pinned host image. The new CTest also failed against the old
+adapter on its first competing RESTART during START delivery.
+
+`Phy::start` now reserves the sequence selected by the reconciled AN cache.
+The starting task consumes each expected callback before waiting for the gate.
+A successful restart enables the initial link observation. A contending timer
+can observe RUNNING after the start outcome is adopted. A genuine initial
+link call that exhausts its gate attempts retains the START post for cleanup.
+The SDK vtable identifies the task and callback kind only through the adapter's
+task/sequence checks. Application calls use the owner API.
+
+`native_start_callback_ownership` probes the installed callbacks during the
+BMCR batch, START delivery and timer arming. It checks both cached modes, a
+later timer observation, unchanged output on rejected restart, frame counts
+and two independent event traces. A failed START post leaves an empty trace.
+A genuine START followed by failed initial link admission produces exactly
+one START and one STOP. The test runs at all three registered tick rates.
+
+### Phase (c) verification
+
+Windows x86-64, GNU 15.1.0, Ninja, CMake 4.0.1 and Python 3.12.10.
+Use the phase (b) process-local Git, clangd and ccache settings above.
+
+```powershell
+cmake --build build/p53-baseline --parallel 5
+$review = '^(native_|pinned_driver_|example_|owner_|transport_|mmd_|access_|identity_|operation_|reset_|electrical_|loopback_|eee_|negotiation_|verify_|link_|health_|cli_processor_)'
+ctest --test-dir build/p53-baseline -R $review --output-on-failure --no-tests=error -j 4
+$san = '-fsanitize=undefined -fsanitize-undefined-trap-on-error'
+cmake -S test/esp_idf -B build/p53-review-ubsan -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_PINNED_IDF_PATH=C:/esp/v6.1/esp-idf "-DCMAKE_C_FLAGS=$san" "-DCMAKE_CXX_FLAGS=$san"
+cmake --build build/p53-review-ubsan --target dp8382x_native_host_tests dp8382x_native_host_100hz_tests dp8382x_native_host_333hz_tests dp8382x_native_cli_tests --parallel 5
+$nativeReview = '^native_(start_|raw_|direct_start_|forced_lifecycle|foreign_flow_effect|flow_control|notification_partial_receipts|cli_)'
+ctest --test-dir build/p53-review-ubsan -R $nativeReview --output-on-failure --no-tests=error -j 4
+```
+
+| Evidence | Result |
+| --- | --- |
+| Release host and pinned public driver | **PASS**, 499/499 in 2.75 s. The build verified 45 real SDK sources/headers at `fff9895c82d744c7237be8847347bdd1b07c6643`. |
+| Pinned host UBSan, C and C++ trap mode | **PASS**, 79/79 in 0.60 s, including the new regression at 1,000, 100 and 333 Hz. |
+| Plain tests-OFF consumer | **PASS**, 2/2 using the phase (b) consumer commands. Exported package consumer **NOT RUN**. |
+| Python and source checks | **PASS**. Python discovery ran 238 with 49 compiled-fixture skips. Doxygen checked 293 pages and two negative fixtures. Reference, ledger, version and whitespace checks passed. |
+| ESP32-P4 SDK links | **PASS**. The phase (b) `scripts/idf.cmd` loop recompiled `Phy.cpp` and linked each ELF. All three firmware identities record `61ef93f` and a dirty worktree. Image hashes below. |
+| Remote CI and physical measurements | Both **NOT RUN**. First-execution CI belongs to prompt 71. Reusable installed teardown and board qualification retain the gates in the native guide. |
+
+| Binary | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `53l/dp8382x_adapter_link.bin` | 387200 | `8a81ddb1f4caa3d89f7db69d35eb4f2ade5c8fd09a20ad50c340d28e4221d856` |
+| `53b/dp8382x_p4_ethernet.bin` | 682544 | `fe020a0083204f0ac7b390f2d255b363bef44720325b6d1d0ea6c69c9d113ef3` |
+| `53o/dp8382x_p4_owner.bin` | 560992 | `39c6dad9b2c24da567f0e51ee9d75c366efdb8e162f7613f594ebc27c29c376e` |
+
+The public Doxygen, native guide, API contract, coverage matrix, test guide
+and CHANGELOG describe the corrected ownership boundary. The README's owner
+entry point still applies. Phase (d) owns final verification and completion
+after the wrapper confirms the review commit and remote equality.
