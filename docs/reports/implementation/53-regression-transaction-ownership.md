@@ -315,3 +315,63 @@ The public Doxygen, native guide, API contract, coverage matrix, test guide
 and CHANGELOG describe the corrected ownership boundary. The README's owner
 entry point still applies. Phase (d) owns final verification and completion
 after the wrapper confirms the review commit and remote equality.
+
+## Phase (d) final verification
+
+Prompt 53 is complete for the portable core, CLI and pinned ESP-IDF adapter.
+On 2026-11-22, verification ran on clean `main` at
+`65ec3096028a77c3b364cdc45e55380549f6460d`. The wrapper had verified
+equality with `origin/main` at that SHA. The review commit contained all 11
+requested files, and the entry comparison was zero ahead and behind.
+The three sibling checkouts matched the clean revisions in the source table.
+Their fault, output, CLI and registration conventions still apply.
+
+The lead ran the full Release suite, the portable admission suites under UBSan
+and the source checks. Two agents used the session model to verify independent
+builds in parallel. One linked the P4 images and checked their embedded
+identity. The other verified the native UBSan tests and rebuilt the standalone
+consumer. Both finished before completion.
+
+| Evidence layer | Result |
+| --- | --- |
+| Host Release | **PASS**, 647/647 CTests in 179.91 s on Windows x86-64 with GNU 15.1.0, Ninja 1.12.1 and CMake 4.0.1. The build verified 45 real SDK inputs at `fff9895c82d744c7237be8847347bdd1b07c6643`. All 52 baseline test names and the four added regression cases ran. |
+| Transaction and callback coverage | **PASS**. The installed CLI reentry case passed 2,606 checks across 13 frame boundaries, and restart after raw observation passed 84 checks. The 11 accepted-write timeouts and start callback ownership ran at 1,000, 100 and 333 Hz. |
+| Windows UBSan trap | **PASS**, 36/36 portable reset, loopback, calibration, operation and EEE tests in 0.58 s, and 79/79 pinned native tests in 0.43 s. |
+| Plain build-tree consumer | **PASS**, 2/2 after a clean Release rebuild with library tests OFF. |
+| Python and source checks | **PASS**. Python 3.12.10 discovery ran 238 tests, with 189 passes and 49 compiled-fixture skips. CTest ran the compiled fixture. Doxygen checked 293 pages and rejected two negative fixtures. The reference check verified 29 payloads, 27 extracts and 2,234 links. The ledger verified 97 registers, 52 procedures and 35 features. Version and whitespace checks passed. |
+| ESP32-P4 SDK links | **PASS**, 3/3 using ESP-IDF v6.1 at the pin above. Each ELF and application image contained the full review SHA and clean worktree identity. |
+| Exported package consumer | **NOT RUN**. Clean export and relocation checks belong to prompt 70. |
+| Remote CI | **NOT RUN**. Prompt 71 owns the first-execution CI checkpoint. |
+| Physical | **NOT RUN**. Board power, wiring and timing qualification require an identified fixture and authorization. Reusable installed teardown remains **BLOCKED** on SDK RX quiescence. |
+
+| P4 image under `C:/esp/build/dp8382x-loop` | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `53l/dp8382x_adapter_link.bin` | 387200 | `80a740753098d8abde7840e9fce4409eaf203d967da144ee075de19e0ac7ff83` |
+| `53b/dp8382x_p4_ethernet.bin` | 682544 | `dec7068e559b676dd0e1f972667d2b23e3b6fce096231f8866c021730c06bea0` |
+| `53o/dp8382x_p4_owner.bin` | 560992 | `3773d2833080ca747464789f0495595f74e06080e0f938c0202d8e5d8474b838` |
+
+To reproduce the host result, use the phase (a) SDK environment and Release
+configure command, then run the commands below. For native UBSan, use the
+phase (c) configuration, targets and filter. For the consumer, use the phase
+(b) commands with `--clean-first` on the build. The P4 links used the phase
+(b) environment and three-project `scripts/idf.cmd` loop.
+
+```powershell
+cmake --build build/p53-baseline --parallel 5
+ctest --test-dir build/p53-baseline --output-on-failure --no-tests=error -j 1
+cmake -S . -B build/p53-final-core-ubsan -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON '-DCMAKE_CXX_FLAGS=-fsanitize=undefined -fsanitize-undefined-trap-on-error'
+cmake --build build/p53-final-core-ubsan --target dp8382x_reset_tests dp8382x_loopback_tests dp8382x_electrical_tests dp8382x_operation_tests dp8382x_eee_tests --parallel 4
+ctest --test-dir build/p53-final-core-ubsan -R '^(reset_|loopback_|electrical_|operation_|eee_)' --output-on-failure --no-tests=error
+python -m unittest discover -s test -p "test_*.py" -v
+python tools/check_doxygen.py
+python tools/verify_ledger.py
+python tools/verify_references.py
+python scripts/generate_version.py check
+git diff --check 7c5f614..65ec309
+git diff --check
+git diff --cached --check
+```
+
+The implementation and regression tests are in `61ef93f` and `65ec309`.
+The completion request covers this report and the progress row. The wrapper
+records the completion commit and verifies its upstream SHA.
