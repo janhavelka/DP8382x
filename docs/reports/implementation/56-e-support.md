@@ -82,12 +82,8 @@ to 35. Those shared software gaps also limit complete E support. The
 the implemented subset. The primary ledger assigns zero procedures to prompt
 56. E physical qualification needs its own identified fixture.
 
-Phase (a) remains open. Next, trace map-based access, robust preflight and VOD
-through initialization, configure, reset/restore, diagnostics and SDK callers.
-Map the CLI status and default scan bounds, native factory, example declaration,
-runner identity and fixture evidence to named tests. Record the implementation
-file ownership, Doxygen/guide changes, focused failure/deadline/cleanup cases
-and required real SDK links before entering phase (b).
+The first slice covered identity and bind. The implementation brief below
+completes the remaining core procedure, SDK, CLI and fixture assessment.
 
 **Checks for this slice.** The existing Windows GNU 15.1.0 Release build passed
 all ten selected DP83826I foundation and identity tests. Prompt 55's completion
@@ -99,4 +95,156 @@ passed for 97 registers, 52 procedures and 35 features.
 ```powershell
 ctest --test-dir build/p53-baseline -R '^(identity_(decode|policy|failures|lifecycle|ownership|scan)|foundation_(status|link|masks|passive))$' --output-on-failure --no-tests=error
 python tools/verify_ledger.py
+```
+
+## Phase (a) implementation brief
+
+The wrapper verified the first assessment at
+`7c4c8f9124e7b8a3c9c81c582d2f4a782b21e936`. The index and worktree were
+clean on `main`, 0 ahead and 0 behind `origin/main`. The lead rechecked the
+two sibling revisions above. Two read-only agents used the session's
+high-reasoning model to trace register effects and fixture identity across
+callers. The lead checked their findings against the source and registered
+tests. No ledger procedure has implementation owner 56. The existing I/E
+source record resolves G8-1. The design below implements G8-2.
+[Audit dispositions](../promptset-audit-dispositions.md)
+
+### Core selection and procedure ownership
+
+- The lead owns `include/DP8382x/{Config,DP8382x}.h`, one private
+  `src/PartTable.h`, core integration and test registration. Keep the
+  specified `PartProfile` fields and four `RegisterMap` values. Resolve the
+  immutable profile by declaration at bind. Clear the instance pointer on
+  end. A failed bind preserves the prior profile, identity and pending work.
+  Append E to the public enum. Use one original-map definition for I and E.
+  Replace the cast-2 invalid case in `test/identity.cpp` and the single-value
+  exhaustive predicate in `test/foundation.cpp`.
+
+  | Map | Model(s) | Revision mask | Interfaces | Max strapped address | Operating mode | Forced needs robust |
+  | --- | --- | --- | --- | ---: | --- | --- |
+  | DP83826 | 11h, 13h | 0002h | MII, RMII | 7 | yes | yes |
+  | DP83826A | 11h, 13h | 0010h | MII, RMII | 7 | yes | yes |
+  | DP83825 | 14h | 0001h | RMII | 3 | no | no |
+  | DP83822 | 24h | 0001h | MII, RMII, RGMII | 31 | no | no |
+
+  Only the original I/E declarations can resolve a bindable profile in 56.
+  Keep future map data private and reject invalid casts, including casts
+  adjacent to E. Model membership and revision membership have distinct
+  rejection details. Decode BASIC/ENHANCED only on a map with operating modes.
+  Reject a specific required mode for a modeless profile before callbacks.
+  Derive cached capability fields from reviewed profile facts. The private
+  feature mask may represent only capabilities backed by an implemented route.
+  Unknown or stale identity returns invalid capabilities. Board pin availability
+  and application grants have separate checks.
+- In `src/DP8382x.cpp`, pass the map through `registerPolicy`, readable and
+  writable masks, direct/indirect access, and the separate EEE DEVAD/offset
+  lookup. Preserve unbound and invalid-argument results without dereferencing
+  an absent profile. Keep selector, read-clear, recipe-only and write-preserve
+  rules, alias serialization and the existing collector. Maps awaiting
+  qualification must fail closed. Future A masks need their own evidence even
+  where addresses agree. Retain the 97-row inventory check in
+  `test/test_access_policy.py` alongside independent wire tests.
+- In `Config.h`, keep enum, mask, paired mirror and extended-duplex checks
+  pure. Move the forced/robust condition into one part-aware preflight.
+  In `DP8382xConfiguration.cpp::startConfigure`, reject before token
+  assignment, desired-state mutation, clock or MDIO. Use the same rule for
+  declared-part CLI validation and native admission. Check retained desired
+  settings when used by verify, EEE and diagnostics. Check temporary forced
+  profiles in loopback and electrical compliance and the subsequent replay.
+  Preserve the native extended-half restriction. Make the I-specific
+  interface message in `DP8382xInterface.cpp` reflect actual admission.
+- The forced foundation loop can retain all 128 flag combinations. Use
+  `0x10` for a mirror mismatch and `0x20` for the pair bit. Set the polarity
+  bit to pair XOR mismatch. Bits 1–3 still encode advertisement, bit 0
+  robust and bit 6 extended duplex. Now `(flags & 30U) == 0U` excludes
+  exactly forced advertisement or mismatched mirror. Check both paired
+  mirror values for each robust value and all four explicit mirror tuples.
+  Both robust values pass otherwise legal pure validation. Bound I and E
+  reject forced robust-off locally. AN permits robust-off.
+- Keep the VOD decision in the existing initialize/replay state machine in
+  `DP8382x.cpp`. Only the original and A maps require its write/readback.
+  Trace entry from NONE/PCS/HARD/RESTART, `_setInitStep`, power preparation,
+  EEE recipe return and verify-only entry. Retain reset silence, the analog
+  owner's later override, and the common completion path. Verification reads
+  the effective owned value. Ordinary link configuration has no VOD write.
+
+### Acceptance on the two declarations
+
+Run the same test bodies with actual I and E bindings. Record registrations
+and assert the returned declaration. Shared source justifies procedure reuse.
+Prompt 55's matrix records which procedures have executed on I.
+
+| Route | Required independent observations |
+| --- | --- |
+| Identity and bind | Run the bind/identity cases above with literal IDs, invalid enums, mode and revision mismatches, partial second read, release error and exhausted budget. On an initial identity mismatch, initialize stops after one batch reading 2 then 3. A rejected probe blocks dependent writes. Rebind, invalidate, end and two simultaneous instances must preserve their documented snapshot and token semantics. |
+| Reset, VOD and analog | Use `operation_initialization`, `reset_traces`, `reset_failures` and `analog_replay`. SNLS647I §8.5.1.63 gives VOD_CFG3 reset `0x8400`. Check DEVAD 31, offset `0x030E`, mandatory write `0x4A40` then a fresh addressed read with mask `0xFFC0`. Check ordering before link replay and before a separately owned analog override. Retain actual post-reset ID/strap words for each simulated outcome. |
+| Advertisement and forced routing | Extend `negotiation_vectors`, `negotiation_pages`, `forced_admission` and `forced_replay`. Seed ANAR with `0xF21F`. Both advertisement application and next-page clearing must force bit 13 to zero. Check the selector, owned fields and write/restart order, preserve partner remote-fault evidence, and assert zero ANAR writes on forced paths. |
+| Failure and cleanup | Inject partial reads, target-write effects before terminal error, failed release, late completion and cancellation at the changed boundaries. Check ordinary output and retained partial evidence separately. Run `verify_interrupted_replay` and `verify_barrier` on a declared E. Check stale/trust flags, retained primary status, exactly one result delivery and fresh-budget restoration when cleanup is owed. Repeated cached queries leave clock and bus counters unchanged. |
+
+### Adapter, examples and fixtures
+
+- `src/esp_idf/Phy.cpp::create` already forwards `config.core` to bind.
+  Preserve that factory and its output on failure. Rejected configuration
+  must preserve the token, native phase and SDK reconciliation state.
+  Exercise both suffixes in the pinned-driver `native_factory`,
+  `native_configuration_admission`, `native_forced_lifecycle` and failure
+  cases. The fitted P4 applications keep their I declaration. Source
+  each application's core configuration and printed board identity from the
+  same board setting in `examples/esp_idf/{basic,owner}/main/main.cpp`.
+- In `examples/common/Dp8382xCli.cpp`, update `Processor::identity`,
+  `profileHelp` and `route`. Session, version and local board must print the
+  declaration. Default discovery reads addresses 0–7 for I/E, including
+  before a probe. An unknown declaration requires an explicit range.
+  Explicit 0–31 discovery preserves the binding. Keep one grammar.
+  `configuration validate` can check the declared profile without an owner
+  call. Fresh I/E capabilities report link mask 15 and interface mask 3.
+  Test `cli_processor_{grammar,cached,routes}`, `native_cli_discovery`,
+  `native_cli_feature_admission` and compiled transcripts. Preserve stopped
+  maintenance, feature grants and first-board INT restrictions.
+- Give the compiled fixture's `Options` and `Fixture::setup` in
+  `test/cli/dp8382x_cli_fixture.cpp` an explicit simulated suffix. Use the
+  same value at bind and in the CLI session record. Its simulated ID words
+  still depend on the selected mode. Keep the runner's expected suffix
+  independently checkable against actual producer output. Update
+  `tools/dp8382x_hil_{protocol,runner,campaign}.py` for exact expected and
+  observed I/E declarations. Exercise E BASIC and ENHANCED, a deliberately
+  wrong suffix with matching words, saved I replay, E artifact replay and
+  a changed declaration in the transcript/manifest. Use
+  `cli_hil_{runner,campaign,features}` and the Python protocol/artifact
+  tests. Retain missing fixture/grant evidence in the verdict.
+
+### Implementation handoff and evidence
+
+The lead owns public declarations, the part table, maintained API/architecture
+guides, registration, progress and integration. After the core contract is
+set, disjoint work can cover native/CLI/runner integration and portable test
+vectors. Update public Doxygen, README, CHANGELOG, the identity and variants
+tables, forced/initialization guidance, CLI, native and fixture guides.
+Link the shared I/E source record from the feature matrix and record E's own
+executed tests and physical status. Keep the primary ledger and its open
+procedure gates traceable. Complete E software qualification still requires
+the source evidence identified by owners 28, 32/33 and 35 above.
+
+For phase (b), build the Release host with pinned native tests. Run the new
+I/E registrations, affected host/CLI/Python suites, tests-OFF portable
+consumer, Doxygen, ledger, references, version and whitespace checks. Link
+an E-declared adapter fixture and both fitted-I examples with ESP-IDF v6.1
+`fff9895c82d744c7237be8847347bdd1b07c6643`. Use the prompt 53 three-project
+loop with build names `56l`, `56b` and `56o` under
+`C:/esp/build/dp8382x-loop`. Each invocation is
+`scripts/idf.cmd -C <project> -B <dir> -D IDF_TARGET=esp32p4 -D SDKCONFIG=<dir>/sdkconfig build`.
+Record ELF/bin and firmware Git/tree identity. Keep board execution separately
+gated. [Build commands](53-regression-transaction-ownership.md#phase-b-implementation)
+
+**Phase (a) finished.** On Windows x86-64 with GNU 15.1.0, the existing
+Release/Ninja build with pinned SDK tests enabled passed **84/84** baseline
+registrations in 1.31 s. These exercised existing I paths. The reference
+check passed for 29 payloads, 27 extracts and 2,286 links. Ledger structure
+passed for 97 registers, 52 procedures and 35 features. Whitespace passed.
+The phase (a)
+portable consumer, exported package, SDK image links, remote CI and physical
+evidence are **NOT RUN**. The next stage is prompt 56 phase (b).
+
+```powershell
+ctest --test-dir build/p53-baseline -R '^(foundation_|identity_|transport_|mmd_|access_|operation_|reset_|negotiation_|forced_|verify_|native_(factory|configuration_admission|cli_discovery)$|cli_processor_(cached|routes)$|example_board_config$|cli_fixture_transcript$)' --output-on-failure --no-tests=error
 ```
