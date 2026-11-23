@@ -219,6 +219,7 @@ if(DP8382X_BUILD_TESTS)
   add_e_suites(analog replay)
   add_e_suites(negotiation vectors pages page_failures)
   add_e_suites(forced admission replay)
+  add_e_suites(native_restart basic_control)
   add_e_suites(verify interrupted_replay barrier)
 
   foreach(suite IN ITEMS status link masks passive)

@@ -449,6 +449,7 @@ public:
   Status modifyMmd(uint32_t devad, uint32_t address, uint32_t mask, uint32_t value,
                    const IoBudget& budget, RawBatchReceipt* receipt = nullptr) noexcept;
   /// @brief Explicit raw BMCR stable-field maintenance; never persistent desired configuration.
+  /// @pre Original DP83826I/E requires AN to remain enabled or current verified robust crossover.
   /// @param[in] mask Nonzero subset of AN/speed/duplex mask 0x3100.
   /// @param[in] value Replacement subset of mask; commands/power fields reject.
   /// @param[in] budget Complete two-frame read/write allowance.

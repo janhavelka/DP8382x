@@ -2001,6 +2001,15 @@ void configurationAdmission() {
     const OperationBudget budget{{Host::state().nowUs + 1000000, 512}, 10, 16};
     OperationToken token{0xCAFE};
     const auto phase = f.journal().phase;
+    ConfigureOptions options;
+    options.waitForCompletion = true;
+    const auto gateEvents = Host::state().semaphoreEvents.size();
+    Host::state().failSemaphoreTakes = 1;
+    const auto rejected = f.owner->startConfigure(forcedSettings(LinkSpeed::MBPS_100), options, budget, token);
+    assert(rejected.is(Err::INVALID_CONFIG) && rejected.detail == static_cast<int32_t>(ConfigDetail::LINK_COMBINATION));
+    assert(Host::state().failSemaphoreTakes == 1 && Host::state().semaphoreEvents.size() == gateEvents);
+    Host::state().failSemaphoreTakes = 0;
+    assert(token.value == 0xCAFE);
     auto invalid = forcedSettings(LinkSpeed::UNKNOWN);
     assert(f.owner->startConfigure(invalid, budget, token).is(Err::INVALID_CONFIG));
     assert(token.value == 0xCAFE);

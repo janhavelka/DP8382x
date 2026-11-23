@@ -24,7 +24,9 @@ the portable header owns exact errors, outputs and timing declarations.
 
 Prompt 38's `modifyBasicControl` is an explicit raw two-frame BMCR maintenance
 exception for stable mask 0x3100, with normal collector invalidation and unchanged
-persistent intent. Native `reconcileSdkState` is a separate public-control receipt
+persistent intent. On DP83826I/E, explicitly enabling AN or preserving a
+verified enabled AN bit permits robust-off. Other BMCR updates require
+current verified CR1 robust crossover. Native `reconcileSdkState` is a separate public-control receipt
 after verified core configuration; it never creates another cooperative operation
 or rewrites the delivered core result. Native callback/task ownership and flow
 partial effects are specified in the [native guide](esp-idf.md).

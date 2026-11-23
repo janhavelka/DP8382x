@@ -216,6 +216,15 @@ Status DP8382x::modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget
   if (_softwarePowerWord() || !_settings.bmcrValid || (_settings.rawBmcr & 0xCC00U)) {
     return invalidSettings("BMCR maintenance requires an awake normal profile");
   }
+  // Table 8-28 requires CR1[5] in forced mode. A preserved AN bit needs
+  // current readback, just as a preserved robust crossover setting does.
+  const bool current = _settings.trust == ConfigurationTrust::VERIFIED && !_settings.observedStale;
+  const bool anEnabled = (mask & cmd::MASK_BMCR_AN_ENABLE) != 0 ? (value & cmd::MASK_BMCR_AN_ENABLE) != 0 :
+                         current && (_settings.rawBmcr & cmd::MASK_BMCR_AN_ENABLE) != 0;
+  const bool robustEnabled = current && _settings.cr1Valid && (_settings.rawCr1 & cmd::MASK_CR1_ROBUST_MDIX) != 0;
+  if (_part->forcedRequiresRobust && !anEnabled && !robustEnabled) {
+    return invalidSettings("Forced BMCR maintenance requires verified robust crossover");
+  }
   // This is an explicit raw mutation, not configuration. The ordinary collector
   // invalidates on accepted/uncertain writes and keeps persistent desired intent.
   return _execute(updateRegister(cmd::REG_BMCR,

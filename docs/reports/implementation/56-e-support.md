@@ -351,3 +351,80 @@ Remote CI and physical qualification are **NOT RUN**. Prompt 71 owns CI.
 The open deep-power, pin and electrical gates in the primary closure report
 apply equally to E. Phase (c) reviews this implementation on its wrapper-
 verified commit. Prompt 56 remains **IN PROGRESS**.
+
+## Phase (c) independent review
+
+The wrapper verified clean `main` at
+`d1f7706a15428692c01355c7d1fd932e48ac75e1`, equal to `origin/main`.
+Two read-only reviewers worked in parallel on the implementation since
+`5f57254`. The silicon reviewer traced the bound part through identity, raw
+access, forced operation, VOD, ANAR and recovery. The integration reviewer
+traced the native adapter, board declarations, shared CLI, fixture, artifact
+replay and registrations. Both used the current high-reasoning model to
+check behavior across entry points. The lead integrated the fixes and each
+reviewer re-read the final change for their finding.
+
+The source check covered SNLS647I pp. 14, 40, 57, 61 and 85. The phase (a)
+sibling paths and revisions were rechecked. TMP1x2 and MB85RC were clean.
+The declared grade, shared original map and literal revision-1 identities
+agree with the shared silicon record. The review also confirmed mandatory
+VOD ordering, local ANAR bit 13 clearing and retention of partner evidence.
+The CLI timestamps its output using the application clock. Local profile
+validation issues no driver-clock or MDIO callback.
+[Source and sibling audit](#shared-silicon-record)
+
+| Finding reproduced on both I and E | Fix and regression |
+| --- | --- |
+| After applying AN with robust crossover off, the compiled CLI accepted `registers bmcr 0x1000 0`. Readback showed both BMCR AN and CR1 robust clear. SNLS647I table 8-28 requires CR1 bit 5 in forced mode. | The core's existing raw BMCR owner checks the part rule before submitting its two-frame transaction. An explicit AN enable is sufficient. A preserved AN bit or robust setting requires current verified readback. The I/E `native_restart_basic_control` cases check rejection without frames or clock calls, preserved trust, stale readback after cancellation and legal writes. On the corrected CLI, CR1 read zero, the write returned INVALID_CONFIG with no batch, BMCR stayed 0x1000 and configuration stayed VERIFIED. |
+| Native `startConfigure` checked the link fields before taking its gate, then checked negotiation options inside the core. With the next semaphore take set to fail, forced mode plus a negotiation wait returned BUSY. Entering the gate can also apply deferred lifecycle outcomes. | The adapter checks the complete settings and options with the shared part-specific validator before gate entry. The I/E `native_configuration_admission` cases assert INVALID_CONFIG/LINK_COMBINATION, an untouched semaphore sentinel, token and frame count, and preserved phase and SDK agreement. |
+
+All four new regression cases failed against the phase (b) implementation
+before the fixes. The lead updated the portable and native Doxygen, public
+API, raw-access, CLI and SDK guides and CHANGELOG. The README and support
+matrix already describe the scope of I/E support.
+
+### Local review receipts
+
+Windows x86-64, GNU 15.1.0, Ninja 1.12.1, CMake 4.0.1 and Python 3.12.10.
+The following commands use the phase (b) process-local SDK Git setting.
+
+```powershell
+cmake --build build/p53-baseline --parallel 7
+ctest --test-dir build/p53-baseline -E '^cli_hil_' --no-tests=error --output-on-failure -j 4
+ctest --test-dir build/p53-baseline -R '^cli_hil_(runner|campaign|features)$' --no-tests=error --output-on-failure -j 1
+cmake --build build/p56-vectors --parallel 5 --target dp8382x_native_restart_tests dp8382x_native_host_tests
+ctest --test-dir build/p56-vectors -R '^(e_)?native_(restart_(admission|basic_control|failures|vectors)|configuration_admission)$' --no-tests=error --output-on-failure
+```
+
+- **Host PASS.** All 691 non-HIL Release CTests passed, including all 30 E
+  registrations. The three compiled-fixture runner, campaign and feature
+  CTests passed. The reviewer independently replayed the saved I and E
+  artifacts named in phase (b). Serial simulation, soak and interruption
+  CTests last ran in phase (b).
+- **UBSan PASS.** All seven selected portable and native registrations passed
+  with C/C++ undefined-behavior traps enabled. The first regeneration omitted
+  the process-local SDK Git setting and stopped at the ownership check.
+  Repeating with the setting from phase (b) passed the pinned source checks.
+- **Python and documentation PASS.** Standard unittest discovery ran 246
+  tests with 52 skipped. Doxygen checked 294 generated pages and rejected
+  both negative fixtures. Reference verification covered 29 vendor artifacts,
+  27 extracts and 2,295 local links. The ledger passed for 97 registers,
+  52 procedures and 35 features. Generated version and whitespace checks passed.
+- **Portable consumer PASS.** The phase (b) tests-OFF consumer configure,
+  build and CTest commands passed 2/2 on the review worktree.
+  Exported package consumer **NOT RUN**.
+- **SDK link PASS.** The phase (b) three-project wrapper commands linked all
+  three P4 applications against ESP-IDF v6.1 `fff9895c`. Each identity
+  header, ELF and firmware image contained the full phase (b) SHA and dirty
+  marker. The table gives the binaries after the final source changes.
+
+| P4 link target | ELF bytes / SHA-256 | Firmware bytes / SHA-256 |
+| --- | --- | --- |
+| 56l adapter, E | 7,356,924 / `50f3bde9d0694eaa1bf872ae139d5143b685b83a0235b06cab6037ac61c42a23` | 388,288 / `ba84f228234c5b241c933f24c4d564df88b95fdb370f70ec01baadd280eb2123` |
+| 56b basic, I | 10,027,320 / `b856b9b475f341da9a463fe3fe60ffb6b410903f9b4a9b8fcb2c7f01bddee323` | 684,448 / `65360da00164a2663bd93de552e512a3143e12d55d891d2321b40dac06ccee9c` |
+| 56o owner, I | 8,720,680 / `fbef68902cb9fd718a51762bc436ef7f3da303fb1a4f3f956a5438f3fb0b33db` | 562,528 / `341690c55872d4513ba0d1fdcef05c932c27ac5141615f8361de3348b3e7e0c4` |
+
+Remote CI and physical qualification **NOT RUN**. Prompt 71 owns remote CI.
+Deep-power exit, unresolved pin fields and electrical controls retain the
+source gates recorded by prompts 28, 32/33 and 35. Prompt 56 remains
+**IN PROGRESS** for phase (d).

@@ -50,7 +50,11 @@ steps of the complete MMD operation. Explicit destructive acquisition and mixed 
 
 Prompt 38 adds explicit `modifyBasicControl(mask,value,budget)` maintenance.
 It requires initialized accepted silicon, an idle owner and awake normal control
-state. Only raw BMCR AN/speed/duplex bits 0x3100 may change. The two-frame RMW
+state. Only raw BMCR AN/speed/duplex bits 0x3100 may change. On DP83826I/E,
+the request can explicitly enable AN. Otherwise current verified readback must
+show that the update preserves enabled AN or that CR1 bit 5 enables robust
+crossover. A failed precondition returns INVALID_CONFIG before the batch.
+The two-frame RMW
 neutralizes reset/restart and never echoes the power-pin OR. It does not alter
 persistent desired settings or verify resulting link policy. Accepted/uncertain
 writes invalidate identity/readiness/trust through the collector. Replay with

@@ -1,4 +1,4 @@
-#include "support/Check.h"
+#include "support/PartSelection.h"
 #include <DP8382x/DP8382x.h>
 #include <array>
 
@@ -12,7 +12,7 @@ struct Bus {
   std::array<uint16_t, 32> words{};
   uint16_t selector{0}, address{0}, vod{0x8400}, written{0};
   uint64_t now{100};
-  unsigned calls{0};
+  unsigned calls{0}, clocks{0};
   int fail{-1};
   bool late{false}, releaseFailure{false}, holdCommand{false}, holdReset{false};
   bool malformed{false}, effect{true};
@@ -20,9 +20,13 @@ struct Bus {
   unsigned rejectedReentries{0};
   MdioBatch last{};
   Bus() { words[0]=0x3100; words[4]=0x01E1; words[25]=0x8001; }
-  static uint64_t clock(void* context) noexcept { return static_cast<Bus*>(context)->now; }
+  static uint64_t clock(void* context) noexcept {
+    auto& bus = *static_cast<Bus*>(context);
+    ++bus.clocks;
+    return bus.now;
+  }
   Config config() noexcept {
-    Config c; c.variant=Variant::DP83826I; c.interface=MacInterface::RMII; c.phyAddress=1;
+    Config c; c.variant=test::declaredVariant; c.interface=MacInterface::RMII; c.phyAddress=1;
     c.transport={this,execute,clock,{8,4,1}}; return c;
   }
   uint16_t read(uint8_t reg) noexcept {
@@ -85,10 +89,11 @@ void finish(Driver& driver,Bus& bus,OperationToken token) {
   }
   CHECK(false);
 }
-void ready(Driver& driver,Bus& bus,bool forced=false) {
+void ready(Driver& driver,Bus& bus,bool forced=false,bool robust=true) {
   CHECK(driver.bind(bus.config()).ok()); OperationToken token;
   CHECK(driver.startInitialize({},budget(),token).inProgress()); finish(driver,bus,token);
   LinkSettings profile; profile.advertisement.technologyMask=0x0F;
+  profile.crossover.robust=robust;
   if (forced) { profile.mode=LinkMode::FORCED; profile.advertisement={}; profile.forced={LinkSpeed::MBPS_100,Duplex::FULL}; }
   CHECK(driver.startConfigure(profile,{},budget(),token).inProgress()); finish(driver,bus,token);
 }
@@ -159,6 +164,45 @@ void failures() {
   CHECK(driver.settingsSnapshot().trust==ConfigurationTrust::DIRTY);
 }
 void basicControl() {
+  {
+    Bus bus;
+    Driver driver;
+    ready(driver, bus, false, false);
+    CHECK(driver.identitySnapshot().declaredVariant == test::declaredVariant);
+    CHECK((bus.words[0] & 0x1000U) != 0 && (bus.words[9] & 0x0020U) == 0);
+    const auto calls = bus.calls;
+    const auto clocks = bus.clocks;
+    bool invoked = true;
+    const auto status = driver.modifyBasicControl(0x1000, 0, {1000000, 2}, &invoked);
+    CHECK(status.is(Err::INVALID_CONFIG) && status.detail == static_cast<int32_t>(ConfigDetail::LINK_COMBINATION));
+    CHECK(!invoked && bus.calls == calls && bus.clocks == clocks);
+    const auto settings = driver.settingsSnapshot();
+    CHECK(settings.trust == ConfigurationTrust::VERIFIED && !settings.observedStale);
+    CHECK(settings.desired.mode == LinkMode::AUTONEGOTIATED && !settings.desired.crossover.robust);
+    CHECK(driver.isInitialized() && (bus.words[0] & 0x1000U) != 0);
+    // Selecting speed alone preserves AN and its legal robust-off setting.
+    CHECK(driver.modifyBasicControl(0x2000, 0x2000, {1000000, 2}, &invoked).ok());
+    CHECK(invoked && (bus.written & 0x3000U) == 0x3000U);
+  }
+  {
+    Bus bus;
+    Driver driver;
+    ready(driver, bus);
+    OperationToken token;
+    OperationResult result;
+    CHECK(driver.startVerify(budget(), token).inProgress());
+    CHECK(driver.cancel(token).ok() && driver.takeResult(token, result).ok());
+    CHECK(result.status.is(Err::CANCELLED) && !result.cleanupOwed);
+    const auto settings = driver.settingsSnapshot();
+    CHECK(driver.isInitialized() && settings.observedStale && settings.cr1Valid && (settings.rawCr1 & 0x20U));
+    const auto calls = bus.calls;
+    const auto clocks = bus.clocks;
+    // Historical AN and CR1 bits cannot authorize a preserved or cleared AN bit.
+    CHECK(driver.modifyBasicControl(0x2000, 0, {1000000, 2}).is(Err::INVALID_CONFIG));
+    CHECK(driver.modifyBasicControl(0x1000, 0, {1000000, 2}).is(Err::INVALID_CONFIG));
+    CHECK(bus.calls == calls && bus.clocks == clocks);
+    CHECK(driver.modifyBasicControl(0x1000, 0x1000, {1000000, 2}).ok());
+  }
   // Independently enumerate BMCR 13/12/8. Maintenance never rewrites desired
   // settings, blesses the result or echoes RESET/RESTART/pin-derived power.
   for (uint16_t value : {0x0000,0x0100,0x1000,0x1100,0x2000,0x2100,0x3000,0x3100}) {
@@ -195,5 +239,5 @@ void basicControl() {
 } // namespace
 int main(int argc,char** argv) {
   const test::Suite suites[]={{"vectors",vectors},{"admission",admission},{"failures",failures},{"basic_control",basicControl}};
-  return test::runSuites(argc,argv,suites);
+  return test::runVariantSuites(argc,argv,suites);
 }

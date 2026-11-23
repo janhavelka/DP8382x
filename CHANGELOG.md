@@ -5,7 +5,9 @@
 - Add declared DP83826E selection to the portable core, ESP-IDF adapter, CLI
   and simulated runner. I and E share revision-1 procedures and retain their
   declared suffix in identity and fixture evidence. Forced robust crossover
-  is checked during declared-part admission.
+  is checked during declared-part admission and raw BMCR maintenance. The
+  native adapter validates link settings and negotiation options before
+  acquiring its owner gate.
 
 - Fixed silent assertion failures in the host console and UART tests. The
   basic P4 example host build checks its own pinned SDK header manifest,

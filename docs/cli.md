@@ -165,7 +165,9 @@ typed collector and its later CLI route.
 Raw LEDCR writes may set only 0x0692. A write replaces the entire owned
 subset. The vendor mask form preserves other admitted stable bits. BMCR
 maintenance accepts a nonzero subset of 0x3100 and a value contained in
-that mask. It cannot reset the PHY, set loopback or write power controls.
+that mask. On DP83826I/E, explicitly enable AN or verify that AN stays on
+or that robust crossover is enabled before the write. BMCR maintenance
+cannot reset the PHY, set loopback or write power controls.
 Both raw forms require explicit admission and the application must confirm
 LED0 electrical use before granting LED maintenance. Accepted or uncertain
 semantic writes withdraw current proof. After BMCR maintenance restore the

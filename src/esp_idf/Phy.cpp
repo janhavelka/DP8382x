@@ -1143,7 +1143,7 @@ Status Phy::startConfigure(const LinkSettings& settings, const OperationBudget& 
 }
 Status Phy::startConfigure(const LinkSettings& settings, const ConfigureOptions& options,
                            const OperationBudget& budget, OperationToken& token) noexcept {
-  const auto valid = validateLinkSettings(_config.core.variant, settings);
+  const auto valid = validateConfiguration(_config.core.variant, settings, options);
   if (!valid.ok()) return valid;
   if (settings.mode == LinkMode::FORCED && settings.extendedFullDuplex && settings.forced.duplex == Duplex::HALF)
     return Status::Error(Err::INVALID_CONFIG, "Extended forced half duplex cannot produce qualified native UP", static_cast<int32_t>(ConfigDetail::LINK_COMBINATION));

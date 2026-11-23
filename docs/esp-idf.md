@@ -225,7 +225,9 @@ maintenance. Selectors, destructive reads, unsupported aliases and oversized
 values reject before MAC frames. MMD control words are fully initialized
 0x001F/0x401F in one four-frame batch (five for RMW).
 `modifyBasicControl(mask,value,budget)` explicitly permits raw BMCR AN/speed/duplex
-mask 0x3100 only, in one two-frame RMW. It neutralizes commands and never echoes
+mask 0x3100 only, in one two-frame RMW. On DP83826I/E the core requires
+current verified robust crossover for a write that can leave AN disabled.
+The update neutralizes commands and never echoes
 the power-pin OR. Accepted/uncertain mutation preserves desired intent but
 withdraws identity/readiness/trust. Ordinary raw BMCR/MMD alias writes still reject.
 Run `startInitialize({NONE})`, deliver its result and reconcile before restart.

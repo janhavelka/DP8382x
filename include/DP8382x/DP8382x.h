@@ -1807,9 +1807,11 @@ public:
   /// @param[in] budget Absolute deadline and at least two frames.
   /// @param[out] invoked Optional flag cleared on entry. True identifies this call's lastBatch.
   /// @pre Initialized accepted exact part, awake normal profile, stopped application traffic.
+  /// On DP83826I/E, explicitly enable AN or supply current verified readback showing
+  /// that AN stays enabled or CR1 robust crossover is enabled.
   /// @return Validation/admission/transport status; successful or uncertain write invalidates
   /// identity/readiness/trust. Reinitialize/replay before managed use; no automatic retry.
-  /// @note SNLS647I table 8-19: neutralize RESET/RESTART and never echo the power-pin OR.
+  /// @note SNLS647I tables 8-19/8-28. The write neutralizes RESET/RESTART and never echoes the power-pin OR.
   Status modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget& budget, bool* invoked = nullptr) noexcept;
 
   /// @brief Acquire and accept identity at the bound address in one two-read batch.
