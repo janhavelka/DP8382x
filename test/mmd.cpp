@@ -361,5 +361,5 @@ int main(int argc, char** argv) {
     {"reports", testReports},
     {"ownership", testOwnership},
   };
-  return test::runSuites(argc, argv, suites);
+  return test::runVariantSuites(argc, argv, suites);
 }

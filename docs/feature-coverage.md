@@ -1,5 +1,12 @@
 # DP83826I feature coverage
 
+DP83826E shares the original I register map, including the 10BASE-Te sequence
+and the prohibition on local remote-fault advertisement. The primary matrix
+below remains the I evidence. The E regressions run with their own declared
+bindings. Deep-power exit, unresolved pin and electrical procedures and
+physical measurements retain the gates recorded by their owners.
+[DP83826E qualification](reports/implementation/56-e-support.md)
+
 The [transaction ownership test map](reports/implementation/53-regression-transaction-ownership.md)
 ties the indirect-access, reset, calibration, EEE, link and configuration rows to
 named CTests. The installed-adapter cases cover reentry at each of the four

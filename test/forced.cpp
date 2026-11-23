@@ -1,4 +1,5 @@
 #include "support/BoundDriver.h"
+#include "support/PartSelection.h"
 #include <DP8382x/DP8382x.h>
 
 #include <array>
@@ -35,7 +36,7 @@ struct Controller {
 
   Config config(uint32_t address = 1) noexcept {
     Config result;
-    result.variant = Variant::DP83826I;
+    result.variant = test::declaredVariant;
     result.interface = MacInterface::RMII;
     result.phyAddress = address;
     result.transport = {this, execute, clock, {8, 4, 1}};
@@ -184,7 +185,8 @@ void initialize(Driver& driver, Controller& bus, ResetKind reset = ResetKind::NO
   OperationToken token;
   CHECK(driver.startInitialize({reset}, budget(), token).inProgress());
   CHECK(drain(driver, bus, token).ok());
-  CHECK(take(driver, token).persistentRestored);
+  const auto result = take(driver, token);
+  CHECK(result.persistentRestored && result.identity.declaredVariant == test::declaredVariant);
   CHECK(driver.isInitialized());
 }
 LinkSettings forced(LinkSpeed speed = LinkSpeed::MBPS_100, Duplex duplex = Duplex::FULL,
@@ -767,5 +769,5 @@ int main(int argc, char** argv) {
     {"failures", failures}, {"verification_outcomes", verificationOutcomes},
     {"replay", replay}, {"ownership", ownership}, {"timing", timing}, {"power_pin", powerPin}
   };
-  return test::runSuites(argc, argv, suites);
+  return test::runVariantSuites(argc, argv, suites);
 }

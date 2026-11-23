@@ -48,12 +48,11 @@ and capabilities. The [identity guide](identity.md) documents current acquisitio
 partial evidence, negative-evidence maintenance admission and invalidation.
 These declarations are maintained in the header, not duplicated as future APIs.
 
-`isValidVariant` accepts only `DP83826I`; `UNKNOWN` and other numeric casts are
-invalid. Later documented parts are **not** prematurely exposed enum values
-returning `UNSUPPORTED` for missing software. Add each at its qualification
-stage. Physical marking declares I versus E; shared IDs cannot discover the
-ordering suffix. `isValidPhyAddress` accepts the protocol range 0..31; the
-DP83826's three physical address straps are separate board evidence.
+`isValidVariant` accepts `DP83826I` and `DP83826E`. A binding copies the
+declared ordering part and selects its private profile. Other casts and
+`UNKNOWN` reject before callbacks. `isValidPhyAddress` accepts the protocol
+range 0..31. `strapAddressMax(variant, maximum)` returns 7 for either
+original part and preserves the output on an unknown declaration.
 
 Current source acceptance is explicitly OUI `0x080028`, model `0x11` BASIC or
 `0x13` ENHANCED, revision **1 only**, under a private exact-part accepted-revision lookup. This is the
@@ -72,7 +71,7 @@ can be retained as rejected evidence while an ordinary identity output remains
 unchanged on an unsuccessful higher-level acquisition. Partial raw evidence has
 individual validity; `decodedValid=false`, acceptance UNASSESSED.
 
-Accepted DP83826I capabilities are copper, all four 10/100 modes, MII and RMII;
+Accepted DP83826I/E capabilities are copper, all four 10/100 modes, MII and RMII;
 fiber/gigabit/RGMII are absent. These values describe silicon evidence, not
 implemented feature coverage or a physical qualification. Future feature
 capabilities are added with typed behavior; the feature coverage guide already
@@ -91,7 +90,9 @@ without a full-duplex result. Encoding forces selector 1 and local remote-fault
 zero while preserving read-only T4 and reserved bits; these are not user-settable fields. Inactive
 forced fields must be UNKNOWN; contradictory inactive intent rejects before admission.
 
-Forced mode requires one of 10/100 × half/full, robust crossover true for both
+The single-argument validator checks forced speed, duplex, mirror and AN fields.
+The overload taking a declared variant also checks its forced crossover requirement.
+For the original I/E parts, forced mode requires one of 10/100 × half/full, robust crossover true for both
 automatic and manual pair policy, and an inactive advertisement of mask zero,
 pause false/false. This canonical inactive form prevents
 accidental interpretation as negotiated policy. The swap Booleans must match: both

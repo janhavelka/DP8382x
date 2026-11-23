@@ -100,7 +100,7 @@ bool install() {
   mac = esp_eth_mac_new_esp32(&boardMac, &macConfig);
   if (!mac) return false;
   PhyConfig config{};
-  config.core.variant = Variant::DP83826I;
+  config.core.variant = Board::PHY_VARIANT;
   config.core.requiredMode = OperatingMode::ENHANCED;
   config.core.interface = MacInterface::RMII;
   config.core.phyAddress = Board::PHY_ADDRESS;
@@ -420,7 +420,7 @@ extern "C" void app_main() {
   identity.target = CONFIG_IDF_TARGET;
   identity.backend = "P4-raw-frame";
   identity.clock = "RMII-50MHz-EXT";
-  identity.variant = Variant::DP83826I;
+  identity.variant = Board::PHY_VARIANT;
   identity.interface = MacInterface::RMII;
   identity.phyAddress = Board::PHY_ADDRESS;
   identity.console = "uart0";

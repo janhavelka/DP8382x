@@ -58,7 +58,7 @@ Status DP8382x::_validateEee(const EeeSettings& settings) const noexcept {
   if (!_settings.desiredValid || _settings.desired.mode!=LinkMode::AUTONEGOTIATED) {
     return eeeConfig("EEE requires an owned autonegotiated profile");
   }
-  const auto link=validateLinkSettings(_settings.desired); if (!link.ok()) { return link; }
+  const auto link=validateLinkSettings(_config.variant, _settings.desired); if (!link.ok()) { return link; }
   if (_config.interface!=MacInterface::MII && _config.interface!=MacInterface::RMII) {
     return eeeConfig("EEE interface has not been admitted");
   }

@@ -38,7 +38,7 @@ bool interfacePrefix(const MdioBatch& batch,const BatchResult& receipt,uint8_t l
 Status DP8382x::_validateInterface(const InterfaceSettings& settings) const noexcept {
   const auto syntax=interfaceSyntax(settings); if (!syntax.ok()) { return syntax; }
   if (settings.interface!=MacInterface::MII && settings.interface!=MacInterface::RMII) {
-    return Status::Error(Err::UNSUPPORTED,"Exact DP83826I supports declared MII/RMII only");
+    return Status::Error(Err::UNSUPPORTED,"This interface procedure supports declared MII/RMII only");
   }
   if (settings.interface!=_config.interface) { return interfaceConfig("Profile must match application-declared interface wiring"); }
   if (!settings.maintenanceAdmitted || !settings.macStopped || !settings.pinsAvailable ||

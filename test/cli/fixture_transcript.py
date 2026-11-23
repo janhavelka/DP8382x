@@ -45,6 +45,19 @@ def request(rows, number):
 
 
 class FixtureTranscript(unittest.TestCase):
+    def test_declared_grade_and_cached_validation(self):
+        stream = (b"cached transport\nsession grade\nversion\nlocal board\ncaps\n"
+                  b"configuration validate forced 100 full mdi 0\n"
+                  b"configuration validate forced 100 full mdi 1\n"
+                  b"configuration validate an 15 none auto 0\ncached transport\n")
+        for variant in ("DP83826I", "DP83826E"):
+            rows = records(run(stream, "--variant", variant))
+            self.assertEqual([r["variant"] for r in rows[1:4]], [variant] * 3)
+            self.assertEqual((rows[4]["valid"], rows[4]["modes"], rows[4]["interfaces"]), ("1", "15", "3"))
+            self.assertEqual([r["primary"] for r in rows[5:8]], ["INVALID_CONFIG", "OK", "OK"])
+            for field in ("batches", "attempted", "completed"):
+                self.assertEqual(rows[0][field], rows[8][field])
+
     def test_real_cached_views_and_zero_frames(self):
         stream = (b"session A.b:43-Thing\r\ncached transport\n"
                   b"drv\ncached link\r\ncfg\ncaps\ncached operation\n"

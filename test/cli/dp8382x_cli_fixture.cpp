@@ -24,6 +24,7 @@ enum class MaintenancePolicy { ALLOWED, ACTIVE, UNSUPPORTED };
 constexpr uint8_t PHY_ADDRESS = 1;
 struct Options {
   const char* identity{"unknown"};
+  Variant variant{Variant::DP83826I};
   Partner partner{Partner::FULL100};
   MacInterface interface{MacInterface::RMII};
   uint64_t failAfter{std::numeric_limits<uint64_t>::max()};
@@ -77,7 +78,11 @@ bool parseOptions(int argc, char** argv, Options& options) {
     if (++i == argc) return false;
     const std::string_view value{argv[i]};
     if (option == "--identity") options.identity = argv[i];
-    else if (option == "--partner") {
+    else if (option == "--variant") {
+      if (value == "DP83826I") options.variant = Variant::DP83826I;
+      else if (value == "DP83826E") options.variant = Variant::DP83826E;
+      else return false;
+    } else if (option == "--partner") {
       if (value == "down") options.partner = Partner::DOWN;
       else if (value == "pending") options.partner = Partner::PENDING;
       else if (value == "100-full") options.partner = Partner::FULL100;
@@ -365,7 +370,7 @@ public:
     _driver.emplace();
     _bus.setup(_options);
     Config config{};
-    config.variant = Variant::DP83826I;
+    config.variant = _options.variant;
     config.interface = _options.interface;
     config.phyAddress = PHY_ADDRESS;
     config.transport = {&_bus, Bus::execute, Bus::clock, {8, 4, 1}};
@@ -658,7 +663,7 @@ private:
 
 int main(int argc, char** argv) {
   constexpr const char* usage =
-      "Usage: dp8382x_cli_fixture [--identity TOKEN] [--partner down|pending|100-full|10-half] "
+      "Usage: dp8382x_cli_fixture [--identity TOKEN] [--variant DP83826I|DP83826E] [--partner down|pending|100-full|10-half] "
       "[--fail-after N] [--reboot-after N] [--partial-record] [--deny-maintenance|--no-maintenance] "
       "[--hold-reset] [--regress-after-hard] [--trace-resets] [--trace-writes] [--mii] [--hold-tdr] "
       "[--attest-features] [--campaign basic|enhanced] [--campaign-peer PROFILE]\n";

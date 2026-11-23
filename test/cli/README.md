@@ -3,8 +3,9 @@
 With `DP8382X_BUILD_TESTS=ON`, the build produces `test/cli/dp8382x_cli_fixture`
 (`.exe` on Windows). Its stdin and stdout are byte streams. Each boot binds
 the real portable core to a Clause 22 register array, MMD aliases and a small
-fixed table of extended words. Strap address 1 answers with the enhanced
-DP83826 ID, address 0 returns zeros, and remaining addresses return all ones.
+fixed table of extended words. Strap address 1 answers with the revision-1
+DP83826 ID for the selected mode (default ENHANCED), address 0 returns zeros,
+and remaining addresses return all ones. I and E return identical words.
 Startup initializes without resetting the
 PHY and samples link once through the public core. Configuration trust stays
 `DIRTY` because the fixture has not applied and verified a desired profile.
@@ -14,6 +15,7 @@ behavior only.
 | Argument | Effect |
 | --- | --- |
 | `--identity TOKEN` | Reports a supplied firmware identity. Use 1 to 64 ASCII letters, digits, underscores, dots, colons or hyphens. Default `unknown`. |
+| `--variant DP83826I\|DP83826E` | Selects the simulated ordering grade at bind and reports it through `session`, `version` and `local board`. Default `DP83826I`. The runner supplies this option with `--fixture-variant`. |
 | `--partner down\|pending\|100-full\|10-half` | Selects simulated partner and link register values. Default `100-full`. |
 | `--fail-after N` | Permits N successful physical frames per simulated boot, then fails attempted frames with `MDIO_ERROR`, detail `-43`. Startup frames count. A failed write reports a possible effect. |
 | `--reboot-after N` | Reboots once after accepting N complete CLI lines, counting rejected lines and treating CRLF as one boundary. Drops output queued in the old boot and starts the new request count at 1. |

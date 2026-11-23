@@ -1,4 +1,5 @@
 #include "support/BoundDriver.h"
+#include "support/PartSelection.h"
 #include <DP8382x/DP8382x.h>
 #include <array>
 #include <cstdint>
@@ -38,7 +39,7 @@ struct Controller {
     ext[0x030E]=0x8400;ext[0x04A1]=0x1000;ext[0x04D1]=0x0080;
   }
   Config config(uint32_t phy=1) {
-    Config c;c.variant=Variant::DP83826I;c.interface=id2==0xA111?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
+    Config c;c.variant=test::declaredVariant;c.interface=id2==0xA111?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
   static uint64_t clock(void* context) noexcept {
@@ -575,5 +576,5 @@ void ownershipTiming() {
 int main(int argc,char** argv) {
   const test::Suite suites[]={{"raw",raw},{"recipe",recipe},{"settings",settingsMatrix},{"admission",admission},
     {"status",status},{"failures",failures},{"acquisition_failures",acquisitionFailures},{"replay",replay},{"ownership_timing",ownershipTiming}};
-  return test::runSuites(argc,argv,suites);
+  return test::runVariantSuites(argc,argv,suites);
 }

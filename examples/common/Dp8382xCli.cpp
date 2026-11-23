@@ -79,6 +79,14 @@ const char* interfaceName(MacInterface value) {
   return value == MacInterface::RMII ? "RMII" : "MII";
 }
 
+const char* variantName(Variant variant) {
+  switch (variant) {
+    case Variant::DP83826I: return "DP83826I";
+    case Variant::DP83826E: return "DP83826E";
+    default: return "unknown";
+  }
+}
+
 const char* trustName(ConfigurationTrust trust) {
   switch (trust) {
     case ConfigurationTrust::VERIFIED: return "VERIFIED";
@@ -664,7 +672,7 @@ void Processor::profileHelp() {
       "     Optional: wait, or <partner-limit 1..16> <packed four-digit hex pages>\r\n"
       "  forced <%s> <%s> <%s> <flags>\r\n"
       "  Flags: 1 robust, 2 coupled pair/polarity mirror, 4 extended full duplex.\r\n"
-      "  Forced requires robust. Extended duplex excludes forced 10 and native half duplex.\r\n",
+      "  DP83826I/E forced mode requires robust. Extended duplex excludes forced 10 and native half duplex.\r\n",
       unsigned(CONFIG[MODES].min), unsigned(CONFIG[MODES].max), CONFIG[PAUSE].enumValues.data(),
       CONFIG[PAIR].enumValues.data(), unsigned(CONFIG[FLAGS].min), unsigned(CONFIG[FLAGS].max),
       CONFIG[SPEED].enumValues.data(), CONFIG[DUPLEX].enumValues.data(), CONFIG[PAIR].enumValues.data());
@@ -683,7 +691,7 @@ void Processor::identity(const Command& command, const Args& args, std::size_t, 
                " clock=%s variant=%s interface=%s address=%" PRIu32 " console=%s baud=%" PRIu32,
                int(nonce.size()), nonce.data(), VERSION_STRING, _identity.firmware, _identity.tree,
                _identity.sdk, _identity.target, _identity.backend, _identity.clock,
-               _identity.variant == Variant::DP83826I ? "DP83826I" : "unknown",
+               variantName(_identity.variant),
                interfaceName(_identity.interface), _identity.phyAddress, _identity.console, _identity.baud);
 }
 
@@ -1037,7 +1045,7 @@ void Processor::route(const Command& command, const Args& args, std::size_t coun
   const auto route = static_cast<Route>(command.flags);
   if (route == APPLY || route == VALIDATE) {
     if (!parseProfile(args, count, request)) { reply.reject("profile"); return; }
-    reply.status = validateConfiguration(request.settings, request.options);
+    reply.status = validateConfiguration(_identity.variant, request.settings, request.options);
     if (!reply.status.ok() || route == VALIDATE) return;
     request.action = Action::START_CONFIGURE;
     frames = 512;
@@ -1054,8 +1062,11 @@ void Processor::route(const Command& command, const Args& args, std::size_t coun
   } else if (route == SCAN) {
     request.action = Action::DISCOVER;
     step = Work::DISCOVERY;
-    if (count == 0 && _identity.variant == Variant::DP83826I) end = 7;
-    else if (count != 2 || !unsignedNumber(args[0], request.address) || !unsignedNumber(args[1], end) ||
+    if (count == 0) {
+      uint8_t maximum = 0;
+      if (!strapAddressMax(_identity.variant, maximum)) { reply.reject("range"); return; }
+      end = maximum;
+    } else if (count != 2 || !unsignedNumber(args[0], request.address) || !unsignedNumber(args[1], end) ||
              end > 31 || request.address > end) { reply.reject("range"); return; }
     frames = (end - request.address + 1U) * 2U;
   } else if (route == BMCR) {

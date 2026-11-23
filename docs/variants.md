@@ -1,15 +1,12 @@
 # Device coverage
 
-Stages 15-16 initialization supports only the declared DP83826I, in accepted BASIC
-or ENHANCED mode. NONE/PCS/HARD/RESTART success adds initialized procedure evidence; it does
-not broaden the variant table or establish link, actual strap wiring or hardware
-qualification. [Passive health](health.md) projects managed callback evidence
-separately. See [initialization](initialization.md).
-
-Core evidence and side-effect access re-audited on 2026-11-07.
-**DP83826I has host-tested identity/capability selection and a bounded direct/indirect access subset; no variant has a complete
-or hardware-qualified driver.** The following describes documentation coverage
-and intended development order.
+The core and native adapter accept application-declared DP83826I and DP83826E
+in BASIC or ENHANCED mode at revision 1. They use the same register map and
+procedures. The temperature range and the electrical limits at those
+temperatures come from the ordering grade. Both parts retain the open
+procedure gates in the primary ledger. Physical qualification is pending for
+each part. [Shared silicon record](reports/implementation/56-e-support.md#shared-silicon-record)
+and [initialization](initialization.md).
 
 The primary DP83826I [ledger](registers/dp83826i.json) and
 [behavior contract](device-behavior.md) now close primary-part source research.
@@ -25,7 +22,7 @@ gates. Later variants must qualify these independently.
 | Device | Role here | Specification | Boundaries to preserve |
 | --- | --- | --- | --- |
 | DP83826I, including DP83826IRHBR | First implementation target | [SNLS647I, Aug 2025](reference/source/TI-DP83826I-E-SNLS647I.pdf) | Verify selected mode, PHY identity, straps, reset and 10BASE-Te setup |
-| DP83826E | Same datasheet, secondary qualification target | SNLS647I above | Shared documentation does not establish tested support |
+| DP83826E | Declared original extended-temperature grade | SNLS647I above | Same core procedures as I. Declared-E host, SDK and physical evidence are recorded separately in the [qualification report](reports/implementation/56-e-support.md) |
 | DP83826AI / DP83826AE | A-generation reference | [SNLS783A, Oct 2025](reference/source/TI-DP83826AI-AE-SNLS783A.pdf) | Review [rollover changes](reference/source/TI-DP83826-to-DP83826A-SDAA067A.pdf) before reuse |
 | DP83825I | Family expansion reference | [SNLS638C, Apr 2026](reference/source/TI-DP83825I-SNLS638C.pdf) | RMII-only device; do not expose unsupported MII/fiber features |
 | DP83822I / H / IF / HF | Family expansion reference | [SNLS505H, Jul 2026](reference/source/TI-DP83822-SNLS505H.pdf) | Interface, temperature and fiber capabilities differ by exact variant |

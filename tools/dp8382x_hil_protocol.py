@@ -33,7 +33,7 @@ _REVISION = re.compile(r"[0-9a-f]{7,64}", re.ASCII)
 _PAGES = re.compile(r"(?:[0-9A-F]{4}|----)+", re.ASCII)
 _TREES = {"clean", "dirty", "unknown"}
 _INTERFACES = {"MII", "RMII"}
-_VARIANTS = {"DP83826I"}
+VARIANTS = frozenset({"DP83826I", "DP83826E"})
 
 
 class ProtocolError(ValueError):
@@ -128,7 +128,7 @@ def _wire_identity(fields: dict[str, str]) -> None:
     for part in version:
         integer(part, 0, 65535)
     _choice(fields["tree"], _TREES, "firmware tree")
-    _choice(fields["variant"], _VARIANTS | {"unknown"}, "PHY variant")
+    _choice(fields["variant"], VARIANTS | {"unknown"}, "PHY variant")
     _choice(fields["interface"], _INTERFACES, "MAC interface")
     _numbers(fields, "address", 0, 31)
     if has_console:
@@ -148,7 +148,7 @@ def validate_expected_identity(expected: dict[str, object]) -> None:
     for name in ("target", "backend"):
         if _token(expected[name], name) == "unknown":
             raise ProtocolError(f"expected {name} must be known")
-    _choice(expected["variant"], _VARIANTS, "expected PHY variant")
+    _choice(expected["variant"], VARIANTS, "expected PHY variant")
     _choice(expected["interface"], _INTERFACES, "expected MAC interface")
     address = expected["address"]
     if type(address) is not int or not 0 <= address <= 31:

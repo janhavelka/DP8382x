@@ -13,24 +13,24 @@ of at least two frames and application-established clock/power/reset readiness.
 It performs no scan, reset, retry, selector write or implicit address selection.
 Use the [linked portable probe example](../examples/portable/IdentityProbe.h).
 
-SNLS647I tables 8-21/22 define the identity fields. The declared part must be
-DP83826I; observed OUI/model/revision must match its private accepted-revision
-table. The current policy accepts revision 1 only. This is a reviewed admission
-policy, not proof that no other revision exists. BASIC and ENHANCED IDs do not
-identify I/E suffix or temperature grade: the application supplies the ordering
-part. Linux C/NC labels are not ordering-part aliases.
+SNLS647I tables 8-21/22 define the identity fields. Bind the ordering part
+from the board BOM. Both DP83826I and DP83826E accept the original model words
+at revision 1. Each successful observation carries the supplied declaration,
+including when two instances read identical words. Linux C/NC labels describe
+models. The shared source record identifies the ordering-grade differences.
+[SNLS647I evidence](reports/implementation/56-e-support.md#shared-silicon-record)
 
 | Declared part / required mode | Observed words | Admission | Implemented facts / hardware evidence |
 | --- | --- | --- | --- |
-| DP83826I / UNKNOWN or BASIC | `2000 A111` | Accepted BASIC revision 1 | Two-frame acquisition, passive snapshot/capabilities host-tested; physical NOT RUN |
-| DP83826I / UNKNOWN or ENHANCED | `2000 A131` | Accepted ENHANCED revision 1 | Same implemented path; physical NOT RUN |
-| DP83826I / contradictory required mode | Either valid ID above | DEVICE_MISMATCH / MODE_MISMATCH | Reads retained; output unchanged, capabilities invalid |
-| DP83826I | Recognized model with revision 0 or 2–15 | DEVICE_MISMATCH / REVISION_NOT_ACCEPTED | Raw revision retained; no guessed support for A-generation |
-| DP83826I | Wrong OUI or model | DEVICE_MISMATCH / WRONG_OUI or WRONG_MODEL | OUI checked before model, then revision and required mode |
-| DP83826I | Either required word zero | DEVICE_NOT_FOUND / ZERO_ID | Plausibility failure, not evidence of physical absence |
-| DP83826I | Either word FFFF, neither zero | DEVICE_NOT_FOUND / ONES_ID | Controller data retained; no guessed MDIO acknowledgement |
+| DP83826I or E / UNKNOWN or BASIC | `2000 A111` | Accepted BASIC revision 1 | Two-frame acquisition, passive snapshot/capabilities host-tested; physical NOT RUN |
+| DP83826I or E / UNKNOWN or ENHANCED | `2000 A131` | Accepted ENHANCED revision 1 | Same implemented path; physical NOT RUN |
+| DP83826I or E / contradictory required mode | Either valid ID above | DEVICE_MISMATCH / MODE_MISMATCH | Reads retained; output unchanged, capabilities invalid |
+| DP83826I or E | Recognized model with revision 0 or 2–15 | DEVICE_MISMATCH / REVISION_NOT_ACCEPTED | Raw revision retained; no guessed support for A-generation |
+| DP83826I or E | Wrong OUI or model | DEVICE_MISMATCH / WRONG_OUI or WRONG_MODEL | OUI checked before model, then revision and required mode |
+| DP83826I or E | Either required word zero | DEVICE_NOT_FOUND / ZERO_ID | Plausibility failure, not evidence of physical absence |
+| DP83826I or E | Either word FFFF, neither zero | DEVICE_NOT_FOUND / ONES_ID | Controller data retained; no guessed MDIO acknowledgement |
 | UNKNOWN or unimplemented relative represented by an invalid enum cast | No read | INVALID_CONFIG / ENUM_VALUE at bind | No automatic family selection, no callbacks |
-| DP83826I / RGMII declaration | No read | UNSUPPORTED / INTERFACE at bind | Exact part has no RGMII; MII and RMII are both legal in both modes |
+| DP83826I or E / RGMII declaration | No read | UNSUPPORTED / INTERFACE at bind | Exact part has no RGMII; MII and RMII are both legal in both modes |
 
 Numbers above are hexadecimal. The OUI is `(ID1 << 6) | ((ID2 & FC00) >> 10)`,
 model is `(ID2 & 03F0) >> 4` and revision is `ID2 & 000F`. The independent literal
@@ -70,7 +70,7 @@ from a bus-silent snapshot.
 
 ## Capability and maintenance boundaries
 
-Fresh accepted DP83826I reports all four 10/100 half/full link modes, MII and RMII,
+A fresh accepted DP83826I or DP83826E reports all four 10/100 half/full link modes, MII and RMII,
 and copper medium. Fiber, gigabit and RGMII are absent. Table 4-3 and BASIC strap
 table 8-12 support both interfaces in both identity modes. Actual wiring/strap
 selection is separate evidence; identity alone does not read or qualify it.

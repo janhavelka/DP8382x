@@ -5,10 +5,15 @@ transport implementation. [Initialization](initialization.md) documents NONE/PCS
 retained operation evidence and separately admitted restoration. There is no
 generic job engine or desired profile inferred from raw maintenance writes.
 
-The framework-independent C++17 DP8382x core begins with exact DP83826I and is
+The framework-independent C++17 DP8382x core supports declared DP83826I and DP83826E and is
 shared by portable applications and a native ESP-IDF adapter. Shipped behavior
 is recorded in [implementation progress](implementation-progress.md); design
 contracts are not placeholder APIs or claims of physical support.
+
+A private part table binds the application declaration to its register map,
+reviewed model and revision set, interface mask and forced crossover policy.
+I and E use one transaction owner, register policy and initialization sequence.
+The shared model words preserve the board declaration. [Identity](identity.md)
 
 Read [API contracts](api-contracts.md) for transport, values and OP-1 through OP-17,
 [ownership decisions](design-decisions.md) for native execution/lifecycle, and the

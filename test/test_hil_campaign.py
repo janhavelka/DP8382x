@@ -186,6 +186,45 @@ class CompiledCampaignTests(unittest.TestCase):
                         for name, (data, raw) in self.positives.items())
         self.assertGreater(mutations, 30_000)
 
+    def test_original_e_modes_and_artifact_grade(self):
+        for mode, id2 in (("basic", 0xA111), ("enhanced", 0xA131)):
+            with self.subTest(mode=mode):
+                run = "-e-" + mode
+                args = ("--fixture-variant", "DP83826E", "--variant", "DP83826E", "--operating-mode", mode)
+                result, data, raw = self.run_case("observe", run, args)
+                self.assertEqual((result, data["verdict"]), (0, "PASS"), data["issues"])
+                self.assertEqual(data["identity"]["variant"], "DP83826E")
+                device = next(row for row in decoded(raw) if row.cmd == "connection.identity")
+                self.assertEqual((device.fields["id2"], device.fields["mode"]), (str(id2), mode))
+                path = self.folder / ("observe" + run + ".json")
+                self.assertEqual(runner.verify(path), data)
+
+                # Recompute the digest after altering the wire declaration so
+                # replay must detect the contradiction with the saved identity.
+                changed = raw.replace(b"variant=DP83826E", b"variant=DP83826I")
+                self.assertNotEqual(changed, raw)
+                path.with_suffix(".txt").write_bytes(changed)
+                forged = deepcopy(data)
+                forged["transcript"]["sha256"] = hashlib.sha256(changed).hexdigest()
+                path.write_text(json.dumps(forged), encoding="utf-8")
+                with self.assertRaises((EvidenceError, ProtocolError)):
+                    runner.verify(path)
+
+                path.with_suffix(".txt").write_bytes(raw)
+                for field in ("identity", "expectations"):
+                    forged = deepcopy(data)
+                    forged[field]["variant"] = "DP83826I"
+                    path.write_text(json.dumps(forged), encoding="utf-8")
+                    with self.assertRaises((EvidenceError, ProtocolError)):
+                        runner.verify(path)
+
+        result, data, _ = self.run_case("observe", "-wrong-grade",
+                                        ("--fixture-variant", "DP83826I", "--variant", "DP83826E"))
+        self.assertEqual(result, 2)
+        self.assertEqual(data["identity"]["variant"], "DP83826I")
+        self.assertIn("identity mismatch: variant", " ".join(data["issues"]))
+        self.assertEqual(len(data["commands"]), 1)
+
     def test_forged_aggregate_and_intervention_order_are_rejected(self):
         data, raw = self.positives["unplug-replug"]
         name = "forged"

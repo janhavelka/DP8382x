@@ -26,7 +26,7 @@ from dp8382x_hil_campaign import (
 )
 from dp8382x_hil_fixture import FixtureError, FixtureProcess
 from dp8382x_hil_protocol import (
-    TERMINAL_STATUS, U32_MAX, U64_MAX, Decoder, ProtocolError, Record,
+    TERMINAL_STATUS, U32_MAX, U64_MAX, VARIANTS, Decoder, ProtocolError, Record,
     identity, integer, observed_identity, validate_expected_identity,
 )
 from dp8382x_hil_serial import (
@@ -846,6 +846,8 @@ def capture(args, suite, nonce, expected, declaration=None, recorded=None):
             argv = [executable]
             if args.fixture_identity:
                 argv += ["--identity", args.fixture_identity]
+            if args.fixture_variant:
+                argv += ["--variant", args.fixture_variant]
             baseline = ()
             feature = None
             if declaration:
@@ -1500,6 +1502,8 @@ def parser():
             command.add_argument("--timeout", type=positive_seconds, default=5.0)
             command.add_argument("--closure", type=positive_seconds, default=0.5)
             command.add_argument("--fixture-identity", help="explicit simulated identity reported by the host fixture")
+            command.add_argument("--fixture-variant", choices=sorted(VARIANTS),
+                                 help="part bound by the compiled fixture (default DP83826I); --variant checks its output")
             command.add_argument("--fixture-deny-maintenance", action="store_true",
                                  help="exercise the compiled fixture's denied mutation route")
         elif name == "verify-transcript":

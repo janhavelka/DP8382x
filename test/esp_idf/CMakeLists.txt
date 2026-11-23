@@ -251,6 +251,14 @@ set(native_suites factory board_install_failures raw_routing raw_rx_retention
     observation_reset_trust peer_board_failure_observation observation_gate_denial
     quarantine_after_batch_unlock board_deadline_before_drain
     observation_publication_admission start_observation_reserve application_recovery application_frames)
+foreach(suite IN ITEMS factory configuration_admission forced_lifecycle initialize_failures configuration_failures)
+  add_test(NAME e_native_${suite} COMMAND dp8382x_native_host_tests ${suite} --dp83826e)
+  set_tests_properties(e_native_${suite} PROPERTIES TIMEOUT 30)
+endforeach()
+foreach(suite IN ITEMS discovery feature_admission)
+  add_test(NAME e_native_cli_${suite} COMMAND dp8382x_native_cli_tests ${suite} --dp83826e)
+  set_tests_properties(e_native_cli_${suite} PROPERTIES TIMEOUT 30)
+endforeach()
 foreach(suite IN LISTS native_suites)
   add_test(NAME native_${suite} COMMAND dp8382x_native_host_tests ${suite})
   set_tests_properties(native_${suite} PROPERTIES TIMEOUT 30)

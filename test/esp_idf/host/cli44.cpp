@@ -1,6 +1,6 @@
 #include "InstrumentedMac.h"
 #include "../../../examples/esp_idf/common/Dp8382xCliNative.h"
-#include "../../support/Check.h"
+#include "../../support/PartSelection.h"
 
 #include <algorithm>
 #include <string>
@@ -39,7 +39,7 @@ struct Endpoint {
     PhyConfig config{};
     config.mac = &mac.native;
     config.bus = &bus;
-    config.core.variant = Variant::DP83826I;
+    config.core.variant = test::declaredVariant;
     config.core.interface = MacInterface::RMII;
     config.core.phyAddress = address;
     config.core.transport.bounds = {2000, 1000, 1};
@@ -102,7 +102,7 @@ bool attach(Endpoint& endpoint, Processor& cli) {
   endpoint.owner.write = Endpoint::write;
   Identity identity{};
   identity.boot = 45;
-  identity.variant = Variant::DP83826I;
+  identity.variant = test::declaredVariant;
   return cli.setup(endpoint.owner.platform(), identity);
 }
 
@@ -170,7 +170,7 @@ void reconciliation() {
   endpoint.owner.write = Endpoint::write;
   Identity identity{};
   identity.boot = 44;
-  identity.variant = Variant::DP83826I;
+  identity.variant = test::declaredVariant;
   CHECK(cli.setup(endpoint.owner.platform(), identity));
   constexpr std::string_view command = "configuration apply an 8 none auto 1\n";
   CHECK(cli.feed(command) == command.size());
@@ -334,7 +334,7 @@ void clockFault() {
   endpoint.owner.write = Endpoint::write;
   Identity identity{};
   identity.boot = 45;
-  identity.variant = Variant::DP83826I;
+  identity.variant = test::declaredVariant;
   CHECK(cli.setup(endpoint.owner.platform(), identity));
   constexpr std::string_view command = "configuration apply an 8 none auto 1\n";
   CHECK(cli.feed(command) == command.size());
@@ -907,6 +907,7 @@ void featureAdmission() {
 
   endpoint.mac.registers[3] = 0xA131;
   CHECK(endpoint.call(request(Action::PROBE), receipt).ok());
+  CHECK(receipt.identity.declaredVariant == test::declaredVariant);
   before = endpoint.mac.frames.size();
   CHECK(command(cli, "power read\n"));
   CHECK(endpoint.transcript.find("cmd=power.read op=0 state=terminal primary=OK") != std::string::npos);
@@ -947,5 +948,5 @@ int main(int argc, char** argv) {
                                 {"shared_silence", sharedSilence}, {"clock_fault", clockFault},
                                 {"link_events", linkEvents}, {"lifecycle", lifecycle}, {"features", features},
                                 {"feature_admission", featureAdmission}, {"blocked_poll", blockedPoll}};
-  return test::runSuites(argc, argv, suites);
+  return test::runVariantSuites(argc, argv, suites);
 }

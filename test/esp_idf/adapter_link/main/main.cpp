@@ -137,7 +137,7 @@ void runFixture() {
   if (!fixture.mac) { releaseBeforeInstall(); return; }
 
   PhyConfig config{};
-  config.core.variant = Variant::DP83826I;
+  config.core.variant = Variant::DP83826E;
   config.core.interface = MacInterface::RMII;
   config.core.requiredMode = OperatingMode::ENHANCED;
   config.core.phyAddress = 0;

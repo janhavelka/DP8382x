@@ -7,6 +7,10 @@
 /// @brief Portable PHY driver and copied transport observations.
 namespace DP8382x {
 
+/// @cond INTERNAL
+namespace detail { struct PartProfile; }
+/// @endcond
+
 /// @brief Passive managed-transport state; never an admission or recovery policy.
 enum class DriverState : uint8_t {
   UNINIT,   ///< Initialization is not currently established, regardless of counters.
@@ -580,9 +584,15 @@ struct ConfigureOptions {
 /// @brief Validate a complete link profile and negotiation policy with no I/O.
 /// @param[in] settings Desired link settings.
 /// @param[in] options Negotiation wait and ordered next-page policy.
-/// @return OK for legal input or the same syntax/combination error as startConfigure.
+/// @return OK for legal input or a syntax/combination error. Use the variant overload for part constraints.
 /// @note Runtime admission, device evidence and deadlines are checked by the owner.
 Status validateConfiguration(const LinkSettings& settings, const ConfigureOptions& options) noexcept;
+/// @brief Validate link, next pages and the exact declared part before starting an operation.
+/// @param[in] variant Application-declared ordering part.
+/// @param[in] settings Desired link settings.
+/// @param[in] options Negotiation wait and next-page policy.
+/// @return OK or the local admission error, without I/O, clock access or state changes.
+Status validateConfiguration(Variant variant, const LinkSettings& settings, const ConfigureOptions& options) noexcept;
 /// @brief Current foundational configuration evidence, separate from desired intent.
 enum class ConfigurationTrust : uint8_t {
   UNKNOWN, ///< No established configuration evidence.
@@ -1280,7 +1290,7 @@ struct OperationSnapshot {
   uint32_t stalledPolls{0}; ///< Consecutive polls without work or clock advance.
 };
 
-/// @brief Noncopyable, application-serialized DP83826I driver.
+/// @brief Noncopyable, application-serialized DP83826I/E driver.
 /// @pre Serialize every call, including cached access. The borrowed context and
 /// callbacks outlive calls. No callback may retain buffers or re-enter this object.
 /// @note No allocation, SDK, hidden retries or work without caller polling.
@@ -1736,7 +1746,7 @@ public:
   /// @return IN_PROGRESS on admission; invalid intent, unavailable feature, binding,
   /// operation/barrier, initialization or budget errors otherwise, with no changes.
   /// @note SNLS647I 8.3.1/.2, tables 8-19/23..30/43; IEEE 802.3 Clause 28.
-  /// Forced requires robust routing, no AN intent/options, and never accesses
+  /// Forced mode on DP83826I/E requires robust routing, no AN intent/options, and never accesses
   /// ANAR. Automatic routing preserves PHYCR 14; mirror sets both CR3 bits 0060.
   /// Extension owns CR2 bit 0020 only, rejects forced 10 and proves no partner agreement.
   /// Admission copies desired intent and marks trust DIRTY. NP belongs only to
@@ -1809,7 +1819,7 @@ public:
   /// @return Transport/admission errors unchanged; DEVICE_NOT_FOUND for either
   /// required word zero/all-ones; DEVICE_MISMATCH for OUI/model/revision/mode,
   /// checked in that order. No error implies physical absence or an MDIO ACK.
-  /// @note SNLS647I tables 8-21/22: declared DP83826I, OUI 080028, model 11/13,
+  /// @note SNLS647I tables 8-21/22: declared DP83826I/E, OUI 080028, model 11/13,
   /// revision 1. Shared IDs cannot identify I/E suffix. Partial/rejected evidence
   /// stays in identitySnapshot; never combine words from different calls.
   /// @pre Bound, serialized owner with clock/power/reset readiness established.
@@ -1935,7 +1945,7 @@ public:
   /// @param[in] value Replacement subset of mask; full pulse-width field when changed.
   /// @param[in] acknowledge True writes zero to bit 11; false preserves pending level.
   /// @param[in] budget Aggregate allowance of at least 14 frames; no hidden retries.
-  /// @pre Exact DP83826I, quiesced traffic, safe wake wiring and exclusive semantic
+  /// @pre Exact DP83826I/E, quiesced traffic, safe wake wiring and exclusive semantic
   /// configuration owner. This does not configure a MAC/password or qualify WoL.
   /// @return Terminal status; failed writes leave configuration evidence dirty.
   /// @note Table 8-90. Read stable state, skip unchanged unrelated updates, capture
@@ -2168,6 +2178,7 @@ private:
   bool _loopSession{false};
   bool _loopWorking{false};
   bool _loopRestoreTail{false};
+  const detail::PartProfile* _part{nullptr};
   Config _config{};
   HealthSnapshot _health{};
   TransportSnapshot _transport{};
@@ -2233,6 +2244,7 @@ private:
   Status _finishOperation(Status status, bool freshObservation = false) noexcept;
   Status _yieldOperation(uint64_t raw) noexcept;
   void _setInitStep(InitStep step) noexcept;
+  Status _finishInitSettings() noexcept;
   Status _waitOperation() noexcept;
   bool _quietAt(uint64_t raw) noexcept;
   Status _checkQuiet() noexcept;

@@ -101,16 +101,20 @@ void testLink() {
           settings.advertisement.technologyMask = (flags & 2U) != 0U ? 8U : 0U;
           settings.advertisement.symmetricPause = (flags & 4U) != 0U;
           settings.advertisement.asymmetricPause = (flags & 8U) != 0U;
-          settings.crossover.swapPair = (flags & 16U) != 0U;
-          settings.crossover.swapPolarity = (flags & 32U) != 0U;
+          // Bit 5 chooses the pair state; bit 4 inverts polarity to test mismatch.
+          settings.crossover.swapPair = (flags & 32U) != 0U;
+          settings.crossover.swapPolarity = settings.crossover.swapPair != ((flags & 16U) != 0U);
           settings.extendedFullDuplex = (flags & 64U) != 0U;
-          const bool valid = speed != 0U && duplex != 0U && (flags & 15U) == 1U &&
-              !(speed == 1U && (flags & 64U) != 0U) && ((flags & 16U) != 0U) == ((flags & 32U) != 0U);
+          const bool valid = speed != 0U && duplex != 0U && (flags & 30U) == 0U &&
+              !(speed == 1U && (flags & 64U) != 0U);
           expectLink(settings, valid ? Err::OK : Err::INVALID_CONFIG);
+          for (const auto part : {Variant::DP83826I, Variant::DP83826E}) {
+            CHECK(validateLinkSettings(part, settings).ok() == (valid && settings.crossover.robust));
+          }
           // AN requires no contradictory inactive forced intent; robust remains optional.
           settings.mode = LinkMode::AUTONEGOTIATED;
           settings.advertisement.technologyMask = 8U;
-          expectLink(settings, speed == 0U && duplex == 0U && ((flags & 16U) != 0U) == ((flags & 32U) != 0U) ? Err::OK : Err::INVALID_CONFIG);
+          expectLink(settings, speed == 0U && duplex == 0U && (flags & 16U) == 0U ? Err::OK : Err::INVALID_CONFIG);
         }
       }
     }
@@ -134,7 +138,15 @@ void testLink() {
     if (raw > 2U) expectLink(settings, Err::INVALID_PARAM);
   }
   for (unsigned raw = 0; raw < 256U; ++raw) {
-    CHECK(isValidVariant(static_cast<Variant>(raw)) == (raw == 1U));
+    const auto part = static_cast<Variant>(raw);
+    const bool original = raw == 1U || raw == 2U;
+    CHECK(isValidVariant(part) == original);
+    uint8_t maximum = 0xFF;
+    CHECK(strapAddressMax(part, maximum) == original);
+    CHECK(maximum == (original ? 7U : 0xFFU));
+    LinkSettings settings;
+    settings.advertisement.technologyMask = 1U;
+    CHECK(validateLinkSettings(part, settings).ok() == original);
   }
   for (uint32_t address = 0; address < 64U; ++address) {
     CHECK(isValidPhyAddress(address) == (address < 32U));

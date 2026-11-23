@@ -183,7 +183,7 @@ void testDecode() {
         CHECK(bus.callbacks == 0U && bus.clocks == 0U);
         auto output = sentinel();
         CHECK(driver.readIdentity(output, BUDGET).ok());
-        CHECK(output.declaredVariant == Variant::DP83826I);
+        CHECK(output.declaredVariant == test::declaredVariant);
         CHECK(output.id1 == 0x2000U && output.id2 == bus.second[1]);
         CHECK(output.id1Valid && output.id2Valid && output.decodedValid);
         CHECK(output.oui == 0x080028U);
@@ -284,6 +284,7 @@ void testPolicy() {
     const auto snapshot = driver.identitySnapshot();
     CHECK(snapshot.id1Valid && snapshot.id2Valid);
     CHECK(snapshot.id1 == value.id1 && snapshot.id2 == value.id2);
+    CHECK(snapshot.declaredVariant == config.variant);
     CHECK(snapshot.acceptance == IdentityAcceptance::REJECTED && !snapshot.stale);
     CHECK(snapshot.admissionStatus.code == status.code && snapshot.admissionStatus.detail == status.detail);
     noCapabilities(driver);
@@ -401,7 +402,7 @@ void testLifecycle() {
     acceptedCapabilities(driver);
     CHECK(bus.callbacks == calls);
   }
-  for (const auto variant : {Variant::UNKNOWN, static_cast<Variant>(2), static_cast<Variant>(255)}) {
+  for (const auto variant : {Variant::UNKNOWN, static_cast<Variant>(3), static_cast<Variant>(255)}) {
     auto config = bus.config();
     config.variant = variant;
     const auto clocks = bus.clocks;
@@ -530,7 +531,9 @@ void testOwnership() {
   Driver first;
   Driver second;
   CHECK(first.bind(bus.config(1)).ok());
-  CHECK(second.bind(bus.config(2)).ok());
+  auto otherConfig = bus.config(2);
+  otherConfig.variant = test::declaredVariant == Variant::DP83826I ? Variant::DP83826E : Variant::DP83826I;
+  CHECK(second.bind(otherConfig).ok());
   DeviceIdentity firstOutput;
   DeviceIdentity secondOutput;
   CHECK(second.readIdentity(secondOutput, BUDGET).ok());
@@ -557,6 +560,10 @@ void testOwnership() {
   CHECK(first.bind(bus.config(2)).ok());
   CHECK(first.readIdentity(firstOutput, BUDGET).ok());
   CHECK(firstOutput.mode == OperatingMode::ENHANCED);
+  CHECK(firstOutput.id1 == secondOutput.id1 && firstOutput.id2 == secondOutput.id2);
+  CHECK(firstOutput.declaredVariant == test::declaredVariant);
+  CHECK(second.identitySnapshot().declaredVariant == otherConfig.variant);
+  CHECK(secondOutput.declaredVariant != firstOutput.declaredVariant);
 }
 
 void testScan() {
@@ -673,5 +680,5 @@ int main(int argc, char** argv) {
     {"decode", testDecode}, {"policy", testPolicy}, {"failures", testFailures},
     {"lifecycle", testLifecycle}, {"ownership", testOwnership}, {"scan", testScan}
   };
-  return test::runSuites(argc, argv, suites);
+  return test::runVariantSuites(argc, argv, suites);
 }

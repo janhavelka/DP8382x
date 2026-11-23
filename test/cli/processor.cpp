@@ -100,10 +100,10 @@ struct Stream {
     return Status::Ok();
   }
 
-  void attachLive() {
+  void attachLive(Variant variant = Variant::DP83826I) {
     Identity i;
     i.boot = 44;
-    i.variant = Variant::DP83826I;
+    i.variant = variant;
     assert(cli.setup({this, write, read, liveClock, live}, i));
   }
 
@@ -278,6 +278,26 @@ void retention() {
 }
 
 void routes() {
+  // Discovery uses the board declaration before any probe. Explicit scanning
+  // also works when the application has supplied no ordering grade.
+  for (const auto variant : {Variant::DP83826I, Variant::DP83826E, Variant::UNKNOWN}) {
+    Stream unprobed;
+    unprobed.attachLive(variant);
+    unprobed.send("connection discover\n");
+    while (unprobed.cli.workPending()) unprobed.cli.tick();
+    unprobed.drain();
+    const auto defaultCount = variant == Variant::UNKNOWN ? 0U : 8U;
+    assert(unprobed.requests.size() == defaultCount && unprobed.reads == 0);
+    if (defaultCount == 0) has(unprobed.records().back(), "reason=range");
+    unprobed.send("connection discover 0 31\n");
+    while (unprobed.cli.workPending()) unprobed.cli.tick();
+    unprobed.drain();
+    assert(unprobed.requests.size() == defaultCount + 32);
+    for (unsigned i = 0; i < unprobed.requests.size(); ++i) {
+      assert(unprobed.requests[i].action == Action::DISCOVER);
+      assert(unprobed.requests[i].address == (i < defaultCount ? i : i - defaultCount));
+    }
+  }
   Stream scan;
   scan.attachLive();
   scan.send("connection discover 0 2\nconnection discover 0 0\nsession Scan44\n");

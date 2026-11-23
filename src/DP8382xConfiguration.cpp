@@ -1,6 +1,7 @@
 /// @file DP8382xConfiguration.cpp
 /// @brief Coupled link profiles and finite Clause 28 next-page service.
 #include <DP8382x/DP8382x.h>
+#include "PartTable.h"
 #include <DP8382x/CommandTable.h>
 
 #include <limits>
@@ -121,6 +122,16 @@ MdioBatch activateProfile(const LinkSettings& settings, uint16_t softwarePower) 
 Status mismatchStatus() noexcept {
   return Status::Error(Err::CONFIG_MISMATCH, "Link profile verification failed");
 }
+Status validateOptions(const LinkSettings& settings, const ConfigureOptions& options) noexcept {
+  const auto status = validatePages(options.nextPages);
+  if (!status.ok()) { return status; }
+  if (settings.mode == LinkMode::FORCED &&
+      (options.waitForCompletion || options.nextPages.pageCount != 0U)) {
+    return invalidSettings("Forced mode has no negotiation wait or next pages");
+  }
+  return Status::Ok();
+}
+
 } // namespace
 
 Status DP8382x::restartAutoNegotiation(const IoBudget& budget) noexcept {
@@ -211,21 +222,33 @@ Status DP8382x::modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget
       static_cast<uint16_t>(BMCR_PRESERVE | (0x3100U & ~mask)), static_cast<uint16_t>(value)), budget, invoked);
 }
 
-Status validateConfiguration(const LinkSettings& settings, const ConfigureOptions& options) noexcept {
-  auto status = validateLinkSettings(settings);
-  if (!status.ok()) { return status; }
-  status = validatePages(options.nextPages);
-  if (!status.ok()) { return status; }
-  if (settings.mode == LinkMode::FORCED &&
-      (options.waitForCompletion || options.nextPages.pageCount != 0U)) {
-    return invalidSettings("Forced mode has no negotiation wait or next pages");
+Status validateLinkSettings(Variant variant, const LinkSettings& settings) noexcept {
+  const auto syntax = validateLinkSettings(settings);
+  if (!syntax.ok()) { return syntax; }
+  const auto* part = detail::findPart(variant);
+  if (!part) {
+    return Status::Error(Err::INVALID_CONFIG, "Unknown declared part", static_cast<int32_t>(ConfigDetail::ENUM_VALUE));
+  }
+  if (part->forcedRequiresRobust && settings.mode == LinkMode::FORCED && !settings.crossover.robust) {
+    return invalidSettings("Declared part requires robust crossover in forced mode");
   }
   return Status::Ok();
 }
 
+Status validateConfiguration(const LinkSettings& settings, const ConfigureOptions& options) noexcept {
+  const auto status = validateLinkSettings(settings);
+  return status.ok() ? validateOptions(settings, options) : status;
+}
+
+Status validateConfiguration(Variant variant, const LinkSettings& settings, const ConfigureOptions& options) noexcept {
+  const auto status = validateLinkSettings(variant, settings);
+  return status.ok() ? validateOptions(settings, options) : status;
+}
+
 Status DP8382x::startConfigure(const LinkSettings& settings, const ConfigureOptions& options,
                               const OperationBudget& budget, OperationToken& token) noexcept {
-  const auto status = validateConfiguration(settings, options);
+  const auto status = _bound ? validateConfiguration(_config.variant, settings, options) :
+                               validateConfiguration(settings, options);
   if (!status.ok()) return status;
   if (budget.pollIntervalUs == 0U || budget.maxStalledPolls == 0U) {
     return Status::Error(Err::INVALID_PARAM, "Invalid polling budget",
@@ -276,7 +299,7 @@ Status DP8382x::startVerify(const OperationBudget& budget, OperationToken& token
   if (_operation.temporaryMayBeActive) { return configBusy(BusyDetail::CLEANUP_REQUIRED); }
   if (!_initialized || !capabilities().valid) { return Status::Error(Err::NOT_INITIALIZED, "Initialize before verifying"); }
   if (_settings.desiredValid) {
-    const auto valid = validateLinkSettings(_settings.desired);
+    const auto valid = validateLinkSettings(_config.variant, _settings.desired);
     if (!valid.ok()) { return valid; }
   }
   if (budget.io.maxFrames == 0U) { return configTimeout(TimeoutDetail::FRAME_BUDGET); }

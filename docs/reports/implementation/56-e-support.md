@@ -248,3 +248,106 @@ evidence are **NOT RUN**. The next stage is prompt 56 phase (b).
 ```powershell
 ctest --test-dir build/p53-baseline -R '^(foundation_|identity_|transport_|mmd_|access_|operation_|reset_|negotiation_|forced_|verify_|native_(factory|configuration_admission|cli_discovery)$|cli_processor_(cached|routes)$|example_board_config$|cli_fixture_transcript$)' --output-on-failure --no-tests=error
 ```
+
+## Phase (b) implementation
+
+The wrapper verified clean `main` at
+`5f57254cc802bc3372fdbd344df2e36425081238`, equal to `origin/main`.
+The lead owned the part table, public API, core and native admission, test
+registration and integration. Two implementation agents used the current
+high-reasoning model for the two independent cross-layer tasks. One owned
+CLI, examples and fixture evidence, the other owned the portable and pinned
+native test vectors. Both finished. No ledger procedure has owner 56.
+
+The lead reopened the TMP1x2 and MB85RC paths listed in the phase (a) sibling
+audit, including CLI, runner, tests, registration and agent rules. Both
+checkouts were clean at the same revisions. The implementation adopts local
+model validation and a private part table. A product-ID lookup alone cannot
+select a suffix here. The phase (a) SNLS647I record, pinned TI RTOS identity
+filter and TI Linux model names still agree on the programming boundary.
+[Shared silicon record](#shared-silicon-record)
+
+### Shipped behavior and qualification vectors
+
+| Boundary | Implementation and executing evidence |
+| --- | --- |
+| Binding, identity and capabilities | `src/PartTable.h` supplies the original map to I and E, with revision mask 0x0002. Each binding installs its profile after validation and busy guards. A failed rebind retains the prior declaration and pending result. A-generation, DP83825 and DP83822 rows have no selectable declarations. The I/E identity suites cover both modes, invalid casts, all model/revision values, partial acquisition, late/release failures and simultaneous instances reading identical words. |
+| Register access and initialization | Direct and indirect raw admission use the selected map, including DEVAD-specific EEE reads. Unbound calls retain address and access syntax checks. The 97-register inventory and executing E raw-access suites cover selector, evidence and recipe protections. Only original and A maps select the mandatory VOD step. Reset and analog suites check the original 0x8400 reset value, addressed 0x030E write of 0x4A40 and masked readback before subsequent owned settings. Initialization mismatch tests allow only the two ID reads. |
+| Link settings | Pure validation covers enums, active fields, coupled mirrors and extended duplex. The overload with a declaration enforces robust crossover for forced I/E. Core, native and CLI preflight reject invalid intent before clock or bus work. Forced temporary loopback and compliance profiles set robust explicitly. Replay uses retained, admitted persistent intent. The native extended-half restriction remains. The foundation test covers both robust values, both mirror pair states and mismatches. AN tests inject local 0xF21F independently at advertisement and next-page clear and retain the partner's remote-fault evidence. |
+| CLI and native applications | Session and board identity report the declaration. Default discovery uses the part's 0..7 strap range before probing. Explicit scanning still spans 0..31. Both fitted apps use the same board declaration for bind and display. In the first integrated run two host-only example console fixtures omitted their declaration. Configuration admission returned INVALID_CONFIG/ENUM_VALUE. The fixtures now use the fitted board constant like their firmware. |
+| Runner and artifacts | `--fixture-variant` selects the producer independently of the runner's `--variant` expectation. BASIC and ENHANCED E, a mismatched grade with the same ID, altered transcript/manifest grades and historical I replay all execute. Declared E passed 44 executable feature cases. The 45th case retained the source block on deep-power exit. The HIL tests use simulated endpoints. |
+| Ownership and recovery | E reuses the existing transport owner, collector, timeout/cancellation and cleanup barriers. The explicit E registrations exercise failed release, interrupted mutation, cached state, result delivery, separate restoration and SDK reconciliation. No board pin or application grant is inferred from the declared part. |
+
+The current API, architecture, identity, variants, forced settings, initialization,
+CLI, fixture, hardware, feature and native guides document the shipped subset.
+The layer-specific receipts below apply to the implementation worktree.
+
+### Local implementation receipts
+
+Windows x86-64, GNU 15.1.0, Ninja 1.12.1, CMake 4.0.1 and Python 3.12.10.
+The pinned-native configuration verified 45 SDK inputs at ESP-IDF v6.1
+`fff9895c82d744c7237be8847347bdd1b07c6643` and the basic host application
+checked its 37-header manifest. Use the process-local SDK safe directory
+during both configuration and build.
+
+```powershell
+$env:GIT_CONFIG_COUNT = '1'
+$env:GIT_CONFIG_KEY_0 = 'safe.directory'
+$env:GIT_CONFIG_VALUE_0 = 'C:/esp/v6.1/esp-idf'
+cmake -S . -B build/p53-baseline -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON -DDP8382X_BUILD_PINNED_IDF_TESTS=ON -DDP8382X_PINNED_IDF_PATH=C:/esp/v6.1/esp-idf
+cmake --build build/p53-baseline --parallel 6
+$focus = '^(e_|identity_|foundation_|transport_|access_|mmd_|operation_|reset_|negotiation_|forced_|analog_|verify_|eee_|electrical_|loopback_|native_|pinned_driver_|cli_processor_|example_|owner_|cli_fixture_transcript$)'
+ctest --test-dir build/p53-baseline -R $focus --no-tests=error --output-on-failure -j 4
+ctest --test-dir build/p53-baseline -E "($focus)|^cli_hil_" --no-tests=error --output-on-failure -j 3
+ctest --test-dir build/p53-baseline -R '^cli_hil_(runner|campaign|features)$' --no-tests=error --output-on-failure -j 1
+ctest --test-dir build/p53-baseline -R '^cli_hil_(serial|soak|interruptions)$' --no-tests=error --output-on-failure -j 1
+cmake -S test/consumer -B build/p56b-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF
+cmake --build build/p56b-consumer --parallel 4
+ctest --test-dir build/p56b-consumer --no-tests=error --output-on-failure
+```
+
+- **Host.** The final 546-test selection passed in 4.98 s, including all 29
+  separately registered E cases. The remaining 144 non-HIL cases passed in
+  1.62 s. Runner, campaign and feature CTests passed 3/3 in 47.58 s.
+  Serial simulation, soak and interruption replay passed 3/3 in 150.20 s.
+  Together these four selections passed **696/696** Release CTests.
+  A separate C/C++ UBSan trap Release build under `build/p56-vectors` passed
+  119/119 selected registrations. Its agent also ran E access compositions,
+  admission, EEE raw/recipe, MMD traces and forced matrix/transitions directly.
+  Both sanitizer compiler flags were
+  `-fsanitize=undefined -fsanitize-undefined-trap-on-error`.
+- **Offline replay.** The documented E 10BASE-Te example in
+  `build/p56b-cli/evidence/campaign-e-10base-te.json` passed execution,
+  restoration and replay. The simulated producer identified as E, RMII,
+  address 1, firmware prefix `abcdef0`. Its transcript contains 36 confirmed
+  commands and 14,231 bytes, SHA-256
+  `e9e02b94fa977a749d46087fcccd970985b6fdac2399d27a2840686fb2fa3394`.
+  The historical I pair in
+  `build/p52-release/evidence/phase-b-10base-te.json` also replayed.
+- **Portable consumer PASS**, 2/2 with library tests OFF. Exported package
+  consumer **NOT RUN**. Prompt 70 owns packaging.
+- **SDK link PASS**, three ESP32-P4 ELF/bin pairs. The E-declared adapter
+  fixture and fitted-I basic and owner apps all carry the full phase (a)
+  base SHA and `dirty` in the generated identity header and built images.
+  Use the three-project loop and local clangd, ccache and Git settings
+  specified in the phase (a) brief, with build directories 56l, 56b and
+  56o and the existing `53cache`. The wrapper builds used only local SDK
+  inputs. Each pair below was hashed after the final link.
+
+| Project | ELF bytes and SHA-256 | Firmware bytes and SHA-256 |
+| --- | --- | --- |
+| 56l adapter link, E | 7,356,428 / `cb60cc786b3a8c90ec7779be32714e6aad3d3ad9ec385a095ff1fb719a1a4598` | 388,288 / `77ad9be114063fb0aa8d0de78b5cd2b38b8a511d4080320175454b1a89591f12` |
+| 56b basic, I | 10,026,824 / `9133d098eaff629d74de846710bf54e31848b7795aa8cc26a9b6ca0f273b1dbb` | 684,256 / `abe787896c314b01bf606924e0990bda687043b9afb9a94231c6be73e973c64e` |
+| 56o owner, I | 8,720,184 / `3a3791cdf00cd73a3e3ebdbb1558627716db23a9dea7f4d33593d899b5096689` | 562,336 / `25af12ff5c5309629259ef6c1b05cf5f1b9e1bd6600d5acfcc2948b2ed2887db` |
+
+Python discovery passed with 246 tests run and 52 skipped when compiled
+fixtures or inventory inputs were absent. Doxygen initially treated the
+private profile's forward-declared namespace as public. Its internal
+declaration is now marked accordingly. Doxygen passed 294 pages and both
+negative fixtures. Ledger validation passed for 97 registers, 52 procedures
+and 35 features. References, version and whitespace checks passed.
+
+Remote CI and physical qualification are **NOT RUN**. Prompt 71 owns CI.
+The open deep-power, pin and electrical gates in the primary closure report
+apply equally to E. Phase (c) reviews this implementation on its wrapper-
+verified commit. Prompt 56 remains **IN PROGRESS**.

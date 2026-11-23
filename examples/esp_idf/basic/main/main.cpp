@@ -300,7 +300,7 @@ bool initialize() {
   if (!app.mac) { failNull("MAC new"); return false; }
 
   PhyConfig config{};
-  config.core.variant = Variant::DP83826I;
+  config.core.variant = Board::PHY_VARIANT;
   config.core.interface = MacInterface::RMII;
   config.core.requiredMode = OperatingMode::ENHANCED;
   config.core.phyAddress = Board::PHY_ADDRESS;
@@ -700,7 +700,7 @@ static volatile bool boardGate =
 /// @note The application task services the shared CLI and the installed owner.
 extern "C" void app_main(void) {
   Identity identity{esp_random(), EXAMPLE_GIT_COMMIT, EXAMPLE_GIT_TREE, esp_get_idf_version(),
-                    CONFIG_IDF_TARGET, "p4-netlist-basic", "rmii-ext-50MHz", Variant::DP83826I,
+                    CONFIG_IDF_TARGET, "p4-netlist-basic", "rmii-ext-50MHz", Board::PHY_VARIANT,
                     MacInterface::RMII, Board::PHY_ADDRESS, "uart0", CONFIG_ESP_CONSOLE_UART_BAUDRATE};
   if (identity.boot == 0) identity.boot = static_cast<uint32_t>(nowUs()) | 1U;
   if (!attachConsole(identity)) return;

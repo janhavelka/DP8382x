@@ -1,4 +1,5 @@
 #include "support/Check.h"
+#include "support/PartSelection.h"
 #include <DP8382x/DP8382x.h>
 #include <array>
 #include <cstdint>
@@ -25,7 +26,7 @@ struct Controller {
   unsigned exclusions{0};
   Controller() { words[0] = 0x3100; words[4] = 0x01E1; words[25] = 0x8001; }
   Config config(uint32_t phy = 1) noexcept {
-    Config c; c.variant = Variant::DP83826I; c.interface = MacInterface::RMII;
+    Config c; c.variant = test::declaredVariant; c.interface = MacInterface::RMII;
     c.phyAddress = phy; c.transport = {this, execute, clock, {8, 4, 1}}; return c;
   }
   static uint64_t clock(void* context) noexcept {
@@ -145,7 +146,9 @@ LinkSettings profile(bool forced = false, bool fast = true, bool full = true) {
 void initialize(Driver& driver, Controller& bus) {
   CHECK(driver.bind(bus.config()).ok());
   OperationToken token; CHECK(driver.startInitialize({ResetKind::NONE}, allowance(), token).inProgress());
-  CHECK(drain(driver, bus, token).ok()); CHECK(take(driver, token).status.ok());
+  CHECK(drain(driver, bus, token).ok());
+  const auto result = take(driver, token);
+  CHECK(result.status.ok() && result.identity.declaredVariant == test::declaredVariant);
 }
 void configure(Driver& driver, Controller& bus, const LinkSettings& s) {
   OperationToken token; CHECK(driver.startConfigure(s, allowance(), token).inProgress());
@@ -658,5 +661,5 @@ int main(int argc, char** argv) {
     {"interrupted_replay", interruptedReplay}, {"reset_observation_errors", resetObservationErrors},
     {"raw_reset_observation", rawResetObservation}, {"configuration_reset_observation", configurationResetObservation},
     {"barrier", retainedBarrier}};
-  return test::runSuites(argc, argv, suites);
+  return test::runVariantSuites(argc, argv, suites);
 }

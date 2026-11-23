@@ -1,4 +1,4 @@
-"""DP83826I opt-in control procedures and evidence for the compiled fixture."""
+"""Original DP83826I/E opt-in control procedures and evidence for the compiled fixture."""
 
 from dataclasses import dataclass
 

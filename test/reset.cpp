@@ -146,6 +146,8 @@ void traces() {
     const auto result = take(driver, token);
     CHECK(result.status.ok() && result.commandAccepted && result.protocolComplete && result.persistentRestored);
     CHECK(!result.cleanupOwed && !result.temporaryMayBeActive);
+    CHECK(result.identity.declaredVariant == test::declaredVariant && result.identity.id1 == 0x2000);
+    CHECK(result.identity.id2 == (reset == ResetKind::HARD ? 0xA111 : 0xA131));
     CHECK(result.identity.mode == (reset == ResetKind::HARD ? OperatingMode::BASIC : OperatingMode::ENHANCED));
     CHECK(result.straps.sor1 == (reset == ResetKind::HARD ? 0x00A5 : 0x1234));
     CHECK(result.straps.sor2 == (reset == ResetKind::HARD ? 0x005A : 0x5678));
@@ -664,5 +666,5 @@ int main(int argc, char** argv) {
     {"traces", traces}, {"floor", floor}, {"failures", failures},
     {"timing", timing}, {"external", external}, {"ownership", ownership}
   };
-  return test::runSuites(argc, argv, suites);
+  return test::runVariantSuites(argc, argv, suites);
 }

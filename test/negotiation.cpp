@@ -1,4 +1,5 @@
 #include "support/BoundDriver.h"
+#include "support/PartSelection.h"
 #include <DP8382x/DP8382x.h>
 
 #include <array>
@@ -44,7 +45,7 @@ struct Controller {
 
   Config config(uint32_t address = 1) noexcept {
     Config result;
-    result.variant = Variant::DP83826I;
+    result.variant = test::declaredVariant;
     result.interface = MacInterface::RMII;
     result.phyAddress = address;
     result.transport = {this, execute, clock, {8, 4, 1}};
@@ -230,6 +231,7 @@ void initialize(Driver& driver, Controller& bus, ResetKind reset = ResetKind::NO
   CHECK(driver.startInitialize({reset}, budget(), token).is(Err::IN_PROGRESS));
   CHECK(drain(driver, bus, token).ok());
   const auto result = take(driver, token);
+  CHECK(result.identity.declaredVariant == test::declaredVariant);
   CHECK(result.persistentRestored);
   CHECK(result.commandRequired == (reset != ResetKind::NONE));
   CHECK(result.commandAccepted == result.commandRequired);
@@ -583,13 +585,33 @@ void pages() {
     auto [toggledBus, toggledDriver] = test::BoundDriver<Controller>{};
     initialize(toggledDriver, toggledBus);
     preparePartner(toggledBus);
-    toggledBus.partnerAdvertisement = 0x8901;
+    toggledBus.phys[1].anar = 0xF21F;
+    toggledBus.partnerAdvertisement = 0xA901; // Keep the partner's remote-fault bit in evidence.
     toggledBus.partnerPages[0] = 0xA001;
     toggledBus.partnerPages[1] = 0x2801;
+    const auto first = toggledBus.frames;
     const auto toggledToken = exchange(toggledDriver);
+    // Force the prohibited local RF bit into the RMW input of both writes.
+    // The clear after the last page must independently construct a safe ANAR.
+    for (unsigned polls = 0; polls < 100 && toggledBus.pageLoads < 2; ++polls) {
+      const auto state = toggledDriver.operationSnapshot();
+      if (state.nextPollValid && toggledBus.now < state.nextPollAtUs) toggledBus.now = state.nextPollAtUs;
+      CHECK(toggledDriver.pollOperation(toggledToken).inProgress());
+    }
+    CHECK(toggledBus.pageLoads == 2 && toggledBus.phys[1].anar == 0xD301);
+    toggledBus.phys[1].anar = 0xF21F;
     CHECK(drain(toggledDriver, toggledBus, toggledToken).ok());
+    unsigned writes = 0;
+    for (auto i = first; i < toggledBus.frames; ++i) {
+      const auto& frame = toggledBus.trace[i];
+      if (frame.kind == FrameKind::WRITE && frame.reg == 4) {
+        CHECK(frame.value == (writes == 0 ? 0xD301U : 0x5301U));
+        ++writes;
+      }
+    }
+    CHECK(writes == 2 && toggledBus.phys[1].anar == 0x5301);
     const auto result = take(toggledDriver, toggledToken);
-    CHECK(result.nextPage.basePageValid && result.nextPage.basePage == 0x8901);
+    CHECK(result.nextPage.basePageValid && result.nextPage.basePage == 0xA901);
     CHECK(result.nextPage.complete && result.nextPage.duplicatePages == 0);
     CHECK(result.nextPage.receivedPages == 2 && result.nextPage.transmittedPages == 2);
     CHECK(result.nextPage.pages[0].valid && result.nextPage.pages[0].raw == 0xA001);
@@ -1010,5 +1032,5 @@ int main(int argc, char** argv) {
     {"page_failures", pageFailures}, {"page_admission", pageAdmission}, {"completion", completion},
     {"page_boundaries", pageBoundaries}, {"timing", timing}
   };
-  return test::runSuites(argc, argv, suites);
+  return test::runVariantSuites(argc, argv, suites);
 }

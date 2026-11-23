@@ -874,6 +874,7 @@ struct ConsoleSink {
 void attachTestConsole() {
     Identity identity;
     identity.boot = 47;
+    identity.variant = Board::PHY_VARIANT;
     identity.backend = "p4-basic-host";
     identity.console = "uart0";
     identity.baud = 115200U;

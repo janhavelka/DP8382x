@@ -1,4 +1,5 @@
 #include "InstrumentedMac.h"
+#include "../../support/PartSelection.h"
 #include "../../../examples/esp_idf/owner/main/PhyOwner.h"
 #include <DP8382x/esp_idf/Phy.h>
 #include <algorithm>
@@ -28,7 +29,7 @@ struct Fixture {
     Fixture() {
         bus.mutex = xSemaphoreCreateMutex();
         config.mac = &mac.native; config.bus = &bus;
-        config.core.variant = Variant::DP83826I;
+        config.core.variant = test::declaredVariant;
         config.core.interface = MacInterface::RMII;
         config.core.phyAddress = 0;
         config.core.transport.bounds = {2000, 1000, 1};
@@ -72,7 +73,8 @@ struct Fixture {
         OperationToken token;
         OperationBudget budget{{Host::state().nowUs + 1000000, 512}, 10, 16};
         assert(owner->startInitialize({ResetKind::NONE}, budget, token).is(Err::IN_PROGRESS));
-        finish(token);
+        const auto result = finish(token);
+        assert(result.identity.declaredVariant == test::declaredVariant);
         LinkSettings settings; settings.advertisement.technologyMask = technology;
         budget.io.deadlineUs = Host::state().nowUs + 1000000;
         assert(owner->startConfigure(settings, budget, token).is(Err::IN_PROGRESS));
@@ -130,6 +132,8 @@ void factory() {
     Host::reset(); Fixture f;
     auto* output = reinterpret_cast<Native*>(0x1234);
     auto invalid = f.config; invalid.core.phyAddress = 32;
+    assert(Native::create(invalid, output) == ESP_ERR_INVALID_ARG && output == reinterpret_cast<Native*>(0x1234));
+    invalid = f.config; invalid.core.variant = static_cast<Variant>(3);
     assert(Native::create(invalid, output) == ESP_ERR_INVALID_ARG && output == reinterpret_cast<Native*>(0x1234));
     invalid = f.config; invalid.maxObservationMisses = 0;
     assert(Native::create(invalid, output) == ESP_ERR_INVALID_ARG && output == reinterpret_cast<Native*>(0x1234));
@@ -272,6 +276,9 @@ void initializeFailures() {
         if (failure == Err::DEVICE_MISMATCH) {
             assert(result.identity.id1Valid && result.identity.id1 == 0x3000 && result.identity.id2Valid);
             assert(result.identity.acceptance == IdentityAcceptance::REJECTED);
+            assert(result.identity.declaredVariant == test::declaredVariant);
+            assert(f.mac.frames.size() == 2 && !f.mac.frames[0].write && f.mac.frames[0].reg == 2 &&
+                   !f.mac.frames[1].write && f.mac.frames[1].reg == 3);
         }
         uint16_t id = 0xCAFE;
         const auto raw = f.owner->readClause22(2, id, {Host::state().nowUs + 100000, 1});
@@ -1993,15 +2000,20 @@ void configurationAdmission() {
     const auto calls = Host::state().calls.size();
     const OperationBudget budget{{Host::state().nowUs + 1000000, 512}, 10, 16};
     OperationToken token{0xCAFE};
+    const auto phase = f.journal().phase;
     auto invalid = forcedSettings(LinkSpeed::UNKNOWN);
     assert(f.owner->startConfigure(invalid, budget, token).is(Err::INVALID_CONFIG));
     assert(token.value == 0xCAFE);
     invalid = forcedSettings(static_cast<LinkSpeed>(255));
     assert(f.owner->startConfigure(invalid, budget, token).is(Err::INVALID_PARAM));
     assert(token.value == 0xCAFE);
+    invalid = forcedSettings(LinkSpeed::MBPS_100); invalid.crossover.robust = false;
+    assert(f.owner->startConfigure(invalid, budget, token).is(Err::INVALID_CONFIG));
+    assert(token.value == 0xCAFE);
     invalid = forcedSettings(LinkSpeed::MBPS_10); invalid.extendedFullDuplex = true;
     assert(f.owner->startConfigure(invalid, budget, token).is(Err::INVALID_CONFIG));
     assert(token.value == 0xCAFE && f.mac.frames.size() == frames && Host::state().calls.size() == calls);
+    assert(f.journal().phase == phase);
     bool enabled = false;
     eth_speed_t speed = ETH_SPEED_10M;
     eth_duplex_t duplex = ETH_DUPLEX_HALF;
@@ -3535,7 +3547,8 @@ void applicationRecovery() {
 }
 }
 int main(int argc, char** argv) {
-    assert(argc == 2); const std::string suite = argv[1];
+    if (!test::selectVariant(argc, argv)) return 2;
+    const std::string suite = argv[1];
     if (suite == "factory") factory();
     else if (suite == "board_install_failures") boardAndInstallFailures();
     else if (suite == "raw_routing") rawRouting();

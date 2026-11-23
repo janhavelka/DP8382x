@@ -13,7 +13,8 @@ namespace DP8382x {
 /// @brief Exact declared ordering part; an unknown part is never admitted.
 enum class Variant : uint8_t {
   UNKNOWN,  ///< No ordering part has been declared.
-  DP83826I ///< Current declared target; suffix is not read from PHY ID.
+  DP83826I, ///< Original industrial grade, declared by the application.
+  DP83826E  ///< Original extended temperature grade, shares I identity words.
 };
 
 /// @brief Observed PHY identity mode; it is never a software selector.
@@ -26,9 +27,9 @@ enum class OperatingMode : uint8_t {
 /// @brief Application-declared MAC wiring, not an observed strap value.
 enum class MacInterface : uint8_t {
   UNKNOWN, ///< Board interface has not been declared.
-  MII,     ///< Supported DP83826I MAC interface.
-  RMII,    ///< Supported DP83826I MAC interface.
-  RGMII    ///< Representable for validation, absent on DP83826I.
+  MII,     ///< Supported DP83826I/E MAC interface.
+  RMII,    ///< Supported DP83826I/E MAC interface.
+  RGMII    ///< Representable for validation, absent on DP83826I/E.
 };
 
 /// @brief API technology bits, distinct from ANAR wire positions.
@@ -43,7 +44,7 @@ constexpr uint8_t LINK_TECHNOLOGY_MASK =
 /// @brief API interface bits for a future accepted capability observation.
 constexpr uint8_t INTERFACE_MII = 0x01; ///< API bit for MII.
 constexpr uint8_t INTERFACE_RMII = 0x02; ///< API bit for RMII.
-constexpr uint8_t INTERFACE_RGMII = 0x04; ///< API bit for RGMII, absent on DP83826I.
+constexpr uint8_t INTERFACE_RGMII = 0x04; ///< API bit for RGMII, absent on DP83826I/E.
 
 /// @brief Requested link speed; UNKNOWN is not a valid active forced speed.
 enum class LinkSpeed : uint8_t {
@@ -88,7 +89,7 @@ struct ForcedLinkSettings {
 /// @brief Pair and crossover intent; never an observation of cable wiring.
 struct CrossoverSettings {
   PairSelection pairSelection{PairSelection::AUTOMATIC}; ///< Routing policy.
-  bool robust{true};       ///< Required for every forced mode.
+  bool robust{true};       ///< Required for forced mode on original DP83826I/E.
   bool swapPair{false};    ///< Coupled CR3 port mirror; must equal swapPolarity.
   bool swapPolarity{false};///< Both true select table 8-30 mirror 0060; single-bit requests reject.
 };
@@ -104,9 +105,9 @@ struct LinkSettings {
 
 /// @brief Check exact supported part membership without I/O or a clock.
 /// @param[in] variant Declared ordering part, including possible invalid casts.
-/// @return True only for DP83826I.
+/// @return True for an implemented original DP83826I or DP83826E declaration.
 inline constexpr bool isValidVariant(Variant variant) noexcept {
-  return variant == Variant::DP83826I;
+  return variant == Variant::DP83826I || variant == Variant::DP83826E;
 }
 
 /// @brief Check Clause 22 PHY-address width without narrowing the input.
@@ -155,7 +156,6 @@ inline constexpr Status validateLinkSettings(const LinkSettings& settings) noexc
   }
   if (settings.forced.speed == LinkSpeed::UNKNOWN ||
       settings.forced.duplex == Duplex::UNKNOWN ||
-      !settings.crossover.robust ||
       (settings.extendedFullDuplex && settings.forced.speed == LinkSpeed::MBPS_10) ||
       settings.advertisement.technologyMask != 0U ||
       settings.advertisement.symmetricPause ||
@@ -165,6 +165,18 @@ inline constexpr Status validateLinkSettings(const LinkSettings& settings) noexc
   }
   return Status::Ok();
 }
+
+/// @brief Validate link intent including the declared part's forced-mode requirements.
+/// @param[in] variant Exact supported ordering part.
+/// @param[in] settings Requested settings, evaluated without I/O or mutation.
+/// @return Pure validation error, INVALID_CONFIG for unknown part or unsupported combination, or OK.
+Status validateLinkSettings(Variant variant, const LinkSettings& settings) noexcept;
+
+/// @brief Look up the largest strap-selectable address without probing.
+/// @param[in] variant Application-declared ordering part.
+/// @param[out] maximum Updated on success only. Explicit Clause 22 addresses still span 0..31.
+/// @return True for a supported declaration.
+bool strapAddressMax(Variant variant, uint8_t& maximum) noexcept;
 
 /// @brief Maximum physical frames in one indivisible terminal batch.
 constexpr uint8_t MAX_BATCH_FRAMES = 8;

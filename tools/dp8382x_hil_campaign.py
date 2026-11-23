@@ -1,4 +1,4 @@
-"""DP83826I campaign plans and assertions shared by every runner backend."""
+"""Original DP83826I/E campaign plans and assertions shared by every runner backend."""
 
 from dataclasses import dataclass
 from functools import cache
@@ -418,7 +418,8 @@ class Campaign:
         require(matches(row.fields, id1_valid=1, id1=0x2000, id2_valid=1, id2=0xA111 if basic else 0xA131,
                         decoded_valid=1, oui=524328, model=17 if basic else 19, revision=1,
                         mode=self.declaration["mode"], identity_state="accepted", stale=0,
-                        identity_status="OK", identity_detail=0), row, "declared DP83826I identity is not current")
+                        identity_status="OK", identity_detail=0), row,
+                f"declared {self.expected['variant']} identity is not current")
 
     def entry(self):
         first = yield from self.transport()

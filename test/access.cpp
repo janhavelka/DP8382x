@@ -1,4 +1,5 @@
 #include "support/BoundDriver.h"
+#include "support/PartSelection.h"
 #include <DP8382x/DP8382x.h>
 #include <DP8382x/CommandTable.h>
 
@@ -70,7 +71,7 @@ struct Controller {
   }
   Config config() noexcept {
     Config value;
-    value.variant = Variant::DP83826I;
+    value.variant = test::declaredVariant;
     value.interface = MacInterface::RMII;
     value.phyAddress = 1;
     value.transport = {this, execute, clock, {8, 4, 1}};
@@ -835,5 +836,5 @@ int main(int argc, char** argv) {
     {"wake", wake}, {"admission", admission}, {"counters", counters},
     {"ownership", ownership}
   };
-  return test::runSuites(argc, argv, suites);
+  return test::runVariantSuites(argc, argv, suites);
 }

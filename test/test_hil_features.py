@@ -139,6 +139,20 @@ class CompiledFeatureTests(unittest.TestCase):
                     self.assertNotEqual(replay(data, decoded(altered)), "PASS")
         self.assertGreater(mutations, 30_000)
 
+    def test_e_feature_cases_use_the_shared_cli_and_keep_source_gates(self):
+        for name, (_, module) in feature_modules().items():
+            with self.subTest(case=name):
+                result, data, _ = self.run_case(name, "-e",
+                                                ("--fixture-variant", "DP83826E", "--variant", "DP83826E"))
+                self.assertEqual(data["identity"]["variant"], "DP83826E")
+                row = data["cases"][0]
+                if name in getattr(module, "BLOCKED_CASES", ()):
+                    self.assertEqual((result, row["verdict"]), (2, "BLOCKED"), data)
+                else:
+                    self.assertEqual((result, row["verdict"]), (0, "PASS"), data)
+                    if module.CASES[name][1]:
+                        self.assertEqual(row["restoration"]["verdict"], "PASS")
+
     def test_primary_partial_capture_and_separate_stop(self):
         send = runner.FixtureProcess.send
         for fail_stop in (False, True):

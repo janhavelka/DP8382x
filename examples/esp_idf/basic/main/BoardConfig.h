@@ -5,6 +5,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <DP8382x/Config.h>
 #include "esp_eth_mac_esp.h"
 
 namespace Board {
@@ -12,6 +13,7 @@ namespace Board {
 constexpr int MDC = 40, MDIO = 39, REF_CLK = 44, TX_EN = 49;
 constexpr int TXD0 = 41, TXD1 = 42, CRS_DV = 51, RXD0 = 52, RXD1 = 53;
 constexpr int RESET_N = 54;
+constexpr DP8382x::Variant PHY_VARIANT = DP8382x::Variant::DP83826I; ///< Fitted ordering grade.
 constexpr uint32_t PHY_ADDRESS = 0; // Expected strap value; live identity is checked by the driver.
 constexpr uint32_t LINK_POLL_MS = 1000; // Application policy; not a PHY response guarantee.
 

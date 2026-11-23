@@ -123,7 +123,7 @@ it to measured silicon behavior.
 | G2-1 | Implemented: DP8382xLink.cpp resolves forced mode from BMCR, gates 100 half on known-zero extension, retains raw PHYSTS; link forced tests/Q11. |
 | G2-2 | Implemented: typed NextPageExchange and finite Clause 28 service; negotiation tests, Q10 remains physical. |
 | G2-3 | Implemented: exchange-local NP, CLEAR_NP without restart on completion, immediate failure/barrier and NP0 replay. |
-| G2-4 | Implemented: forced robust required, manual+robust legal, automatic preserves PHYCR 14; table 8-28 and forced matrix. Part relocation planned 56. |
+| G2-4 | Implemented: forced robust required, manual+robust legal, automatic preserves PHYCR 14; table 8-28 and forced matrix. The declared-part preflight now owns the forced robust requirement. |
 | G2-5 | Implemented: extension opt-in without invented peer evidence, CR2 mask 0020, forced 10 rejection; parallel full resolution has invalid pause. |
 | G2-6 | Implemented: forced profiles reject AN intent and bypass ANAR; explicit complete AN profile on return. |
 | G2-7 | Historical boundary satisfied: P17 scopes pre 18 trust; current P18 applies/verifies crossover and extension. |
@@ -206,8 +206,8 @@ it to measured silicon behavior.
 
 | ID | Disposition and current evidence |
 | --- | --- |
-| G8-1 | Planned 56/57: suffix-identical software records shared, declared part/temperature/physical evidence separate. |
-| G8-2 | Planned 56: PartTable and map-keyed policy/robust/VOD, no premature family support; P60/61 exceptions explicit. |
+| G8-1 | Original I/E share one [SNLS647I record](implementation/56-e-support.md#shared-silicon-record). Both retain the declared grade. A-generation evidence remains assigned to 57. |
+| G8-2 | Implemented for original I/E in [phase (b)](implementation/56-e-support.md#phase-b-implementation). The profile selects register policy, forced crossover and VOD behavior. Other maps have no selectable declaration. P60/61 exceptions remain assigned. |
 | G8-3 | Planned 57-59: listed A field/default/27-row EEE deltas assigned explicitly; A tables 8-86/90/91 and 8.3.3.1. |
 | G8-4 | Planned 61: conservative consuming Register_12/MISR/FLDS, conflicting R type versus clear prose and unknown latch relationship retained. |
 | G8-5 | Planned 60: declared RMII role, SOR1 and collected RCSR, no role write; 825 table 7-26/strap evidence. |
@@ -215,7 +215,7 @@ it to measured silicon behavior.
 | G8-7 | Planned 61: typed mode recipes/allowlists, no 826 VOD on 825, conflicting bypass descriptions retained. |
 | G8-8 | Planned 61: SecureON exact-address source exception under SNLA261A, no generic raw access; Q15. |
 | G8-9 | Planned 57/58: conditional Strap11, Strap8 conflict and 040F preserving mirror; SDAA067A/A datasheet. |
-| G8-10 | Planned 56 through G8-2: robust rule part-keyed, not imposed on 825. |
+| G8-10 | I/E forced admission uses the part profile. The private 825 row records its own rule. Executing 825 qualification remains assigned to 60/61. |
 | G8-11 | Primary 826 packing implemented 31 through G4-5; A59 and 822 67 remain planned, with per-part acknowledgement/CRC semantics. |
 | G8-12 | Planned 60: conservative 20MHz and 24MHz prose conflict, not a claimed resolution. |
 | G9-1 | Planned 65: SOR1 encoded FX/SD sets mapped explicitly; 822 tables 7-10/8-84. |

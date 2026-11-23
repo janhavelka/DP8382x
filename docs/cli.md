@@ -57,7 +57,7 @@ An argument or token failure rejects the entire line before dispatch.
 | `cached transport` | | Copy all-source MDIO batch/frame counts and controller flags. |
 | `connection identity` | | Copy retained identity, including validity, admission and staleness. |
 | `connection probe` | | Read both identity words at the bound address and check exact-part admission. No scan or selection. |
-| `connection discover [first last]` | | Read raw ID words at each address in an inclusive range. Default DP83826I range is 0–7. Explicit ranges can use 0–31. |
+| `connection discover [first last]` | | Read raw ID words at each address in an inclusive range. A declared DP83826I or DP83826E defaults to 0–7 before or after a probe. An unknown declaration requires an explicit range. All declarations allow explicit ranges within 0–31. |
 | `configuration desired`, `configuration observed` | | Copy the named profile and trust, with observed staleness separate. |
 | `configuration validate <profile>` | | Check a complete profile and optional page exchange without changing it or calling the owner. |
 | `configuration apply <profile>` | | Verify a complete profile through the typed operation and reconcile the stopped SDK cache where applicable. |
@@ -133,12 +133,12 @@ configuration apply an <modes> <pause> <pair> <flags> <partner-limit> <packed-pa
 configuration apply forced <10|100> <half|full> <pair> <flags>
 ```
 
-`configuration validate` accepts the same profiles. AN modes are a nonzero
+`configuration validate` checks the profile against the board's declared part without calling the owner. AN modes are a nonzero
 mask with bits 1 = 10/half, 2 = 10/full, 4 = 100/half and 8 = 100/full. Pause
 is `none`, `symmetric`, `asymmetric` or `both`. Pair selection is `auto`,
 `mdi` or `mdix`. Flags are a 0–7 mask. Bit 1 enables robust routing, bit 2
 enables coupled pair/polarity mirroring and bit 4 requests extended full
-duplex. Forced profiles require robust routing. Forced 10 cannot enable
+duplex. Both DP83826I and DP83826E require robust routing for forced profiles. Forced 10 cannot enable
 extended duplex. The native stopped route also rejects extended forced
 half duplex because it cannot publish a qualified SDK link mode.
 

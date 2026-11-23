@@ -212,6 +212,18 @@ class IdentityTests(unittest.TestCase):
         with self.assertRaises(ProtocolError):
             identity(session(firmware=SHA64), {**EXPECT, "firmware": SHA40})
 
+    def test_declared_original_grade_requires_an_exact_match(self):
+        for declared, other in (("DP83826E", "DP83826I"), ("DP83826I", "DP83826E")):
+            record = session(variant=declared)
+            self.assertEqual(identity(record, {**EXPECT, "variant": declared})["variant"], declared)
+            with self.assertRaisesRegex(ProtocolError, "identity mismatch: variant"):
+                identity(record, {**EXPECT, "variant": other})
+        for unsupported in ("DP83826", "DP83826AE", "dp83826e"):
+            with self.assertRaises(ProtocolError):
+                session(variant=unsupported)
+            with self.assertRaises(ProtocolError):
+                validate_expected_identity({**EXPECT, "variant": unsupported})
+
     def test_unknown_and_opaque_revisions_cannot_satisfy_known_expectations(self):
         for reported in ("unknown", "fixture-image", "abc123"):
             record = session(firmware=reported)

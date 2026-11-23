@@ -1,4 +1,4 @@
-# DP83826I hardware validation
+# DP83826I and DP83826E hardware validation
 
 The campaign runner implements the cases below through the shared CLI.
 Prompt 50 exercises them using the compiled host fixture, offline replay and
@@ -7,6 +7,12 @@ execution in prompts 72 and 73. A transcript proves the assertions recorded
 for that run. The board, wiring, power sequence, cable and peer identifiers
 are supplied declarations. The compiled fixture's simulated link and reset
 registers are offline execution evidence.
+
+The original DP83826I and DP83826E use the same revision-1 BASIC and
+ENHANCED IDs. Record the ordering grade from the fitted part or assembly
+record and require the same declaration in the console handshake. Each
+grade needs its own identified fixture for physical qualification. The
+two ESP32-P4 examples declare the fitted I. [I/E source record](reports/implementation/56-e-support.md#shared-silicon-record)
 
 ## Common fixture and owner admission
 
@@ -36,7 +42,7 @@ fixture record that establishes exclusive polling for the whole-bus delta.
 The campaign blocks this delta assertion with concurrent polling because
 the current CLI has whole-owner counters. A cold-start observation may use
 concurrent polling and leaves whole-bus delta unasserted. Source-proved
-inapplicable combinations such as DP83826I RGMII remain outside the case
+inapplicable combinations such as DP83826I/E RGMII remain outside the case
 matrix. Missing compatible equipment yields NOT RUN. Missing INT wiring
 or a missing supported owner/evidence route yields BLOCKED. Poll-based rows
 remain eligible without INT wiring.

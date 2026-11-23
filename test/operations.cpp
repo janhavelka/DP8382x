@@ -119,6 +119,50 @@ void advanceBatches(Driver& driver, Controller& bus, OperationToken token, unsig
 }
 
 void initialization() {
+  // A denied declaration/mode or ID may only consume the two identity words.
+  struct RejectedPair {
+    uint16_t id1;
+    uint16_t id2;
+    OperatingMode required;
+    Err code;
+    IdentityDetail detail;
+  };
+  const RejectedPair rejected[] = {
+    {0x2000, 0xA111, OperatingMode::ENHANCED, Err::DEVICE_MISMATCH, IdentityDetail::MODE_MISMATCH},
+    {0x2000, 0xA131, OperatingMode::BASIC, Err::DEVICE_MISMATCH, IdentityDetail::MODE_MISMATCH},
+    {0x2000, 0xA130, OperatingMode::UNKNOWN, Err::DEVICE_MISMATCH, IdentityDetail::REVISION_NOT_ACCEPTED},
+    {0x2000, 0xA114, OperatingMode::UNKNOWN, Err::DEVICE_MISMATCH, IdentityDetail::REVISION_NOT_ACCEPTED},
+    {0x2000, 0xA140, OperatingMode::UNKNOWN, Err::DEVICE_MISMATCH, IdentityDetail::WRONG_MODEL},
+    {0x3000, 0xA111, OperatingMode::UNKNOWN, Err::DEVICE_MISMATCH, IdentityDetail::WRONG_OUI},
+    {0, 0, OperatingMode::UNKNOWN, Err::DEVICE_NOT_FOUND, IdentityDetail::ZERO_ID},
+    {0xFFFF, 0xFFFF, OperatingMode::UNKNOWN, Err::DEVICE_NOT_FOUND, IdentityDetail::ONES_ID}
+  };
+  for (const auto& probe : rejected) {
+    Controller bus;
+    Driver driver;
+    bus.phys[1].id1 = probe.id1;
+    bus.phys[1].id2 = probe.id2;
+    auto config = bus.config();
+    config.requiredMode = probe.required;
+    CHECK(driver.bind(config).ok());
+    const auto token = start(driver, ResetKind::HARD);
+    const auto status = drain(driver, bus, token);
+    CHECK(status.is(probe.code) && status.detail == static_cast<int32_t>(probe.detail));
+    CHECK(bus.frames == 2 && bus.calls == 1 && bus.acquisitions == 1 && bus.releases == 1);
+    wire(bus, 0, FrameKind::READ, 2);
+    wire(bus, 1, FrameKind::READ, 3);
+
+    // A valid opposite declaration cannot steal a pending result.
+    config.variant = test::declaredVariant == Variant::DP83826I ? Variant::DP83826E : Variant::DP83826I;
+    const auto clocks = bus.clocks;
+    CHECK(driver.bind(config).detail == static_cast<int32_t>(BusyDetail::RESULT_PENDING));
+    const auto result = take(driver, token);
+    CHECK(result.status.is(probe.code) && result.status.detail == status.detail);
+    CHECK(result.identity.declaredVariant == test::declaredVariant);
+    CHECK(result.identity.id1 == probe.id1 && result.identity.id2 == probe.id2);
+    CHECK(!result.mutationAttempted && !result.cleanupOwed && !driver.capabilities().valid);
+    CHECK(bus.frames == 2 && bus.calls == 1 && bus.clocks == clocks);
+  }
   for (const auto reset : {ResetKind::NONE, ResetKind::PCS}) {
     auto [bus, driver] = test::BoundDriver<Controller>{};
     const auto token = start(driver, reset);
@@ -155,6 +199,7 @@ void initialization() {
     CHECK(result.commandAccepted == (reset == ResetKind::PCS));
     CHECK(result.protocolComplete == (reset == ResetKind::PCS));
     CHECK(result.identity.id1 == 0x2000 && result.identity.id2 == 0xA131);
+    CHECK(result.identity.declaredVariant == test::declaredVariant);
     CHECK(result.identity.acceptance == IdentityAcceptance::ACCEPTED && !result.identity.stale);
     CHECK(result.straps.sor1 == 0x1234 && result.straps.sor2 == 0x5678);
     CHECK(result.straps.sor1Valid && result.straps.sor2Valid && result.straps.timeValid && !result.straps.stale);
@@ -836,5 +881,5 @@ int main(int argc, char** argv) {
     {"poll_schedules", pollSchedules}, {"slice_bound", sliceBound}, {"allocations", allocations},
     {"failures", failures}, {"lifecycle", lifecycle}, {"ownership", ownership}
   };
-  return test::runSuites(argc, argv, suites);
+  return test::runVariantSuites(argc, argv, suites);
 }

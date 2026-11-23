@@ -1,4 +1,5 @@
 #include "support/Check.h"
+#include "support/PartSelection.h"
 #include <DP8382x/DP8382x.h>
 
 #include <array>
@@ -38,7 +39,7 @@ struct Controller {
     ext[0x30B]=0x3C00;ext[0x30C]=0x0410;ext[0x461]=0x10;ext[0x117]=0x8147;ext[0x131]=0x2284;ext[0x2A]=0x7998;ext[0x030E]=0x8400;ext[0x04A1]=0x1000;ext[0x04D1]=0x0080;
   }
   Config config(uint32_t phy=1) {
-    Config c;c.variant=Variant::DP83826I;c.interface=boardInterface;c.phyAddress=phy;
+    Config c;c.variant=test::declaredVariant;c.interface=boardInterface;c.phyAddress=phy;
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
   static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context);++b.clocks;return b.now; }
@@ -138,7 +139,8 @@ Status drain(Driver& d,Controller& b,OperationToken t) {
 OperationResult take(Driver& d,OperationToken t) { OperationResult r;CHECK(d.takeResult(t,r).ok());return r; }
 void initialized(Driver& d,Controller& b) {
   b.words[23]=b.boardInterface==MacInterface::MII?0x0041:0x0061;
-  CHECK(d.bind(b.config()).ok());OperationToken t;CHECK(d.startInitialize({ResetKind::NONE},budget(),t).inProgress());CHECK(drain(d,b,t).ok());take(d,t);
+  CHECK(d.bind(b.config()).ok());OperationToken t;CHECK(d.startInitialize({ResetKind::NONE},budget(),t).inProgress());CHECK(drain(d,b,t).ok());
+  CHECK(take(d,t).identity.declaredVariant == test::declaredVariant);
 }
 void ready(Driver& d,Controller& b) {
   initialized(d,b);LinkSettings profile;profile.advertisement.technologyMask=8;
@@ -460,5 +462,5 @@ void timing() {
 } // namespace
 int main(int argc,char** argv) {
   const test::Suite suites[]={{"vectors",vectors},{"admission",admission},{"failures",failures},{"replay",replay},{"ownership",ownership},{"timing",timing}};
-  return test::runSuites(argc,argv,suites);
+  return test::runVariantSuites(argc,argv,suites);
 }

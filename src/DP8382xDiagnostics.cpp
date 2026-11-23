@@ -116,7 +116,7 @@ Status DP8382x::_startLoopback(const LoopbackOptions& options, const OperationBu
   if (_eee.desiredValid && _eee.desired.enabled) {
     return rejected("Disable EEE before diagnostic overrides of its recipe");
   }
-  const auto profile = validateLinkSettings(_settings.desired); if (!profile.ok()) { return profile; }
+  const auto profile = validateLinkSettings(_config.variant, _settings.desired); if (!profile.ok()) { return profile; }
   if (!nearEnd(options.mode) && _settings.desired.mode == LinkMode::FORCED && _settings.desired.forced.speed != options.speed) {
     return rejected("Fixture speed differs from forced profile");
   }

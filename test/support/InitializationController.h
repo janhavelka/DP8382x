@@ -29,7 +29,7 @@ struct InitializationController : ControllerState, WireModel {
 
   Config config(uint32_t address = 1) noexcept {
     Config value;
-    value.variant = Variant::DP83826I;
+    value.variant = declaredVariant;
     value.interface = MacInterface::RMII;
     value.phyAddress = address;
     value.transport = {this, execute, clock, bounds};

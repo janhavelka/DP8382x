@@ -1,6 +1,6 @@
 # Initialization and reset operations
 
-Stages 15–16 implement exact-address DP83826I initialization with `ResetKind::NONE`,
+The core implements exact-address DP83826I/E initialization with `ResetKind::NONE`,
 `PCS`, `HARD` or `RESTART`. Every path accepts identity, captures raw straps,
 checks BMCR and PHYRCR for active commands, then writes and verifies mandatory
 VOD settings. Initialization

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Check.h"
+#include "PartSelection.h"
 #include <DP8382x/DP8382x.h>
 #include <array>
 
@@ -76,7 +76,7 @@ struct FakeController : ControllerState {
 
   Config config(uint32_t phy = 1) noexcept {
     Config result;
-    result.variant = Variant::DP83826I;
+    result.variant = declaredVariant;
     result.interface = MacInterface::RMII;
     result.phyAddress = phy;
     const TransportBounds bounds = mmdModel ? TransportBounds{8, 4, 1}

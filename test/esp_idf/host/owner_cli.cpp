@@ -75,6 +75,7 @@ void integration() {
     Host::reset();
     Cli::Identity identity;
     identity.boot = 47;
+    identity.variant = Board::PHY_VARIANT;
     identity.backend = "p4-raw-host";
     identity.console = "uart0";
     identity.baud = 115200;

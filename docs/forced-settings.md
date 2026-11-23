@@ -18,6 +18,11 @@ catalogue. Original SNLS647I sections 8.3.2 and 8.5.1.10, tables 8-19 and
 8-28 through 8-30, and the PHYCR definition govern the coupled settings.
 Independent literals belong in [register vectors](register-vectors.md).
 
+The matrix applies to both original ordering grades. The one-argument
+`validateLinkSettings` checks the field combinations. The overload taking
+the declared variant also enforces robust crossover for forced mode, as do
+core and native configuration admission.
+
 ## Legal profile matrix
 
 | Profile | Speed/duplex | Robust crossover | Pair selection | Port mirror | Extended full duplex |

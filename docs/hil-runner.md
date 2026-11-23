@@ -29,6 +29,11 @@ for its options. `--out-dir` and a unique `--run` basename are required
 when creating evidence. Names start with an ASCII letter or digit followed
 by up to 95 letters, digits, dots, underscores or hyphens.
 
+`--variant DP83826I` or `--variant DP83826E` specifies the ordering grade
+expected in the session record. The two parts have identical revision-1 ID
+words for a given operating mode. The runner checks the declaration even when
+those words match. Saved I sessions use the same schema and checks.
+
 The `passive` plan checks cached owner/transport evidence and submits a
 register write with a syntactically out-of-range value. The exact expected rejection
 needs the specified status, detail and reason, plus matching usable
@@ -101,6 +106,11 @@ python -S tools/dp8382x_hil_runner.py dry-run @opts
 python -S tools/dp8382x_hil_runner.py run-fixture build/host/test/cli/dp8382x_cli_fixture.exe @opts --fixture-identity abcdef0 --out-dir build/evidence --run campaign-10base-te
 python -S tools/dp8382x_hil_runner.py verify-artifacts build/evidence/campaign-10base-te.json
 ```
+
+For an E run, change the expected `--variant` in `$opts` to `DP83826E` and
+add `--fixture-variant DP83826E` to `run-fixture`. Use a fresh `--run` name
+and verify that pair. The compiled fixture binds I by default. Selecting the
+simulated part and checking its reported identity are independent.
 
 ## Finite soak
 
