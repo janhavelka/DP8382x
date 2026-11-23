@@ -174,6 +174,79 @@ class AGenerationLedgerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "EEE frame floor"):
             validate(self.original, self.comparison, procedures)
 
+    def test_procedure_comparison_preserves_owners_gates_and_effects(self):
+        changes = (
+            ("procedures", "configure_fast_drop", "owner", 59),
+            ("features", "clock", "gates", []),
+            ("features", "power", "gates", []),
+            ("procedures", "configure_fast_drop", "ownedMasks",
+             [{"register": "CR3", "mask": "0x046F"}]),
+            ("procedures", "interrupt_configuration", "ownedMasks", []),
+            ("writeActions", "LOOP_0130_digital", "value", "0xFFFF"),
+            ("writeActions", "RECIPE_0428_dpd_enable", "mask", "0xFFFF"),
+            ("writeActions", "TDR_0411_tdr_0813", "value", "0xFFFF"),
+            ("timings", "pin_reset_smi", "value", 0),
+            ("timings", "eee_wake_nominal", "qualifier", "MAX"),
+        )
+        for group, name, key, value in changes:
+            with self.subTest(name=name, key=key):
+                procedures = copy.deepcopy(self.procedures)
+                row = next(r for r in procedures[group] if r["id"] == name)
+                row[key] = value
+                with self.assertRaises(ValueError):
+                    validate(self.original, self.comparison, procedures)
+
+    def test_separate_rmii_and_pin30_clock_transactions(self):
+        procedures = {r["id"]: r for r in self.procedures["procedures"]}
+        for name in ("clock_configure", "mii_configure", "rmii_configure", "repeater_configure",
+                     "compatibility_configure", "isolation_configure"):
+            self.assertEqual(procedures[name]["timeoutPlan"], "interface")
+        for name in ("led_configure", "pin_configure", "wol_configure", "interrupt_configuration"):
+            self.assertEqual(procedures[name]["timeoutPlan"], "pinRoutes")
+        example = self.procedures["timeoutPlans"]["interface"]["rmiiExample"]
+        # Two direct preflight reads in one batch. Five direct rows, three
+        # distinct indirect rows (0456, 0302 and 0303), each verified.
+        self.assertEqual((example["applyFrames"], example["applyCallbacks"]),
+                         (2 + 5 * 3 + 3 * 9, 1 + 2 * (5 + 3)))
+        self.assertEqual((example["verifyFrames"], example["verifyCallbacks"]),
+                         (2 + 5 + 3 * 4, 1 + 5 + 3))
+        self.assertEqual((example["pin31AdditionalFrames"], example["pin31AdditionalCallbacks"]), (4, 1))
+
+    def test_troubleshooting_examples_against_detailed_fields(self):
+        procedures = {r["id"]: r for r in self.procedures["procedures"]}
+        # SNLS783A table 8-13 and figure 8-13, indexed by the two named strap bits.
+        straps = procedures["rmii_configure"]["startupSelections"]
+        self.assertEqual(straps["basicStrap10Strap4"], ["MII", "RMII_LEADER", "RESERVED", "RMII_FOLLOWER"])
+        self.assertEqual(straps["enhancedStrap1Strap8"], ["MII", "MII", "MII", "RMII"])
+        # SNLA491 pp19-20 and SNLS783A table 8-41. BISCR[14] changes
+        # counter behavior. Checker enable is part of the mode in [13:12].
+        single, analog = procedures["bist_run"]["guideCases"]
+        self.assertEqual((int(single["guideWord"], 16), single["generator"], single["checker"]),
+                         (0x5000, "single", False))
+        self.assertEqual((int(analog["guideWord"], 16), analog["generator"], analog["checker"]),
+                         (0x3108, "continuous", True))
+        self.assertEqual(int(analog["withLockAndActivity"], 16), 0x3108 | 0x0800 | 0x0200)
+
+    def test_link_acquisition_observes_mirrors_before_clearers(self):
+        proc = next(r for r in self.procedures["procedures"] if r["id"] == "observe_link")
+        first, last = [[int(word, 16) for word in batch] for batch in proc["readBatches"]]
+        # Table 8-35: BMSR clears PHYSTS[6]; ANER clears PHYSTS[8].
+        self.assertEqual(first, [0x10, 1, 1, 0, 4, 5, 6, 0x19])
+        self.assertEqual(last, [0x10, 1])
+
+    def test_source_implied_and_blocked_addresses_keep_their_routes(self):
+        for group, name, key, value in (
+                ("printedAddresses", "eee_printed_1016", "status", "VERIFIED"),
+                ("debugAddresses", "0x0225", "status", "SAFE_READ"),
+                ("recipeRegisters", "EEE_04D3", "status", "PROCEDURE_ONLY"),
+                ("recipeRegisters", "TDR_0411", "devad", "0x07")):
+            with self.subTest(name=name):
+                comparison = copy.deepcopy(self.comparison)
+                row = next(r for r in comparison[group] if r.get("id", r.get("address")) == name)
+                row[key] = value
+                with self.assertRaises(ValueError):
+                    validate(self.original, comparison, self.procedures)
+
     def test_10base_te_fresh_address_and_no_increment_on_both_transfers(self):
         proc = next(r for r in self.procedures["procedures"] if r["id"] == "initialize_10base")
         wire = proc["wireVectors"]

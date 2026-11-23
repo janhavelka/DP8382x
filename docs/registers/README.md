@@ -18,6 +18,13 @@ values. Each `owner` is the implementation prompt (58 or 59). The
 for each write. Position counts from one, including repeated writes. An
 original-only action has no A recipe position. `fldStraps` records the
 published strap combinations and the corresponding CR3 mechanism bits.
+`timeoutPlan` selects the A interface or pin-routing budget. Count the
+selected register transactions, prerequisite reads and source-owner work.
+RMII selection at 0302 and pin 30 clock routing at 0303 need separate
+transactions. The worked example records frame and callback counts for
+both application and read-only verification. `readBatches` lists the
+ordered C22 link reads in hex. `startupSelections` indexes the initial MAC
+interface by the named strap pair in binary order (00, 01, 10, 11).
 Research progress and executing support are tracked separately.
 [Variant status](../variants.md).
 

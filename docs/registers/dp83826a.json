@@ -2542,6 +2542,7 @@
           "mask": "0x4000",
           "access": "RH/W1S",
           "reset": "0h",
+          "validity": "Table 8-49 calls this Digital reset. Writing one resets all PHY circuitry except the registers. The command self-clears. Reacquire live status before claiming readiness.",
           "owner": 58
         }
       ]
@@ -3500,7 +3501,7 @@
           "access": "R/W",
           "reset": "1h",
           "owner": 59,
-          "validity": "Codes 5/6 select PLL/recovered clock. Clock field specifies mux 1, which the same table labels reserved. Keep that route gated. The separate CLKOUT25M route uses mux 6."
+          "validity": "Table 8-76 gives 5/6 for PLL/recovered with mux 1, which the same table reserves. The separate mux 6 CLKOUT25M description conflicts with figure 8-10. Gate both software clock selections on pin 31. ENHANCED Strap6 and 0308[0] report the POR-selected role."
         },
         {
           "id": "LED1_GPIO_CFG.mux",
@@ -3514,7 +3515,7 @@
             "BASIC": 0,
             "ENHANCED": "strap"
           },
-          "validity": "Codes 0 LED1, 2 WoL, 4 IRQ, 5 TX_ER, 6 CLKOUT25M. Codes 1/3/7 are reserved. Section 8.3.7 describes disabling CLKOUT by selecting an input on this mux, but table 8-76 gives no input encoding. Keep the input-only request gated and preserve reserved IO_CFG1[6]."
+          "validity": "Table 8-76 gives 0 LED1, 2 WoL, 4 IRQ. It lists 5 TX_ER and 6 CLKOUT25M where figure 8-10 shows LOW. Gate software selection of 5 and 6. Codes 1/3/7 are reserved and section 8.3.7 gives no legal input encoding. Preserve IO_CFG1[6]. Observe the ENHANCED POR-selected route separately."
         }
       ]
     },
@@ -4318,7 +4319,7 @@
           "reset": "X",
           "owner": 59,
           "delta": "Named field occupies formerly reserved bits.",
-          "validity": "0 active low, 1 active high. The default depends on the strap.",
+          "validity": "Table 8-90 prints X for the field. Section 8.3.18 fixes the effective BASIC LED polarity active low, with only LED0/1 available. In ENHANCED an external pull-down selects active high and pull-up active low.",
           "modeDefault": {
             "BASIC": "strap",
             "ENHANCED": "strap"
@@ -4363,6 +4364,7 @@
           "access": "RH/W",
           "reset": "X",
           "owner": 59,
+          "validity": "Table 8-90 prints X for the field. Section 8.3.18 fixes the effective BASIC LED polarity active low, with only LED0/1 available. In ENHANCED an external pull-down selects active high and pull-up active low.",
           "modeDefault": {
             "BASIC": "strap",
             "ENHANCED": "strap"
@@ -4391,6 +4393,7 @@
           "access": "RH/W",
           "reset": "X",
           "owner": 59,
+          "validity": "Table 8-90 prints X for the field. Section 8.3.18 fixes the effective BASIC LED polarity active low, with only LED0/1 available. In ENHANCED an external pull-down selects active high and pull-up active low.",
           "modeDefault": {
             "BASIC": "strap",
             "ENHANCED": "strap"

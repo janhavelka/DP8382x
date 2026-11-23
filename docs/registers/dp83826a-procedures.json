@@ -6,8 +6,27 @@
   ],
   "baseline": "dp83826i.json",
   "scope": "Research inputs for separately declared AI and AE. Both have the same SNLS783A programming model. Compare each row with the original I/E record of the same ID. The assignments are future implementation and test obligations.",
-  "comparison": "For each procedure retain the baseline modes, prerequisites, ordered steps, waits, timeout, partialEffects, cleanup and restoration except as qualified by its A disposition, gates, A field map and A recipe. Substitute the actual A declaration and revision everywhere. Historical test and implementation status is specific to its original part. For features, use the procedures listed here and their individual tests. For write actions use the baseline mask, value and neutral except for the listed replacement/removal or an A-only row. None of the opaque words grants general access. A procedure ownedMasks, where present, replaces the baseline list and enumerates candidate bits across eligible profiles. Apply only the admitted subset on each operation. Clock, pin, wake and IRQ use one executing owner per selected route; dependent profiles verify it. Clock hardware evidence and unresolved pin mux options are qualified separately.",
+  "comparison": "For each procedure retain the baseline modes, prerequisites, ordered steps, waits, timeout, partialEffects, cleanup and restoration except as qualified by its A disposition, gates, A field map and A recipe. Substitute the actual A declaration and revision everywhere. Historical test and implementation status is specific to its original part. For features, use the procedures listed here and their individual tests. For write actions use the baseline mask, value and neutral except for the listed replacement/removal or an A-only row. None of the opaque words grants general access. A procedure ownedMasks, where present, replaces the baseline list and enumerates candidate bits across eligible profiles. Apply only the admitted subset on each operation. Clock, pin, wake and IRQ use one executing owner per selected route; dependent profiles verify it. Clock hardware evidence and unresolved pin mux options are qualified separately. An A timeout or named timeoutPlan replaces the original procedure timeout. Build the complete admitted plan for the actual owners before mutation. Charge prerequisite reads and delegated verification or replay to the admitting operation. Separately admitted cleanup has its own finite allowance.",
   "testContract": "Run every procedure test on both declared grades and applicable BASIC/ENHANCED modes. Invalid local declarations must cause zero callbacks. For each bus procedure inject failure at each selector/data boundary, an accepted or uncertain last write, deadline before/after mutation and cancellation. Retain consumed prefixes and the primary result. Release the bus before any wait. Use a separate bounded restoration operation under OP-9 and check that cached reads have zero traffic. For each recipe cut verify the exact prefix and prohibit implicit continuation, resets or replay of transient stimuli.",
+  "timeoutPlans": {
+    "interface": {
+      "apply": "Start a single-PHY pass with the two direct preflight reads in one callback. Each configured C22 row adds three frames and two callbacks for atomic RMW and verified readback. Each MMD row adds nine frames and two callbacks. Count 0302[8] and 0303[5:0] separately. Combine the pin 30 source and mux in one 0303 transaction owned by clock_configure. The pin profile may depend on it. The RMII owner writes 0302[8] once, including for a repeater. Charge each PHY separately. Explicit ENHANCED pin 31 status adds a four-frame read and one callback. Verify pin 30 using 0303.",
+      "verify": "Use the same two-frame preflight. Read each direct row once and each indirect row in four frames, one callback per row. Add separate clock/status prerequisites, including fresh recovered-link evidence if required.",
+      "rmiiExample": {
+        "scope": "RMII, owned isolation and PLL output on pin 30. Current board and pin prerequisites established. Five direct rows (0009, 000A, 0011, 0017, 0000), three MMD rows (0456, 0302, 0303). Without the optional ENHANCED pin 31 observation.",
+        "applyFrames": 44,
+        "applyCallbacks": 17,
+        "verifyFrames": 19,
+        "verifyCallbacks": 9,
+        "pin31AdditionalFrames": 4,
+        "pin31AdditionalCallbacks": 1
+      }
+    },
+    "pinRoutes": {
+      "apply": "Compute each A profile before admission. Include mode, mux, and ENHANCED pin 31 status prerequisites, LED source/value/enable ordering, and all selected source-owner work. Count each C22 RMW plus verify as three frames/two callbacks and each MMD RMW plus verify as nine/two. A prerequisite target read costs one C22 or four MMD frames. Use the actual batch grouping for callbacks. Count each repeated row in the sequence. Include harvest and neutral W0C composition on WoL, masked delivery and collector verification on IRQ, and any dependent checks. A pin dependency never adds a second writer for the same function.",
+      "verify": "Count each selected read against the same deadline and frame allowance. Recompute bounds for standalone verification and replay. Original I/E pin-profile and route totals apply only to their original plan."
+    }
+  },
   "procedures": [
     {
       "id": "identify",
@@ -54,7 +73,7 @@
       "feature": "reset",
       "owner": 58,
       "source": "SNLS783A 8.4.1 and table 8-49",
-      "disposition": "PHYRCR[14] restarts digital circuits while retaining registers. Invalidate live link/diagnostic confidence; re-observe critical settings after uncertain effects.",
+      "disposition": "PHYRCR[14] resets all PHY circuitry except the registers. Invalidate live link and diagnostic evidence, retain desired register settings, and re-observe critical state after uncertain effects.",
       "test": "Write 1F=4000 for restart. Require both PHYRCR command bits (mask C000) clear before readiness, including an independently active HARD. Retain a vendor sentinel, avoid replay of transient start bits and verify the later initialization VOD requirement independently."
     },
     {
@@ -105,19 +124,21 @@
     },
     {
       "id": "observe_link",
+      "readBatches": [["10", "01", "01", "00", "04", "05", "06", "19"], ["10", "01"]],
       "feature": "link",
       "owner": 58,
       "source": "SNLS783A 8.3.1 and tables 8-20/21/24/25/26/30/35/44; IEEE 802.3 table 28B-3",
-      "disposition": "Read PHYSTS before dependent clearers. A PHYSTS[14] is RH and [6] RCH. Use BMSR link-latch history and a current re-read; keep partner remote fault, local health and pause validity independent.",
-      "test": "Same all 16 local/partner pause inputs. Pending, half and forced mode yield no negotiated pause. Observe remote fault with local ANAR bit 13 clear; fail the second BMSR read and retain the first sample."
+      "disposition": "Read PHYSTS before dependent clearers. A PHYSTS[14] is RH and [6] RCH. Use BMSR link-latch history and a current re-read; keep partner remote fault, local health and pause validity independent. For the A two-batch link snapshot use readBatches (hex C22 addresses). This orders both PHYSTS samples ahead of BMSR, which clears the remote-fault mirror, and the first ahead of ANER, which clears page received. Keep the ten-frame, two-callback budget and coherent bookends.",
+      "test": "Same all 16 local/partner pause inputs. Pending, half and forced mode yield no negotiated pause. Observe remote fault with local ANAR bit 13 clear; fail the second BMSR read and retain the first sample. Seed PHYSTS[6] and BMSR[4]. Retain both independently on the first pass and retain PHYSTS even if the first BMSR read fails."
     },
     {
       "id": "configure_fast_drop",
+      "timeout": "The original 52-frame/19-callback full quality pass and 23/9 verification assume the SOR1 sample for this reset epoch is retained. A required fresh SOR1 read at 1F:0467 adds four frames and one callback to the relevant pass (56/20 or 27/10). Preserve finite budgets for every prerequisite and collector operation.",
       "feature": "fast_drop",
       "owner": 58,
       "source": "SNLS783A 7.6 pp16-18, 8.3.17, 8.4.1.1 and tables 8-5/6/31/34/53/54/88; SDAA067A 2, 3.1-3.2",
-      "disposition": "MII only when enabling FLD. Apply fldStraps and dependency below. Observe FLDS with one collector. Set 0117=0417 for MLT3 and 0131 low six bits=08 for descrambler before enabling CR3. FLD_CFG2 reset is 0288. MLT3, low SNR or descrambler requires energy loss or RX error even if no timing claim is made.",
-      "test": "Reject each dependent cause alone. Accept either prerequisite and both, set only CR3 mask 040F, preserve 0020 and 0040 independently. Consume FLDS once; expose SOR1 bit 11 for pin 19. Exercise every table 8-5/6 strap row."
+      "disposition": "MII only when enabling FLD. Apply fldStraps and dependency below. Observe FLDS with one collector. Set 0117=0417 for MLT3 and 0131 low six bits=08 for descrambler before enabling CR3. FLD_CFG2 reset is 0288. MLT3, low SNR or descrambler requires energy loss or RX error even if no timing claim is made. For EtherCAT or traffic expected to exhibit baseline wander, section 8.3.17 recommends disabling energy detection. Option 4 uses RX error with MLT3. The rollover EMC recommendation selects energy only in option 5. The application chooses its profile and measures its board.",
+      "test": "Reject each dependent cause alone. Accept either prerequisite and both, set only CR3 mask 040F, preserve 0020 and 0040 independently. Consume FLDS once; expose SOR1 bit 11 for pin 19. Exercise every table 8-5/6 strap row. Contrast option 4 (000C) with option 5 (0001). Infer neither profile from a baseline-wander or EMC label."
     },
     {
       "id": "loopback_near",
@@ -139,8 +160,8 @@
       "id": "loopback_reverse",
       "feature": "loopback",
       "owner": 59,
-      "source": "SNLS783A 8.3.14.6 and tables 8-36/41; SNLA491 p18",
-      "disposition": "Use BISCR bit 4, prior BMCR loopback clear, PHYSCR FIFO and guide restart. SNLA491 reverse script's inline digital label conflicts with its 0010 selector.",
+      "source": "SNLS783A 8.3.14.6 and tables 8-36/41; SNLA491 pp18-19",
+      "disposition": "Use BISCR bit 4, prior BMCR loopback clear, PHYSCR FIFO and guide restart. SNLA491 p18 prints 0110 with a digital label. The low five bits are 0010 (reverse), confirmed by p19. Compose only writable controls and observe RH power bit 8 separately.",
       "test": "Use a verified live link before activation. Preserve FIFO, verify 0010 then 1F=4000; only correlated partner return demonstrates data path. Restore in finite stop."
     },
     {
@@ -153,11 +174,12 @@
     },
     {
       "id": "bist_run",
+      "guideCases": [{"guideWord": "0x5000", "generator": "single", "checker": false}, {"guideWord": "0x3108", "generator": "continuous", "checker": true, "withLockAndActivity": "0x3B08"}],
       "feature": "bist",
       "owner": 59,
       "source": "SNLS783A 8.3.15 and tables 8-41/46/47; SNLA491 pp19-20",
-      "disposition": "Same independent PRBS generator/checker, packet length/IPG and rollover control. BISCR lock, generator status and sleep are RH. One-second observation in SNLA491 is a test dwell, not a pass criterion.",
-      "test": "Exercise four generator/checker combinations, finite/continuous modes, asymmetric IPG/length, lock loss and possible wrap. Analog selector 8 with sampled lock/activity can read 3B08; reject guide's 3B04 expectation in analog mode."
+      "disposition": "BISCR[13:12] selects one of four generator/checker modes. Packet length, IPG and error-counter rollover have separate controls. BISCR lock, generator status and sleep are RH. One-second observation in SNLA491 is a test dwell, not a pass criterion. SNLA491 section 2.5.3 uses BISCR=5000 then checks for lock. Table 8-41 decodes 5000 as a wrapping error counter and one constant-data packet with checker disabled. Only an enabled checker can supply fresh lock evidence.",
+      "test": "Exercise four generator/checker combinations, finite/continuous modes, asymmetric IPG/length, lock loss and possible wrap. Analog selector 8 with sampled lock/activity can read 3B08; reject guide's 3B04 expectation in analog mode. Decode 5000 and 3000 separately. A one-second dwell and a stale lock after 5000 cannot verify a path. Mode 3 requires fresh correlated generator, checker and error evidence over the observation interval."
     },
     {
       "id": "bist_capture",
@@ -209,6 +231,7 @@
     },
     {
       "id": "interrupt_configuration",
+      "timeoutPlan": "pinRoutes",
       "feature": "interrupts",
       "owner": 59,
       "source": "SNLS783A Tables 8-36..38/75..79/91/92",
@@ -275,10 +298,11 @@
     },
     {
       "id": "led_configure",
+      "timeoutPlan": "pinRoutes",
       "feature": "led",
       "owner": 59,
       "source": "SNLS783A 8.3.18, tables 5-1/6-1 and 8-42/43/44/50/86/90",
-      "disposition": "Source nibbles shift to LED1/2/3 at 0/4/8. LED3 now has polarity/value/drive at 10/9/8. LED0 still uses MLEDCR/LEDCR. Common blink/stretch and role checks remain; PHYCR5 is reserved. BASIC polarity fixed active-low; ENHANCED strap-dependent.",
+      "disposition": "Source nibbles shift to LED1/2/3 at 0/4/8. LED3 now has polarity/value/drive at 10/9/8. LED0 still uses MLEDCR/LEDCR. Common blink/stretch and role checks remain; PHYCR5 is reserved. BASIC polarity fixed active-low; ENHANCED strap-dependent. The A pin owner can select mux 0 on ENHANCED pin 29 with free CRS, as on pin 28 with free COL. BASIC exposes LED0/1 only. Coordinate pin 31 with its observed POR route.",
       "test": "From 5565 choose asymmetric LED3/2/1 = A/4/2 -> 5A42. Assert bit 10 affects only LED3 polarity, bit 9 its value and bit 8 enables it. Reject F, unowned COL/CRS pins and BASIC polarity override.",
       "ownedMasks": [
         {
@@ -305,6 +329,7 @@
     },
     {
       "id": "pin_configure",
+      "timeoutPlan": "pinRoutes",
       "feature": "pin_mux",
       "owner": 59,
       "source": "SNLS783A 8.3.18 fig8-10 and tables 5-1/6-1, 8-74..79",
@@ -331,11 +356,12 @@
     },
     {
       "id": "clock_configure",
+      "timeoutPlan": "interface",
       "feature": "clock",
       "owner": 58,
       "source": "SNLS783A 8.3.7, 8.3.18 fig8-10 and tables 5-1, 8-10/74..79",
       "disposition": "Pin 30 now has an exact route: set 0303[5:3]=5 PLL or 6 recovered and [2:0]=1. Recovered requires valid partner. Section 8.3.7 gives 125 MHz for both. Verify without manufacturing a waveform claim. Pin 31 CLKOUT25 strap/status is observable; its 0304 selection and input-mode discrepancies remain pin_fields. Do not replay the original IO_CFG1[6] writer.",
-      "test": "0303 low six bits 0029 PLL, 0031 recovered. Preserve upper bits and reject missing clock dependencies; read 0308[0] for ENHANCED route evidence only. No write of 0302 mask 0040.",
+      "test": "Verify 0303 low six bits 0029 for PLL and 0031 for recovered clock. Preserve upper bits and reject missing clock prerequisites. Count a separate ENHANCED pin 31 observation at 0308[0] only when required. Pin 30 verification uses 0303. Preserve 0302 bit 6.",
       "ownedMasks": [
         {
           "register": "LED0_GPIO_CFG",
@@ -345,22 +371,26 @@
     },
     {
       "id": "mii_configure",
+      "timeoutPlan": "interface",
       "feature": "mii",
       "owner": 58,
       "source": "SNLS783A 8.3.8 and tables 8-29/30/36/42",
-      "disposition": "MII nibble bus, 25 MHz reference, RCSR mode bit clear. Configure fast RX_DV/odd-nibble/COL policy with board/MAC agreement. Keep pin roles exclusive.",
+      "disposition": "MII nibble bus, 25 MHz reference, RCSR mode bit clear. Configure fast RX_DV/odd-nibble/COL policy with board/MAC agreement. Keep pin roles exclusive. Use the mode-specific strap selection in rmii_configure when interpreting the initial interface.",
       "test": "Verify 0020 clear through the RCSR collector, and preserve all consumed under/overflow events. Contradictory 50 MHz-only board rejects before mutation."
     },
     {
       "id": "rmii_configure",
+      "startupSelections": {"basicStrap10Strap4": ["MII", "RMII_LEADER", "RESERVED", "RMII_FOLLOWER"], "enhancedStrap1Strap8": ["MII", "MII", "MII", "RMII"]},
+      "timeoutPlan": "interface",
       "feature": "rmii",
       "owner": 58,
-      "source": "SNLS783A 8.3.9 and tables 8-42/74",
-      "disposition": "RMII leader/follower agrees with 25/50 MHz source and pin direction. Separate elasticity, revision, follower-only TX shift and CRS_DV/RX_DV selection. Preserve raw overflow/underflow.",
-      "test": "Test leader/follower with both revision encodings, reject follower shift in leader mode, exercise elasticity codes with 50 and 100 ppm sizing while distinguishing electrical qualification."
+      "source": "SNLS783A 8.3.9 and tables 8-42/74 SNLS783A 8.4.1.1 figure 8-13 and tables 8-12/13/89; SNLA491 2.4 pp13,15.",
+      "disposition": "RMII leader/follower agrees with 25/50 MHz source and pin direction. Separate elasticity, revision, follower-only TX shift and CRS_DV/RX_DV selection. Preserve raw overflow/underflow. At startup ENHANCED Strap1 low selects MII regardless of Strap8. With Strap1 high, Strap8 low/high selects MII/RMII. BASIC uses Strap10/4: 00 MII, 01 RMII leader, 11 follower, 10 reserved. Strap8 is a BASIC address bit. SNLA491 uses Strap8 alone. Compare physical straps in SOR1, sampled mode/role in SOR2[4:3] and the live RCSR[5,7] configuration independently.",
+      "test": "Test leader/follower with both revision encodings, reject follower shift in leader mode, exercise elasticity codes with 50 and 100 ppm sizing while distinguishing electrical qualification. Check ENHANCED Strap1/8=0/1, the four BASIC pairs, and a changed live interface after sampling. An incompatible clock or reserved board declaration stops the operation."
     },
     {
       "id": "repeater_configure",
+      "timeoutPlan": "interface",
       "feature": "repeater",
       "owner": 58,
       "source": "SNLS783A 8.3.10 figures 8-2/3 and tables 8-42/74",
@@ -393,6 +423,7 @@
     },
     {
       "id": "compatibility_configure",
+      "timeoutPlan": "interface",
       "feature": "compatibility",
       "owner": 58,
       "source": "SNLS783A Tables 8-29/30/85 and 8.3.8",
@@ -417,6 +448,7 @@
     },
     {
       "id": "isolation_configure",
+      "timeoutPlan": "interface",
       "feature": "mii",
       "owner": 58,
       "source": "SNLS783A Tables 8-20/89 and 8.3.9",
@@ -502,6 +534,7 @@
     },
     {
       "id": "wol_configure",
+      "timeoutPlan": "pinRoutes",
       "feature": "wol",
       "owner": 59,
       "source": "SNLS783A 8.3.5 and tables 8-75..79/91..98",
@@ -1091,7 +1124,7 @@
       "id": "bist_result_semantics",
       "owner": 59,
       "source": "SNLS783A 8.3.15 and tables 8-41/46",
-      "disposition": "BICSR1 write15 freezes/clears while read15 is counter MSB. RH lock/generator/power do not consume status. Sequence, wrap, possible loss and observation windows determine raw validity. Need measured traffic to infer a complete BIST pass."
+      "disposition": "BICSR1 write15 freezes/clears while read15 is counter MSB. RH lock/generator/power do not consume status. Sequence, wrap, possible loss and observation windows determine raw validity. Need measured traffic to infer a complete BIST pass. SNLA491 p19 asks for checker lock after 5000 selects single-packet generation with the checker disabled. Use table 8-41 for mode selection."
     },
     {
       "id": "tdr_calibration",

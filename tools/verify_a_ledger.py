@@ -41,6 +41,33 @@ FIELD_OWNER_EXCEPTIONS = {
     "IO_CFG1.rx_dv": 59, "LED1_GPIO_CFG.clock_source": 59,
 }
 
+# Prompt 58 owns startup, interface and link. Prompt 59 owns diagnostic and
+# optional controls. Keep the partition independent of the rows being checked.
+CORE_FEATURES = {
+    "identity", "access", "reset", "initialization", "negotiation", "next_page",
+    "crossover", "link", "fast_drop", "link_recovery", "clock", "mii", "rmii",
+    "repeater", "compatibility", "straps", "outside_phy",
+}
+CORE_GATES = {
+    "forced_physts", "hard_reset_straps", "pcs_reset_extent", "rmii_rc",
+    "fld_reset_defaults", "next_page_handshake", "fld_threshold_recipe",
+}
+
+
+def procedure_masks(base):
+    """Apply only the SNLS783A mux and LED changes to the original ownership."""
+    name = base["id"]
+    masks = {r["register"]: r["mask"] for r in base["ownedMasks"]}
+    if name == "clock_configure":
+        return {"LED0_GPIO_CFG": "0x003F"}  # Table 8-75, mux and clock source.
+    if name == "led_configure":
+        masks.update(LEDCFG="0x0FFF", LEDCFG2="0x0777")  # Tables 8-86/90.
+    if name in ("interrupt_configuration", "wol_configure", "pin_configure"):
+        masks.update(LED0_GPIO_CFG="0x0007", LED3_GPIO_CFG="0x0007")
+    if name == "pin_configure":
+        del masks["IO_CFG1"]  # Table 8-74 now reserves bit 6.
+    return masks
+
 
 def require(condition, message):
     if not condition:
@@ -129,27 +156,44 @@ def check_recipe(procedures, source, register_map):
 
 def check_assignments(original, procedures, registers):
     groups = {}
+    baseline = {}
     for group in ("procedures", "features", "gates", "timings", "writeActions"):
         records = indexed(procedures[group], group)
         groups[group] = records
-        require(indexed(original[group], group).keys() <= records.keys(), f"incomplete {group} comparison")
+        baseline[group] = indexed(original[group], group)
+        expected = set(baseline[group])
+        if group == "writeActions":
+            expected.update(r["id"] + "_eee" for r in registers.values()
+                            if "originalRegister" in r and r["originalRegister"] is None)
+        require(expected == records.keys(), f"incomplete or extra {group} comparison")
         for name, row in records.items():
             require(row["owner"] in (58, 59) and row["source"] and row["disposition"],
                     f"{group}.{name}: missing owner, source or disposition")
     for name, feature in groups["features"].items():
-        assigned = {p["id"] for p in groups["procedures"].values() if p["feature"] == name}
-        require(sorted(assigned) == sorted(feature["procedures"])
-                and set(feature["gates"]) <= groups["gates"].keys(), f"{name}: feature comparison")
+        base = baseline["features"][name]
+        require(feature["owner"] == (58 if name in CORE_FEATURES else 59)
+                and sorted(feature["procedures"]) == sorted(base["procedures"])
+                and sorted(feature["gates"]) == sorted(base["gates"]), f"{name}: feature comparison")
     for name, proc in groups["procedures"].items():
-        require(proc["feature"] in groups["features"] and proc["test"].strip(),
-                f"{name}: missing feature or regression requirement")
-    for base in original["procedures"]:
-        proc = groups["procedures"][base["id"]]
-        for owned in proc.get("ownedMasks", base["ownedMasks"]):
+        base = baseline["procedures"][name]
+        require(proc["feature"] == base["feature"] and proc["test"].strip()
+                and proc["owner"] == groups["features"][base["feature"]]["owner"],
+                f"{name}: wrong feature, owner or regression requirement")
+        owned_rows = indexed(proc.get("ownedMasks", base["ownedMasks"]), name, "register")
+        require({reg: r["mask"] for reg, r in owned_rows.items()} == procedure_masks(base),
+                f"{name}: incorrect procedure masks")
+        for owned in owned_rows.values():
             reg = registers[owned["register"]]
             writable = sum(hex16(f["mask"]) for f in reg["fields"] if "W" in f["access"])
             require(not hex16(owned["mask"]) & ~writable,
                     f"{proc['id']}: owned mask includes reserved or read-only bits in {reg['id']}")
+    for name, gate in groups["gates"].items():
+        require(gate["owner"] == (58 if name in CORE_GATES else 59), f"{name}: wrong gate owner")
+    for name, row in groups["timings"].items():
+        base = baseline["timings"][name]
+        owner = 59 if name.startswith("eee_") or name == "active_sleep_nlp_interval" else 58
+        require(row["owner"] == owner and all(row[k] == base[k] for k in ("value", "unit", "qualifier")),
+                f"{name}: timing owner, value, unit or qualifier")
     # Each vendor word in the ordered recipe needs an exact action. Direct
     # reset/restart and the IEEE advertisement have independent typed owners.
     recipe = procedures["eeeRecipe"]
@@ -163,9 +207,16 @@ def check_assignments(original, procedures, registers):
     expected_rows = [i for i, r in enumerate(recipe, 1) if r["devad"] == "0x1F"]
     claimed = []
     for action in groups["writeActions"].values():
-        if "rows" not in action:
+        name = action["id"]
+        require(action["owner"] == 59, f"{name}: wrong write action owner")
+        if not name.endswith("_eee"):
+            base = baseline["writeActions"][name]
+            require("rows" not in action and all(action[k] == base[k] for k in ("mask", "value"))
+                    and action.get("neutral", base["neutral"]) == base["neutral"],
+                    f"{name}: changed inherited exceptional action")
             continue
-        register = registers[action["id"].removesuffix("_eee")]
+        require("rows" in action, f"{name}: missing ordered EEE positions")
+        register = registers[name.removesuffix("_eee")]
         positions = action["rows"]
         if register.get("status") == "ORIGINAL_ONLY":
             require(positions == [] and action["value"] is None, "original-only EEE action")
@@ -242,19 +293,28 @@ def validate(original, comparison, procedures):
     require(printed.keys() == original_printed.keys(), "incomplete printed-address comparison")
     for name, row in printed.items():
         require(all(row[key] == original_printed[name][key] for key in
-                    ("devad", "printedAddress", "wireAddress", "readRoute")) and row["owner"] == 59,
+                    ("devad", "printedAddress", "wireAddress", "readRoute", "status")) and row["owner"] == 59,
                 f"{name}: changed printed/wire address or acquisition route")
+    debug = indexed(comparison["debugAddresses"], "debug observations", "address")
+    require(debug.keys() == {"0x0225"} and debug["0x0225"]["status"] == "UNRESOLVED"
+            and debug["0x0225"]["owner"] == 59, "unresolved MSE address")
     recipe_regs = indexed(comparison["recipeRegisters"], "recipe registers", "address")
     original_recipes = original_regs.keys() - expected
     require({r["originalRegister"] for r in recipe_regs.values() if r["originalRegister"]} ==
             original_recipes, "incomplete original recipe comparison")
     for reg in recipe_regs.values():
-        require(reg["owner"] in (58, 59), "missing recipe register owner")
+        name = reg["id"]
+        status = "ORIGINAL_ONLY" if name == "EEE_04D3" else "PROCEDURE_ONLY"
+        require(reg["owner"] == 59 and reg["space"] == "MMD" and reg["devad"] == "0x1F"
+                and reg["status"] == status, f"{name}: recipe-only address route or status")
         require(reg["resetKnownMask"] is None and reg["resetValue"] is None,
                 f"{reg['id']}: undocumented recipe register reset")
         if reg["originalRegister"]:
-            require(reg["address"] == original_regs[reg["originalRegister"]]["address"],
+            require(reg["originalRegister"] == name and reg["address"] == original_regs[name]["address"],
                     "recipe register address mismatch")
+        else:
+            require(name == "EEE_" + reg["address"][2:] and name not in original_regs,
+                    f"{name}: incorrect A-only EEE register")
     active_addresses = {hex16(r["address"]) for r in [*detailed.values(), *recipe_regs.values()]
                         if r.get("status") != "ORIGINAL_ONLY"}
     check_recipe(procedures, source, active_addresses)

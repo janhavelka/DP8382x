@@ -166,7 +166,7 @@ on VOD_CFG1/2 makes their programmed values an observation for each device.
 | Owner | Source decision and literal regression |
 | --- | --- |
 | 58, identity and link | Read C22 02 then 03. For each declared AI or AE accept `2000:A114` BASIC and `2000:A134` ENHANCED at revision 4 only. Match the required mode after checking OUI, model and revision. On a mismatch retain the raw identity and stop before a write. Assert the identical pair preserves each separately bound grade. In forced mode require robust crossover. ANAR[13] must remain clear in local advertisements. Partner bit 13 and the latched BMSR remote fault still count as observations. |
-| 58, reset and startup | BMCR `00=8000` resets the PCS and retains vendor settings. PHYRCR `1F=8000` has pin-reset effects. Refresh identity, address and SOR after HARD. ENHANCED Strap1/6 latch only on POR. PHYRCR `1F=4000` restarts digital circuits and retains registers. Check both PHYRCR command bits before subsequent work. External POR-to-SMI 50 ms MAX and pin-reset-to-SMI 2 ms MAX establish readiness for their respective events. Pin reset needs a 25 µs minimum pulse. Anchor bus silence to observed completion or a conservative later time, with a separate finite software poll budget. |
+| 58, reset and startup | BMCR `00=8000` resets the PCS and retains vendor settings. PHYRCR `1F=8000` has pin-reset effects. Refresh identity, address and SOR after HARD. ENHANCED Strap1/6 latch only on POR. PHYRCR `1F=4000` resets all PHY circuitry except the registers (table 8-49). Check both PHYRCR command bits before subsequent work. External POR-to-SMI 50 ms MAX and pin-reset-to-SMI 2 ms MAX establish readiness for their respective events. Pin reset needs a 25 µs minimum pulse. Anchor bus silence to observed completion or a conservative later time, with a separate finite software poll budget. |
 | 58, 10BASE-Te | Both parts use VOD_CFG3 at vendor MMD 31 offset `030E`, reset `8400`. After initialization's reset and identity checks write `0D:001F, 0E:030E, 0D:401F, 0E:4A40`. For verification repeat the first three writes and read `0E`, comparing the stable owned bits. Each four-frame transaction has one bus owner. Apply an admitted persistent analog override only after mandatory verification. Interrupt each transfer, including the final possibly accepted write. |
 | 58, FLD and interface | Use the six ENHANCED and two BASIC rows in `fldStraps`. For ENHANCED option 5 the ordered strap values (7, 1, 8, 11) are (1, 0, 0, 1). MII and an eligible board role are prerequisites to enabling FLD. MLT3, low SNR or descrambler detection requires energy loss or RX error. Preserve CR3[6:5] when composing mask `040F`. Energy-only changes `042F→0021` and `044F→0041`. Report pin 19 at SOR1[11] and retain consumed FLDS even if a subsequent read fails. |
 | 59, pin and diagnostic features | Check LED3/2/1 source masks `0F00/00F0/000F` on asymmetric inputs and preserve the reserved upper nibble. Known-reset masks exclude the strap-dependent low bits at `0304/0305`. Preserve PHYCR[5] and IO_CFG1[6]. IRQ and wake consume status through one collector. For RXFCFG1[11], write one during unrelated updates and zero for acknowledgement. Test the possible effect if the acknowledgement frame fails. |
@@ -348,3 +348,57 @@ ledger commands recorded above passed, including all 95 ledger tests.
 Host driver, portable/package consumer, SDK link, remote CI and physical
 evidence were NOT RUN in this slice. Phase (c) continues with procedure
 ownership, inherited effects and source gates.
+
+### Phase (c) procedure review and fixes
+
+Phase (c) finished on clean-entry `main` at
+`40c05e6747a5ced7a84277b0515409ec746e9b4a`, verified equal to
+`origin/main` by the wrapper. Two parallel read-only reviewers used the
+session's high-reasoning model for separate silicon questions. One checked
+FLD, reset, power and the D2/D3 address and recipe decisions. The other
+checked interfaces, pin owners, diagnostic scripts, events, wake and EEE.
+The lead reviewed the cumulative diff from `bcb27e1`, checked the source
+locations and integrated the corrections. The current MB85RC, TMP1x2 and
+TUSB32x checkouts were clean at the revisions in the phase (a) peer table.
+Their variant dispatch, validators, CLI, runners, tests and registration
+continue to support board-declared identity and bounded preflight. The
+pinned TI Linux ID definitions and the Zephyr definitions, license and two
+selector helpers were reopened at the revisions linked above.
+
+| Implementation input | Review result |
+| --- | --- |
+| FLD and reset, prompt 58 | SNLS783A §8.3.17 recommends disabling energy detection for EtherCAT or expected baseline wander. ENHANCED option 4 enables RX error and MLT3 (`000C`). Option 5 enables energy alone (`0001`), with Strap8 LOW. SDAA067A recommends Strap11 HIGH if FLD is used for its EMC result. The application selects its profile. A CR3 update owns only `040F`. Reuse a retained SOR1 from the current reset epoch or budget four frames and one callback for a fresh read. Table 8-49 defines PHYRCR[14] as resetting all PHY circuitry except the registers. Reacquire live state. [A datasheet, §§8.3.17, 8.4.1 and table 8-49](../../reference/source/TI-DP83826AI-AE-SNLS783A.pdf) and [rollover guide, §3](../../reference/source/TI-DP83826-to-DP83826A-SDAA067A.pdf). |
+| Interface and clock, prompts 58–59 | SNLA491's Strap8 shortcut misses ENHANCED Strap1 and the BASIC Strap10/4 pair. Keep the observed strap levels, SOR2 mode/role and current RCSR separate. The RMII owner writes IO_CFG1[8] at 0302. The clock owner writes pin 30 source and mux together at 0303. The I/E interface planner could merge both functions at 0302. With current prerequisites, owned isolation and the pin 30 PLL, the A example costs 44 frames in 17 callbacks. Its read-only pass costs 19 in nine. An additional ENHANCED pin 31 status read costs four in one and supplies evidence only for pin 31. LED, pin, IRQ and wake budget their actual route and collector work. [Original planner](../../../src/DP8382xInterface.cpp), [SNLS783A, figure 8-13 and tables 8-12/13, 8-74–79, 8-89](../../reference/source/TI-DP83826AI-AE-SNLS783A.pdf) and [SNLA491, pp. 13, 15](../../reference/source/TI-DP83826A-Troubleshooting-SNLA491.pdf). |
+| Link and pin evidence | The I/E link procedure reads BMSR first. Table 8-35 specifies that this clears PHYSTS[6]. The A contract reads PHYSTS before BMSR in both batches and before ANER in the first. The ten-frame budget still covers all reads. Pin 31 software selection of mux 5/6 remains gated by the conflict between figure 8-10 and table 8-76. Table 8-90 prints strap-dependent polarity fields. Section 8.3.18 fixes effective BASIC LED polarity active low and BASIC exposes LED0/1. The field records now carry those conditions. [A datasheet](../../reference/source/TI-DP83826AI-AE-SNLS783A.pdf). |
+| Diagnostics, prompt 59 | SNLA491 p. 18's reverse script prints `0110`. Its low five bits select reverse, as p. 19 confirms. BISCR[8] is hardware-updated status. Page 19 also asks for fresh checker lock after `5000`, which selects one constant packet with the checker disabled. One second of dwell cannot establish lock for that test. For the analog example, adding lock and active status to `3108` gives `3B08`. Tests cover both decodes. [Troubleshooting guide, pp. 18–20](../../reference/source/TI-DP83826A-Troubleshooting-SNLA491.pdf) and [SNLS783A, table 8-41](../../reference/source/TI-DP83826AI-AE-SNLS783A.pdf). |
+
+All 52 procedure-to-feature assignments, 35 feature gate sets, 25 gate
+owners and 20 timing values, units and qualifiers were checked against the
+original comparison and assigned stages. The validator checks exact owned
+masks, including the five procedures whose pin or LED masks changed.
+The 56 exceptional actions retain their inherited limits or their exact
+A recipe positions. D2 retains its five source-implied tuples and
+whole-word capability/advertisement checks. D3 uses the linked six-run
+transmit-A recipe. Physical mapping, TDR calibration and fresh-capture
+evidence remain open. Reversible deep-power entry still lacks safe 0428
+composition and exit evidence. [A procedures](../../registers/dp83826a-procedures.json),
+[original map](../../registers/dp83826i.json) and [TDR application report](../../reference/source/TI-DP83826-TDR-SNLA428.pdf).
+
+**Host research PASS**, Windows x86-64, Python 3.12.10. The new mutation
+test initially failed all ten subcases against the entry validator. After
+the fixes, `python -B tools/verify_ledger.py` passed both ledgers and
+`python -B -m unittest discover -s test -p 'test_*ledger.py' -q` passed
+100 tests. Full offline discovery with `-p 'test_*.py'` ran 266 tests,
+214 passed and 52 skipped. Calling `parse()` from
+`build/p57-registers/parse_tables.py` on each archived PDF reproduced the
+79 tables and 427 rows per generation. Running
+`python -B build/p57-procedures/check.py` matched both EEE sequences
+(18 and 27 rows), eight A FLD vectors, all 48 SNLA428 tuning words and the
+exact-A PDF link to that report.
+`python -B tools/verify_references.py` passed for 29 vendor artifacts,
+27 extracts and 2,349 local links. `git diff --check` passed.
+
+Host driver execution, portable/package consumer, SDK link, remote CI and
+physical evidence were **NOT RUN** in this review. This stage changes the
+research ledgers, verifier, tests and related documentation. Phase (d) owns
+final checks and the prompt 57 completion decision.
