@@ -286,6 +286,12 @@ class FixtureTranscript(unittest.TestCase):
         self.assertEqual(int(final["attempted"]) - int(after["attempted"]), 6)
         self.assertEqual(int(final["batches"]) - int(before["batches"]), 2)
 
+    def test_link_field_routes(self):
+        phycr, link, events = records(run(b"registers read c22 0x19\nlink read\nlink collect\n"))
+        self.assertEqual((phycr["primary"], phycr["address"], phycr["value"]), ("OK", "25", "32769"))
+        self.assertEqual((link["primary"], link["bmsr_first"], link["bmsr_current"]), ("OK", "36", "36"))
+        self.assertEqual((events["primary"], events["event_mask"], events["physts"]), ("OK", "63", "21"))
+
     def test_reset_distinctions_and_local_end(self):
         result = invoke(b"link read\nbegin none\nlink cached\ninit pcs\n"
                         b"registers write c22 24 16\nrecovery restart\nregisters read c22 24\n"

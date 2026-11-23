@@ -3,7 +3,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
-import shlex
+import re
 import subprocess
 
 PIN = "fff9895c82d744c7237be8847347bdd1b07c6643"
@@ -29,7 +29,9 @@ def main():
     selected = set()
     for source in args.source:
         cpp = Path(source).suffix in (".cpp", ".cc", ".cxx")
-        command = [args.cxx if cpp else args.compiler, "-std=c++17" if cpp else "-std=gnu17", "-MM", "-MT", "closure"]
+        # An SDK directory can also arrive through -isystem. Classify files
+        # by their resolved checkout path after scanning both header classes.
+        command = [args.cxx if cpp else args.compiler, "-std=c++17" if cpp else "-std=gnu17", "-M", "-MT", "closure"]
         for definition in args.define:
             command += ["-D", definition]
         for include in args.include:
@@ -39,8 +41,12 @@ def main():
             command += ["-include", args.force_include]
         command.append(source)
         output = subprocess.check_output(command, text=True)
-        for item in shlex.split(output.replace("\\\n", " ").split(": ", 1)[1]):
-            path = Path(item).resolve()
+        # GCC prints a Make rule, including escaped spaces and hashes.
+        # Backslashes before ordinary letters are Windows path separators.
+        dependencies = output.replace("\\\n", " ").split("closure:", 1)[1]
+        for token in re.findall(r"(?:\\[ \t#]|[^\s])+", dependencies):
+            filename = re.sub(r"\\([ \t#])", r"\1", token).replace("$$", "$")
+            path = Path(filename).resolve()
             if path.is_relative_to(sdk):
                 selected.add(path.relative_to(sdk).as_posix())
     entries = {}

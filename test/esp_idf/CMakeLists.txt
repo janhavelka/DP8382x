@@ -146,6 +146,12 @@ endif()
 if(NOT scan_configs)
   set(scan_configs default)
 endif()
+# Resolve relative compiler flags where the generator compiles example.cpp.
+# Ninja invokes it from the top build tree, Make from this target's directory.
+set(example_compile_dir "${CMAKE_CURRENT_BINARY_DIR}")
+if(CMAKE_GENERATOR MATCHES "Ninja")
+  set(example_compile_dir "${CMAKE_BINARY_DIR}")
+endif()
 foreach(config IN LISTS scan_configs)
   string(TOUPPER "${config}" config_upper)
   separate_arguments(config_options NATIVE_COMMAND "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${config_upper}}")
@@ -153,21 +159,23 @@ foreach(config IN LISTS scan_configs)
   foreach(option IN LISTS config_options example_options)
     list(APPEND verify_example_config "--option=${option}")
   endforeach()
-  execute_process(COMMAND ${verify_example_config} RESULT_VARIABLE example_verified)
+  execute_process(COMMAND ${verify_example_config} WORKING_DIRECTORY "${example_compile_dir}"
+      RESULT_VARIABLE example_verified)
   if(NOT example_verified EQUAL 0)
     message(FATAL_ERROR "Pinned example SDK dependency verification failed (${config})")
   endif()
   list(APPEND verify_example_commands COMMAND ${verify_example_config})
 endforeach()
-add_custom_target(dp8382x_verify_example_sdk ${verify_example_commands} VERBATIM)
+add_custom_target(dp8382x_verify_example_sdk ${verify_example_commands}
+    WORKING_DIRECTORY "${example_compile_dir}" VERBATIM)
 add_dependencies(dp8382x_example_host_tests dp8382x_verify_example_sdk)
 add_test(NAME example_sdk_header_drift
     COMMAND "${Python3_EXECUTABLE}" "${host}/check_example_sdk_drift.py" ${verify_example_config})
-set_tests_properties(example_sdk_header_drift PROPERTIES TIMEOUT 30)
+set_tests_properties(example_sdk_header_drift PROPERTIES TIMEOUT 30 WORKING_DIRECTORY "${example_compile_dir}")
 foreach(suite IN ITEMS board_config gate_closed shared_loop netif_init_failure
     event_loop_failure netif_new_failure mutex_failure mac_new_failure
     factory_failure board_failure board_direction_failure driver_allocation_failure
-    install_failure cleanup_failure mac_cleanup_failure glue_allocation_failure
+    install_failure cleanup_failure mac_cleanup_failure
     glue_registration_1 glue_registration_2 glue_registration_3
     glue_registration_4 glue_registration_5
     app_registration_6 app_registration_7 app_registration_8
@@ -179,18 +187,26 @@ foreach(suite IN ITEMS board_config gate_closed shared_loop netif_init_failure
     lost_event_unresolved link_evidence_age board_release_failure last_event_retry last_event_retry_on_time
     unexpected_stop_gap negotiating_start emac_address_failure netif_address_mismatch
     netif_address_read_failure live_cleanup_order live_cleanup_denied terminal_delivery_failure
-    terminal_busy terminal_snapshot_delivery owner_timeout_delivered running_failures journal_retry journal_unavailable journal_failed_call
+    terminal_busy terminal_snapshot_delivery owner_timeout_delivered running_failures journal_retry journal_unavailable
     cli_network cli_slow_stop
-    journal_retry_stop cleanup_journal_unavailable profile_match profile_mismatch profile_aged profile_busy)
+    journal_retry_stop cleanup_journal_unavailable)
   add_test(NAME example_${suite} COMMAND dp8382x_example_host_tests ${suite})
   set_tests_properties(example_${suite} PROPERTIES TIMEOUT 30)
 endforeach()
-set_tests_properties(example_profile_match PROPERTIES PASS_REGULAR_EXPRESSION "linkEvidence=CURRENT[^\n]*profile100full=yes")
-set_tests_properties(example_profile_mismatch PROPERTIES PASS_REGULAR_EXPRESSION "linkEvidence=CURRENT[^\n]*profile100full=no")
-set_tests_properties(example_profile_aged PROPERTIES PASS_REGULAR_EXPRESSION "linkEvidence=AGED[^\n]*profile100full=unknown")
-set_tests_properties(example_profile_busy PROPERTIES PASS_REGULAR_EXPRESSION "linkEvidence=BUSY[^\n]*profile100full=unknown[^\n]*nativePhase=BUSY")
-set_tests_properties(example_journal_failed_call PROPERTIES PASS_REGULAR_EXPRESSION "primary stage=start cause=reported core=OK detail=0 SDK=INJECTED_OR_SDK_ERROR")
-set_tests_properties(example_glue_allocation_failure PROPERTIES PASS_REGULAR_EXPRESSION "primary stage=netif glue cause=unreported core=OK detail=0 SDK=ESP_OK")
+function(add_example_output_test suite)
+  add_test(NAME example_${suite} COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../test_example_output.py" --check
+      "$<TARGET_FILE:dp8382x_example_host_tests>" "${suite}" ${ARGN})
+  set_tests_properties(example_${suite} PROPERTIES TIMEOUT 30)
+endfunction()
+add_example_output_test(profile_match linkEvidence=CURRENT profile100full=yes)
+add_example_output_test(profile_mismatch linkEvidence=CURRENT profile100full=no)
+add_example_output_test(profile_aged linkEvidence=AGED profile100full=unknown)
+add_example_output_test(profile_busy linkEvidence=BUSY profile100full=unknown nativePhase=BUSY)
+add_example_output_test(journal_failed_call "primary stage=start cause=reported core=OK detail=0 SDK=INJECTED_OR_SDK_ERROR")
+add_example_output_test(glue_allocation_failure "primary stage=netif glue cause=unreported core=OK detail=0 SDK=ESP_OK")
+add_test(NAME example_output_verdict COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/../test_example_output.py")
+set_tests_properties(example_output_verdict PROPERTIES TIMEOUT 30)
 
 add_executable(dp8382x_owner_cli_host_tests host/owner_cli.cpp
     "${repo}/examples/common/Dp8382xCli.cpp"

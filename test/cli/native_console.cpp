@@ -226,6 +226,31 @@ void retention() {
   CHECK(fixture.sink.bytes.find("[log] busy status\r\n") != std::string::npos);
 }
 
+std::string record(unsigned n) { return "@DP8382X simulated=" + std::to_string(n) + "\r\n"; }
+
+void checkLogLines(std::string_view bytes, unsigned& records, unsigned& lines) {
+  while (!bytes.empty()) {
+    const auto end = bytes.find("\r\n");
+    CHECK(end != std::string_view::npos);
+    if (end == std::string_view::npos) return;
+    const auto line = bytes.substr(0, end + 2U);
+    if (line.substr(0, 9) == "@DP8382X ") {
+      CHECK(line == record(records));
+      ++records;
+    } else {
+      CHECK(line.substr(0, 11) == "[log] task=");
+      CHECK(line.find(" line=") != std::string_view::npos);
+      ++lines;
+    }
+    bytes.remove_prefix(line.size());
+  }
+}
+
+void incompleteLog() {
+  unsigned records = 0, lines = 0;
+  checkLogLines("[log] task=0 line=0\r", records, lines);
+}
+
 void concurrentLogs() {
   constexpr unsigned RECORDS = 100;
   constexpr unsigned LOGGER_COUNT = 4;
@@ -241,7 +266,6 @@ void concurrentLogs() {
       --active;
     });
   }
-  const auto record = [](unsigned n) { return "@DP8382X simulated=" + std::to_string(n) + "\r\n"; };
   std::thread output([&] {
     for (unsigned n = 0; n < RECORDS; ++n) {
       const auto text = record(n);
@@ -262,20 +286,7 @@ void concurrentLogs() {
   while (sink.drain(console) != 0) {}
 
   unsigned records = 0, lines = 0;
-  for (std::size_t start = 0; start < sink.bytes.size();) {
-    const auto end = sink.bytes.find("\r\n", start);
-    CHECK(end != std::string::npos);
-    const auto line = std::string_view(sink.bytes).substr(start, end - start + 2U);
-    if (line.substr(0, 9) == "@DP8382X ") {
-      CHECK(line == record(records));
-      ++records;
-    } else {
-      CHECK(line.substr(0, 11) == "[log] task=");
-      CHECK(line.find(" line=") != std::string_view::npos);
-      ++lines;
-    }
-    start = end + 2U;
-  }
+  checkLogLines(sink.bytes, records, lines);
   CHECK(records == RECORDS);
   CHECK(lines == logged.load());
   CHECK(lines + console.stats().droppedLogs == LOGGER_COUNT * LINES);
@@ -285,7 +296,8 @@ void concurrentLogs() {
 int main(int argc, char** argv) {
   const test::Suite suites[] = {
     {"framing", framing}, {"input_gap", inputGap}, {"retention", retention},
-    {"concurrent_logs", concurrentLogs}, {"--verify-empty-suite", [] {}}
+    {"concurrent_logs", concurrentLogs}, {"--verify-empty-suite", [] {}},
+    {"--verify-incomplete-log", incompleteLog}
   };
   return test::runSuites(argc, argv, suites);
 }

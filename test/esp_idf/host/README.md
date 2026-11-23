@@ -33,11 +33,14 @@ probes, fakes and driver/native/CLI test sources listed in CMake select the
 `example-sdk-files.json` records the 37 SDK headers selected by
 `host/example.cpp`, including the basic application's GPIO and P4 EMAC
 headers. The compiler scan shares the example target's definitions, include
-order and compile options. CMake verifies this manifest during configuration
+order, compile options and compiler working directory. The scan includes
+headers found through system include paths and compares files inside the
+supplied SDK with the pin. CMake verifies this manifest during configuration
 and whenever it builds the example host target. The registered
 `example_sdk_header_drift` case verifies a clean copy in the build tree,
-edits only the copied `driver/gpio.h` and requires the verifier to identify
-that file. The owner CLI and UART tests compile as separate translation
+adds an unlisted SDK system header through a relative compiler include path,
+then changes the copied `driver/gpio.h` in a separate scan. Each rejection
+must name the affected header. The owner CLI and UART tests compile as separate translation
 units. Their build results do not establish manifest coverage for their inputs.
 
 The platform directory supplies the explicit host configuration, the small

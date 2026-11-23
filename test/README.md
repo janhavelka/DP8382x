@@ -9,7 +9,10 @@ check the field routes and campaign IDs independently of a build.
 `cli_native_console_framing` exercises formatted bodies of 300, 376, 377 and
 379 bytes. The latter two must be dropped whole. `cli_native_console_verdict`
 and `native_uart_verdict` check process exit codes and the assertion diagnostic.
-The console probe also executes an empty named suite and requires failure.
+The console probe requires failure for an empty named suite and a log
+record missing its final LF. The six P4 example output checks require both
+a successful child process and the expected fields on one stdout line.
+`example_output_verdict` exercises those conditions with real child processes.
 Ordinary successful binds share the [bound driver fixture](support/BoundDriver.h).
 The [initialization controller](support/InitializationController.h) shares bus
 and fault accounting between operations and reset. The suites keep separate PCS

@@ -3,7 +3,9 @@
 ## Unreleased
 
 - Fixed silent assertion failures in the host console and UART tests. The
-  basic P4 example host build now checks its own pinned SDK header manifest.
+  basic P4 example host build checks its own pinned SDK header manifest,
+  including system headers and relative include paths. Its six output checks
+  require a successful test process and the expected stdout record.
 
 - Board reset preparation detects a regressing clock across drain, pin calls
   and wakes, and closes shared MDIO admission. The basic P4 application

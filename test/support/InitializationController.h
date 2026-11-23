@@ -140,6 +140,7 @@ struct InitializationController : ControllerState, WireModel {
 template<typename Model>
 void wire(const InitializationController<Model>& bus, unsigned index, FrameKind kind, uint8_t reg, uint16_t value = 0, uint8_t phy = 1) {
   CHECK(index < bus.frames);
+  if (index >= bus.frames) return;
   CHECK(bus.trace[index].kind == kind);
   CHECK(bus.trace[index].phy == phy);
   CHECK(bus.trace[index].reg == reg);

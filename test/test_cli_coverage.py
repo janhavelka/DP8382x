@@ -108,16 +108,16 @@ class CliCoverageTests(unittest.TestCase):
             cells = rows[owner]
             for group in cells[3].split("<br>")[1:]:
                 label, selectors = group.split(" → ")
-                command = label.removeprefix("`").removesuffix("`")
-                self.assertEqual(label, f"`{command}`")
-                self.assertIn(command, quoted(cells[5]), owner)
+                self.assertRegex(label, r"^`[^`]+`(?:, `[^`]+`)*$")
+                commands = quoted(label)
+                self.assertLessEqual(commands, quoted(cells[5]), owner)
                 for pattern in quoted(selectors):
                     matches = [name for name in owners if fnmatchcase(name, pattern)]
                     self.assertTrue(matches, pattern)
                     for name in matches:
                         self.assertEqual(owner, owners[name], name)
                         self.assertNotIn(name, routes)
-                        routes[name] = command
+                        routes[name] = commands
         self.assertEqual(routes.keys(), owners.keys())
         # Mixed words need distinct owners for observation, settings and commands.
         for field, command in {
@@ -125,9 +125,13 @@ class CliCoverageTests(unittest.TestCase):
             "BICSR1_errorBytes": "diagnostics bist-read", "BICSR1_ipgLength": "diagnostics bist-start",
             "MISR1.link_changed_event": "irq service", "MISR1.link_changed_enable": "irq configure",
             "PHYCR.phy_address": "registers read", "PHYCR.pause_rx": "link partner",
+            "PHYCR.mii_link": "registers read", "PHYSTS.link": "link collect",
             "ANER.page": "configuration apply", "10BTSCR.polarity": "controls quality",
         }.items():
-            self.assertEqual(routes[field], command, field)
+            self.assertEqual(routes[field], {command}, field)
+        for suffix in ("mdi_termination", "mdi_enable", "mdix_termination", "mdix_enable"):
+            field = f"VOD_CFG3.{suffix}"
+            self.assertEqual(routes[field], {"connection initialize", "controls analog"}, field)
 
     def test_every_register_field_owner_has_a_route_or_disposition(self):
         self.check_field_routes(self.rows())
@@ -153,6 +157,11 @@ class CliCoverageTests(unittest.TestCase):
                                  ("restart", "restart"), ("initialize_10base", "10base-te"),
                                  ("external_reset", "cold-boot"), ("power_deep", "power-deep")):
             self.assertIn(case, quoted(rows[identifier][8]), identifier)
+        for identifier in ("counters", "collect_event_counters"):
+            self.assertIn("Manual Q16", rows[identifier][8], identifier)
+            self.assertIn("Manual Q17", rows[identifier][8], identifier)
+        for identifier in ("crossover", "configure_forced"):
+            self.assertIn("Manual Q11", rows[identifier][8], identifier)
         for owner, feature in self.features.items():
             if feature["procedures"]:
                 covered = set().union(*(quoted(rows[p][8]) for p in feature["procedures"]))
@@ -170,6 +179,10 @@ class CliCoverageTests(unittest.TestCase):
         rows = self.rows()
         rows["wol"][3] = rows["wol"][3].replace("`wol acknowledge` →", "`wol configure` →")
         with self.assertRaisesRegex(AssertionError, "RXFCFG1_levelAcknowledge"):
+            self.check_field_routes(rows)
+        rows = self.rows()
+        rows["initialization"][3] = rows["initialization"][3].replace(", `controls analog` →", " →")
+        with self.assertRaisesRegex(AssertionError, "VOD_CFG3"):
             self.check_field_routes(rows)
         rows["hard_reset"][8] = "Case `pcs`"
         with self.assertRaisesRegex(AssertionError, "hard_reset"):

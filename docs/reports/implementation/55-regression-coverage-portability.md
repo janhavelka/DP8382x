@@ -365,3 +365,100 @@ After final matrix and test-comment edits the 660 non-campaign registrations
 were checked again in each build. Both agents finished. The checked phase (b)
 commit is requested from the wrapper. Prompt 55 remains **IN PROGRESS** for
 the two independent reviews at phase (c).
+
+## Phase (c) independent review and fixes
+
+The wrapper verified clean `main` at `23cd9599bed755bccdb6755d6ff3aee93681f674`
+equal to `origin/main`. Two parallel read-only reviewers used the session's
+high-reasoning model for the failure semantics of the harness and the
+independent silicon/SDK evidence. They reviewed `826f904..23cd959`. The
+lead verified their findings and integrated the fixes. The phase (a) peer
+paths and conventions were rechecked at the same clean TMP1x2 and 24Cxx
+revisions. No ledger procedure is assigned to 55.
+
+### Verdicts and fixture behavior
+
+- Six P4 example registrations accepted matching output from a child that
+  exited 1. CTest's output predicate could also match stderr. The six
+  registrations now require exit zero and the complete expected fields on
+  one stdout line. `example_output_verdict` tests matching output followed
+  by failure, stderr-only output, a split line and a partial value.
+- Removing the last LF from the concurrent console transcript wrapped the
+  parser position after a failed nonfatal CHECK. The reviewer reproduced
+  the hang under Release. The parser now diagnoses the incomplete record
+  once and returns. `cli_native_console_verdict` requires exit 1 and that
+  diagnostic from the same parser. The initialization trace helper also
+  returns after a failed bounds check. A UBSan probe requesting trace index
+  512 from an empty controller produced exactly one failed check and
+  completed without a trap.
+- The reviewer measured all 27 original WILL_FAIL probes and 20 positive
+  Release suites directly, including 74,993 operation and 19,192 reset
+  evaluations. The full Release recount matched all 266 phase (b) per-suite
+  totals on this run, including both scheduling-dependent totals. The 239
+  positive registrations evaluated 5,018,403 checks with zero failures.
+  The static count remained 6,551. Separate wire models still exercise
+  HARD strap resampling, shared silence and destructive PCS-fixture reads.
+
+### Field and fixture evidence
+
+SNLS647I table 8-81 and section 8.3.13 distinguish the mandatory VOD_CFG3
+write from the four programmable termination fields. The initialization
+row now gives both CLI routes. `operation_initialization`, `analog_vectors`
+and `analog_replay` check the initial 0x4A40, the separate 0xFFC0 mask and
+later replay of an admitted override. The matrix guard rejects removal of
+either route. Table 8-23 also distinguishes the forced-zero ANAR remote
+fault from the preserved read-only T4 bit.
+
+The compiled CLI transcript checks the actual raw evidence routes. On the
+default simulated partner, the C22 PHYCR read returned 0x8001, `link read`
+reported first/current BMSR 0x0024, and `link collect` reported PHYSTS
+0x0015 with all six samples valid. The matrix now identifies where each
+word is observable. Its 87 rows reference 96 distinct registered tests.
+The two counter rows identify the IRQ case's guarded zero RECR sample.
+Q16 boundary injection and Q17 controlled FIFO measurements still need
+separate instruments. The forced-link case descriptions likewise distinguish
+their paired speed/duplex settings from the Q11 crossover, mirror and
+extended-duplex measurements. D2 and the source-blocked deep-power exit
+matched the access and power implementations.
+
+### Compiler dependency checks
+
+The reviewer matched the ordinary P4 example object's 37 SDK headers to
+its manifest, then forced in the pinned `bootloader_clock.h` via
+`-isystem`. The old scan still passed with 37. GCC's `-MM` omitted system
+headers and shell tokenization could discard Windows path separators.
+The verifier now reads `-M` Make dependencies, preserves native paths and
+checks the files under the SDK root. The disposable drift case covers a
+relative system include with a space in the path as well as the modified
+example-only GPIO header.
+
+A separate Ninja build reproduced a working-directory mismatch. With
+`-DCMAKE_CXX_FLAGS=-Ireview-includes`, a build-local `cassert` included
+the normal header with `#include_next <cassert>` and then the SDK's
+`components/bootloader_support/include/bootloader_clock.h` by absolute
+path. Ninja's dependency list contained the additional SDK file while both
+old scans reported 37. Both scans now use the example compiler's working
+directory. Configuration rejected the extra file by name. A clean configure
+followed by adding the include also failed the build-time verifier by name.
+The original SDK checkout was read-only. The configure and build logs are under
+`build/p55c-relative-*`.
+
+### Review checks
+
+| Layer | Phase (c) result |
+| --- | --- |
+| Host | **PASS**. Windows x86-64, GNU 15.1.0, CMake 4.0.1, Ninja 1.12.1, Python 3.12.10 and pinned SDK fff9895c. Release, Debug and C/C++ UBSan trap each passed 661 non-campaign CTests. The final compiler-directory change was rebuilt and the drift test passed again in all three. Six offline HIL registrations remain for the phase (d) full runs. |
+| Portable consumer | **PASS**. Fresh strict Release tests-OFF build at `build/p55c-harness-review/consumer`, without exceptions or RTTI. Both CTests passed. The archive contained 14 portable objects with 158 DP8382x-only undefined symbol entries. |
+| Python | **PASS**. Standalone discovery ran 243 tests with 50 compiled-fixture or generated-inventory skips. |
+| Source checks | **PASS**. Doxygen verified 293 pages and rejected two negative fixtures. Reference integrity covered 29 payloads, 27 extracts and 2,271 local links. The ledger verified 97 registers, 52 procedures and 35 features. Generated version and diff whitespace checks passed. |
+| Package export | **NOT RUN**. Export and relocation belong to prompt 70. |
+| Real SDK images | **NOT RUN** in review. The SDK work changed host verification inputs. The prior real P4 image links are recorded in prompt 54. |
+| Remote CI | **NOT RUN**. Prompt 71 owns remote CI. |
+| Physical | **NOT RUN**. Q1, Q10, Q11, Q16/Q17, the native grants, first-board INT and deep-power exit retain their existing evidence gates. |
+
+Use the phase (b) combined-build commands and process-local Git settings.
+For the review subset, run CTest with `-E 'cli_hil_|cli_matrix_registrations'`
+and then `-R '^cli_matrix_registrations$'`. Release `-V -j 1` supplied
+`build/p55c-release-noncampaign.log` for the phase (b) counting procedure.
+The final inventory contains 667 registrations. Prompt 55 remains
+**IN PROGRESS** for phase (d).

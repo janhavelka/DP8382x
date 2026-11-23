@@ -23,7 +23,7 @@ def main():
     # hasher see only independent copies of the selected SDK inputs.
     git_dir = subprocess.check_output(["git", "-C", str(sdk), "rev-parse", "--absolute-git-dir"],
                                       text=True).strip()
-    with tempfile.TemporaryDirectory(prefix="example-sdk-", dir=Path.cwd()) as temporary:
+    with tempfile.TemporaryDirectory(prefix="example sdk-", dir=Path.cwd()) as temporary:
         checkout = Path(temporary)
         env = dict(os.environ, GIT_DIR=git_dir, GIT_WORK_TREE=str(checkout))
         for name in files:
@@ -38,6 +38,18 @@ def main():
                     command[index + 1] = (checkout / include.relative_to(sdk)).as_posix()
 
         subprocess.run(command, env=env, check=True)
+        # A compiler flag can select SDK headers outside the target's -I list.
+        # This pinned header has no dependencies of its own.
+        extra = "components/bootloader_support/include/bootloader_clock.h"
+        extra_header = checkout / extra
+        extra_header.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(sdk / extra, extra_header)
+        system_scan = command + ["--option=-isystem", f"--option={extra_header.parent.relative_to(Path.cwd())}",
+                                 "--option=-include", f"--option={extra_header.name}"]
+        result = subprocess.run(system_scan, env=env, capture_output=True, text=True)
+        if result.returncode != 1 or f"unrecorded={[extra]}, unused=[]" not in result.stderr:
+            raise SystemExit(f"Unexpected system header verdict {result.returncode}: {result.stdout}{result.stderr}")
+
         with (checkout / header).open("ab") as changed:
             changed.write(b"\n/* Example-only SDK drift fixture. */\n")
         result = subprocess.run(command, env=env, capture_output=True, text=True)
