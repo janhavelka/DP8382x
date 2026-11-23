@@ -1,8 +1,11 @@
 # Prompt 57 · DP83826AI and DP83826AE source and identity policy
 
+**COMPLETE** at the research layer. The [final verification](#phase-d-final-verification)
+records the source coverage, implementation assignments and remaining evidence gates.
+
 ## Phase (a) assessment and implementation brief
 
-**IN PROGRESS.** The research can proceed from the original I/E ledger and
+The research started from the original I/E ledger and
 the declared-part profile verified by prompt 56. AI and AE share a datasheet
 and observable identities. Their ordering grades specify different temperature
 ranges, AI −40 to +85 °C and AE −40 to +105 °C. Retain the grade supplied
@@ -402,3 +405,97 @@ Host driver execution, portable/package consumer, SDK link, remote CI and
 physical evidence were **NOT RUN** in this review. This stage changes the
 research ledgers, verifier, tests and related documentation. Phase (d) owns
 final checks and the prompt 57 completion decision.
+
+## Phase (d) final verification
+
+On 2026-11-24 the wrapper verified `main` equal to `origin/main` at
+`0e2850fd80a9b8e33a2e73a184e58ce54f8eb275`. The index and worktree were
+clean. The checked changes since prompt 56 comprise the research ledgers,
+verifier, tests, guides and progress record. Two agents used the session's
+high-reasoning model to check the silicon table interpretation and the
+host build and test coverage independently. The lead checked the
+research suites, documentation and completion records.
+
+### Source coverage and implementation assignments
+
+The PDF comparison used the bit, field, access, reset and OTP columns in
+SNLS647I and SNLS783A. Each has 79 detailed tables and 427 printed rows.
+The comparison accounted for 281 inherited fields, four additions and two
+removals. All 285 A fields have an owner. The usable reset masks exclude
+strap, mode and OTP uncertainty, including all six OTP-loaded fields.
+The recipe-address inventory accounts for 27 entries, including the retired
+original-only offset `04D3`. A second check compared 18 original and 27 A
+EEE rows, eight A FLD vectors and 48 tuning words from the linked TDR report.
+[Field comparison](../../registers/dp83826a.json) and
+[procedure comparison](../../registers/dp83826a-procedures.json).
+
+| Implementation owner | Fields | Procedures | Features | Gates | Timings | Exceptional action records |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 58, identity, reset and link | 138 | 21 | 17 | 7 | 15 | 0 |
+| 59, diagnostic and optional controls | 147 | 31 | 18 | 18 | 5 | 56 |
+
+The application declares AI or AE. Both declarations use revision 4 and the
+same BASIC and ENHANCED ID pairs. The README, changelog, public API and CLI
+still describe the shipped I/E runtime. The three peer checkouts were clean
+at the revisions recorded in phase (a). Their dispatch, validators, CLI,
+runners and test registrations support retaining that declaration and testing
+the observed identity independently.
+[Peer paths and revisions](#peer-conventions-and-current-entry-points).
+
+### Local evidence
+
+The research and documentation checks ran on Windows x86-64 with Python
+3.12.10.
+
+```powershell
+python -B tools/verify_ledger.py
+python -B -m unittest discover -s test -p 'test_*ledger.py' -q
+python -B -m unittest discover -s test -p 'test_*.py' -q
+python -B tools/check_doxygen.py
+python -B scripts/generate_version.py check
+python -B tools/verify_references.py
+git diff --check
+```
+
+- **Host research PASS.** Both ledgers passed. All 100 ledger tests passed.
+  Full Python discovery ran 266 tests, with 214 passes and 52 skips for
+  cases registered in the compiled host build. The additional local PDF
+  comparisons ran with `python -B build/p57-final-sources/crosscheck.py`
+  and `python -B build/p57-procedures/check.py`. These scratch scripts
+  used the archived PDFs directly.
+- **Documentation PASS.** Doxygen checked 294 generated pages and rejected
+  both negative fixtures. Reference verification checked 29 vendor artifacts,
+  27 text extracts and the local file links. The version and diff checks passed.
+
+The host Release build used GNU 15.1.0, CMake 4.0.1 and Ninja 1.12.1.
+The pinned host tests checked the SDK sources against ESP-IDF v6.1
+`fff9895c82d744c7237be8847347bdd1b07c6643`.
+
+```powershell
+$env:GIT_CONFIG_COUNT = '1'
+$env:GIT_CONFIG_KEY_0 = 'safe.directory'
+$env:GIT_CONFIG_VALUE_0 = 'C:/esp/v6.1/esp-idf'
+cmake -S . -B build/p53-baseline -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON -DDP8382X_BUILD_PINNED_IDF_TESTS=ON -DDP8382X_PINNED_IDF_PATH=C:/esp/v6.1/esp-idf
+cmake --build build/p53-baseline --parallel 5
+ctest --test-dir build/p53-baseline -E '^cli_hil_' --no-tests=error --output-on-failure -j 4
+ctest --test-dir build/p53-baseline -R '^cli_hil_' --no-tests=error --output-on-failure -j 1
+cmake -S test/consumer -B build/p57d-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF
+cmake --build build/p57d-consumer --parallel 3
+ctest --test-dir build/p57d-consumer --no-tests=error --output-on-failure
+```
+
+- **Release host PASS.** All 697 CTests passed on the first attempt. The
+  691 non-HIL registrations took 4.31 s. The six offline CLI fixture and
+  simulated serial registrations took 175.74 s. These exercise the shipped
+  I/E paths. AI/AE driver execution remains assigned to prompts 58 and 59.
+- **Portable consumer PASS.** Both registrations passed in a fresh tests-OFF
+  build of the standalone consumer.
+- **Exported package consumer and SDK image link NOT RUN.** Prompt 70 owns
+  the installed package check. This research changed no firmware or build
+  inputs. **Remote CI NOT RUN.** Prompt 71 owns first-execution CI.
+- **Physical evidence NOT RUN.** Each A grade still requires an authorized
+  fixture with identified silicon, mode and straps. D2 address mapping, D3
+  TDR calibration and capture freshness, and FLD electrical behavior retain
+  their measurement gates. The ledger also records the missing authority for
+  reversible deep power, pin 31 mux encodings, 100 Mbit/s compliance stimulus
+  and MSE scaling.
