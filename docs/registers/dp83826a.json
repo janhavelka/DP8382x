@@ -3457,7 +3457,7 @@
           "mask": "0x0038",
           "access": "R/W",
           "reset": "1h",
-          "owner": 59,
+          "owner": 58,
           "validity": "Codes 5/6 select PLL/recovered clock. Mux 1 enables the selected clock. Other clock codes are reserved. Coordinate pin ownership and clock consumers."
         },
         {
@@ -3624,7 +3624,7 @@
           "mask": "0x0001",
           "access": "RH",
           "reset": "0h",
-          "owner": 59,
+          "owner": 58,
           "delta": "Original access R.",
           "modeDefault": {
             "BASIC": "inapplicable",
@@ -3880,7 +3880,7 @@
           "mask": "0x0008",
           "access": "R/W",
           "reset": "1h",
-          "owner": 59
+          "owner": 58
         }
       ]
     },
@@ -4529,6 +4529,7 @@
           "reset": "1h",
           "owner": 59,
           "delta": "Original field reset X.",
+          "validity": "Enables the interrupt on Magic Packet reception. Table 8-91 prints 1h and specifies a strap-dependent default. Verify the observed setting, interrupt routing and collector evidence separately.",
           "modeDefault": {
             "BASIC": "strap",
             "ENHANCED": "strap"

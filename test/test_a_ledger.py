@@ -117,6 +117,37 @@ class AGenerationLedgerTests(unittest.TestCase):
         for name, reserved in (("IO_CFG1", 0x3EFF), ("PHYCR", 0x0760), ("LEDCFG", 0xF000)):
             self.assertEqual(int(self.regs[name]["reservedMask"], 16), reserved)
 
+    def test_field_joins_reject_renames_and_owner_swaps(self):
+        for name, key, value in (
+                ("SOR1.strap11", "id", "SOR1.strap12"),
+                ("LEDCFG2.led3_drive_enable", "id", "RXFS.magic_packet"),
+                ("BMCR.reset", "owner", 59), ("FLDS.causes", "owner", 59),
+                ("PHYSCR.interrupt_enable", "owner", 59), ("IO_CFG1.rx_dv", "owner", 58),
+                ("LEDCFG2.led3_polarity", "owner", 58), ("GENCFG.min_ipg", "owner", 59),
+                ("LED0_GPIO_CFG.clock_source", "owner", 59),
+                ("CLK_OUT_LED_STATUS.clock_off_status", "owner", 59)):
+            with self.subTest(name=name, key=key):
+                comparison = copy.deepcopy(self.comparison)
+                field = next(f for r in comparison["registers"] for f in r["fields"] if f["id"] == name)
+                field[key] = value
+                with self.assertRaises(ValueError):
+                    validate(self.original, comparison, self.procedures)
+        self.assertEqual(self.fields["GENCFG.min_ipg"]["owner"], 58)
+
+    def test_removed_fields_keep_original_register_mask_and_a_table(self):
+        for changes in ({"mask": "0x0000"}, {"mask": "0x0001"}, {"register": "CDLRR2"},
+                        {"table": "8-44"}, None):
+            with self.subTest(changes=changes):
+                comparison = copy.deepcopy(self.comparison)
+                removed = comparison["removedFields"]
+                row = next(f for f in removed if f["originalField"] == "IO_CFG1.clock_off")
+                if changes is None:
+                    removed.append(row.copy())
+                else:
+                    row.update(changes)
+                with self.assertRaises(ValueError):
+                    validate(self.original, comparison, self.procedures)
+
     def test_all_eee_wire_writes_in_printed_order(self):
         # Independently transcribed from the original PDF across pp. 27–28.
         # Device -1 denotes a Clause 22 register. D2 selects the low MMD7 offset.

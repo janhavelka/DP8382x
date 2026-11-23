@@ -26,6 +26,21 @@ VARIABLE_RESET_BITS = {
     "RXFCFG1": 0x0001,            # 8-91: magic-packet enable defaults from strap.
 }
 
+# Formerly reserved I/E bits named by SNLS783A tables 8-88 and 8-90.
+ADDED_FIELDS = {
+    "SOR1": {"SOR1.strap11": (0x0800, 58)},
+    "LEDCFG2": {"LEDCFG2.led3_polarity": (0x0400, 59),
+                "LEDCFG2.led3_drive_value": (0x0200, 59),
+                "LEDCFG2.led3_drive_enable": (0x0100, 59)},
+}
+
+# Prompt 57 assigns these deltas or register reviews separately from the
+# original feature family. The pin-31 clock selection is gated at table 8-76.
+FIELD_OWNER_EXCEPTIONS = {
+    "FLDS.causes": 58, "PHYSCR.interrupt_enable": 58, "PHYSCR.interrupt_output_enable": 58,
+    "IO_CFG1.rx_dv": 59, "LED1_GPIO_CFG.clock_source": 59,
+}
+
 
 def require(condition, message):
     if not condition:
@@ -87,7 +102,6 @@ def check_register(register, heading, table):
         require(sum(r[0] for r in rows) == mask
                 and all(r[1:] == (field["access"], field["reset"]) for r in rows),
                 f"{name}: {field['id']} field range/access/reset")
-        require(field["owner"] in (58, 59), f"{name}: missing field owner")
         covered |= mask
     require(covered == 0xFFFF, f"{name}: missing field")
 
@@ -179,6 +193,7 @@ def validate(original, comparison, procedures):
     by_address = indexed(comparison["registers"], "register addresses", "address")
     original_fields = set()
     mapped_fields = []
+    features = indexed(procedures["features"], "features")
     for i, heading in enumerate(headers):
         reg = by_address[f"0x{int(heading[2], 16):04X}"]
         base = original_regs[reg["id"]]
@@ -189,23 +204,39 @@ def validate(original, comparison, procedures):
         check_register(reg, heading, source[heading.end():end])
         base_fields = indexed(base["fields"], base["id"])
         original_fields.update(base_fields)
+        added = ADDED_FIELDS.get(reg["id"], {})
+        require({f["id"] for f in reg["fields"] if f["originalField"] is None} == added.keys(),
+                f"{reg['id']}: unexpected added field")
         for f in indexed(reg["fields"], reg["id"]).values():
-            if f["originalField"] is not None:
+            name = f["id"]
+            if f["originalField"] is None:
+                expected_mask, owner = added[name]
+                require(expected_mask & hex16(base["reservedMask"]) == expected_mask,
+                        f"{name}: added field was not reserved in original")
+            else:
                 require(f["originalField"] == f["id"] and f["id"] in base_fields,
                         f"{f['id']}: unknown original field")
-                expected_mask = hex16(base_fields[f["id"]]["mask"])
+                inherited = base_fields[name]
+                expected_mask = hex16(inherited["mask"])
                 if reg["id"] == "LEDCFG":
                     # SNLS783A table 8-86 relocates all three source nibbles.
                     expected_mask >>= 4
-                require(hex16(f["mask"]) == expected_mask, f"{f['id']}: wrong semantic field mask")
+                require(inherited["owner"] in features, f"{name}: missing owning feature")
+                owner = FIELD_OWNER_EXCEPTIONS.get(name, features[inherited["owner"]]["owner"])
                 mapped_fields.append(f["originalField"])
-    removed = {f["originalField"] for f in comparison["removedFields"]}
-    require(removed == {"PHYCR.led_config", "IO_CFG1.clock_off"}
-            and set(mapped_fields) == original_fields - removed
+            require(hex16(f["mask"]) == expected_mask, f"{name}: wrong semantic field mask")
+            require(f["owner"] == owner and owner in (58, 59), f"{name}: wrong field owner")
+    removed = indexed(comparison["removedFields"], "removed fields", "originalField")
+    require(removed.keys() == {"PHYCR.led_config", "IO_CFG1.clock_off"}
+            and set(mapped_fields) == original_fields - removed.keys()
             and len(mapped_fields) == len(set(mapped_fields)), "incomplete original field comparison")
-    for f in comparison["removedFields"]:
-        require(f["owner"] == 59 and hex16(f["mask"]) & hex16(detailed[f["register"]]["reservedMask"])
-                == hex16(f["mask"]), f"{f['originalField']}: removed field must be reserved")
+    for name, f in removed.items():
+        reg = detailed[name.split(".")[0]]
+        base_field = next(row for row in original_regs[reg["id"]]["fields"] if row["id"] == name)
+        mask = hex16(base_field["mask"])
+        require(f["register"] == reg["id"] and f["table"] == reg["table"] and f["owner"] == 59
+                and hex16(f["mask"]) == mask and mask & hex16(reg["reservedMask"]) == mask,
+                f"{name}: removed field register, table, mask or owner")
     original_printed = indexed(original["printedAddresses"], "original printed addresses")
     printed = indexed(comparison["printedAddresses"], "A printed addresses")
     require(printed.keys() == original_printed.keys(), "incomplete printed-address comparison")

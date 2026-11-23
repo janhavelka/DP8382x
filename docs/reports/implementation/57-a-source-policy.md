@@ -310,3 +310,41 @@ incorrect readback masks. After the fix the ledger verifier passed and all
 Host driver, portable/package consumer, SDK link, remote CI and physical
 evidence were NOT RUN in this research slice. Phase (c) continues with
 the field ownership joins and remaining procedure/source comparisons.
+
+### Phase (c) review of field mappings and owners
+
+The wrapper verified clean `main` at `fc7ce95d39c74d71521bc63aa601f1a615fef8e3`.
+Two independent read-only reviewers used the session's high-reasoning model.
+One compared the field mappings to both TI tables. The other tried to break
+the mappings and checked each inherited field against its feature's stage.
+The three sibling checkouts were clean at the revisions recorded in phase (a).
+
+Of the 283 original fields, 281 have an A counterpart. Three LEDCFG source
+nibbles move down four bits. The two removed fields are IO_CFG1[6] and
+PHYCR[5]. The four additions are SOR1[11] and LEDCFG2[10:8]. The verifier
+now checks all 285 A field identities, masks and stage assignments. Each
+removal must identify the original register and mask and the specific A
+table in which those bits became reserved. The old verifier accepted a
+zero mask, a different reserved bit, duplicate removals and renamed additions.
+[Original tables 8-43/73/85/87/89](../../reference/source/TI-DP83826I-E-SNLS647I.pdf)
+and [A tables 8-44/74/86/88/90](../../reference/source/TI-DP83826AI-AE-SNLS783A.pdf)
+
+Three fields now have the same stage owner as their procedure. Prompt 58
+consumes GENCFG[3] in `compatibility_configure`, selects the pin 30 clock
+through 0303[5:3] and observes 0308[0] in `clock_configure`. The pin 31
+clock-source selection remains gated under 59. Prompt 57 explicitly assigns
+mux and IO_CFG1 closure to 59. Prompt 58 still tests the specific mux setting
+used for the pin 30 clock and the IO_CFG1[8] path used by RMII. Both operations
+need one writer through the application owner. [A procedure assignments](../../registers/dp83826a-procedures.json)
+
+FLDS[8:4] changes from RC to RCH and still consumes the five cause bits on
+read. The defined RXFS event mask is 00E1 in both generations. Bits 4:1
+are reserved RCH and bit 12 selects the interrupt source. RXFCFG1[0] now
+has an A validity override for its printed reset of 1h and strap-dependent
+default. [SNLS783A tables 8-34 and 8-91/92](../../reference/source/TI-DP83826AI-AE-SNLS783A.pdf)
+
+Host research PASS on Windows x86-64 with Python 3.12.10. The two local
+ledger commands recorded above passed, including all 95 ledger tests.
+Host driver, portable/package consumer, SDK link, remote CI and physical
+evidence were NOT RUN in this slice. Phase (c) continues with procedure
+ownership, inherited effects and source gates.
