@@ -462,3 +462,106 @@ and then `-R '^cli_matrix_registrations$'`. Release `-V -j 1` supplied
 `build/p55c-release-noncampaign.log` for the phase (b) counting procedure.
 The final inventory contains 667 registrations. Prompt 55 remains
 **IN PROGRESS** for phase (d).
+
+## Phase (d) final verification
+
+**Prompt 55 is COMPLETE.** All 667 registered tests passed in each of the
+three configurations on Windows x86-64 with GNU 15.1.0, CMake 4.0.1,
+Ninja 1.12.1 and Python 3.12.10.
+
+On 2026-11-23 the wrapper verified the review commit,
+`dd1dad5f571471d8fe3548fb2ba714d692428d84`, equal to `origin/main`.
+The index and working tree were clean at entry. The implementation is at
+`23cd959`. Both commits are on `main`.
+
+The DP83826I matrix accounts for 35 features, 52 procedures, 283 register
+fields, 47 write actions and five printed EEE addresses. Its 87 rows name
+96 distinct enabled host tests. The registrations check the coverage routes
+and the cases that still require an instrument or an identified partner.
+The matrix retains the source gates on deep-power exit, pin fields and
+electrical controls. Prompt 36's full primary implementation gate remains open.
+[Coverage matrix](../../feature-coverage.md) ·
+[Primary implementation gates](36-primary-feature-closure.md)
+
+The lead rechecked the phase (a) peer sources at the same clean TMP1x2 and
+24Cxx revisions, including their linked consumers, CLI subprocess tests,
+runner registration and local workflow definitions. DP8382x uses those
+registration conventions with its own MDIO and reset expectations. The
+archived SNLS647I hash matches phase (a). No procedure has stage 55 as
+its implementation owner. Two agents used the session model to run the
+Debug and UBSan builds independently. The lead ran Release, the portable
+consumer and source checks, and compared the verdict counts and SDK inputs.
+
+### Release verdicts and build inputs
+
+All 667 Release registrations were enabled and had executable commands.
+The 239 positive CHECK suites evaluated 5,018,406 assertions with zero
+failures. All 27 registered `WILL_FAIL` probes reported exactly one failed
+check. The two scheduling-dependent suites evaluated 1,073 checks in
+`frame_load` and 1,246 in `cli_native_console_concurrent_logs`. All other
+counts matched phase (b) individually, including 74,993 operation and
+19,192 reset evaluations. The static count was 6,551 sites, with 6,516 in
+C++ sources and 35 in headers. The phase (b) counting method works on
+the verbose Release log in `build/p55d-release-checks.log`.
+
+At configure and build, the native host verifier checked 45 SDK inputs for
+each tick rate and 37 for the P4 example at ESP-IDF v6.1
+`fff9895c82d744c7237be8847347bdd1b07c6643`. In each configuration the
+37 SDK paths in Ninja's dependency list for the compiled example object
+matched the example manifest exactly. The full application image links at
+clean `7fbdab2` are recorded in the
+[prompt 54 verification](54-regression-lifecycle-deadlines.md#phase-d-final-verification).
+
+| Local configuration | 660 host and CLI tests | Matrix registration and six offline campaigns |
+| --- | --- | --- |
+| Release | PASS in 9.52 s | PASS in 190.25 s |
+| Debug | PASS in 10.51 s | PASS in 203.24 s |
+| Release with C and C++ UBSan traps | PASS in 9.91 s | PASS in 193.60 s |
+
+| Other evidence | Result |
+| --- | --- |
+| Portable build-tree consumer | **PASS**. Both tests passed in the fresh tests-OFF build. |
+| Python | **PASS**. Standalone discovery ran 243 tests with 50 skips requiring a compiled fixture or generated inventory. The combined CTest builds exercised those paths. |
+| Source and documentation | **PASS**. Doxygen 1.13.2 checked 293 pages and rejected both negative fixtures. References verified 29 vendor payloads and 27 text extracts. The ledger verified 97 registers, 52 procedures and 35 features. Version and whitespace checks passed. |
+| SDK image link | **NOT RUN**. Prompt 55 changed host verification inputs. The public headers, adapter and firmware sources match the inputs linked for prompt 54. |
+| Exported package consumer | **NOT RUN**. Prompt 70 owns export and relocation. |
+| Remote CI and additional compilers/sanitizers | **NOT RUN**. Prompt 71 owns the Linux second compiler, ASan, LSan, TSan and non-trap UBSan. |
+| Physical qualification | **NOT RUN**. Q1 wire addressing, Q10 partner exchange, Q11 link controls and Q16/Q17 counters still need their identified fixtures. Native feature grants, first-board INT, reusable RX teardown and actual netif closure retain the gates recorded in phase (c) and prompt 54. |
+
+### Reproducing the checks
+
+Configure the three host builds with the SDK pin, process-local Git settings
+and compiler options in phase (b). Use the following split to run each
+registration once per build. Run the second selection on one configuration
+at a time to keep the offline subprocess watchdogs independent.
+
+```powershell
+$selection = 'cli_matrix_registrations|cli_hil_'
+foreach ($dir in 'build/p53-baseline','build/p55-debug','build/p55-ubsan') {
+  cmake --build $dir --parallel 2
+  ctest --test-dir $dir -V -E $selection -j 2 --output-on-failure --no-tests=error
+  ctest --test-dir $dir -R $selection -j 1 --output-on-failure --no-tests=error
+}
+```
+
+Use the phase (a) consumer and symbol commands with `build/p55d-consumer`.
+The new Release build compiled with warnings as errors, exceptions and RTTI
+disabled, and library tests OFF. The archive
+contained 14 portable objects. All 158 undefined symbol entries referenced
+the DP8382x namespace. Each combined build also compiled all five standalone
+public-header translation units.
+
+```powershell
+python -m unittest discover -s test -p 'test_*.py' -v
+python tools/check_doxygen.py
+python tools/verify_references.py
+python tools/verify_ledger.py
+python scripts/generate_version.py check
+git diff --check bb7d188..dd1dad5
+git diff --check
+git diff --cached --check
+```
+
+The completion request covers this report, the progress row and the README
+coverage summary. The wrapper records the resulting commit and upstream
+verification in the run log.

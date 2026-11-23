@@ -37,10 +37,13 @@ corrects immediate trust-loss handling, pre-GPIO admission recovery and P4
 controller-busy quarantine, with separate deadline and poll-limit receipts.
 [EEE negotiation and status](docs/eee.md) now provide explicit reset-bearing setup,
 verified restoration and bounded retained observations; physical Q1 remains pending.
-The [prompt-36 integration review](docs/reports/implementation/36-primary-feature-closure.md)
-delivers focused corrections and confirms that full primary closure remains
-blocked by required source-gated branches. Independent native integration can
-continue on the implemented subset; prompt 55 still owns final primary row closure.
+
+The DP83826I coverage matrix maps all 35 features and 52 procedures to their
+command routes, host tests and physical evidence requirements. The source
+gates identified in the primary integration review still limit which
+procedures can execute. [Coverage matrix](docs/feature-coverage.md) ·
+[Primary integration review](docs/reports/implementation/36-primary-feature-closure.md)
+
 [Power policy and observations](docs/power.md) now share explicit software intent,
 finite PLL/IEEE transitions and reset replay. Deep-power-down exit remains gated;
 physical clock and power qualification remain unmeasured.
