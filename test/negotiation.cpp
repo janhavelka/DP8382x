@@ -1,4 +1,4 @@
-#include "support/Check.h"
+#include "support/BoundDriver.h"
 #include <DP8382x/DP8382x.h>
 
 #include <array>
@@ -265,9 +265,7 @@ void vectors() {
   // are built from original field literals, never production masks/encoders.
   for (uint8_t technologies = 1; technologies <= 15; ++technologies) {
     for (unsigned pause = 0; pause != 4; ++pause) {
-      Controller bus;
-      Driver driver;
-      CHECK(driver.bind(bus.config()).ok());
+      auto [bus, driver] = test::BoundDriver<Controller>{};
       initialize(driver, bus);
       auto& phy = bus.phys[1];
       phy.anar = 0xF21F; // Non-default selector, RF and NP; reserved/RO bits.
@@ -355,9 +353,7 @@ void admission() {
 
 void replay() {
   for (const auto reset : {ResetKind::NONE, ResetKind::PCS, ResetKind::HARD, ResetKind::RESTART}) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     const auto token = configure(driver, settings(0x03, 3)); // 10 Mbit/s only.
     CHECK(drain(driver, bus, token).ok());
@@ -376,9 +372,7 @@ void replay() {
 }
 
 void failures() {
-  Controller baseline;
-  Driver reference;
-  CHECK(reference.bind(baseline.config()).ok());
+  auto [baseline, reference] = test::BoundDriver<Controller>{};
   initialize(reference, baseline);
   const auto firstFrame = baseline.frames, firstCall = baseline.calls;
   auto token = configure(reference);
@@ -388,9 +382,7 @@ void failures() {
   (void)take(reference, token);
 
   for (unsigned failed = 0; failed < frameCount; ++failed) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     const auto startFrame = bus.frames;
     bus.failFrame = static_cast<int>(startFrame + failed);
@@ -415,9 +407,7 @@ void failures() {
   }
 
   for (unsigned boundary = 0; boundary < batchCount; ++boundary) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     token = configure(driver, settings(0x02));
     const auto startFrame = bus.frames;
@@ -441,9 +431,7 @@ void failures() {
 
   // Every target readback comparison is meaningful; a later bus failure must
   // not discard an earlier mismatch or silently replace it with success.
-  Controller bus;
-  Driver driver;
-  CHECK(driver.bind(bus.config()).ok());
+  auto [bus, driver] = test::BoundDriver<Controller>{};
   initialize(driver, bus);
   token = configure(driver);
   unsigned writeCount = 0;
@@ -464,9 +452,7 @@ void failures() {
   CHECK(mismatch.cleanupOwed);
   CHECK(mismatch.failingBatch.normalized.is(Err::MDIO_TIMEOUT));
 
-  Controller controlBus;
-  Driver controlDriver;
-  CHECK(controlDriver.bind(controlBus.config()).ok());
+  auto [controlBus, controlDriver] = test::BoundDriver<Controller>{};
   initialize(controlDriver, controlBus);
   token = configure(controlDriver);
   controlBus.badBmcr = 0x2000; // Complete readback proves AN remains disabled.
@@ -527,9 +513,7 @@ void pages() {
   // IEEE 802.3-2012 Annex 28C.6/7: both tags require four immediately
   // following eleven-bit UPs. The caller owns the OUI/PHY-ID payload encoding.
   for (const uint16_t message : {uint16_t{5}, uint16_t{6}}) {
-    Controller taggedBus;
-    Driver taggedDriver;
-    CHECK(taggedDriver.bind(taggedBus.config()).ok());
+    auto [taggedBus, taggedDriver] = test::BoundDriver<Controller>{};
     initialize(taggedDriver, taggedBus);
     taggedBus.automaticPartner = true;
     taggedBus.partnerCount = 5;
@@ -564,9 +548,7 @@ void pages() {
   // Exactly sixteen local and received pages fit both fixed capacities. The
   // partner has no payload left and services all remaining local pages with nulls.
   {
-    Controller fullBus;
-    Driver fullDriver;
-    CHECK(fullDriver.bind(fullBus.config()).ok());
+    auto [fullBus, fullDriver] = test::BoundDriver<Controller>{};
     initialize(fullDriver, fullBus);
     fullBus.automaticPartner = true;
     fullBus.partnerCount = 16;
@@ -598,9 +580,7 @@ void pages() {
   // Clause 28.2.3.4.7 inverts base bit 11 for the first partner toggle.
   // A partner advertising asymmetric pause therefore begins with toggle zero.
   {
-    Controller toggledBus;
-    Driver toggledDriver;
-    CHECK(toggledDriver.bind(toggledBus.config()).ok());
+    auto [toggledBus, toggledDriver] = test::BoundDriver<Controller>{};
     initialize(toggledDriver, toggledBus);
     preparePartner(toggledBus);
     toggledBus.partnerAdvertisement = 0x8901;
@@ -616,9 +596,7 @@ void pages() {
     CHECK(result.nextPage.pages[1].valid && result.nextPage.pages[1].raw == 0x2801);
   }
   for (const bool duplicate : {false, true}) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     preparePartner(bus);
     bus.duplicateSecond = duplicate;
@@ -661,9 +639,7 @@ void pages() {
   }
 
   // Local one-page completion cannot abandon a partner with more data.
-  Controller bus;
-  Driver driver;
-  CHECK(driver.bind(bus.config()).ok());
+  auto [bus, driver] = test::BoundDriver<Controller>{};
   initialize(driver, bus);
   preparePartner(bus);
   auto options = exchangeOptions();
@@ -679,9 +655,7 @@ void pages() {
 void pageFailures() {
   // The epoch's initial drain is destructive even when its terminal read fails.
   {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     const auto token = exchange(driver);
     bus.failFrame = static_cast<int>(bus.frames);
@@ -693,9 +667,7 @@ void pageFailures() {
   }
   // Partner refusal still completes ordinary AN and clears the owned NP epoch.
   {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     preparePartner(bus);
     bus.partnerRefuses = true;
@@ -708,9 +680,7 @@ void pageFailures() {
   }
   // A consumed NEXT event remains represented when the following payload read fails.
   {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     preparePartner(bus);
     const auto token = exchange(driver);
@@ -730,9 +700,7 @@ void pageFailures() {
   }
   // A fresh epoch with no page service is pending until a finite budget ends it.
   for (const bool cancel : {false, true}) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     preparePartner(bus);
     bus.partnerCount = 0;
@@ -753,9 +721,7 @@ void pageFailures() {
   }
   // The accepted page budget includes duplicates and generated null service.
   {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     preparePartner(bus);
     auto options = exchangeOptions();
@@ -777,8 +743,7 @@ void pageBoundaries() {
   // Losing the entire consumed ANER receipt leaves page history uncertain,
   // even when no frame flag survives to describe its hardware effect.
   {
-    Controller bus; Driver driver;
-    CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus); preparePartner(bus);
+    auto [bus, driver] = test::BoundDriver<Controller>{}; initialize(driver, bus); preparePartner(bus);
     const auto token = exchange(driver);
     advanceUntilLoaded(driver, bus, token);
     bus.missingReceiptBatch = static_cast<int>(bus.calls);
@@ -793,9 +758,7 @@ void pageBoundaries() {
   // A completed ANNPTR write remains loaded even if release fails or the raw
   // post-callback clock reaches the deadline before publication.
   for (const bool releaseFailure : {false, true}) {
-    Controller lateBus;
-    Driver lateDriver;
-    CHECK(lateDriver.bind(lateBus.config()).ok());
+    auto [lateBus, lateDriver] = test::BoundDriver<Controller>{};
     initialize(lateDriver, lateBus);
     preparePartner(lateBus);
     const auto lateToken = exchange(lateDriver);
@@ -812,9 +775,7 @@ void pageBoundaries() {
     CHECK(result.nextPage.receivedPages == 1 && result.nextPage.pages[0].valid);
     CHECK(result.nextPage.npMayRemainSet && !result.negotiationComplete);
   }
-  Controller referenceBus;
-  Driver reference;
-  CHECK(reference.bind(referenceBus.config()).ok());
+  auto [referenceBus, reference] = test::BoundDriver<Controller>{};
   initialize(reference, referenceBus);
   preparePartner(referenceBus);
   const auto firstFrame = referenceBus.frames, firstCall = referenceBus.calls;
@@ -824,9 +785,7 @@ void pageBoundaries() {
   const auto frames = referenceBus.frames - firstFrame;
   const auto batches = referenceBus.calls - firstCall;
   for (unsigned failed = 0; failed < frames; ++failed) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     preparePartner(bus);
     const auto before = bus.frames;
@@ -846,9 +805,7 @@ void pageBoundaries() {
     }
   }
   for (unsigned boundary = 0; boundary < batches; ++boundary) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     preparePartner(bus);
     token = exchange(driver);
@@ -869,9 +826,7 @@ void pageBoundaries() {
 }
 
 void pageAdmission() {
-  Controller bus;
-  Driver driver;
-  CHECK(driver.bind(bus.config()).ok());
+  auto [bus, driver] = test::BoundDriver<Controller>{};
   initialize(driver, bus);
   const auto calls = bus.calls, clocks = bus.clocks;
   for (const uint16_t message : {uint16_t{5}, uint16_t{6}}) {
@@ -920,9 +875,7 @@ void pageAdmission() {
 void completion() {
   // Restart-clear and complete register readback do not manufacture AN-complete.
   for (const bool partnerComplete : {false, true}) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     bus.phys[1].bmsr = partnerComplete ? 0x0020 : 0;
     ConfigureOptions options;
@@ -939,9 +892,7 @@ void completion() {
   }
   // Bilateral NP termination still does not prove that AN has completed.
   {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     preparePartner(bus);
     bus.completePartner = false;
@@ -966,9 +917,7 @@ void timing() {
   // A short slice yields before an indivisible CR1 RMW; the next full slice
   // still reads the hardware value immediately before its owned update.
   {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     const auto token = exchange(driver);
     for (unsigned index = 0; index < 7; ++index) CHECK(driver.pollOperation(token, 1).is(Err::IN_PROGRESS));
@@ -983,9 +932,7 @@ void timing() {
   }
   // Frozen clocks cannot make an unserviced NP epoch run without bound.
   {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     bus.frameTime = 0;
     const auto token = exchange(driver);
@@ -999,9 +946,7 @@ void timing() {
     CHECK(bus.pageLoads == 0 && bus.restarts == 1);
   }
   {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     preparePartner(bus);
     const auto token = exchange(driver);
@@ -1015,9 +960,7 @@ void timing() {
     CHECK(driver.transportSnapshot().clockInvalid);
   }
   {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     bus.lateBatch = static_cast<int>(bus.calls + 10); // Accepted ANAR write then deadline.
     const auto token = configure(driver);
@@ -1027,9 +970,7 @@ void timing() {
     CHECK(bus.phys[1].anar == 0x0101 && bus.restarts == 0);
   }
   {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     OperationToken token;
     const auto deadline = bus.now + 20;
@@ -1042,9 +983,7 @@ void timing() {
   // A valid page received in a late callback is retained; it cannot make the
   // expired exchange successful or authorize an implicit NP cleanup write.
   {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     initialize(driver, bus);
     preparePartner(bus);
     const auto token = exchange(driver);

@@ -25,7 +25,27 @@ enum class ReportFault {
   REGRESSING_TIMESTAMP, EARLY_TIMESTAMP, TIMESTAMP_WITHOUT_VALIDITY, SHORT_OK
 };
 
-struct FakeController {
+// Shared controller lifetime and accounting. A failed unlock leaves the
+// modeled lock held. A successful unlock may still return a retired bus.
+struct ControllerState {
+  uint64_t now{100};
+  unsigned clocks{0}, acquisitions{0}, releases{0};
+  bool locked{false}, quarantined{false};
+
+  void acquire() noexcept {
+    locked = true;
+    ++acquisitions;
+  }
+  void release(BatchResult& result) noexcept {
+    if (result.releaseStatus.ok()) {
+      locked = false;
+      ++releases;
+    }
+    if (!result.releaseStatus.ok() || !result.controllerReusable) quarantined = true;
+  }
+};
+
+struct FakeController : ControllerState {
   explicit FakeController(bool indirect = false) noexcept : mmdModel(indirect) {}
   bool mmdModel;
   uint64_t duration{5};
@@ -36,15 +56,9 @@ struct FakeController {
   BatchResult response{};
   void (*onFrame)(FakeController&, const IoBudget&) noexcept {nullptr};
   void (*onClock)(FakeController&) noexcept {nullptr};
-  uint64_t now{100};
   uint64_t frameDuration{2};
-  unsigned clocks{0};
   unsigned callbacks{0};
-  unsigned acquisitions{0};
-  unsigned releases{0};
   unsigned launches{0};
-  bool locked{false};
-  bool quarantined{false};
   bool releaseFail{false};
   int failAt{-1};
   int expireAfter{-1};
@@ -136,8 +150,7 @@ struct FakeController {
       CHECK(frame.kind == FrameKind::READ && frame.registerAddress == 0U &&
             frame.value == 0U && frame.preserveMask == 0U && frame.readIndex == 0xFFU);
     }
-    bus.locked = true;
-    ++bus.acquisitions;
+    bus.acquire();
     bus.lastRequest = batch;
     bus.lastBudget = budget;
     bus.traceCount = 0;
@@ -214,13 +227,8 @@ struct FakeController {
     if (bus.releaseFail) {
       result.releaseStatus = {Err::MDIO_ERROR, -901, "Release failed"};
       result.controllerReusable = false;
-      bus.quarantined = true;
     }
-    if (result.releaseStatus.ok()) {
-      bus.locked = false;
-      ++bus.releases;
-    }
-    if (!result.releaseStatus.ok() || !result.controllerReusable) bus.quarantined = true;
+    bus.release(result);
     return result;
   }
 };

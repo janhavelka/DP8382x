@@ -1,3 +1,4 @@
+#include "support/BoundDriver.h"
 #include "support/FakeController.h"
 #include <DP8382x/DP8382x.h>
 
@@ -70,9 +71,7 @@ void testTraces() {
     CHECK(driver.end().ok());
   }
   for (const auto tuple : {std::array<uint16_t, 2>{3, 0x0014}, {7, 0x003C}, {7, 0x003D}}) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     uint16_t word = SENTINEL;
     CHECK(driver.readMmd(tuple[0], tuple[1], word, BUDGET).ok());
     CHECK(bus.traceCount == 4U);
@@ -87,7 +86,7 @@ void testTraces() {
     if ((mask & ~uint32_t{0x0692}) != 0U) continue;
     for (uint32_t value = 0; value <= mask; ++value) {
       if ((value & ~mask) != 0U) continue;
-      Controller bus; Driver driver; CHECK(driver.bind(bus.config()).ok());
+      auto [bus, driver] = test::BoundDriver<Controller>{};
       bus.led[1] = 0xFFFF;
       CHECK(driver.modifyMmd(31, 0x18, mask, value, BUDGET).ok());
       CHECK(bus.led[1] == ((0x0692U & ~mask) | value));
@@ -98,7 +97,9 @@ void testTraces() {
 }
 
 void testAdmission() {
-  Controller bus; Driver driver; CHECK(driver.bind(bus.config()).ok());
+  test::BoundDriver<Controller> fixture;
+  auto& bus = fixture.bus;
+  auto& driver = fixture.driver;
   auto rejected = [&](uint32_t devad, uint32_t address, uint32_t mask, uint32_t value,
                       unsigned operation, Err expected) {
     const auto calls = bus.callbacks; const auto clocks = bus.clocks;
@@ -184,7 +185,7 @@ void testAdmission() {
   for (bool rmw : {false, true}) {
     const uint32_t frames = rmw ? 5U : 4U;
     for (uint32_t allowance = 0; allowance <= frames; ++allowance) {
-      Controller bounded; Driver target; CHECK(target.bind(bounded.config()).ok());
+      auto [bounded, target] = test::BoundDriver<Controller>{};
       uint16_t word = SENTINEL;
       const IoBudget budget{1000, allowance};
       const auto status = rmw ? target.modifyMmd(31, 0x18, 2, 2, budget) : target.readMmd(31, 2, word, budget);
@@ -196,7 +197,7 @@ void testAdmission() {
     // raw 100 + lag 1 + acquire 3 + n*frame 4 + release 2 + overhead 3.
     const uint64_t equality = 109U + uint64_t{frames} * 4U;
     for (uint64_t deadline : {equality, equality + 1U}) {
-      Controller bounded; Driver target; CHECK(target.bind(bounded.config()).ok());
+      auto [bounded, target] = test::BoundDriver<Controller>{};
       uint16_t word = SENTINEL;
       const IoBudget budget{deadline, frames};
       const auto status = rmw ? target.modifyMmd(31, 0x18, 2, 2, budget) : target.readMmd(31, 2, word, budget);
@@ -212,7 +213,7 @@ void testFailures() {
     const unsigned frames = operation == 2U ? 5U : 4U;
     for (unsigned phase = 0; phase < frames; ++phase) {
       for (bool accepted : {false, true}) {
-        Controller bus; Driver driver; CHECK(driver.bind(bus.config()).ok());
+        auto [bus, driver] = test::BoundDriver<Controller>{};
         bus.selector[1] = 0x401F; bus.address[1] = 0x0460; bus.led[1] = 0;
         bus.failAt = static_cast<int>(phase); bus.acceptFailedWrite = accepted;
         uint16_t value = SENTINEL;
@@ -238,7 +239,7 @@ void testFailures() {
       }
     }
     for (unsigned phase = 0; phase < frames; ++phase) {
-      Controller bus; Driver driver; CHECK(driver.bind(bus.config()).ok());
+      auto [bus, driver] = test::BoundDriver<Controller>{};
       bus.expireAfter = static_cast<int>(phase);
       uint16_t value = SENTINEL;
       const auto status = operation == 0U ? driver.readMmd(31, 0x18, value, BUDGET) :
@@ -262,7 +263,7 @@ void testReports() {
                            ReportFault::UNKNOWN_STATUS, ReportFault::NULL_MESSAGE,
                            ReportFault::REGRESSING_TIMESTAMP, ReportFault::EARLY_TIMESTAMP,
                            ReportFault::TIMESTAMP_WITHOUT_VALIDITY, ReportFault::SHORT_OK}) {
-    Controller bus; Driver driver; CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     bus.reportFault = fault;
     uint16_t value = SENTINEL;
     const auto status = driver.readMmd(31, 2, value, BUDGET);
@@ -291,7 +292,7 @@ void testReports() {
   // A backend that reports an unusable read then a dependent target write has
   // broken sequencing. Do not count the later frame as a trusted prefix, but
   // retain its original possible/completed hardware effects for owner recovery.
-  Controller bus; Driver driver; CHECK(driver.bind(bus.config()).ok());
+  auto [bus, driver] = test::BoundDriver<Controller>{};
   bus.reportFault = ReportFault::MISSING_READ_VALUE;
   CHECK(driver.modifyMmd(31, 0x18, 2, 2, BUDGET).is(Err::MDIO_ERROR));
   const auto receipt = driver.transportSnapshot();

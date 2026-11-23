@@ -183,7 +183,7 @@ extern "C" esp_err_t uart_flush_input(uart_port_t port) {
   return ESP_OK;
 }
 
-int main() {
+static void errorLatch() {
   Fixture fixture;
   enableStatus = ESP_FAIL;
   CHECK(startUartConsole(fixture.queues) == ESP_FAIL);
@@ -226,5 +226,9 @@ int main() {
   CHECK(discarded == 5 && fixture.writes == 0);
   fixture.turn("\nregisters write c22 24 0x12\n");
   CHECK(fixture.writes == 1 && fixture.lastValue == 0x12);
-  return 0;
+}
+
+int main(int argc, char** argv) {
+  const test::Suite suites[] = {{"error_latch", errorLatch}};
+  return test::runSuites(argc, argv, suites);
 }

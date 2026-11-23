@@ -27,7 +27,8 @@ set(sdk_sources "${sdk}/components/esp_eth/src/esp_eth.c"
     "${sdk}/components/esp_eth/src/esp_eth_netif_glue.c")
 set(verify_command "${Python3_EXECUTABLE}" "${host}/verify_sdk.py"
     --sdk "${sdk}" --manifest "${host}/sdk-files.json"
-    --compiler "${CMAKE_C_COMPILER}" --cxx "${CMAKE_CXX_COMPILER}")
+    --compiler "${CMAKE_C_COMPILER}" --cxx "${CMAKE_CXX_COMPILER}"
+    --force-include "${host}/platform/host_compat.h")
 foreach(include IN LISTS sdk_includes)
   list(APPEND verify_command --include "${include}")
 endforeach()
@@ -105,22 +106,64 @@ target_include_directories(dp8382x_uart_host_tests PRIVATE "${host}/uart" ${sdk_
 target_compile_definitions(dp8382x_uart_host_tests PRIVATE
     CONFIG_LOG_VERSION_1=1 CONFIG_ESP_CONSOLE_UART_DEFAULT=1 CONFIG_ESP_CONSOLE_SECONDARY_NONE=1)
 target_compile_options(dp8382x_uart_host_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
-add_test(NAME native_uart_error_latch COMMAND dp8382x_uart_host_tests)
+add_test(NAME native_uart_error_latch COMMAND dp8382x_uart_host_tests error_latch)
+add_test(NAME native_uart_verdict COMMAND "${Python3_EXECUTABLE}"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../verify_check_exit.py" "$<TARGET_FILE:dp8382x_uart_host_tests>")
 set_tests_properties(native_uart_error_latch PROPERTIES TIMEOUT 15)
 
 # The application lifecycle tests include the actual P4 example translation
 # unit with SDK boundary calls injected by the host test. No duplicate owner.
-add_executable(dp8382x_example_host_tests host/example.cpp "${repo}/examples/common/Dp8382xCli.cpp")
-target_link_libraries(dp8382x_example_host_tests PRIVATE dp8382x_native_host)
-target_compile_definitions(dp8382x_example_host_tests PRIVATE
-    CONFIG_ETH_USE_ESP32_EMAC=1 CONFIG_IDF_TARGET_ESP32P4=1)
-target_include_directories(dp8382x_example_host_tests PRIVATE
+set(example_source "${host}/example.cpp")
+set(example_defines CONFIG_ETH_USE_ESP32_EMAC=1 CONFIG_IDF_TARGET_ESP32P4=1)
+set(example_includes
     "${sdk}/components/esp_driver_gpio/include"
     "${sdk}/components/esp_hw_support/include"
     "${sdk}/components/esp_hal_gpio/include"
     "${sdk}/components/esp_hal_gpio/esp32p4/include"
-    "${sdk}/components/esp_system/include")
-target_compile_options(dp8382x_example_host_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+    "${sdk}/components/esp_system/include"
+    "${repo}/include" "${host}" ${sdk_includes})
+list(REMOVE_DUPLICATES example_includes)
+set(example_options -Wall -Wextra -Werror -UNDEBUG -std=gnu++17)
+add_executable(dp8382x_example_host_tests "${example_source}" "${repo}/examples/common/Dp8382xCli.cpp")
+target_link_libraries(dp8382x_example_host_tests PRIVATE dp8382x_native_host)
+target_compile_definitions(dp8382x_example_host_tests PRIVATE ${example_defines})
+target_include_directories(dp8382x_example_host_tests PRIVATE ${example_includes})
+target_compile_options(dp8382x_example_host_tests PRIVATE ${example_options})
+
+set(example_verify "${Python3_EXECUTABLE}" "${host}/verify_sdk.py"
+    --sdk "${sdk}" --manifest "${host}/example-sdk-files.json"
+    --compiler "${CMAKE_C_COMPILER}" --cxx "${CMAKE_CXX_COMPILER}" --source "${example_source}")
+foreach(definition IN LISTS example_defines)
+  list(APPEND example_verify --define "${definition}")
+endforeach()
+foreach(include IN LISTS example_includes)
+  list(APPEND example_verify --include "${include}")
+endforeach()
+set(scan_configs ${CMAKE_CONFIGURATION_TYPES})
+if(NOT scan_configs)
+  set(scan_configs "${CMAKE_BUILD_TYPE}")
+endif()
+if(NOT scan_configs)
+  set(scan_configs default)
+endif()
+foreach(config IN LISTS scan_configs)
+  string(TOUPPER "${config}" config_upper)
+  separate_arguments(config_options NATIVE_COMMAND "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${config_upper}}")
+  set(verify_example_config ${example_verify})
+  foreach(option IN LISTS config_options example_options)
+    list(APPEND verify_example_config "--option=${option}")
+  endforeach()
+  execute_process(COMMAND ${verify_example_config} RESULT_VARIABLE example_verified)
+  if(NOT example_verified EQUAL 0)
+    message(FATAL_ERROR "Pinned example SDK dependency verification failed (${config})")
+  endif()
+  list(APPEND verify_example_commands COMMAND ${verify_example_config})
+endforeach()
+add_custom_target(dp8382x_verify_example_sdk ${verify_example_commands} VERBATIM)
+add_dependencies(dp8382x_example_host_tests dp8382x_verify_example_sdk)
+add_test(NAME example_sdk_header_drift
+    COMMAND "${Python3_EXECUTABLE}" "${host}/check_example_sdk_drift.py" ${verify_example_config})
+set_tests_properties(example_sdk_header_drift PROPERTIES TIMEOUT 30)
 foreach(suite IN ITEMS board_config gate_closed shared_loop netif_init_failure
     event_loop_failure netif_new_failure mutex_failure mac_new_failure
     factory_failure board_failure board_direction_failure driver_allocation_failure

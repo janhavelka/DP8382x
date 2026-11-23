@@ -1,4 +1,4 @@
-#include "support/Check.h"
+#include "support/BoundDriver.h"
 #include <DP8382x/DP8382x.h>
 #include "../examples/portable/Events.h"
 #include "../src/DP8382xEvidence.h"
@@ -139,11 +139,7 @@ struct Controller {
     return result;
   }
 };
-struct Fixture {
-  Controller bus;
-  Driver driver;
-  Fixture() { CHECK(driver.bind(bus.config()).ok()); }
-};
+using Fixture = test::BoundDriver<Controller>;
 const EvidenceSample& sample(const EvidenceSnapshot& snapshot, EvidenceSource source) {
   return snapshot.samples[static_cast<uint8_t>(source)];
 }

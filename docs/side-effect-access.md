@@ -16,9 +16,9 @@ selector, recipe-only and mandatory-follow-up entries. No register-manager layer
 or caller-supplied transaction is exposed.
 
 The application's serialized owner establishes the exact part/address, readiness,
-maintenance admission and safe board wiring. Initialization uses its implemented
-typed operation; IRQ pin setup, complete WoL configuration and diagnostic sessions
-remain later procedures. All participants share controller ownership and quarantine. Actual
+maintenance admission and safe board wiring. IRQ pin setup, WoL configuration and
+diagnostic sessions have typed owners in the [feature matrix](feature-coverage.md).
+All participants share controller ownership and quarantine. Actual
 MDIO timing and silicon behavior remain physically unqualified.
 
 ## Safe dumps and explicit acquisition
@@ -28,9 +28,11 @@ uses those routes and displays copied `evidenceSnapshot()` for destructive
 sources. It never refreshes destructive state implicitly. Selectors, CDCR,
 all-reserved entries and procedure-only addresses remain rejected; CDCR's rescal
 follow-up makes it unsuitable for an ordinary dump despite having no RC fields.
-Source-implied EEE reads are limited to the three D2 tuples in the transport guide.
+The stable source-implied EEE reads use DEVAD 3 offset 0x0014 and DEVAD 7
+offsets 0x003C and 0x003D. The two destructive D2 tuples below require the
+collector. All five wire offsets retain the physical Q1 gate.
 
-`acquireEvidence(mask, output, budget)` is an explicit consuming operation. Eleven
+`acquireEvidence(mask, output, budget)` is an explicit consuming operation. Fifteen
 sources are selectable. Their exact numeric masks and addresses remain in the
 header/ledger; the acquisition order is:
 
@@ -46,6 +48,10 @@ header/ledger; the acquisition order is:
 | RCSR | Raw RC status; reset polarity and rearm meaning remain gated. |
 | 10BTSCR | Polarity history clears per description despite its R access label. |
 | RXFS | Retains raw filter/WoL history and routing; reserved returned bits are not controls. |
+| BISCR | Captures current BIST activity, checker lock, sync-loss indication and normal-power status. |
+| BICSR1 | Captures the error byte and IPG. The explicit freeze/clear write has its own BIST owner. |
+| EEE_STATUS | DEVAD 3 offset 0x0001. Keep latched LPI history and current indications separate. |
+| EEE_ERRORS | DEVAD 3 offset 0x0016. Retain the read-clear error word even if a later acquisition fails. |
 
 PHYSTS mirrors depend on RECR, 10BTSCR, FCSCR, ANER, MISR and BMSR reads
 (SNLS647I table 8-34). Collection orders requested sources accordingly, but does

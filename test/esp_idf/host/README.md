@@ -1,9 +1,9 @@
 # Pinned driver host tests
 
-Prompt 40 adds `dp8382x_example_host_tests`: it includes the actual P4 basic
-application translation unit with its build identity/app_main entry suppressed,
-and compiles against the same pinned SDK driver/glue and native adapter. The
-35 cases inject board/resource acquisition, all SDK glue and application
+`dp8382x_example_host_tests` includes the P4 basic application translation
+unit with its build identity/app_main entry suppressed and compiles against
+the pinned SDK driver/glue and native adapter. Its 70 application cases
+exercise board/resource acquisition, all SDK glue and application
 handler registration failures, partial netif attach with retained RX context,
 start/stop/retire failures and callback bursts without console progress.
 `BoardConfig` is compiled from the production header. These host cases model
@@ -25,12 +25,20 @@ ctest --test-dir build/pinned-idf --output-on-failure --no-tests=error
 GNU or Clang is required for the unmodified SDK C17 source. Consumers leave
 `DP8382X_BUILD_PINNED_IDF_TESTS` off and need no SDK or Python.
 
-`verify_sdk.py` checks the exact SDK commit, asks the compiler for every
-compiled source's header dependencies for 1000Hz, 100Hz and 333Hz configurations,
-checks every selected SDK file against
-the pinned Git blob and compares the complete closure with `sdk-files.json`.
-Only Windows CRLF expansion is normalized. Configuration and every build
-run the check. A missing, altered or unrecorded SDK file fails the build.
+`verify_sdk.py` checks the SDK commit and the compiler-selected files against
+their Git blobs. It normalizes Windows CRLF expansion. The driver/glue, adapter,
+probes, fakes and driver/native/CLI test sources listed in CMake select the
+45 SDK inputs in `sdk-files.json` at 1000, 100 and 333 Hz.
+
+`example-sdk-files.json` records the 37 SDK headers selected by
+`host/example.cpp`, including the basic application's GPIO and P4 EMAC
+headers. The compiler scan shares the example target's definitions, include
+order and compile options. CMake verifies this manifest during configuration
+and whenever it builds the example host target. The registered
+`example_sdk_header_drift` case verifies a clean copy in the build tree,
+edits only the copied `driver/gpio.h` and requires the verifier to identify
+that file. The owner CLI and UART tests compile as separate translation
+units. Their build results do not establish manifest coverage for their inputs.
 
 The platform directory supplies the explicit host configuration, the small
 FreeRTOS scheduling/semaphore boundary, Windows endian definitions and the

@@ -1,3 +1,4 @@
+#include "support/BoundDriver.h"
 #include "support/FakeController.h"
 
 #include <array>
@@ -302,9 +303,7 @@ void testPolicy() {
 
 void testFailures() {
   for (int phase = 0; phase < 2; ++phase) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     bus.failAt = phase;
     auto output = sentinel();
     const auto status = driver.readIdentity(output, BUDGET);
@@ -324,9 +323,7 @@ void testFailures() {
   }
   for (const auto fault : {IdentityFault::SHORT, IdentityFault::MISSING_ATTEMPT,
        IdentityFault::BAD_TIME, IdentityFault::NONTERMINAL, IdentityFault::ERROR_AFTER_READS}) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     bus.identityFault = fault;
     auto output = sentinel();
     const auto status = driver.readIdentity(output, BUDGET);
@@ -344,9 +341,7 @@ void testFailures() {
     literalTrace(bus, 1);
   }
   for (unsigned fault = 0; fault < 3U; ++fault) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     if (fault == 0U) bus.releaseFail = true;
     if (fault == 1U) bus.duration = 100;
     if (fault == 2U) bus.regress = true;
@@ -362,9 +357,7 @@ void testFailures() {
     noCapabilities(driver);
   }
   // A complete late response retains both words but cannot publish acceptance.
-  Controller bus;
-  Driver driver;
-  CHECK(driver.bind(bus.config()).ok());
+  auto [bus, driver] = test::BoundDriver<Controller>{};
   bus.expireAfter = 1;
   auto output = sentinel();
   CHECK(driver.readIdentity(output, {150, 2}).is(Err::OPERATION_TIMEOUT));
@@ -373,9 +366,7 @@ void testFailures() {
   noCapabilities(driver);
   // Two frames need fixed(9)+frames(10)+clock lag(2) strictly before deadline.
   for (const uint64_t deadline : {uint64_t{121}, uint64_t{122}}) {
-    Controller edge;
-    Driver edgeDriver;
-    CHECK(edgeDriver.bind(edge.config()).ok());
+    auto [edge, edgeDriver] = test::BoundDriver<Controller>{};
     auto edgeOutput = sentinel();
     const auto status = edgeDriver.readIdentity(edgeOutput, {deadline, 2});
     if (deadline == 121U) {
@@ -511,9 +502,7 @@ void testLifecycle() {
   CHECK(driver.writeClause22(0x18, 0x12, {10000, 1}).ok()); // Fresh owner attestation is explicit.
 
   // Re-reading identical words does not make unrelated collected samples stale.
-  Controller changed;
-  Driver observed;
-  CHECK(observed.bind(changed.config()).ok());
+  auto [changed, observed] = test::BoundDriver<Controller>{};
   CHECK(observed.readIdentity(output, BUDGET).ok());
   EvidenceSnapshot evidence;
   CHECK(observed.acquireEvidence(evidenceBit(EvidenceSource::BMSR), evidence, {10000, 1}).ok());
@@ -619,9 +608,7 @@ void testScan() {
   CHECK(id1 == 0x1234 && id2 == 0x5678);
 
   for (int phase = 0; phase < 2; ++phase) {
-    Controller failed;
-    Driver observed;
-    CHECK(observed.bind(failed.config()).ok());
+    auto [failed, observed] = test::BoundDriver<Controller>{};
     failed.failAt = phase;
     invoked = false; id1 = 0xDEAD; id2 = 0xBEEF;
     CHECK(observed.readIdentityAt(31, id1, id2, BUDGET, &invoked).is(Err::MDIO_TIMEOUT));
@@ -634,9 +621,7 @@ void testScan() {
     CHECK(!failed.locked && failed.releases == 1U);
   }
   for (unsigned fault = 0; fault < 3U; ++fault) {
-    Controller failed;
-    Driver observed;
-    CHECK(observed.bind(failed.config()).ok());
+    auto [failed, observed] = test::BoundDriver<Controller>{};
     if (fault == 0U) failed.expireAfter = 1;
     if (fault == 1U) failed.regress = true;
     if (fault == 2U) failed.identityFault = IdentityFault::SHORT;
@@ -657,9 +642,7 @@ void testScan() {
   }
 
   // Raw scans cannot bypass either an active operation or its retained result.
-  Controller owned;
-  Driver active;
-  CHECK(active.bind(owned.config()).ok());
+  auto [owned, active] = test::BoundDriver<Controller>{};
   OperationToken token;
   CHECK(active.startInitialize({ResetKind::PCS}, {{10000, 64}, 10, 16}, token).inProgress());
   invoked = true;

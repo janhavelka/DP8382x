@@ -307,7 +307,7 @@ retained observations with independent validity and staleness.
 | `power configure normal\|down\|deep sleep pll-off`, `power read`, `power status` | Active sleep and PLL request are 0/1. PLL-off requires IEEE down. Entry/exit requires management and clock-loss evidence as applicable. Deep-power controls remain source-gated. |
 | `eee configure off\|on advertisement bypass-mask`, `eee read`, `eee status` | Advertisement 0 or 2 for 100BASE-TX. Bypass-mask bits 0 and 1 request bypass of control bits 0 and 3. Configuration uses shared HARD reset and replay, with a compatible owned AN profile for enable. Read acquires local, partner and status evidence, including consuming EEE event words. |
 | `lpi start`, `lpi stop`, `lpi status` | Legacy MAC LPI entry needs application-owned TX drain and current qualified 100/full EEE evidence. Readback of request/stop preserves observed and uncertain effects and carries no packet-readiness proof. |
-| `wol configure off\|magic\|secure status\|irq\|led0\|led1\|led2\|led3 crc level\|pulse width mac [password]`, `wol read`, `wol status`, `wol acknowledge` | CRC 0/1. Width codes 0–3 denote 8/16/32/64 cycles of 125 MHz. MAC and secure password use six colon-separated hex octets. Secure mode requires the password. RX quiescence and admitted pin routes are application responsibilities. LED0/LED3 wake routing remains source-gated. Acknowledge consumes RXFS/MISR2 once before the qualified W0C command and keeps the W1S bit neutral. Records omit address and password bytes. Raw CLI read/dump rejects the vendor password words prior to any I/O. |
+| `wol configure off\|magic\|secure status\|irq\|led0\|led1\|led2\|led3 crc level\|pulse width mac [password]`, `wol read`, `wol status`, `wol acknowledge` | CRC 0/1. Width codes 0–3 denote 8/16/32/64 cycles of 125 MHz. MAC and secure password use six colon-separated hex octets. Secure mode requires the password. RX quiescence and admitted pin routes are application responsibilities. LED0/LED3 wake routing remains source-gated. Acknowledge harvests RXFS/MISR2, then writes zero to RXFCFG1 bit 11. Ordinary control writes put one there and preserve bit 6. Records omit address and password bytes. Raw CLI read/dump rejects the vendor password words prior to any I/O. |
 
 Additional exact-part field limits and semantics are documented with the
 procedures. [Interrupts](interrupts.md), [interface and clock](interface-clock.md),
@@ -365,6 +365,9 @@ size is unknown.
 
 The application status lines and ESP log V1 hook use a separate queue of
 eight ordinary lines of up to 384 rendered bytes, plus one line being drained.
+The six-byte log prefix and CR LF leave 376 bytes for the formatted body.
+A larger body drops the whole line and increments both log drop and truncation
+counters.
 Formatting uses a local buffer. Queue insertion uses a short try-lock and
 drops a whole line on contention, capacity exhaustion, invalid framing or
 truncation. The pump prefixes ordinary lines with `[log] ` and keeps them

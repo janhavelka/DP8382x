@@ -32,6 +32,12 @@ endforeach()
 
 find_package(Python3 3.10 QUIET COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
+  add_test(NAME cli_native_console_verdict COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../verify_check_exit.py" "$<TARGET_FILE:dp8382x_native_console_tests>" --empty-suite)
+  if(DP8382X_BUILD_PINNED_IDF_TESTS)
+    add_test(NAME cli_matrix_registrations COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../test_cli_coverage.py" --ctest "${CMAKE_CTEST_COMMAND}" "${CMAKE_BINARY_DIR}")
+  endif()
   add_test(NAME cli_hil_runner COMMAND "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../test_hil_runner.py" --fixture "$<TARGET_FILE:dp8382x_cli_fixture>")
   set_tests_properties(cli_hil_runner PROPERTIES TIMEOUT 30)

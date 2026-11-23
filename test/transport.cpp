@@ -1,3 +1,4 @@
+#include "support/BoundDriver.h"
 #include "support/FakeController.h"
 #include <DP8382x/DP8382x.h>
 
@@ -191,7 +192,7 @@ void testDirect() {
 void testReports() {
   // Every numeric status byte: only five primary classifications are legal.
   for (unsigned raw = 0; raw < 256U; ++raw) {
-    Controller bus; Driver driver; CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     bus.custom = true; bus.response = Controller::complete();
     bus.response.status = {static_cast<Err>(raw), -2147483647, "backend"};
     const Err code = static_cast<Err>(raw);
@@ -222,7 +223,7 @@ void testReports() {
   // The complete int32 domain endpoints must survive callback normalization.
   for (int32_t detail : {std::numeric_limits<int32_t>::min(), int32_t{-1},
                          std::numeric_limits<int32_t>::max()}) {
-    Controller bus; Driver driver; CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     bus.custom = true; bus.response = Controller::complete(FrameKind::WRITE);
     bus.response.status = Status::Error(Err::MDIO_TIMEOUT, "accepted then failed", detail);
     bus.response.frames[0].completed = false;
@@ -238,7 +239,7 @@ void testReports() {
   }
   // Each contradiction is independent; default unattempted unused slots matter.
   for (unsigned fault = 0; fault < 15U; ++fault) {
-    Controller bus; Driver driver; CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     bus.custom = true; bus.response = Controller::complete();
     TransportViolation violation = TransportViolation::FRAME_REPORT;
     switch (fault) {
@@ -273,7 +274,7 @@ void testReports() {
     CHECK(driver.end().ok());
   }
   for (uint64_t timestamp : {uint64_t{100}, uint64_t{107}}) {
-    Controller bus; Driver driver; CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     bus.custom = true; bus.response = Controller::complete();
     bus.response.frames[0].timeValid = true;
     bus.response.frames[0].completedAtUs = timestamp;
@@ -283,7 +284,7 @@ void testReports() {
     CHECK(driver.end().ok());
   }
   // A write may not masquerade as a completed read.
-  Controller bus; Driver driver; CHECK(driver.bind(bus.config()).ok());
+  auto [bus, driver] = test::BoundDriver<Controller>{};
   bus.custom = true; bus.response = Controller::complete(FrameKind::READ);
   CHECK(driver.writeClause22(0x18, 0, BUDGET).is(Err::MDIO_ERROR));
   CHECK(driver.transportSnapshot().violation == TransportViolation::FRAME_REPORT);
@@ -321,8 +322,7 @@ void testReports() {
   CHECK(driver.end().ok());
 
   // Controller-lock timeout is one callback, zero physical frame attempts.
-  Controller contended; Driver waiting;
-  CHECK(waiting.bind(contended.config()).ok());
+  auto [contended, waiting] = test::BoundDriver<Controller>{};
   contended.custom = true;
   contended.response.status = {Err::MDIO_TIMEOUT, -83, "lock timeout"};
   contended.response.releaseStatus = Status::Ok();
@@ -345,7 +345,7 @@ void testTiming() {
   // 100 raw + 2 lag + (3 acquire + 5 frame + 2 release + 4 overhead).
   for (const IoBudget budget : {IoBudget{100, 1}, IoBudget{101, 1},
                                 IoBudget{1000, 0}, IoBudget{116, 1}, IoBudget{117, 1}}) {
-    Controller bus; Driver driver; CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     uint16_t value = SENTINEL;
     const Status status = driver.readClause22(2, value, budget);
     const bool admitted = budget.deadlineUs == 117U;
@@ -424,7 +424,7 @@ void testTiming() {
     CHECK(driver.end().ok());
   }
   {
-    Controller bus; Driver driver; CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     bus.custom = true; bus.response = Controller::complete();
     bus.response.frames[1].attempted = true;
     bus.regress = true;
@@ -463,9 +463,7 @@ void testTiming() {
 
 void testOwnership() {
   {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     bus.custom = true;
     bus.response = Controller::admission(BusyDetail::CONTROLLER_QUARANTINED);
     bus.response.controllerReusable = true; // Contradicts shared quarantine.
@@ -514,8 +512,7 @@ void testOwnership() {
   CHECK(first.end().ok()); CHECK(second.end().ok());
 
   for (bool primaryFailure : {false, true}) {
-    Controller failed; Driver driver;
-    CHECK(driver.bind(failed.config()).ok());
+    auto [failed, driver] = test::BoundDriver<Controller>{};
     failed.custom = true; failed.response = Controller::complete();
     failed.response.releaseStatus = {Err::MDIO_ERROR, -37, "release failed"};
     failed.response.controllerReusable = false;
@@ -543,7 +540,7 @@ void testOwnership() {
   // Valid release but newly uncertain controller remains failure; a primary
   // error retains precedence while the additional evidence remains visible.
   for (bool primaryFailure : {false, true}) {
-    Controller failed; Driver driver; CHECK(driver.bind(failed.config()).ok());
+    auto [failed, driver] = test::BoundDriver<Controller>{};
     failed.custom = true; failed.response = Controller::complete();
     failed.response.controllerReusable = false;
     if (primaryFailure) failed.response.status = {Err::MDIO_TIMEOUT, -89, "primary failed"};
@@ -556,7 +553,7 @@ void testOwnership() {
                          Status{static_cast<Err>(255), -6, "bad release"},
                          Status{Err::OK, 1, "bad detail"},
                          Status{Err::OK, 0, nullptr}}) {
-    Controller failed; Driver driver; CHECK(driver.bind(failed.config()).ok());
+    auto [failed, driver] = test::BoundDriver<Controller>{};
     failed.custom = true; failed.response = Controller::complete();
     failed.response.releaseStatus = release;
     value = SENTINEL;
@@ -569,7 +566,7 @@ void testOwnership() {
     CHECK(driver.end().ok());
   }
   {
-    Controller failed; Driver driver; CHECK(driver.bind(failed.config()).ok());
+    auto [failed, driver] = test::BoundDriver<Controller>{};
     failed.custom = true;
     failed.response = Controller::admission(BusyDetail::OWNER_ADMISSION);
     failed.response.releaseStatus = {Err::MDIO_TIMEOUT, -57, "release timeout"};
@@ -585,7 +582,7 @@ void testOwnership() {
     CHECK(driver.end().ok());
   }
   {
-    Controller failed; Driver driver; CHECK(driver.bind(failed.config()).ok());
+    auto [failed, driver] = test::BoundDriver<Controller>{};
     failed.custom = true; failed.response = Controller::complete();
     failed.response.releaseStatus = {Err::MDIO_ERROR, -60, "release failed"};
     // Contradictory reuse must not erase the raw release or authorize another call.

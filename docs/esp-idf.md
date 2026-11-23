@@ -711,6 +711,11 @@ The compiler-derived selected dependency closure is recorded in
 [sdk-files.json](../test/esp_idf/host/sdk-files.json). Configuration and builds
 run [verify_sdk.py](../test/esp_idf/host/verify_sdk.py), checking the SDK revision,
 canonical Git blob contents and the exact set of selected source/header files.
+The [basic example manifest](../test/esp_idf/host/example-sdk-files.json)
+pins the 37 SDK headers selected when the host test compiles the P4 basic
+application. Twelve are specific to this closure relative to the driver
+manifest. The `example_sdk_header_drift` test changes a disposable copy of
+the GPIO header and requires the verifier to identify that path.
 Only Windows CRLF checkout normalization is accepted. Fakes model the pinned
 unarmed timer-stop INVALID_STATE and scheduled RX pause before application entry.
 Raw and netif/glue handoffs are separate cases. These tests prove modeled

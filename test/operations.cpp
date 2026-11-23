@@ -1,4 +1,5 @@
-#include "support/Check.h"
+#include "support/BoundDriver.h"
+#include "support/InitializationController.h"
 #include <DP8382x/DP8382x.h>
 
 #include <array>
@@ -33,14 +34,8 @@ using Driver = ::DP8382x::DP8382x;
 
 // The independent model follows the literal table 8-19 reset and table 8-31/32
 // selector protocol. Its timings exercise software contracts, not PHY timing.
-struct Wire {
-  FrameKind kind;
-  uint8_t phy;
-  uint8_t reg;
-  uint16_t value;
-};
-enum class Fault { NONE, NONTERMINAL, SHORT, MISSING_VALUE };
-struct Controller {
+using test::Fault;
+struct PcsWire {
   struct Phy {
     uint16_t id1{0x2000}, id2{0xA131}, bmcr{0x3100};
     uint16_t sor1{0x1234}, sor2{0x5678}, vod{0x8400}, led{0};
@@ -48,39 +43,8 @@ struct Controller {
     unsigned resetReads{0};
   };
   std::array<Phy, 32> phys{};
-  std::array<Wire, 512> trace{};
-  std::array<uint8_t, 128> batchSizes{};
-  std::array<IoBudget, 128> budgets{};
-  uint64_t now{100}, frameTime{2}, clockQuantumUs{1};
-  TransportBounds bounds{8, 4, 1};
-  unsigned clocks{0}, calls{0}, acquisitions{0}, releases{0}, frames{0};
-  unsigned jumpClockCall{0};
-  uint64_t jumpClockTo{0};
-  bool locked{false}, quarantined{false}, stickyReset{false};
-  bool acceptedFailure{true}, failedEffectPossible{true};
-  int failFrame{-1}, releaseBatch{-1}, reusableFalseBatch{-1}, faultyBatch{-1}, lateBatch{-1}, regressBatch{-1};
+  bool stickyReset{false};
   int overrideVod{-1};
-  Fault fault{Fault::NONE};
-  Driver* active{nullptr};
-  Driver* competitor{nullptr};
-  OperationToken activeToken{};
-  bool exerciseReentry{false};
-  unsigned excluded{0};
-
-  Config config(uint32_t address = 1) noexcept {
-    Config value;
-    value.variant = Variant::DP83826I;
-    value.interface = MacInterface::RMII;
-    value.phyAddress = address;
-    value.transport = {this, execute, clock, bounds};
-    return value;
-  }
-  static uint64_t clock(void* context) noexcept {
-    auto& bus = *static_cast<Controller*>(context);
-    ++bus.clocks;
-    if (bus.clocks == bus.jumpClockCall) bus.now = bus.jumpClockTo;
-    return bus.now - bus.now % bus.clockQuantumUs;
-  }
   uint16_t read(Phy& phy, uint8_t reg) noexcept {
     if (reg == 0x00) {
       if ((phy.bmcr & 0x8000U) && !stickyReset) {
@@ -115,93 +79,8 @@ struct Controller {
       if (phy.address == 0x0018) phy.led = word;
     } else if (reg == 0x18) phy.led = word;
   }
-  static BatchResult execute(void* context, const MdioBatch& batch, const IoBudget& budget) noexcept {
-    auto& bus = *static_cast<Controller*>(context);
-    const unsigned call = bus.calls++;
-    BatchResult result;
-    result.releaseStatus = Status::Ok();
-    result.controllerReusable = !bus.quarantined;
-    if (bus.locked || bus.quarantined) {
-      result.status = {Err::BUSY, static_cast<int32_t>(bus.quarantined ? BusyDetail::CONTROLLER_QUARANTINED : BusyDetail::OWNER_ADMISSION), "Controller busy"};
-      return result;
-    }
-    CHECK(call < bus.batchSizes.size());
-    bus.batchSizes[call] = batch.frameCount;
-    bus.budgets[call] = budget;
-    CHECK(batch.frameCount > 0 && batch.frameCount <= 8);
-    CHECK(budget.maxFrames >= batch.frameCount);
-    bus.locked = true;
-    ++bus.acquisitions;
-    result.status = Status::Ok();
-    auto& phy = bus.phys[batch.phyAddress];
-    for (uint8_t i = 0; i < batch.frameCount; ++i) {
-      const auto& frame = batch.frames[i];
-      auto& receipt = result.frames[i];
-      CHECK(frame.registerAddress < 32);
-      CHECK(frame.readIndex == 0xFF); // Initialization has no RMW command.
-      CHECK(frame.preserveMask == 0);
-      CHECK(bus.frames < bus.trace.size());
-      bus.trace[bus.frames] = {frame.kind, batch.phyAddress, frame.registerAddress, frame.value};
-      const bool failed = static_cast<int>(bus.frames) == bus.failFrame;
-      ++bus.frames;
-      receipt.attempted = true;
-      if (frame.kind == FrameKind::WRITE && (!failed || bus.acceptedFailure))
-        bus.write(phy, frame.registerAddress, frame.value);
-      if (failed) {
-        receipt.effectPossible = bus.failedEffectPossible;
-        result.status = {Err::MDIO_TIMEOUT, -1701, "Injected frame timeout"};
-      } else {
-        receipt.completed = true;
-        if (frame.kind == FrameKind::READ) {
-          receipt.valueValid = true;
-          receipt.value = bus.read(phy, frame.registerAddress);
-        }
-      }
-      bus.now += bus.frameTime;
-      if (bus.exerciseReentry) {
-        uint16_t output = 0xBEEF;
-        if (bus.active) {
-          const auto status = bus.active->readClause22(2, output, budget);
-          CHECK(status.is(Err::BUSY));
-          CHECK(status.detail == static_cast<int32_t>(BusyDetail::OPERATION_ACTIVE));
-          CHECK(bus.active->pollOperation(bus.activeToken).is(Err::BUSY));
-          CHECK(bus.active->cancel(bus.activeToken).is(Err::BUSY));
-          CHECK(bus.active->end().is(Err::BUSY));
-          CHECK(bus.active->abandonCleanup().is(Err::BUSY));
-          CHECK(output == 0xBEEF);
-        }
-        if (bus.competitor) {
-          const auto status = bus.competitor->readMmd(31, 0x0467, output, budget);
-          CHECK(status.is(Err::BUSY));
-          CHECK(status.detail == static_cast<int32_t>(BusyDetail::OWNER_ADMISSION));
-          CHECK(output == 0xBEEF);
-        }
-        ++bus.excluded;
-      }
-      if (failed) break;
-    }
-    if (static_cast<int>(call) == bus.faultyBatch) {
-      if (bus.fault == Fault::NONTERMINAL) result.status = {Err::IN_PROGRESS, -2147483647, "Nonterminal callback"};
-      if (bus.fault == Fault::SHORT) result.frames[batch.frameCount - 1] = {};
-      if (bus.fault == Fault::MISSING_VALUE) result.frames[batch.frameCount - 1].valueValid = false;
-    }
-    if (static_cast<int>(call) == bus.lateBatch) bus.now = budget.deadlineUs;
-    if (static_cast<int>(call) == bus.regressBatch) bus.now = 1;
-    if (static_cast<int>(call) == bus.releaseBatch) {
-      result.releaseStatus = {Err::MDIO_ERROR, -901, "Injected release failure"};
-      result.controllerReusable = false;
-      bus.quarantined = true;
-    } else {
-      ++bus.releases;
-      bus.locked = false;
-    }
-    if (static_cast<int>(call) == bus.reusableFalseBatch) {
-      result.controllerReusable = false;
-      bus.quarantined = true;
-    }
-    return result;
-  }
 };
+using Controller = test::InitializationController<PcsWire>;
 
 OperationBudget budget(uint32_t frames = 128, uint64_t deadline = 100000) {
   return {{deadline, frames}, 10, 8};
@@ -238,25 +117,10 @@ void advanceBatches(Driver& driver, Controller& bus, OperationToken token, unsig
     CHECK(driver.pollOperation(token).is(Err::IN_PROGRESS));
   }
 }
-void wire(const Controller& bus, unsigned index, FrameKind kind, uint8_t reg, uint16_t value = 0, uint8_t phy = 1) {
-  CHECK(index < bus.frames);
-  CHECK(bus.trace[index].kind == kind);
-  CHECK(bus.trace[index].phy == phy);
-  CHECK(bus.trace[index].reg == reg);
-  CHECK(bus.trace[index].value == value);
-}
-void indirect(const Controller& bus, unsigned first, uint16_t address, bool write, uint16_t word = 0) {
-  wire(bus, first, FrameKind::WRITE, 0x0D, 0x001F);
-  wire(bus, first + 1, FrameKind::WRITE, 0x0E, address);
-  wire(bus, first + 2, FrameKind::WRITE, 0x0D, 0x401F);
-  wire(bus, first + 3, write ? FrameKind::WRITE : FrameKind::READ, 0x0E, word);
-}
 
 void initialization() {
   for (const auto reset : {ResetKind::NONE, ResetKind::PCS}) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     const auto token = start(driver, reset);
     CHECK(bus.clocks == 0 && bus.calls == 0);
     CHECK(!driver.isInitialized());
@@ -386,9 +250,7 @@ void admission() {
 
   // Total budget and bound admission precede the cooperative slice.
   for (uint32_t total : {1U, 5U, 18U}) {
-    Controller limited;
-    Driver subject;
-    CHECK(subject.bind(limited.config()).ok());
+    auto [limited, subject] = test::BoundDriver<Controller>{};
     const auto limitedToken = start(subject, ResetKind::NONE, budget(total));
     const auto status = drain(subject, limited, limitedToken);
     CHECK(status.is(Err::OPERATION_TIMEOUT));
@@ -396,9 +258,7 @@ void admission() {
     CHECK(limited.frames <= total);
     take(subject, limitedToken);
   }
-  Controller tiny;
-  Driver subject;
-  CHECK(subject.bind(tiny.config()).ok());
+  auto [tiny, subject] = test::BoundDriver<Controller>{};
   const auto tinyToken = start(subject, ResetKind::NONE, budget(1));
   const auto status = subject.pollOperation(tinyToken, 0);
   CHECK(status.is(Err::OPERATION_TIMEOUT) && status.detail == static_cast<int32_t>(TimeoutDetail::FRAME_BUDGET));
@@ -440,9 +300,7 @@ void timing() {
     }
   }
   // Only one remaining command frame is insufficient even though its own bound fits.
-  Controller frameLimited;
-  Driver frameDriver;
-  CHECK(frameDriver.bind(frameLimited.config()).ok());
+  auto [frameLimited, frameDriver] = test::BoundDriver<Controller>{};
   const auto frameToken = start(frameDriver, ResetKind::PCS, budget(13));
   advanceBatches(frameDriver, frameLimited, frameToken, 5);
   CHECK(frameDriver.pollOperation(frameToken).detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
@@ -462,9 +320,7 @@ void timing() {
 
   // Scheduling between the poll sample and callback admission cannot bypass
   // reset look-ahead. A single write would fit at 99980; write/wait/read cannot.
-  Controller preempted;
-  Driver preemptedDriver;
-  CHECK(preemptedDriver.bind(preempted.config()).ok());
+  auto [preempted, preemptedDriver] = test::BoundDriver<Controller>{};
   const auto preemptedToken = start(preemptedDriver, ResetKind::PCS);
   advanceBatches(preemptedDriver, preempted, preemptedToken, 5);
   preempted.jumpClockCall = preempted.clocks + 2;
@@ -474,9 +330,7 @@ void timing() {
   CHECK(!take(preemptedDriver, preemptedToken).mutationAttempted);
 
   // Completion-based anchor: actual callback consumes time before the interval starts.
-  Controller bus;
-  Driver driver;
-  CHECK(driver.bind(bus.config()).ok());
+  auto [bus, driver] = test::BoundDriver<Controller>{};
   const auto token = start(driver, ResetKind::PCS);
   advanceBatches(driver, bus, token, 5);
   const auto before = bus.now;
@@ -505,9 +359,7 @@ void timing() {
   CHECK(frozen.frames == 13 && !frozen.locked);
   CHECK(take(stopped, frozenToken).cleanupOwed);
 
-  Controller slices;
-  Driver noWork;
-  CHECK(noWork.bind(slices.config()).ok());
+  auto [slices, noWork] = test::BoundDriver<Controller>{};
   const auto noWorkToken = start(noWork, ResetKind::NONE, finite);
   CHECK(noWork.pollOperation(noWorkToken, 0).is(Err::IN_PROGRESS));
   CHECK(noWork.operationSnapshot().stalledPolls == 0);
@@ -521,17 +373,13 @@ void timing() {
   CHECK(slices.calls == 0);
 
   // Exact raw expiry wins over slice admission and leaves ordinary I/O untouched.
-  Controller expired;
-  Driver timed;
-  CHECK(timed.bind(expired.config()).ok());
+  auto [expired, timed] = test::BoundDriver<Controller>{};
   const auto expiredToken = start(timed, ResetKind::NONE, budget(128, expired.now));
   CHECK(timed.pollOperation(expiredToken, 0).detail == static_cast<int32_t>(TimeoutDetail::DEADLINE));
   CHECK(expired.calls == 0);
   // Clock overflow and regression latch until an explicit end/rebind.
   for (bool overflow : {false, true}) {
-    Controller broken;
-    Driver subject;
-    CHECK(subject.bind(broken.config()).ok());
+    auto [broken, subject] = test::BoundDriver<Controller>{};
     const auto brokenToken = start(subject, ResetKind::NONE, budget(128, std::numeric_limits<uint64_t>::max()));
     if (overflow) broken.now = std::numeric_limits<uint64_t>::max();
     else { CHECK(subject.pollOperation(brokenToken).is(Err::IN_PROGRESS)); broken.now = 1; }
@@ -561,9 +409,7 @@ void timing() {
 }
 
 void pollSchedules() {
-  Controller fine;
-  Driver driver;
-  CHECK(driver.bind(fine.config()).ok());
+  auto [fine, driver] = test::BoundDriver<Controller>{};
   auto allowance = budget();
   allowance.pollIntervalUs = 2000;
   const auto token = start(driver, ResetKind::PCS, allowance);
@@ -619,9 +465,7 @@ void pollSchedules() {
 }
 
 void sliceBound() {
-  Controller bus;
-  Driver driver;
-  CHECK(driver.bind(bus.config()).ok());
+  auto [bus, driver] = test::BoundDriver<Controller>{};
   const auto token = start(driver, ResetKind::NONE, budget(128, 200));
   CHECK(driver.pollOperation(token).is(Err::IN_PROGRESS));
   wire(bus, 0, FrameKind::READ, 0x02);
@@ -641,9 +485,7 @@ void sliceBound() {
 }
 
 void allocations() {
-  Controller bus;
-  Driver driver;
-  CHECK(driver.bind(bus.config()).ok());
+  auto [bus, driver] = test::BoundDriver<Controller>{};
   bus.phys[1].falseCarriers = 7;
   // Exercise the linked replacement functions through volatile pointers so
   // an optimized host build must actually make both positive-control calls.
@@ -802,9 +644,7 @@ void lifecycle() {
   for (const auto reset : {ResetKind::NONE, ResetKind::PCS}) {
     const unsigned batches = reset == ResetKind::NONE ? 7 : 12;
     for (unsigned completed = 0; completed < batches; ++completed) {
-      Controller bus;
-      Driver driver;
-      CHECK(driver.bind(bus.config()).ok());
+      auto [bus, driver] = test::BoundDriver<Controller>{};
       const auto token = start(driver, reset);
       advanceBatches(driver, bus, token, completed);
       const unsigned calls = bus.calls, clocks = bus.clocks;
@@ -838,9 +678,7 @@ void lifecycle() {
   }
   // Failed restoration keeps the barrier and its own result; explicit restoration
   // uses a new token and never rewrites an earlier cancelled result.
-  Controller bus;
-  Driver driver;
-  CHECK(driver.bind(bus.config()).ok());
+  auto [bus, driver] = test::BoundDriver<Controller>{};
   const auto original = start(driver, ResetKind::PCS);
   advanceBatches(driver, bus, original, 6);
   CHECK(driver.cancel(original).ok());
@@ -924,9 +762,7 @@ void lifecycle() {
   // by its earlier, now contradictory identity. The ordinary read keeps its own
   // status; the separately retained operation reports invalidation.
   for (const auto replacement : {0xA111, 0xA132}) {
-    Controller changed;
-    Driver subject;
-    CHECK(subject.bind(changed.config()).ok());
+    auto [changed, subject] = test::BoundDriver<Controller>{};
     const auto changing = start(subject);
     advanceBatches(subject, changed, changing, 1);
     changed.phys[1].id2 = static_cast<uint16_t>(replacement);
@@ -963,9 +799,7 @@ void ownership() {
   CHECK(bus.phys[2].vod == 0x4A40);
   CHECK(take(other, second).status.ok());
 
-  Controller interleaved;
-  Driver subject;
-  CHECK(subject.bind(interleaved.config()).ok());
+  auto [interleaved, subject] = test::BoundDriver<Controller>{};
   const auto running = start(subject, ResetKind::PCS);
   uint16_t output = 0xCAFE;
   CHECK(subject.readClause22(2, output, {100000, 1}).ok() && output == 0x2000);

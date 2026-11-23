@@ -1,12 +1,19 @@
 """Tie the CLI coverage rows to ledger owners and registered routes."""
 
+from fnmatch import fnmatchcase
 import json
 from pathlib import Path
 import re
+import subprocess
+import sys
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+from dp8382x_hil_campaign import all_cases
+
+CTEST_INVOCATION = None
 STAGE_44_ROUTES = {
     "connection identity", "connection probe", "connection discover",
     "configuration desired", "configuration observed", "configuration validate",
@@ -39,17 +46,14 @@ STAGE_46_TABLES = {
 }
 
 
-def registered_tests():
-    names = set()
-    for file in ("CMakeLists.txt", "test/cli/CMakeLists.txt", "test/esp_idf/CMakeLists.txt"):
-        cmake = (ROOT / file).read_text(encoding="utf-8")
-        names.update(re.findall(r"add_test\(NAME ([a-z0-9_]+)\s", cmake))
-        # The CTest suites used by this matrix are literal names or ITEMS loops.
-        for items, body in re.findall(r"foreach\(suite IN ITEMS ([^)]*)\)(.*?)endforeach\(\)",
-                                      cmake, re.S):
-            for prefix in re.findall(r"add_test\(NAME ([a-z0-9_]+)\$\{suite\}", body):
-                names.update(prefix + suite for suite in items.split())
-    return names
+def quoted(cell):
+    return set(re.findall(r"`([^`]+)`", cell))
+
+
+def named_checks(cell):
+    # Notes describe evidence scope. Everything else must name a whole test.
+    names = re.sub(r" \([^()]*\)", "", cell).replace(". Core: ", ", ")
+    return set(names.split(", "))
 
 
 class CliCoverageTests(unittest.TestCase):
@@ -60,9 +64,9 @@ class CliCoverageTests(unittest.TestCase):
         cls.procedures = {row["id"]: row for row in cls.ledger["procedures"]}
         cls.matrix = (ROOT / "docs/feature-coverage.md").read_text(encoding="utf-8")
 
-    def rows(self):
+    def rows(self, matrix=None):
         rows = {}
-        for line in self.matrix.splitlines():
+        for line in (self.matrix if matrix is None else matrix).splitlines():
             match = re.match(r"^\| `([a-z0-9_]+)`", line)
             if not match:
                 continue
@@ -71,6 +75,7 @@ class CliCoverageTests(unittest.TestCase):
             cells = [cell.strip() for cell in line.strip("|").split("|")]
             self.assertEqual(len(cells), 9, identifier)
             self.assertTrue(all(cells), f"Incomplete coverage row: {identifier}")
+            self.assertNotRegex(line, r"(?i)\b(pending [0-9]+|tbd|todo)\b")
             rows[identifier] = cells
         return rows
 
@@ -93,18 +98,102 @@ class CliCoverageTests(unittest.TestCase):
                 with self.subTest(feature=identifier):
                     self.assertCountEqual(rows[identifier][4].split(", "), feature["procedures"])
 
+    def check_field_routes(self, rows):
+        owners = {f["id"]: f["owner"] for reg in self.ledger["registers"] for f in reg["fields"]}
+        self.assertEqual(len(owners), 283)
+        for group in ("writeActions", "printedAddresses"):
+            owners.update((item["id"], item["feature"]) for item in self.ledger[group])
+        routes = {}
+        for owner in self.features:
+            cells = rows[owner]
+            for group in cells[3].split("<br>")[1:]:
+                label, selectors = group.split(" → ")
+                command = label.removeprefix("`").removesuffix("`")
+                self.assertEqual(label, f"`{command}`")
+                self.assertIn(command, quoted(cells[5]), owner)
+                for pattern in quoted(selectors):
+                    matches = [name for name in owners if fnmatchcase(name, pattern)]
+                    self.assertTrue(matches, pattern)
+                    for name in matches:
+                        self.assertEqual(owner, owners[name], name)
+                        self.assertNotIn(name, routes)
+                        routes[name] = command
+        self.assertEqual(routes.keys(), owners.keys())
+        # Mixed words need distinct owners for observation, settings and commands.
+        for field, command in {
+            "RXFCFG1_levelAcknowledge": "wol acknowledge", "RXFCFG1_crcGate": "wol configure",
+            "BICSR1_errorBytes": "diagnostics bist-read", "BICSR1_ipgLength": "diagnostics bist-start",
+            "MISR1.link_changed_event": "irq service", "MISR1.link_changed_enable": "irq configure",
+            "PHYCR.phy_address": "registers read", "PHYCR.pause_rx": "link partner",
+            "ANER.page": "configuration apply", "10BTSCR.polarity": "controls quality",
+        }.items():
+            self.assertEqual(routes[field], command, field)
+
     def test_every_register_field_owner_has_a_route_or_disposition(self):
+        self.check_field_routes(self.rows())
+
+    def check_physical_cases(self, rows):
+        cases = all_cases().keys()
+        for identifier, cells in rows.items():
+            physical = cells[8]
+            if identifier in ("absent", "outside_phy"):
+                self.assertTrue(physical.startswith("N/A. "), identifier)
+            elif identifier in ("next_page", "next_page_exchange"):
+                self.assertIn("Manual Q10", physical)
+                self.assertIn("partner", physical)
+            else:
+                self.assertIn("Case ", physical, identifier)
+                selected = quoted(physical)
+                self.assertTrue(selected, identifier)
+                self.assertLessEqual(selected, cases, identifier)
+                if identifier in self.procedures:
+                    feature = self.procedures[identifier]["feature"]
+                    self.assertLessEqual(selected, quoted(rows[feature][8]), identifier)
+        for identifier, case in (("pcs_reset", "pcs"), ("hard_reset", "hard"),
+                                 ("restart", "restart"), ("initialize_10base", "10base-te"),
+                                 ("external_reset", "cold-boot"), ("power_deep", "power-deep")):
+            self.assertIn(case, quoted(rows[identifier][8]), identifier)
+        for owner, feature in self.features.items():
+            if feature["procedures"]:
+                covered = set().union(*(quoted(rows[p][8]) for p in feature["procedures"]))
+                self.assertEqual(quoted(rows[owner][8]), covered, owner)
+
+    def test_physical_cases(self):
+        self.check_physical_cases(self.rows())
+
+    def test_matrix_rejects_misdirected_or_incomplete_evidence(self):
+        first = next(line for line in self.matrix.splitlines() if line.startswith("| `identity`"))
+        with self.assertRaisesRegex(AssertionError, "Duplicate"):
+            self.rows(self.matrix + "\n" + first)
+        with self.assertRaises(AssertionError):
+            self.rows(self.matrix.replace("`connection probe`", "Pending 47", 1))
         rows = self.rows()
-        fields = [field for register in self.ledger["registers"]
-                  for field in register["fields"]]
-        self.assertEqual(len(fields), 283)
-        owners = {field["owner"] for field in fields}
-        owners.update(action["feature"] for action in self.ledger["writeActions"])
-        owners.update(address["feature"] for address in self.ledger["printedAddresses"])
-        for owner in sorted(owners):
-            with self.subTest(owner=owner):
-                self.assertIn(owner, self.features)
-                self.assertRegex(rows[owner][5], r"^(`[^`]+`|Pending 47\b|N/A\.)")
+        rows["wol"][3] = rows["wol"][3].replace("`wol acknowledge` →", "`wol configure` →")
+        with self.assertRaisesRegex(AssertionError, "RXFCFG1_levelAcknowledge"):
+            self.check_field_routes(rows)
+        rows["hard_reset"][8] = "Case `pcs`"
+        with self.assertRaisesRegex(AssertionError, "hard_reset"):
+            self.check_physical_cases(rows)
+
+    def check_registrations(self, names):
+        for identifier, cells in self.rows().items():
+            self.assertLessEqual(named_checks(cells[7]), names, identifier)
+
+    def test_missing_registration_is_rejected(self):
+        names = set().union(*(named_checks(cells[7]) for cells in self.rows().values()))
+        with self.assertRaisesRegex(AssertionError, "identity_policy"):
+            self.check_registrations(names - {"identity_policy"})
+
+    def test_configured_ctest_registrations(self):
+        if CTEST_INVOCATION is None:
+            self.skipTest("run cli_matrix_registrations in the combined portable and pinned host build")
+        ctest, build = CTEST_INVOCATION
+        output = subprocess.check_output([ctest, "--test-dir", build, "--show-only=json-v1"],
+                                         timeout=30, encoding="utf-8")
+        tests = json.loads(output)["tests"]
+        names = {test["name"] for test in tests if test.get("command") and not any(
+            p["name"] == "DISABLED" and p["value"] for p in test["properties"])}
+        self.check_registrations(names)
 
     def test_listed_commands_have_dispatch_and_evidence(self):
         rows = self.rows()
@@ -122,18 +211,18 @@ class CliCoverageTests(unittest.TestCase):
                 self.assertNotIn(command, registered)
                 registered.add(command)
                 feature_checks[command] = suite
-        host_checks = registered_tests()
         documented = set()
         for identifier, cells in rows.items():
             with self.subTest(row=identifier):
                 commands = set(re.findall(r"`([^`]+)`", cells[5]))
                 self.assertLessEqual(commands, registered)
                 if not commands:
-                    self.assertRegex(cells[5], r"^(Pending 47\b|N/A\.)")
+                    self.assertEqual(identifier, "outside_phy")
+                    self.assertTrue(cells[5].startswith("N/A. "))
                 documented.update(commands)
-                named_checks = set(re.findall(r"\b[a-z]+(?:_[a-z]+)+\b", cells[7]))
-                self.assertTrue(named_checks, f"Missing host check: {identifier}")
-                self.assertLessEqual(named_checks, host_checks)
+                checks = named_checks(cells[7])
+                for name in checks:
+                    self.assertRegex(name, r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$")
                 if commands & STAGE_44_ROUTES:
                     self.assertIn("`result`", cells[6])
                     self.assertIn("cli_fixture_transcript", cells[7])
@@ -142,12 +231,12 @@ class CliCoverageTests(unittest.TestCase):
                     self.assertIn("`sample`", cells[6])
                 for command in commands & feature_checks.keys():
                     self.assertIn("`result`", cells[6])
-                    self.assertIn(feature_checks[command], named_checks)
+                    self.assertIn(feature_checks[command], checks)
         self.assertLessEqual(STAGE_44_ROUTES, documented)
         self.assertLessEqual(feature_checks.keys(), documented)
-        self.assertIn("native_cli_features", host_checks)
         for identifier in ("access", "negotiation", "crossover"):
             self.assertIn("native_cli_reconciliation", rows[identifier][7])
+        self.assertIn("native_cli_features", named_checks(rows["power"][7]))
 
     def test_link_and_lifecycle_routes_keep_terminal_and_sample_evidence(self):
         rows = self.rows()
@@ -165,4 +254,7 @@ class CliCoverageTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["--ctest"]:
+        CTEST_INVOCATION = sys.argv[2:4]
+        del sys.argv[1:4]
     unittest.main()

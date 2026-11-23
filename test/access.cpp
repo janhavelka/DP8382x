@@ -1,4 +1,4 @@
-#include "support/Check.h"
+#include "support/BoundDriver.h"
 #include <DP8382x/DP8382x.h>
 #include <DP8382x/CommandTable.h>
 
@@ -237,10 +237,8 @@ struct Controller {
   }
 };
 
-struct BoundDriver {
-  Controller bus;
-  Driver driver;
-  BoundDriver() { CHECK(driver.bind(bus.config()).ok()); bus.driver = &driver; }
+struct BoundDriver : test::BoundDriver<Controller> {
+  BoundDriver() { bus.driver = &driver; }
 };
 
 const EvidenceSample& sample(const EvidenceSnapshot& evidence, EvidenceSource source) {

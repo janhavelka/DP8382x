@@ -1,4 +1,4 @@
-#include "support/Check.h"
+#include "support/BoundDriver.h"
 #include <DP8382x/DP8382x.h>
 
 #include <array>
@@ -280,8 +280,7 @@ void matrix() {
         for (const bool mirror : {false, true}) {
           for (const bool extension : {false, true}) {
             if (extension && speed == LinkSpeed::MBPS_10) continue;
-            Controller bus; Driver driver;
-            CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus); seed(bus);
+            auto [bus, driver] = test::BoundDriver<Controller>{}; initialize(driver, bus); seed(bus);
             const auto profile = forced(speed, duplex, route, mirror, extension);
             const auto first = bus.frames, calls = bus.calls, clocks = bus.clocks;
             const auto token = start(driver, profile);
@@ -304,8 +303,7 @@ void matrix() {
     for (const bool robust : {false, true}) {
       for (const bool mirror : {false, true}) {
         for (const bool extension : {false, true}) {
-          Controller bus; Driver driver;
-          CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus); seed(bus);
+          auto [bus, driver] = test::BoundDriver<Controller>{}; initialize(driver, bus); seed(bus);
           auto profile = negotiated();
           profile.crossover = {route, robust, mirror, mirror};
           profile.extendedFullDuplex = extension;
@@ -323,8 +321,7 @@ void matrix() {
   CHECK(forcedCases == 36 && anCases == 24);
   // Automatic routing preserves a preexisting manual bit of either polarity.
   for (const uint16_t prior : {uint16_t{0x3BBF}, uint16_t{0x7BBF}}) {
-    Controller bus; Driver driver;
-    CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus); seed(bus);
+    auto [bus, driver] = test::BoundDriver<Controller>{}; initialize(driver, bus); seed(bus);
     bus.phys[1].words[25] = prior;
     const auto token = start(driver, forced());
     CHECK(drain(driver, bus, token).ok()); take(driver, token);
@@ -365,8 +362,7 @@ void admission() {
 }
 
 void transitions() {
-  Controller bus; Driver driver;
-  CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus);
+  auto [bus, driver] = test::BoundDriver<Controller>{}; initialize(driver, bus);
   auto an = negotiated(); an.advertisement.symmetricPause = true; an.advertisement.asymmetricPause = true;
   auto token = start(driver, an); CHECK(drain(driver, bus, token).ok()); take(driver, token);
   const auto advertisement = bus.phys[1].words[4];
@@ -400,8 +396,7 @@ void failures() {
     if (profileIndex == 2) testedProfile.crossover.robust = false;
     const unsigned count = an ? 24U : 20U;
     for (unsigned offset = 0; offset < count; ++offset) {
-      Controller bus; Driver driver;
-      CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus); seed(bus);
+      auto [bus, driver] = test::BoundDriver<Controller>{}; initialize(driver, bus); seed(bus);
       const auto first = bus.frames;
       const auto profile = testedProfile;
       const auto token = start(driver, profile);
@@ -422,8 +417,7 @@ void failures() {
     // Every batch boundary, including before the first effect, is cancellable.
     const unsigned batches = an ? 18U : 15U;
     for (unsigned boundary = 0; boundary < batches; ++boundary) {
-      Controller bus; Driver driver;
-      CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus);
+      auto [bus, driver] = test::BoundDriver<Controller>{}; initialize(driver, bus);
       const auto token = start(driver, testedProfile);
       for (unsigned i = 0; i < boundary; ++i) CHECK(driver.pollOperation(token).inProgress());
       const auto calls = bus.calls, clocks = bus.clocks;
@@ -437,8 +431,7 @@ void failures() {
   }
   // Each owned stable field has an independent verification failure vector.
   for (const uint8_t reg : {uint8_t{9}, uint8_t{25}, uint8_t{11}, uint8_t{10}, uint8_t{0}}) {
-    Controller bus; Driver driver;
-    CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus); seed(bus);
+    auto [bus, driver] = test::BoundDriver<Controller>{}; initialize(driver, bus); seed(bus);
     bus.mismatchReg = reg;
     bus.mismatchXor = reg == 25 ? 0x8000 : reg == 0 ? 0x0100 : 0x0020;
     const auto token = start(driver, forced());
@@ -449,8 +442,7 @@ void failures() {
   }
   // Complete readback is fresh observation even when it disagrees with intent.
   for (const uint8_t reg : {uint8_t{9}, uint8_t{10}, uint8_t{0}}) {
-    Controller observedBus; Driver observedDriver;
-    CHECK(observedDriver.bind(observedBus.config()).ok()); initialize(observedDriver, observedBus); seed(observedBus);
+    auto [observedBus, observedDriver] = test::BoundDriver<Controller>{}; initialize(observedDriver, observedBus); seed(observedBus);
     observedBus.mismatchReg = reg;
     observedBus.mismatchXor = reg == 0 ? 0x2000 : 0x0020;
     const auto observedToken = start(observedDriver, forced());
@@ -468,8 +460,7 @@ void failures() {
   // An unexpected observed mode must be decoded from current words. Old ANAR
   // cannot complete an unexpected AN tuple during a forced-only acquisition.
   for (const bool requestedAn : {false, true}) {
-    Controller modeBus; Driver modeDriver;
-    CHECK(modeDriver.bind(modeBus.config()).ok()); initialize(modeDriver, modeBus);
+    auto [modeBus, modeDriver] = test::BoundDriver<Controller>{}; initialize(modeDriver, modeBus);
     auto baseline = start(modeDriver, negotiated());
     CHECK(drain(modeDriver, modeBus, baseline).ok()); take(modeDriver, baseline);
     const auto prior = modeDriver.settingsSnapshot();
@@ -494,8 +485,7 @@ void failures() {
   // A non-IEEE selector cannot turn its technology bits into a new canonical
   // IEEE advertisement. Preserve the last known tuple, with explicit staleness.
   {
-    Controller selectorBus; Driver selectorDriver;
-    CHECK(selectorDriver.bind(selectorBus.config()).ok()); initialize(selectorDriver, selectorBus);
+    auto [selectorBus, selectorDriver] = test::BoundDriver<Controller>{}; initialize(selectorDriver, selectorBus);
     auto baseline = start(selectorDriver, negotiated());
     CHECK(drain(selectorDriver, selectorBus, baseline).ok()); take(selectorDriver, baseline);
     const auto prior = selectorDriver.settingsSnapshot();
@@ -515,8 +505,7 @@ void failures() {
   // Partial verification retains the old observed tuple and its historical
   // timestamp. The admitted new intent is separate and remains authoritative.
   {
-    Controller partialBus; Driver partialDriver;
-    CHECK(partialDriver.bind(partialBus.config()).ok()); initialize(partialDriver, partialBus);
+    auto [partialBus, partialDriver] = test::BoundDriver<Controller>{}; initialize(partialDriver, partialBus);
     auto baseline = start(partialDriver, negotiated());
     CHECK(drain(partialDriver, partialBus, baseline).ok()); take(partialDriver, baseline);
     const auto prior = partialDriver.settingsSnapshot();
@@ -531,8 +520,7 @@ void failures() {
     CHECK(snapshot.trust == ConfigurationTrust::DIRTY);
   }
   // An earlier CR1 mismatch survives a later read timeout with backend detail.
-  Controller bus; Driver driver;
-  CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus); seed(bus);
+  auto [bus, driver] = test::BoundDriver<Controller>{}; initialize(driver, bus); seed(bus);
   const auto first = bus.frames;
   bus.mismatchReg = 9; bus.mismatchXor = 0x0020;
   const auto token = start(driver, forced());
@@ -549,8 +537,7 @@ void verificationOutcomes() {
   // Check both direct configuration and the identical initialization replay.
   for (const bool restoring : {false, true}) {
     for (unsigned interruption = 0; interruption < 6; ++interruption) {
-      Controller bus; Driver driver;
-      CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus);
+      auto [bus, driver] = test::BoundDriver<Controller>{}; initialize(driver, bus);
       if (restoring) {
         const auto initial = start(driver, forced());
         CHECK(drain(driver, bus, initial).ok()); take(driver, initial);
@@ -605,8 +592,7 @@ void verificationOutcomes() {
 void replay() {
   for (const auto reset : {ResetKind::NONE, ResetKind::PCS, ResetKind::HARD, ResetKind::RESTART}) {
     for (const auto speed : {LinkSpeed::MBPS_10, LinkSpeed::MBPS_100}) {
-      Controller bus; Driver driver;
-      CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus);
+      auto [bus, driver] = test::BoundDriver<Controller>{}; initialize(driver, bus);
       const auto profile = forced(speed, Duplex::FULL, PairSelection::MDIX, true, speed == LinkSpeed::MBPS_100);
       auto token = start(driver, profile); CHECK(drain(driver, bus, token).ok()); take(driver, token);
       auto& words = bus.phys[1].words;
@@ -651,8 +637,7 @@ void timing() {
   // A sampled AN restart bit is irrelevant to a forced stable comparison;
   // forcing does not claim a negotiated-command completion or wait for AN.
   {
-    Controller bus; Driver driver;
-    CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus); seed(bus);
+    auto [bus, driver] = test::BoundDriver<Controller>{}; initialize(driver, bus); seed(bus);
     bus.mismatchReg = 0; bus.mismatchXor = 0x0200;
     const auto first = bus.frames;
     const auto token = start(driver, forced());
@@ -662,8 +647,7 @@ void timing() {
     CHECK(bus.frames == first + 20U && !result.mismatch.valid);
   }
   // Save reads fit a one-frame slice; every RMW is indivisible at two frames.
-  Controller bus; Driver driver;
-  CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus);
+  auto [bus, driver] = test::BoundDriver<Controller>{}; initialize(driver, bus);
   auto token = start(driver, forced());
   for (unsigned i = 0; i < 5; ++i) CHECK(driver.pollOperation(token, 1).inProgress());
   const auto frames = bus.frames;
@@ -680,8 +664,7 @@ void timing() {
   CHECK(result.late && result.mutationCompleted && result.cleanupOwed);
   CHECK(driver.settingsSnapshot().trust == ConfigurationTrust::DIRTY);
   // Exact deadline expiry before submission cannot emit another frame.
-  Controller expiry; Driver expired;
-  CHECK(expired.bind(expiry.config()).ok()); initialize(expired, expiry);
+  auto [expiry, expired] = test::BoundDriver<Controller>{}; initialize(expired, expiry);
   OperationToken expToken;
   CHECK(expired.startConfigure(forced(), budget(512, expiry.now), expToken).inProgress());
   const auto calls = expiry.calls;
@@ -697,8 +680,7 @@ void powerPin() {
     // A preexisting power-down indication cannot distinguish pin assertion
     // from a software request. Reject both before any profile mutation.
     for (const bool external : {false, true}) {
-      Controller bus; Driver driver;
-      CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus); seed(bus);
+      auto [bus, driver] = test::BoundDriver<Controller>{}; initialize(driver, bus); seed(bus);
       auto& phy = bus.phys[1];
       if (external) phy.powerDownPin = true;
       else phy.words[0] = static_cast<uint16_t>(phy.words[0] | 0x0800U);
@@ -718,8 +700,7 @@ void powerPin() {
     // Restoration uses the same preflight, but mandatory initialization/reset
     // effects already occurred. Rejection must retain that separate obligation.
     for (const auto reset : {ResetKind::NONE, ResetKind::PCS, ResetKind::HARD, ResetKind::RESTART}) {
-      Controller bus; Driver driver;
-      CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus);
+      auto [bus, driver] = test::BoundDriver<Controller>{}; initialize(driver, bus);
       const auto baseline = start(driver, profile);
       CHECK(drain(driver, bus, baseline).ok()); take(driver, baseline);
       bus.phys[1].powerDownPin = true;
@@ -738,8 +719,7 @@ void powerPin() {
     // Inject the pin change only into the READ of the final atomic BMCR RMW,
     // after a zero preflight. It must not become persistent software intent.
     for (unsigned attempt = 0; attempt < 5; ++attempt) {
-      Controller bus; Driver driver;
-      CHECK(driver.bind(bus.config()).ok()); initialize(driver, bus); seed(bus);
+      auto [bus, driver] = test::BoundDriver<Controller>{}; initialize(driver, bus); seed(bus);
       if (attempt != 0) {
         const auto baseline = start(driver, profile);
         CHECK(drain(driver, bus, baseline).ok()); take(driver, baseline);

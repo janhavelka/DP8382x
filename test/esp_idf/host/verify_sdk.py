@@ -18,6 +18,8 @@ def main():
     parser.add_argument("--include", action="append", default=[])
     parser.add_argument("--source", action="append", default=[])
     parser.add_argument("--define", action="append", default=[])
+    parser.add_argument("--option", action="append", default=[])
+    parser.add_argument("--force-include")
     parser.add_argument("--write-manifest", action="store_true")
     args = parser.parse_args()
     sdk = args.sdk.resolve()
@@ -32,7 +34,10 @@ def main():
             command += ["-D", definition]
         for include in args.include:
             command += ["-I", include]
-        command += ["-include", str(Path(__file__).parent / "platform/host_compat.h"), source]
+        command.extend(args.option)
+        if args.force_include:
+            command += ["-include", args.force_include]
+        command.append(source)
         output = subprocess.check_output(command, text=True)
         for item in shlex.split(output.replace("\\\n", " ").split(": ", 1)[1]):
             path = Path(item).resolve()
@@ -48,6 +53,8 @@ def main():
         # content; no other source transformation or filter is accepted here.
         payload = (sdk / name).read_bytes().replace(b"\r\n", b"\n")
         digest = hashlib.sha1(f"blob {len(payload)}\0".encode() + payload).hexdigest()
+        if name not in pinned_files:
+            raise SystemExit(f"SDK dependency absent from pin: {name}")
         pinned = pinned_files[name]
         if digest != pinned:
             raise SystemExit(f"SDK working file differs from pin: {name} ({digest}, expected {pinned})")

@@ -1,5 +1,20 @@
 # Verification
 
+The [DP83826I coverage matrix](../docs/feature-coverage.md) maps all primary
+feature and procedure IDs to commands, test names and physical cases. In a
+combined portable and pinned SDK host build, `cli_matrix_registrations`
+checks those names against CTest's generated inventory. Python discovery can
+check the field routes and campaign IDs independently of a build.
+
+`cli_native_console_framing` exercises formatted bodies of 300, 376, 377 and
+379 bytes. The latter two must be dropped whole. `cli_native_console_verdict`
+and `native_uart_verdict` check process exit codes and the assertion diagnostic.
+The console probe also executes an empty named suite and requires failure.
+Ordinary successful binds share the [bound driver fixture](support/BoundDriver.h).
+The [initialization controller](support/InitializationController.h) shares bus
+and fault accounting between operations and reset. The suites keep separate PCS
+and HARD wire models for counter effects, strap resampling and bus silence.
+
 The pinned-host suite `native_cli_cross_entry_boundaries` exercises two installed
 adapters at PHY addresses 0 and 1. Reentry from the holding task and a competing
 task checks the public raw ioctls, mediator hooks, PHY callbacks, application

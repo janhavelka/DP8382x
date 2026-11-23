@@ -152,8 +152,8 @@ intent. Native reusable teardown remains gated on RX lifetime safety.
 - [Device coverage](docs/variants.md): primary target and reference-only variants.
 - [ESP32-P4 board context](docs/esp32p4-board.md): the starting hardware and link
   policy, kept separate from reusable driver defaults.
-- [Verification](test/README.md): portable host, version and archive checks,
-  with driver checks planned.
+- [Verification](test/README.md) covers portable driver tests, the pinned SDK host build,
+  CLI and runner regressions, the build-tree consumer, and source checks.
 - [Version tooling](scripts/README.md): release-version source, sync/check and
   firmware Git-identity boundary.
 - [Core silicon behavior](docs/device-behavior.md), [independent vectors](docs/register-vectors.md)

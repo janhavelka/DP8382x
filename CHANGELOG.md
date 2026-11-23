@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed silent assertion failures in the host console and UART tests. The
+  basic P4 example host build now checks its own pinned SDK header manifest.
+
 - Board reset preparation detects a regressing clock across drain, pin calls
   and wakes, and closes shared MDIO admission. The basic P4 application
   reports the direct link-event retry result alongside its lifecycle errors.

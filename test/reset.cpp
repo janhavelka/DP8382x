@@ -1,4 +1,5 @@
-#include "support/Check.h"
+#include "support/BoundDriver.h"
+#include "support/InitializationController.h"
 #include <DP8382x/DP8382x.h>
 
 #include <array>
@@ -11,14 +12,8 @@ using Driver = ::DP8382x::DP8382x;
 
 // The independent model follows the literal tables 8-19/48 resets and tables 8-31/32
 // selector protocol. Its timings exercise software contracts, not PHY timing.
-struct Wire {
-  FrameKind kind;
-  uint8_t phy;
-  uint8_t reg;
-  uint16_t value;
-};
-enum class Fault { NONE, NONTERMINAL, SHORT, MISSING_VALUE };
-struct Controller {
+using test::Fault;
+struct ResetWire {
   struct Phy {
     uint16_t id1{0x2000}, id2{0xA131}, bmcr{0x3100}, phyrcr{0};
     uint16_t sor1{0x1234}, sor2{0x5678}, vod{0x8400}, led{0};
@@ -26,41 +21,9 @@ struct Controller {
     unsigned resetReads{0};
   };
   std::array<Phy, 32> phys{};
-  std::array<Wire, 512> trace{};
-  std::array<uint8_t, 128> batchSizes{};
-  std::array<IoBudget, 128> budgets{};
-  uint64_t now{100}, frameTime{2};
-  TransportBounds bounds{8, 4, 1};
-  unsigned clocks{0}, calls{0}, acquisitions{0}, releases{0}, frames{0};
-  unsigned jumpClockCall{0};
-  uint64_t jumpClockTo{0};
-  bool locked{false}, quarantined{false}, stickyReset{false};
-  bool resampleOnHard{false};
-  uint64_t ownerQuietUntil{0};
-  bool acceptedFailure{true}, failedEffectPossible{true};
-  int failFrame{-1}, releaseBatch{-1}, reusableFalseBatch{-1}, faultyBatch{-1}, lateBatch{-1}, regressBatch{-1};
+  bool stickyReset{false};
   int overrideVod{-1};
-  Fault fault{Fault::NONE};
-  Driver* active{nullptr};
-  Driver* competitor{nullptr};
-  OperationToken activeToken{};
-  bool exerciseReentry{false};
-  unsigned excluded{0};
-
-  Config config(uint32_t address = 1) noexcept {
-    Config value;
-    value.variant = Variant::DP83826I;
-    value.interface = MacInterface::RMII;
-    value.phyAddress = address;
-    value.transport = {this, execute, clock, bounds};
-    return value;
-  }
-  static uint64_t clock(void* context) noexcept {
-    auto& bus = *static_cast<Controller*>(context);
-    ++bus.clocks;
-    if (bus.clocks == bus.jumpClockCall) bus.now = bus.jumpClockTo;
-    return bus.now;
-  }
+  bool resampleOnHard{false};
   uint16_t read(Phy& phy, uint8_t reg) noexcept {
     if (reg == 0x00) {
       if ((phy.bmcr & 0x8000U) && !stickyReset) {
@@ -106,93 +69,8 @@ struct Controller {
       if (phy.address == 0x0018) phy.led = word;
     } else if (reg == 0x18) phy.led = word;
   }
-  static BatchResult execute(void* context, const MdioBatch& batch, const IoBudget& budget) noexcept {
-    auto& bus = *static_cast<Controller*>(context);
-    const unsigned call = bus.calls++;
-    BatchResult result;
-    result.releaseStatus = Status::Ok();
-    result.controllerReusable = !bus.quarantined;
-    if (bus.locked || bus.quarantined || bus.now < bus.ownerQuietUntil) {
-      result.status = {Err::BUSY, static_cast<int32_t>(bus.quarantined ? BusyDetail::CONTROLLER_QUARANTINED : BusyDetail::OWNER_ADMISSION), "Controller busy"};
-      return result;
-    }
-    CHECK(call < bus.batchSizes.size());
-    bus.batchSizes[call] = batch.frameCount;
-    bus.budgets[call] = budget;
-    CHECK(batch.frameCount > 0 && batch.frameCount <= 8);
-    CHECK(budget.maxFrames >= batch.frameCount);
-    bus.locked = true;
-    ++bus.acquisitions;
-    result.status = Status::Ok();
-    auto& phy = bus.phys[batch.phyAddress];
-    for (uint8_t i = 0; i < batch.frameCount; ++i) {
-      const auto& frame = batch.frames[i];
-      auto& receipt = result.frames[i];
-      CHECK(frame.registerAddress < 32);
-      CHECK(frame.readIndex == 0xFF); // Initialization has no RMW command.
-      CHECK(frame.preserveMask == 0);
-      CHECK(bus.frames < bus.trace.size());
-      bus.trace[bus.frames] = {frame.kind, batch.phyAddress, frame.registerAddress, frame.value};
-      const bool failed = static_cast<int>(bus.frames) == bus.failFrame;
-      ++bus.frames;
-      receipt.attempted = true;
-      if (frame.kind == FrameKind::WRITE && (!failed || bus.acceptedFailure))
-        bus.write(phy, frame.registerAddress, frame.value);
-      if (failed) {
-        receipt.effectPossible = bus.failedEffectPossible;
-        result.status = {Err::MDIO_TIMEOUT, -1701, "Injected frame timeout"};
-      } else {
-        receipt.completed = true;
-        if (frame.kind == FrameKind::READ) {
-          receipt.valueValid = true;
-          receipt.value = bus.read(phy, frame.registerAddress);
-        }
-      }
-      bus.now += bus.frameTime;
-      if (bus.exerciseReentry) {
-        uint16_t output = 0xBEEF;
-        if (bus.active) {
-          const auto status = bus.active->readClause22(2, output, budget);
-          CHECK(status.is(Err::BUSY));
-          CHECK(status.detail == static_cast<int32_t>(BusyDetail::OPERATION_ACTIVE));
-          CHECK(bus.active->pollOperation(bus.activeToken).is(Err::BUSY));
-          CHECK(bus.active->cancel(bus.activeToken).is(Err::BUSY));
-          CHECK(bus.active->end().is(Err::BUSY));
-          CHECK(bus.active->abandonCleanup().is(Err::BUSY));
-          CHECK(output == 0xBEEF);
-        }
-        if (bus.competitor) {
-          const auto status = bus.competitor->readMmd(31, 0x0467, output, budget);
-          CHECK(status.is(Err::BUSY));
-          CHECK(status.detail == static_cast<int32_t>(BusyDetail::OWNER_ADMISSION));
-          CHECK(output == 0xBEEF);
-        }
-        ++bus.excluded;
-      }
-      if (failed) break;
-    }
-    if (static_cast<int>(call) == bus.faultyBatch) {
-      if (bus.fault == Fault::NONTERMINAL) result.status = {Err::IN_PROGRESS, -2147483647, "Nonterminal callback"};
-      if (bus.fault == Fault::SHORT) result.frames[batch.frameCount - 1] = {};
-      if (bus.fault == Fault::MISSING_VALUE) result.frames[batch.frameCount - 1].valueValid = false;
-    }
-    if (static_cast<int>(call) == bus.lateBatch) bus.now = budget.deadlineUs;
-    if (static_cast<int>(call) == bus.regressBatch) bus.now = 1;
-    if (static_cast<int>(call) == bus.releaseBatch) {
-      result.releaseStatus = {Err::MDIO_ERROR, -901, "Injected release failure"};
-      result.controllerReusable = false;
-      bus.quarantined = true;
-    } else {
-      ++bus.releases;
-      bus.locked = false;
-    }
-    if (static_cast<int>(call) == bus.reusableFalseBatch) {
-      result.controllerReusable = false;
-      bus.quarantined = true;
-    }
-    return result;
-  }
 };
+using Controller = test::InitializationController<ResetWire>;
 
 OperationBudget budget(uint32_t frames = 128, uint64_t deadline = 100000) {
   return {{deadline, frames}, 1000, 8};
@@ -222,19 +100,6 @@ OperationResult take(Driver& driver, OperationToken token) {
   CHECK(driver.takeResult(token, result).ok());
   CHECK(result.token.value == token.value);
   return result;
-}
-void wire(const Controller& bus, unsigned index, FrameKind kind, uint8_t reg, uint16_t value = 0, uint8_t phy = 1) {
-  CHECK(index < bus.frames);
-  CHECK(bus.trace[index].kind == kind);
-  CHECK(bus.trace[index].phy == phy);
-  CHECK(bus.trace[index].reg == reg);
-  CHECK(bus.trace[index].value == value);
-}
-void indirect(const Controller& bus, unsigned first, uint16_t address, bool write, uint16_t word = 0) {
-  wire(bus, first, FrameKind::WRITE, 0x0D, 0x001F);
-  wire(bus, first + 1, FrameKind::WRITE, 0x0E, address);
-  wire(bus, first + 2, FrameKind::WRITE, 0x0D, 0x401F);
-  wire(bus, first + 3, write ? FrameKind::WRITE : FrameKind::READ, 0x0E, word);
 }
 
 void toCommand(Driver& driver, Controller& bus, OperationToken token) {
@@ -299,9 +164,7 @@ void traces() {
   // A cleared requested bit is insufficient if the other PHYRCR command remains
   // active. Do not refresh/replay into an overlapping reset or restart.
   for (const auto reset : {ResetKind::HARD, ResetKind::RESTART}) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     const auto token = start(driver, reset);
     toCommand(driver, bus, token);
     CHECK(driver.pollOperation(token).inProgress());
@@ -365,9 +228,7 @@ void traces() {
 
 void floor() {
   for (const uint32_t interval : {1000U, 2000U, 7000U}) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     auto allowance = budget();
     allowance.pollIntervalUs = interval;
     const auto token = start(driver, ResetKind::HARD, allowance);
@@ -408,9 +269,7 @@ void floor() {
   }
   // End/rebind cannot clear an obligation; after explicit transfer the owner
   // retains the physical floor across the local binding lifetime.
-  Controller bus;
-  Driver driver;
-  CHECK(driver.bind(bus.config()).ok());
+  auto [bus, driver] = test::BoundDriver<Controller>{};
   const auto token = start(driver);
   toCommand(driver, bus, token);
   CHECK(driver.pollOperation(token).inProgress());
@@ -466,9 +325,7 @@ void failures() {
   // Malformed selector/read receipts before the semantic command do not invent
   // a reset or quiet floor. Valid owner denials likewise prove no invocation.
   for (const bool malformed : {false, true}) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     const auto token = start(driver);
     if (malformed) {
       bus.faultyBatch = 1;
@@ -487,9 +344,7 @@ void failures() {
     CHECK(!driver.operationSnapshot().busQuietValid && bus.phys[1].phyrcr == 0);
   }
   for (const auto reset : {ResetKind::NONE, ResetKind::HARD, ResetKind::RESTART}) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     const auto initial = start(driver, ResetKind::NONE);
     CHECK(drain(driver, bus, initial).ok());
     take(driver, initial);
@@ -595,9 +450,7 @@ void timing() {
   constexpr uint64_t deadline = 100000;
   for (const auto reset : {ResetKind::HARD, ResetKind::RESTART}) {
     for (unsigned slack : {0U, 1U}) {
-      Controller bus;
-      Driver driver;
-      CHECK(driver.bind(bus.config()).ok());
+      auto [bus, driver] = test::BoundDriver<Controller>{};
       const auto token = start(driver, reset, budget(128, deadline));
       toCommand(driver, bus, token);
       const auto frames = bus.frames, calls = bus.calls;
@@ -654,9 +507,7 @@ void timing() {
     CHECK(bus.frames == 18);
   }
   // Frozen time stops at a finite stalled-poll bound while no frame can start.
-  Controller frozen;
-  Driver stopped;
-  CHECK(stopped.bind(frozen.config()).ok());
+  auto [frozen, stopped] = test::BoundDriver<Controller>{};
   auto allowance = budget(); allowance.maxStalledPolls = 3;
   const auto token = start(stopped, ResetKind::HARD, allowance);
   toCommand(stopped, frozen, token);
@@ -696,9 +547,7 @@ void timing() {
   CHECK(driver.pollOperation(nearMax).detail == static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
   CHECK(overflow.frames == count && !take(driver, nearMax).mutationAttempted);
 
-  Controller empty;
-  Driver local;
-  CHECK(local.bind(empty.config()).ok());
+  auto [empty, local] = test::BoundDriver<Controller>{};
   OperationToken sentinel{0xCAFE};
   CHECK(local.startInitialize({ResetKind::HARD}, budget(0), sentinel).detail == static_cast<int32_t>(TimeoutDetail::FRAME_BUDGET));
   CHECK(local.startInitialize({ResetKind::RESTART}, budget(128, 0), sentinel).detail == static_cast<int32_t>(TimeoutDetail::DEADLINE));
@@ -727,9 +576,7 @@ void external() {
   // Cancel at each reachable batch boundary, preserving any attempted HARD floor.
   for (const auto reset : {ResetKind::HARD, ResetKind::RESTART}) {
     for (unsigned batches = 0; batches < 12; ++batches) {
-      Controller bus;
-      Driver driver;
-      CHECK(driver.bind(bus.config()).ok());
+      auto [bus, driver] = test::BoundDriver<Controller>{};
       const auto token = start(driver, reset);
       for (unsigned done = 0; done < batches; ++done) {
         const auto snapshot = driver.operationSnapshot();
@@ -755,9 +602,7 @@ void external() {
   }
   for (const auto reason : {InvalidationReason::EXTERNAL_RESET, InvalidationReason::EXTERNAL_POWER_ON,
                            InvalidationReason::EXTERNAL_MUTATION}) {
-    Controller bus;
-    Driver driver;
-    CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     const auto token = start(driver);
     toCommand(driver, bus, token);
     CHECK(driver.pollOperation(token).inProgress());
@@ -774,9 +619,7 @@ void external() {
     CHECK(driver.abandonCleanup().ok());
   }
   // RESTART retains initialized and mode evidence until mandatory VOD mutation.
-  Controller bus;
-  Driver driver;
-  CHECK(driver.bind(bus.config()).ok());
+  auto [bus, driver] = test::BoundDriver<Controller>{};
   const auto initial = start(driver, ResetKind::NONE);
   CHECK(drain(driver, bus, initial).ok()); take(driver, initial);
   const auto restart = start(driver, ResetKind::RESTART);

@@ -24,6 +24,10 @@ int runSuites(int argc, char** argv, const Suite (&suites)[N]) {
   }
   if (!found) { return 2; }
   std::printf("%u checks; %u failures\n", checks, failures);
+  if (checks == 0U) {
+    std::fprintf(stderr, "Suite %s executed zero checks\n", argv[1]);
+    return 1;
+  }
   return failures == 0U ? 0 : 1;
 }
 }

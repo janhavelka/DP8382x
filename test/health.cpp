@@ -1,4 +1,4 @@
-#include "support/Check.h"
+#include "support/BoundDriver.h"
 #include <DP8382x/DP8382x.h>
 #include "../src/DP8382xHealth.h"
 
@@ -214,7 +214,7 @@ void accounting() {
   // Every physical phase of a four-frame managed MMD read can fail. Successful
   // selector writes do not turn the failed transaction into health successes.
   for (int phase = 0; phase < 4; ++phase) {
-    Controller bus; Driver driver; CHECK(driver.bind(bus.config()).ok());
+    auto [bus, driver] = test::BoundDriver<Controller>{};
     const auto token = start(driver);
     CHECK(driver.pollOperation(token).inProgress()); // Two identity reads.
     bus.failNext(phase);
@@ -239,16 +239,14 @@ void accounting() {
     CHECK(driver.transportSnapshot().attemptedFrames == 21U + static_cast<unsigned>(phase));
     CHECK(driver.transportSnapshot().completedFrames == 20U + static_cast<unsigned>(phase));
   }
-  Controller wrongPart; Driver rejected;
-  CHECK(rejected.bind(wrongPart.config()).ok()); wrongPart.words[3] = 0xA141;
+  auto [wrongPart, rejected] = test::BoundDriver<Controller>{}; wrongPart.words[3] = 0xA141;
   const auto wrongToken = start(rejected);
   CHECK(drain(rejected, wrongPart, wrongToken).is(Err::DEVICE_MISMATCH));
   CHECK(rejected.healthSnapshot().totalSuccess == 1 && rejected.healthSnapshot().totalFailures == 0);
   CHECK(rejected.driverState() == DriverState::UNINIT);
   CHECK(take(rejected, wrongToken).status.is(Err::DEVICE_MISMATCH));
 
-  Controller semantic; Driver mismatch;
-  CHECK(mismatch.bind(semantic.config()).ok()); semantic.wrongVod = true;
+  auto [semantic, mismatch] = test::BoundDriver<Controller>{}; semantic.wrongVod = true;
   const auto token = start(mismatch);
   CHECK(drain(mismatch, semantic, token).is(Err::CONFIG_MISMATCH));
   CHECK(mismatch.healthSnapshot().totalSuccess == 7 && mismatch.healthSnapshot().totalFailures == 0);
@@ -327,8 +325,7 @@ void rawAndLocal() {
   CHECK(driver.modifyInterruptEnables(0x12, 1, 1, io()).ok());
   const auto afterMaintenance = driver.healthSnapshot();
   CHECK(afterMaintenance.totalSuccess == 0 && afterMaintenance.totalFailures == 0 && afterMaintenance.consecutiveFailures == 1);
-  Controller interleaved; Driver operation;
-  CHECK(operation.bind(interleaved.config()).ok());
+  auto [interleaved, operation] = test::BoundDriver<Controller>{};
   const auto token = start(operation);
   const auto beforeRaw = operation.healthSnapshot();
   CHECK(operation.readClause22(2, word, io()).ok());

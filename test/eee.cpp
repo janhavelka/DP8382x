@@ -1,4 +1,4 @@
-#include "support/Check.h"
+#include "support/BoundDriver.h"
 #include <DP8382x/DP8382x.h>
 #include <array>
 #include <cstdint>
@@ -165,7 +165,7 @@ void literalMmd(const Controller& b,unsigned first,uint16_t devad,uint16_t addre
 }
 
 void raw() {
-  Controller b;Driver d;CHECK(d.bind(b.config()).ok());
+  auto [b, d] = test::BoundDriver<Controller>{};
   b.mmd7[0x3C]=0x0002;b.mmd7[0x3D]=0x0002;
   const std::array<std::array<uint16_t,2>,3> allowed{{{{3,0x14}},{{7,0x3C}},{{7,0x3D}}}};
   for(const auto& pair:allowed) {

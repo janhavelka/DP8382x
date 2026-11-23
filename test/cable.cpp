@@ -1,4 +1,4 @@
-#include "support/Check.h"
+#include "support/BoundDriver.h"
 #include <DP8382x/DP8382x.h>
 #include <array>
 #include <cmath>
@@ -459,7 +459,7 @@ void failures() {
 
 void lifecycle() {
   // Admission precedence is syntax, slot/barrier, initialized, then zero budget.
-  Controller unready;Driver notInitialized;CHECK(notInitialized.bind(unready.config()).ok());
+  auto [unready, notInitialized] = test::BoundDriver<Controller>{};
   OperationToken unchanged{999};
   CHECK(notInitialized.startCableTest(settings(1),allowance(0),unchanged).is(Err::NOT_INITIALIZED));
   CHECK(unchanged.value==999 && unready.calls==0U && unready.clocks==0U);

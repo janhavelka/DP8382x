@@ -444,8 +444,9 @@ the portable query to invent one or label valid link-down a failure.
 ## Complete typed feature map
 
 The single [feature coverage matrix](feature-coverage.md) owns feature/procedure
-IDs, implementation owners, CLI routes, tests and physical cases. Do not create
-a second field catalogue in C++ or duplicate the matrix here. Stage 13's policy
+IDs, implementation owners, field-to-command routes, tests and physical cases.
+Its field groups distinguish reads, collector acquisitions, commands and
+source-gated requests for the same register. Stage 13's policy
 table classifies every ledger address; masks and legal encodings remain sourced
 and mechanically checked, with destructive status owned by one collector.
 

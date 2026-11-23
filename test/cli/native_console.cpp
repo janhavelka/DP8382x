@@ -134,10 +134,31 @@ void framing() {
   CHECK(sink.drain(console) == NativeConsole::DRAIN_BYTES);
   CHECK(sink.drain(console) == NativeConsole::LOG_LINE_BYTES - NativeConsole::DRAIN_BYTES);
   CHECK(sink.bytes.substr(sink.bytes.size() - NativeConsole::LOG_LINE_BYTES) == "[log] " + maximum + "\r\n");
+  auto before = console.stats();
   CHECK(!console.log("embedded\nnewline"));
-  CHECK(formatted(console, "%0300d", 1) == 0);
-  CHECK(console.stats().droppedLogs == 2);
-  CHECK(console.stats().truncatedLogs == 1);
+  CHECK(console.stats().droppedLogs == before.droppedLogs + 1U);
+  CHECK(console.stats().truncatedLogs == before.truncatedLogs);
+
+  // Six prefix and two terminator bytes leave 376 formatted body bytes.
+  before = console.stats();
+  for (const int width : {300, 376}) {
+    const auto start = sink.bytes.size();
+    CHECK(formatted(console, "%0*d", width, 1) == width);
+    while (sink.drain(console) != 0) {}
+    CHECK(sink.bytes.substr(start) == "[log] " + std::string(static_cast<std::size_t>(width - 1), '0') + "1\r\n");
+  }
+  CHECK(console.stats().droppedLogs == before.droppedLogs);
+  CHECK(console.stats().truncatedLogs == before.truncatedLogs);
+  // 377 fits vsnprintf but overflows the rendered line. 379 exhausts
+  // the formatting buffer itself. Neither rejection emits a partial line.
+  for (const int width : {377, 379}) {
+    before = console.stats();
+    const auto start = sink.bytes.size();
+    CHECK(formatted(console, "%0*d", width, 1) == 0);
+    CHECK(sink.drain(console) == 0 && sink.bytes.size() == start);
+    CHECK(console.stats().droppedLogs == before.droppedLogs + 1U);
+    CHECK(console.stats().truncatedLogs == before.truncatedLogs + 1U);
+  }
   CHECK(console.stats().stalledWrites == 1);
 }
 
@@ -262,12 +283,9 @@ void concurrentLogs() {
 } // namespace
 
 int main(int argc, char** argv) {
-  if (argc != 2) return 2;
-  const std::string_view suite{argv[1]};
-  if (suite == "framing") framing();
-  else if (suite == "input_gap") inputGap();
-  else if (suite == "retention") retention();
-  else if (suite == "concurrent_logs") concurrentLogs();
-  else return 2;
-  return 0;
+  const test::Suite suites[] = {
+    {"framing", framing}, {"input_gap", inputGap}, {"retention", retention},
+    {"concurrent_logs", concurrentLogs}, {"--verify-empty-suite", [] {}}
+  };
+  return test::runSuites(argc, argv, suites);
 }

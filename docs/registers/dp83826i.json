@@ -11989,15 +11989,15 @@
       "scope": "SOFTWARE",
       "evidence": {
         "documented": "COMPLETE",
-        "implemented": "PARTIAL",
-        "hostTested": "PARTIAL",
-        "sdkBuilt": "NOT_RUN",
+        "implemented": "COMPLETE",
+        "hostTested": "COMPLETE",
+        "sdkBuilt": "COMPLETE",
         "hardwareQualified": "NOT_RUN"
       },
       "gates": [
         "eee_wire"
       ],
-      "notes": "Prompts 11-13 implement bounded direct/indirect access, complete named catalog, stable LEDCR RMW, collector-routed destructive acquisition, MISR enable updates and RXFCFG1 W0C composition. Three stable source-implied EEE tuples admit reads; physical offsets remain Q1 pending. Host fault/ownership tests and linked portable examples execute these APIs. Typed feature procedures and SDK/physical qualification remain separate. See docs/side-effect-access.md."
+      "notes": "Complete for the admitted DP83826I C22 and MMD policies, including stable LEDCR updates, protected selectors, mixed writes and the single destructive collector. D2 admits stable DEVAD/offset reads 3/0014, 7/003C and 7/003D. Only the collector acquires 3/0001 and 3/0016. The offsets are hexadecimal. Q1 wire confirmation remains open. Prompts 38 and 53 exercised native stopped-owner access and linked the P4 adapter. See docs/side-effect-access.md and docs/feature-coverage.md."
     },
     {
       "id": "reset",
