@@ -43,6 +43,15 @@ nominal timing values must not be recast as maxima or minimum holdoffs.
 
 ## Identity and A-generation comparison
 
+The AI/AE field-by-field comparison uses SNLS783A table 8-18 and all 79
+detailed tables. For revision admission use its exact-part identity record.
+For reset domains, FLD, the two selector phases and the ordered EEE writes,
+use the corresponding procedure ID. The comparison includes TI SDK and
+independent CycloneTCP observations and resolves application-note conflicts
+against the detailed tables. [Field comparison](../registers/dp83826a.json),
+[procedures](../registers/dp83826a-procedures.json) and
+[prompt 57 report](../reports/implementation/57-a-source-policy.md#phase-b-source-reconciliation).
+
 | Exact observation | Value | Evidence and disposition |
 | --- | --- | --- |
 | TI RTOS DP83822 OUI / model / revision equality check | `0x080028` / `0x24` / `0` | OBSERVED c:52-54, 129-143; CORROBORATED SNLS505H tables 8-3/8-4. Strict reference revision equality is a source policy, not a universal future-revision rule. |

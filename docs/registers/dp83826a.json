@@ -1,0 +1,5255 @@
+{
+  "schemaVersion": 1,
+  "variants": [
+    "DP83826AI",
+    "DP83826AE"
+  ],
+  "comparisonVariants": [
+    "DP83826I",
+    "DP83826E"
+  ],
+  "identity": {
+    "id1": "0x2000",
+    "models": {
+      "BASIC": "0x11",
+      "ENHANCED": "0x13"
+    },
+    "acceptedRevisions": [
+      4
+    ],
+    "originalAcceptedRevisions": [
+      1
+    ],
+    "orderingGrade": "The board declares DP83826AI or DP83826AE. Preserve that declaration separately from the two raw identity words. Both grades accept A114h in BASIC and A134h in ENHANCED with ID1 2000h. Require source review before admitting another revision.",
+    "owner": 58,
+    "source": "SNLS783A tables 8-22 and 8-23 specify ID1, the two mode-dependent models and revision 4. SNLS647I tables 8-21 and 8-22 give the same models at original revision 1. TI Linux A114/A134 use a revision-insensitive match. TI Linux NC A110 and Zephyr NC A131 disagree. SNLA491 table 2-4 prints A1x6 beside A111/A131 notes. None of those labels qualifies another revision or identifies a temperature grade."
+  },
+  "sources": {
+    "A": "TI SNLS783A, October 2025, table 8-18 and sections 8.5.1.1 through 8.5.1.79",
+    "original": "TI SNLS647I, August 2025, table 8-17 and corresponding sections; dp83826i.json contains the original semantics and limits",
+    "application": "SNLS783A sections 8.3 and 8.4 include controls and procedures outside the summary table. Use the accompanying A procedure ledger for execution order, identity admission and procedure-specific exceptions."
+  },
+  "interpretation": {
+    "applicability": "Every detailed row applies to each declared A suffix. The field and procedure conditions determine eligibility in BASIC and ENHANCED. The original comparison is with both I and E. Matching silicon observations cannot identify a temperature grade.",
+    "comparison": "originalField joins the id in dp83826i.json. Retain the referenced legal, prohibited, neutral, validity and readEffects semantics except where replaced in the A row. Use the A mask, access and reset for every operation. References in inherited text describe the original table. The A table at the enclosing record is the independent comparison source.",
+    "access": "Exact table 8-19 notation. Hardware H can change a bit without an application write. C reads consume evidence or mirror a latch with the field-specific clearing source. Command neutrality, W0C and explicit collector ownership take precedence over generic read-modify-write. A printed R/W on a reserved field grants no field-setting permission.",
+    "reset": "headerReset reproduces the register heading. Field reset strings are right-aligned, as printed. resetValue masked by resetKnownMask gives only board/mode-independent reset bits. Strap, OTP, mode variation and explicit X are excluded. Reset values for dynamic status describe the reset instant. They are unsuitable as live verification or write templates.",
+    "reserved": "reservedRows preserves the exact partitions, access and reset cells of the A table. Only an individually cited ordered procedure may use a reserved component of an exact recipe word.",
+    "tests": "For each named field, both declared grades require independent literal register/field masks and access checks, constrained reset comparisons, legal endpoint and prohibited-encoding cases where applicable. Every write starts with asymmetric neighboring bits and obeys field-specific neutral/consuming effects. Read-only fields and inaccessible routes must yield zero unauthorized writes. Read-to-clear and cross-register mirror tests retain the first observation after partial failure.",
+    "aliases": "SNLS783A 8.3.11.1 exposes the direct low standard registers via vendor MMD. REGCR and ADDAR are selector primitives and have no ordinary payload aliases. The printed IEEE EEE namespaces use their explicitly selected tuples."
+  },
+  "registers": [
+    {
+      "id": "BMCR",
+      "address": "0x0000",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0000"
+        }
+      ],
+      "section": "8.5.1.1",
+      "table": "8-20",
+      "originalTable": "8-19",
+      "headerReset": "XX00",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xCAFF",
+      "reservedMask": "0x007F",
+      "reservedRows": [
+        {
+          "bits": "6-0",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "BMCR.reset",
+          "originalField": "BMCR.reset",
+          "mask": "0x8000",
+          "access": "RH/W1S",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "BMCR.loopback",
+          "originalField": "BMCR.loopback",
+          "mask": "0x4000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "BMCR.speed",
+          "originalField": "BMCR.speed",
+          "mask": "0x2000",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 58,
+          "modeDefault": {
+            "BASIC": "strap when forced",
+            "ENHANCED": "unspecified"
+          }
+        },
+        {
+          "id": "BMCR.an_enable",
+          "originalField": "BMCR.an_enable",
+          "mask": "0x1000",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 58,
+          "modeDefault": {
+            "BASIC": "strap",
+            "ENHANCED": "strap"
+          }
+        },
+        {
+          "id": "BMCR.power_down",
+          "originalField": "BMCR.power_down",
+          "mask": "0x0800",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "BMCR.isolate",
+          "originalField": "BMCR.isolate",
+          "mask": "0x0400",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 58,
+          "modeDefault": {
+            "BASIC": "strap",
+            "ENHANCED": 0
+          }
+        },
+        {
+          "id": "BMCR.an_restart",
+          "originalField": "BMCR.an_restart",
+          "mask": "0x0200",
+          "access": "RH/W1S",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "BMCR.duplex",
+          "originalField": "BMCR.duplex",
+          "mask": "0x0100",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 58,
+          "modeDefault": {
+            "BASIC": "strap",
+            "ENHANCED": 0
+          }
+        },
+        {
+          "id": "BMCR.collision_test",
+          "originalField": "BMCR.collision_test",
+          "mask": "0x0080",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "BMSR",
+      "address": "0x0001",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0001"
+        }
+      ],
+      "section": "8.5.1.2",
+      "table": "8-21",
+      "originalTable": "8-20",
+      "headerReset": "7849",
+      "resetValue": "0x7849",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x0780",
+      "reservedRows": [
+        {
+          "bits": "10-7",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "BMSR.t4",
+          "originalField": "BMSR.t4",
+          "mask": "0x8000",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "BMSR.full100",
+          "originalField": "BMSR.full100",
+          "mask": "0x4000",
+          "access": "R",
+          "reset": "1h",
+          "owner": 58
+        },
+        {
+          "id": "BMSR.half100",
+          "originalField": "BMSR.half100",
+          "mask": "0x2000",
+          "access": "R",
+          "reset": "1h",
+          "owner": 58
+        },
+        {
+          "id": "BMSR.full10",
+          "originalField": "BMSR.full10",
+          "mask": "0x1000",
+          "access": "R",
+          "reset": "1h",
+          "owner": 58
+        },
+        {
+          "id": "BMSR.half10",
+          "originalField": "BMSR.half10",
+          "mask": "0x0800",
+          "access": "R",
+          "reset": "1h",
+          "owner": 58
+        },
+        {
+          "id": "BMSR.preamble",
+          "originalField": "BMSR.preamble",
+          "mask": "0x0040",
+          "access": "R",
+          "reset": "1h",
+          "owner": 58
+        },
+        {
+          "id": "BMSR.an_complete",
+          "originalField": "BMSR.an_complete",
+          "mask": "0x0020",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "BMSR.remote_fault",
+          "originalField": "BMSR.remote_fault",
+          "mask": "0x0010",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "BMSR.an_ability",
+          "originalField": "BMSR.an_ability",
+          "mask": "0x0008",
+          "access": "R",
+          "reset": "1h",
+          "owner": 58
+        },
+        {
+          "id": "BMSR.link",
+          "originalField": "BMSR.link",
+          "mask": "0x0004",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "BMSR.jabber",
+          "originalField": "BMSR.jabber",
+          "mask": "0x0002",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "BMSR.extended",
+          "originalField": "BMSR.extended",
+          "mask": "0x0001",
+          "access": "R",
+          "reset": "1h",
+          "owner": 58
+        }
+      ]
+    },
+    {
+      "id": "PHYIDR1",
+      "address": "0x0002",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0002"
+        }
+      ],
+      "section": "8.5.1.3",
+      "table": "8-22",
+      "originalTable": "8-21",
+      "headerReset": "2000",
+      "resetValue": "0x2000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x0000",
+      "reservedRows": [],
+      "fields": [
+        {
+          "id": "PHYIDR1.oui_high",
+          "originalField": "PHYIDR1.oui_high",
+          "mask": "0xFFFF",
+          "access": "R",
+          "reset": "2000h",
+          "owner": 58
+        }
+      ]
+    },
+    {
+      "id": "PHYIDR2",
+      "address": "0x0003",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0003"
+        }
+      ],
+      "section": "8.5.1.4",
+      "table": "8-23",
+      "originalTable": "8-22",
+      "headerReset": "A134",
+      "resetValue": "0xA114",
+      "resetKnownMask": "0xFFDF",
+      "reservedMask": "0x0000",
+      "reservedRows": [],
+      "fields": [
+        {
+          "id": "PHYIDR2.oui_low",
+          "originalField": "PHYIDR2.oui_low",
+          "mask": "0xFC00",
+          "access": "R",
+          "reset": "28h",
+          "owner": 58
+        },
+        {
+          "id": "PHYIDR2.model",
+          "originalField": "PHYIDR2.model",
+          "mask": "0x03F0",
+          "access": "R",
+          "reset": "13h",
+          "owner": 58,
+          "modeDefault": {
+            "BASIC": "0x11",
+            "ENHANCED": "0x13"
+          }
+        },
+        {
+          "id": "PHYIDR2.revision",
+          "originalField": "PHYIDR2.revision",
+          "mask": "0x000F",
+          "access": "R",
+          "reset": "4h",
+          "owner": 58,
+          "delta": "Original field reset 1h.",
+          "validity": "Revision 4 qualifies A-generation admission, validated together with OUI and model. Return the raw observed revision for mismatch. Never select temperature grade from an ID.",
+          "legal": "raw four-bit observation; revision 4 for admission"
+        }
+      ]
+    },
+    {
+      "id": "ANAR",
+      "address": "0x0004",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0004"
+        }
+      ],
+      "section": "8.5.1.5",
+      "table": "8-24",
+      "originalTable": "8-23",
+      "headerReset": "0XX1",
+      "resetValue": "0x0001",
+      "resetKnownMask": "0xFE1F",
+      "reservedMask": "0x5000",
+      "reservedRows": [
+        {
+          "bits": "14",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "12",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "ANAR.next_page",
+          "originalField": "ANAR.next_page",
+          "mask": "0x8000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ANAR.remote_fault",
+          "originalField": "ANAR.remote_fault",
+          "mask": "0x2000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ANAR.asym_pause",
+          "originalField": "ANAR.asym_pause",
+          "mask": "0x0800",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ANAR.pause",
+          "originalField": "ANAR.pause",
+          "mask": "0x0400",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ANAR.t4",
+          "originalField": "ANAR.t4",
+          "mask": "0x0200",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ANAR.full100",
+          "originalField": "ANAR.full100",
+          "mask": "0x0100",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 58,
+          "modeDefault": {
+            "BASIC": "strap",
+            "ENHANCED": 1
+          }
+        },
+        {
+          "id": "ANAR.half100",
+          "originalField": "ANAR.half100",
+          "mask": "0x0080",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 58,
+          "modeDefault": {
+            "BASIC": "strap",
+            "ENHANCED": 1
+          }
+        },
+        {
+          "id": "ANAR.full10",
+          "originalField": "ANAR.full10",
+          "mask": "0x0040",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 58,
+          "modeDefault": {
+            "BASIC": "strap",
+            "ENHANCED": 1
+          }
+        },
+        {
+          "id": "ANAR.half10",
+          "originalField": "ANAR.half10",
+          "mask": "0x0020",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 58,
+          "modeDefault": {
+            "BASIC": "strap",
+            "ENHANCED": "strap"
+          }
+        },
+        {
+          "id": "ANAR.selector",
+          "originalField": "ANAR.selector",
+          "mask": "0x001F",
+          "access": "R/W",
+          "reset": "1h",
+          "owner": 58
+        }
+      ]
+    },
+    {
+      "id": "ALNPAR",
+      "address": "0x0005",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0005"
+        }
+      ],
+      "section": "8.5.1.6",
+      "table": "8-25",
+      "originalTable": "8-24",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x1000",
+      "reservedRows": [
+        {
+          "bits": "12",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "ALNPAR.next_page",
+          "originalField": "ALNPAR.next_page",
+          "mask": "0x8000",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ALNPAR.ack",
+          "originalField": "ALNPAR.ack",
+          "mask": "0x4000",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ALNPAR.remote_fault",
+          "originalField": "ALNPAR.remote_fault",
+          "mask": "0x2000",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ALNPAR.asym_pause",
+          "originalField": "ALNPAR.asym_pause",
+          "mask": "0x0800",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ALNPAR.pause",
+          "originalField": "ALNPAR.pause",
+          "mask": "0x0400",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ALNPAR.t4",
+          "originalField": "ALNPAR.t4",
+          "mask": "0x0200",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ALNPAR.full100",
+          "originalField": "ALNPAR.full100",
+          "mask": "0x0100",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ALNPAR.half100",
+          "originalField": "ALNPAR.half100",
+          "mask": "0x0080",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ALNPAR.full10",
+          "originalField": "ALNPAR.full10",
+          "mask": "0x0040",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ALNPAR.half10",
+          "originalField": "ALNPAR.half10",
+          "mask": "0x0020",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ALNPAR.selector",
+          "originalField": "ALNPAR.selector",
+          "mask": "0x001F",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        }
+      ]
+    },
+    {
+      "id": "ANER",
+      "address": "0x0006",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0006"
+        }
+      ],
+      "section": "8.5.1.7",
+      "table": "8-26",
+      "originalTable": "8-25",
+      "headerReset": "0004",
+      "resetValue": "0x0004",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFE0",
+      "reservedRows": [
+        {
+          "bits": "15-5",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "ANER.parallel_fault",
+          "originalField": "ANER.parallel_fault",
+          "mask": "0x0010",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ANER.partner_next",
+          "originalField": "ANER.partner_next",
+          "mask": "0x0008",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ANER.local_next",
+          "originalField": "ANER.local_next",
+          "mask": "0x0004",
+          "access": "R",
+          "reset": "1h",
+          "owner": 58
+        },
+        {
+          "id": "ANER.page",
+          "originalField": "ANER.page",
+          "mask": "0x0002",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ANER.partner_an",
+          "originalField": "ANER.partner_an",
+          "mask": "0x0001",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        }
+      ]
+    },
+    {
+      "id": "ANNPTR",
+      "address": "0x0007",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0007"
+        }
+      ],
+      "section": "8.5.1.8",
+      "table": "8-27",
+      "originalTable": "8-26",
+      "headerReset": "2001",
+      "resetValue": "0x2001",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x4000",
+      "reservedRows": [
+        {
+          "bits": "14",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "ANNPTR.next_page",
+          "originalField": "ANNPTR.next_page",
+          "mask": "0x8000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ANNPTR.message",
+          "originalField": "ANNPTR.message",
+          "mask": "0x2000",
+          "access": "R/W",
+          "reset": "1h",
+          "owner": 58
+        },
+        {
+          "id": "ANNPTR.ack2",
+          "originalField": "ANNPTR.ack2",
+          "mask": "0x1000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ANNPTR.toggle",
+          "originalField": "ANNPTR.toggle",
+          "mask": "0x0800",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ANNPTR.code",
+          "originalField": "ANNPTR.code",
+          "mask": "0x07FF",
+          "access": "R/W",
+          "reset": "1h",
+          "owner": 58
+        }
+      ]
+    },
+    {
+      "id": "ANLNPTR",
+      "address": "0x0008",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0008"
+        }
+      ],
+      "section": "8.5.1.9",
+      "table": "8-28",
+      "originalTable": "8-27",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x0000",
+      "reservedRows": [],
+      "fields": [
+        {
+          "id": "ANLNPTR.next_page",
+          "originalField": "ANLNPTR.next_page",
+          "mask": "0x8000",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ANLNPTR.ack",
+          "originalField": "ANLNPTR.ack",
+          "mask": "0x4000",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ANLNPTR.message",
+          "originalField": "ANLNPTR.message",
+          "mask": "0x2000",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ANLNPTR.ack2",
+          "originalField": "ANLNPTR.ack2",
+          "mask": "0x1000",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ANLNPTR.toggle",
+          "originalField": "ANLNPTR.toggle",
+          "mask": "0x0800",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "ANLNPTR.code",
+          "originalField": "ANLNPTR.code",
+          "mask": "0x07FF",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        }
+      ]
+    },
+    {
+      "id": "CR1",
+      "address": "0x0009",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0009"
+        }
+      ],
+      "section": "8.5.1.10",
+      "table": "8-29",
+      "originalTable": "8-28",
+      "headerReset": "00X0",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFDF",
+      "reservedMask": "0xFE5D",
+      "reservedRows": [
+        {
+          "bits": "15-10",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "9",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "6",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "4",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "3-2",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "0",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "CR1.tdr_auto",
+          "originalField": "CR1.tdr_auto",
+          "mask": "0x0100",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "CR1.link_recovery",
+          "originalField": "CR1.link_recovery",
+          "mask": "0x0080",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "CR1.robust_mdix",
+          "originalField": "CR1.robust_mdix",
+          "mask": "0x0020",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 58,
+          "delta": "Original access R/W. Original field reset 0h.",
+          "modeDefault": {
+            "BASIC": 0,
+            "ENHANCED": "strap"
+          }
+        },
+        {
+          "id": "CR1.fast_rxdv",
+          "originalField": "CR1.fast_rxdv",
+          "mask": "0x0002",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        }
+      ]
+    },
+    {
+      "id": "CR2",
+      "address": "0x000A",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x000A"
+        }
+      ],
+      "section": "8.5.1.11",
+      "table": "8-30",
+      "originalTable": "8-29",
+      "headerReset": "010X",
+      "resetValue": "0x0100",
+      "resetKnownMask": "0xFFFD",
+      "reservedMask": "0xFFD9",
+      "reservedRows": [
+        {
+          "bits": "15",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "14",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "13-7",
+          "access": "R/W",
+          "reset": "2h"
+        },
+        {
+          "bits": "6",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "4",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "3",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "0",
+          "access": "R/W",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "CR2.extended_duplex",
+          "originalField": "CR2.extended_duplex",
+          "mask": "0x0020",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "CR2.idle_rx_error",
+          "originalField": "CR2.idle_rx_error",
+          "mask": "0x0004",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "CR2.odd_nibble_disable",
+          "originalField": "CR2.odd_nibble_disable",
+          "mask": "0x0002",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 58,
+          "modeDefault": {
+            "BASIC": 1,
+            "ENHANCED": "strap"
+          }
+        }
+      ]
+    },
+    {
+      "id": "CR3",
+      "address": "0x000B",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x000B"
+        }
+      ],
+      "section": "8.5.1.12",
+      "table": "8-31",
+      "originalTable": "8-30",
+      "headerReset": "0X00",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFBF0",
+      "reservedMask": "0xFB90",
+      "reservedRows": [
+        {
+          "bits": "15-11",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "9",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "8",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "7",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "4",
+          "access": "R/W",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "CR3.descrambler_drop",
+          "originalField": "CR3.descrambler_drop",
+          "mask": "0x0400",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 58,
+          "delta": "Original access R/W. Original field reset 0h.",
+          "validity": "Use only on MII. Section 8.3.17 requires energy loss or RX error alongside descrambler, low SNR or MLT3 detection. Descrambler requires 0131[5:0]=08h.",
+          "modeDefault": {
+            "BASIC": 0,
+            "ENHANCED": "strap"
+          }
+        },
+        {
+          "id": "CR3.polarity_swap",
+          "originalField": "CR3.polarity_swap",
+          "mask": "0x0040",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "CR3.pair_swap",
+          "originalField": "CR3.pair_swap",
+          "mask": "0x0020",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "CR3.fast_drop_modes",
+          "originalField": "CR3.fast_drop_modes",
+          "mask": "0x000F",
+          "access": "RH/W",
+          "reset": "0h",
+          "owner": 58,
+          "validity": "Bit 3 RX error, 2 MLT3, 1 low SNR, 0 energy loss. Section 8.3.17 and tables 8-5/6 govern strap defaults, dependency, MII eligibility and the separate 0117=0417h MLT3 step. Compose only 040Fh across the two FLD fields; preserve CR3[6:5].",
+          "modeDefault": {
+            "BASIC": "table 8-6 Strap11",
+            "ENHANCED": "table 8-5 Straps1/7/8/11"
+          }
+        }
+      ]
+    },
+    {
+      "id": "REGCR",
+      "address": "0x000D",
+      "space": "C22",
+      "devad": null,
+      "aliases": [],
+      "section": "8.5.1.13",
+      "table": "8-32",
+      "originalTable": "8-31",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x3FE0",
+      "reservedRows": [
+        {
+          "bits": "13-5",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "REGCR.function",
+          "originalField": "REGCR.function",
+          "mask": "0xC000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "REGCR.devad",
+          "originalField": "REGCR.devad",
+          "mask": "0x001F",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        }
+      ]
+    },
+    {
+      "id": "ADDAR",
+      "address": "0x000E",
+      "space": "C22",
+      "devad": null,
+      "aliases": [],
+      "section": "8.5.1.14",
+      "table": "8-33",
+      "originalTable": "8-32",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x0000",
+      "reservedRows": [],
+      "fields": [
+        {
+          "id": "ADDAR.address_data",
+          "originalField": "ADDAR.address_data",
+          "mask": "0xFFFF",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        }
+      ]
+    },
+    {
+      "id": "FLDS",
+      "address": "0x000F",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x000F"
+        }
+      ],
+      "section": "8.5.1.15",
+      "table": "8-34",
+      "originalTable": "8-33",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFE0F",
+      "reservedRows": [
+        {
+          "bits": "15-9",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "3-0",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "FLDS.causes",
+          "originalField": "FLDS.causes",
+          "mask": "0x01F0",
+          "access": "RCH",
+          "reset": "0h",
+          "owner": 58,
+          "delta": "Original access RC."
+        }
+      ]
+    },
+    {
+      "id": "PHYSTS",
+      "address": "0x0010",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0010"
+        }
+      ],
+      "section": "8.5.1.16",
+      "table": "8-35",
+      "originalTable": "8-34",
+      "headerReset": "0002",
+      "resetValue": "0x0002",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x8000",
+      "reservedRows": [
+        {
+          "bits": "15",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "PHYSTS.mdix",
+          "originalField": "PHYSTS.mdix",
+          "mask": "0x4000",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58,
+          "delta": "Original access R."
+        },
+        {
+          "id": "PHYSTS.rx_error",
+          "originalField": "PHYSTS.rx_error",
+          "mask": "0x2000",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "PHYSTS.polarity",
+          "originalField": "PHYSTS.polarity",
+          "mask": "0x1000",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "PHYSTS.false_carrier",
+          "originalField": "PHYSTS.false_carrier",
+          "mask": "0x0800",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "PHYSTS.signal",
+          "originalField": "PHYSTS.signal",
+          "mask": "0x0400",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "PHYSTS.descrambler",
+          "originalField": "PHYSTS.descrambler",
+          "mask": "0x0200",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "PHYSTS.page",
+          "originalField": "PHYSTS.page",
+          "mask": "0x0100",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "PHYSTS.interrupt",
+          "originalField": "PHYSTS.interrupt",
+          "mask": "0x0080",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "PHYSTS.remote_fault",
+          "originalField": "PHYSTS.remote_fault",
+          "mask": "0x0040",
+          "access": "RCH",
+          "reset": "0h",
+          "owner": 58,
+          "delta": "Original access RC.",
+          "readEffects": "RCH mirror. Table 8-35 names BMSR read or reset as the clearing operation. Preserve PHYSTS/BMSR read ordering and first samples."
+        },
+        {
+          "id": "PHYSTS.jabber",
+          "originalField": "PHYSTS.jabber",
+          "mask": "0x0020",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "PHYSTS.an_complete",
+          "originalField": "PHYSTS.an_complete",
+          "mask": "0x0010",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "PHYSTS.loopback",
+          "originalField": "PHYSTS.loopback",
+          "mask": "0x0008",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "PHYSTS.duplex",
+          "originalField": "PHYSTS.duplex",
+          "mask": "0x0004",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "PHYSTS.speed",
+          "originalField": "PHYSTS.speed",
+          "mask": "0x0002",
+          "access": "RH",
+          "reset": "1h",
+          "owner": 58
+        },
+        {
+          "id": "PHYSTS.link",
+          "originalField": "PHYSTS.link",
+          "mask": "0x0001",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        }
+      ]
+    },
+    {
+      "id": "PHYSCR",
+      "address": "0x0011",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0011"
+        }
+      ],
+      "section": "8.5.1.17",
+      "table": "8-36",
+      "originalTable": "8-35",
+      "headerReset": "010X",
+      "resetValue": "0x0108",
+      "resetKnownMask": "0xFFFC",
+      "reservedMask": "0x04E0",
+      "reservedRows": [
+        {
+          "bits": "10",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "7-5",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "PHYSCR.disable_pll",
+          "originalField": "PHYSCR.disable_pll",
+          "mask": "0x8000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "PHYSCR.power_save_enable",
+          "originalField": "PHYSCR.power_save_enable",
+          "mask": "0x4000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "PHYSCR.power_save_mode",
+          "originalField": "PHYSCR.power_save_mode",
+          "mask": "0x3000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "PHYSCR.scrambler_bypass",
+          "originalField": "PHYSCR.scrambler_bypass",
+          "mask": "0x0800",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "PHYSCR.loopback_fifo_depth",
+          "originalField": "PHYSCR.loopback_fifo_depth",
+          "mask": "0x0300",
+          "access": "R/W",
+          "reset": "1h",
+          "owner": 59
+        },
+        {
+          "id": "PHYSCR.collision_full_duplex",
+          "originalField": "PHYSCR.collision_full_duplex",
+          "mask": "0x0010",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "PHYSCR.interrupt_polarity",
+          "originalField": "PHYSCR.interrupt_polarity",
+          "mask": "0x0008",
+          "access": "R/W",
+          "reset": "1h",
+          "owner": 59
+        },
+        {
+          "id": "PHYSCR.test_interrupt",
+          "originalField": "PHYSCR.test_interrupt",
+          "mask": "0x0004",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "PHYSCR.interrupt_enable",
+          "originalField": "PHYSCR.interrupt_enable",
+          "mask": "0x0002",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 58,
+          "delta": "Original access R/W. Original field reset 0h.",
+          "modeDefault": {
+            "BASIC": 1,
+            "ENHANCED": 0
+          }
+        },
+        {
+          "id": "PHYSCR.interrupt_output_enable",
+          "originalField": "PHYSCR.interrupt_output_enable",
+          "mask": "0x0001",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 58,
+          "delta": "Original access R/W. Original field reset 0h.",
+          "modeDefault": {
+            "BASIC": 1,
+            "ENHANCED": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "MISR1",
+      "address": "0x0012",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0012"
+        }
+      ],
+      "section": "8.5.1.18",
+      "table": "8-37",
+      "originalTable": "8-36",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x0000",
+      "reservedRows": [],
+      "fields": [
+        {
+          "id": "MISR1.link_quality_changed_event",
+          "originalField": "MISR1.link_quality_changed_event",
+          "mask": "0x8000",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR1.energy_changed_event",
+          "originalField": "MISR1.energy_changed_event",
+          "mask": "0x4000",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR1.link_changed_event",
+          "originalField": "MISR1.link_changed_event",
+          "mask": "0x2000",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR1.speed_changed_event",
+          "originalField": "MISR1.speed_changed_event",
+          "mask": "0x1000",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR1.duplex_changed_event",
+          "originalField": "MISR1.duplex_changed_event",
+          "mask": "0x0800",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR1.an_complete_event",
+          "originalField": "MISR1.an_complete_event",
+          "mask": "0x0400",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR1.false_carrier_half_full_event",
+          "originalField": "MISR1.false_carrier_half_full_event",
+          "mask": "0x0200",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR1.receive_error_half_full_event",
+          "originalField": "MISR1.receive_error_half_full_event",
+          "mask": "0x0100",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR1.link_quality_changed_enable",
+          "originalField": "MISR1.link_quality_changed_enable",
+          "mask": "0x0080",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR1.energy_changed_enable",
+          "originalField": "MISR1.energy_changed_enable",
+          "mask": "0x0040",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR1.link_changed_enable",
+          "originalField": "MISR1.link_changed_enable",
+          "mask": "0x0020",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR1.speed_changed_enable",
+          "originalField": "MISR1.speed_changed_enable",
+          "mask": "0x0010",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR1.duplex_changed_enable",
+          "originalField": "MISR1.duplex_changed_enable",
+          "mask": "0x0008",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR1.an_complete_enable",
+          "originalField": "MISR1.an_complete_enable",
+          "mask": "0x0004",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR1.false_carrier_half_full_enable",
+          "originalField": "MISR1.false_carrier_half_full_enable",
+          "mask": "0x0002",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR1.receive_error_half_full_enable",
+          "originalField": "MISR1.receive_error_half_full_enable",
+          "mask": "0x0001",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "MISR2",
+      "address": "0x0013",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0013"
+        }
+      ],
+      "section": "8.5.1.19",
+      "table": "8-38",
+      "originalTable": "8-37",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x0000",
+      "reservedRows": [],
+      "fields": [
+        {
+          "id": "MISR2.eee_error_event",
+          "originalField": "MISR2.eee_error_event",
+          "mask": "0x8000",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR2.an_error_event",
+          "originalField": "MISR2.an_error_event",
+          "mask": "0x4000",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR2.page_received_event",
+          "originalField": "MISR2.page_received_event",
+          "mask": "0x2000",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR2.loopback_fifo_event",
+          "originalField": "MISR2.loopback_fifo_event",
+          "mask": "0x1000",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR2.mdix_changed_event",
+          "originalField": "MISR2.mdix_changed_event",
+          "mask": "0x0800",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR2.sleep_event",
+          "originalField": "MISR2.sleep_event",
+          "mask": "0x0400",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR2.polarity_or_wol_event",
+          "originalField": "MISR2.polarity_or_wol_event",
+          "mask": "0x0200",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR2.jabber_event",
+          "originalField": "MISR2.jabber_event",
+          "mask": "0x0100",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR2.eee_error_enable",
+          "originalField": "MISR2.eee_error_enable",
+          "mask": "0x0080",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR2.an_error_enable",
+          "originalField": "MISR2.an_error_enable",
+          "mask": "0x0040",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR2.page_received_enable",
+          "originalField": "MISR2.page_received_enable",
+          "mask": "0x0020",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR2.loopback_fifo_enable",
+          "originalField": "MISR2.loopback_fifo_enable",
+          "mask": "0x0010",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR2.mdix_changed_enable",
+          "originalField": "MISR2.mdix_changed_enable",
+          "mask": "0x0008",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR2.sleep_enable",
+          "originalField": "MISR2.sleep_enable",
+          "mask": "0x0004",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR2.polarity_or_wol_enable",
+          "originalField": "MISR2.polarity_or_wol_enable",
+          "mask": "0x0002",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MISR2.jabber_enable",
+          "originalField": "MISR2.jabber_enable",
+          "mask": "0x0001",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "FCSCR",
+      "address": "0x0014",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0014"
+        }
+      ],
+      "section": "8.5.1.20",
+      "table": "8-39",
+      "originalTable": "8-38",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFF00",
+      "reservedRows": [
+        {
+          "bits": "15-8",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "FCSCR.false_carrier_count",
+          "originalField": "FCSCR.false_carrier_count",
+          "mask": "0x00FF",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "RECR",
+      "address": "0x0015",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0015"
+        }
+      ],
+      "section": "8.5.1.21",
+      "table": "8-40",
+      "originalTable": "8-39",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x0000",
+      "reservedRows": [],
+      "fields": [
+        {
+          "id": "RECR.receive_error_count",
+          "originalField": "RECR.receive_error_count",
+          "mask": "0xFFFF",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "BISCR",
+      "address": "0x0016",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0016"
+        }
+      ],
+      "section": "8.5.1.22",
+      "table": "8-41",
+      "originalTable": "8-40",
+      "headerReset": "0100",
+      "resetValue": "0x0100",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x80A0",
+      "reservedRows": [
+        {
+          "bits": "15",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "7",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "5",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "BISCR_errorCounterMode",
+          "originalField": "BISCR_errorCounterMode",
+          "mask": "0x4000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "BISCR_prbsMode",
+          "originalField": "BISCR_prbsMode",
+          "mask": "0x3000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59,
+          "tableBits": [
+            "13",
+            "12"
+          ]
+        },
+        {
+          "id": "BISCR_checkerLock",
+          "originalField": "BISCR_checkerLock",
+          "mask": "0x0800",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 59,
+          "delta": "Original access R."
+        },
+        {
+          "id": "BISCR_checkerSyncLoss",
+          "originalField": "BISCR_checkerSyncLoss",
+          "mask": "0x0400",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "BISCR_generatorActive",
+          "originalField": "BISCR_generatorActive",
+          "mask": "0x0200",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 59,
+          "delta": "Original access R."
+        },
+        {
+          "id": "BISCR_normalPower",
+          "originalField": "BISCR_normalPower",
+          "mask": "0x0100",
+          "access": "RH",
+          "reset": "1h",
+          "owner": 59,
+          "delta": "Original access R."
+        },
+        {
+          "id": "BISCR_miiLineTransmit",
+          "originalField": "BISCR_miiLineTransmit",
+          "mask": "0x0040",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "BISCR_loopbackMode",
+          "originalField": "BISCR_loopbackMode",
+          "mask": "0x001F",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "RCSR",
+      "address": "0x0017",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0017"
+        }
+      ],
+      "section": "8.5.1.23",
+      "table": "8-42",
+      "originalTable": "8-41",
+      "headerReset": "00X1",
+      "resetValue": "0x0041",
+      "resetKnownMask": "0xFF5F",
+      "reservedMask": "0xFE40",
+      "reservedRows": [
+        {
+          "bits": "15-13",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "12",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "11",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "10",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "9",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "6",
+          "access": "R/W",
+          "reset": "1h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "RCSR.tx_clock_shift",
+          "originalField": "RCSR.tx_clock_shift",
+          "mask": "0x0100",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "RCSR.clock_select",
+          "originalField": "RCSR.clock_select",
+          "mask": "0x0080",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 58,
+          "modeDefault": {
+            "BASIC": "strap",
+            "ENHANCED": "strap"
+          }
+        },
+        {
+          "id": "RCSR.rmii_mode",
+          "originalField": "RCSR.rmii_mode",
+          "mask": "0x0020",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 58,
+          "modeDefault": {
+            "BASIC": "strap",
+            "ENHANCED": "strap"
+          }
+        },
+        {
+          "id": "RCSR.revision",
+          "originalField": "RCSR.revision",
+          "mask": "0x0010",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "RCSR.overflow",
+          "originalField": "RCSR.overflow",
+          "mask": "0x0008",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "RCSR.underflow",
+          "originalField": "RCSR.underflow",
+          "mask": "0x0004",
+          "access": "RC",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "RCSR.elasticity",
+          "originalField": "RCSR.elasticity",
+          "mask": "0x0003",
+          "access": "R/W",
+          "reset": "1h",
+          "owner": 58
+        }
+      ]
+    },
+    {
+      "id": "LEDCR",
+      "address": "0x0018",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0018"
+        }
+      ],
+      "section": "8.5.1.24",
+      "table": "8-43",
+      "originalTable": "8-42",
+      "headerReset": "04X0",
+      "resetValue": "0x0400",
+      "resetKnownMask": "0xFF7F",
+      "reservedMask": "0xF96D",
+      "reservedRows": [
+        {
+          "bits": "15-11",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "8",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "6-5",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "3-2",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "0",
+          "access": "R/W",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "LEDCR.blink",
+          "originalField": "LEDCR.blink",
+          "mask": "0x0600",
+          "access": "R/W",
+          "reset": "2h",
+          "owner": 59
+        },
+        {
+          "id": "LEDCR.polarity",
+          "originalField": "LEDCR.polarity",
+          "mask": "0x0080",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 59,
+          "modeDefault": {
+            "BASIC": 0,
+            "ENHANCED": "strap"
+          }
+        },
+        {
+          "id": "LEDCR.drive_enable",
+          "originalField": "LEDCR.drive_enable",
+          "mask": "0x0010",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "LEDCR.drive_value",
+          "originalField": "LEDCR.drive_value",
+          "mask": "0x0002",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "PHYCR",
+      "address": "0x0019",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x0019"
+        }
+      ],
+      "section": "8.5.1.25",
+      "table": "8-44",
+      "originalTable": "8-43",
+      "headerReset": "X0XX",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0x3FE0",
+      "reservedMask": "0x0760",
+      "reservedRows": [
+        {
+          "bits": "10-8",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "6",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "5",
+          "access": "R/W",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "PHYCR.auto_mdix",
+          "originalField": "PHYCR.auto_mdix",
+          "mask": "0x8000",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 58,
+          "modeDefault": {
+            "BASIC": 1,
+            "ENHANCED": "strap"
+          }
+        },
+        {
+          "id": "PHYCR.force_mdix",
+          "originalField": "PHYCR.force_mdix",
+          "mask": "0x4000",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 58,
+          "modeDefault": {
+            "BASIC": "unspecified",
+            "ENHANCED": "strap when automatic MDIX disabled"
+          }
+        },
+        {
+          "id": "PHYCR.pause_rx",
+          "originalField": "PHYCR.pause_rx",
+          "mask": "0x2000",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "PHYCR.pause_tx",
+          "originalField": "PHYCR.pause_tx",
+          "mask": "0x1000",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "PHYCR.mii_link",
+          "originalField": "PHYCR.mii_link",
+          "mask": "0x0800",
+          "access": "R",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "PHYCR.led_stretch",
+          "originalField": "PHYCR.led_stretch",
+          "mask": "0x0080",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "PHYCR.phy_address",
+          "originalField": "PHYCR.phy_address",
+          "mask": "0x001F",
+          "access": "RH",
+          "reset": "X",
+          "owner": 58,
+          "modeDefault": {
+            "BASIC": "strap",
+            "ENHANCED": "strap"
+          }
+        }
+      ]
+    },
+    {
+      "id": "10BTSCR",
+      "address": "0x001A",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x001A"
+        }
+      ],
+      "section": "8.5.1.26",
+      "table": "8-45",
+      "originalTable": "8-44",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xC16E",
+      "reservedRows": [
+        {
+          "bits": "15-14",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "8",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "6-5",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "3-1",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "10BTSCR.lower_threshold_enable",
+          "originalField": "10BTSCR.lower_threshold_enable",
+          "mask": "0x2000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "10BTSCR.squelch",
+          "originalField": "10BTSCR.squelch",
+          "mask": "0x1E00",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "10BTSCR.nlp_disable",
+          "originalField": "10BTSCR.nlp_disable",
+          "mask": "0x0080",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "10BTSCR.polarity",
+          "originalField": "10BTSCR.polarity",
+          "mask": "0x0010",
+          "access": "R",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "10BTSCR.jabber_disable",
+          "originalField": "10BTSCR.jabber_disable",
+          "mask": "0x0001",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "BICSR1",
+      "address": "0x001B",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x001B"
+        }
+      ],
+      "section": "8.5.1.27",
+      "table": "8-46",
+      "originalTable": "8-45",
+      "headerReset": "007D",
+      "resetValue": "0x007D",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x0000",
+      "reservedRows": [],
+      "fields": [
+        {
+          "id": "BICSR1_errorBytes",
+          "originalField": "BICSR1_errorBytes",
+          "mask": "0xFF00",
+          "access": "R",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "BICSR1_ipgLength",
+          "originalField": "BICSR1_ipgLength",
+          "mask": "0x00FF",
+          "access": "R/W",
+          "reset": "7Dh",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "BICSR2",
+      "address": "0x001C",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x001C"
+        }
+      ],
+      "section": "8.5.1.28",
+      "table": "8-47",
+      "originalTable": "8-46",
+      "headerReset": "05EE",
+      "resetValue": "0x05EE",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xF800",
+      "reservedRows": [
+        {
+          "bits": "15-11",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "BICSR2_packetLength",
+          "originalField": "BICSR2_packetLength",
+          "mask": "0x07FF",
+          "access": "R/W",
+          "reset": "5EEh",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "CDCR",
+      "address": "0x001E",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x001E"
+        }
+      ],
+      "section": "8.5.1.29",
+      "table": "8-48",
+      "originalTable": "8-47",
+      "headerReset": "0102",
+      "resetValue": "0x0102",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x3FFC",
+      "reservedRows": [
+        {
+          "bits": "13-2",
+          "access": "R",
+          "reset": "40h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "CDCR_start",
+          "originalField": "CDCR_start",
+          "mask": "0x8000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "CDCR_rescalEnable",
+          "originalField": "CDCR_rescalEnable",
+          "mask": "0x4000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "CDCR_done",
+          "originalField": "CDCR_done",
+          "mask": "0x0002",
+          "access": "RH",
+          "reset": "1h",
+          "owner": 59,
+          "delta": "Original access R."
+        },
+        {
+          "id": "CDCR_failed",
+          "originalField": "CDCR_failed",
+          "mask": "0x0001",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 59,
+          "delta": "Original access R."
+        }
+      ]
+    },
+    {
+      "id": "PHYRCR",
+      "address": "0x001F",
+      "space": "C22",
+      "devad": null,
+      "aliases": [
+        {
+          "space": "MMD",
+          "devad": "0x1F",
+          "address": "0x001F"
+        }
+      ],
+      "section": "8.5.1.30",
+      "table": "8-49",
+      "originalTable": "8-48",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x3FFF",
+      "reservedRows": [
+        {
+          "bits": "13",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "12-0",
+          "access": "R/W",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "PHYRCR.hard_reset",
+          "originalField": "PHYRCR.hard_reset",
+          "mask": "0x8000",
+          "access": "RH/W1S",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "PHYRCR.restart",
+          "originalField": "PHYRCR.restart",
+          "mask": "0x4000",
+          "access": "RH/W1S",
+          "reset": "0h",
+          "owner": 58
+        }
+      ]
+    },
+    {
+      "id": "MLEDCR",
+      "address": "0x0025",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.31",
+      "table": "8-50",
+      "originalTable": "8-49",
+      "headerReset": "0041",
+      "resetValue": "0x0041",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFD86",
+      "reservedRows": [
+        {
+          "bits": "15-10",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "8-7",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "2-1",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "MLEDCR.polarity_swap",
+          "originalField": "MLEDCR.polarity_swap",
+          "mask": "0x0200",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "MLEDCR.source",
+          "originalField": "MLEDCR.source",
+          "mask": "0x0078",
+          "access": "R/W",
+          "reset": "8h",
+          "owner": 59
+        },
+        {
+          "id": "MLEDCR.route_enable",
+          "originalField": "MLEDCR.route_enable",
+          "mask": "0x0001",
+          "access": "R/W",
+          "reset": "1h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "COMPT",
+      "address": "0x0027",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.32",
+      "table": "8-51",
+      "originalTable": "8-50",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFF0",
+      "reservedRows": [
+        {
+          "bits": "15-4",
+          "access": "R/W",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "COMPT.pattern",
+          "originalField": "COMPT.pattern",
+          "mask": "0x000F",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "10M_CFG",
+      "address": "0x002A",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.33",
+      "table": "8-52",
+      "originalTable": "8-51",
+      "headerReset": "7998",
+      "resetValue": "0x7998",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xBFFF",
+      "reservedRows": [
+        {
+          "bits": "15",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "13-0",
+          "access": "R/W",
+          "reset": "3998h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "10M_CFG.short_preamble",
+          "originalField": "10M_CFG.short_preamble",
+          "mask": "0x4000",
+          "access": "R/W",
+          "reset": "1h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "FLD_CFG1",
+      "address": "0x0117",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.34",
+      "table": "8-53",
+      "originalTable": "8-52",
+      "headerReset": "8147",
+      "resetValue": "0x8147",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x000F",
+      "reservedRows": [
+        {
+          "bits": "3-0",
+          "access": "R",
+          "reset": "7h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "FLD_CFG1.window",
+          "originalField": "FLD_CFG1.window",
+          "mask": "0xFC00",
+          "access": "R/W",
+          "reset": "20h",
+          "owner": 58
+        },
+        {
+          "id": "FLD_CFG1.error_count",
+          "originalField": "FLD_CFG1.error_count",
+          "mask": "0x03F0",
+          "access": "R/W",
+          "reset": "14h",
+          "owner": 58
+        }
+      ]
+    },
+    {
+      "id": "FLD_CFG2",
+      "address": "0x0131",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.35",
+      "table": "8-54",
+      "originalTable": "8-53",
+      "headerReset": "0288",
+      "resetValue": "0x0288",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFC0",
+      "reservedRows": [
+        {
+          "bits": "15-6",
+          "access": "R/W",
+          "reset": "Ah"
+        }
+      ],
+      "fields": [
+        {
+          "id": "FLD_CFG2.descrambler_window",
+          "originalField": "FLD_CFG2.descrambler_window",
+          "mask": "0x003F",
+          "access": "R/W",
+          "reset": "8h",
+          "owner": 58,
+          "delta": "Original field reset 4h.",
+          "validity": "Codes 0..63. Section 8.3.17 selects threshold 8 for descrambler loss. Upper bits [15:6] are reserved, printed R/W with reset 0Ah. Preserve them."
+        }
+      ]
+    },
+    {
+      "id": "CDSCR",
+      "address": "0x0170",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.36",
+      "table": "8-55",
+      "originalTable": "8-54",
+      "headerReset": "0C12",
+      "resetValue": "0x0C12",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x888F",
+      "reservedRows": [
+        {
+          "bits": "15",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "11",
+          "access": "R/W",
+          "reset": "1h"
+        },
+        {
+          "bits": "7",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "3-0",
+          "access": "R/W",
+          "reset": "2h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "CDSCR_crossDisable",
+          "originalField": "CDSCR_crossDisable",
+          "mask": "0x4000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "CDSCR_txChannel",
+          "originalField": "CDSCR_txChannel",
+          "mask": "0x2000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "CDSCR_dcNoInit",
+          "originalField": "CDSCR_dcNoInit",
+          "mask": "0x1000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "CDSCR_averageCycles",
+          "originalField": "CDSCR_averageCycles",
+          "mask": "0x0700",
+          "access": "R/W",
+          "reset": "4h",
+          "owner": 59
+        },
+        {
+          "id": "CDSCR_segment",
+          "originalField": "CDSCR_segment",
+          "mask": "0x0070",
+          "access": "R/W",
+          "reset": "1h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "CDSCR2",
+      "address": "0x0171",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.37",
+      "table": "8-56",
+      "originalTable": "8-55",
+      "headerReset": "C850",
+      "resetValue": "0xC850",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFFF",
+      "reservedRows": [
+        {
+          "bits": "15-0",
+          "access": "R/W",
+          "reset": "C850h"
+        }
+      ],
+      "fields": [],
+      "owner": 59,
+      "test": "All bits reserved. Deny generic writes and preserve reserved bits outside a separately sourced exact recipe."
+    },
+    {
+      "id": "CDSCR3",
+      "address": "0x0173",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.38",
+      "table": "8-57",
+      "originalTable": "8-56",
+      "headerReset": "0D04",
+      "resetValue": "0x0D04",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x0000",
+      "reservedRows": [],
+      "fields": [
+        {
+          "id": "CDSCR3_segmentDuration",
+          "originalField": "CDSCR3_segmentDuration",
+          "mask": "0xFF00",
+          "access": "R/W",
+          "reset": "Dh",
+          "owner": 59
+        },
+        {
+          "id": "CDSCR3_initialSkip",
+          "originalField": "CDSCR3_initialSkip",
+          "mask": "0x00FF",
+          "access": "R/W",
+          "reset": "4h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "TDR_175",
+      "address": "0x0175",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.39",
+      "table": "8-58",
+      "originalTable": "8-57",
+      "headerReset": "1004",
+      "resetValue": "0x1004",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xC7F0",
+      "reservedRows": [
+        {
+          "bits": "15-14",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "10-5",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "4",
+          "access": "R/W",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "TDR_175_shadowAverageLocation",
+          "originalField": "TDR_175_shadowAverageLocation",
+          "mask": "0x3800",
+          "access": "R/W",
+          "reset": "2h",
+          "owner": 59
+        },
+        {
+          "id": "TDR_175_forwardShadow",
+          "originalField": "TDR_175_forwardShadow",
+          "mask": "0x000F",
+          "access": "R/W",
+          "reset": "4h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "TDR_176",
+      "address": "0x0176",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.40",
+      "table": "8-59",
+      "originalTable": "8-58",
+      "headerReset": "0005",
+      "resetValue": "0x0005",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFE0",
+      "reservedRows": [
+        {
+          "bits": "15-5",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "TDR_176_peakLocationThreshold",
+          "originalField": "TDR_176_peakLocationThreshold",
+          "mask": "0x001F",
+          "access": "R/W",
+          "reset": "5h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "CDSCR4",
+      "address": "0x0177",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.41",
+      "table": "8-60",
+      "originalTable": "8-59",
+      "headerReset": "1E00",
+      "resetValue": "0x1E00",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xE0FF",
+      "reservedRows": [
+        {
+          "bits": "15-13",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "7-0",
+          "access": "R/W",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "CDSCR4_shortCableThreshold",
+          "originalField": "CDSCR4_shortCableThreshold",
+          "mask": "0x1F00",
+          "access": "R/W",
+          "reset": "1Eh",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "TDR_178",
+      "address": "0x0178",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.42",
+      "table": "8-61",
+      "originalTable": "8-60",
+      "headerReset": "0002",
+      "resetValue": "0x0002",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFF8",
+      "reservedRows": [
+        {
+          "bits": "15-3",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "TDR_178_pulseWidth",
+          "originalField": "TDR_178_pulseWidth",
+          "mask": "0x0007",
+          "access": "R/W",
+          "reset": "2h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "CDLRR1",
+      "address": "0x0180",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.43",
+      "table": "8-62",
+      "originalTable": "8-61",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFF00",
+      "reservedRows": [
+        {
+          "bits": "15-8",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "CDLRR1_peakLocation",
+          "originalField": "CDLRR1_peakLocation",
+          "mask": "0x00FF",
+          "access": "R",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "CDLRR2",
+      "address": "0x0181",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.44",
+      "table": "8-63",
+      "originalTable": "8-62",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFFF",
+      "reservedRows": [
+        {
+          "bits": "15-0",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [],
+      "owner": 59,
+      "test": "All bits reserved. Deny generic writes and preserve reserved bits outside a separately sourced exact recipe."
+    },
+    {
+      "id": "CDLRR3",
+      "address": "0x0182",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.45",
+      "table": "8-64",
+      "originalTable": "8-63",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFFF",
+      "reservedRows": [
+        {
+          "bits": "15-0",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [],
+      "owner": 59,
+      "test": "All bits reserved. Deny generic writes and preserve reserved bits outside a separately sourced exact recipe."
+    },
+    {
+      "id": "CDLRR4",
+      "address": "0x0183",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.46",
+      "table": "8-65",
+      "originalTable": "8-64",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFFF",
+      "reservedRows": [
+        {
+          "bits": "15-0",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [],
+      "owner": 59,
+      "test": "All bits reserved. Deny generic writes and preserve reserved bits outside a separately sourced exact recipe."
+    },
+    {
+      "id": "CDLRR5",
+      "address": "0x0184",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.47",
+      "table": "8-66",
+      "originalTable": "8-65",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFFF",
+      "reservedRows": [
+        {
+          "bits": "15-0",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [],
+      "owner": 59,
+      "test": "All bits reserved. Deny generic writes and preserve reserved bits outside a separately sourced exact recipe."
+    },
+    {
+      "id": "CDLAR1",
+      "address": "0x0185",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.48",
+      "table": "8-67",
+      "originalTable": "8-66",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFF80",
+      "reservedRows": [
+        {
+          "bits": "15-7",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "CDLAR1_peakAmplitude",
+          "originalField": "CDLAR1_peakAmplitude",
+          "mask": "0x007F",
+          "access": "R",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "CDLAR2",
+      "address": "0x0186",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.49",
+      "table": "8-68",
+      "originalTable": "8-67",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFFF",
+      "reservedRows": [
+        {
+          "bits": "15-0",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [],
+      "owner": 59,
+      "test": "All bits reserved. Deny generic writes and preserve reserved bits outside a separately sourced exact recipe."
+    },
+    {
+      "id": "CDLAR3",
+      "address": "0x0187",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.50",
+      "table": "8-69",
+      "originalTable": "8-68",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFFF",
+      "reservedRows": [
+        {
+          "bits": "15-0",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [],
+      "owner": 59,
+      "test": "All bits reserved. Deny generic writes and preserve reserved bits outside a separately sourced exact recipe."
+    },
+    {
+      "id": "CDLAR4",
+      "address": "0x0188",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.51",
+      "table": "8-70",
+      "originalTable": "8-69",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFFF",
+      "reservedRows": [
+        {
+          "bits": "15-0",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [],
+      "owner": 59,
+      "test": "All bits reserved. Deny generic writes and preserve reserved bits outside a separately sourced exact recipe."
+    },
+    {
+      "id": "CDLAR5",
+      "address": "0x0189",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.52",
+      "table": "8-71",
+      "originalTable": "8-70",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFFF",
+      "reservedRows": [
+        {
+          "bits": "15-0",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [],
+      "owner": 59,
+      "test": "All bits reserved. Deny generic writes and preserve reserved bits outside a separately sourced exact recipe."
+    },
+    {
+      "id": "CDLAR6",
+      "address": "0x018A",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.53",
+      "table": "8-72",
+      "originalTable": "8-71",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xF7DF",
+      "reservedRows": [
+        {
+          "bits": "15-12",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "10-6",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "4",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "3",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "2",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "1-0",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "CDLAR6_peakPolarity",
+          "originalField": "CDLAR6_peakPolarity",
+          "mask": "0x0800",
+          "access": "R",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "CDLAR6_crossDetect",
+          "originalField": "CDLAR6_crossDetect",
+          "mask": "0x0020",
+          "access": "R",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "MSE_Val",
+      "address": "0x0218",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.54",
+      "table": "8-73",
+      "originalTable": "8-72",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x0000",
+      "reservedRows": [],
+      "fields": [
+        {
+          "id": "MSE_Val.mean_square_error",
+          "originalField": "MSE_Val.mean_square_error",
+          "mask": "0xFFFF",
+          "access": "R",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "IO_CFG1",
+      "address": "0x0302",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.55",
+      "table": "8-74",
+      "originalTable": "8-73",
+      "headerReset": "0X00",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFEFF",
+      "reservedMask": "0x3EFF",
+      "reservedRows": [
+        {
+          "bits": "13",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "12-9",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "7",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "6",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "5-0",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "IO_CFG1.mac_impedance",
+          "originalField": "IO_CFG1.mac_impedance",
+          "mask": "0xC000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "IO_CFG1.rx_dv",
+          "originalField": "IO_CFG1.rx_dv",
+          "mask": "0x0100",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 59,
+          "modeDefault": {
+            "BASIC": "strap",
+            "ENHANCED": "strap"
+          }
+        }
+      ]
+    },
+    {
+      "id": "LED0_GPIO_CFG",
+      "address": "0x0303",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.56",
+      "table": "8-75",
+      "originalTable": "8-74",
+      "headerReset": "0008",
+      "resetValue": "0x0008",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFC0",
+      "reservedRows": [
+        {
+          "bits": "15-6",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "LED0_GPIO_CFG.clock_source",
+          "originalField": "LED0_GPIO_CFG.clock_source",
+          "mask": "0x0038",
+          "access": "R/W",
+          "reset": "1h",
+          "owner": 59,
+          "validity": "Codes 5/6 select PLL/recovered clock. Mux 1 enables the selected clock. Other clock codes are reserved. Coordinate pin ownership and clock consumers."
+        },
+        {
+          "id": "LED0_GPIO_CFG.mux",
+          "originalField": "LED0_GPIO_CFG.mux",
+          "mask": "0x0007",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59,
+          "delta": "Original access R.",
+          "validity": "0 LED0, 1 selected clock, 2 WoL, 3/5/6 low, 4 IRQ, 7 high. Low three bits are writable. Apply only a board-owned route."
+        }
+      ]
+    },
+    {
+      "id": "LED1_GPIO_CFG",
+      "address": "0x0304",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.57",
+      "table": "8-76",
+      "originalTable": "8-75",
+      "headerReset": "000X",
+      "resetValue": "0x0008",
+      "resetKnownMask": "0xFFF8",
+      "reservedMask": "0xFFC0",
+      "reservedRows": [
+        {
+          "bits": "15-6",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "LED1_GPIO_CFG.clock_source",
+          "originalField": "LED1_GPIO_CFG.clock_source",
+          "mask": "0x0038",
+          "access": "R/W",
+          "reset": "1h",
+          "owner": 59,
+          "validity": "Codes 5/6 select PLL/recovered clock. Clock field specifies mux 1, which the same table labels reserved. Keep that route gated. The separate CLKOUT25M route uses mux 6."
+        },
+        {
+          "id": "LED1_GPIO_CFG.mux",
+          "originalField": "LED1_GPIO_CFG.mux",
+          "mask": "0x0007",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 59,
+          "delta": "Original access R/W. Original field reset 0h.",
+          "modeDefault": {
+            "BASIC": 0,
+            "ENHANCED": "strap"
+          },
+          "validity": "Codes 0 LED1, 2 WoL, 4 IRQ, 5 TX_ER, 6 CLKOUT25M. Codes 1/3/7 are reserved. Section 8.3.7 describes disabling CLKOUT by selecting an input on this mux, but table 8-76 gives no input encoding. Keep the input-only request gated and preserve reserved IO_CFG1[6]."
+        }
+      ]
+    },
+    {
+      "id": "LED2_GPIO_CFG",
+      "address": "0x0305",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.58",
+      "table": "8-77",
+      "originalTable": "8-76",
+      "headerReset": "0008",
+      "resetValue": "0x0008",
+      "resetKnownMask": "0xFFF8",
+      "reservedMask": "0xFFF8",
+      "reservedRows": [
+        {
+          "bits": "15-6",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "5-3",
+          "access": "R/W",
+          "reset": "1h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "LED2_GPIO_CFG.mux",
+          "originalField": "LED2_GPIO_CFG.mux",
+          "mask": "0x0007",
+          "access": "RH/W",
+          "reset": "0h",
+          "owner": 59,
+          "delta": "Original access R/W.",
+          "modeDefault": {
+            "BASIC": "strap",
+            "ENHANCED": "strap"
+          }
+        }
+      ]
+    },
+    {
+      "id": "LED3_GPIO_CFG",
+      "address": "0x0306",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.59",
+      "table": "8-78",
+      "originalTable": "8-77",
+      "headerReset": "0008",
+      "resetValue": "0x0008",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFF8",
+      "reservedRows": [
+        {
+          "bits": "15-6",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "5-3",
+          "access": "R/W",
+          "reset": "1h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "LED3_GPIO_CFG.mux",
+          "originalField": "LED3_GPIO_CFG.mux",
+          "mask": "0x0007",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59,
+          "delta": "Original access R.",
+          "validity": "0 LED3, 2 WoL, 3/5/6 CRS, 4 IRQ, 7 high. Reject code 1. Preserve reserved bits 5:3."
+        }
+      ]
+    },
+    {
+      "id": "CLK_OUT_LED_STATUS",
+      "address": "0x0308",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.60",
+      "table": "8-79",
+      "originalTable": "8-78",
+      "headerReset": "0002",
+      "resetValue": "0x0002",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFFE",
+      "reservedRows": [
+        {
+          "bits": "15-1",
+          "access": "R/W",
+          "reset": "1h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "CLK_OUT_LED_STATUS.clock_off_status",
+          "originalField": "CLK_OUT_LED_STATUS.clock_off_status",
+          "mask": "0x0001",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 59,
+          "delta": "Original access R."
+        }
+      ]
+    },
+    {
+      "id": "VOD_CFG1",
+      "address": "0x030B",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.61",
+      "table": "8-80",
+      "originalTable": "8-79",
+      "headerReset": "3C00",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xC000",
+      "reservedMask": "0xC000",
+      "reservedRows": [
+        {
+          "bits": "15-14",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "VOD_CFG1.minus_mdix_high",
+          "originalField": "VOD_CFG1.minus_mdix_high",
+          "mask": "0x3000",
+          "access": "R/W",
+          "reset": "3h",
+          "owner": 59,
+          "defaultFromOtp": true,
+          "delta": "New OTP annotation. Read the programmed value before an owned analog override."
+        },
+        {
+          "id": "VOD_CFG1.minus_mdi",
+          "originalField": "VOD_CFG1.minus_mdi",
+          "mask": "0x0FC0",
+          "access": "R/W",
+          "reset": "30h",
+          "owner": 59,
+          "defaultFromOtp": true,
+          "delta": "New OTP annotation. Read the programmed value before an owned analog override."
+        },
+        {
+          "id": "VOD_CFG1.zero",
+          "originalField": "VOD_CFG1.zero",
+          "mask": "0x003F",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59,
+          "defaultFromOtp": true,
+          "delta": "New OTP annotation. Read the programmed value before an owned analog override."
+        }
+      ]
+    },
+    {
+      "id": "VOD_CFG2",
+      "address": "0x030C",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.62",
+      "table": "8-81",
+      "originalTable": "8-80",
+      "headerReset": "0410",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0x0000",
+      "reservedMask": "0x0000",
+      "reservedRows": [],
+      "fields": [
+        {
+          "id": "VOD_CFG2.minus_mdix_low",
+          "originalField": "VOD_CFG2.minus_mdix_low",
+          "mask": "0xF000",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59,
+          "defaultFromOtp": true,
+          "delta": "New OTP annotation. Read the programmed value before an owned analog override."
+        },
+        {
+          "id": "VOD_CFG2.plus_mdix",
+          "originalField": "VOD_CFG2.plus_mdix",
+          "mask": "0x0FC0",
+          "access": "R/W",
+          "reset": "10h",
+          "owner": 59,
+          "defaultFromOtp": true,
+          "delta": "New OTP annotation. Read the programmed value before an owned analog override."
+        },
+        {
+          "id": "VOD_CFG2.plus_mdi",
+          "originalField": "VOD_CFG2.plus_mdi",
+          "mask": "0x003F",
+          "access": "R/W",
+          "reset": "10h",
+          "owner": 59,
+          "defaultFromOtp": true,
+          "delta": "New OTP annotation. Read the programmed value before an owned analog override."
+        }
+      ]
+    },
+    {
+      "id": "VOD_CFG3",
+      "address": "0x030E",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.63",
+      "table": "8-82",
+      "originalTable": "8-81",
+      "headerReset": "8400",
+      "resetValue": "0x8400",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x003F",
+      "reservedRows": [
+        {
+          "bits": "5-2",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "1-0",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "VOD_CFG3.mdi_termination",
+          "originalField": "VOD_CFG3.mdi_termination",
+          "mask": "0xF000",
+          "access": "R/W",
+          "reset": "8h",
+          "owner": 58
+        },
+        {
+          "id": "VOD_CFG3.mdi_enable",
+          "originalField": "VOD_CFG3.mdi_enable",
+          "mask": "0x0800",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "VOD_CFG3.mdix_termination",
+          "originalField": "VOD_CFG3.mdix_termination",
+          "mask": "0x0780",
+          "access": "R/W",
+          "reset": "8h",
+          "owner": 58
+        },
+        {
+          "id": "VOD_CFG3.mdix_enable",
+          "originalField": "VOD_CFG3.mdix_enable",
+          "mask": "0x0040",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 58
+        }
+      ]
+    },
+    {
+      "id": "ANA_LD_PROG_SL",
+      "address": "0x0404",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.64",
+      "table": "8-83",
+      "originalTable": "8-82",
+      "headerReset": "0080",
+      "resetValue": "0x0080",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFFF",
+      "reservedRows": [
+        {
+          "bits": "15-0",
+          "access": "R/W",
+          "reset": "80h"
+        }
+      ],
+      "fields": [],
+      "owner": 59,
+      "test": "All bits reserved. Deny generic writes and preserve reserved bits outside a separately sourced exact recipe."
+    },
+    {
+      "id": "ANA_RX10BT_CTRL",
+      "address": "0x040D",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.65",
+      "table": "8-84",
+      "originalTable": "8-83",
+      "headerReset": "0008",
+      "resetValue": "0x0008",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFE0",
+      "reservedRows": [
+        {
+          "bits": "15-5",
+          "access": "R/W",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "ANA_RX10BT_CTRL.receiver_current_gain",
+          "originalField": "ANA_RX10BT_CTRL.receiver_current_gain",
+          "mask": "0x001F",
+          "access": "R/W",
+          "reset": "8h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "GENCFG",
+      "address": "0x0456",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.66",
+      "table": "8-85",
+      "originalTable": "8-84",
+      "headerReset": "0008",
+      "resetValue": "0x0008",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFF7",
+      "reservedRows": [
+        {
+          "bits": "15-4",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "2-0",
+          "access": "R/W",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "GENCFG.min_ipg",
+          "originalField": "GENCFG.min_ipg",
+          "mask": "0x0008",
+          "access": "R/W",
+          "reset": "1h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "LEDCFG",
+      "address": "0x0460",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.67",
+      "table": "8-86",
+      "originalTable": "8-85",
+      "headerReset": "5565",
+      "resetValue": "0x5565",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xF000",
+      "reservedRows": [
+        {
+          "bits": "15-12",
+          "access": "R/W",
+          "reset": "5h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "LEDCFG.led3_source",
+          "originalField": "LEDCFG.led3_source",
+          "mask": "0x0F00",
+          "access": "R/W",
+          "reset": "5h",
+          "owner": 59,
+          "delta": "Original mask 0xF000."
+        },
+        {
+          "id": "LEDCFG.led2_source",
+          "originalField": "LEDCFG.led2_source",
+          "mask": "0x00F0",
+          "access": "R/W",
+          "reset": "6h",
+          "owner": 59,
+          "delta": "Original mask 0x0F00."
+        },
+        {
+          "id": "LEDCFG.led1_source",
+          "originalField": "LEDCFG.led1_source",
+          "mask": "0x000F",
+          "access": "R/W",
+          "reset": "5h",
+          "owner": 59,
+          "delta": "Original mask 0x00F0. Original field reset 6h."
+        }
+      ]
+    },
+    {
+      "id": "IOCTRL",
+      "address": "0x0461",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.68",
+      "table": "8-87",
+      "originalTable": "8-86",
+      "headerReset": "0010",
+      "resetValue": "0x0010",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xFFE0",
+      "reservedRows": [
+        {
+          "bits": "15",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "14",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "13-12",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "11",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "10-7",
+          "access": "R/W",
+          "reset": "0h"
+        },
+        {
+          "bits": "6-5",
+          "access": "R/W",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "IOCTRL.mac_slew",
+          "originalField": "IOCTRL.mac_slew",
+          "mask": "0x001F",
+          "access": "R/W",
+          "reset": "10h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "SOR1",
+      "address": "0x0467",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.69",
+      "table": "8-88",
+      "originalTable": "8-87",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xF000",
+      "reservedMask": "0xF000",
+      "reservedRows": [
+        {
+          "bits": "15",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "14",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "13",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "12",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "SOR1.strap11",
+          "originalField": null,
+          "mask": "0x0800",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58,
+          "delta": "Named field occupies formerly reserved bits.",
+          "validity": "Read the strap sampled on pin 19. 0 denotes low and 1 high. Use tables 8-5/6 for FLD behavior and retain the independent board EMC gate.",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented."
+        },
+        {
+          "id": "SOR1.strap10",
+          "originalField": "SOR1.strap10",
+          "mask": "0x0400",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58,
+          "delta": "Original access R."
+        },
+        {
+          "id": "SOR1.strap9",
+          "originalField": "SOR1.strap9",
+          "mask": "0x0200",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58,
+          "delta": "Original access R."
+        },
+        {
+          "id": "SOR1.strap8",
+          "originalField": "SOR1.strap8",
+          "mask": "0x0100",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58,
+          "delta": "Original access R."
+        },
+        {
+          "id": "SOR1.strap7",
+          "originalField": "SOR1.strap7",
+          "mask": "0x0080",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58,
+          "delta": "Original access R."
+        },
+        {
+          "id": "SOR1.strap6",
+          "originalField": "SOR1.strap6",
+          "mask": "0x0040",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58,
+          "delta": "Original access R."
+        },
+        {
+          "id": "SOR1.strap5",
+          "originalField": "SOR1.strap5",
+          "mask": "0x0020",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58,
+          "delta": "Original access R."
+        },
+        {
+          "id": "SOR1.strap4",
+          "originalField": "SOR1.strap4",
+          "mask": "0x0010",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58,
+          "delta": "Original access R."
+        },
+        {
+          "id": "SOR1.strap3",
+          "originalField": "SOR1.strap3",
+          "mask": "0x0008",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58,
+          "delta": "Original access R."
+        },
+        {
+          "id": "SOR1.strap2",
+          "originalField": "SOR1.strap2",
+          "mask": "0x0004",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58,
+          "delta": "Original access R."
+        },
+        {
+          "id": "SOR1.strap1",
+          "originalField": "SOR1.strap1",
+          "mask": "0x0002",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58,
+          "delta": "Original access R."
+        },
+        {
+          "id": "SOR1.strap0",
+          "originalField": "SOR1.strap0",
+          "mask": "0x0001",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58,
+          "delta": "Original access R."
+        }
+      ]
+    },
+    {
+      "id": "SOR2",
+      "address": "0x0468",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.70",
+      "table": "8-89",
+      "originalTable": "8-88",
+      "headerReset": "0287",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xA040",
+      "reservedMask": "0xA040",
+      "reservedRows": [
+        {
+          "bits": "15",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "13",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "6",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "SOR2.isolate",
+          "originalField": "SOR2.isolate",
+          "mask": "0x4000",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58,
+          "delta": "Original access R."
+        },
+        {
+          "id": "SOR2.crs_rxdv",
+          "originalField": "SOR2.crs_rxdv",
+          "mask": "0x1000",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "SOR2.led3_polarity",
+          "originalField": "SOR2.led3_polarity",
+          "mask": "0x0800",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "SOR2.led2_polarity",
+          "originalField": "SOR2.led2_polarity",
+          "mask": "0x0400",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "SOR2.led0_polarity",
+          "originalField": "SOR2.led0_polarity",
+          "mask": "0x0200",
+          "access": "RH",
+          "reset": "1h",
+          "owner": 58
+        },
+        {
+          "id": "SOR2.fast_drop",
+          "originalField": "SOR2.fast_drop",
+          "mask": "0x0100",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "SOR2.auto_mdix",
+          "originalField": "SOR2.auto_mdix",
+          "mask": "0x0080",
+          "access": "RH",
+          "reset": "1h",
+          "owner": 58
+        },
+        {
+          "id": "SOR2.led1_polarity",
+          "originalField": "SOR2.led1_polarity",
+          "mask": "0x0020",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "SOR2.rmii",
+          "originalField": "SOR2.rmii",
+          "mask": "0x0010",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "SOR2.follower",
+          "originalField": "SOR2.follower",
+          "mask": "0x0008",
+          "access": "RH",
+          "reset": "0h",
+          "owner": 58
+        },
+        {
+          "id": "SOR2.an1",
+          "originalField": "SOR2.an1",
+          "mask": "0x0004",
+          "access": "R",
+          "reset": "1h",
+          "owner": 58
+        },
+        {
+          "id": "SOR2.an0",
+          "originalField": "SOR2.an0",
+          "mask": "0x0002",
+          "access": "R",
+          "reset": "1h",
+          "owner": 58
+        },
+        {
+          "id": "SOR2.an_enable",
+          "originalField": "SOR2.an_enable",
+          "mask": "0x0001",
+          "access": "R",
+          "reset": "1h",
+          "owner": 58
+        }
+      ]
+    },
+    {
+      "id": "LEDCFG2",
+      "address": "0x0469",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.71",
+      "table": "8-90",
+      "originalTable": "8-89",
+      "headerReset": "0XXX",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFBBB",
+      "reservedMask": "0xF888",
+      "reservedRows": [
+        {
+          "bits": "15-11",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "7",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "3",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "LEDCFG2.led3_polarity",
+          "originalField": null,
+          "mask": "0x0400",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 59,
+          "delta": "Named field occupies formerly reserved bits.",
+          "validity": "0 active low, 1 active high. The default depends on the strap.",
+          "modeDefault": {
+            "BASIC": "strap",
+            "ENHANCED": "strap"
+          },
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented."
+        },
+        {
+          "id": "LEDCFG2.led3_drive_value",
+          "originalField": null,
+          "mask": "0x0200",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59,
+          "delta": "Named field occupies formerly reserved bits.",
+          "validity": "One-bit LED3 level for the forced-drive operation.",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented."
+        },
+        {
+          "id": "LEDCFG2.led3_drive_enable",
+          "originalField": null,
+          "mask": "0x0100",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59,
+          "delta": "Named field occupies formerly reserved bits.",
+          "validity": "0 normal operation, 1 forced LED3 drive. Apply value and polarity through the board pin owner.",
+          "legal": "range",
+          "prohibited": [],
+          "neutral": null,
+          "readEffects": "No read-clear effect documented."
+        },
+        {
+          "id": "LEDCFG2.led2_polarity",
+          "originalField": "LEDCFG2.led2_polarity",
+          "mask": "0x0040",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 59,
+          "modeDefault": {
+            "BASIC": "strap",
+            "ENHANCED": "strap"
+          }
+        },
+        {
+          "id": "LEDCFG2.led2_drive_value",
+          "originalField": "LEDCFG2.led2_drive_value",
+          "mask": "0x0020",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "LEDCFG2.led2_drive_enable",
+          "originalField": "LEDCFG2.led2_drive_enable",
+          "mask": "0x0010",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "LEDCFG2.led1_polarity",
+          "originalField": "LEDCFG2.led1_polarity",
+          "mask": "0x0004",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 59,
+          "modeDefault": {
+            "BASIC": "strap",
+            "ENHANCED": "strap"
+          }
+        },
+        {
+          "id": "LEDCFG2.led1_drive_value",
+          "originalField": "LEDCFG2.led1_drive_value",
+          "mask": "0x0002",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "LEDCFG2.led1_drive_enable",
+          "originalField": "LEDCFG2.led1_drive_enable",
+          "mask": "0x0001",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "RXFCFG1",
+      "address": "0x04A0",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.72",
+      "table": "8-91",
+      "originalTable": "8-90",
+      "headerReset": "10X1",
+      "resetValue": "0x1000",
+      "resetKnownMask": "0xFF7E",
+      "reservedMask": "0xE01E",
+      "reservedRows": [
+        {
+          "bits": "15-14",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "13",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "4",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "3",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "2",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "1",
+          "access": "R",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "RXFCFG1_crcGate",
+          "originalField": "RXFCFG1_crcGate",
+          "mask": "0x1000",
+          "access": "R/W",
+          "reset": "1h",
+          "owner": 59
+        },
+        {
+          "id": "RXFCFG1_levelAcknowledge",
+          "originalField": "RXFCFG1_levelAcknowledge",
+          "mask": "0x0800",
+          "access": "W0C",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "RXFCFG1_pulseWidth",
+          "originalField": "RXFCFG1_pulseWidth",
+          "mask": "0x0600",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "RXFCFG1_levelMode",
+          "originalField": "RXFCFG1_levelMode",
+          "mask": "0x0100",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "RXFCFG1_enable",
+          "originalField": "RXFCFG1_enable",
+          "mask": "0x0080",
+          "access": "RH/W",
+          "reset": "X",
+          "owner": 59,
+          "delta": "Original access R/W. Original field reset 1h.",
+          "modeDefault": {
+            "BASIC": "strap",
+            "ENHANCED": 1
+          }
+        },
+        {
+          "id": "RXFCFG1_bitMaskFlag",
+          "originalField": "RXFCFG1_bitMaskFlag",
+          "mask": "0x0040",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "RXFCFG1_secureOn",
+          "originalField": "RXFCFG1_secureOn",
+          "mask": "0x0020",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "RXFCFG1_magicPacketEnable",
+          "originalField": "RXFCFG1_magicPacketEnable",
+          "mask": "0x0001",
+          "access": "RH/W",
+          "reset": "1h",
+          "owner": 59,
+          "delta": "Original field reset X.",
+          "modeDefault": {
+            "BASIC": "strap",
+            "ENHANCED": "strap"
+          }
+        }
+      ]
+    },
+    {
+      "id": "RXFS",
+      "address": "0x04A1",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.73",
+      "table": "8-92",
+      "originalTable": "8-91",
+      "headerReset": "1000",
+      "resetValue": "0x1000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0xEF1E",
+      "reservedRows": [
+        {
+          "bits": "15-13",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "11-8",
+          "access": "R",
+          "reset": "0h"
+        },
+        {
+          "bits": "4",
+          "access": "RCH",
+          "reset": "0h"
+        },
+        {
+          "bits": "3",
+          "access": "RCH",
+          "reset": "0h"
+        },
+        {
+          "bits": "2",
+          "access": "RCH",
+          "reset": "0h"
+        },
+        {
+          "bits": "1",
+          "access": "RCH",
+          "reset": "0h"
+        }
+      ],
+      "fields": [
+        {
+          "id": "RXFS.interrupt_source",
+          "originalField": "RXFS.interrupt_source",
+          "mask": "0x1000",
+          "access": "R/W",
+          "reset": "1h",
+          "owner": 59
+        },
+        {
+          "id": "RXFS.sfd_error",
+          "originalField": "RXFS.sfd_error",
+          "mask": "0x0080",
+          "access": "RCH",
+          "reset": "0h",
+          "owner": 59,
+          "readEffects": "Latched high and cleared on RXFS read. One collector retains each consumed status word."
+        },
+        {
+          "id": "RXFS.bad_crc",
+          "originalField": "RXFS.bad_crc",
+          "mask": "0x0040",
+          "access": "RCH",
+          "reset": "0h",
+          "owner": 59,
+          "readEffects": "Latched high and cleared on RXFS read. One collector retains each consumed status word."
+        },
+        {
+          "id": "RXFS.secure_on_error",
+          "originalField": "RXFS.secure_on_error",
+          "mask": "0x0020",
+          "access": "RCH",
+          "reset": "0h",
+          "owner": 59,
+          "readEffects": "Latched high and cleared on RXFS read. One collector retains each consumed status word."
+        },
+        {
+          "id": "RXFS.magic_packet",
+          "originalField": "RXFS.magic_packet",
+          "mask": "0x0001",
+          "access": "RCH",
+          "reset": "0h",
+          "owner": 59,
+          "readEffects": "Latched high and cleared on RXFS read. One collector retains each consumed status word."
+        }
+      ]
+    },
+    {
+      "id": "RXFPMD1",
+      "address": "0x04A2",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.74",
+      "table": "8-93",
+      "originalTable": "8-92",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x0000",
+      "reservedRows": [],
+      "fields": [
+        {
+          "id": "RXFPMD1_byte4",
+          "originalField": "RXFPMD1_byte4",
+          "mask": "0xFF00",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "RXFPMD1_byte5",
+          "originalField": "RXFPMD1_byte5",
+          "mask": "0x00FF",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "RXFPMD2",
+      "address": "0x04A3",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.75",
+      "table": "8-94",
+      "originalTable": "8-93",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x0000",
+      "reservedRows": [],
+      "fields": [
+        {
+          "id": "RXFPMD2_byte2",
+          "originalField": "RXFPMD2_byte2",
+          "mask": "0xFF00",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "RXFPMD2_byte3",
+          "originalField": "RXFPMD2_byte3",
+          "mask": "0x00FF",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "RXFPMD3",
+      "address": "0x04A4",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.76",
+      "table": "8-95",
+      "originalTable": "8-94",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x0000",
+      "reservedRows": [],
+      "fields": [
+        {
+          "id": "RXFPMD3_byte0",
+          "originalField": "RXFPMD3_byte0",
+          "mask": "0xFF00",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "RXFPMD3_byte1",
+          "originalField": "RXFPMD3_byte1",
+          "mask": "0x00FF",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "RXFSOP1",
+      "address": "0x04A5",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.77",
+      "table": "8-96",
+      "originalTable": "8-95",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x0000",
+      "reservedRows": [],
+      "fields": [
+        {
+          "id": "RXFSOP1_byte1",
+          "originalField": "RXFSOP1_byte1",
+          "mask": "0xFF00",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "RXFSOP1_byte0",
+          "originalField": "RXFSOP1_byte0",
+          "mask": "0x00FF",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "RXFSOP2",
+      "address": "0x04A6",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.78",
+      "table": "8-97",
+      "originalTable": "8-96",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x0000",
+      "reservedRows": [],
+      "fields": [
+        {
+          "id": "RXFSOP2_byte3",
+          "originalField": "RXFSOP2_byte3",
+          "mask": "0xFF00",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "RXFSOP2_byte2",
+          "originalField": "RXFSOP2_byte2",
+          "mask": "0x00FF",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    },
+    {
+      "id": "RXFSOP3",
+      "address": "0x04A7",
+      "space": "MMD",
+      "devad": "0x1F",
+      "aliases": [],
+      "section": "8.5.1.79",
+      "table": "8-98",
+      "originalTable": "8-97",
+      "headerReset": "0000",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFFF",
+      "reservedMask": "0x0000",
+      "reservedRows": [],
+      "fields": [
+        {
+          "id": "RXFSOP3_byte5",
+          "originalField": "RXFSOP3_byte5",
+          "mask": "0xFF00",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        },
+        {
+          "id": "RXFSOP3_byte4",
+          "originalField": "RXFSOP3_byte4",
+          "mask": "0x00FF",
+          "access": "R/W",
+          "reset": "0h",
+          "owner": 59
+        }
+      ]
+    }
+  ],
+  "removedFields": [
+    {
+      "originalField": "IO_CFG1.clock_off",
+      "register": "IO_CFG1",
+      "mask": "0x0040",
+      "owner": 59,
+      "table": "8-74",
+      "disposition": "Reserved R. Reject the original clock-output write before I/O."
+    },
+    {
+      "originalField": "PHYCR.led_config",
+      "register": "PHYCR",
+      "mask": "0x0020",
+      "owner": 59,
+      "table": "8-44",
+      "disposition": "Reserved R/W. Preserve this bit in ordinary masked composition. No LED configuration control."
+    }
+  ],
+  "recipeRegisters": [
+    {
+      "id": "EEECFG3",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x04D1",
+      "originalRegister": "EEECFG3",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1-2 and 8.3.4",
+      "use": "Ordered EEE write 008Bh, plus explicit masked capabilities-bypass controls [3,0] and TX LPI [12]. Do not infer raw write access to the remaining bits."
+    },
+    {
+      "id": "EEE_04D3",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x04D3",
+      "originalRegister": "EEE_04D3",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "ORIGINAL_ONLY",
+      "source": "SNLS647I 8.3.3.1 compared with SNLS783A 8.3.3.1",
+      "use": "Absent from the A recipe. Reject an attempt to replay 4F12h."
+    },
+    {
+      "id": "EEE_04DF",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x04DF",
+      "originalRegister": "EEE_04DF",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "EEE_033E",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x033E",
+      "originalRegister": "EEE_033E",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "EEE_033F",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x033F",
+      "originalRegister": "EEE_033F",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "RECIPE_0123",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0123",
+      "originalRegister": "RECIPE_0123",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1 and 8.3.14.4; SNLA491 2.5.1-2",
+      "use": "EEE writes 0800h, digital loopback writes 2000h. Exclude overlapping owners and opaque-word replay."
+    },
+    {
+      "id": "EEE_031B",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x031B",
+      "originalRegister": "EEE_031B",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "EEE_0466",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0466",
+      "originalRegister": "EEE_0466",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "EEE_04CF",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x04CF",
+      "originalRegister": "EEE_04CF",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "EEE_0416",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0416",
+      "originalRegister": "EEE_0416",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1 and 8.3.16.1; SNLA428 table 2-1",
+      "use": "EEE A row uses 1830h. Separate link-down TDR setup has its own recipe and restoration scope."
+    },
+    {
+      "id": "EEE_04F5",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x04F5",
+      "originalRegister": "EEE_04F5",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "EEE_04E0",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x04E0",
+      "originalRegister": "EEE_04E0",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "EEE_031F",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x031F",
+      "originalRegister": "EEE_031F",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "EEE_04F4",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x04F4",
+      "originalRegister": "EEE_04F4",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "RECIPE_0428",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0428",
+      "originalRegister": "RECIPE_0428",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.6.3 and table 8-51",
+      "use": "Deep-power bit 2 and compliance bits 4 and 5 only with their specific prerequisites and safe exit. No whole-register model."
+    },
+    {
+      "id": "LOOP_0122",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0122",
+      "originalRegister": "LOOP_0122",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.14.4; SNLA491 2.5.1-2",
+      "use": "Exact 100BASE-TX digital loopback sequence only."
+    },
+    {
+      "id": "LOOP_0130",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0130",
+      "originalRegister": "LOOP_0130",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.14.4; SNLA491 2.5.1-2",
+      "use": "Exact 100BASE-TX digital loopback sequence only."
+    },
+    {
+      "id": "TDR_0411",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0411",
+      "originalRegister": "TDR_0411",
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.16.1 refers to SNLA428; SNLA428 table 2-1",
+      "use": "TDR setup uses the D3 sequence and segment order. An independent analog result and distance calibration are pending."
+    },
+    {
+      "id": "EEE_0126",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0126",
+      "originalRegister": null,
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "EEE_0132",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0132",
+      "originalRegister": null,
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "EEE_04D4",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x04D4",
+      "originalRegister": null,
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "EEE_0310",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0310",
+      "originalRegister": null,
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "EEE_0311",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0311",
+      "originalRegister": null,
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "EEE_0313",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0313",
+      "originalRegister": null,
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "EEE_033A",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x033A",
+      "originalRegister": null,
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "EEE_033C",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x033C",
+      "originalRegister": null,
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    },
+    {
+      "id": "EEE_0317",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0317",
+      "originalRegister": null,
+      "owner": 59,
+      "resetValue": null,
+      "resetKnownMask": null,
+      "status": "PROCEDURE_ONLY",
+      "source": "SNLS783A 8.3.3.1, pp. 27-28",
+      "use": "Ordered EEE full-word write at the specified position only."
+    }
+  ],
+  "printedAddresses": [
+    {
+      "id": "eee_printed_1001",
+      "devad": "0x03",
+      "printedAddress": "0x1001",
+      "wireAddress": "0x0001",
+      "owner": 59,
+      "readRoute": "COLLECTOR",
+      "source": "SNLS783A 8.3.3.2 and 8.3.11.1; D2 cross-part wire inference in dp83826i.json",
+      "status": "SOURCE_IMPLIED",
+      "test": "Exercise just this DEVAD and low offset; deny the printed high-prefix value, other DEVADs and raw writes. Retain destructive samples if a later read fails."
+    },
+    {
+      "id": "eee_printed_1014",
+      "devad": "0x03",
+      "printedAddress": "0x1014",
+      "wireAddress": "0x0014",
+      "owner": 59,
+      "readRoute": "SAFE_READ",
+      "source": "SNLS783A 8.3.3.2 and 8.3.11.1; D2 cross-part wire inference in dp83826i.json",
+      "status": "SOURCE_IMPLIED",
+      "test": "Exercise just this DEVAD and low offset; deny the printed high-prefix value, other DEVADs and raw writes. Retain destructive samples if a later read fails."
+    },
+    {
+      "id": "eee_printed_1016",
+      "devad": "0x03",
+      "printedAddress": "0x1016",
+      "wireAddress": "0x0016",
+      "owner": 59,
+      "readRoute": "COLLECTOR",
+      "source": "SNLS783A 8.3.3.2 and 8.3.11.1; D2 cross-part wire inference in dp83826i.json",
+      "status": "SOURCE_IMPLIED",
+      "test": "Exercise just this DEVAD and low offset; deny the printed high-prefix value, other DEVADs and raw writes. Retain destructive samples if a later read fails."
+    },
+    {
+      "id": "eee_printed_203C",
+      "devad": "0x07",
+      "printedAddress": "0x203C",
+      "wireAddress": "0x003C",
+      "owner": 59,
+      "readRoute": "SAFE_READ",
+      "source": "SNLS783A 8.3.3.2 and 8.3.11.1; D2 cross-part wire inference in dp83826i.json",
+      "status": "SOURCE_IMPLIED",
+      "test": "Exercise just this DEVAD and low offset; deny the printed high-prefix value, other DEVADs and raw writes. Retain destructive samples if a later read fails."
+    },
+    {
+      "id": "eee_printed_203D",
+      "devad": "0x07",
+      "printedAddress": "0x203D",
+      "wireAddress": "0x003D",
+      "owner": 59,
+      "readRoute": "SAFE_READ",
+      "source": "SNLS783A 8.3.3.2 and 8.3.11.1; D2 cross-part wire inference in dp83826i.json",
+      "status": "SOURCE_IMPLIED",
+      "test": "Exercise just this DEVAD and low offset; deny the printed high-prefix value, other DEVADs and raw writes. Retain destructive samples if a later read fails."
+    }
+  ],
+  "debugAddresses": [
+    {
+      "address": "0x0225",
+      "owner": 59,
+      "status": "UNRESOLVED",
+      "source": "SNLA491 table 2-6 against SNLS783A table 8-73",
+      "disposition": "Troubleshooting MSE address and derived SNR conflict with the detailed MSE table at 0218h. Require independent vendor clarification or identified measurement before using 0225h or a dB conversion."
+    }
+  ]
+}

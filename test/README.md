@@ -128,6 +128,14 @@ are unittest methods and remain active under Python optimization. Run both
 commands as prompts 4–5 extend the ledger. These are research-tool tests, not
 executing driver, package or hardware tests.
 
+The default ledger check also validates the AI/AE field partitions against the
+archived SNLS783A detailed tables and joins the A records to their I/E
+comparisons. It checks both occurrences of a repeated EEE write and the final
+write after the AN restart. `test_a_ledger.py` supplies independent identity,
+field, reset, strap and ordered-recipe vectors, and exercises corrupted
+comparisons. Run it alone with
+`python -m unittest discover -s test -p test_a_ledger.py -v`.
+
 `test_diagnostic_ledger.py` extends registered discovery with original-PDF field,
 access and reset literals for every prompt-4 detailed record, recipe actions and
 legal encodings. Temporary malformed files prove rejection of dropped diagnostic

@@ -23,7 +23,7 @@ gates. Later variants must qualify these independently.
 | --- | --- | --- | --- |
 | DP83826I, including DP83826IRHBR | First implementation target | [SNLS647I, Aug 2025](reference/source/TI-DP83826I-E-SNLS647I.pdf) | Verify selected mode, PHY identity, straps, reset and 10BASE-Te setup |
 | DP83826E | Declared original extended-temperature grade | SNLS647I above | Same core procedures as I. Declared-E host, SDK and physical evidence are recorded separately in the [qualification report](reports/implementation/56-e-support.md) |
-| DP83826AI / DP83826AE | A-generation reference | [SNLS783A, Oct 2025](reference/source/TI-DP83826AI-AE-SNLS783A.pdf) | Review [rollover changes](reference/source/TI-DP83826-to-DP83826A-SDAA067A.pdf) before reuse |
+| DP83826AI / DP83826AE | A-generation research, software admission pending | [SNLS783A, Oct 2025](reference/source/TI-DP83826AI-AE-SNLS783A.pdf) | Shared revision-4 policy and procedures. AI is rated −40 to +85 °C, AE −40 to +105 °C. Each grade needs its own qualification. |
 | DP83825I | Family expansion reference | [SNLS638C, Apr 2026](reference/source/TI-DP83825I-SNLS638C.pdf) | RMII-only device; do not expose unsupported MII/fiber features |
 | DP83822I / H / IF / HF | Family expansion reference | [SNLS505H, Jul 2026](reference/source/TI-DP83822-SNLS505H.pdf) | Interface, temperature and fiber capabilities differ by exact variant |
 
@@ -48,6 +48,15 @@ orderable suffixes. Resolve their operating-mode/compatibility meaning from the
 exact datasheet and observed device ID. See [the pinned source](reference/source-code.md).
 
 ## Before extending support
+
+For either A declaration, the researched BASIC identity is `2000 A114` and
+ENHANCED is `2000 A134`. Only revision 4 has an accepted A source record.
+The application supplies the suffix. The register comparison identifies each
+field by its original semantic ID and A table, including reserved bits, strap
+defaults and OTP-loaded values. The procedure comparison assigns core/link,
+FLD and clock work to 58 and diagnostic/optional controls to 59. Both sets of
+tests apply separately to AI and AE. [Register comparison](registers/dp83826a.json)
+and [procedure comparison](registers/dp83826a-procedures.json).
 
 The [family source catalogue](reference/library-family.md) adds the 2026-10-26
 numeric comparison. DP83825I identity remains a specific conflict: SNLS638C

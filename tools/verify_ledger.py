@@ -694,12 +694,23 @@ def load_ledger(path: Path) -> object:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("ledger", nargs="?", type=Path, default=DEFAULT_LEDGER)
+    parser.add_argument("ledger", nargs="?", type=Path,
+                        help="validate a standalone original ledger (default: check both generations)")
     args = parser.parse_args(argv)
     try:
-        data = load_ledger(args.ledger)
+        data = load_ledger(args.ledger or DEFAULT_LEDGER)
         validate(data)
-    except (OSError, UnicodeError, ValueError, TypeError) as error:
+        if args.ledger is None:
+            if __package__:
+                from .verify_a_ledger import validate as validate_a
+            else:
+                from verify_a_ledger import validate as validate_a
+            comparison = load_ledger(DEFAULT_LEDGER.with_name("dp83826a.json"))
+            procedures = load_ledger(DEFAULT_LEDGER.with_name("dp83826a-procedures.json"))
+            validate_a(data, comparison, procedures)
+            print(f"PASS: AI/AE comparison of {len(comparison['registers'])} detailed tables, "
+                  f"{len(procedures['procedures'])} procedures and {len(procedures['eeeRecipe'])} EEE rows")
+    except (OSError, UnicodeError, ValueError, TypeError, KeyError) as error:
         print(f"FAIL: {error}", file=sys.stderr)
         return 1
     print(f"PASS: {len(data['registers'])} registers, {len(data['procedures'])} procedures, "

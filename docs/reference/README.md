@@ -18,6 +18,13 @@ Unmapped NUL glyphs are replaced with the Unicode replacement character so
 ordinary text-search tools can read the extracts; the PDFs remain unchanged.
 See [third-party notices](THIRD_PARTY_NOTICES.md) for licensing boundaries.
 
+The AI/AE comparison reconciles SNLS783A with the original I/E map. Use the
+field ledger for addresses, access and reset knowledge, and the procedure
+ledger for ordered writes and remaining source conflicts. The report identifies
+where TI troubleshooting and application examples differ from field tables.
+[Fields](../registers/dp83826a.json), [procedures](../registers/dp83826a-procedures.json)
+and [source decisions](../reports/implementation/57-a-source-policy.md#phase-b-source-reconciliation).
+
 The 2026-10-26 follow-up adds a [full DP83826I feature/register inventory](dp83826i-feature-inventory.md)
 and [expanded public-source research](public-research.md), including additional
 TI GitHub/SDK and primary upstream comparisons. These derived planning guides

@@ -138,3 +138,107 @@ git diff --check
 portable/package consumers, SDK link, remote CI and physical evidence NOT RUN**
 in phase (a). The exhaustive A comparison remains the deliverable for phase
 (b). Physical A identity, strap resampling and EMC performance remain open.
+
+## Phase (b) source reconciliation
+
+The two comparison files assign every detailed field and procedure to 58 or
+59 for both declared A grades. The field file records all 427 printed rows
+in the 79 detailed register tables. The 286 non-reserved rows describe 285
+semantic fields because BISCR describes its two-bit generator/checker mode
+across two rows. Of the 283 original field IDs, 281 have A counterparts,
+two became reserved, and four new A fields have no original counterpart.
+Separate inventories cover 27 recipe-address dispositions (including the retired
+`04D3`), five printed IEEE tuples, and the unresolved debug offset `0225`.
+[Register comparison](../../registers/dp83826a.json).
+
+The procedure file compares 52 procedures, 35 features, 25 original gates,
+20 timings and 56 exceptional write-action records. Of the original 47 action
+records, one has no A write permission, and nine new addresses contribute new
+actions. The ordered recipe owns **both** writes of `04F5=2864` at positions
+7 and 25. If row 27 fails, the row-26 AN restart may already have taken effect.
+Fields with data-dependent defaults carry their printed reset cells alongside
+the mask of bits predictable across boards. The newly documented OTP loading
+on VOD_CFG1/2 makes their programmed values an observation for each device.
+[Procedure comparison](../../registers/dp83826a-procedures.json).
+
+### Implementation inputs
+
+| Owner | Source decision and literal regression |
+| --- | --- |
+| 58, identity and link | Read C22 02 then 03. For each declared AI or AE accept `2000:A114` BASIC and `2000:A134` ENHANCED at revision 4 only. Match the required mode after checking OUI, model and revision. On a mismatch retain the raw identity and stop before a write. Assert the identical pair preserves each separately bound grade. In forced mode require robust crossover. ANAR[13] must remain clear in local advertisements. Partner bit 13 and the latched BMSR remote fault still count as observations. |
+| 58, reset and startup | BMCR `00=8000` resets the PCS and retains vendor settings. PHYRCR `1F=8000` has pin-reset effects. Refresh identity, address and SOR after HARD. ENHANCED Strap1/6 latch only on POR. PHYRCR `1F=4000` restarts digital circuits and retains registers. Check both PHYRCR command bits before subsequent work. External POR-to-SMI 50 ms MAX and pin-reset-to-SMI 2 ms MAX establish readiness for their respective events. Pin reset needs a 25 µs minimum pulse. Anchor bus silence to observed completion or a conservative later time, with a separate finite software poll budget. |
+| 58, 10BASE-Te | Both parts use VOD_CFG3 at vendor MMD 31 offset `030E`, reset `8400`. After initialization's reset and identity checks write `0D:001F, 0E:030E, 0D:401F, 0E:4A40`. For verification repeat the first three writes and read `0E`, comparing the stable owned bits. Each four-frame transaction has one bus owner. Apply an admitted persistent analog override only after mandatory verification. Interrupt each transfer, including the final possibly accepted write. |
+| 58, FLD and interface | Use the six ENHANCED and two BASIC rows in `fldStraps`. For ENHANCED option 5 the ordered strap values (7, 1, 8, 11) are (1, 0, 0, 1). MII and an eligible board role are prerequisites to enabling FLD. MLT3, low SNR or descrambler detection requires energy loss or RX error. Preserve CR3[6:5] when composing mask `040F`. Energy-only changes `042F→0021` and `044F→0041`. Report pin 19 at SOR1[11] and retain consumed FLDS even if a subsequent read fails. |
+| 59, pin and diagnostic features | Check LED3/2/1 source masks `0F00/00F0/000F` on asymmetric inputs and preserve the reserved upper nibble. Known-reset masks exclude the strap-dependent low bits at `0304/0305`. Preserve PHYCR[5] and IO_CFG1[6]. IRQ and wake consume status through one collector. For RXFCFG1[11], write one during unrelated updates and zero for acknowledgement. Test the possible effect if the acknowledgement frame fails. |
+| 59, recipe and opaque controls | Test all 27 EEE writes and every interrupted prefix against both declared grades. Resolve the printed `7:203C` only through the selected D2 tuple `7:003C`. The data selector is `4007`. The D3 six-segment transmit-A cable procedure uses the specific TDR application report linked from SNLS783A §8.3.16.1. Keep explicit waits, verification, cleanup and measured cable-delay requirements for this procedure. |
+
+The Strap11 HIGH recommendation applies **if FLD is used**. SDAA067A table 3-3
+prints Strap8 HIGH for option 5. Its figure 3-2 and SNLS783A table 8-5 give LOW.
+SDAA067A §3.2 attributes the EMC improvement to a physical strap and an EVM
+test. A successful CR3 readback proves the programmed mechanism bits.
+Strap substitution for that electrical result requires identified measurements.
+[Exact-part datasheet](../../reference/source/TI-DP83826AI-AE-SNLS783A.pdf) ·
+[Rollover guide](../../reference/source/TI-DP83826-to-DP83826A-SDAA067A.pdf).
+
+### Additional implementation and troubleshooting evidence
+
+| Source and inspection depth | Disposition |
+| --- | --- |
+| TI combined Linux and Zephyr, at the phase (a) pins above. Reopened the Linux ID definitions and Zephyr selector helpers and configuration paths. | Linux NC `A110`, Zephyr NC `A131` and a revision-insensitive Linux match cannot distinguish suffixes. In both Zephyr helpers the data function collapses to zero. Use the source-backed wire literals above on read and write. |
+| TI MCU+ AM263Px, BSD-3-Clause, Enet PHY version constants. Independently inspected the ICSS-EMAC E driver's CR2 RMW paths at lines 475–515 and their file notice. | The Enet constants select original revision 1. The ICSS helper named for enabling odd-nibble detection sets the disable bit. On A, CR2[1]=1 disables detection. Use table 8-30, with BASIC default 1 and ENHANCED strap-loaded. [Enet source](https://github.com/TexasInstruments/mcu_plus_sdk_am263px/blob/dee0b767c4ebaa9b19d12b145af14046e3eee0a3/source/board/ethphy/enet/rtos_drivers/src/dp83826.c) · [ICSS source](https://github.com/TexasInstruments/mcupsdk-core/blob/4b9a66f4e18e02a834961f5f834155c846cab041/source/board/ethphy/icss_emac/ethphy_dp83826e.c) |
+| Oryx CycloneTCP Open v2.6.6, GPL-2.0-or-later, source blob `dbb6b2a5fe82ec78f655077d49802fbf045197d9`. Inspected init, reset polling, debug dump and both four-frame MMD helpers. | The helpers compose the data function with the DEVAD. The reset wait has no finite poll bound and the debug dump can read consuming registers. Use the table-defined selectors, bounded polls and dedicated collector. The general DP83826 driver supplies an independent implementation comparison. It supplies no A revision admission or A-grade qualification. [Pinned release source](https://github.com/Oryx-Embedded/CycloneTCP/blob/v2.6.6/drivers/phy/dp83826_driver.c) |
+| TI SNLA491, August 2025, §§2.2.6, 2.3.3, 2.5. Reopened A troubleshooting ID/MDIO tables and loopback scripts. | The guide corroborates the four-frame vendor transactions. Use the October 2025 datasheet for revision 4, reset domains and legal amplitude settings. Its MSE register is `0218`. The guide's `0225` and dB conversion need separate authority. Analog BIST example `3108` with lock and generator active gives `3B08`, while the guide's `3B04` selects digital loopback. [Troubleshooting guide](../../reference/source/TI-DP83826A-Troubleshooting-SNLA491.pdf) |
+| TI SNLA488, July 2025, §3.2.1 and table 3-3, application example and working register dump. | `0019=8020` sets the subsequently documented reserved PHYCR[5]. The settings `0460=0005` and `000B=0001` would overwrite unrelated LED and mirror settings. Use field-level composition under the owning procedure. The working-register example reports `A11X`, leaving the revision unspecified. [TI EtherCAT application note](https://www.ti.com/lit/pdf/snla488) |
+
+SNLS783A tables 8-75/76 give a usable PLL/recovered clock selection on pin 30
+but leave pin 31's clock selection in conflict with its mux encodings. Keep the
+pin 31 input/clock requests gated where no legal code is established. Similar
+source gates remain for reversible deep power, 100 Mbit/s compliance stimulus,
+MSE-to-dB scaling, the physical D2 mapping and TDR calibration. Each procedure
+record identifies the inhibited action and the evidence needed to qualify it.
+
+The lead integrated the two disjoint source inventories and wrote the verifier,
+literal tests and guides. Both implementers used the session's high-reasoning
+model for cross-table and procedure reconciliation. Phase (b) entered on clean
+`main` at `bcb27e1a9b21ef9d6222ca4ec40b588e5e905ba6`, wrapper-verified equal
+to `origin/main`. The three peer checkouts remained clean at the phase (a)
+revisions. Reopening the listed declarations, dispatch, CLI, runners, tests and
+rules confirmed explicit board selection, pure preflight and retained mismatch
+evidence. No procedure has original implementation owner 57. The README,
+changelog and shipped public declarations still describe the I/E runtime.
+
+### Phase (b) local checks
+
+Windows x86-64, Python 3.12.10 and existing GNU 15.1.0 Release/Ninja host
+binaries. The verifier matched every detailed A table's address, header reset,
+field masks, access and reset cells, and reserved rows against the archived
+SNLS783A extract. Independent checks against the two original PDFs covered
+the 18/27 EEE rows, all eight A FLD strap configurations and the 48 tuning
+words of the selected TDR recipe. The unit tests rejected seven deliberately
+corrupted comparison files in memory, including an invented known reset,
+an omitted offset and a merged or reordered EEE write.
+
+```powershell
+python tools/verify_ledger.py
+python -m unittest discover -s test -p 'test_*ledger.py' -q
+python -m unittest discover -s test -p 'test_*.py' -q
+ctest --test-dir build/p53-baseline -R '^(e_)?identity_(decode|policy|failures|lifecycle|ownership|scan)$' --output-on-failure --no-tests=error
+ctest --test-dir build/p56d-consumer --output-on-failure --no-tests=error
+python tools/check_doxygen.py
+python tools/verify_references.py
+python scripts/generate_version.py check
+git diff --check
+```
+
+| Evidence | Result |
+| --- | --- |
+| Host research | PASS. Both ledgers passed validation. All 89 ledger tests passed. Full Python discovery ran 255 tests with 52 compiled-fixture skips. The nine A tests include both selector transactions, mode-specific unknowns, moved fields, FLD straps and the complete EEE write order. |
+| Host driver | PASS. All 12 selected I/E identity CTests passed. A driver execution remains pending implementation. |
+| Portable consumer | PASS. Both tests-OFF consumer CTests passed using the existing Release binaries. |
+| Documentation and archive | PASS. Doxygen generated 294 pages and rejected both negative fixtures. Reference verification checked 29 vendor payloads and 27 extracts. Version, local links and tracked/new-file whitespace passed. |
+| Exported package consumer / SDK link | NOT RUN in this phase. The changed inputs are research records, documentation and offline checks. |
+| Remote CI / physical | NOT RUN. Prompt 71 owns remote CI. Each A grade requires its own authorized fixture and identity, reset, strap and electrical evidence. |
+
+Prompt 57 remains **IN PROGRESS**. Phase (c) reviews the actual phase (b)
+checkpoint against SNLS783A, SNLS647I and the cited procedure sources. The
+wrapper records the commit and verifies synchronization after this run.

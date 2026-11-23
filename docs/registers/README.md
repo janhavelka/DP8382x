@@ -1,4 +1,27 @@
-# DP83826I ledger schema (version 1)
+# DP83826 research ledgers
+
+## AI/AE comparison
+
+Start with the [A field map](dp83826a.json) and [A procedures](dp83826a-procedures.json)
+for either A ordering grade. An `originalField` links to its legal values,
+neutral write, validity and read effects in the original ledger. The A record
+supplies its mask, exact TI access notation, printed reset and any replacement
+semantics. `reservedRows` includes TI rows labelled R/W. Preserve those bits
+on ordinary updates. Compare observed defaults only under `resetKnownMask`.
+`modeDefault` and each field's reset notes identify cases that also require
+mode, strap or OTP observations.
+
+Procedure IDs join to the original prerequisites, waits, partial effects and
+restoration. Use the A record's replacements for changed steps, masks and
+values. Each `owner` is the implementation prompt (58 or 59). The
+`eeeRecipe` array records both the printed tuple and the selected wire action
+for each write. Position counts from one, including repeated writes. An
+original-only action has no A recipe position. `fldStraps` records the
+published strap combinations and the corresponding CR3 mechanism bits.
+Research progress and executing support are tracked separately.
+[Variant status](../variants.md).
+
+## Original I/E schema (version 1)
 
 [dp83826i.json](dp83826i.json) is the authoritative research ledger for exact
 DP83826I / SNLS647I. It is deliberately a small part-specific JSON document,

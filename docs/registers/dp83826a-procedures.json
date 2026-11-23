@@ -1,0 +1,2111 @@
+{
+  "schemaVersion": 1,
+  "variants": [
+    "DP83826AI",
+    "DP83826AE"
+  ],
+  "baseline": "dp83826i.json",
+  "scope": "Research inputs for separately declared AI and AE. Both have the same SNLS783A programming model. Compare each row with the original I/E record of the same ID. The assignments are future implementation and test obligations.",
+  "comparison": "For each procedure retain the baseline modes, prerequisites, ordered steps, waits, timeout, partialEffects, cleanup and restoration except as qualified by its A disposition, gates, A field map and A recipe. Substitute the actual A declaration and revision everywhere. Historical test and implementation status is specific to its original part. For features, use the procedures listed here and their individual tests. For write actions use the baseline mask, value and neutral except for the listed replacement/removal or an A-only row. None of the opaque words grants general access. A procedure ownedMasks, where present, replaces the baseline list and enumerates candidate bits across eligible profiles. Apply only the admitted subset on each operation. Clock, pin, wake and IRQ use one executing owner per selected route; dependent profiles verify it. Clock hardware evidence and unresolved pin mux options are qualified separately.",
+  "testContract": "Run every procedure test on both declared grades and applicable BASIC/ENHANCED modes. Invalid local declarations must cause zero callbacks. For each bus procedure inject failure at each selector/data boundary, an accepted or uncertain last write, deadline before/after mutation and cancellation. Retain consumed prefixes and the primary result. Release the bus before any wait. Use a separate bounded restoration operation under OP-9 and check that cached reads have zero traffic. For each recipe cut verify the exact prefix and prohibit implicit continuation, resets or replay of transient stimuli.",
+  "procedures": [
+    {
+      "id": "identify",
+      "feature": "identity",
+      "owner": 58,
+      "source": "SNLS783A 8.1 and tables 8-22/23, 8-44, 8-88/89",
+      "disposition": "Require 2000:A114 BASIC or 2000:A134 ENHANCED, exact revision 4. Original rev 1, TI matching masks and troubleshooting IDs cannot select an A declaration.",
+      "test": "Read 02 then 03. Cross both declarations with both modes, every revision nibble, wrong mode/OUI/model, zero/all-ones and failed second read. Preserve raw mismatch, never write on rejection."
+    },
+    {
+      "id": "direct_access",
+      "feature": "access",
+      "owner": 58,
+      "source": "SNLS783A 8.3.11 and tables 8-18/19/21",
+      "disposition": "Same Clause 22 address limits and selector/collector exclusions. Observe a 24 MHz maximum from section 7.6 and 8.3.11 despite the 25 MHz pin description in table 5-1.",
+      "test": "Reject addresses 0C and 1D and user reads of selectors. Successful direct 03 reads use one frame, cached views use none."
+    },
+    {
+      "id": "mmd_access",
+      "feature": "access",
+      "owner": 58,
+      "source": "SNLS783A 8.3.11.1-6 and tables 8-32/33; SNLA491 2.2.6.1.1",
+      "disposition": "DEVAD 31 for vendor, 3 and 7 for selected EEE tuples. Use fresh address, data function and final frame under one bus lock for every access. Direct 0D/0E have no MMD aliases.",
+      "test": "W0D:001F W0E:030E W0D:401F W0E:4A40. Read repeats first three then R0E. EEE 7:003C sends 0007/003C/4007, never 0000 as data function. Reject unrelated selectors."
+    },
+    {
+      "id": "pcs_reset",
+      "feature": "reset",
+      "owner": 58,
+      "source": "SNLS783A 8.4.1 and table 8-20",
+      "disposition": "PCS reset retains vendor registers. Reload/reconcile stored straps and verify standard controls. SNLA491 p20 calls this a hard reset; select the detailed register domain. No external reset timing bound applies.",
+      "test": "Write C22 00=8000, poll bit 15 with finite policy, observe vendor sentinel preserved. On initialize, verify VOD even after retained-state reset."
+    },
+    {
+      "id": "hard_reset",
+      "feature": "reset",
+      "owner": 58,
+      "source": "SNLS783A 7.6, 8.3.11, 8.4.1 and table 8-49",
+      "disposition": "PHYRCR[15] has pin-reset effect. Treat eligible straps as possibly resampled, check address/identity/SOR. Strap1 and 6 in ENHANCED are POR-only. Retain ambiguity between pin-equivalence and software-reload wording.",
+      "test": "Write 1F=8000; after attempted write prohibit all frames through completion upper bound plus max(2000 us, poll interval). Re-observe changed straps, then restore owned fields only. Software deadline is independently bounded."
+    },
+    {
+      "id": "restart",
+      "feature": "reset",
+      "owner": 58,
+      "source": "SNLS783A 8.4.1 and table 8-49",
+      "disposition": "PHYRCR[14] restarts digital circuits while retaining registers. Invalidate live link/diagnostic confidence; re-observe critical settings after uncertain effects.",
+      "test": "Write 1F=4000 for restart. Require both PHYRCR command bits (mask C000) clear before readiness, including an independently active HARD. Retain a vendor sentinel, avoid replay of transient start bits and verify the later initialization VOD requirement independently."
+    },
+    {
+      "id": "external_reset",
+      "feature": "reset",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18, 8.3.11, 8.4.1 and tables 5-1, 8-8/10",
+      "disposition": "Owner supplies reset, clock and power history. For pin reset allow resampling except documented POR-only straps. Apply the documented external readiness intervals and a separate bounded verification budget.",
+      "test": "Exercise 25 us minimum pulse, no SMI before 2 ms from release or 50 ms from power-up. Delayed XI uses at least 100 us stable before the additional reset. FLP 1500 ms and RMII leader 0.2 ms are nominal only."
+    },
+    {
+      "id": "initialize_10base",
+      "feature": "initialization",
+      "owner": 58,
+      "source": "SNLS783A 7.5 note 2 p15, 8.3.13 and table 8-82",
+      "disposition": "Same recommended exact 030E=4A40, POR/HARD reset word 8400. Every initialization writes it after the selected reset/identity checks, verifies owned fields, then replays an explicitly owned analog override. Standalone preserving restart has no unconditional reset-default rewrite.",
+      "test": "Test PCS, HARD, RESTART, prior external reset and retained settings. Give each addressed transaction a separate lock covering all four frames. Reject stale or mismatching readback before any override.",
+      "wireVectors": {
+        "write": [["W", "0D", "001F"], ["W", "0E", "030E"], ["W", "0D", "401F"], ["W", "0E", "4A40"]],
+        "read": [["W", "0D", "001F"], ["W", "0E", "030E"], ["W", "0D", "401F"], ["R", "0E"]],
+        "readbackMask": "0xFFC0",
+        "readbackValue": "0x4A40"
+      }
+    },
+    {
+      "id": "configure_an",
+      "feature": "negotiation",
+      "owner": 58,
+      "source": "SNLS783A 8.3.1/2 and tables 8-20/21/24/25/29/30/44",
+      "disposition": "Same technologies, selector, pause and restart admission. ANAR remote-fault advertisement bit 13 is prohibited. Observe partner fault independently. Stage CR1[5] transitions around forced-mode exit.",
+      "test": "Seed ANAR bit 13, compose each advertised profile with 2000 clear. Retain ANLPAR 2000 and latched BMSR fault separately. Ensure robust stays enabled through BMCR AN activation when leaving force."
+    },
+    {
+      "id": "configure_forced",
+      "feature": "crossover",
+      "owner": 58,
+      "source": "SNLS783A 8.3.2 and tables 8-20/29/30/31/35/44",
+      "disposition": "Require CR1[5] robust in forced operation. It resets 0 BASIC, strap in ENHANCED. Use PHYCR[15:14] for auto/manual crossover; leave reserved bit 5 untouched. D4 uses coherent link and BMCR for resolved tuple.",
+      "test": "Test 10/100 x half/full and crossover choices. Reject robust disabled before mutation, preserve PHYCR reserved 0020 and CR3 mirror 0060. Never publish negotiated pause in force."
+    },
+    {
+      "id": "next_page_exchange",
+      "feature": "next_page",
+      "owner": 58,
+      "source": "SNLS783A 8.3.1 and tables 8-24/26/27/28/35; IEEE 802.3 clause 28",
+      "disposition": "Same AN next-page controls and destructive page indications. Preserve D8 epoch, toggle, acknowledgements and exclusion from EEE hardware page exchange.",
+      "test": "Exercise toggle/ack ordering, failure after page indication, null pages and nonparticipating partner. ANAR 8000 is transient and 2000 stays clear."
+    },
+    {
+      "id": "observe_link",
+      "feature": "link",
+      "owner": 58,
+      "source": "SNLS783A 8.3.1 and tables 8-20/21/24/25/26/30/35/44; IEEE 802.3 table 28B-3",
+      "disposition": "Read PHYSTS before dependent clearers. A PHYSTS[14] is RH and [6] RCH. Use BMSR link-latch history and a current re-read; keep partner remote fault, local health and pause validity independent.",
+      "test": "Same all 16 local/partner pause inputs. Pending, half and forced mode yield no negotiated pause. Observe remote fault with local ANAR bit 13 clear; fail the second BMSR read and retain the first sample."
+    },
+    {
+      "id": "configure_fast_drop",
+      "feature": "fast_drop",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18, 8.3.17, 8.4.1.1 and tables 8-5/6/31/34/53/54/88; SDAA067A 2, 3.1-3.2",
+      "disposition": "MII only when enabling FLD. Apply fldStraps and dependency below. Observe FLDS with one collector. Set 0117=0417 for MLT3 and 0131 low six bits=08 for descrambler before enabling CR3. FLD_CFG2 reset is 0288. MLT3, low SNR or descrambler requires energy loss or RX error even if no timing claim is made.",
+      "test": "Reject each dependent cause alone. Accept either prerequisite and both, set only CR3 mask 040F, preserve 0020 and 0040 independently. Consume FLDS once; expose SOR1 bit 11 for pin 19. Exercise every table 8-5/6 strap row."
+    },
+    {
+      "id": "loopback_near",
+      "feature": "loopback",
+      "owner": 59,
+      "source": "SNLS783A 8.3.14.1-5 and tables 8-20/41; SNLA491 2.5.1-3",
+      "disposition": "Use per-speed table details. For MII set BMCR14 plus BISCR 4 at 100 or 1 at 10. PCS input is 10 only; analog needs 100 ohms and uses the guide's PHYRCR restart. Exclude the guide's 030B=3380 because field 11:6 is 0E, outside 28..38.",
+      "test": "Trace all near-end modes; at 100 MII permit line-transmit only after BMCR14. Analog BISCR low 5 = 8. Never write 3380 or a sampled status bit; restore the temporary forced profile."
+    },
+    {
+      "id": "loopback_digital",
+      "feature": "loopback",
+      "owner": 59,
+      "source": "SNLS783A 8.3.14.4 and tables 8-20/41/49; SNLA491 pp18,20",
+      "disposition": "Exact digital 100M recipe shares original opaque words and terminal digital restart. Compose the documented writable BMCR/BISCR controls; BISCR bit 8 is RH power observation.",
+      "test": "Verify 0122=2000, 0123=2000, 0130=47FF, 001F=4000 in order and reject at 10M. Record every partial prefix, require HARD/owned replay after opaque writes."
+    },
+    {
+      "id": "loopback_reverse",
+      "feature": "loopback",
+      "owner": 59,
+      "source": "SNLS783A 8.3.14.6 and tables 8-36/41; SNLA491 p18",
+      "disposition": "Use BISCR bit 4, prior BMCR loopback clear, PHYSCR FIFO and guide restart. SNLA491 reverse script's inline digital label conflicts with its 0010 selector.",
+      "test": "Use a verified live link before activation. Preserve FIFO, verify 0010 then 1F=4000; only correlated partner return demonstrates data path. Restore in finite stop."
+    },
+    {
+      "id": "loopback_external",
+      "feature": "loopback",
+      "owner": 59,
+      "source": "SNLS783A 8.3.14.1, 8.3.15 and SNLA491 2.5.2/3",
+      "disposition": "Cable plug/remote loop is a fixture operation. The PHY has no unique external loopback selector. Access and result depend on the actual loop and correlated MAC/PRBS traffic.",
+      "test": "With missing partner/termination keep path unqualified. Confirm no digital/analog selector enabled just to represent the fixture."
+    },
+    {
+      "id": "bist_run",
+      "feature": "bist",
+      "owner": 59,
+      "source": "SNLS783A 8.3.15 and tables 8-41/46/47; SNLA491 pp19-20",
+      "disposition": "Same independent PRBS generator/checker, packet length/IPG and rollover control. BISCR lock, generator status and sleep are RH. One-second observation in SNLA491 is a test dwell, not a pass criterion.",
+      "test": "Exercise four generator/checker combinations, finite/continuous modes, asymmetric IPG/length, lock loss and possible wrap. Analog selector 8 with sampled lock/activity can read 3B08; reject guide's 3B04 expectation in analog mode."
+    },
+    {
+      "id": "bist_capture",
+      "feature": "bist",
+      "owner": 59,
+      "source": "SNLS783A 8.3.15 and tables 8-41/46",
+      "disposition": "BICSR1 write bit 15 freezes and clears error counter; read bits 15:8 are captured count. Preserve IPG. No inferred interval success from a zero count.",
+      "test": "Use 807D then read A57D => A5. On failed read after freeze retain possible loss and do not issue a second freeze as a retry."
+    },
+    {
+      "id": "cable_configure",
+      "feature": "cable",
+      "owner": 59,
+      "source": "SNLS783A 8.3.16.1 and tables 8-55..61; cited SNLA428 table 2-1",
+      "disposition": "Select baseline D3 six-run recipe only for the named transmit-A helper. SNLS783A explicitly references the TDR app report. Keep table-defined raw controls and source-implied derived recipe separate, with no automatic interpolation between them.",
+      "test": "Verify baseline tdrRecipe writeOrder and all six segment columns literally. For 0456 use owned 0600 preserving bit 3. Reject prohibited averaging 7, mixed source row or incompatible active link."
+    },
+    {
+      "id": "cable_manual",
+      "feature": "cable",
+      "owner": 59,
+      "source": "SNLS783A 8.3.16.1 and tables 8-29/48/55",
+      "disposition": "Require quiet/disconnected partner and fresh evidence after CDCR manual start. CDCR[1:0] are RH; done resets 1. No device-side maximum, cancellation fence or guaranteed abort follows from these flags.",
+      "test": "Preexisting done=1 is insufficient. Observe progress then fresh done, fail while active, and enforce bounded stop/recovery. Preserve 4000 calibration contingency separately."
+    },
+    {
+      "id": "cable_autorun",
+      "feature": "cable",
+      "owner": 59,
+      "source": "SNLS783A 8.3.16.1 and tables 8-29/48",
+      "disposition": "CR1[8] arms link-drop-triggered TDR. Keep policy, event occurrence and fresh result distinct. Re-arming does not identify which drop produced a result.",
+      "test": "Arm 0100 while preserving 00A0. Simulate a second drop during capture; retain raw partial data but withdraw epoch correlation when necessary."
+    },
+    {
+      "id": "cable_capture",
+      "feature": "cable",
+      "owner": 59,
+      "source": "SNLS783A 8.3.16.1 and tables 8-62..72; SNLA428 tables 2-1/2-4/2-5 and 2.2",
+      "disposition": "Only 0180[7:0], 0185[6:0], 018A[11,5] have detailed fields. Use the baseline tdrRecipe interpretation solely for its six qualified TX-A runs and a positive caller propagation delay. No pair-B or whole-cable conclusion.",
+      "test": "Probe 0180/0185/018A. Raw partial validity survives failure. Check amplitude thresholds strictly above 10 or 24 per segment, no peak, missing segment, nonzero peak word and offset 5 in the distance equation."
+    },
+    {
+      "id": "collect_event_counters",
+      "feature": "counters",
+      "owner": 59,
+      "source": "SNLS783A Tables 8-21/26/34..40/42/45/92",
+      "disposition": "Keep PHYSTS ahead of its dependent clearers and FLDS under the same collector despite RC to RCH. Both MISRs, FCSCR, RECR, link latches and WoL history retain their individual destructive semantics.",
+      "test": "Fail MISR2 after MISR1 succeeds and keep MISR1. FCSCR FF is a lower bound, RECR kept raw. Simulate PHYSTS [6] twice and FLDS repeats. Cached reads issue zero frames."
+    },
+    {
+      "id": "interrupt_configuration",
+      "feature": "interrupts",
+      "owner": 59,
+      "source": "SNLS783A Tables 8-36..38/75..79/91/92",
+      "disposition": "Global and pin output enables reset BASIC 1, ENHANCED 0. Keep MISR masks, consuming reads and WOL crossing attribution. Reconcile every new A mux route with its board pin role before enabling IRQ last.",
+      "test": "Exercise all 16 source enables and each admitted mux low 3=4. Preserve unrelated bits, restore stable policy only. Fail between MISRs; retain original attribution or explicit unknown.",
+      "ownedMasks": [
+        {
+          "register": "PHYSCR",
+          "mask": "0x000B"
+        },
+        {
+          "register": "MISR1",
+          "mask": "0x00FF"
+        },
+        {
+          "register": "MISR2",
+          "mask": "0x00FF"
+        },
+        {
+          "register": "RXFS",
+          "mask": "0x1000"
+        },
+        {
+          "register": "LED0_GPIO_CFG",
+          "mask": "0x0007"
+        },
+        {
+          "register": "LED1_GPIO_CFG",
+          "mask": "0x0007"
+        },
+        {
+          "register": "LED2_GPIO_CFG",
+          "mask": "0x0007"
+        },
+        {
+          "register": "LED3_GPIO_CFG",
+          "mask": "0x0007"
+        }
+      ]
+    },
+    {
+      "id": "interrupt_test",
+      "feature": "interrupts",
+      "owner": 59,
+      "source": "SNLS783A Table 8-36",
+      "disposition": "PHYSCR bit 2 forces delivery while set. Actual line observation belongs to the application. Start/stop are separately budgeted, preserving the consumed event history.",
+      "test": "Set 0004 once, read back, cancel after write, then explicit stop clears 0004 without changing polarity or bits 1:0."
+    },
+    {
+      "id": "signal_quality_sample",
+      "feature": "quality",
+      "owner": 59,
+      "source": "SNLS783A Table 8-73 and SNLA491 tables 2-6/7",
+      "disposition": "Use only 1F:0218 raw MSE. The troubleshooting formula/class thresholds apply to its 0225 observation; no equivalence to 0218 or universally applicable dB scale is established.",
+      "test": "Read asymmetric 0218=039A once and return raw 039A. Reject alias 0225 and classification requests without I/O."
+    },
+    {
+      "id": "calibration_recovery",
+      "feature": "calibration",
+      "owner": 59,
+      "source": "SNLS783A Tables 8-48/49 and 8.4.1",
+      "disposition": "CDCR14 high requires a clear immediately followed by PHYRCR15 HARD. Reserve both actions and bus-wide quiet time before the first mutation. No general force-calibration command.",
+      "test": "Simulate CDCR=4102. Clear 4000 and issue 1F=8000 consecutively with no other bus participant, then frame-free floor. Preserve cleanup debt if completion uncertain."
+    },
+    {
+      "id": "led_configure",
+      "feature": "led",
+      "owner": 59,
+      "source": "SNLS783A 8.3.18, tables 5-1/6-1 and 8-42/43/44/50/86/90",
+      "disposition": "Source nibbles shift to LED1/2/3 at 0/4/8. LED3 now has polarity/value/drive at 10/9/8. LED0 still uses MLEDCR/LEDCR. Common blink/stretch and role checks remain; PHYCR5 is reserved. BASIC polarity fixed active-low; ENHANCED strap-dependent.",
+      "test": "From 5565 choose asymmetric LED3/2/1 = A/4/2 -> 5A42. Assert bit 10 affects only LED3 polarity, bit 9 its value and bit 8 enables it. Reject F, unowned COL/CRS pins and BASIC polarity override.",
+      "ownedMasks": [
+        {
+          "register": "LEDCR",
+          "mask": "0x0692"
+        },
+        {
+          "register": "MLEDCR",
+          "mask": "0x0279"
+        },
+        {
+          "register": "LEDCFG",
+          "mask": "0x0FFF"
+        },
+        {
+          "register": "LEDCFG2",
+          "mask": "0x0777"
+        },
+        {
+          "register": "PHYCR",
+          "mask": "0x0080"
+        }
+      ]
+    },
+    {
+      "id": "pin_configure",
+      "feature": "pin_mux",
+      "owner": 59,
+      "source": "SNLS783A 8.3.18 fig8-10 and tables 5-1/6-1, 8-74..79",
+      "disposition": "LED0/3 mux low three bits now writable; LED1/2 strap-loaded. Pin 30 codes 0 LED,1 clock,2 WoL,3/5/6 low,4 IRQ,7 high. Pin 28 codes 0 LED2,2 WoL,3/5/6 COL,4 IRQ,7 high. Pin 29 analogous with CRS. Pin 31 code 1 reserved despite clk_sel wording, and figure conflicts on 5/6; retain pin_fields qualification. IO_CFG1[6] reserved. Use board/mode and observed route.",
+      "test": "Exercise all 8 encodings on each available pin independently. Require ENHANCED and free COL/CRS before overriding pins 28/29 in MII. Compare asymmetric LED1 strap readings. Assert no write to 0302 bit 6 or PHYCR bit 5.",
+      "ownedMasks": [
+        {
+          "register": "LED0_GPIO_CFG",
+          "mask": "0x0007"
+        },
+        {
+          "register": "LED1_GPIO_CFG",
+          "mask": "0x0007"
+        },
+        {
+          "register": "LED2_GPIO_CFG",
+          "mask": "0x0007"
+        },
+        {
+          "register": "LED3_GPIO_CFG",
+          "mask": "0x0007"
+        }
+      ]
+    },
+    {
+      "id": "clock_configure",
+      "feature": "clock",
+      "owner": 58,
+      "source": "SNLS783A 8.3.7, 8.3.18 fig8-10 and tables 5-1, 8-10/74..79",
+      "disposition": "Pin 30 now has an exact route: set 0303[5:3]=5 PLL or 6 recovered and [2:0]=1. Recovered requires valid partner. Section 8.3.7 gives 125 MHz for both. Verify without manufacturing a waveform claim. Pin 31 CLKOUT25 strap/status is observable; its 0304 selection and input-mode discrepancies remain pin_fields. Do not replay the original IO_CFG1[6] writer.",
+      "test": "0303 low six bits 0029 PLL, 0031 recovered. Preserve upper bits and reject missing clock dependencies; read 0308[0] for ENHANCED route evidence only. No write of 0302 mask 0040.",
+      "ownedMasks": [
+        {
+          "register": "LED0_GPIO_CFG",
+          "mask": "0x003F"
+        }
+      ]
+    },
+    {
+      "id": "mii_configure",
+      "feature": "mii",
+      "owner": 58,
+      "source": "SNLS783A 8.3.8 and tables 8-29/30/36/42",
+      "disposition": "MII nibble bus, 25 MHz reference, RCSR mode bit clear. Configure fast RX_DV/odd-nibble/COL policy with board/MAC agreement. Keep pin roles exclusive.",
+      "test": "Verify 0020 clear through the RCSR collector, and preserve all consumed under/overflow events. Contradictory 50 MHz-only board rejects before mutation."
+    },
+    {
+      "id": "rmii_configure",
+      "feature": "rmii",
+      "owner": 58,
+      "source": "SNLS783A 8.3.9 and tables 8-42/74",
+      "disposition": "RMII leader/follower agrees with 25/50 MHz source and pin direction. Separate elasticity, revision, follower-only TX shift and CRS_DV/RX_DV selection. Preserve raw overflow/underflow.",
+      "test": "Test leader/follower with both revision encodings, reject follower shift in leader mode, exercise elasticity codes with 50 and 100 ppm sizing while distinguishing electrical qualification."
+    },
+    {
+      "id": "repeater_configure",
+      "feature": "repeater",
+      "owner": 58,
+      "source": "SNLS783A 8.3.10 figures 8-2/3 and tables 8-42/74",
+      "disposition": "Two matched PHYs, crossed RX_D to TX_D and RX_DV to TX_EN; one leader plus follower or both followers on common clock. No repeater-enable register exists.",
+      "test": "Require both verified 0302[8]=1 and 0017[5]=1, reject two clock leaders. If peer setup fails keep local applied state distinct from repeater readiness."
+    },
+    {
+      "id": "tx100_configure",
+      "feature": "tx100",
+      "owner": 59,
+      "source": "SNLS783A 8.3.12 and tables 8-30/35/36/80/81",
+      "disposition": "Expose only documented scrambler bypass, idle error-report enable, loopback FIFO and analog controls. The encoding pipeline itself provides no arbitrary bypass permission.",
+      "test": "Check PHYSCR 0800 and FIFO selectors 0/1/2/3 = 4/5/6/8 nibbles, preserve power/IRQ; reject an NRZI bypass request."
+    },
+    {
+      "id": "tx10_configure",
+      "feature": "tx10",
+      "owner": 59,
+      "source": "SNLS783A 8.3.13 and tables 8-45/52/82/84",
+      "disposition": "Apply 4A40 before a 10BASE-Te-capable profile; same NLP, jabber, polarity, preamble and squelch options. Polarity observation remains consuming. Unproved receiver-gain scaling stays gated.",
+      "test": "Sweep nine squelch codes 0..8, reject 9..F, preserve consumed polarity and resolve separate NLP/jabber policy bits. Long/short preamble is an explicit partner choice."
+    },
+    {
+      "id": "analog_configure",
+      "feature": "analog",
+      "owner": 59,
+      "source": "SNLS783A 8.3.11.6 and tables 8-74/80..84/87",
+      "disposition": "Same split 100M VOD field constraints, 10M termination enables and explicitly approved tuning. IO_CFG1[15:14] and IOCTRL low five bits are distinct; the 0461=0400 example conflicts with the field table. No gain conversion is established.",
+      "test": "Trace legal MDIX minus crossover 2F -> 28 -> 38 -> 30 and reverse with verification. Reject an illegal intermediate, 0400, reserved ANA_LD_PROG_SL or arbitrary ANA_RX10BT_CTRL gain."
+    },
+    {
+      "id": "compatibility_configure",
+      "feature": "compatibility",
+      "owner": 58,
+      "source": "SNLS783A Tables 8-29/30/85 and 8.3.8",
+      "disposition": "GENCFG bit 3 selects 120 or 200 ns minimum IPG, CR2 bit 1 disables odd-nibble detection. Application owns protocol compatibility.",
+      "test": "Toggle GENCFG 0008 preserving TDR exception bits. Verify CR2 bit 1 polarity and preserve CR2 bit 0 reserved."
+    },
+    {
+      "id": "link_recovery_configure",
+      "feature": "link_recovery",
+      "owner": 58,
+      "source": "SNLS783A Table 8-29",
+      "disposition": "CR1[7] requests link-loss recovery independently of fast-drop causes. It does not establish a bounded return to operational link.",
+      "test": "Toggle 0080 while retaining TDR autorun 0100 and strap-observed robust 0020. Reacquire link separately before claiming recovery."
+    },
+    {
+      "id": "extended_link_configure",
+      "feature": "crossover",
+      "owner": 58,
+      "source": "SNLS783A Tables 8-29/30/31/44",
+      "disposition": "Same extended duplex and mirror coupling. CR1 robust default is mode-dependent; protect forced-mode transition and CR3[6:5] full pair against FLD changes.",
+      "test": "Reject extended duplex with forced 10M; exercise forced 100 half uncertain extension and AN parallel detect without pause validity. Mirror pair=0060, extended bit=0020."
+    },
+    {
+      "id": "isolation_configure",
+      "feature": "mii",
+      "owner": 58,
+      "source": "SNLS783A Tables 8-20/89 and 8.3.9",
+      "disposition": "BMCR isolate leaves SMI available but may remove RMII leader clock. Preserve actual software power request separately from externally asserted PWRDN evidence.",
+      "test": "Preflight dependent clock consumer, compose BMCR 0400 with 8200 neutral and owned 0800 from desired state. Reject a conflicting observed pin effect."
+    },
+    {
+      "id": "collision_test",
+      "feature": "compliance",
+      "owner": 59,
+      "source": "SNLS783A Table 8-20 and tables 5-1/6-1",
+      "disposition": "Application must reserve COL route and drive TX_EN in a finite test. Keep bit-time assertion/release bounds separate from MDIO completion.",
+      "test": "Use BMCR[7], check bounded stop/restoration. Instrument limits are 512 bit times after TX_EN assertion and 4 after deassertion. An MDIO readback does not measure either."
+    },
+    {
+      "id": "compliance_session",
+      "feature": "compliance",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "disposition": "COMPT names 10M pattern exceptions and 100M controls referencing opaque 0428. Respect unknown preservation-read semantics there. Restrict lab scripts to compatible documented fields; PHYCR5 is reserved. Exact 10M VOD precondition applies.",
+      "test": "Exercise all 14 codes 0..D with COMPT=0010 OR code, reject E/F for 10M. No 0428 access on blocked 100M composition. Require separate stop/HARD replay and measured electrical result."
+    },
+    {
+      "id": "power_ieee",
+      "feature": "power",
+      "owner": 59,
+      "source": "SNLS783A 8.3.6.2 and tables 5-1/6-1, 8-20/36",
+      "disposition": "BMCR bit 11 and physical ENHANCED PWRDN input combine. Clearing the software request need not wake the PHY. PHYSCR[0] defaults differ by mode; re-observe pin role.",
+      "test": "With external pin asserted, clear 0800 once with reset/restart neutral. Preserve observed high, requested false and wake unconfirmed separately."
+    },
+    {
+      "id": "power_active_sleep",
+      "feature": "power",
+      "owner": 59,
+      "source": "SNLS783A 8.3.6.1 and tables 8-36/41",
+      "disposition": "PHYSCR[14:12]=6 arms no-link sleep. BISCR[8] RH zero is sleeping and one normal. 1.4 s NLP interval does not bound wake or entry.",
+      "test": "Enable 6000 while linked and observe 0100 still normal. Acquire a separate sleeping sample without silently changing desired policy."
+    },
+    {
+      "id": "power_pll_control",
+      "feature": "power",
+      "owner": 59,
+      "source": "SNLS783A 8.3.6 and table 8-36",
+      "disposition": "PHYSCR15 disables PLL in IEEE power-down. Clock consumers and pin dependencies remain with the application. This control alone does not implement deep power-down.",
+      "test": "Reject enable absent power-down/clock release. Set 8000 preserving 7000 policy and distinguish readback from actual clock stop."
+    },
+    {
+      "id": "power_deep",
+      "feature": "power",
+      "owner": 59,
+      "source": "SNLS783A 8.3.6.3 and table 8-20",
+      "disposition": "Known entry is 0428[2]=1 before IEEE power-down. No exact safe preservation-read/exit/clock readiness sequence is given. Keep reversible session blocked before I/O.",
+      "test": "Request deep entry and verify zero callbacks; do not repurpose opaque 0428 reserved/100M stimulus fields or infer an inverse."
+    },
+    {
+      "id": "eee_initialize",
+      "feature": "eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
+      "disposition": "Replace the entire 18-row I/E recipe with eeeRecipe. Capability MMD3:0014 must equal 0002 before any target write. Row 1 HARD then board-wide quiet interval, bounded completion and row 2 whole-word MMD7:003C write/readback. Rows 3..27 proceed only with matching readback. BMCR=3300 restarts AN at row 26; row 27 0466=FD00 is required before post-recipe reconciliation. Any cut after row 26 retains restarted AN. Include PIN/EEE policy collisions, 0308 status-only script exception and both occurrences of 04F5.",
+      "test": "Verify all 27 printed and addressed rows including duplicate at 7/25 and substitute a corrupted final row to detect incomplete success. Verify EEECFG3 mask 1009 gives 0009; restore mandatory VOD and all persistent owners once with no recursive reset."
+    },
+    {
+      "id": "eee_negotiation_status",
+      "feature": "eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.2, 8.3.4 and 8.3.11.1; D2 corroborating SNLA328, SNLS638C, SNLS505H",
+      "disposition": "Exact-part specifies DEVAD3/7 and five printed addresses but no low-offset trace or full fields. Reuse only D2's five source-implied tuples under whole-word self-checks. Require both partners and successful negotiation. No concurrent standard host next-page exchange.",
+      "test": "Verify D2 selectors for 3:0001/0014/0016 and 7:003C/003D. Track received-history vs current LPI, destructive wake errors and partial samples. Reject printed offsets or vendor aliases."
+    },
+    {
+      "id": "legacy_lpi",
+      "feature": "lpi",
+      "owner": 59,
+      "source": "SNLS783A 8.3.4 and 7.6 pp16-18",
+      "disposition": "Set bits 0/3 in 04D1, advertise 7:003C bit 1, renegotiate, then bit 12 starts/stops forced TX LPI. PHY has no TX buffer. Host drains MAC before start; baseline 100M admission is a conservative library policy. Section 8.3.3 also describes 10M reduced amplitude.",
+      "test": "Verify 008B -> 108B -> 008B, actual advertisement and partner evidence; reject a send while LPI asserted. 36 us nominal wake does not prove MAC readiness."
+    },
+    {
+      "id": "wol_configure",
+      "feature": "wol",
+      "owner": 59,
+      "source": "SNLS783A 8.3.5 and tables 8-75..79/91..98",
+      "disposition": "Quiesce traffic and capture RXFS/MISR2 before each RXFCFG1 write. A RXFCFG1 reset 10X1: bit 7 BASIC strap, ENHANCED 1; bit 0 table reset 1 with strap wording. Observe both. Preserve W0C neutral one and unrelated bit 6. Reconcile every A mux WoL route with pin ownership; enable detector last.",
+      "test": "MAC 02:12:34:56:78:9A -> 1202/5634/9A78, SecureON A1:B2:C3:D4:E5:F6 -> B2A1/D4C3/F6E5. Check all modes, quiesced rekey failure at each word, credential validity and crossing IRQ attribution.",
+      "ownedMasks": [
+        {
+          "register": "RXFPMD1",
+          "mask": "0xFFFF"
+        },
+        {
+          "register": "RXFPMD2",
+          "mask": "0xFFFF"
+        },
+        {
+          "register": "RXFPMD3",
+          "mask": "0xFFFF"
+        },
+        {
+          "register": "RXFSOP1",
+          "mask": "0xFFFF"
+        },
+        {
+          "register": "RXFSOP2",
+          "mask": "0xFFFF"
+        },
+        {
+          "register": "RXFSOP3",
+          "mask": "0xFFFF"
+        },
+        {
+          "register": "RXFCFG1",
+          "mask": "0x17A1"
+        },
+        {
+          "register": "LED0_GPIO_CFG",
+          "mask": "0x0007"
+        },
+        {
+          "register": "LED1_GPIO_CFG",
+          "mask": "0x0007"
+        },
+        {
+          "register": "LED2_GPIO_CFG",
+          "mask": "0x0007"
+        },
+        {
+          "register": "LED3_GPIO_CFG",
+          "mask": "0x0007"
+        }
+      ]
+    },
+    {
+      "id": "wol_acknowledge",
+      "feature": "wol",
+      "owner": 59,
+      "source": "SNLS783A Tables 8-91/92 and 8.3.5.3",
+      "disposition": "Explicit W0C zero once clears the level indication; normal updates use neutral one. RXFS is destructive evidence; acknowledge effect and pin level are separate observations.",
+      "test": "Same 1981 ordinary update versus 1181 acknowledge, 19A1 versus 11A1 for SecureON. If ack result uncertain, preserve it without an automatic retry."
+    }
+  ],
+  "features": [
+    {
+      "id": "identity",
+      "owner": 58,
+      "procedures": [
+        "identify"
+      ],
+      "gates": [],
+      "source": "SNLS783A 8.1 and tables 8-22/23, 8-44, 8-88/89",
+      "disposition": "Exact identity and capabilities. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "access",
+      "owner": 58,
+      "procedures": [
+        "direct_access",
+        "mmd_access"
+      ],
+      "gates": [
+        "eee_wire"
+      ],
+      "source": "SNLS783A 8.3.11 and tables 8-18/19/21; SNLS783A 8.3.11.1-6 and tables 8-32/33; SNLA491 2.2.6.1.1",
+      "disposition": "Clause 22 and complete indirect access. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "reset",
+      "owner": 58,
+      "procedures": [
+        "pcs_reset",
+        "hard_reset",
+        "restart",
+        "external_reset"
+      ],
+      "gates": [
+        "hard_reset_straps",
+        "pcs_reset_extent"
+      ],
+      "source": "SNLS783A 8.4.1 and table 8-20; SNLS783A 7.6, 8.3.11, 8.4.1 and table 8-49; SNLS783A 8.4.1 and table 8-49; SNLS783A 7.6 pp16-18, 8.3.11, 8.4.1 and tables 5-1, 8-8/10",
+      "disposition": "PCS, hard reset, restart and reconciliation. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "initialization",
+      "owner": 58,
+      "procedures": [
+        "initialize_10base"
+      ],
+      "gates": [],
+      "source": "SNLS783A 7.5 note 2 p15, 8.3.13 and table 8-82",
+      "disposition": "Required 10BASE-Te initialization. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "negotiation",
+      "owner": 58,
+      "procedures": [
+        "configure_an"
+      ],
+      "gates": [],
+      "source": "SNLS783A 8.3.1/2 and tables 8-20/21/24/25/29/30/44",
+      "disposition": "Advertisement, forced-compatible negotiation and pause. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "next_page",
+      "owner": 58,
+      "procedures": [
+        "next_page_exchange"
+      ],
+      "gates": [
+        "next_page_handshake"
+      ],
+      "source": "SNLS783A 8.3.1 and tables 8-24/26/27/28/35; IEEE 802.3 clause 28",
+      "disposition": "Complete next-page exchange. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "crossover",
+      "owner": 58,
+      "procedures": [
+        "configure_forced",
+        "extended_link_configure"
+      ],
+      "gates": [
+        "forced_physts"
+      ],
+      "source": "SNLS783A 8.3.2 and tables 8-20/29/30/31/35/44; SNLS783A Tables 8-29/30/31/44",
+      "disposition": "Automatic, robust and manual crossover / port mirror. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "link",
+      "owner": 58,
+      "procedures": [
+        "observe_link"
+      ],
+      "gates": [
+        "forced_physts"
+      ],
+      "source": "SNLS783A 8.3.1 and tables 8-20/21/24/25/26/30/35/44; IEEE 802.3 table 28B-3",
+      "disposition": "Live and retained link observations. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "eee",
+      "owner": 59,
+      "procedures": [
+        "eee_initialize",
+        "eee_negotiation_status"
+      ],
+      "gates": [
+        "eee_wire",
+        "eee_control_semantics"
+      ],
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79; SNLS783A 8.3.3.2, 8.3.4 and 8.3.11.1; D2 corroborating SNLA328, SNLS638C, SNLS505H",
+      "disposition": "EEE capability, initialization and negotiation. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "lpi",
+      "owner": 59,
+      "procedures": [
+        "legacy_lpi"
+      ],
+      "gates": [
+        "eee_wire",
+        "eee_control_semantics"
+      ],
+      "source": "SNLS783A 8.3.4 and 7.6 pp16-18",
+      "disposition": "Legacy MAC LPI sessions. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "wol",
+      "owner": 59,
+      "procedures": [
+        "wol_configure",
+        "wol_acknowledge"
+      ],
+      "gates": [
+        "wol_bit_mask",
+        "wol_live_reconfigure",
+        "rxfs_sfd_reference"
+      ],
+      "source": "SNLS783A 8.3.5 and tables 8-75..79/91..98; SNLS783A Tables 8-91/92 and 8.3.5.3",
+      "disposition": "Magic Packet and Secure-ON wake. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "power",
+      "owner": 59,
+      "procedures": [
+        "power_ieee",
+        "power_active_sleep",
+        "power_pll_control",
+        "power_deep"
+      ],
+      "gates": [
+        "deep_power_exit"
+      ],
+      "source": "SNLS783A 8.3.6.2 and tables 5-1/6-1, 8-20/36; SNLS783A 8.3.6.1 and tables 8-36/41; SNLS783A 8.3.6 and table 8-36; SNLS783A 8.3.6.3 and table 8-20",
+      "disposition": "Active-sleep policy, IEEE/deep power-down, PLL. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "repeater",
+      "owner": 58,
+      "procedures": [
+        "repeater_configure"
+      ],
+      "gates": [
+        "rmii_rc"
+      ],
+      "source": "SNLS783A 8.3.10 figures 8-2/3 and tables 8-42/74",
+      "disposition": "RMII repeater arrangements. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "clock",
+      "owner": 58,
+      "procedures": [
+        "clock_configure"
+      ],
+      "gates": [
+        "pin_fields"
+      ],
+      "source": "SNLS783A 8.3.7, 8.3.18 fig8-10 and tables 5-1, 8-10/74..79",
+      "disposition": "Clock output and reset/power interactions. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "mii",
+      "owner": 58,
+      "procedures": [
+        "mii_configure",
+        "isolation_configure"
+      ],
+      "gates": [
+        "rmii_rc"
+      ],
+      "source": "SNLS783A 8.3.8 and tables 8-29/30/36/42; SNLS783A Tables 8-20/89 and 8.3.9",
+      "disposition": "MII interface controls. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "rmii",
+      "owner": 58,
+      "procedures": [
+        "rmii_configure"
+      ],
+      "gates": [
+        "rmii_rc"
+      ],
+      "source": "SNLS783A 8.3.9 and tables 8-42/74",
+      "disposition": "RMII interface, elasticity and status. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "tx100",
+      "owner": 59,
+      "procedures": [
+        "tx100_configure"
+      ],
+      "gates": [],
+      "source": "SNLS783A 8.3.12 and tables 8-30/35/36/80/81",
+      "disposition": "100BASE-TX exposed data-path controls. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "tx10",
+      "owner": 59,
+      "procedures": [
+        "tx10_configure"
+      ],
+      "gates": [
+        "analog_rx_gain"
+      ],
+      "source": "SNLS783A 8.3.13 and tables 8-45/52/82/84",
+      "disposition": "10BASE-Te receiver, NLP, jabber and preamble. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "loopback",
+      "owner": 59,
+      "procedures": [
+        "loopback_near",
+        "loopback_digital",
+        "loopback_reverse",
+        "loopback_external"
+      ],
+      "gates": [
+        "loopback_recipe"
+      ],
+      "source": "SNLS783A 8.3.14.1-5 and tables 8-20/41; SNLA491 2.5.1-3; SNLS783A 8.3.14.4 and tables 8-20/41/49; SNLA491 pp18,20; SNLS783A 8.3.14.6 and tables 8-36/41; SNLA491 p18; SNLS783A 8.3.14.1, 8.3.15 and SNLA491 2.5.2/3",
+      "disposition": "All documented loopback modes. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "bist",
+      "owner": 59,
+      "procedures": [
+        "bist_run",
+        "bist_capture"
+      ],
+      "gates": [
+        "bist_result_semantics"
+      ],
+      "source": "SNLS783A 8.3.15 and tables 8-41/46/47; SNLA491 pp19-20; SNLS783A 8.3.15 and tables 8-41/46",
+      "disposition": "BIST/PRBS modes and retained acquisition. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "cable",
+      "owner": 59,
+      "procedures": [
+        "cable_configure",
+        "cable_manual",
+        "cable_autorun",
+        "cable_capture"
+      ],
+      "gates": [
+        "tdr_reserved",
+        "tdr_calibration",
+        "tdr_freshness_abort",
+        "tdr_recipe"
+      ],
+      "source": "SNLS783A 8.3.16.1 and tables 8-55..61; cited SNLA428 table 2-1; SNLS783A 8.3.16.1 and tables 8-29/48/55; SNLS783A 8.3.16.1 and tables 8-29/48; SNLS783A 8.3.16.1 and tables 8-62..72; SNLA428 tables 2-1/2-4/2-5 and 2.2",
+      "disposition": "Manual and autorun cable capture. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "fast_drop",
+      "owner": 58,
+      "procedures": [
+        "configure_fast_drop"
+      ],
+      "gates": [
+        "fld_reset_defaults",
+        "fld_threshold_recipe"
+      ],
+      "source": "SNLS783A 7.6 pp16-18, 8.3.17, 8.4.1.1 and tables 8-5/6/31/34/53/54/88; SDAA067A 2, 3.1-3.2",
+      "disposition": "MII-only Fast Link Drop. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "link_recovery",
+      "owner": 58,
+      "procedures": [
+        "link_recovery_configure"
+      ],
+      "gates": [],
+      "source": "SNLS783A Table 8-29",
+      "disposition": "Hardware link-loss recovery. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "led",
+      "owner": 59,
+      "procedures": [
+        "led_configure"
+      ],
+      "gates": [
+        "pin_fields"
+      ],
+      "source": "SNLS783A 8.3.18, tables 5-1/6-1 and 8-42/43/44/50/86/90",
+      "disposition": "LED sources, blink, stretch and drive. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "pin_mux",
+      "owner": 59,
+      "procedures": [
+        "pin_configure"
+      ],
+      "gates": [
+        "pin_fields"
+      ],
+      "source": "SNLS783A 8.3.18 fig8-10 and tables 5-1/6-1, 8-74..79",
+      "disposition": "Per-pin GPIO, wake, IRQ and clock mux. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "interrupts",
+      "owner": 59,
+      "procedures": [
+        "interrupt_configuration",
+        "interrupt_test"
+      ],
+      "gates": [
+        "rxfs_sfd_reference"
+      ],
+      "source": "SNLS783A Tables 8-36..38/75..79/91/92; SNLS783A Table 8-36",
+      "disposition": "Global IRQ and all event enables/service. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "counters",
+      "owner": 59,
+      "procedures": [
+        "collect_event_counters"
+      ],
+      "gates": [
+        "recr_width",
+        "rmii_rc",
+        "rxfs_sfd_reference",
+        "forced_physts"
+      ],
+      "source": "SNLS783A Tables 8-21/26/34..40/42/45/92",
+      "disposition": "Single collector for status and destructive counters. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "quality",
+      "owner": 59,
+      "procedures": [
+        "signal_quality_sample"
+      ],
+      "gates": [
+        "mse_address"
+      ],
+      "source": "SNLS783A Table 8-73 and SNLA491 tables 2-6/7",
+      "disposition": "Raw MSE and supported quality interpretation. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "compliance",
+      "owner": 59,
+      "procedures": [
+        "collision_test",
+        "compliance_session"
+      ],
+      "gates": [
+        "compt_reserved"
+      ],
+      "source": "SNLS783A Table 8-20 and tables 5-1/6-1; SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "disposition": "Finite compliance stimulus procedures. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "analog",
+      "owner": 59,
+      "procedures": [
+        "analog_configure"
+      ],
+      "gates": [
+        "ioctrl_example",
+        "analog_rx_gain"
+      ],
+      "source": "SNLS783A 8.3.11.6 and tables 8-74/80..84/87",
+      "disposition": "Analog amplitude, termination and MAC output. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "compatibility",
+      "owner": 58,
+      "procedures": [
+        "compatibility_configure"
+      ],
+      "gates": [],
+      "source": "SNLS783A Tables 8-29/30/85 and 8.3.8",
+      "disposition": "IPG and compatibility controls. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "calibration",
+      "owner": 59,
+      "procedures": [
+        "calibration_recovery"
+      ],
+      "gates": [
+        "hard_reset_straps"
+      ],
+      "source": "SNLS783A Tables 8-48/49 and 8.4.1",
+      "disposition": "Resistor calibration contingency. Apply each linked procedure and its test under both A declarations."
+    },
+    {
+      "id": "straps",
+      "owner": 58,
+      "procedures": [],
+      "gates": [
+        "hard_reset_straps"
+      ],
+      "source": "SNLS783A 5/6, 8.4.1 and tables 8-5/6/8..17/88/89",
+      "disposition": "Observe raw SOR1/SOR2, declared mode and address. Mode/temperature suffix and resampling behavior require separate board evidence. No software strap setter."
+    },
+    {
+      "id": "outside_phy",
+      "owner": 58,
+      "procedures": [],
+      "gates": [],
+      "source": "SNLS783A 7.6, 8.3.8..11, 9 and 10",
+      "disposition": "The board owns power/reset/clock timing, MAC/network/EtherCAT, traffic and synchronization. Hardware and those owners are required for interface/EMC evidence."
+    },
+    {
+      "id": "absent",
+      "owner": 59,
+      "procedures": [],
+      "gates": [],
+      "source": "SNLS783A 8.1, 8.3.1, 8.3.5 and table 8-18",
+      "disposition": "Copper 10/100 MII/RMII only. Reject RGMII, gigabit, fiber, custom WoL filters and undocumented sibling registers before I/O."
+    }
+  ],
+  "gates": [
+    {
+      "id": "forced_physts",
+      "owner": 58,
+      "source": "SNLS783A 8.3.1 and tables 8-20/21/24/25/26/30/35/44; IEEE 802.3 table 28B-3",
+      "disposition": "Forced-mode PHYSTS speed/duplex reset descriptions are mode-dependent. Retain D4: derive from coherent BMCR and current link; extended 100-half can leave duplex unknown. Need A line-mode comparison before treating PHYSTS as definitive."
+    },
+    {
+      "id": "hard_reset_straps",
+      "owner": 58,
+      "source": "SNLS783A 7.6, 8.3.11, 8.4.1 and table 8-49",
+      "disposition": "8.4.1 software reload and pin-equivalent PHYRCR effects leave eligible strap resampling ambiguous. Use new SOR observations; changing external straps requires exact-board POR, pin and PHYRCR comparison. Preserve ENHANCED Strap1/6 POR-only exceptions."
+    },
+    {
+      "id": "pcs_reset_extent",
+      "owner": 58,
+      "source": "SNLS783A 8.4.1 and table 8-20",
+      "disposition": "PCS reset preserves vendor state. The standard register-by-register PCS boundary is incomplete, so verify/replay owned PCS settings before reporting trust; physical readback campaign needed for any stronger guarantee."
+    },
+    {
+      "id": "eee_wire",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
+      "disposition": "Exact-A 8.3.11.1 confirms DEVAD3/7 but does not resolve printed prefixes; only D2's five tuples are eligible. SNLA328 2.1-3 and SNLS638C tables 7-99..103 describe related DP83825; SNLS505H 7.4.2.9 shows MMD7:003D on another PHY. These are cross-part inferences. Read MMD3:0014 and require 0002 before any target write. After HARD and its silence/completion check, write MMD7:003C=0002 and require whole-word 0002 readback before any opaque recipe write. Require exact identified A Q1 trace for physical confirmation. Recipe exceptions above 04D1 do not expand the ordinary address space."
+    },
+    {
+      "id": "mse_address",
+      "owner": 59,
+      "source": "SNLS783A Table 8-73 and SNLA491 tables 2-6/7",
+      "disposition": "Table 8-73 defines raw 0218. SNLA491 table 2-6 names 0225 and supplies SNR thresholds. Need exact mapping, scale and qualified A measurements before reading 0225 or converting either word."
+    },
+    {
+      "id": "recr_width",
+      "owner": 59,
+      "source": "SNLS783A Tables 8-21/26/34..40/42/45/92",
+      "disposition": "Table 8-40 describes 16 bits but prints FF maximum and 7F half-full. Retain consumed raw words without accumulating an invented modulus; controlled traffic and independent error count needed."
+    },
+    {
+      "id": "rmii_rc",
+      "owner": 58,
+      "source": "SNLS783A 8.3.9 and tables 8-42/74",
+      "disposition": "Table 8-42 gives RC fields [3:2], reset zero, reported polarity zero=fault / one=normal. Keep raw samples. Physical error injection is needed to identify rearm/clear behavior."
+    },
+    {
+      "id": "tdr_reserved",
+      "owner": 59,
+      "source": "SNLS783A 8.3.16.1 and tables 8-62..72; SNLA428 tables 2-1/2-4/2-5 and 2.2",
+      "disposition": "8.3.16.1 lists five index and amplitude banks; detailed tables 8-63..66 and 8-68..71 are reserved. Decode only defined result fields until TI identifies remaining banks."
+    },
+    {
+      "id": "loopback_recipe",
+      "owner": 59,
+      "source": "SNLS783A 8.3.14.1-5 and tables 8-20/41; SNLA491 2.5.1-3",
+      "disposition": "Detailed speed and mode tables govern SNLA491 generic all-speeds prose. Digital recipe only for 100M. Adopt SNLA491 analog/reverse restart, reject illegal 3380 and incorrect analog expected low nibble 4. Timing/physical datapath remains fixture-dependent."
+    },
+    {
+      "id": "pin_fields",
+      "owner": 59,
+      "source": "SNLS783A 8.3.18 fig8-10 and tables 5-1/6-1, 8-74..79",
+      "disposition": "0303 and 0306 now support ordinary GPIO routes and 0303 selects clock. Register 0302[6] is reserved. 0304 has no defined high-impedance input or legal mux 1 despite clk_sel prose. Table 8-76 says 5 TX_ER and 6 CLKOUT25 while fig8-10 shows LOW. Keep conflicted software activation separate from ENHANCED observed POR CLKOUT25 via Strap6. Mode/board pin roles limit LED2/3 and BASIC fixed polarity. Pin28/29 clock claims lack a detailed select encoding. Need exact TI clarification and verified waveforms."
+    },
+    {
+      "id": "ioctrl_example",
+      "owner": 59,
+      "source": "SNLS783A 8.3.11.6 and tables 8-74/80..84/87",
+      "disposition": "8.3.11.6 example 0461=0400 writes a reserved bit. Table 8-87 defines low-five codes 10/11. Use the two detailed edge settings, no 99.25 ohm promise."
+    },
+    {
+      "id": "compt_reserved",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "disposition": "Table 8-51 documents bit4 only for named 10M patterns despite reserved group. Do not infer general writes. Safe unrelated-bit preservation/read characteristics of 0428 are missing for 100M count/control, so block that session before I/O. Standard independent line stimuli require qualified fixtures."
+    },
+    {
+      "id": "fld_reset_defaults",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18, 8.3.17, 8.4.1.1 and tables 8-5/6/31/34/53/54/88; SDAA067A 2, 3.1-3.2",
+      "disposition": "Use tables 8-5/6 for conditional defaults, with scan of live CR3 and SOR. CR3[10] BASIC 0, ENHANCED strap. Lower cause bits table resets and strap prose do not give universal reset values. Q5/EMC require board evidence; software may program the five documented causes."
+    },
+    {
+      "id": "next_page_handshake",
+      "owner": 58,
+      "source": "SNLS783A 8.3.1 and tables 8-24/26/27/28/35; IEEE 802.3 clause 28",
+      "disposition": "Use the IEEE Clause 28 handshake referenced by 8.3.1. Restart clears page-loaded state. Initial page can be BASE and ACK/toggle are epoch-bounded. Interoperability and timeout margins require a participating peer."
+    },
+    {
+      "id": "fld_threshold_recipe",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18, 8.3.17, 8.4.1.1 and tables 8-5/6/31/34/53/54/88; SDAA067A 2, 3.1-3.2",
+      "disposition": "Use 0117=0417 when MLT3 selected. Table 8-53 decodes two 8 ns cycles and one error, while 8.3.17 says 20 errors in 10 us. Do not translate arbitrary threshold codes into a physical time. For descrambler use 0131[5:0]=8. Timed fault injection required."
+    },
+    {
+      "id": "bist_result_semantics",
+      "owner": 59,
+      "source": "SNLS783A 8.3.15 and tables 8-41/46",
+      "disposition": "BICSR1 write15 freezes/clears while read15 is counter MSB. RH lock/generator/power do not consume status. Sequence, wrap, possible loss and observation windows determine raw validity. Need measured traffic to infer a complete BIST pass."
+    },
+    {
+      "id": "tdr_calibration",
+      "owner": 59,
+      "source": "SNLS783A 8.3.16.1 and tables 8-62..72; SNLA428 tables 2-1/2-4/2-5 and 2.2",
+      "disposition": "A cites SNLA428 directly. Use D3 baseline tdrRecipe matrix, raw peak word and explicit positive delay for six TX-A segments only. Calibration/distance accuracy and GENCFG variant with bit3 clear require Q7 measurements."
+    },
+    {
+      "id": "tdr_freshness_abort",
+      "owner": 59,
+      "source": "SNLS783A 8.3.16.1 and tables 8-29/48/55",
+      "disposition": "CDCR reset done=1 and current RH bits do not guarantee a fresh capture or analog quiescence. Bound trigger/progress/polls, reject stale or raced captures; guarantee of maximum completion/abort requires TI clarification or identified measurement."
+    },
+    {
+      "id": "rxfs_sfd_reference",
+      "owner": 59,
+      "source": "SNLS783A 8.3.5 and tables 8-75..79/91..98",
+      "disposition": "Table 8-92 describes an SFD error referencing RXFCFG1[13], reserved in table 8-91. Preserve raw consuming flag; no custom SFD setter."
+    },
+    {
+      "id": "analog_rx_gain",
+      "owner": 59,
+      "source": "SNLS783A 8.3.11.6 and tables 8-74/80..84/87",
+      "disposition": "Table 8-84 has a five-bit code and 200..575 mV in 25 mV increments; the full code-to-level map is absent. Preserve raw readback pending exact encoding, do not enable arbitrary gain tuning."
+    },
+    {
+      "id": "eee_control_semantics",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.2, 8.3.4 and 8.3.11.1; D2 corroborating SNLA328, SNLS638C, SNLS505H",
+      "disposition": "Use exact 04D1 bits 0/3/12 only (bit 0 and bit 3 set disables bypass). D2 cross-part evidence supports history/current masks 0800/0400 vs 0200/0100 and destructive 3:0016 wake error count with FFFF lower bound. Raw capability and partner field is bit 1. Other EEE features and clock stop need exact-part authority. Validate retained/clear behavior on A."
+    },
+    {
+      "id": "deep_power_exit",
+      "owner": 59,
+      "source": "SNLS783A 8.3.6.3 and table 8-20",
+      "disposition": "Entry sequence only. Missing 0428 safe preservation-read semantics, reversible exit and clock readiness. Block deep session; IEEE power and PLL policies remain separately eligible."
+    },
+    {
+      "id": "wol_bit_mask",
+      "owner": 59,
+      "source": "SNLS783A 8.3.5 and tables 8-75..79/91..98",
+      "disposition": "Table 8-91 bit 6 is named Bit Mask Flag without detailed matching semantics. Preserve its prior value. No custom filter or bit-mask programming until TI provides a definition."
+    },
+    {
+      "id": "wol_live_reconfigure",
+      "owner": 59,
+      "source": "SNLS783A Tables 8-91/92 and 8.3.5.3",
+      "disposition": "Require disabled detector and quiesced traffic while replacing credentials. W0C 11 and pre-write harvest remain despite cross-family Linux write-one sequence. In 10X1 header bit 7 is mode/strap dependent; bit 0 table prints 1 with strap wording. Read both before decisions. Live continuity and physical deassertion need Q3."
+    },
+    {
+      "id": "tdr_recipe",
+      "owner": 59,
+      "source": "SNLS783A 8.3.16.1 and tables 8-55..61; cited SNLA428 table 2-1",
+      "disposition": "SNLS783A tables 8-57/58 raw tuning differs from SNLA428 table 2-1. Use SNLA428 only for its explicitly referenced six-segment helper, preserving GENCFG bit3 and HARD reset/reapply. Do not use arbitrary recipe words or claim pair-B distance."
+    }
+  ],
+  "timings": [
+    {
+      "id": "power_smi",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18; 8.3.11 p35",
+      "value": 50,
+      "unit": "ms",
+      "qualifier": "MAX readiness; prose MIN bus inactivity",
+      "disposition": "Retain the baseline start, end and conditions. Keep the printed qualifier when sizing a separate application deadline."
+    },
+    {
+      "id": "pin_reset_low",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18",
+      "value": 25,
+      "unit": "us",
+      "qualifier": "MIN",
+      "disposition": "Retain the baseline start, end and conditions. Keep the printed qualifier when sizing a separate application deadline."
+    },
+    {
+      "id": "pin_reset_smi",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18; 8.3.11 p35",
+      "value": 2,
+      "unit": "ms",
+      "qualifier": "MAX readiness; prose MIN bus inactivity",
+      "disposition": "Retain the baseline start, end and conditions. Keep the printed qualifier when sizing a separate application deadline."
+    },
+    {
+      "id": "late_clock_stable",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18 note 2 and figure 7-1",
+      "value": 100,
+      "unit": "us",
+      "qualifier": "MIN",
+      "disposition": "Retain the baseline start, end and conditions. Keep the printed qualifier when sizing a separate application deadline."
+    },
+    {
+      "id": "flp_nominal",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18",
+      "value": 1500,
+      "unit": "ms",
+      "qualifier": "NOM",
+      "disposition": "Retain the baseline start, end and conditions. Keep the printed qualifier when sizing a separate application deadline."
+    },
+    {
+      "id": "forced_signal_nominal",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18",
+      "value": 0.5,
+      "unit": "ms",
+      "qualifier": "NOM",
+      "disposition": "Retain the baseline start, end and conditions. Keep the printed qualifier when sizing a separate application deadline."
+    },
+    {
+      "id": "rmii_clock_nominal",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18",
+      "value": 0.2,
+      "unit": "ms",
+      "qualifier": "NOM",
+      "disposition": "Retain the baseline start, end and conditions. Keep the printed qualifier when sizing a separate application deadline."
+    },
+    {
+      "id": "mdc_max",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18; 8.3.11 p35",
+      "value": 24,
+      "unit": "MHz",
+      "qualifier": "MAX",
+      "disposition": "Retain the baseline start, end and conditions. Pin descriptions list 25 MHz; both detailed timing and SMI prose require a maximum of 24 MHz."
+    },
+    {
+      "id": "preamble_gap",
+      "owner": 58,
+      "source": "SNLS783A table 8-21",
+      "value": 500,
+      "unit": "ns",
+      "qualifier": "MIN",
+      "disposition": "Retain the baseline start, end and conditions. Keep the printed qualifier when sizing a separate application deadline."
+    },
+    {
+      "id": "fld_strap_150m",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18 note 5; 8.3.17 and 8.4.1.1",
+      "value": 10,
+      "unit": "us",
+      "qualifier": "MAX",
+      "disposition": "Retain the baseline start, end and conditions. Keep the printed qualifier when sizing a separate application deadline."
+    },
+    {
+      "id": "fld_energy",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18 note 5; 8.3.17 and 8.4.1.1",
+      "value": 10,
+      "unit": "us",
+      "qualifier": "MAX",
+      "disposition": "Retain the baseline start, end and conditions. Keep the printed qualifier when sizing a separate application deadline."
+    },
+    {
+      "id": "fld_snr",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18 note 5; 8.3.17 and 8.4.1.1",
+      "value": 10,
+      "unit": "us",
+      "qualifier": "MAX",
+      "disposition": "Retain the baseline start, end and conditions. A requires RX error or energy loss for enabling this cause."
+    },
+    {
+      "id": "fld_mlt3",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18 note 5; 8.3.17 and 8.4.1.1",
+      "value": 10,
+      "unit": "us",
+      "qualifier": "MAX",
+      "disposition": "Retain the baseline start, end and conditions. A requires RX error or energy loss for enabling this cause."
+    },
+    {
+      "id": "fld_rx_error",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18 note 5; 8.3.17 and 8.4.1.1",
+      "value": 10,
+      "unit": "us",
+      "qualifier": "MAX",
+      "disposition": "Retain the baseline start, end and conditions. Keep the printed qualifier when sizing a separate application deadline."
+    },
+    {
+      "id": "fld_descrambler",
+      "owner": 58,
+      "source": "SNLS783A 7.6 pp16-18 note 5; 8.3.17 and 8.4.1.1",
+      "value": 11,
+      "unit": "us",
+      "qualifier": "MAX",
+      "disposition": "Retain the baseline start, end and conditions. A requires RX error or energy loss for enabling this cause."
+    },
+    {
+      "id": "eee_sleep_nominal",
+      "owner": 59,
+      "source": "SNLS783A 7.6 pp16-18",
+      "value": 210,
+      "unit": "us",
+      "qualifier": "NOM",
+      "disposition": "Retain the baseline start, end and conditions. Keep the printed qualifier when sizing a separate application deadline."
+    },
+    {
+      "id": "eee_wake_nominal",
+      "owner": 59,
+      "source": "SNLS783A 7.6 pp16-18",
+      "value": 36,
+      "unit": "us",
+      "qualifier": "NOM",
+      "disposition": "Retain the baseline start, end and conditions. Keep the printed qualifier when sizing a separate application deadline."
+    },
+    {
+      "id": "eee_quiet_nominal",
+      "owner": 59,
+      "source": "SNLS783A 7.6 pp16-18",
+      "value": 20,
+      "unit": "ms",
+      "qualifier": "NOM",
+      "disposition": "Retain the baseline start, end and conditions. Keep the printed qualifier when sizing a separate application deadline."
+    },
+    {
+      "id": "eee_refresh_nominal",
+      "owner": 59,
+      "source": "SNLS783A 7.6 pp16-18",
+      "value": 200,
+      "unit": "us",
+      "qualifier": "NOM",
+      "disposition": "Retain the baseline start, end and conditions. Keep the printed qualifier when sizing a separate application deadline."
+    },
+    {
+      "id": "active_sleep_nlp_interval",
+      "owner": 59,
+      "source": "SNLS783A 8.3.6.1",
+      "value": 1.4,
+      "unit": "s",
+      "qualifier": "STATED INTERVAL; no MIN/MAX guarantee",
+      "disposition": "Retain the baseline start, end and conditions. Keep the printed qualifier when sizing a separate application deadline."
+    }
+  ],
+  "eeeRecipe": [
+    {
+      "printed": "1F:001F",
+      "space": "C22",
+      "devad": null,
+      "address": "0x001F",
+      "value": "0x8000"
+    },
+    {
+      "printed": "7:203C",
+      "space": "MMD",
+      "devad": "0x07",
+      "address": "0x003C",
+      "value": "0x0002"
+    },
+    {
+      "printed": "1F:04D1",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x04D1",
+      "value": "0x008B"
+    },
+    {
+      "printed": "1F:04DF",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x04DF",
+      "value": "0x0180"
+    },
+    {
+      "printed": "1F:033E",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x033E",
+      "value": "0xA681"
+    },
+    {
+      "printed": "1F:033F",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x033F",
+      "value": "0x0003"
+    },
+    {
+      "printed": "1F:04F5",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x04F5",
+      "value": "0x2864"
+    },
+    {
+      "printed": "1F:04E0",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x04E0",
+      "value": "0xFFF2"
+    },
+    {
+      "printed": "1F:031F",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x031F",
+      "value": "0xFE36"
+    },
+    {
+      "printed": "1F:0308",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0308",
+      "value": "0x0000"
+    },
+    {
+      "printed": "1F:04F4",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x04F4",
+      "value": "0x0800"
+    },
+    {
+      "printed": "1F:0123",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0123",
+      "value": "0x0800"
+    },
+    {
+      "printed": "1F:0126",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0126",
+      "value": "0x5D23"
+    },
+    {
+      "printed": "1F:0132",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0132",
+      "value": "0x0183"
+    },
+    {
+      "printed": "1F:04D4",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x04D4",
+      "value": "0x3322"
+    },
+    {
+      "printed": "1F:04CF",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x04CF",
+      "value": "0x261D"
+    },
+    {
+      "printed": "1F:0310",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0310",
+      "value": "0x76E1"
+    },
+    {
+      "printed": "1F:0416",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0416",
+      "value": "0x1830"
+    },
+    {
+      "printed": "1F:0311",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0311",
+      "value": "0x01FC"
+    },
+    {
+      "printed": "1F:0313",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0313",
+      "value": "0x06E3"
+    },
+    {
+      "printed": "1F:033A",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x033A",
+      "value": "0x579B"
+    },
+    {
+      "printed": "1F:033C",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x033C",
+      "value": "0xEC00"
+    },
+    {
+      "printed": "1F:0317",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0317",
+      "value": "0x1000"
+    },
+    {
+      "printed": "1F:031B",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x031B",
+      "value": "0x8848"
+    },
+    {
+      "printed": "1F:04F5",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x04F5",
+      "value": "0x2864"
+    },
+    {
+      "printed": "1F:0000",
+      "space": "C22",
+      "devad": null,
+      "address": "0x0000",
+      "value": "0x3300"
+    },
+    {
+      "printed": "1F:0466",
+      "space": "MMD",
+      "devad": "0x1F",
+      "address": "0x0466",
+      "value": "0xFD00"
+    }
+  ],
+  "eeeAddressPolicy": "SNLS783A 8.3.3.1/2 and 8.3.11.1. Printed DEVAD1F aliases at 001F and 0000 execute through the direct reset/AN owners. Literal 7:203C uses D2 7:003C only. Each of the other rows executes as an indivisible addressed DEVAD1F write. Register 0308 is an exact EEE recipe-only exception to its status/reserved fields. Do not use a set, sort by address, coalesce identical writes, or place 0466 before the BMCR restart.",
+  "writeActions": [
+    {
+      "id": "BICSR1_freezeClear",
+      "owner": 59,
+      "source": "SNLS783A 8.3.15 and tables 8-41/46",
+      "mask": "0x8000",
+      "value": "0x8000",
+      "disposition": "Retain the original action only within bist_capture and its A-specific gates."
+    },
+    {
+      "id": "LOOP_0122_digital",
+      "owner": 59,
+      "source": "SNLS783A 8.3.14.4 and tables 8-20/41/49; SNLA491 pp18,20",
+      "mask": "0xFFFF",
+      "value": "0x2000",
+      "disposition": "Retain the original action only within loopback_digital and its A-specific gates."
+    },
+    {
+      "id": "RECIPE_0123_digital",
+      "owner": 59,
+      "source": "SNLS783A 8.3.14.4 and tables 8-20/41/49; SNLA491 pp18,20",
+      "mask": "0xFFFF",
+      "value": "0x2000",
+      "disposition": "Retain the original action only within loopback_digital and its A-specific gates."
+    },
+    {
+      "id": "LOOP_0130_digital",
+      "owner": 59,
+      "source": "SNLS783A 8.3.14.4 and tables 8-20/41/49; SNLA491 pp18,20",
+      "mask": "0xFFFF",
+      "value": "0x47FF",
+      "disposition": "Retain the original action only within loopback_digital and its A-specific gates."
+    },
+    {
+      "id": "compliance_100_disable",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x0010",
+      "value": "0x0000",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "compliance_100_enable",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x0010",
+      "value": "0x0010",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "compliance_100_count_low",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x0020",
+      "value": "0x0000",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "compliance_100_count_high",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x0020",
+      "value": "0x0020",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "EEECFG3_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
+      "mask": "0xFFFF",
+      "value": "0x008B",
+      "disposition": "Exact opaque write only at the indicated eeeRecipe position(s), after the capability and advertisement checks.",
+      "rows": [
+        3
+      ]
+    },
+    {
+      "id": "EEE_04D3_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
+      "mask": "0xFFFF",
+      "value": null,
+      "disposition": "Original I/E only. A recipe omits 04D3=4F12. No A write permission.",
+      "rows": []
+    },
+    {
+      "id": "EEE_04DF_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
+      "mask": "0xFFFF",
+      "value": "0x0180",
+      "disposition": "Exact opaque write only at the indicated eeeRecipe position(s), after the capability and advertisement checks.",
+      "rows": [
+        4
+      ]
+    },
+    {
+      "id": "EEE_033E_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
+      "mask": "0xFFFF",
+      "value": "0xA681",
+      "disposition": "Exact opaque write only at the indicated eeeRecipe position(s), after the capability and advertisement checks.",
+      "rows": [
+        5
+      ]
+    },
+    {
+      "id": "EEE_033F_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
+      "mask": "0xFFFF",
+      "value": "0x0003",
+      "disposition": "Exact opaque write only at the indicated eeeRecipe position(s), after the capability and advertisement checks.",
+      "rows": [
+        6
+      ]
+    },
+    {
+      "id": "RECIPE_0123_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
+      "mask": "0xFFFF",
+      "value": "0x0800",
+      "disposition": "Exact opaque write only at the indicated eeeRecipe position(s), after the capability and advertisement checks.",
+      "rows": [
+        12
+      ]
+    },
+    {
+      "id": "EEE_031B_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
+      "mask": "0xFFFF",
+      "value": "0x8848",
+      "disposition": "Exact opaque write only at the indicated eeeRecipe position(s), after the capability and advertisement checks.",
+      "rows": [
+        24
+      ]
+    },
+    {
+      "id": "EEE_0466_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
+      "mask": "0xFFFF",
+      "value": "0xFD00",
+      "disposition": "Exact opaque write only at the indicated eeeRecipe position(s), after the capability and advertisement checks.",
+      "rows": [
+        27
+      ]
+    },
+    {
+      "id": "EEE_04CF_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
+      "mask": "0xFFFF",
+      "value": "0x261D",
+      "disposition": "Exact opaque write only at the indicated eeeRecipe position(s), after the capability and advertisement checks.",
+      "rows": [
+        16
+      ]
+    },
+    {
+      "id": "EEE_0416_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
+      "mask": "0xFFFF",
+      "value": "0x1830",
+      "disposition": "Exact opaque write only at the indicated eeeRecipe position(s), after the capability and advertisement checks.",
+      "rows": [
+        18
+      ]
+    },
+    {
+      "id": "EEE_04F5_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
+      "mask": "0xFFFF",
+      "value": "0x2864",
+      "disposition": "Exact opaque write only at the indicated eeeRecipe position(s), after the capability and advertisement checks.",
+      "rows": [
+        7,
+        25
+      ]
+    },
+    {
+      "id": "EEE_04E0_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
+      "mask": "0xFFFF",
+      "value": "0xFFF2",
+      "disposition": "Exact opaque write only at the indicated eeeRecipe position(s), after the capability and advertisement checks.",
+      "rows": [
+        8
+      ]
+    },
+    {
+      "id": "EEE_031F_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
+      "mask": "0xFFFF",
+      "value": "0xFE36",
+      "disposition": "Exact opaque write only at the indicated eeeRecipe position(s), after the capability and advertisement checks.",
+      "rows": [
+        9
+      ]
+    },
+    {
+      "id": "CLK_OUT_LED_STATUS_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
+      "mask": "0xFFFF",
+      "value": "0x0000",
+      "disposition": "Exact opaque write only at the indicated eeeRecipe position(s), after the capability and advertisement checks.",
+      "rows": [
+        10
+      ]
+    },
+    {
+      "id": "EEE_04F4_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
+      "mask": "0xFFFF",
+      "value": "0x0800",
+      "disposition": "Exact opaque write only at the indicated eeeRecipe position(s), after the capability and advertisement checks.",
+      "rows": [
+        11
+      ]
+    },
+    {
+      "id": "EEECFG3_enable_bypass_controls",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.2, 8.3.4 and 8.3.11.1; D2 corroborating SNLA328, SNLS638C, SNLS505H",
+      "mask": "0x0009",
+      "value": "0x0009",
+      "disposition": "Retain the original action only within eee_negotiation_status and its A-specific gates."
+    },
+    {
+      "id": "EEECFG3_lpi_start",
+      "owner": 59,
+      "source": "SNLS783A 8.3.4 and 7.6 pp16-18",
+      "mask": "0x1000",
+      "value": "0x1000",
+      "disposition": "Retain the original action only within legacy_lpi and its A-specific gates."
+    },
+    {
+      "id": "EEECFG3_lpi_stop",
+      "owner": 59,
+      "source": "SNLS783A 8.3.4 and 7.6 pp16-18",
+      "mask": "0x1000",
+      "value": "0x0000",
+      "disposition": "Retain the original action only within legacy_lpi and its A-specific gates."
+    },
+    {
+      "id": "RECIPE_0428_dpd_enable",
+      "owner": 59,
+      "source": "SNLS783A 8.3.6.3 and table 8-20",
+      "mask": "0x0004",
+      "value": "0x0004",
+      "disposition": "Retain the original action only within power_deep and its A-specific gates."
+    },
+    {
+      "id": "TDR_0411_tdr_0813",
+      "owner": 59,
+      "source": "SNLS783A 8.3.16.1 and tables 8-55..61; cited SNLA428 table 2-1",
+      "mask": "0xFFFF",
+      "value": "0x0813",
+      "disposition": "Retain the original action only within cable_configure and its A-specific gates."
+    },
+    {
+      "id": "TDR_0411_tdr_0815",
+      "owner": 59,
+      "source": "SNLS783A 8.3.16.1 and tables 8-55..61; cited SNLA428 table 2-1",
+      "mask": "0xFFFF",
+      "value": "0x0815",
+      "disposition": "Retain the original action only within cable_configure and its A-specific gates."
+    },
+    {
+      "id": "TDR_0411_tdr_0816",
+      "owner": 59,
+      "source": "SNLS783A 8.3.16.1 and tables 8-55..61; cited SNLA428 table 2-1",
+      "mask": "0xFFFF",
+      "value": "0x0816",
+      "disposition": "Retain the original action only within cable_configure and its A-specific gates."
+    },
+    {
+      "id": "EEE_0416_tdr_1FA0",
+      "owner": 59,
+      "source": "SNLS783A 8.3.16.1 and tables 8-55..61; cited SNLA428 table 2-1",
+      "mask": "0xFFFF",
+      "value": "0x1FA0",
+      "disposition": "Retain the original action only within cable_configure and its A-specific gates."
+    },
+    {
+      "id": "EEE_0416_tdr_1F90",
+      "owner": 59,
+      "source": "SNLS783A 8.3.16.1 and tables 8-55..61; cited SNLA428 table 2-1",
+      "mask": "0xFFFF",
+      "value": "0x1F90",
+      "disposition": "Retain the original action only within cable_configure and its A-specific gates."
+    },
+    {
+      "id": "GENCFG_tdr_0600",
+      "owner": 59,
+      "source": "SNLS783A 8.3.16.1 and tables 8-55..61; cited SNLA428 table 2-1",
+      "mask": "0x0600",
+      "value": "0x0600",
+      "disposition": "Retain the original action only within cable_configure and its A-specific gates."
+    },
+    {
+      "id": "compliance_10_pattern_0",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x001F",
+      "value": "0x0010",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "compliance_10_pattern_1",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x001F",
+      "value": "0x0011",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "compliance_10_pattern_2",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x001F",
+      "value": "0x0012",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "compliance_10_pattern_3",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x001F",
+      "value": "0x0013",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "compliance_10_pattern_4",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x001F",
+      "value": "0x0014",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "compliance_10_pattern_5",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x001F",
+      "value": "0x0015",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "compliance_10_pattern_6",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x001F",
+      "value": "0x0016",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "compliance_10_pattern_7",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x001F",
+      "value": "0x0017",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "compliance_10_pattern_8",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x001F",
+      "value": "0x0018",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "compliance_10_pattern_9",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x001F",
+      "value": "0x0019",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "compliance_10_pattern_A",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x001F",
+      "value": "0x001A",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "compliance_10_pattern_B",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x001F",
+      "value": "0x001B",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "compliance_10_pattern_C",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x001F",
+      "value": "0x001C",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "compliance_10_pattern_D",
+      "owner": 59,
+      "source": "SNLS783A Table 8-51, 8.3.13; SNLA491 2.3.4 and its cited SNLA266B",
+      "mask": "0x001F",
+      "value": "0x001D",
+      "disposition": "Retain the original action only within compliance_session and its A-specific gates."
+    },
+    {
+      "id": "EEE_0126_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28",
+      "mask": "0xFFFF",
+      "value": "0x5D23",
+      "rows": [
+        13
+      ],
+      "disposition": "A-only opaque word at this position in eeeRecipe. No standalone writes."
+    },
+    {
+      "id": "EEE_0132_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28",
+      "mask": "0xFFFF",
+      "value": "0x0183",
+      "rows": [
+        14
+      ],
+      "disposition": "A-only opaque word at this position in eeeRecipe. No standalone writes."
+    },
+    {
+      "id": "EEE_04D4_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28",
+      "mask": "0xFFFF",
+      "value": "0x3322",
+      "rows": [
+        15
+      ],
+      "disposition": "A-only opaque word at this position in eeeRecipe. No standalone writes."
+    },
+    {
+      "id": "EEE_0310_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28",
+      "mask": "0xFFFF",
+      "value": "0x76E1",
+      "rows": [
+        17
+      ],
+      "disposition": "A-only opaque word at this position in eeeRecipe. No standalone writes."
+    },
+    {
+      "id": "EEE_0311_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28",
+      "mask": "0xFFFF",
+      "value": "0x01FC",
+      "rows": [
+        19
+      ],
+      "disposition": "A-only opaque word at this position in eeeRecipe. No standalone writes."
+    },
+    {
+      "id": "EEE_0313_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28",
+      "mask": "0xFFFF",
+      "value": "0x06E3",
+      "rows": [
+        20
+      ],
+      "disposition": "A-only opaque word at this position in eeeRecipe. No standalone writes."
+    },
+    {
+      "id": "EEE_033A_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28",
+      "mask": "0xFFFF",
+      "value": "0x579B",
+      "rows": [
+        21
+      ],
+      "disposition": "A-only opaque word at this position in eeeRecipe. No standalone writes."
+    },
+    {
+      "id": "EEE_033C_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28",
+      "mask": "0xFFFF",
+      "value": "0xEC00",
+      "rows": [
+        22
+      ],
+      "disposition": "A-only opaque word at this position in eeeRecipe. No standalone writes."
+    },
+    {
+      "id": "EEE_0317_eee",
+      "owner": 59,
+      "source": "SNLS783A 8.3.3.1 pp27-28",
+      "mask": "0xFFFF",
+      "value": "0x1000",
+      "rows": [
+        23
+      ],
+      "disposition": "A-only opaque word at this position in eeeRecipe. No standalone writes."
+    }
+  ],
+  "fldStraps": {
+    "source": "SNLS783A tables 8-5/6, 8-31, 8-88 and 8.4.1.1; SDAA067A figure 3-2, tables 3-3/4",
+    "owner": 58,
+    "columns": [
+      "Strap7",
+      "Strap1",
+      "Strap8",
+      "Strap11",
+      "CR3 FLD enable bits (040F only)"
+    ],
+    "enhanced": [
+      [
+        "0",
+        "X",
+        "X",
+        "X",
+        "0x0000"
+      ],
+      [
+        "1",
+        "1",
+        "0",
+        "0",
+        "0x040F"
+      ],
+      [
+        "1",
+        "0",
+        "0",
+        "0",
+        "0x000D"
+      ],
+      [
+        "1",
+        "0",
+        "1",
+        "0",
+        "0x000C"
+      ],
+      [
+        "1",
+        "0",
+        "0",
+        "1",
+        "0x0001"
+      ],
+      [
+        "1",
+        "1",
+        "0",
+        "1",
+        "0x0403"
+      ]
+    ],
+    "basicColumns": [
+      "Strap11",
+      "CR3 FLD enable bits (040F only)"
+    ],
+    "basic": [
+      [
+        "0",
+        "0x000D"
+      ],
+      [
+        "1",
+        "0x0001"
+      ]
+    ],
+    "disposition": "These are the feature tables for eligible MII; X is a strap don’t-care within that option. Capture actual strap and control values, including SOR1[11] at 1F:0467. Register programming masks 040F only. When FLD is used the rollover guide recommends Strap11 HIGH and energy-only for EMC. Its table 3-3 option 5 says Strap8 HIGH, whereas SNLS783A table 8-5 and SDAA067A figure 3-2 say LOW. Follow the exact datasheet. Neither the visible register setting nor the guide measurement on its EVM establishes EMC equivalence for either application board."
+  }
+}

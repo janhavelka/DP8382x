@@ -15,6 +15,15 @@ reviewed model and revision set, interface mask and forced crossover policy.
 I and E use one transaction owner, register policy and initialization sequence.
 The shared model words preserve the board declaration. [Identity](identity.md)
 
+The A-generation research specifies the same ownership boundaries for AI and
+AE. Future implementations select revision 4 from a declared grade, observe
+mode and straps, then apply the register map for that generation. In particular,
+FLD configuration owns CR3 mask `040F`, while the collector owns the
+consuming FLDS read. Clock, IRQ and wake procedures that need a pin share its
+board-assigned mux owner. The 27-write EEE sequence includes a write after
+the AN restart, so a failure there must retain evidence of the restart.
+[A field map](registers/dp83826a.json) and [procedure contracts](registers/dp83826a-procedures.json).
+
 Read [API contracts](api-contracts.md) for transport, values and OP-1 through OP-17,
 [ownership decisions](design-decisions.md) for native execution/lifecycle, and the
 [ledger](registers/dp83826i.json) for silicon access/evidence. Those documents own
