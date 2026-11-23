@@ -276,3 +276,37 @@ both despite the OTP annotations in table 8-81. The committed zero mask is
 correct. The next slice should check OTP, strap and mode-dependent reset
 knowledge, including bits common to both PHYIDR2 models, then continue the
 remaining field and procedure review.
+
+### Phase (c) review of reset masks
+
+The wrapper verified clean `main` at `a58e85d35f8c03d2387a8f945671babff0bdd83e`,
+equal to `origin/main`. Two read-only reviewers used the session's high-reasoning
+model in parallel. One checked TI's reset cells and their mode, strap and OTP
+qualifications. The other tested what changes the validator would accept.
+The three sibling checkouts remained clean at the phase (a) revisions.
+
+The verifier now requires the exact board-independent mask and masked value
+for every detailed register. It reads the six OTP flags directly from tables
+8-80/81 and checks each field annotation. The expected bits also account for
+the two PHYIDR2 models, CR3 fast-drop straps, LED2 mux, both strap observation
+registers and RXFCFG1 magic-packet enable. For PHYIDR2, only bit 5 differs
+between `A114` and `A134`, giving mask/value `FFDF/A114`. Recipe-only
+addresses retain null reset data.
+
+Two records needed corrections for usable readback. Table 8-35 gives PHYSTS
+the reset word `0002`. With negotiation disabled, speed and duplex depend
+on straps in BASIC and both status bits read one in ENHANCED. Its independent
+mask/value is `FFF9/0000`. Table 8-79 also prints `0002` for CLK_OUT_LED_STATUS.
+Bit 0 reports the ENHANCED pin 31 selection made by POR-latched Strap6 in
+table 8-10. Its independent mask/value is `FFFE/0002`. Both ledger records
+retain the published header and field reset cells.
+[SNLS783A, tables 8-10, 8-35 and 8-79](../../reference/source/TI-DP83826AI-AE-SNLS783A.pdf)
+
+Host research PASS on Windows x86-64 with Python 3.12.10. Against the entry
+checkpoint the new tests reported 20 failing subcases. They covered 16 mask
+mutations, a missing OTP annotation, an invented recipe reset and the two
+incorrect readback masks. After the fix the ledger verifier passed and all
+93 ledger tests passed, using the two commands in the preceding slice.
+Host driver, portable/package consumer, SDK link, remote CI and physical
+evidence were NOT RUN in this research slice. Phase (c) continues with
+the field ownership joins and remaining procedure/source comparisons.

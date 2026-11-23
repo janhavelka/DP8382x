@@ -8,10 +8,23 @@ SOURCE = Path(__file__).resolve().parents[1] / "docs/reference/text/TI-DP83826AI
 HEADER = re.compile(
     r"^8\.5\.1\.(\d+) [^\n]+ \(Offset = ([0-9A-Fa-f]+)h\) \[Reset = ([0-9A-Fa-fXx]+)h\]", re.M)
 # In the archived extract, field names may wrap or share a line with the access
-# column. Stop at the reset column so prose encodings cannot become table rows.
+# column. Tables 8-80/81 add an OTP column after the printed reset.
 FIELD = re.compile(
     r"^(\d{1,2})(?:[-:](\d{1,2}))?[ \t]*\n([^\n]+(?:\n[^\n]+){0,2}?)\s+"
-    r"(RH/W1S|RH/W|R/W|RCH|RC|RH|R|W0C)[ \t]*\n([0-9A-Fa-fXx]+h?)\b", re.M)
+    r"(RH/W1S|RH/W|R/W|RCH|RC|RH|R|W0C)[ \t]*\n([0-9A-Fa-fXx]+h?)\b(?:[ \t]*\n(Y)\b)?", re.M)
+
+# Numeric reset cells qualified by SNLS783A mode and strap descriptions.
+# X cells and factory-programmed fields are excluded directly in the table scan.
+VARIABLE_RESET_BITS = {
+    "PHYIDR2": 0x0020,            # 8-23: models 11h/13h occupy bits 9:4.
+    "CR3": 0x000F,                # 8-5/6: strap-selected fast-drop mechanisms.
+    "PHYSTS": 0x0006,             # 8-35: speed/duplex when negotiation is disabled.
+    "LED2_GPIO_CFG": 0x0007,      # 8-77: strap-selected pin mux.
+    "CLK_OUT_LED_STATUS": 0x0001, # 8-10/79: Strap6 selects the pin 31 function.
+    "SOR1": 0x0FFF,               # 8-88: sampled strap levels.
+    "SOR2": 0x5FBF,               # 8-89: sampled strap configuration.
+    "RXFCFG1": 0x0001,            # 8-91: magic-packet enable defaults from strap.
+}
 
 
 def require(condition, message):
@@ -37,10 +50,10 @@ def check_register(register, heading, table):
     require(register["section"] == f"8.5.1.{number}" and register["table"] == f"8-{int(number) + 19}"
             and hex16(register["address"]) == int(offset, 16)
             and register["headerReset"] == header_reset, f"{name}: detailed table citation/address/reset")
-    reserved = known = all_bits = literal = 0
+    reserved = known = all_bits = literal = otp_bits = 0
     fields = []
     reserved_rows = []
-    for high, low, field_name, access, reset in FIELD.findall(table):
+    for high, low, field_name, access, reset, otp in FIELD.findall(table):
         bits = f"{high}-{low}" if low else high
         high, low = int(high), int(low or high)
         require(0 <= low <= high < 16, f"{name}: invalid source partition")
@@ -52,21 +65,24 @@ def check_register(register, heading, table):
             reserved_rows.append({"bits": bits, "access": access, "reset": reset})
         else:
             fields.append((mask, access, reset))
-        if "X" not in reset.upper():
+        if otp:
+            otp_bits |= mask
+        elif "X" not in reset.upper():
             known |= mask
             literal |= (int(reset.rstrip("h"), 16) << low) & mask
     require(all_bits == 0xFFFF and reserved == hex16(register["reservedMask"])
             and reserved_rows == register["reservedRows"],
             f"{name}: reserved partition differs from TI table")
     known_mask, value = hex16(register["resetKnownMask"]), hex16(register["resetValue"])
-    # Strap/OTP dependencies in prose may narrow what can be predicted from
-    # the reset column. The header's coarse hex nibbles cannot fill in an X.
-    require(not known_mask & ~known and value == literal & known_mask,
+    known &= ~VARIABLE_RESET_BITS.get(name, 0)
+    require(known_mask == known and value == literal & known,
             f"{name}: reset knowledge contradicts detailed table")
     covered = reserved
     for field in register["fields"]:
         mask = hex16(field["mask"])
         require(mask and not covered & mask, f"{name}: overlapping field or reserved bit")
+        require(field.get("defaultFromOtp", False) is bool(otp_bits & mask),
+                f"{field['id']}: OTP annotation differs from TI table")
         rows = [r for r in fields if mask & r[0]]
         require(sum(r[0] for r in rows) == mask
                 and all(r[1:] == (field["access"], field["reset"]) for r in rows),
@@ -203,6 +219,8 @@ def validate(original, comparison, procedures):
             original_recipes, "incomplete original recipe comparison")
     for reg in recipe_regs.values():
         require(reg["owner"] in (58, 59), "missing recipe register owner")
+        require(reg["resetKnownMask"] is None and reg["resetValue"] is None,
+                f"{reg['id']}: undocumented recipe register reset")
         if reg["originalRegister"]:
             require(reg["address"] == original_regs[reg["originalRegister"]]["address"],
                     "recipe register address mismatch")

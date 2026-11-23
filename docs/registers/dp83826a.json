@@ -1215,8 +1215,8 @@
       "table": "8-35",
       "originalTable": "8-34",
       "headerReset": "0002",
-      "resetValue": "0x0002",
-      "resetKnownMask": "0xFFFF",
+      "resetValue": "0x0000",
+      "resetKnownMask": "0xFFF9",
       "reservedMask": "0x8000",
       "reservedRows": [
         {
@@ -1331,7 +1331,11 @@
           "mask": "0x0004",
           "access": "RH",
           "reset": "0h",
-          "owner": 58
+          "owner": 58,
+          "modeDefault": {
+            "BASIC": "strap when forced",
+            "ENHANCED": "1 when forced"
+          }
         },
         {
           "id": "PHYSTS.speed",
@@ -1339,7 +1343,11 @@
           "mask": "0x0002",
           "access": "RH",
           "reset": "1h",
-          "owner": 58
+          "owner": 58,
+          "modeDefault": {
+            "BASIC": "strap when forced",
+            "ENHANCED": "1 when forced"
+          }
         },
         {
           "id": "PHYSTS.link",
@@ -3600,7 +3608,7 @@
       "originalTable": "8-78",
       "headerReset": "0002",
       "resetValue": "0x0002",
-      "resetKnownMask": "0xFFFF",
+      "resetKnownMask": "0xFFFE",
       "reservedMask": "0xFFFE",
       "reservedRows": [
         {
@@ -3617,7 +3625,11 @@
           "access": "RH",
           "reset": "0h",
           "owner": 59,
-          "delta": "Original access R."
+          "delta": "Original access R.",
+          "modeDefault": {
+            "BASIC": "inapplicable",
+            "ENHANCED": "Strap6 at POR: 0 for CLKOUT25, 1 for LED1 on pin 31 (table 8-10)"
+          }
         }
       ]
     },

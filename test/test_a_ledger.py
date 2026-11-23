@@ -43,12 +43,14 @@ class AGenerationLedgerTests(unittest.TestCase):
     def test_reset_headers_and_usable_known_bits(self):
         # Each triplet is the printed header, board-independent mask and value.
         for name, header, known, value in (
+                ("PHYIDR2", "A134", 0xFFDF, 0xA114), ("PHYSTS", "0002", 0xFFF9, 0),
                 ("CR1", "00X0", 0xFFDF, 0), ("CR3", "0X00", 0xFBF0, 0),
                 ("PHYSCR", "010X", 0xFFFC, 0x0108), ("FLD_CFG2", "0288", 0xFFFF, 0x0288),
                 ("LEDCFG", "5565", 0xFFFF, 0x5565), ("LED1_GPIO_CFG", "000X", 0xFFF8, 8),
                 ("LED2_GPIO_CFG", "0008", 0xFFF8, 8), ("RXFCFG1", "10X1", 0xFF7E, 0x1000),
                 ("VOD_CFG1", "3C00", 0xC000, 0), ("VOD_CFG2", "0410", 0, 0),
-                ("VOD_CFG3", "8400", 0xFFFF, 0x8400)):
+                ("VOD_CFG3", "8400", 0xFFFF, 0x8400), ("CLK_OUT_LED_STATUS", "0002", 0xFFFE, 2),
+                ("SOR1", "0000", 0xF000, 0), ("SOR2", "0287", 0xA040, 0)):
             reg = self.regs[name]
             with self.subTest(register=name):
                 self.assertEqual((reg["headerReset"], int(reg["resetKnownMask"], 16),
@@ -60,6 +62,42 @@ class AGenerationLedgerTests(unittest.TestCase):
                 ("BMCR.duplex", "strap", 0), ("ANAR.full100", "strap", 1)):
             with self.subTest(field=field):
                 self.assertEqual(self.fields[field]["modeDefault"], {"BASIC": basic, "ENHANCED": enhanced})
+
+    def test_numeric_reset_cells_with_board_or_mode_dependencies(self):
+        # Use the printed data under each enlarged mask. A value mismatch alone
+        # would miss the case where the particular board agrees with the table.
+        for name, mask, value in (
+                ("VOD_CFG1", 0xF000, 0x3000), ("VOD_CFG1", 0xCFC0, 0x0C00),
+                ("VOD_CFG1", 0xC03F, 0), ("VOD_CFG2", 0xF000, 0),
+                ("VOD_CFG2", 0x0FC0, 0x0400), ("VOD_CFG2", 0x003F, 0x0010),
+                ("VOD_CFG2", 0xFFFF, 0x0410), ("LED2_GPIO_CFG", 0xFFFF, 8),
+                ("RXFCFG1", 0xFF7F, 0x1001), ("CR3", 0xFBFF, 0),
+                ("SOR1", 0xFFFF, 0), ("SOR2", 0xFFFF, 0x0287),
+                ("CLK_OUT_LED_STATUS", 0xFFFF, 2), ("PHYSTS", 0xFFFF, 2),
+                ("PHYIDR2", 0xFFFF, 0xA134), ("PHYIDR2", 0xFC0F, 0xA004)):
+            with self.subTest(register=name, mask=hex(mask)):
+                comparison = copy.deepcopy(self.comparison)
+                reg = next(r for r in comparison["registers"] if r["id"] == name)
+                reg.update(resetKnownMask=f"0x{mask:04X}", resetValue=f"0x{value:04X}")
+                with self.assertRaisesRegex(ValueError, "reset knowledge"):
+                    validate(self.original, comparison, self.procedures)
+
+    def test_otp_annotations_match_each_field_in_tables_8_80_and_8_81(self):
+        otp_fields = {f["id"] for f in self.fields.values() if f.get("defaultFromOtp")}
+        self.assertEqual(otp_fields, {
+            "VOD_CFG1.minus_mdix_high", "VOD_CFG1.minus_mdi", "VOD_CFG1.zero",
+            "VOD_CFG2.minus_mdix_low", "VOD_CFG2.plus_mdix", "VOD_CFG2.plus_mdi"})
+        comparison = copy.deepcopy(self.comparison)
+        reg = next(r for r in comparison["registers"] if r["id"] == "VOD_CFG2")
+        del reg["fields"][0]["defaultFromOtp"]
+        with self.assertRaisesRegex(ValueError, "OTP"):
+            validate(self.original, comparison, self.procedures)
+
+    def test_recipe_word_has_no_documented_reset(self):
+        comparison = copy.deepcopy(self.comparison)
+        comparison["recipeRegisters"][0].update(resetKnownMask="0xFFFF", resetValue="0x008B")
+        with self.assertRaisesRegex(ValueError, "recipe register reset"):
+            validate(self.original, comparison, self.procedures)
 
     def test_explicit_field_moves_access_and_assignment(self):
         for field, mask, access, owner in (
