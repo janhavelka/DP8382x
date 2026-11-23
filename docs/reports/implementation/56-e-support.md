@@ -1,5 +1,11 @@
 # Prompt 56 · DP83826E software qualification
 
+**Full E software qualification is BLOCKED on primary feature closure.** The
+declared revision-1 E passes the implemented core, adapter, CLI and simulated
+fixture paths. Deep-power exit and specific pin and electrical procedures still
+need exact-part evidence and implementation for both grades. Physical
+qualification is a separate open gate. [Final verification](#phase-d-final-verification)
+
 ## Phase (a) · Declared part and shared identity
 
 Prompt 56 is **IN PROGRESS**. On 2026-11-23 the wrapper verified the prompt 55
@@ -428,3 +434,113 @@ Remote CI and physical qualification **NOT RUN**. Prompt 71 owns remote CI.
 Deep-power exit, unresolved pin fields and electrical controls retain the
 source gates recorded by prompts 28, 32/33 and 35. Prompt 56 remains
 **IN PROGRESS** for phase (d).
+
+## Phase (d) final verification
+
+On 2026-11-23 the wrapper verified the review commit
+`39713f1f2bdf0b38c2f38d7410c8ea0f3de491ab` equal to `origin/main`.
+The entry index and worktree were clean on `main`, 0 ahead and 0 behind.
+This is the tested source commit. Two agents used the session model for
+independent builds, one for the real SDK links and one for UBSan and the
+standalone consumers. The lead ran the Release, offline fixture and
+documentation checks and reconciled the evidence against prompt 56.
+
+### What the E tests establish
+
+The 30 explicit E registrations comprise 23 core and seven pinned-native
+cases. They cover preservation of the declared grade with identical I/E ID
+words, both operating modes at revision 1, bounded reads on mismatch,
+callback-free rejection, reset defaults, VOD write/readback order, local
+ANAR bit 13 clearing, forced-mode crossover, retained partial effects and
+separate restoration. The native tests also cover configuration admission,
+operation failures and the shared CLI. The compiled fixture exercises 44
+source-admitted E feature cases and retains the blocked deep-power case.
+The phase (b) table maps these checks to the implementation and source.
+[Qualification vectors](#shipped-behavior-and-qualification-vectors)
+
+The source check confirmed the archived SNLS647I hash and its VOD and
+advertisement requirements. The clean TMP1x2 and MB85RC checkouts remain at
+the phase (a) revisions. Their variant validation, product-ID dispatch,
+CLI, runner and registration conventions still support the recorded choice
+to bind the grade from the caller. The README, CHANGELOG, API, variants,
+feature and fixture guides describe the implemented paths and their limits.
+[Source and sibling audit](#sibling-conventions-checked-at-entry)
+
+### Local checks on the review commit
+
+Windows x86-64, GNU 15.1.0, CMake 4.0.1, Ninja 1.12.1 and Python 3.12.10.
+Use the phase (b) process-local SDK Git setting and Release configure command.
+The pinned-native verifier checked 45 real SDK inputs and the basic
+application verifier checked its 37-header manifest at ESP-IDF v6.1
+`fff9895c82d744c7237be8847347bdd1b07c6643`.
+
+```powershell
+cmake --build build/p53-baseline --parallel 5
+ctest --test-dir build/p53-baseline -E '^cli_hil_' --no-tests=error --output-on-failure -j 4
+ctest --test-dir build/p53-baseline -R '^cli_hil_' --no-tests=error --output-on-failure -j 1
+ctest --test-dir build/p53-baseline -R '^cli_hil_serial$' --no-tests=error --output-on-failure --repeat until-fail:3 -j 1
+```
+
+- **Release host PASS after serial rerun.** All 691 non-HIL registrations
+  passed in 4.48 s. Five of six offline HIL registrations passed on the
+  first attempt, including the feature, soak and interruption campaigns.
+  The injected serial test exited after 15 test reports in 8.39 s with no
+  traceback. Its isolated reruns passed three times in 24.12 s with the
+  same binaries and deadlines. The cause of the first exit is unconfirmed.
+  Across these runs all 697 registered tests passed.
+- **UBSan PASS.** All 691 non-HIL registrations passed, including all 30 E
+  registrations and the native I/E preflight and raw BMCR review fixes.
+  Use the same Release configure command with `-B build/p56-vectors` and
+  set both `CMAKE_C_FLAGS` and `CMAKE_CXX_FLAGS` to
+  `-fsanitize=undefined -fsanitize-undefined-trap-on-error`. Build with
+  `--parallel 5` and run the non-HIL CTest command above in that directory.
+- **Portable consumer PASS.** A fresh tests-OFF configure of
+  `test/consumer` in `build/p56d-consumer` with Ninja and Release, build
+  with `--parallel 3` and CTest passed both registered consumers.
+  Exported package consumer **NOT RUN**. Prompt 70 owns that check.
+- **Python and documentation PASS.** Standard unittest discovery ran 246
+  tests, 194 passed and 52 skipped. The compiled-fixture cases also run
+  through CTest. `python tools/check_doxygen.py` verified 294 HTML pages
+  and rejected both negative fixtures. `python tools/verify_references.py`
+  validated 29 payloads, 27 extracts and 2,296 local links.
+  `python tools/verify_ledger.py` checked 97 registers, 52 procedures and
+  35 features. `python scripts/generate_version.py check` and
+  `git diff --check` passed.
+- **Offline replay PASS.** The runner guide's 10BASE-Te campaign executed
+  and restored on the compiled ENHANCED E fixture at RMII address 1.
+  Both the expected and producer grade were DP83826E and the simulated
+  firmware prefix was `39713f1`. The new
+  `build/p56d-evidence/campaign-e-10base-te.json` pair passed
+  `verify-artifacts`. Its transcript was 14,231 bytes, SHA-256
+  `f75a3088afc81b82f64bce88aec56d40159c88b33c809cd052995f09786a429d`.
+  The saved I pair from phase (b)'s replay command also passed.
+- **SDK link PASS.** The phase (b) three-project `scripts/idf.cmd` commands
+  linked the E-declared adapter fixture and both fitted-I applications at
+  the pinned v6.1 commit above. The identity header, ELF and binary for
+  each ESP32-P4 target contained the full clean review SHA.
+
+| P4 target | ELF bytes / SHA-256 | Firmware bytes / SHA-256 |
+| --- | --- | --- |
+| 56l adapter, E | 7,356,924 / `40ebe8e4cfda5c63d485b074661f5985ba0f346b1c8f7c0a799936f5174f3def` | 388,288 / `3b01f6ee635ecc7da6872403ba9fc5bb409c8e45fef06b79a2677561518d5cad` |
+| 56b basic, I | 10,027,320 / `abda5cc1272374a2121374c665dbc4d7f3c37b7bdc17e3cf9b5a4759e43a0124` | 684,448 / `e138ed9dcbc9d2aef976ca4ec9c516d34dd019fda28b5fbebf843e920b9e167a` |
+| 56o owner, I | 8,720,680 / `54b6e366a7898781cd20ebca912c234f96faebf6d413d55a0f5079667b2cf628` | 562,528 / `3ca4b772180bb7ba255263cf59e25f647346724e7b8033afab671fcb56f387c7` |
+
+### Remaining qualification gates
+
+Prompt 36 records primary feature closure as **BLOCKED**. I and E use the
+same procedures, so full E software qualification inherits the following
+dependencies. Each owner needs authoritative clarification, implementation
+of the admitted sequence, and failure and restoration tests. Re-run the I/E
+cases on those changes before marking prompt 56 complete.
+
+| Owner | Evidence needed to close the E gap |
+| --- | --- |
+| 28, deep-power exit | Safe composition and preservation at 0x0428, exit order and when SMI and clocks become usable again. |
+| 32/33, pin and clock controls | Correct per-pin and per-mode selector encodings and activation conditions for the gated routes. |
+| 35, electrical controls | Resolution of IOCTRL examples, legal receiver-gain encoding, and 100 Mbit/s test access, composition and stop at 0x0428. |
+
+The [primary closure report](36-primary-feature-closure.md#required-remaining-acceptance-and-downstream-use)
+tracks the owning procedures. Physical E testing is **NOT RUN** and needs an
+authorized, identified fixture. Remote CI is **NOT RUN** and belongs to
+prompt 71. Prompt 57 can use the verified shared identity and profile as
+inputs to its independent source research.
