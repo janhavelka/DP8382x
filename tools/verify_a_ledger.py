@@ -123,6 +123,13 @@ def check_assignments(original, procedures, registers):
     # Each vendor word in the ordered recipe needs an exact action. Direct
     # reset/restart and the IEEE advertisement have independent typed owners.
     recipe = procedures["eeeRecipe"]
+    procedure = groups["procedures"]["eee_initialize"]
+    write_frames = sum(1 if row["space"] == "C22" else 4 for row in recipe)
+    # Capability and advertisement each require a fresh four-frame MMD read.
+    require(procedure.get("frameFloor") == {
+        "recipeWrites": write_frames,
+        "withCapabilityAndAdvertisementReads": write_frames + 8,
+    } and procedure.get("timeout", "").strip(), "EEE frame floor or timeout override")
     expected_rows = [i for i, r in enumerate(recipe, 1) if r["devad"] == "0x1F"]
     claimed = []
     for action in groups["writeActions"].values():

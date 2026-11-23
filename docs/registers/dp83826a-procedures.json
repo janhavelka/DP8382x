@@ -476,8 +476,13 @@
       "feature": "eee",
       "owner": 59,
       "source": "SNLS783A 8.3.3.1 pp27-28, 8.3.3.2, 8.3.11.1 and tables 8-20/49/79",
-      "disposition": "Replace the entire 18-row I/E recipe with eeeRecipe. Capability MMD3:0014 must equal 0002 before any target write. Row 1 HARD then board-wide quiet interval, bounded completion and row 2 whole-word MMD7:003C write/readback. Rows 3..27 proceed only with matching readback. BMCR=3300 restarts AN at row 26; row 27 0466=FD00 is required before post-recipe reconciliation. Any cut after row 26 retains restarted AN. Include PIN/EEE policy collisions, 0308 status-only script exception and both occurrences of 04F5.",
-      "test": "Verify all 27 printed and addressed rows including duplicate at 7/25 and substitute a corrupted final row to detect incomplete success. Verify EEECFG3 mask 1009 gives 0009; restore mandatory VOD and all persistent owners once with no recursive reset."
+      "disposition": "Replace the entire 18-row I/E recipe with eeeRecipe. Capability MMD3:0014 must equal 0002 before any target write. Row 1 HARD then board-wide quiet interval, bounded completion and row 2 whole-word MMD7:003C write/readback. Rows 3..27 proceed only with matching readback. Row 26 writes BMCR=3300. If its terminal write outcome is uncertain, retain a possible AN restart and stop. If it succeeds and row 27 (0466=FD00) fails, retain the accepted restart command and the separate final-row outcome. Only a complete recipe proceeds to post-recipe reconciliation. Include PIN/EEE policy collisions, 0308 status-only script exception and both occurrences of 04F5.",
+      "frameFloor": {
+        "recipeWrites": 102,
+        "withCapabilityAndAdvertisementReads": 110
+      },
+      "timeout": "Use the A frameFloor for primary admission. Two direct writes take one frame each and 25 addressed writes take four each. The capability read and advertisement readback each add four. Also budget for reset completion polls, verification, status and persistent replay. Enforce a finite aggregate monotonic deadline covering admission, locks and bounded callbacks, with finite logical-transaction, frame and poll limits even if the clock stalls. A zero budget performs no I/O. Cleanup has its own finite budget.",
+      "test": "On both grades reject an insufficient aggregate budget before mutation. Verify the 27 addressed rows including the duplicate at 7/25. Interrupt the row-26 terminal write and each row-27 frame. Distinguish a possible restart from an accepted command and retain any uncertain final write. Verify EEECFG3 mask 1009 gives 0009 and restore mandatory VOD and all persistent owners once with no recursive reset."
     },
     {
       "id": "eee_negotiation_status",

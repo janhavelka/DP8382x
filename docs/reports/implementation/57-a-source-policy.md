@@ -242,3 +242,37 @@ git diff --check
 Prompt 57 remains **IN PROGRESS**. Phase (c) reviews the actual phase (b)
 checkpoint against SNLS783A, SNLS647I and the cited procedure sources. The
 wrapper records the commit and verifies synchronization after this run.
+
+### Phase (c) review of EEE frame accounting
+
+Two independent read-only reviewers examined the phase (b) change from
+`bcb27e1` to `ac8e3d9` on clean `main`, verified equal to `origin/main`.
+They used the session's high-reasoning model to check the reset tables and
+EEE procedure against the archived silicon evidence in parallel.
+
+The I/E timeout inherited by `eee_initialize` specified 66 recipe frames
+and 74 with self-checks. For AI and AE, the 27 rows include two direct writes
+and 25 four-frame MMD writes, totaling 102 frames. The capability read and
+advertisement readback bring the minimum to **110**. Admission must also
+cover polls, status checks and persistent replay. The A procedure now has its
+own frame counts and timeout contract. A failed row-26 write can leave the
+AN restart uncertain. A later row-27 failure retains the accepted row-26
+command and the outcome of the final write. [SNLS783A §§8.3.3.1 and 8.3.11.1](../../reference/source/TI-DP83826AI-AE-SNLS783A.pdf)
+
+Host research PASS on Windows x86-64 with Python 3.12. The default ledger
+verifier passed and all 90 ledger tests passed, including rejection of the
+original 66/74 counts on A. The phase (b) PDF comparison reproduced all 18
+original rows and 27 A rows. Portable/package consumer, SDK link, remote CI
+and physical evidence were NOT RUN in this slice.
+
+```powershell
+python -B tools/verify_ledger.py
+python -B -m unittest discover -s test -p 'test_*ledger.py' -q
+```
+
+Phase (c) remains open. In memory, the field reviewer changed the VOD_CFG2
+known reset mask to `FFFF` and reset value to `0410`. The validator accepted
+both despite the OTP annotations in table 8-81. The committed zero mask is
+correct. The next slice should check OTP, strap and mode-dependent reset
+knowledge, including bits common to both PHYIDR2 models, then continue the
+remaining field and procedure review.

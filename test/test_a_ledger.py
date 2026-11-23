@@ -97,6 +97,14 @@ class AGenerationLedgerTests(unittest.TestCase):
         self.assertEqual(actual, expected)
         self.assertEqual(self.procedures["eeeRecipe"][1]["printed"], "7:203C")
 
+    def test_eee_frame_floor_replaces_original_timeout(self):
+        procedures = copy.deepcopy(self.procedures)
+        proc = next(p for p in procedures["procedures"] if p["id"] == "eee_initialize")
+        self.assertEqual(proc["frameFloor"], {"recipeWrites": 102, "withCapabilityAndAdvertisementReads": 110})
+        proc["frameFloor"] = {"recipeWrites": 66, "withCapabilityAndAdvertisementReads": 74}
+        with self.assertRaisesRegex(ValueError, "EEE frame floor"):
+            validate(self.original, self.comparison, procedures)
+
     def test_10base_te_fresh_address_and_no_increment_on_both_transfers(self):
         proc = next(r for r in self.procedures["procedures"] if r["id"] == "initialize_10base")
         wire = proc["wireVectors"]
