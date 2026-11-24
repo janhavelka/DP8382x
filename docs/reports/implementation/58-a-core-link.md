@@ -1,8 +1,9 @@
 # Prompt 58 · DP83826AI/AE identity, reset and link
 
-**IN PROGRESS. Phase (d) SDK links passed.** The portable core and native owner accept
+**IN PROGRESS. Phase (d) SDK links and AI/AE UBSan passed.** The portable core and native owner accept
 declared DP83826AI and DP83826AE for the 21 procedures below. The two grades
-share revision-4 identity words. Final host verification remains. Prompt 59
+share revision-4 identity words. The Release host suite has a reproducible
+fixture shutdown failure. Prompt 59
 owns optional and diagnostic controls.
 [Prompt requirements](../../prompts/58-a-core-link.md)
 
@@ -462,3 +463,40 @@ The build logs are `58d-link.log` for the fixtures and `phase-d-link.log` for
 the examples, each in its image directory. Host and portable consumer checks
 remain for phase (d). Exported package, remote CI and physical evidence
 are **NOT RUN** for this slice.
+
+## Phase (d) host verification
+
+The wrapper synchronized the SDK receipt at
+`12edfac4037de9a709e9974fa8edb58c368aa961`. Only the report and progress
+row changed since the four SDK links. The lead ran Release on clean Windows
+x86-64 with GNU 15.1.0, CMake 4.0.1 and Ninja. A second worker ran UBSan in
+its separate build directory. The three peer checkouts listed in phase (a)
+were clean at their recorded revisions. The Release build verified the
+37-file example and 45-file native manifests at the recorded v6.1 SDK pin.
+Both builds used the process-local SDK Git setting from the prompt 53 report.
+
+```powershell
+cmake -S . -B build/p53-baseline -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON -DDP8382X_BUILD_PINNED_IDF_TESTS=ON -DDP8382X_PINNED_IDF_PATH=C:/esp/v6.1/esp-idf
+cmake --build build/p53-baseline --parallel 6
+ctest --test-dir build/p53-baseline --no-tests=error --output-on-failure -j 3
+ctest --test-dir build/p53-baseline -R '^cli_hil_features$' --no-tests=error --output-on-failure
+cmake --build build/p55-ubsan --parallel 5
+ctest --test-dir build/p55-ubsan -R '^(ai|ae)_' --no-tests=error --output-on-failure -j 3
+```
+
+**Release host FAIL.** 790/791 registrations passed in 134.85 s.
+`cli_hil_features` also failed alone in 26.66 s. In both runs the compiled
+DP83826I `wol-pulse` case and restoration passed, then fixture closure
+expired and both output workers reported failure to stop. The campaign
+recorded `complete=False`, verdict `INCONCLUSIVE` and exit 2. The test
+expected exit 0. The full and isolated receipts are
+`build/p53-baseline/58d-release.log` and `58d-features-retry.log` in the
+same directory. Trace child exit, pipe EOF and reader completion in
+`tools/dp8382x_hil_fixture.py` before repeating the focused and full suites.
+The cause of the shutdown delay remains open.
+
+**AI/AE UBSan PASS.** All 94 registrations passed in 0.83 s, 47 per grade,
+with C and C++ trap flags `-fsanitize=undefined -fsanitize-trap=undefined`.
+The receipts are `p58d-build.log` and `p58d-ctest.log` in `build/p55-ubsan`.
+Final portable consumer, Python, source and documentation checks remain.
+Exported package, remote CI and physical evidence were **NOT RUN**.
