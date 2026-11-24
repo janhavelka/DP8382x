@@ -12,6 +12,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable, Sequence
+from contextlib import ExitStack
 
 
 class FixtureError(ValueError):
@@ -75,15 +76,43 @@ class FixtureProcess:
         with self._lock:
             return self._truncated
 
+    def _start_windows(self) -> None:
+        # Popen duplicates supplied descriptors into the child. Close our copies
+        # immediately so even a retained Popen setup frame cannot delay pipe EOF.
+        with ExitStack() as parent_streams, ExitStack() as child_fds:
+            def pipe(*, child_reads: bool):
+                read_fd, write_fd = os.pipe()
+                child_fd, parent_fd = (read_fd, write_fd) if child_reads else (write_fd, read_fd)
+                child_fds.callback(os.close, child_fd)
+                mode = "wb" if child_reads else "rb"
+                try:
+                    stream = os.fdopen(parent_fd, mode, buffering=0)
+                except BaseException:
+                    os.close(parent_fd)
+                    raise
+                return child_fd, parent_streams.enter_context(stream)
+
+            stdin_fd, stdin = pipe(child_reads=True)
+            stdout_fd, stdout = pipe(child_reads=False)
+            stderr_fd, stderr = pipe(child_reads=False)
+            self._process = subprocess.Popen(self._argv, stdin=stdin_fd, stdout=stdout_fd,
+                                             stderr=stderr_fd, bufsize=0)
+            self._process.stdin, self._process.stdout, self._process.stderr = stdin, stdout, stderr
+            parent_streams.pop_all()  # finish, _drain and _abort now own the streams.
+
     def __enter__(self) -> FixtureProcess:
         if self._process is not None:
             raise FixtureError("fixture already started")
         self._deadline = time.monotonic() + self._timeout
         try:
-            self._process = subprocess.Popen(self._argv, stdin=subprocess.PIPE,
-                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                             bufsize=0)
+            if os.name == "nt":
+                self._start_windows()
+            else:
+                self._process = subprocess.Popen(self._argv, stdin=subprocess.PIPE,
+                                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                                 bufsize=0)
         except (OSError, ValueError) as exc:
+            self._abort()
             raise FixtureError(f"fixture start failed: {exc}") from exc
         try:
             for name, pipe in (("stdout", self._process.stdout), ("stderr", self._process.stderr)):

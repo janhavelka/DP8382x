@@ -1,9 +1,9 @@
 # Prompt 58 · DP83826AI/AE identity, reset and link
 
-**IN PROGRESS. Phase (d) SDK links and AI/AE UBSan passed.** The portable core and native owner accept
+**IN PROGRESS. Phase (d) Release host, SDK links and AI/AE UBSan passed.** The portable core and native owner accept
 declared DP83826AI and DP83826AE for the 21 procedures below. The two grades
-share revision-4 identity words. The Release host suite has a reproducible
-fixture shutdown failure. Prompt 59
+share revision-4 identity words. Final portable consumer, Python and
+documentation checks remain. Prompt 59
 owns optional and diagnostic controls.
 [Prompt requirements](../../prompts/58-a-core-link.md)
 
@@ -531,3 +531,35 @@ exact abort probe, stack traces and CTest output remain in
 `build/p53-baseline/58d-failed-close-probe.txt`, `58d-abort-only.txt` and
 `58d-handles.log` in the same directory. Release host verification remains
 **FAIL** pending the repair and full rerun.
+
+### Windows fixture pipe repair
+
+The wrapper verified `main` equal to `origin/main` at
+`270a016582523190d818155578dd7056f4e454ba`. A second worker using the
+session model covered the regression independently while the lead fixed pipe
+ownership in `tools/dp8382x_hil_fixture.py`. The regression retains the
+real CPython 3.12.10 Windows `Popen._get_handles` return frame, waits for
+the child to exit 0, then calls `finish` with the frame still live. On
+the entry code it failed with `fixture closure deadline expired` in 0.932 s.
+
+Windows launch now creates all three pipes explicitly and passes the child
+descriptors to `Popen`. The fixture closes those descriptors in the parent
+as soon as launch returns. The transport owns the opposite ends through
+normal closure or abort. With the same frame retained, both readers now
+reach EOF and the regression receives exact trailing stdout and stderr.
+The existing late-exit case still rejects a child that exits beyond its
+closure deadline.
+
+On Windows x86-64, `python -B test/test_hil_fixture_process.py -q` passed
+18/18 in 1.486 s. Injecting an `os.fdopen` failure at each of the three
+pipe setup steps closed every previously opened descriptor. The isolated
+`cli_hil_features` Release registration passed 1/1 in 31.87 s using the
+command under phase (d) host verification. Its receipt is
+`build/p53-baseline/58d-pipe-fix-features.log`.
+
+**Release host PASS.** The full CTest command above passed 791/791 in
+141.74 s, including the compiled feature and interruption campaigns. Its
+receipt is `build/p53-baseline/58d-pipe-fix-release.log`. The earlier
+SDK links and AI/AE UBSan results apply to the same firmware and C++ inputs.
+Portable and exported package consumers, remote CI and physical evidence
+were **NOT RUN** in this slice.

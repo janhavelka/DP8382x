@@ -52,6 +52,43 @@ class FixtureProcessTest(unittest.TestCase):
             self.assertEqual(process.finish(), b"")
         self.assertEqual(captured, [b"one"])
 
+    @unittest.skipUnless(sys.platform == "win32" and sys.implementation.name == "cpython",
+                         "exercises CPython's Windows child pipe handles")
+    def test_closure_with_retained_pipe_setup_frame(self):
+        # A diagnostic reference can keep Popen's temporary pipe handles alive
+        # past child exit. Hold its setup frame until both streams have drained.
+        setup_code = subprocess.Popen._get_handles.__code__
+        retained = []
+
+        def retain_setup(frame, event, arg):
+            if event == "return" and frame.f_code is setup_code:
+                retained.append(frame)
+
+        script = ("import sys; sys.stdout.buffer.write(b'last stdout'); "
+                  "sys.stderr.buffer.write(b'last stderr')")
+        captured = []
+        trailing = []
+        process = FixtureProcess(child(script), 3, 100, captured.append)
+        previous_profile = sys.getprofile()
+        try:
+            sys.setprofile(retain_setup)
+            with process:
+                sys.setprofile(previous_profile)
+                self.assertEqual(len(retained), 1)
+                self.assertEqual(process._process.wait(timeout=2), 0)
+                stderr = process.finish(on_trailing=trailing.append)
+        finally:
+            sys.setprofile(previous_profile)
+            for frame in retained:
+                frame.clear()
+            for reader in process._readers.values():
+                reader.join(timeout=1)
+        self.assertEqual(process.returncode, 0)
+        self.assertEqual(process.cleanup_issue, "")
+        self.assertEqual(b"".join(captured), b"last stdout")
+        self.assertEqual(b"".join(trailing), b"last stdout")
+        self.assertEqual(stderr, b"last stderr")
+
     def test_nonzero_exit_preserves_stderr_and_reaps(self):
         captured = []
         script = "import sys;sys.stdout.buffer.write(b'data');sys.stderr.buffer.write(b'bad');sys.exit(7)"
