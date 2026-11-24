@@ -500,3 +500,34 @@ with C and C++ trap flags `-fsanitize=undefined -fsanitize-trap=undefined`.
 The receipts are `p58d-build.log` and `p58d-ctest.log` in `build/p55-ubsan`.
 Final portable consumer, Python, source and documentation checks remain.
 Exported package, remote CI and physical evidence were **NOT RUN**.
+
+### Windows fixture pipe diagnosis
+
+At synchronized commit `b1a99a7fcd61b8857bb650859c3aa7238245f499`, the
+unmodified Release registration failed on DP83826I `wol-pulse` in 26.16 s
+on Windows x86-64 with Python 3.12.10. The primary operation and restoration
+passed. Closure expired and the overall verdict was INCONCLUSIVE. Reproduce
+with the isolated CTest command above. Its log is
+`build/p53-baseline/58d-features-trace-followup.log`.
+
+Two diagnostic reruns added observations at entry to `FixtureProcess._abort`,
+after the closure deadline and before termination. Both reproduced the same
+failure on `wol-secure`. At that point the child had exited with status 0,
+stdout EOF had not arrived, and both worker stacks were in `os.read` in
+`_drain`. In the second run the parent still held the CPython
+`Popen._get_handles` frame for this exact child, including its six original
+pipe handles in `err_close_fds`. After a diagnostic cyclic garbage collection
+both readers stopped within the two 100 ms observation joins. The expired
+campaign still exited 2. A separate trace around every closure passed all
+19 tests, showing why collecting failure evidence only on abort matters.
+
+The evidence points to parent-side pipe ownership surviving child exit.
+The party retaining the Python frame has yet to be identified. The next
+slice should reproduce delayed frame collection deterministically on Windows
+and verify explicit closure of the parent's copies of the child output writers.
+Check trailing bytes, EOF, exit status and the existing late-exit rejection
+with the original deadlines. The diagnostic code was removed after use. Its
+exact abort probe, stack traces and CTest output remain in
+`build/p53-baseline/58d-failed-close-probe.txt`, `58d-abort-only.txt` and
+`58d-handles.log` in the same directory. Release host verification remains
+**FAIL** pending the repair and full rerun.
