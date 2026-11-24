@@ -104,7 +104,7 @@ Status DP8382x::startConfigureQuality(const QualitySettings& settings,const Oper
   token=_operation.token; return _operation.status;
 }
 
-bool DP8382x::_qualityRowValue(uint8_t row,uint16_t& address,uint16_t& mask,uint16_t& value) const noexcept {
+bool DP8382x::_qualityRowValue(uint8_t row,uint16_t& address,uint16_t& mask,uint16_t& value,bool readback) const noexcept {
   const auto& settings=_quality.desired;
   const auto& fld=settings.fastDrop;
   mask=value=0;
@@ -116,6 +116,9 @@ bool DP8382x::_qualityRowValue(uint8_t row,uint16_t& address,uint16_t& mask,uint
       address=0x0117;
       if (fld.owned && (fld.causeMask&4U)!=0U) {
         mask=0xFFF0; value=static_cast<uint16_t>((uint16_t{fld.windowCode}<<10U)|(uint16_t{fld.errorThreshold}<<4U));
+        // SNLS783A 8.3.17 requires the complete documented threshold word.
+        // Include the read-only nibble in every proof while preserving it on writes.
+        if (readback && isA(_config.variant) && !fld.rawThresholdOverride) { mask=0xFFFF; value=0x0417; }
       }
       break;
     case 2:
@@ -221,7 +224,7 @@ void DP8382x::_retainQualityWord(uint16_t address,uint16_t value) noexcept {
   // later observations during threshold work must instead retain disable proof.
   const uint8_t row=index==0?uint8_t{8}:static_cast<uint8_t>(index);
   uint16_t target=0,mask=0,expected=0;
-  if (!_qualityRowValue(row,target,mask,expected)) { return; }
+  if (!_qualityRowValue(row,target,mask,expected,true)) { return; }
   bool proved=!_qualityWorking || (_qualityStep!=QualityStep::PREFLIGHT &&
       (_qualityVerifyOnly || row<_qualityRow || (row==_qualityRow && _qualityStep==QualityStep::VERIFY)));
   if (index==0 && _qualityWorking && !_qualityVerifyOnly && _qualityStep!=QualityStep::PREFLIGHT &&
@@ -265,7 +268,7 @@ Status DP8382x::_advanceQuality(Status status,bool called,const MdioBatch& batch
   if (_qualityStep==QualityStep::PREFLIGHT) {
     if (!called || !qualityPrefix(batch,receipt,1)) { _quality.validMask&=0xF7U; }
   } else {
-    _qualityRowValue(_qualityRow,address,mask,expected);
+    _qualityRowValue(_qualityRow,address,mask,expected,true);
     readIndex=address>0x1FU?uint8_t{3}:address==0x001AU?uint8_t{1}:uint8_t{0};
     const int index=qualityWord(address);
     if (index>=0 && (!called || !qualityPrefix(batch,receipt,readIndex))) {
@@ -287,11 +290,6 @@ Status DP8382x::_advanceQuality(Status status,bool called,const MdioBatch& batch
     case QualityStep::APPLY:
       _qualityStep=QualityStep::VERIFY; _operation.phase=OperationPhase::VERIFY; break;
     case QualityStep::VERIFY:
-      // SNLS783A 8.3.17 specifies the complete MLT3 recipe word, including
-      // the preserved low nibble. Check it before enabling the detectors.
-      if (isA(_config.variant) && address==0x0117U && !_quality.desired.fastDrop.rawThresholdOverride) {
-        mask=0xFFFF; expected=0x0417;
-      }
       if ((receipt.frames[readIndex].value&mask)!=expected) {
         if (!_result.mismatch.valid) {
           _result.mismatch={true,address>0x1FU,static_cast<uint8_t>(address>0x1FU?31:0),address,mask,expected,receipt.frames[readIndex].value};

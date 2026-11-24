@@ -55,11 +55,26 @@ class PinTranscript(unittest.TestCase):
             out = invoke(command + b"controls interface-status\n", "--variant", grade, ATTEST, TRACE)
             for row in records(out.stdout):
                 self.assertEqual((row["primary"], row["valid_mask"], row["clk_led_status"], row["pin30_mux"]),
-                                 ("OK", "511", "0", "49"))
+                                 ("OK", "511", "2", "49"))
             self.assertIn(b"mdio-write 1f 0303 0031", out.stderr.splitlines())
             down = invoke(command, "--variant", grade, "--partner", "down", ATTEST, TRACE)
             self.assertEqual(records(down.stdout)[0]["primary"], "INVALID_CONFIG")
             self.assertNotIn(b"mdio-write 1f 0303", down.stderr)
+
+    def test_a_hard_reset_reloads_unowned_control_words(self):
+        stream = (b"controls interface rmii25 0 0 1518 50 0 pll off\n"
+                  b"controls interface rmii25 0 0 1518 50 0 keep off\n"
+                  b"registers read mmd 31 0x0303\nrecovery reset hard\n"
+                  b"registers read mmd 31 0x0303\nregisters read c22 0x11\n"
+                  b"registers read mmd 31 0x0131\nregisters read c22 0x0b\n")
+        for grade in ("DP83826AI", "DP83826AE"):
+            for mode, physcr, cr3 in (("basic", 0x010B, 0x006D), ("enhanced", 0x0108, 0x0060)):
+                with self.subTest(grade=grade, mode=mode):
+                    rows = records(invoke(stream, "--variant", grade, "--campaign", mode, ATTEST).stdout)
+                    self.assertEqual(request(rows, 4)[-1]["persistent_restored"], "1")
+                    reads = [request(rows, n)[0] for n in (3, 5, 6, 7, 8)]
+                    self.assertTrue(all(row["primary"] == "OK" for row in reads))
+                    self.assertEqual([int(row["value"]) for row in reads], [0x29, 8, physcr, 0x0288, cr3])
 
     def test_mii_compatibility_clock_and_isolation(self):
         result = invoke(b"controls interface mii 0 0 1518 50 15 led1 on\n"

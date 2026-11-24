@@ -1033,7 +1033,7 @@ struct QualitySnapshot {
   bool desiredValid{false}; ///< Explicit ownership exists.
   ConfigurationTrust trust{ConfigurationTrust::UNKNOWN}; ///< Whole owned-mask verification only.
   std::array<uint16_t,8> raw{}; ///< CR3,FLD_CFG1,FLD_CFG2,PHYSCR,CR2,10BTSCR,10M_CFG,CR1.
-  uint8_t validMask{0}; ///< Valid raw words by index; not simultaneous sampling.
+  uint8_t validMask{0}; ///< Raw words observed in the current configuration epoch, by index.
   bool observedStale{true}; ///< Failure/reset/mutation invalidates current aggregate proof.
   bool timeValid{false}; ///< Successful verification timestamp is available.
   uint64_t observedAtUs{0}; ///< Completion upper bound in binding microseconds.
@@ -1087,7 +1087,7 @@ struct InterfaceSnapshot {
   bool modeValid{false}; ///< RCSR mode word was successfully observed; stale still marks old context.
   ConfigurationTrust trust{ConfigurationTrust::UNKNOWN}; ///< Stable-owned-field verification only.
   uint16_t raw[9]{}; ///< CR1,CR2,PHYSCR,GENCFG,IO_CFG1,RCSR,BMCR,pin 31 status,A pin 30 control.
-  uint16_t validMask{0}; ///< Successfully retained raw words; failed requested words become invalid.
+  uint16_t validMask{0}; ///< Current-epoch words. Reset/invalidation clears the mask while retaining historical raw data.
   bool observedStale{true}; ///< Partial, failed or invalidated proof; old words remain historical.
   bool timeValid{false}; ///< Completion timestamp validity; zero can be valid.
   uint64_t observedAtUs{0}; ///< Conservative completion upper bound in microseconds.
@@ -1612,7 +1612,7 @@ public:
   /// @brief Apply a complete clock/interface/compatibility profile under one finite allowance.
   /// @param[in] settings Valid intent matching bound wiring and explicit stopped-MAC/clock admission.
   /// @param[out] result Unchanged on local rejection; partial evidence after an invoked callback.
-  /// @param[in] budget Aggregate deadline and frames for the complete synchronous pass.
+  /// @param[in] budget Aggregate deadline and frames for the complete synchronous pass, rechecked before first submission.
   /// @return OK, local admission error, CONFIG_MISMATCH or terminal transport/budget failure.
   /// @note SNLS647I 8-19/28/29/35/41/73/84. RCSR reads consume RC through the
   /// single collector. Failed accepted writes leave OP-9 debt; restoration uses
@@ -2042,7 +2042,8 @@ private:
   Status _advanceQuality(Status status, bool called, const MdioBatch& batch) noexcept;
   void _retainQualityWord(uint16_t address, uint16_t value) noexcept;
   void _qualityPassCost(uint32_t& frames, uint32_t& callbacks) const noexcept;
-  bool _qualityRowValue(uint8_t row, uint16_t& address, uint16_t& mask, uint16_t& value) const noexcept;
+  bool _qualityRowValue(uint8_t row, uint16_t& address, uint16_t& mask, uint16_t& value,
+                        bool readback = false) const noexcept;
   void _nextQualityRow() noexcept;
   Status _finishQuality(Status status) noexcept;
   enum class InterfaceStep : uint8_t { PREFLIGHT, APPLY, VERIFY, CLOCK_STATUS, COMPLETE };
@@ -2202,6 +2203,7 @@ private:
   EvidenceSnapshot _evidence{};
   CounterSnapshot _counters{};
   DeviceIdentity _identity{};
+  Status _identityRejection{}; ///< Last conclusive rejection until a successful probe or rebind.
   SettingsSnapshot _settings{};
   LinkSnapshot _link{};
   ConfigureOptions _configureOptions{};
@@ -2245,7 +2247,7 @@ private:
   bool _featureProcedureActive() const noexcept;
   Status _execute(MdioBatch batch, const IoBudget& budget, bool* called = nullptr,
                   bool operation = false, Traffic traffic = Traffic::RAW,
-                  uint8_t identityAddress = 32) noexcept;
+                  uint8_t identityAddress = 32, uint64_t passBoundUs = 0) noexcept;
   Status _readIdentity(DeviceIdentity& identity, const IoBudget& budget, bool operation,
                        bool* called = nullptr) noexcept;
   void _retainEvidence(const MdioBatch& batch, const BatchResult& result,

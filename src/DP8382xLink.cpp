@@ -89,8 +89,12 @@ Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) n
     for (uint8_t i = 0; i < batch.frameCount; ++i) {
       batch.frames[i] = {FrameKind::READ, addresses[offset + i], 0, 0, NO_READ_INDEX};
     }
-    const auto status = _execute(batch, remaining, nullptr, false, Traffic::MANAGED);
+    const auto status = _execute(batch, remaining, nullptr, false, Traffic::MANAGED, 32, offset == 0U ? bound : 0U);
     if (!status.ok()) { return fail(status); }
+    if (aGeneration && !_initialized) {
+      return fail(Status::Error(Err::INVALID_CONFIG, "Reset observed during link acquisition",
+                                static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED)));
+    }
     for (uint8_t i = 0; i < batch.frameCount; ++i) { words[offset + i] = _transport.lastBatch.frames[i].value; }
     remaining.maxFrames -= batch.frameCount;
     offset = static_cast<uint8_t>(offset + batch.frameCount);

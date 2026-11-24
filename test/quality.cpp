@@ -650,6 +650,28 @@ template<Variant grade> void aQuality() {
   const auto failure=take(wrong,t);
   CHECK(failure.mismatch.valid && failure.mismatch.mask==0xFFFF && failure.mismatch.expected==0x0417);
   CHECK((wrongNibble.words[11]&0x040F)==0 && failure.cleanupOwed);
+  for (unsigned polls:{5U,7U}) {
+    Controller b; Driver d; b.declared=grade; b.id2=0xA134; initialized(d,b);
+    const auto token=start(d,b,settings(false));
+    for (unsigned i=0;i<polls;++i) CHECK(poll(d,b,token).inProgress());
+    b.ext[0x117]=0x0416; uint16_t word=0;
+    CHECK(d.readMmd(31,0x117,word,{1000000,4}).ok() && word==0x0416);
+    const auto frames=b.frames;
+    CHECK(drain(d,b,token).is(Err::CONFIG_MISMATCH) && b.frames==frames);
+    const auto failed=take(d,token);
+    CHECK(failed.mismatch.mask==0xFFFF && failed.mismatch.observed==word && failed.cleanupOwed);
+    CHECK((b.words[11]&0x040F)==0 && !failed.persistentRestored);
+  }
+  {
+    Controller b; Driver d; b.declared=grade; b.id2=0xA134; initialized(d,b);
+    configured(d,b,settings(false));
+    b.corruptFrame=static_cast<int>(b.frames+11); b.corruptMask=0x4000;
+    OperationToken init; CHECK(d.startInitialize({ResetKind::NONE},budget(),init).inProgress());
+    CHECK(drain(d,b,init).ok() && take(d,init).persistentRestored && d.strapSnapshot().sor2Valid);
+    uint16_t word=0; b.ext[0x117]=0x0416;
+    CHECK(d.readMmd(31,0x117,word,{1000000,4}).ok());
+    CHECK(d.qualitySnapshot().trust==ConfigurationTrust::DIRTY && !d.qualitySnapshot().fldMaximumApplicable);
+  }
 }
 } // namespace
 int main(int argc,char** argv) {

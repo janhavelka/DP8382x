@@ -35,6 +35,12 @@ I and E share revision-1 ID
 words for a given operating mode. The runner checks the declaration even when
 those words match. Saved I sessions use the same schema and checks.
 
+The compiled A fixture holds Strap7 and Strap11 low. Its HARD reset reloads
+the simulated interface and FLD controls before the driver replays owned
+settings. The control cases check full register words, including the PHYSCR
+defaults of 010Bh in BASIC and 0108h in ENHANCED, and distinguish pin 31's
+raw 0002h status word from its route bit 0.
+
 The `passive` plan checks cached owner/transport evidence and submits a
 register write with a syntactically out-of-range value. The exact expected rejection
 needs the specified status, detail and reason, plus matching usable

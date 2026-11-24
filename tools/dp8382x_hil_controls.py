@@ -198,12 +198,12 @@ CONTROLS = {
 
 def a_control(name, mode):
     """Independently expected A register words for the simulated entry and target profiles."""
-    physcr = 3 if mode == "basic" else 0
+    physcr = 0x010B if mode == "basic" else 0x0108
     if name == "quality":
         def fld(causes, recovery, cr3, cr1):
             return Setting(f"controls quality {causes} keep keep {recovery}",
                            dict(desired=1, trust=1, stale=0, valid_mask=159, fld_bound_applicable=1,
-                                cr3=cr3, fld_cfg1=0x0417, fld_cfg2=0x0288, physcr=physcr, cr2=0,
+                                cr3=cr3, fld_cfg1=0x0417, fld_cfg2=0x0288, physcr=physcr, cr2=0x0102,
                                 btscr=0, config10=0, cr1=cr1))
         # Retain CR3[6:5] from the entry MDIX profile. Both profiles program the
         # documented thresholds and preserve the PHYSCR reset bits for this mode.
@@ -211,15 +211,15 @@ def a_control(name, mode):
                        fld("0x40d", "on", 0x046D, 160))
     if name == "interface-mii":
         # The ENHANCED case verifies the independent pin 30 PLL mux and pin 31 sample.
-        base = interface("mii 0 0 1518 50 16 pll off", 495, cr1=32, cr2=0, physcr=0, gencfg=0,
-                         io_cfg1=0, rcsr=65, bmcr=4096, clk_led_status=0, pin30_mux=0x29)
-        target = interface("mii 0 0 1518 50 31 pll on", 495, cr1=34, cr2=2, physcr=16, gencfg=8,
-                           io_cfg1=0, rcsr=65, bmcr=5120, clk_led_status=0, pin30_mux=0x29)
+        base = interface("mii 0 0 1518 50 16 pll off", 495, cr1=32, cr2=0x0100, physcr=0x0108, gencfg=0,
+                         io_cfg1=0, rcsr=65, bmcr=4096, clk_led_status=2, pin30_mux=0x29)
+        target = interface("mii 0 0 1518 50 31 pll on", 495, cr1=34, cr2=0x0102, physcr=0x0118, gencfg=8,
+                           io_cfg1=0, rcsr=65, bmcr=5120, clk_led_status=2, pin30_mux=0x29)
         return Control({**INTERFACE, "pin30_mux": WORD}, "controls interface-status", base, target, "terminal")
     if name in ("interface-rmii25", "interface-rmii50", "repeater-leader", "repeater-follower"):
         spec = CONTROLS[name]
-        base = replace(spec.baseline, fields={**spec.baseline.fields, "physcr": physcr})
-        target = replace(spec.target, fields={**spec.target.fields, "physcr": physcr})
+        base = replace(spec.baseline, fields={**spec.baseline.fields, "physcr": physcr, "cr2": 0x0100})
+        target = replace(spec.target, fields={**spec.target.fields, "physcr": physcr, "cr2": 0x0102})
         return replace(spec, baseline=base, target=target)
     return None
 

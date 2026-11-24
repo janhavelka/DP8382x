@@ -194,11 +194,14 @@ void traces() {
     CHECK(driver.operationSnapshot().phase == OperationPhase::WAIT);
     CHECK(!driver.isInitialized());
     CHECK(driver.capabilities().valid == (active == 0x4000));
+    CHECK(driver.strapSnapshot().sor2Valid == (active == 0x4000));
     CHECK(bus.phys[1].vod == 0x8400);
     bus.stickyReset = false;
     CHECK(drain(driver, bus, token).ok());
     const auto result = take(driver, token);
     CHECK(result.persistentRestored && !result.commandAccepted && !result.protocolComplete);
+    CHECK(driver.strapSnapshot().sor1Valid && driver.strapSnapshot().sor2Valid);
+    CHECK(driver.strapSnapshot().observedAtUs == result.straps.observedAtUs);
     for (unsigned i = 0; i < bus.frames; ++i)
       CHECK(!(bus.trace[i].reg == 0x1F && bus.trace[i].kind == FrameKind::WRITE));
   }
@@ -722,8 +725,16 @@ void access() {
   const auto rejectedAt = bus.frames;
   CHECK(driver.readMmd(31, 0x030E, word, io).is(Err::DEVICE_MISMATCH));
   CHECK(bus.frames == rejectedAt);
+  bus.failFrame = static_cast<int>(rejectedAt + 1);
+  CHECK(driver.readIdentity(identity, io).is(Err::MDIO_TIMEOUT));
+  const auto partial = driver.identitySnapshot();
+  CHECK(partial.id1Valid && !partial.id2Valid && partial.admissionStatus.is(Err::MDIO_TIMEOUT));
+  CHECK(driver.readMmd(31, 0x030E, word, io).is(Err::DEVICE_MISMATCH));
+  CHECK(driver.readClause22(0, word, io).is(Err::DEVICE_MISMATCH));
+  CHECK(bus.frames == rejectedAt + 2);
   bus.phys[1].id2 = 0xA134;
-  CHECK(driver.readIdentity(identity, io).ok() && bus.frames == rejectedAt + 2);
+  CHECK(driver.readIdentity(identity, io).ok() && bus.frames == rejectedAt + 4);
+  CHECK(driver.readMmd(31, 0x030E, word, io).ok() && word == 0x4A40);
 }
 } // namespace
 

@@ -25,6 +25,7 @@ struct Controller {
   uint16_t finalStatusXor{0}, finalBasicXor{0};
   uint64_t now{100}, frameTime{2};
   unsigned frames{0}, calls{0}, clocks{0}, sampleIndex{0}, exclusions{0}, writes{0};
+  unsigned delayedClock{0};
   int failFrame{-1}, lateCall{-1}, regressCall{-1}, releaseFailCall{-1}, malformedCall{-1};
   int changeAt{-1};
   bool sampling{false}, firstLow{false}, down{false}, locked{false}, stamps{false};
@@ -41,12 +42,13 @@ struct Controller {
   static uint64_t clock(void* context) noexcept {
     auto& bus = *static_cast<Controller*>(context);
     ++bus.clocks;
+    if (bus.clocks == bus.delayedClock) bus.now += 15;
     return bus.now;
   }
   uint16_t read(uint8_t reg) noexcept {
     if (reg == 2) return 0x2000;
     if (reg == 3) return test::enhancedId2();
-    if (reg == 0) words[0] = static_cast<uint16_t>(words[0] & 0x7DFFU);
+    if (reg == 0 && !sampling) words[0] = static_cast<uint16_t>(words[0] & 0x7DFFU);
     if (reg == 31) words[31] = 0;
     if (reg == 14 && selector == 0x401F) {
       if (address == 0x030E) return vod;
@@ -406,6 +408,17 @@ void forced() {
 }
 
 void failures() {
+  if (test::aGrade()) {
+    Controller bus; Driver driver; initialize(driver,bus); up(bus);
+    LinkSnapshot out; CHECK(refresh(driver,bus,out).ok());
+    const auto saved = out;
+    bus.words[0] = 0x8000;
+    const auto first = bus.frames;
+    const auto status = refresh(driver,bus,out);
+    CHECK(status.is(Err::INVALID_CONFIG) && status.detail == static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED));
+    CHECK(bus.frames-first == 8 && !driver.isInitialized() && driver.linkSnapshot().stale);
+    CHECK(out.observations == saved.observations && out.observedAtUs == saved.observedAtUs);
+  }
   {
     Controller bus; Driver driver; initialize(driver,bus); up(bus);
     LinkSnapshot output; CHECK(refresh(driver,bus,output).ok());
@@ -485,6 +498,9 @@ void budgets() {
   // Bounds: two callbacks each acquire/release=8, ten frames=4, clock lag=1.
   CHECK(!refresh(driver, bus, result, {bus.now + 50, 10}).ok());
   CHECK(bus.calls == calls); // Entire ten-read plan is reserved before any I/O.
+  bus.delayedClock = bus.clocks + 2;
+  CHECK(refresh(driver, bus, result, {bus.now + 58, 10}).is(Err::OPERATION_TIMEOUT));
+  CHECK(bus.calls == calls && !driver.linkSnapshot().valid);
   CHECK(refresh(driver, bus, result, {bus.now + 58, 10}).ok()); // Strict bound+lag+1 admission.
   CHECK(refresh(driver, bus, result, {1000000, 10}).ok());
   // Every failed admitted refresh withdraws freshness, even when its entire

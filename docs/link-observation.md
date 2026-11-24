@@ -14,6 +14,11 @@ the application's optional 100/full and maximum-age policy.
 
 ## Admission and acquisition
 
+Link acquisition rechecks the ten-frame, two-callback reserve at the first
+submission. If the first AI/AE batch observes BMCR reset, the collector retains the
+completed reads, the cached link becomes stale and the caller's output stays
+unchanged. Reinitialize before acquiring a fresh link.
+
 Initialization and accepted identity are required; verified settings are not
 required merely to observe link. OP-14 admits the call between operation polls
 and while a result is pending. It rejects callback reentry, reset WAIT, the

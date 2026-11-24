@@ -2374,14 +2374,25 @@ void observationResetTrust() {
         if (!carrierUp) { f.mac.registers[1] = 0x7849; f.mac.registers[0x10] = 0; }
         Host::tickTimers();
         const auto lost = f.journal();
-        assert(lost.stopRequired && lost.lastObservationStatus.is(Err::NOT_INITIALIZED));
+        assert(lost.stopRequired);
+        if (test::aGrade()) {
+            assert(lost.lastObservationStatus.is(Err::INVALID_CONFIG));
+            assert(lost.lastObservationStatus.detail == static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED));
+        } else {
+            assert(lost.lastObservationStatus.is(Err::NOT_INITIALIZED));
+        }
         assert(!lost.publishedTuple.up && f.mac.link == ETH_LINK_DOWN && countCall("mac.down") == 1);
         SdkStateSnapshot sdk;
         SettingsSnapshot settings;
         LinkSnapshot sample;
         assert(f.owner->sdkStateSnapshot(sdk).ok() && !sdk.reconciled);
         assert(f.owner->settingsSnapshot(settings).ok() && settings.trust == ConfigurationTrust::DIRTY);
-        assert(f.owner->linkSnapshot(sample).ok() && sample.valid && sample.rawBmcr == 0x9000 && sample.linkUp == carrierUp);
+        assert(f.owner->linkSnapshot(sample).ok() && sample.valid);
+        if (test::aGrade()) {
+            assert(sample.stale && sample.rawBmcr != 0x9000 && sample.linkUp);
+        } else {
+            assert(sample.rawBmcr == 0x9000 && sample.linkUp == carrierUp);
+        }
         const auto frames = f.mac.frames.size();
         f.mac.registers[0] = 0x1000; // Completion alone supplies no restored configuration evidence.
         f.mac.registers[1] = 0x786D; f.mac.registers[0x10] = 0x0015;
@@ -3573,6 +3584,7 @@ int main(int argc, char** argv) {
         configurationAdmission();
         notifications();
         notificationFailures();
+        observationResetTrust();
     }
     else if (suite == "notifications") notifications();
     else if (suite == "notification_failures") notificationFailures();

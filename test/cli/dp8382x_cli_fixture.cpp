@@ -123,6 +123,23 @@ struct Bus {
   uint64_t peerReadyUs{0};
   bool peerStartsDuringSample{false};
 
+  // Reload the A control words exercised by the core/link campaigns. The
+  // simulated board holds Strap7 and Strap11 low, with RMII strapped as leader.
+  void resetAControls() {
+    const bool rmii = (vendor[0x0468] & 0x0010U) != 0U;
+    words[9] = 0;
+    words[10] = basic || (vendor[0x0467] & 2U) == 0U ? 0x0102 : 0x0100;
+    words[11] = basic ? 0x000D : 0;
+    words[17] = basic ? 0x010B : 0x0108;
+    words[23] = rmii ? 0x0061 : 0x0041;
+    vendor[0x0117] = 0x8147;
+    vendor[0x0131] = 0x0288;
+    vendor[0x0302] = 0;
+    vendor[0x0303] = 0x0008;
+    vendor[0x0308] = 0x0002;
+    vendor[0x0456] = 0x0008;
+  }
+
   void setup(const Options& options) {
     *this = {};
     failAfter = options.failAfter;
@@ -167,8 +184,7 @@ struct Bus {
       const bool rmii = options.interface == MacInterface::RMII;
       vendor[0x0467] = rmii ? (basic ? 0x0010 : 0x0102) : 0;
       vendor[0x0468] = rmii ? 0x0010 : 0;
-      vendor[0x0131] = 0x0288;
-      words[17] = basic ? 3 : 0;
+      resetAControls();
     }
     vendor[0x04A0] = 0x1881; // Wake indication pending with a reset detector profile.
     vendor[0x04A1] = 0x1000;
@@ -276,7 +292,8 @@ struct Bus {
         words[31] = holdReset ? value : uint16_t{0};
         if (value == 0x8000U) {
           words[0] = 0x3100;
-          words[17] = aGrade && basic ? 3 : 0;
+          words[17] = 0;
+          if (aGrade) resetAControls();
           words[22] = 0x0100;
           words[24] = 0; // Reload the modeled LED register on hard reset.
           words[27] = 0x007D;

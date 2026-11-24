@@ -6,7 +6,9 @@ Pin 30 clock selection uses LED0_GPIO_CFG[5:0] at 0303, preserving the upper
 bits. PLL selects 29h and recovered 125 MHz selects 31h with a live partner.
 The owner must admit the pins, reference and clock change. Set `observePin31`
 for an ENHANCED status read at 0308. The snapshot retains 0303 at index 8,
-with validity bit 8. Programming the pin 31 mux remains source-gated.
+with validity bit 8. After HARD reset, only words sampled again have valid
+bits. Raw values for unrequested pins remain available as historical data.
+Programming the pin 31 mux remains source-gated.
 [Register tables and ownership](registers/dp83826a-procedures.json)
 
 The [typed control CLI](cli.md#typed-controls) applies one interface and repeater side per owner and exposes cached clock and mode evidence.
@@ -16,6 +18,10 @@ finite `IoBudget`. `interfaceSnapshot` copies retained desired settings, observe
 words and configuration trust without MDIO or clock sampling. The application
 serializes these calls and every controller participant honors each complete
 indirect or read/modify/write transaction.
+
+The direct call checks its complete time allowance again at the first MDIO
+submission. If scheduling consumed the reserve, the prior desired profile and
+the caller's result remain intact and the controller receives no transaction.
 
 The exact DP83826I sources are SNLS647I sections 8.3.7–10 and tables 8-19, 8-28/29,
 8-35, 8-41, 8-73 through 8-78 and 8-84. The [ledger](register-map.md) owns field facts;

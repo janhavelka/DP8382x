@@ -1,9 +1,9 @@
 # Prompt 58 · DP83826AI/AE identity, reset and link
 
-**IN PROGRESS. Phase (b) implemented.** The portable core and native owner accept
+**IN PROGRESS. Phase (c) reviewed and corrected.** The portable core and native owner accept
 declared DP83826AI and DP83826AE for the 21 procedures below. The two grades
-share revision-4 identity words. Prompt 58 still requires independent review
-and final verification. Prompt 59 owns optional and diagnostic controls.
+share revision-4 identity words. Phase (d) verifies the synchronized review
+checkpoint. Prompt 59 owns optional and diagnostic controls.
 [Prompt requirements](../../prompts/58-a-core-link.md)
 
 ## Phase (a) assessment
@@ -351,3 +351,86 @@ link fixture. Short directories below are under `C:/esp/build/dp8382x-loop`.
 | AE adapter fixture, `56l` | 391216 | `a148fa5c86a875d7a4439680df4ffcc82e1f3e78da15be4833facbde578b9d9a` |
 | I basic example, `56b` | 688240 | `8344fc3bfa89992fa2ad947cf2fb120f416264aa4f8c8fc6e51ad54867901976` |
 | I owner example, `56o` | 566336 | `9b7bf0940adda98de618126094fc5a215ab2ec7a4aaa3bf688f586a886c653d3` |
+
+## Phase (c) independent review and fixes
+
+The wrapper synchronized the implementation at
+`1e5e035bc781efbf835ebfbbfce71098839db92c`. The index and worktree were clean
+on entry and local `main` was 0/0 against `origin/main`. Two read-only reviewers
+used the session's high-reasoning model in parallel to trace destructive reads,
+reset domains, deadline admission and state retention across the 21 assigned
+procedures. One examined identity, resets, link, crossover and FLD. The other
+examined interface, pin and threshold ownership, replay and partial effects.
+Both completed. Their pre-fix reproducers are in local `build/p58c-core` and
+`build/p58c-io`. The lead checked the findings, CLI fixture, runner and native
+publication contract and integrated the following Release-active regressions.
+
+| Finding at the implementation checkpoint | Correction and executing test (both AI and AE) |
+| --- | --- |
+| After a known wrong-generation ID, a retry that timed out on ID2 reopened MMD access. | Retain the last conclusive rejection independently of the most recent identity receipt. `reset_access` checks partial ID1, zero feature frames while rejected, and restored access after an accepted pair. |
+| Independently observing 1F=4000 cleared the live SOR pair while the operation still reported it as valid. | Preserve the strap capture across register-preserving restart. `reset_traces` compares the two snapshots and `quality` replays owned FLD through an independently active restart during NONE initialization. HARD still withdraws strap validity. |
+| A scheduling delay between the initial clock sample and the first link or interface submission could start a pass whose full cost no longer fit. | Recheck the aggregate bound at callback entry. `link_budgets` delays the second sample by 15 µs. `interface` delays it by 240 µs on a 44-frame, 17-callback pass. Both deny the callback. The direct interface call preserves the previous desired state and caller output. |
+| A BMCR reset during an A link read invalidated identity, yet a second destructive batch could publish fresh UP. | Stop after the first eight frames, keep collected evidence and return DEVICE_INVALIDATED. `link_failures` checks the unchanged output and stale cache. `native_lifecycle` verifies administrative DOWN and required stop for both carrier states. The original-grade native registration still checks its historical physical sample and administrative withdrawal. |
+| Pin words from before HARD regained valid bits when the caller had dropped those pin requests and replay skipped them. | Invalidate interface and quality word masks when the device configuration is lost. Retain the historical words. `interface` checks that an unowned 0303 and unrequested 0308 stay invalid after successful replay. |
+| An independent read of 0117=0416 after threshold verification could leave FLD enabled and trusted. | Use FFFF/0417 for all observations of the A recipe and FFF0 for its write. `quality` injects the read after the MLT3 row, immediately before enable, and after completion. The pending pass stops without further frames, retains the mismatch and reports cleanup owed. |
+| The compiled A fixture retained programmed pin/threshold words across HARD and omitted fixed bits from reset readback. | Reload the simulated A interface and FLD controls from the fixed strap inputs. The CLI checks the unowned pin 30 transition 0029→0008, BASIC/ENHANCED PHYSCR 010B/0108 and FLD_CFG2=0288. The runner checks full register words, including raw pin 31 status 0002 with bit 0 clear, and replays quality and RMII cases in BASIC as well as ENHANCED. |
+
+Source review used SNLS783A §8.3.17, figure 8-13 and tables 8-5/6,
+8-20/21, 8-29 through 8-31, 8-35/36, 8-49, 8-53/54, 8-74/75 and 8-79.
+SDAA067A leaves Strap11 EMC qualification with the physical fixture. The two
+phase (a) PDF cross-checks passed again for 79 tables and 427 rows per
+generation, eight FLD vectors and the 52 procedure assignments. Reopened
+the live sibling headers, sources, CLI, runners, tests and agent rules in
+the phase (a) table. MB85RC, TMP1x2 and TUSB32x were clean at those same
+revisions. Their distinction between declared identity and partial observation
+applies directly to the inconclusive reprobe regression.
+
+### Phase (c) local verification
+
+Windows x86-64, GNU 15.1.0, Ninja, CMake 4.0.1, Python 3.12.10 and the
+phase (b) pinned ESP-IDF v6.1 checkout. Use the process-local SDK Git and tool
+settings in the [prompt 53 report](53-regression-transaction-ownership.md) for host and SDK
+commands. The initial full run caught three original-grade native reset
+contract regressions and an SDK identity check run without its scoped Git
+setting. The corrected native tests cover the original sample contract and
+the A rejection separately. The final commands use the configured SDK path.
+
+```powershell
+cmake --build build/p53-baseline --parallel 8
+ctest --test-dir build/p53-baseline --no-tests=error --output-on-failure -j 3
+cmake --build build/p55-ubsan --parallel 5
+ctest --test-dir build/p55-ubsan -R '^(ai|ae)_' --no-tests=error --output-on-failure -j 3
+cmake --build build/p58-consumer --parallel 3
+ctest --test-dir build/p58-consumer --no-tests=error --output-on-failure
+python -B test/test_hil_features.py --fixture build/p53-baseline/test/cli/dp8382x_cli_fixture.exe --work-dir build/p58c-runner CompiledFeatureTests.test_a_feature_cases_require_their_generation_profiles
+python -B -m unittest discover -s test -p 'test_*.py' -q
+python -B build/p57-final-sources/crosscheck.py
+python -B build/p57-procedures/check.py
+python -B tools/check_doxygen.py
+python -B tools/verify_ledger.py
+python -B tools/verify_references.py
+python -B scripts/generate_version.py check
+git diff --check
+```
+
+SDK link **PASS** for both declared adapter fixtures and both fitted-I
+applications. The four ELF/bin pairs contain the review entry SHA and dirty
+tree identity. Reproduce with the four phase (b) wrapper invocations.
+
+| P4 project and directory | Binary bytes | SHA-256 |
+| --- | ---: | --- |
+| AI adapter, `53l` | 391664 | `9a6c5068ddb0d149a9a8549d4b8b4bdb910a2301c9ed7665a46854d903051ded` |
+| AE adapter, `56l` | 391664 | `bccaba49767725799941f1f79e8b9d186a60fe97b74a3d2a07174bea6669e93b` |
+| I basic, `56b` | 688896 | `1f7abd3717329d07c931853a124630c33803a9fc365423cf7c188f5eab2e3552` |
+| I owner, `56o` | 567008 | `74a5d4166472dec19177359a3e31d551add78cbf94c640379308e919adca6299` |
+
+Release host **PASS** 791/791 in 147.33 s, including pinned native integration,
+compiled CLI campaigns, replay and interruption tests. A-specific UBSan trap
+**PASS** 94/94. The focused BASIC/ENHANCED campaign regression also passed.
+Standalone Python ran 269 tests with 55 compiled-fixture skips. Doxygen passed
+with 294 generated pages and two rejected negative fixtures. Source, ledger,
+reference, version and whitespace checks passed. The portable tests-OFF
+consumer build passed 2/2. Exported package, remote CI and physical evidence
+were **NOT RUN**. Remote CI belongs to prompt 71. Grade-specific clock, reset,
+FLD timing and Strap11 EMC qualification still require identified, authorized
+fixtures. Phase (d) starts after the wrapper synchronizes this review.

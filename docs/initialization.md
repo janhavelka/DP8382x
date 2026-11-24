@@ -6,7 +6,9 @@ PCS preserves vendor words and RESTART preserves settings. Each requested
 initialization rechecks identity, SOR1/SOR2 and the VOD readback. Use
 `strapSnapshot()` for current-epoch validity per word, including a valid
 SOR1 if the second read fails. On A, `strap11High()` reports pin 19 when
-SOR1 is valid. ENHANCED Strap1 and Strap6 are POR-only.
+SOR1 is valid. ENHANCED Strap1 and Strap6 are POR-only. An independently
+observed PHYRCR[14] restart preserves these strap words for profile replay.
+An observed HARD reset invalidates the capture and requires a fresh pair.
 
 The core implements exact-address DP83826I/E and DP83826AI/AE initialization with `ResetKind::NONE`,
 `PCS`, `HARD` or `RESTART`. Every path accepts identity, captures raw straps,

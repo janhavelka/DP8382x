@@ -3,7 +3,10 @@
 DP83826AI and DP83826AE require ID1 `2000` with ID2 `A114` (BASIC) or
 `A134` (ENHANCED), as specified in SNLS783A tables 8-22/23. A contradictory
 mode or revision retains the observed identity and ends initialization before
-selector writes. The application declaration distinguishes the grades.
+selector writes. If a later probe times out after ID1, the identity snapshot
+retains that partial read. The earlier rejection still blocks feature reads and
+MMD selector writes until a complete matching probe or a new binding.
+The application declaration distinguishes the grades.
 
 During a running initialization, identity reads use OP-14 admission: reset WAIT
 rejects them locally; other between-poll reads remain admitted. A failed or

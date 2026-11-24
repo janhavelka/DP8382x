@@ -155,6 +155,11 @@ class CompiledFeatureTests(unittest.TestCase):
 
             mismatch = ("--fixture-variant", "DP83826AE" if grade == "DP83826AI" else "DP83826AI",
                         "--variant", grade)
+            for name in ("quality", "interface-rmii25"):
+                with self.subTest(grade=grade, case=name, mode="basic"):
+                    result, data, _ = self.run_case(name, "-" + grade + "-basic",
+                                                    args + ("--operating-mode", "basic"))
+                    self.assertEqual((result, data["cases"][0]["restoration"]["verdict"]), (0, "PASS"))
             result, data, raw = self.run_case("quality", "-swap-" + grade, mismatch)
             self.assertEqual(result, 2)
             self.assertEqual(len(data["commands"]), 1)

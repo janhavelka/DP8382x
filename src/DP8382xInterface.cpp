@@ -382,11 +382,16 @@ Status DP8382x::configureInterface(const InterfaceSettings& settings,InterfaceRe
   IoBudget remaining=budget;
   while (_interfaceStep!=InterfaceStep::COMPLETE) {
     const auto batch=_interfaceBatch(); const auto before=_interfaceResult.attemptedFrames;
-    bool called=false; const auto status=_execute(batch,remaining,&called,false,Traffic::MANAGED);
+    const auto reserve=_interfaceStep==InterfaceStep::PREFLIGHT?bound:0U;
+    bool called=false;
+    const auto status=_execute(batch,remaining,&called,false,Traffic::MANAGED,32,reserve);
     _advanceInterface(status,called,batch);
     remaining.maxFrames-=_interfaceResult.attemptedFrames-before;
   }
   _interfaceWorking=_interfaceDirect=false;
+  if (_interfaceResult.transactions==0U && _interfaceResult.status.is(Err::OPERATION_TIMEOUT)) {
+    _interface=old;
+  }
   if (!_interfaceResult.status.ok() && _interfaceResult.mutationPossible) {
     _operation.cleanupOwed=true; _cleanupOwner=OperationKind::INTERFACE_CONFIGURE;
   }

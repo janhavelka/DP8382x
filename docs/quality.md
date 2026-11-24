@@ -4,6 +4,10 @@ AI/AE admit FLD in declared and observed MII. MLT3, low SNR or descrambler
 selection requires energy or RX-error detection, including with raw threshold
 overrides. The owner disables detectors before programming thresholds and
 verifies the recipe before enabling CR3[10,3:0]. Bits 6:5 remain preserved.
+For the documented MLT3 recipe, any subsequent read of 0117 that differs
+from 0417 withdraws verification, including a change in the read-only nibble.
+If that read arrives between polls, the pending configuration stops before
+its next write and retains the mismatch and any cleanup obligation.
 Use `strapSnapshot()` for the sampled Strap11 level. RX-error with MLT3
 (option 4) and energy alone (option 5) are distinct board choices. TI recommends
 disabling energy detection when baseline wander is expected. The rollover

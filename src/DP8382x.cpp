@@ -428,6 +428,7 @@ Status DP8382x::bind(const Config& config) noexcept {
   _evidence = {};
   _counters = {};
   _identity = {};
+  _identityRejection = {};
   _straps = {};
   _settings = {};
   _link = {};
@@ -479,6 +480,7 @@ Status DP8382x::end() noexcept {
   _evidence = {};
   _counters = {};
   _identity = {};
+  _identityRejection = {};
   _straps = {};
   _settings = {};
   _link = {};
@@ -589,6 +591,7 @@ Status DP8382x::_readIdentity(DeviceIdentity& identity, const IoBudget& budget, 
   }
   if (status.ok()) {
     status = assessIdentity(*_part, observed, _config.requiredMode);
+    _identityRejection = status;
     observed.acceptance = status.ok() ? IdentityAcceptance::ACCEPTED : IdentityAcceptance::REJECTED;
     observed.stale = false;
   }
@@ -703,6 +706,8 @@ void DP8382x::_invalidateEvidence() noexcept {
   _quality.observedStale = true; _quality.fldMaximumApplicable = false;
   if (_quality.desiredValid) { _quality.trust = ConfigurationTrust::DIRTY; }
   _interface.observedStale = true; _interface.modeValid = false;
+  _interface.validMask = 0;
+  _quality.validMask = 0;
   if (_interface.desiredValid) { _interface.trust = ConfigurationTrust::DIRTY; }
   _pins.observedStale = true;
   if (_pins.desiredValid) { _pins.trust = ConfigurationTrust::DIRTY; }
@@ -1261,21 +1266,21 @@ bool DP8382x::_featureProcedureActive() const noexcept {
 }
 
 Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
-                        bool operation, Traffic traffic, uint8_t identityAddress) noexcept {
+                        bool operation, Traffic traffic, uint8_t identityAddress, uint64_t passBoundUs) noexcept {
   if (called != nullptr) { *called = false; }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (_active || (!operation && (_polling || (_operation.state == OperationState::RUNNING && !_configuring && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && !_analogWorking && !_electricalWorking &&
       _operation.phase == OperationPhase::WAIT)))) { return busy(BusyDetail::OPERATION_ACTIVE); }
   if (_transport.clockInvalid) { return configError(ConfigDetail::CLOCK_CONTRACT); }
   if (_stopped) { return busy(BusyDetail::CONTROLLER_QUARANTINED); }
-  if (isA(_config.variant) && _identity.acceptance == IdentityAcceptance::REJECTED) {
+  if (isA(_config.variant) && !_identityRejection.ok()) {
     // A rejected device may be reprobed. Even selector writes for a stable
     // MMD observation must wait for a matching declaration and identity.
     for (uint8_t i = 0; i < batch.frameCount; ++i) {
       const auto& frame = batch.frames[i];
       if (frame.kind != FrameKind::READ ||
           (frame.registerAddress != cmd::REG_PHYIDR1 && frame.registerAddress != cmd::REG_PHYIDR2)) {
-        return _identity.admissionStatus;
+        return _identityRejection;
       }
     }
   }
@@ -1286,6 +1291,10 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
   if (status.ok() && _quietAt(before)) { return busy(BusyDetail::OPERATION_ACTIVE); }
   if (status.ok()) {
     status = admitBudget(budget, _config.transport.bounds, batch.frameCount, before, upper);
+  }
+  // Direct multi-batch callers reserve the whole pass at its first submission.
+  if (status.ok() && passBoundUs >= budget.deadlineUs - upper) {
+    return timeout(TimeoutDetail::BOUND_ADMISSION);
   }
   // Scheduling after poll admission can consume the reserve before the callback.
   if (status.ok() && operation) { status = _admitResetStep(budget, before); }
@@ -1918,9 +1927,9 @@ Status DP8382x::_anchorQuiet() noexcept {
 }
 
 void DP8382x::_invalidateResetEvidence(bool configurationLost) noexcept {
-  _straps = {};
   _invalidateLink();
   if (configurationLost) {
+    _straps = {};
     _invalidateEvidence();
     if (_operation.state == OperationState::RUNNING) {
       _result.identity.stale = true;
@@ -1956,6 +1965,10 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
   if (raw >= _operation.remaining.deadlineUs) { return _finishOperation(timeout(TimeoutDetail::DEADLINE)); }
   if (_quietAt(raw)) { return _yieldOperation(raw); }
   if (_operation.nextPollValid && raw < _operation.nextPollAtUs) { return _yieldOperation(raw); }
+  // A between-poll observation may contradict a verified detector prerequisite.
+  if (_qualityWorking && !_qualityVerifyOnly && _result.mismatch.valid) {
+    return _finishOperation(_finishQuality(Status::Error(Err::CONFIG_MISMATCH,"Quality evidence mismatch")));
+  }
 
   MdioBatch batch;
   if (_analogWorking) { batch = _analogBatch(); }

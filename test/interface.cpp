@@ -22,6 +22,7 @@ struct Controller {
   Variant declared{Variant::DP83826I};
   MacInterface boardInterface{MacInterface::RMII};
   uint64_t now{100};
+  unsigned delayedClock{0};
   unsigned frames{0},calls{0},clocks{0},releases{0},mutations{0},hard{0};
   std::array<unsigned,2048> firstFrame{};
   uint16_t capability{2}; bool corruptAdvertisement{false};
@@ -43,7 +44,11 @@ struct Controller {
     Config c;c.variant=declared;c.interface=boardInterface;c.phyAddress=phy;
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
-  static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context);++b.clocks;return b.now; }
+  static uint64_t clock(void* context) noexcept {
+    auto& b=*static_cast<Controller*>(context);
+    if (++b.clocks==b.delayedClock) b.now+=240;
+    return b.now;
+  }
   uint16_t read(uint16_t target,uint16_t devad=31) {
     if(devad==3) {
       CHECK(target<64U);if(target>=64U)return 0xFFFF;
@@ -635,6 +640,23 @@ void repeater() {
   }
 }
 template<Variant grade> void aInterface() {
+  {
+    Controller b; Driver d; b.declared=grade; b.id2=0xA134; ready(d,b);
+    auto s=settings(); s.clockOutput=ClockOutput::PLL; s.isolationOwned=true;
+    const auto calls=b.calls;
+    b.delayedClock=b.clocks+2;
+    InterfaceResult out; out.attemptedFrames=999;
+    CHECK(d.configureInterface(s,out,{b.now+314,44}).is(Err::OPERATION_TIMEOUT));
+    CHECK(b.calls==calls && out.attemptedFrames==999 && !d.interfaceSnapshot().desiredValid);
+    CHECK(!d.operationSnapshot().cleanupOwed);
+    s.observePin31=true; b.ext[0x308]=0x8881; configured(d,b,s);
+    s.clockOutput=ClockOutput::UNOWNED; s.observePin31=false; configured(d,b,s);
+    OperationToken init;
+    CHECK(d.startInitialize({ResetKind::HARD},budget(),init).inProgress() && drain(d,b,init).ok());
+    const auto replay=take(d,init).interfaceState;
+    CHECK(!replay.observedStale && (replay.validMask&0x180U)==0U);
+    CHECK(replay.raw[8]==0x29 && replay.raw[7]==0x8881 && b.ext[0x303]==8 && b.ext[0x308]==0);
+  }
   // SNLS783A fig. 8-13 and tables 8-13, 8-74/75/79/89. SOR1 is
   // physical strap evidence, SOR2 records startup mode and RCSR is live.
   struct Startup { uint16_t id, sor1, sor2; bool allowed; };
