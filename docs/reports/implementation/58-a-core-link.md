@@ -1,12 +1,11 @@
 # Prompt 58 · DP83826AI/AE identity, reset and link
 
-**IN PROGRESS.** Release host, AI/AE UBSan, SDK links, portable consumers
-and the focused compiled campaign passed phase (d) verification.
-The portable core and native owner accept
-declared DP83826AI and DP83826AE for the 21 procedures below. The two grades
-share revision-4 identity words. Standalone Python, source and
-documentation checks remain. Prompt 59
-owns optional and diagnostic controls.
+**COMPLETE for the 21 assigned software procedures.** The portable core and
+native owner retain the application's DP83826AI or DP83826AE declaration
+when both grades report the same revision-4 identity. Initialization, reset,
+link, fast link drop and interface/clock control passed local verification.
+Prompt 59 owns the remaining diagnostic and optional controls. Physical
+qualification remains open for each grade.
 [Prompt requirements](../../prompts/58-a-core-link.md)
 
 ## Phase (a) assessment
@@ -591,3 +590,52 @@ Four EEE or digital-loopback requests returned BLOCKED. Two swapped grade
 declarations stopped after the session command. All 22 saved results
 matched offline replay. Exported package, remote CI and physical evidence
 were **NOT RUN**.
+
+## Phase (d) final verification
+
+On 2026-11-25 the index and worktree were clean on `main` at
+`4e909e3b79cbffd274d4bb02857d80bcbb61811b`. The wrapper verified equality
+with `origin/main`, and the local ahead/behind counts were 0/0. The three
+sibling checkouts were clean at their phase (a) revisions. Their variant
+tables, validation and CLI/runner conventions still apply. Two workers used
+the session model to check the PDF/ledger comparison and standalone Python
+suite in parallel. The lead checked Doxygen, version, references and the
+final diff and reconciled the results with the earlier phase (d) receipts.
+
+```powershell
+python -B -m unittest discover -s test -p 'test_*.py' -v
+python -B build/p57-final-sources/crosscheck.py
+python -B build/p57-procedures/check.py
+python -B tools/verify_ledger.py
+python -B tools/check_doxygen.py
+python -B scripts/generate_version.py check
+python -B tools/verify_references.py
+git diff --check
+```
+
+**Host PASS.** On Windows 11 AMD64 with CPython 3.12.10, standalone discovery
+ran 270 tests in 32.202 s. Of these, 215 passed, 54 skipped for the compiled
+CLI fixture and one skipped for the combined portable and pinned host build.
+The full log is `build/p58d-python-verification/discovery.log`. The repaired
+Release suite passed 791/791, AI/AE UBSan passed 94/94 and all 22 compiled
+campaign results matched replay. Only documentation changed after the portable
+consumer and campaign checks at `00db7c0`.
+
+**Source and documentation PASS.** The PDF comparison checked 79 tables and
+427 rows per generation against SNLS647I and SNLS783A. The procedure check
+covered all 52 A procedures, eight FLD vectors and 48 TDR words. The ledger
+assigns 138 fields and 21 procedures to prompt 58. Doxygen checked 294 HTML
+pages and rejected both negative fixtures. The generated version header,
+archived references, local links and diff whitespace passed.
+
+| Evidence layer | Final result |
+| --- | --- |
+| Portable consumer | **PASS**. Both tests-OFF consumers linked and ran on Windows x86-64. |
+| ESP32-P4 SDK link | **PASS**. Both A adapter fixtures and the fitted-I basic and owner examples linked at clean `38ec9f1` against ESP-IDF v6.1 `fff9895c`. Subsequent changes touched documentation and the host Python fixture and its test. Image hashes appear under phase (d) SDK links. |
+| Exported package consumer | **NOT RUN**. The consumer builds used the repository source. |
+| Remote CI | **NOT RUN**. Prompt 71 owns the checkpoint. |
+| Physical qualification | **NOT RUN**. Each grade still needs an authorized fixture for reset and clock behavior, link and FLD timing, and the Strap11 EMC claim. |
+
+The maintained variants, API, adapter and fixture guides describe the shared
+core/link support and its limits. Prompt 59 retains 31 procedures and 56
+exceptional write actions, including the A-specific EEE sequence.
