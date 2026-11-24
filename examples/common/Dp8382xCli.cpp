@@ -622,7 +622,9 @@ void Processor::help(const Command&, const Args& args, std::size_t count, Reply&
     if (group == "registers") {
       human("  C22 offsets 0..31. MMD takes an explicit DEVAD and 16-bit offset.\r\n"
             "  Dumps skip protected registers. Writes require maintenance.\r\n"
-            "  LEDCR 0x18 or 31:0x18 allows bits 0x0692. BMCR allows mask 0x3100.\r\n");
+            "  BMCR allows mask 0x3100.\r\n");
+      human(isA(_identity.variant) ? "  A LEDCR 0x18 is read-only through raw access. Use controls pins.\r\n" :
+            "  I/E LEDCR 0x18 or 31:0x18 allows bits 0x0692.\r\n");
     }
     if (group == "link" && !topic.empty()) human("  Allowed modes: mask 1..15 for 10/half, 10/full, 100/half, 100/full.\r\n"
                                                "  Watch copies owner evidence. Count 1..32, duration count..5000 ms.\r\n");

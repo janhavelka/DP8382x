@@ -16,7 +16,6 @@ MdioBatch electricalRead(uint8_t reg) noexcept {
 }
 
 Status DP8382x::_admitElectrical(const OperationBudget& budget,bool stop) const noexcept {
-  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (budget.pollIntervalUs==0U || budget.maxStalledPolls==0U) {
     return Status::Error(Err::INVALID_PARAM,"Invalid electrical polling budget",static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
   }
@@ -138,7 +137,7 @@ MdioBatch DP8382x::_electricalBatch() const noexcept {
       if (_electrical.compliance.mode==ComplianceMode::PRBS10) {
         batch=electricalRead(0x16); batch.frameCount=2;
         // SNLA266B table 5-4 adapted to table 8-40: bit 8 is observed only.
-        batch.frames[1]={FrameKind::WRITE,0x16,0x7001,0x8FE0,0};
+        batch.frames[1]={FrameKind::WRITE,0x16,0x7001,static_cast<uint16_t>(isA(_config.variant)?0x84E0:0x8FE0),0};
       } else {
         batch=_mmdBatch(0x0027,FrameKind::READ,0);
         batch.frames[batch.frameCount++]={FrameKind::WRITE,0x0E,static_cast<uint16_t>(0x0010U|_electrical.compliance.pattern),0xFFE0,3};
@@ -152,7 +151,7 @@ MdioBatch DP8382x::_electricalBatch() const noexcept {
     case ElectricalStep::CAL_READ: return electricalRead(0x1E);
     case ElectricalStep::CAL_PAIR:
       batch.frameCount=2;
-      batch.frames[0]={FrameKind::WRITE,0x1E,static_cast<uint16_t>(_electrical.rawCdcr&0x3FFFU),0,NO_READ_INDEX};
+      batch.frames[0]={FrameKind::WRITE,0x1E,static_cast<uint16_t>(_electrical.rawCdcr&(isA(_config.variant)?0x3FFCU:0x3FFFU)),0,NO_READ_INDEX};
       batch.frames[1]={FrameKind::WRITE,0x1F,0x8000,0,NO_READ_INDEX}; return batch;
     case ElectricalStep::COMPLETE: return batch;
   }

@@ -28,6 +28,17 @@ desired intent.
 not disconnect its old physical mux. Source, polarity and drive options apply to
 LED functions; non-LED functions do not provide alternate IRQ/WoL setters.
 
+On revision-4 DP83826AI and DP83826AE, LEDCFG places LED1, LED2 and LED3
+at shifts 0, 4 and 8. LED3 gains polarity and force controls. LED0 and LED3
+have writable mux selections. BASIC exposes LED0/1, and ENHANCED MII
+requires the board to release COL or CRS for alternate outputs on LED2 or
+LED3 respectively. Pin 30 PLL selection belongs to the interface owner. Pin
+31's disputed clock/TX_ER encodings remain unavailable, and the A driver
+preserves reserved IO_CFG1 bit 6. The [coverage matrix](feature-coverage.md)
+records grade-specific executable evidence.
+
+The following table and original mux restrictions apply to DP83826I/E.
+
 | Pin | BASIC | ENHANCED RMII | ENHANCED MII |
 | --- | --- | --- | --- |
 | LED0, package pin 30 | LED source and force; fixed-low polarity | LED source, optional polarity/swap and force | Same as ENHANCED RMII |

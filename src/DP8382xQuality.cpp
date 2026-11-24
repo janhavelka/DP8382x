@@ -38,7 +38,6 @@ Status DP8382x::_validateQuality(const QualitySettings& settings) const noexcept
   const auto syntax=qualitySyntax(settings); if (!syntax.ok()) { return syntax; }
   const auto& fld=settings.fastDrop;
   if (isA(_config.variant)) {
-    if (settings.tx10.owned || settings.tx100.owned) { return _unsupportedFeature(); }
     if ((fld.causeMask&0x0406U)!=0U && (fld.causeMask&0x0009U)==0U) {
       return qualityConfig("A-generation MLT3, SNR and descrambler detectors require RX error or energy detection");
     }
@@ -111,7 +110,7 @@ bool DP8382x::_qualityRowValue(uint8_t row,uint16_t& address,uint16_t& mask,uint
   // SNLS647I 8.3.17: disable detectors before their threshold recipes; restore
   // only explicitly owned stable fields, then enable the selected cause set.
   switch (row) {
-    case 0: address=0x000B; if (fld.owned && fld.causeMask!=0U && !_qualityVerifyOnly) { mask=0x040F; } break;
+    case 0: address=0x000B; if (fld.owned && fld.causeMask!=0U) { mask=0x040F; } break;
     case 1:
       address=0x0117;
       if (fld.owned && (fld.causeMask&4U)!=0U) {
@@ -154,23 +153,23 @@ void DP8382x::_nextQualityRow() noexcept {
   _qualityStep=_qualityRow<QUALITY_ROWS?(_qualityVerifyOnly?QualityStep::VERIFY:QualityStep::APPLY):QualityStep::COMPLETE;
   _operation.phase=_qualityStep==QualityStep::APPLY?OperationPhase::RESTORE:OperationPhase::VERIFY;
 }
-void DP8382x::_qualityPassCost(uint32_t& frames,uint32_t& callbacks) const noexcept {
+void DP8382x::_qualityPassCost(bool verifyOnly,uint32_t& frames,uint32_t& callbacks) const noexcept {
   // Five direct preflight samples share one acquisition. Each selected
   // direct/MMD row then requires a read, or an atomic RMW plus readback.
   frames=5; callbacks=1;
-  for (uint8_t row=0;row<QUALITY_ROWS;++row) {
+  for (uint8_t row=verifyOnly?1:0;row<QUALITY_ROWS;++row) {
     uint16_t address=0,mask=0,value=0;
     if (_qualityRowValue(row,address,mask,value)) {
       const uint32_t readFrames=address>0x1FU?4U:address==0x001AU?2U:1U;
-      frames+=_qualityVerifyOnly?readFrames:readFrames*2U+1U;
-      callbacks+=_qualityVerifyOnly?1U:2U;
+      frames+=verifyOnly?readFrames:readFrames*2U+1U;
+      callbacks+=verifyOnly?1U:2U;
     }
   }
 }
 void DP8382x::_beginQuality(bool verifyOnly) noexcept {
   _interfaceWorking=_pinsWorking=_wakeWorking=_eeeWorking=_powerWorking=_interruptWorking=false;
   _cableWorking=_bistWorking=_loopWorking=_configuring=false;
-  _qualityWorking=true; _qualityVerifyOnly=verifyOnly; _qualityRow=0;
+  _qualityWorking=true; _qualityVerifyOnly=verifyOnly; _qualityRow=verifyOnly?1:0;
   _quality.observedStale=true; _quality.fldMaximumApplicable=false;
   _operation.nextPollValid=false; _operation.phase=OperationPhase::PREFLIGHT;
   const auto valid=_validateQuality(_quality.desired);
@@ -304,7 +303,6 @@ Status DP8382x::_advanceQuality(Status status,bool called,const MdioBatch& batch
 
 Status DP8382x::readSignalQuality(SignalQualitySnapshot& snapshot,const IoBudget& budget) noexcept {
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
-  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (_active || _polling || (_operation.state==OperationState::RUNNING &&
       !_qualityWorking && !_configuring && !_cableWorking && !_interruptWorking && !_powerWorking &&
       !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && _operation.phase==OperationPhase::WAIT)) {

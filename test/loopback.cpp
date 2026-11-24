@@ -1,3 +1,4 @@
+#include "support/PartSelection.h"
 #include "support/Check.h"
 #include <DP8382x/DP8382x.h>
 #include <array>
@@ -15,7 +16,7 @@ struct Controller {
   std::array<uint16_t, 32> words{};
   std::array<Wire, 4096> trace{};
   std::array<uint8_t, 1024> sizes{};
-  uint16_t selector{0}, address{0}, vod{0x8400}, id2{0xA131};
+  uint16_t selector{0}, address{0}, vod{0x8400}, id2{test::enhancedId2()};
   struct Target { uint16_t address, value; bool mmd; };
   std::array<Target, 2048> writes{};
   std::array<uint16_t, 3> opaque{};
@@ -31,7 +32,7 @@ struct Controller {
   unsigned exclusions{0};
   Controller() { words[0] = 0x3100; words[4] = 0x01E1; words[25] = 0x8001; words[1] = 0x0024; words[16] = 0x0005; words[22] = 0x0100; }
   Config config(uint32_t phy = 1, MacInterface interface = MacInterface::RMII) noexcept {
-    Config c; c.variant = Variant::DP83826I; c.interface = interface;
+    Config c; c.variant = test::declaredVariant; c.interface = interface;
     c.phyAddress = phy; c.transport = {this, execute, clock, {8, 4, 1}}; return c;
   }
   static uint64_t clock(void* context) noexcept {
@@ -58,6 +59,7 @@ struct Controller {
     return words[reg];
   }
   void write(uint8_t reg, uint16_t value) noexcept {
+    if (reg == 22 && test::aGrade()) CHECK((value&0x0B00U)==0U);
     if (reg == 13) { selector = value; return; }
     if (reg == 14 && selector == 0x001F) { address = value; return; }
     // Table 8-40: line transmission is legal only while BMCR 14 is set.
@@ -199,7 +201,7 @@ void ready(Driver& driver, Controller& bus, MacInterface interface = MacInterfac
   CHECK(drain(driver, bus, token).ok()); CHECK(take(driver, token).status.ok());
   configure(driver, bus, profile());
   bus.words[17] = 0x0B55; // Saved FIFO=3, with unrelated interrupt/clock bits.
-  bus.words[22] = 0x4100; // Counter-wrap policy set; PRBS disabled, normal power.
+  bus.words[22] = test::aGrade()?0x4900:0x4100; // Counter-wrap policy set; PRBS disabled, normal power.
   bus.words[9] |= 0x0010; bus.words[10] |= 0x0002; bus.words[11] |= 0x0100;
 }
 OperationToken begin(Driver& driver, Controller& bus, const LoopbackOptions& o) {
@@ -270,20 +272,20 @@ void matrix() {
       std::array<Controller::Target,16> expected{};
       unsigned used=0;
       const auto target=[&](uint16_t address,uint16_t value) { expected[used++]={address,value,address>31U}; };
-      target(0,0x1000); target(0x16,0x4100);
+      target(0,0x1000); target(0x16,test::aGrade()?0x4000:0x4100);
       const bool internal=mode.mode!=LoopbackMode::REVERSE && mode.mode!=LoopbackMode::EXTERNAL;
       const uint16_t forced=speed==LinkSpeed::MBPS_100?0x2100:0x0100;
       if(internal) {
         target(9,0x0030); target(25,0x0001); target(11,0x0100); target(10,0x0002); target(0,forced);
       }
       if(mode.mode==LoopbackMode::DIGITAL) {
-        target(0,0x2100); target(0x16,0x0104); target(0x0122,0x2000);
+        target(0,0x2100); target(0x16,test::aGrade()?0x0004:0x0104); target(0x0122,0x2000);
         target(0x0123,0x2000); target(0x0130,0x47FF); target(0x1F,0x4000);
       } else {
         if(mode.mode==LoopbackMode::REVERSE) target(0x11,0x0955);
         const uint16_t bits=mode.mode==LoopbackMode::MII?(speed==LinkSpeed::MBPS_100?0x0044:0x0001):mode.selector;
         if(mode.mode==LoopbackMode::MII) target(0,static_cast<uint16_t>(forced|0x4000U));
-        target(0x16,static_cast<uint16_t>(0x4100U|bits));
+        target(0x16,static_cast<uint16_t>((test::aGrade()?0x4000U:0x4100U)|bits));
         if(mode.restart) target(0x1F,0x4000);
       }
       CHECK(bus.semanticWrites-writes==used);
@@ -307,7 +309,7 @@ void matrix() {
       for (unsigned i = writes; i < bus.semanticWrites; ++i) CHECK(bus.writes[i].address != 0x030B);
       if (mode.mode == LoopbackMode::DIGITAL) {
         const uint16_t address[] = {0x0000,0x0016,0x0122,0x0123,0x0130,0x001F};
-        const uint16_t value[] = {0x2100,0x0104,0x2000,0x2000,0x47FF,0x4000};
+        const uint16_t value[] = {0x2100,static_cast<uint16_t>(test::aGrade()?0x0004:0x0104),0x2000,0x2000,0x47FF,0x4000};
         bool found = false;
         for (unsigned first = writes; first + 6U <= bus.semanticWrites; ++first) {
           bool matches = true;
@@ -329,7 +331,7 @@ void matrix() {
       const auto stopToken = stop(driver, bus); CHECK(drain(driver, bus, stopToken).ok());
       const auto stopped = take(driver, stopToken);
       if (o.transmitOnLine) {
-        CHECK(bus.writes[stopWrites].address == 0x16 && bus.writes[stopWrites].value == 0x4100);
+        CHECK(bus.writes[stopWrites].address == 0x16 && bus.writes[stopWrites].value == (test::aGrade()?0x4000:0x4100));
         CHECK(bus.writes[stopWrites+1].address == 0 && bus.writes[stopWrites+1].value == 0x2100);
       }
       // Stop identity+two RMWs=6/3, initialization NONE20/7 or HARD32/12,
@@ -574,7 +576,7 @@ void barriers() {
     CHECK(driver.startVerify(allowance(),sentinel).is(Err::BUSY));
     for (ResetKind kind:{ResetKind::NONE,ResetKind::PCS,ResetKind::RESTART}) CHECK(driver.startInitialize({kind},allowance(),sentinel).is(Err::BUSY));
     CHECK(driver.end().is(Err::BUSY) && driver.bind(bus.config()).is(Err::BUSY));
-    CHECK(driver.writeClause22(0x18,0x12,io()).is(Err::BUSY));
+    CHECK(driver.modifyInterruptEnables(0x12,1,1,io()).is(Err::BUSY));
     CHECK(bus.calls==calls && bus.clocks==clocks);
     uint16_t raw=0; CHECK(driver.readClause22(2,raw,io()).ok() && raw==0x2000);
     EvidenceSnapshot evidence; CHECK(driver.acquireEvidence(evidenceBit(EvidenceSource::PHYSTS),evidence,io()).ok());
@@ -727,5 +729,5 @@ void ownership() {
 int main(int argc,char** argv) {
   const test::Suite suites[]={{"matrix",matrix},{"admission",admission},{"start_failures",startFailures},
     {"stop_failures",stopFailures},{"cancellation",cancellation},{"barriers",barriers},{"timing",timing},{"ownership",ownership}};
-  return test::runSuites(argc,argv,suites);
+  return test::runVariantSuites(argc,argv,suites);
 }

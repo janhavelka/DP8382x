@@ -3,8 +3,8 @@
 The DP83826AI/AE software covers the 21 procedures assigned to prompt 58.
 The exact IDs, grade-specific executing tests and limits are in the
 [implementation record](reports/implementation/58-a-core-link.md). Prompt 59
-owns the 31 diagnostic and optional procedures. Hardware evidence is pending
-for each grade.
+adds 31 diagnostic and optional procedures. The A matrix below records per-grade
+checks, exclusions and the remaining physical qualification.
 
 DP83826E shares the original I register map, including the 10BASE-Te sequence
 and the prohibition on local remote-fault advertisement. The primary matrix
@@ -367,3 +367,246 @@ into absent silicon.
 The CLI, offline campaigns and SDK adapter consume the procedure and field dispositions above.
 Independent native lifecycle/transport/link integration can use the reviewed
 implemented subset while these unrelated gates remain open.
+
+## DP83826AI and DP83826AE
+
+AI and AE share SNLS783A revision 4. Each test stem below runs twice, with
+the `ai_` and `ae_` prefixes. The CLI records use the same commands and
+terminal, sample and cleanup fields described above. The compiled fixture
+executes both declarations. Native admission also requires the board owner's
+feature grant. AI physical qualification is **NOT RUN**. AE physical
+qualification is **NOT RUN**, including temperature-dependent behavior.
+Both grades need identified boards for Strap11 and the FLD/EMC measurements.
+
+### Procedures
+
+| Procedure | Feature | Typed route | CLI commands | Grade test stem |
+| --- | --- | --- | --- | --- |
+| `identify` | `identity` | readIdentity / identitySnapshot / capabilities | `connection identity`, `connection probe`, `connection discover`, `capabilities` | `identity_policy` |
+| `direct_access` | `access` | readClause22 / writeClause22 / readMmd / writeMmd | `registers read`, `registers dump`, `registers bmcr` (raw LEDCR writes fenced) | `reset_access` |
+| `mmd_access` | `access` | readClause22 / writeClause22 / readMmd / writeMmd / modifyMmd | `registers read`, `registers dump`, `registers bmcr` (raw LEDCR writes fenced) | `reset_access` |
+| `pcs_reset` | `reset` | startInitialize({PCS}) | `recovery reset` (PCS) | `reset_traces` |
+| `hard_reset` | `reset` | startInitialize({HARD}) | `recovery reset` (hard) | `reset_traces` |
+| `restart` | `reset` | startInitialize({RESTART}) | `recovery restart` | `reset_traces` |
+| `external_reset` | `reset` | invalidateDeviceState(EXTERNAL_RESET / EXTERNAL_POWER_ON), then startInitialize | `recovery reinitialize` (after owner attestation) | `reset_traces` |
+| `initialize_10base` | `initialization` | startInitialize | `connection initialize`, `recovery reinitialize` | `operation_initialization` |
+| `configure_an` | `negotiation` | LinkSettings / startConfigure | `configuration desired`, `configuration observed`, `configuration validate`, `configuration apply`, `configuration verify`, `configuration invalidate`, `cached settings` | `negotiation_vectors` |
+| `configure_forced` | `crossover` | CrossoverSettings / ForcedLinkSettings | `configuration desired`, `configuration observed`, `configuration validate`, `configuration apply`, `configuration verify`, `configuration invalidate`, `cached settings` | `forced_matrix` |
+| `next_page_exchange` | `next_page` | ConfigureOptions::nextPages / startConfigure | `configuration validate`, `configuration apply` (bounded AN pages) | `negotiation_pages` |
+| `observe_link` | `link` | readLinkStatus / LinkSnapshot | `link read`, `link partner`, `link cached`, `cached link`, `link watch` | `link_coherence` |
+| `configure_fast_drop` | `fast_drop` | QualitySettings / startConfigureQuality / qualitySnapshot | `controls quality`, `controls quality-status` | `quality` |
+| `loopback_near` | `loopback` | startLoopback / stopLoopback | `diagnostics loopback-start`, `diagnostics loopback-stop`, `diagnostics loopback-status` | `loopback_matrix` |
+| `loopback_digital` | `loopback` | startLoopback / stopLoopback | `diagnostics loopback-start`, `diagnostics loopback-stop`, `diagnostics loopback-status` | `loopback_matrix` |
+| `loopback_reverse` | `loopback` | startLoopback / stopLoopback | `diagnostics loopback-start`, `diagnostics loopback-stop`, `diagnostics loopback-status` | `loopback_matrix` |
+| `loopback_external` | `loopback` | startLoopback / stopLoopback | `diagnostics loopback-start`, `diagnostics loopback-stop`, `diagnostics loopback-status` | `loopback_matrix` |
+| `bist_run` | `bist` | startBist / startBistAcquire / stopBist / bistSnapshot | `diagnostics bist-start`, `diagnostics bist-read`, `diagnostics bist-stop`, `diagnostics bist-status` | `bist_measurements` |
+| `bist_capture` | `bist` | startBist / startBistAcquire / stopBist / bistSnapshot | `diagnostics bist-start`, `diagnostics bist-read`, `diagnostics bist-stop`, `diagnostics bist-status` | `bist_acquire_failures` |
+| `cable_configure` | `cable` | startCableTest / startCableAcquire / stopCableTest / cableSnapshot / interpretCable | `diagnostics cable-start`, `diagnostics cable-raw`, `diagnostics cable-read`, `diagnostics cable-stop`, `diagnostics cable-status`, `diagnostics cable-interpret` | `cable_matrix` |
+| `cable_manual` | `cable` | startCableTest / startCableAcquire / stopCableTest / cableSnapshot / interpretCable | `diagnostics cable-start`, `diagnostics cable-raw`, `diagnostics cable-read`, `diagnostics cable-stop`, `diagnostics cable-status`, `diagnostics cable-interpret` | `cable_matrix` |
+| `cable_autorun` | `cable` | startConfigureCableAutorun / cableAutorunSnapshot / startCableAutorunAcquire | `diagnostics cable-autorun`, `diagnostics cable-autorun-read`, `diagnostics cable-autorun-status` | `autorun_failures` |
+| `cable_capture` | `cable` | startCableTest / startCableAcquire / stopCableTest / cableSnapshot / interpretCable | `diagnostics cable-start`, `diagnostics cable-raw`, `diagnostics cable-read`, `diagnostics cable-stop`, `diagnostics cable-status`, `diagnostics cable-interpret` | `cable_capture` |
+| `collect_event_counters` | `counters` | collectEvents / CounterSnapshot / evidenceSnapshot / clearEvidence | `link collect`, `cached events` | `events_failures` |
+| `interrupt_configuration` | `interrupts` | startConfigureInterrupts / interruptSnapshot / serviceInterrupts / interruptServiceSnapshot / startInterruptTest / stopInterruptTest | `irq configure`, `irq service`, `irq cached-service`, `irq status` | `interrupt_a_routes` |
+| `interrupt_test` | `interrupts` | startInterruptTest / stopInterruptTest / interruptSnapshot / serviceInterrupts | `irq test-start`, `irq test-stop`, `irq status` | `interrupt_stimulus` |
+| `signal_quality_sample` | `quality` | readSignalQuality / signalQualitySnapshot | `controls mse`, `controls mse-status` | `quality_raw` |
+| `calibration_recovery` | `calibration` | startCalibrationRecovery | `diagnostics calibration-recover`, `diagnostics electrical-status` | `electrical_calibration` |
+| `led_configure` | `led` | configurePins / pinsSnapshot | `controls pins`, `controls pins-status` | `pins_a_pins` |
+| `pin_configure` | `pin_mux` | configurePins / pinsSnapshot | `controls pins`, `controls pins-status` | `pins_a_pins` |
+| `clock_configure` | `clock` | InterfaceSettings / configureInterface / interfaceSnapshot | `controls interface`, `controls interface-status` | `interface` |
+| `mii_configure` | `mii` | InterfaceSettings / configureInterface / interfaceSnapshot | `controls interface`, `controls interface-status` | `interface` |
+| `rmii_configure` | `rmii` | InterfaceSettings / configureInterface / interfaceSnapshot | `controls interface`, `controls interface-status` | `interface` |
+| `repeater_configure` | `repeater` | InterfaceSettings / configureInterface / interfaceSnapshot | `controls interface`, `controls interface-status` (apply on each admitted side) | `interface` |
+| `tx100_configure` | `tx100` | QualitySettings / startConfigureQuality / qualitySnapshot | `controls quality`, `controls quality-status` | `quality_vectors` |
+| `tx10_configure` | `tx10` | QualitySettings / startConfigureQuality / qualitySnapshot | `controls quality`, `controls quality-status` | `quality_vectors` |
+| `analog_configure` | `analog` | AnalogSettings / startConfigureAnalog / analogSnapshot | `controls analog`, `controls analog-status` | `analog_vectors` |
+| `compatibility_configure` | `compatibility` | InterfaceSettings / configureInterface / interfaceSnapshot | `controls interface`, `controls interface-status` | `interface` |
+| `link_recovery_configure` | `link_recovery` | QualitySettings / startConfigureQuality / qualitySnapshot | `controls quality`, `controls quality-status` | `quality` |
+| `extended_link_configure` | `crossover` | LinkSettings / startConfigure | `configuration desired`, `configuration observed`, `configuration validate`, `configuration apply`, `configuration verify`, `configuration invalidate`, `cached settings` | `forced_matrix` |
+| `isolation_configure` | `mii` | InterfaceSettings / configureInterface / interfaceSnapshot | `controls interface`, `controls interface-status` | `interface` |
+| `collision_test` | `compliance` | startCollisionTest / stopCollisionTest / electricalSnapshot | `diagnostics collision-start`, `diagnostics collision-stop`, `diagnostics electrical-status` | `electrical_collision` |
+| `compliance_session` | `compliance` | startCompliance / stopCompliance / electricalSnapshot | `diagnostics compliance-start`, `diagnostics compliance-stop`, `diagnostics electrical-status` | `electrical_traces` |
+| `power_ieee` | `power` | PowerSettings / startConfigurePower / readPowerStatus / powerSnapshot | `power configure`, `power read`, `power status` | `power_policy` |
+| `power_active_sleep` | `power` | PowerSettings / startConfigurePower / readPowerStatus / powerSnapshot | `power configure`, `power read`, `power status` | `power_policy` |
+| `power_pll_control` | `power` | PowerSettings / startConfigurePower / readPowerStatus / powerSnapshot | `power configure`, `power read`, `power status` | `power_policy` |
+| `power_deep` | `power` | PowerSettings / startConfigurePower / readPowerStatus / powerSnapshot | `power configure`, `power read`, `power status` (deep-power request remains source-gated) | `power_policy` |
+| `eee_initialize` | `eee` | startConfigureEee / readEeeStatus / eeeSnapshot | `eee configure`, `eee read`, `eee status` | `eee_recipe` |
+| `eee_negotiation_status` | `eee` | startConfigureEee / readEeeStatus / eeeSnapshot | `eee configure`, `eee read`, `eee status` | `eee_status` |
+| `legacy_lpi` | `lpi` | startLpi / stopLpi | `lpi start`, `lpi stop`, `lpi status` | `lpi_traces` |
+| `wol_configure` | `wol` | WakeSettings / startConfigureWake / readWakeStatus / wakeSnapshot | `wol configure`, `wol read`, `wol status` | `wol_a_wake` |
+| `wol_acknowledge` | `wol` | acknowledgeWake / pollOperation / takeResult | `wol acknowledge`, `wol read`, `wol status` | `wol_a_wake` |
+
+### Features and qualification cases
+
+The named gates carry the exact evidence limits in the [A procedure ledger](registers/dp83826a-procedures.json). Deep-power exit and the 100M pattern session that touches 0428 remain blocked. The TX100 compliance script has a distinct admitted path. IRQ and wake use the single destructive collector. Pin 31 has a POR observation and gated mux codes. The two original reserved-field writers have no A route.
+
+| Feature | Procedures | Gates | Fixture cases or application boundary |
+| --- | --- | --- | --- |
+| `identity` | `identify` | None | 72 cold boot: identify both modes and strapped address. Case `cold-boot` |
+| `access` | `direct_access`, `mmd_access` | `eee_wire` | Q4 and 73: C22/MMD alias readback. Case `cable-autorun`, `observe`, `10base-te` |
+| `reset` | `pcs_reset`, `hard_reset`, `restart`, `external_reset` | `hard_reset_straps`, `pcs_reset_extent` | Q5 and 72: reset, strap and SMI readiness traces. Case `pcs`, `hard`, `restart`, `cold-boot` |
+| `initialization` | `initialize_10base` | None | 72 cold boot and mandatory VOD readback. Case `10base-te`, `cold-boot` |
+| `negotiation` | `configure_an` | None | 72 advertisement readback and compatible link partner. Case `owned-apply`, `100-full-only` |
+| `next_page` | `next_page_exchange` | `next_page_handshake` | Manual Q10. No runner case drives a next-page-capable partner through exchange and re-AN. |
+| `crossover` | `configure_forced`, `extended_link_configure` | `forced_physts` | Case coverage for paired speed and duplex includes `forced-10-half`, `forced-10-full`, `forced-100-half`, `forced-100-full`. Manual Q11 requires separate crossover, mirror and extended-duplex measurements. |
+| `link` | `observe_link` | `forced_physts` | Q11 and 72: partner/link resolution and cable transitions. Case `unplug-replug`, `wrong-policy` |
+| `eee` | `eee_initialize`, `eee_negotiation_status` | `eee_wire`, `eee_control_semantics` | Q1: exact DEVAD and EEE partner. Case `eee` |
+| `lpi` | `legacy_lpi` | `eee_wire`, `eee_control_semantics` | Q2: observe LPI on the line or at the partner. Case `lpi` |
+| `wol` | `wol_configure`, `wol_acknowledge` | `wol_bit_mask`, `wol_live_reconfigure`, `rxfs_sfd_reference` | Q3: wake frame and acknowledgement. Case `wol-magic`, `wol-secure`, `wol-pulse` |
+| `power` | `power_ieee`, `power_active_sleep`, `power_pll_control`, `power_deep` | `deep_power_exit` | Q6: power pin, software state and generated clock. Case `power-ieee`, `power-sleep`, `power-pll`, `power-deep` |
+| `repeater` | `repeater_configure` | `rmii_rc` | 73 two PHYs and one qualified RMII reference. Case `repeater-leader`, `repeater-follower` |
+| `clock` | `clock_configure` | `pin_fields` | Q12 and 73: clock rate, pin role and output loading. Case `interface-mii`, `interface-rmii25`, `interface-rmii50` |
+| `mii` | `mii_configure`, `isolation_configure` | `rmii_rc` | 73 MII edges, pin functions and isolation. Case `interface-mii` |
+| `rmii` | `rmii_configure` | `rmii_rc` | Q17 and 73: RMII clock and status acquisition. Case `interface-rmii25`, `interface-rmii50` |
+| `tx100` | `tx100_configure` | None | 73 100M partner and calibrated data-path instrumentation. Case `quality` |
+| `tx10` | `tx10_configure` | `analog_rx_gain` | 73 10M partner and calibrated receiver/pattern checks. Case `quality` |
+| `loopback` | `loopback_near`, `loopback_digital`, `loopback_reverse`, `loopback_external` | `loopback_recipe` | Q8: mode routing and restoration. Case `loopback-mii`, `loopback-mii-line`, `loopback-pcs-in`, `loopback-pcs-out`, `loopback-analog`, `loopback-digital`, `loopback-reverse`, `loopback-external` |
+| `bist` | `bist_run`, `bist_capture` | `bist_result_semantics` | 73 instrumented packet and error counters. Case `bist-off`, `bist-single`, `bist-checker`, `bist-both`, `bist-digital`, `bist-analog`, `bist-external` |
+| `cable` | `cable_configure`, `cable_manual`, `cable_autorun`, `cable_capture` | `tdr_reserved`, `tdr_calibration`, `tdr_freshness_abort`, `tdr_recipe` | Q7: known open, short and good cables. Case `cable-manual`, `cable-raw`, `cable-autorun` |
+| `fast_drop` | `configure_fast_drop` | `fld_reset_defaults`, `fld_threshold_recipe` | Q18 and 73: MII drop latency and strap readback. Case `quality` |
+| `link_recovery` | `link_recovery_configure` | None | 73 timestamped disturbance and recovery. Case `quality` |
+| `led` | `led_configure` | `pin_fields` | Q12: LED source, polarity and drive. Case `pins`, `pins-basic` |
+| `pin_mux` | `pin_configure` | `pin_fields` | Q12: pin roles and electrical behavior. Case `pins`, `pins-basic` |
+| `interrupts` | `interrupt_configuration`, `interrupt_test` | `rxfs_sfd_reference` | Q9: IRQ latching and delivery. Case `irq` |
+| `counters` | `collect_event_counters` | `recr_width`, `rmii_rc`, `rxfs_sfd_reference`, `forced_physts` | Case `irq` checks a guarded RECR sample of zero. Manual Q16 requires invalid-symbol boundary injection. Manual Q17 requires a controlled RMII clock offset and FIFO polarity, clear and rearm measurements. |
+| `quality` | `signal_quality_sample` | `mse_address` | 73 instrumented signal and error exposure. Case `mse` |
+| `compliance` | `collision_test`, `compliance_session` | `compt_reserved` | Q19 and 73: calibrated stimulus and recovery. Case `collision-10`, `collision-100`, `compliance-tx100`, `compliance-nlp10`, `compliance-prbs10`, `compliance-pattern10` |
+| `analog` | `analog_configure` | `ioctrl_example`, `analog_rx_gain` | 73 calibrated amplitude, termination and rise/fall. Case `analog` |
+| `compatibility` | `compatibility_configure` | None | 73 MAC traffic, IPG and compatibility. Case `interface-rmii25`, `interface-rmii50` |
+| `calibration` | `calibration_recovery` | `hard_reset_straps` | 73 identified hardware and resistor calibration recovery. Case `calibration-recovery` |
+| `straps` | See field disposition | `hard_reset_straps` | Q5 and 72: identified straps and reset. Case `cold-boot`, `hard` |
+| `outside_phy` | See field disposition | None | N/A. Application owns platform and stack |
+| `absent` | See field disposition | None | N/A. Exact part excludes these functions |
+
+### Register fields
+
+Each row gives the SNLS783A table, its register address, and the field masks grouped by feature owner. The feature and procedure rows above give the typed calls, CLI routes and checks. The [A field ledger](registers/dp83826a.json) specifies access, reset knowledge, legal encodings and read effects for each field. Only selected masks within a feature are writable. PHYCR[5] and IO_CFG1[6] are reserved. The LED3 drive fields belong to the LED owner.
+
+| Register | Space and address | TI table | Feature and field masks |
+| --- | --- | --- | --- |
+| `BMCR` | C22 0x0000 | 8-20 | reset &mdash; `BMCR.reset=0x8000`<br>loopback &mdash; `BMCR.loopback=0x4000`<br>crossover &mdash; `BMCR.speed=0x2000`, `BMCR.duplex=0x0100`<br>negotiation &mdash; `BMCR.an_enable=0x1000`, `BMCR.an_restart=0x0200`<br>power &mdash; `BMCR.power_down=0x0800`<br>mii &mdash; `BMCR.isolate=0x0400`<br>compliance &mdash; `BMCR.collision_test=0x0080` |
+| `BMSR` | C22 0x0001 | 8-21 | identity &mdash; `BMSR.t4=0x8000`, `BMSR.full100=0x4000`, `BMSR.half100=0x2000`, `BMSR.full10=0x1000`, `BMSR.half10=0x0800`, `BMSR.preamble=0x0040`, `BMSR.an_ability=0x0008`, `BMSR.extended=0x0001`<br>link &mdash; `BMSR.an_complete=0x0020`, `BMSR.remote_fault=0x0010`, `BMSR.link=0x0004`, `BMSR.jabber=0x0002` |
+| `PHYIDR1` | C22 0x0002 | 8-22 | identity &mdash; `PHYIDR1.oui_high=0xFFFF` |
+| `PHYIDR2` | C22 0x0003 | 8-23 | identity &mdash; `PHYIDR2.oui_low=0xFC00`, `PHYIDR2.model=0x03F0`, `PHYIDR2.revision=0x000F` |
+| `ANAR` | C22 0x0004 | 8-24 | next_page &mdash; `ANAR.next_page=0x8000`<br>negotiation &mdash; `ANAR.remote_fault=0x2000`, `ANAR.asym_pause=0x0800`, `ANAR.pause=0x0400`, `ANAR.t4=0x0200`, `ANAR.full100=0x0100`, `ANAR.half100=0x0080`, `ANAR.full10=0x0040`, `ANAR.half10=0x0020`, `ANAR.selector=0x001F` |
+| `ALNPAR` | C22 0x0005 | 8-25 | negotiation &mdash; `ALNPAR.next_page=0x8000`, `ALNPAR.ack=0x4000`, `ALNPAR.remote_fault=0x2000`, `ALNPAR.asym_pause=0x0800`, `ALNPAR.pause=0x0400`, `ALNPAR.t4=0x0200`, `ALNPAR.full100=0x0100`, `ALNPAR.half100=0x0080`, `ALNPAR.full10=0x0040`, `ALNPAR.half10=0x0020`, `ALNPAR.selector=0x001F` |
+| `ANER` | C22 0x0006 | 8-26 | negotiation &mdash; `ANER.parallel_fault=0x0010`, `ANER.partner_an=0x0001`<br>next_page &mdash; `ANER.partner_next=0x0008`, `ANER.local_next=0x0004`, `ANER.page=0x0002` |
+| `ANNPTR` | C22 0x0007 | 8-27 | next_page &mdash; `ANNPTR.next_page=0x8000`, `ANNPTR.message=0x2000`, `ANNPTR.ack2=0x1000`, `ANNPTR.toggle=0x0800`, `ANNPTR.code=0x07FF` |
+| `ANLNPTR` | C22 0x0008 | 8-28 | next_page &mdash; `ANLNPTR.next_page=0x8000`, `ANLNPTR.ack=0x4000`, `ANLNPTR.message=0x2000`, `ANLNPTR.ack2=0x1000`, `ANLNPTR.toggle=0x0800`, `ANLNPTR.code=0x07FF` |
+| `CR1` | C22 0x0009 | 8-29 | cable &mdash; `CR1.tdr_auto=0x0100`<br>link_recovery &mdash; `CR1.link_recovery=0x0080`<br>crossover &mdash; `CR1.robust_mdix=0x0020`<br>mii &mdash; `CR1.fast_rxdv=0x0002` |
+| `CR2` | C22 0x000A | 8-30 | crossover &mdash; `CR2.extended_duplex=0x0020`<br>tx100 &mdash; `CR2.idle_rx_error=0x0004`<br>mii &mdash; `CR2.odd_nibble_disable=0x0002` |
+| `CR3` | C22 0x000B | 8-31 | fast_drop &mdash; `CR3.descrambler_drop=0x0400`, `CR3.fast_drop_modes=0x000F`<br>crossover &mdash; `CR3.polarity_swap=0x0040`, `CR3.pair_swap=0x0020` |
+| `REGCR` | C22 0x000D | 8-32 | access &mdash; `REGCR.function=0xC000`, `REGCR.devad=0x001F` |
+| `ADDAR` | C22 0x000E | 8-33 | access &mdash; `ADDAR.address_data=0xFFFF` |
+| `FLDS` | C22 0x000F | 8-34 | counters &mdash; `FLDS.causes=0x01F0` |
+| `PHYSTS` | C22 0x0010 | 8-35 | link &mdash; `PHYSTS.mdix=0x4000`, `PHYSTS.rx_error=0x2000`, `PHYSTS.polarity=0x1000`, `PHYSTS.false_carrier=0x0800`, `PHYSTS.signal=0x0400`, `PHYSTS.descrambler=0x0200`, `PHYSTS.page=0x0100`, `PHYSTS.interrupt=0x0080`, `PHYSTS.remote_fault=0x0040`, `PHYSTS.jabber=0x0020`, `PHYSTS.an_complete=0x0010`, `PHYSTS.loopback=0x0008`, `PHYSTS.duplex=0x0004`, `PHYSTS.speed=0x0002`, `PHYSTS.link=0x0001` |
+| `PHYSCR` | C22 0x0011 | 8-36 | power &mdash; `PHYSCR.disable_pll=0x8000`, `PHYSCR.power_save_enable=0x4000`, `PHYSCR.power_save_mode=0x3000`<br>tx100 &mdash; `PHYSCR.scrambler_bypass=0x0800`<br>loopback &mdash; `PHYSCR.loopback_fifo_depth=0x0300`<br>mii &mdash; `PHYSCR.collision_full_duplex=0x0010`<br>interrupts &mdash; `PHYSCR.interrupt_polarity=0x0008`, `PHYSCR.test_interrupt=0x0004`, `PHYSCR.interrupt_enable=0x0002`, `PHYSCR.interrupt_output_enable=0x0001` |
+| `MISR1` | C22 0x0012 | 8-37 | interrupts &mdash; `MISR1.link_quality_changed_event=0x8000`, `MISR1.energy_changed_event=0x4000`, `MISR1.link_changed_event=0x2000`, `MISR1.speed_changed_event=0x1000`, `MISR1.duplex_changed_event=0x0800`, `MISR1.an_complete_event=0x0400`, `MISR1.false_carrier_half_full_event=0x0200`, `MISR1.receive_error_half_full_event=0x0100`, `MISR1.link_quality_changed_enable=0x0080`, `MISR1.energy_changed_enable=0x0040`, `MISR1.link_changed_enable=0x0020`, `MISR1.speed_changed_enable=0x0010`, `MISR1.duplex_changed_enable=0x0008`, `MISR1.an_complete_enable=0x0004`, `MISR1.false_carrier_half_full_enable=0x0002`, `MISR1.receive_error_half_full_enable=0x0001` |
+| `MISR2` | C22 0x0013 | 8-38 | interrupts &mdash; `MISR2.eee_error_event=0x8000`, `MISR2.an_error_event=0x4000`, `MISR2.page_received_event=0x2000`, `MISR2.loopback_fifo_event=0x1000`, `MISR2.mdix_changed_event=0x0800`, `MISR2.sleep_event=0x0400`, `MISR2.polarity_or_wol_event=0x0200`, `MISR2.jabber_event=0x0100`, `MISR2.eee_error_enable=0x0080`, `MISR2.an_error_enable=0x0040`, `MISR2.page_received_enable=0x0020`, `MISR2.loopback_fifo_enable=0x0010`, `MISR2.mdix_changed_enable=0x0008`, `MISR2.sleep_enable=0x0004`, `MISR2.polarity_or_wol_enable=0x0002`, `MISR2.jabber_enable=0x0001` |
+| `FCSCR` | C22 0x0014 | 8-39 | counters &mdash; `FCSCR.false_carrier_count=0x00FF` |
+| `RECR` | C22 0x0015 | 8-40 | counters &mdash; `RECR.receive_error_count=0xFFFF` |
+| `BISCR` | C22 0x0016 | 8-41 | bist &mdash; `BISCR_errorCounterMode=0x4000`, `BISCR_prbsMode=0x3000`, `BISCR_checkerLock=0x0800`, `BISCR_checkerSyncLoss=0x0400`, `BISCR_generatorActive=0x0200`, `BISCR_normalPower=0x0100`<br>loopback &mdash; `BISCR_miiLineTransmit=0x0040`, `BISCR_loopbackMode=0x001F` |
+| `RCSR` | C22 0x0017 | 8-42 | rmii &mdash; `RCSR.tx_clock_shift=0x0100`, `RCSR.clock_select=0x0080`, `RCSR.rmii_mode=0x0020`, `RCSR.revision=0x0010`, `RCSR.elasticity=0x0003`<br>counters &mdash; `RCSR.overflow=0x0008`, `RCSR.underflow=0x0004` |
+| `LEDCR` | C22 0x0018 | 8-43 | led &mdash; `LEDCR.blink=0x0600`, `LEDCR.polarity=0x0080`, `LEDCR.drive_enable=0x0010`, `LEDCR.drive_value=0x0002` |
+| `PHYCR` | C22 0x0019 | 8-44 | crossover &mdash; `PHYCR.auto_mdix=0x8000`, `PHYCR.force_mdix=0x4000`<br>negotiation &mdash; `PHYCR.pause_rx=0x2000`, `PHYCR.pause_tx=0x1000`<br>link &mdash; `PHYCR.mii_link=0x0800`<br>led &mdash; `PHYCR.led_stretch=0x0080`<br>identity &mdash; `PHYCR.phy_address=0x001F` |
+| `10BTSCR` | C22 0x001A | 8-45 | tx10 &mdash; `10BTSCR.lower_threshold_enable=0x2000`, `10BTSCR.squelch=0x1E00`, `10BTSCR.nlp_disable=0x0080`, `10BTSCR.jabber_disable=0x0001`<br>counters &mdash; `10BTSCR.polarity=0x0010` |
+| `BICSR1` | C22 0x001B | 8-46 | bist &mdash; `BICSR1_errorBytes=0xFF00`, `BICSR1_ipgLength=0x00FF` |
+| `BICSR2` | C22 0x001C | 8-47 | bist &mdash; `BICSR2_packetLength=0x07FF` |
+| `CDCR` | C22 0x001E | 8-48 | cable &mdash; `CDCR_start=0x8000`, `CDCR_done=0x0002`, `CDCR_failed=0x0001`<br>calibration &mdash; `CDCR_rescalEnable=0x4000` |
+| `PHYRCR` | C22 0x001F | 8-49 | reset &mdash; `PHYRCR.hard_reset=0x8000`, `PHYRCR.restart=0x4000` |
+| `MLEDCR` | MMD 0x0025 | 8-50 | led &mdash; `MLEDCR.polarity_swap=0x0200`, `MLEDCR.source=0x0078`, `MLEDCR.route_enable=0x0001` |
+| `COMPT` | MMD 0x0027 | 8-51 | compliance &mdash; `COMPT.pattern=0x000F` |
+| `10M_CFG` | MMD 0x002A | 8-52 | tx10 &mdash; `10M_CFG.short_preamble=0x4000` |
+| `FLD_CFG1` | MMD 0x0117 | 8-53 | fast_drop &mdash; `FLD_CFG1.window=0xFC00`, `FLD_CFG1.error_count=0x03F0` |
+| `FLD_CFG2` | MMD 0x0131 | 8-54 | fast_drop &mdash; `FLD_CFG2.descrambler_window=0x003F` |
+| `CDSCR` | MMD 0x0170 | 8-55 | cable &mdash; `CDSCR_crossDisable=0x4000`, `CDSCR_txChannel=0x2000`, `CDSCR_dcNoInit=0x1000`, `CDSCR_averageCycles=0x0700`, `CDSCR_segment=0x0070` |
+| `CDSCR2` | MMD 0x0171 | 8-56 | No named fields |
+| `CDSCR3` | MMD 0x0173 | 8-57 | cable &mdash; `CDSCR3_segmentDuration=0xFF00`, `CDSCR3_initialSkip=0x00FF` |
+| `TDR_175` | MMD 0x0175 | 8-58 | cable &mdash; `TDR_175_shadowAverageLocation=0x3800`, `TDR_175_forwardShadow=0x000F` |
+| `TDR_176` | MMD 0x0176 | 8-59 | cable &mdash; `TDR_176_peakLocationThreshold=0x001F` |
+| `CDSCR4` | MMD 0x0177 | 8-60 | cable &mdash; `CDSCR4_shortCableThreshold=0x1F00` |
+| `TDR_178` | MMD 0x0178 | 8-61 | cable &mdash; `TDR_178_pulseWidth=0x0007` |
+| `CDLRR1` | MMD 0x0180 | 8-62 | cable &mdash; `CDLRR1_peakLocation=0x00FF` |
+| `CDLRR2` | MMD 0x0181 | 8-63 | No named fields |
+| `CDLRR3` | MMD 0x0182 | 8-64 | No named fields |
+| `CDLRR4` | MMD 0x0183 | 8-65 | No named fields |
+| `CDLRR5` | MMD 0x0184 | 8-66 | No named fields |
+| `CDLAR1` | MMD 0x0185 | 8-67 | cable &mdash; `CDLAR1_peakAmplitude=0x007F` |
+| `CDLAR2` | MMD 0x0186 | 8-68 | No named fields |
+| `CDLAR3` | MMD 0x0187 | 8-69 | No named fields |
+| `CDLAR4` | MMD 0x0188 | 8-70 | No named fields |
+| `CDLAR5` | MMD 0x0189 | 8-71 | No named fields |
+| `CDLAR6` | MMD 0x018A | 8-72 | cable &mdash; `CDLAR6_peakPolarity=0x0800`, `CDLAR6_crossDetect=0x0020` |
+| `MSE_Val` | MMD 0x0218 | 8-73 | quality &mdash; `MSE_Val.mean_square_error=0xFFFF` |
+| `IO_CFG1` | MMD 0x0302 | 8-74 | analog &mdash; `IO_CFG1.mac_impedance=0xC000`<br>rmii &mdash; `IO_CFG1.rx_dv=0x0100` |
+| `LED0_GPIO_CFG` | MMD 0x0303 | 8-75 | clock &mdash; `LED0_GPIO_CFG.clock_source=0x0038`<br>pin_mux &mdash; `LED0_GPIO_CFG.mux=0x0007` |
+| `LED1_GPIO_CFG` | MMD 0x0304 | 8-76 | clock &mdash; `LED1_GPIO_CFG.clock_source=0x0038`<br>pin_mux &mdash; `LED1_GPIO_CFG.mux=0x0007` |
+| `LED2_GPIO_CFG` | MMD 0x0305 | 8-77 | pin_mux &mdash; `LED2_GPIO_CFG.mux=0x0007` |
+| `LED3_GPIO_CFG` | MMD 0x0306 | 8-78 | pin_mux &mdash; `LED3_GPIO_CFG.mux=0x0007` |
+| `CLK_OUT_LED_STATUS` | MMD 0x0308 | 8-79 | clock &mdash; `CLK_OUT_LED_STATUS.clock_off_status=0x0001` |
+| `VOD_CFG1` | MMD 0x030B | 8-80 | analog &mdash; `VOD_CFG1.minus_mdix_high=0x3000`, `VOD_CFG1.minus_mdi=0x0FC0`, `VOD_CFG1.zero=0x003F` |
+| `VOD_CFG2` | MMD 0x030C | 8-81 | analog &mdash; `VOD_CFG2.minus_mdix_low=0xF000`, `VOD_CFG2.plus_mdix=0x0FC0`, `VOD_CFG2.plus_mdi=0x003F` |
+| `VOD_CFG3` | MMD 0x030E | 8-82 | initialization &mdash; `VOD_CFG3.mdi_termination=0xF000`, `VOD_CFG3.mdi_enable=0x0800`, `VOD_CFG3.mdix_termination=0x0780`, `VOD_CFG3.mdix_enable=0x0040` |
+| `ANA_LD_PROG_SL` | MMD 0x0404 | 8-83 | No named fields |
+| `ANA_RX10BT_CTRL` | MMD 0x040D | 8-84 | tx10 &mdash; `ANA_RX10BT_CTRL.receiver_current_gain=0x001F` |
+| `GENCFG` | MMD 0x0456 | 8-85 | compatibility &mdash; `GENCFG.min_ipg=0x0008` |
+| `LEDCFG` | MMD 0x0460 | 8-86 | led &mdash; `LEDCFG.led3_source=0x0F00`, `LEDCFG.led2_source=0x00F0`, `LEDCFG.led1_source=0x000F` |
+| `IOCTRL` | MMD 0x0461 | 8-87 | analog &mdash; `IOCTRL.mac_slew=0x001F` |
+| `SOR1` | MMD 0x0467 | 8-88 | straps &mdash; `SOR1.strap11=0x0800`, `SOR1.strap10=0x0400`, `SOR1.strap9=0x0200`, `SOR1.strap8=0x0100`, `SOR1.strap7=0x0080`, `SOR1.strap6=0x0040`, `SOR1.strap5=0x0020`, `SOR1.strap4=0x0010`, `SOR1.strap3=0x0008`, `SOR1.strap2=0x0004`, `SOR1.strap1=0x0002`, `SOR1.strap0=0x0001` |
+| `SOR2` | MMD 0x0468 | 8-89 | straps &mdash; `SOR2.isolate=0x4000`, `SOR2.crs_rxdv=0x1000`, `SOR2.led3_polarity=0x0800`, `SOR2.led2_polarity=0x0400`, `SOR2.led0_polarity=0x0200`, `SOR2.fast_drop=0x0100`, `SOR2.auto_mdix=0x0080`, `SOR2.led1_polarity=0x0020`, `SOR2.rmii=0x0010`, `SOR2.follower=0x0008`, `SOR2.an1=0x0004`, `SOR2.an0=0x0002`, `SOR2.an_enable=0x0001` |
+| `LEDCFG2` | MMD 0x0469 | 8-90 | led &mdash; `LEDCFG2.led3_polarity=0x0400`, `LEDCFG2.led3_drive_value=0x0200`, `LEDCFG2.led3_drive_enable=0x0100`, `LEDCFG2.led2_polarity=0x0040`, `LEDCFG2.led2_drive_value=0x0020`, `LEDCFG2.led2_drive_enable=0x0010`, `LEDCFG2.led1_polarity=0x0004`, `LEDCFG2.led1_drive_value=0x0002`, `LEDCFG2.led1_drive_enable=0x0001` |
+| `RXFCFG1` | MMD 0x04A0 | 8-91 | wol &mdash; `RXFCFG1_crcGate=0x1000`, `RXFCFG1_levelAcknowledge=0x0800`, `RXFCFG1_pulseWidth=0x0600`, `RXFCFG1_levelMode=0x0100`, `RXFCFG1_enable=0x0080`, `RXFCFG1_bitMaskFlag=0x0040`, `RXFCFG1_secureOn=0x0020`, `RXFCFG1_magicPacketEnable=0x0001` |
+| `RXFS` | MMD 0x04A1 | 8-92 | interrupts &mdash; `RXFS.interrupt_source=0x1000`<br>counters &mdash; `RXFS.sfd_error=0x0080`, `RXFS.bad_crc=0x0040`, `RXFS.secure_on_error=0x0020`, `RXFS.magic_packet=0x0001` |
+| `RXFPMD1` | MMD 0x04A2 | 8-93 | wol &mdash; `RXFPMD1_byte4=0xFF00`, `RXFPMD1_byte5=0x00FF` |
+| `RXFPMD2` | MMD 0x04A3 | 8-94 | wol &mdash; `RXFPMD2_byte2=0xFF00`, `RXFPMD2_byte3=0x00FF` |
+| `RXFPMD3` | MMD 0x04A4 | 8-95 | wol &mdash; `RXFPMD3_byte0=0xFF00`, `RXFPMD3_byte1=0x00FF` |
+| `RXFSOP1` | MMD 0x04A5 | 8-96 | wol &mdash; `RXFSOP1_byte1=0xFF00`, `RXFSOP1_byte0=0x00FF` |
+| `RXFSOP2` | MMD 0x04A6 | 8-97 | wol &mdash; `RXFSOP2_byte3=0xFF00`, `RXFSOP2_byte2=0x00FF` |
+| `RXFSOP3` | MMD 0x04A7 | 8-98 | wol &mdash; `RXFSOP3_byte5=0xFF00`, `RXFSOP3_byte4=0x00FF` |
+
+### Recipe access
+
+Recipe-only access uses the exact order, DEVAD, value and row in the [A procedure ledger](registers/dp83826a-procedures.json). `eee_recipe` and `eee_failures` check the 27 writes and interrupted prefixes on each grade. The two writes to 04F5 are distinct. 0308 is a script exception. 04D3 is original-only. The five IEEE tuples use their separate DEVAD 3/7 namespace, with the consuming reads under the collector. Raw access to recipe words remains fenced.
+
+| Register | MMD address | A procedure scope |
+| --- | --- | --- |
+| `EEECFG3` | 0x1F:0x04D1 | EEE recipe and typed LPI control |
+| `EEE_04D3` | 0x1F:0x04D3 | Original only |
+| `EEE_04DF` | 0x1F:0x04DF | EEE recipe |
+| `EEE_033E` | 0x1F:0x033E | EEE recipe |
+| `EEE_033F` | 0x1F:0x033F | EEE recipe |
+| `RECIPE_0123` | 0x1F:0x0123 | Digital loopback and EEE |
+| `EEE_031B` | 0x1F:0x031B | EEE recipe |
+| `EEE_0466` | 0x1F:0x0466 | EEE recipe |
+| `EEE_04CF` | 0x1F:0x04CF | EEE recipe |
+| `EEE_0416` | 0x1F:0x0416 | EEE recipe |
+| `EEE_04F5` | 0x1F:0x04F5 | EEE recipe |
+| `EEE_04E0` | 0x1F:0x04E0 | EEE recipe |
+| `EEE_031F` | 0x1F:0x031F | EEE recipe |
+| `EEE_04F4` | 0x1F:0x04F4 | EEE recipe |
+| `RECIPE_0428` | 0x1F:0x0428 | Gated shared register (deep power and 100M pattern) |
+| `LOOP_0122` | 0x1F:0x0122 | Documented digital loopback |
+| `LOOP_0130` | 0x1F:0x0130 | Documented digital loopback |
+| `TDR_0411` | 0x1F:0x0411 | D3 cable recipe |
+| `EEE_0126` | 0x1F:0x0126 | EEE recipe |
+| `EEE_0132` | 0x1F:0x0132 | EEE recipe |
+| `EEE_04D4` | 0x1F:0x04D4 | EEE recipe |
+| `EEE_0310` | 0x1F:0x0310 | EEE recipe |
+| `EEE_0311` | 0x1F:0x0311 | EEE recipe |
+| `EEE_0313` | 0x1F:0x0313 | EEE recipe |
+| `EEE_033A` | 0x1F:0x033A | EEE recipe |
+| `EEE_033C` | 0x1F:0x033C | EEE recipe |
+| `EEE_0317` | 0x1F:0x0317 | EEE recipe |
+
+### Exceptional writes
+
+The feature owners below apply the [A write-action records](registers/dp83826a-procedures.json) under their typed procedures. Numbers after @ are ordered EEE recipe positions. Source gates and original-only actions in these records remain binding.
+
+| Feature | Action IDs and recipe positions |
+| --- | --- |
+| `bist` | `BICSR1_freezeClear` |
+| `loopback` | `LOOP_0122_digital`, `RECIPE_0123_digital`, `LOOP_0130_digital` |
+| `compliance` | `compliance_100_disable`, `compliance_100_enable`, `compliance_100_count_low`, `compliance_100_count_high`, `compliance_10_pattern_0`, `compliance_10_pattern_1`, `compliance_10_pattern_2`, `compliance_10_pattern_3`, `compliance_10_pattern_4`, `compliance_10_pattern_5`, `compliance_10_pattern_6`, `compliance_10_pattern_7`, `compliance_10_pattern_8`, `compliance_10_pattern_9`, `compliance_10_pattern_A`, `compliance_10_pattern_B`, `compliance_10_pattern_C`, `compliance_10_pattern_D` |
+| `eee` | `EEECFG3_eee @ 3`, `EEE_04D3_eee`, `EEE_04DF_eee @ 4`, `EEE_033E_eee @ 5`, `EEE_033F_eee @ 6`, `RECIPE_0123_eee @ 12`, `EEE_031B_eee @ 24`, `EEE_0466_eee @ 27`, `EEE_04CF_eee @ 16`, `EEE_0416_eee @ 18`, `EEE_04F5_eee @ 7,25`, `EEE_04E0_eee @ 8`, `EEE_031F_eee @ 9`, `CLK_OUT_LED_STATUS_eee @ 10`, `EEE_04F4_eee @ 11`, `EEECFG3_enable_bypass_controls`, `EEE_0126_eee @ 13`, `EEE_0132_eee @ 14`, `EEE_04D4_eee @ 15`, `EEE_0310_eee @ 17`, `EEE_0311_eee @ 19`, `EEE_0313_eee @ 20`, `EEE_033A_eee @ 21`, `EEE_033C_eee @ 22`, `EEE_0317_eee @ 23` |
+| `lpi` | `EEECFG3_lpi_start`, `EEECFG3_lpi_stop` |
+| `power` | `RECIPE_0428_dpd_enable` |
+| `cable` | `TDR_0411_tdr_0813`, `TDR_0411_tdr_0815`, `TDR_0411_tdr_0816`, `EEE_0416_tdr_1FA0`, `EEE_0416_tdr_1F90`, `GENCFG_tdr_0600` |

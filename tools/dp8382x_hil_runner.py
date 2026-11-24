@@ -607,16 +607,16 @@ def baseline_reply(record, command, prior, admission, session):
             (admission and (record.req, record.boot, record.fields["deadline_us"]) !=
              (admission.req, admission.boot, admission.fields["deadline_us"]))):
         raise ProtocolError(f"compiled feature baseline did not complete: {command.text} ({record.primary})")
-    campaign = session.campaign
+    campaign = session.campaign.current if session.soak else session.campaign
     try:
-        if campaign.expected["variant"] in ("DP83826AI", "DP83826AE"):
-            spec = campaign.feature.a_control(campaign.spec.id, campaign.declaration["mode"])
-            if spec is None or command.text != spec.baseline.command:
+        spec = campaign.a_control
+        if spec is not None:
+            if command.text != spec.baseline.command:
                 raise ProtocolError("unsupported A-generation baseline")
             check = campaign.feature.operation if spec.form == "operation" else campaign.feature.direct
             check(record, spec.schema, spec.baseline.fields)
         else:
-            campaign.feature.check_baseline(record, command.text, campaign.declaration["mode"])
+            campaign.feature.check_baseline(record, command.text, campaign.declaration["mode"], campaign.a_feature)
     except AssertionFailed as error:
         raise ProtocolError(str(error)) from error
     return None

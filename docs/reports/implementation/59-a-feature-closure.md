@@ -209,3 +209,95 @@ New prompt 59 host behavior, portable consumer, exported package consumer,
 SDK link, remote CI and physical evidence are **NOT RUN** in phase (a).
 Prompt 71 owns remote CI. Phase (b) starts with the shared pin/route contract
 and grade-specific vectors above. Software closure remains open.
+
+## Phase (b) implementation
+
+**IN PROGRESS, ready for independent review.** Entry on main was clean and
+synchronized at `e26bc81def885dc2c1bbc9b139f437a5b92128c0`. The lead
+integrated public declarations, CLI, fake adapter, runner, matrix and guides.
+Two implementation workers used the session model for disjoint tasks requiring
+silicon and transaction reasoning. One covered pins, IRQ and wake, the other
+EEE, power and diagnostics. Both finished before the commit request. The
+sibling source paths, revisions and conventions in phase (a) were rechecked.
+
+- AI and AE use the revision-4 LEDCFG and LEDCFG2 fields, separate per-pin
+  grants and readbacks, and the same pin transaction owner during reset replay.
+  MII COL/CRS use and the pin 30 PLL selection constrain route changes in both
+  ownership orders. The pin 31 disputed selections remain closed. Both grades
+  exercise single-collector partial MISR reads, neutral/acknowledgement W0C
+  writes and asymmetric wire-order MAC/Secure-ON words.
+- The EEE owner applies all 27 rows in order. It retains restart disposition
+  independently of the final 0466 write. For the nominal path without
+  additional owners, the capability checkpoint requires at least 178 frames
+  and 59 callbacks after the initial 12/5. The owner also reserves replay for
+  retained policies and extra reset polling uses the remaining finite budget.
+  Failure vectors exercise every recipe frame and the final readback. Negotiation
+  status samples PHYSTS first. Legacy LPI and its cleanup use the shared owner.
+- Diagnostic tests execute the generation-selected loopback, PRBS, cable,
+  IEEE power, sleep, PLL, quality, compliance and recovery paths. The CLI
+  simulates CDCR hardware-owned result bits on control writes. A quality
+  setup exercises TX100, TX10 and the FLD bound together. Source gates cover
+  0428 deep power and COUNT100, unsupported RX gain and the unqualified 0461
+  example. Raw MSE keeps its evidence limits. Separate source and physical
+  gates remain in the [matrix](../../feature-coverage.md).
+- The matrix reconciles the shared A map across prompts 57-59. The executing
+  coverage test joins 35 features, 52 procedures, 79 detailed registers with
+  285 fields, 27 recipe register records and 56 exceptional actions to the
+  ledgers. The per-grade campaigns select eligible mode profiles. Wake setup
+  disables and acknowledges before challenge generation. Replay tests cover
+  failed/interrupted setup, a grade mismatch and altered evidence. Native
+  owner tests exercise board grants and default denial.
+
+### Local evidence on the phase (b) tree
+
+Windows 11 AMD64, CPython 3.12.10, GNU C++ 15.1.0, CMake 4.0.1 and Ninja.
+Both original-PDF comparisons passed (79 tables and 427 rows per generation,
+27 A EEE rows and 48 TDR words). The references, ledger, version checks and
+public Doxygen passed (294 pages and two rejected negative fixtures).
+
+| Layer | Result | Receipt |
+| --- | --- | --- |
+| Host Release | PASS | 991/991, including original I/E regressions, grade-specific AI and AE suites, compiled CLI, runner and replay. Pinned native tests used 45 verified SDK inputs. |
+| Host UBSan | PASS | 294/294 AI/AE registrations. |
+| Python | PASS | 272 discovered, 216 passed and 56 compiled-build-only skips in standalone discovery. The Release run supplied the fixture executable. |
+| Portable consumer | PASS | 2/2 tests from the tests-OFF separate consumer build. |
+| Isolated source-package consumer | PASS | 1/1 separate public A API consumer, configured against a Git-free copy of current package inputs. |
+| ESP32-P4 SDK link | PASS | Both selected adapter-link grades and the basic and owner examples linked against v6.1 at fff9895c. |
+| Remote CI | NOT RUN | First-execution CI belongs to prompt 71. |
+| DP83826AI physical | NOT RUN | Requires an identified authorized board and evidence for this grade, including Strap11 EMC. |
+| DP83826AE physical | NOT RUN | Requires separate board and measurement evidence for this grade, including Strap11 EMC. |
+
+Reproduction from the repository root, using the pinned host configuration
+and the four existing v6.1 project build directories:
+
+```powershell
+python -B build/p57-final-sources/crosscheck.py
+python -B build/p57-procedures/check.py
+cmake -S . -B build/p53-baseline -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON -DDP8382X_BUILD_PINNED_IDF_TESTS=ON -DDP8382X_PINNED_IDF_PATH=C:/esp/v6.1/esp-idf
+cmake --build build/p53-baseline
+ctest --test-dir build/p53-baseline --output-on-failure --no-tests=error -j 8
+ctest --test-dir build/p55-ubsan -R 'ai_|ae_' --output-on-failure --no-tests=error
+ctest --test-dir build/p59b-consumer --output-on-failure --no-tests=error
+ctest --test-dir build/p59b-export/out --output-on-failure --no-tests=error
+python -B -m unittest discover -s test -p 'test_*.py' -v
+python -B tools/check_doxygen.py
+python -B tools/verify_references.py
+python -B tools/verify_ledger.py
+python -B scripts/generate_version.py check
+git diff --check
+```
+
+SDK builds used `scripts/idf.cmd -C <project> -B C:/esp/build/dp8382x-loop/<dir> build`
+with target esp32p4 and the corresponding local sdkconfig. All binaries below
+were linked from the phase (b) working tree before the wrapper commit.
+
+| Directory | Project / selection | Binary SHA-256 |
+| --- | --- | --- |
+| 53l | test/esp_idf/adapter_link, DP83826AI | `f12f366a10fb36e445f6586ed39f9d2dcfcc8369e94f8f7b6dffd9444da2cc51` |
+| 56l | test/esp_idf/adapter_link, DP83826AE | `ebd81b2464277fb3a0b9e51076228f46421f65047936190ec52ce48b65477cae` |
+| 56b | examples/esp_idf/basic | `ba95e883f0d148e1f28585947227392e68e8928a48e0fc4b2c874ee6b371c343` |
+| 56o | examples/esp_idf/owner | `5bd4e86f9107f4bbd509cc450e4058501e3b54e4ab617f1a9a569dd3c6ec4caa` |
+
+Phase (c) reviews the actual checked commit against the PDF tables, the
+31 assignments, bounded reset and failure behavior, and per-grade CLI and
+runner evidence. Prompt 59 remains open for that review and final verification.

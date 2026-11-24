@@ -410,3 +410,14 @@ kill or an unresponsive filesystem can interrupt that removal. Filesystem
 operations already in the kernel may complete as the process exits.
 After publication the soak allows 50 ms to print its verdict. If the host
 console stays full, the process exits with the published result.
+
+### Revision-4 feature fixtures
+
+Use matching `--variant` and `--fixture-variant` values of `DP83826AI` or
+`DP83826AE` with the compiled fixture. The runner selects mode-specific
+settings and checks A readback, including clock and LED muxes, PHYSCR,
+transmit controls and the EEE restart. Wake setup validates the disabled
+detector baseline and its subsequent acknowledgement before the nonce.
+Soak artifacts retain each setup command and its last confirmed state if
+communication ends there. Native campaigns still require their independent
+fixture grants. [Qualification cases](hardware-validation.md#feature-fixtures)

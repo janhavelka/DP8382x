@@ -734,3 +734,18 @@ words, possibly changed settings or cleanup debt. Keep those fields with
 the original request and correlate an owning stop or replay separately.
 The [fixture cases](hardware-validation.md#feature-fixtures) define the
 independent readback, stimulus and measurement needed per family.
+
+### AI and AE feature commands
+
+The revision-4 routes use the existing command groups. `irq configure` and
+`wol configure` accept `led0` and `led3` on the supported pads. Pin 30
+shares its clock mux with LED0. In ENHANCED MII an alternate use of LED2
+requires COL release and LED3 requires CRS release. The pin profile accepts
+the documented `low3`, `low5`, `low6`, `crs3`, `crs5` and `crs6` codes on
+their respective pads. The interface owner selects PLL or recovered clock.
+`help registers` identifies the bound map's LEDCR policy.
+
+An A `eee configure` terminal includes `recipe_restart`. Values are
+`none`, `attempted`, `uncertain` and `accepted`. An accepted restart can
+precede a final MDIO failure at 0466. Retain the terminal and its cleanup
+debt together. [A procedure and field matrix](feature-coverage.md#dp83826ai-and-dp83826ae)

@@ -696,27 +696,14 @@ void access() {
   CHECK(word == 0xCAFE && identity.declaredVariant == test::declaredVariant);
   CHECK(driver.capabilities().valid && driver.strapSnapshot().sor2Valid);
   EvidenceSnapshot evidence;
-  EeeSnapshot eee;
-  PowerSnapshot power;
-  WakeSnapshot wake;
-  PinResult pins;
-  LpiResult lpi;
-  const auto blocked = {
-    driver.startConfigureEee({}, budget(), token), driver.readEeeStatus(eee, io),
-    driver.startLpi({}, lpi, io), driver.startConfigurePower({}, budget(), token),
-    driver.readPowerStatus(power, io), driver.configurePins({}, pins, io),
-    driver.startConfigureWake({}, budget(), token), driver.readWakeStatus(wake, io),
-    driver.startConfigureAnalog({}, budget(), token), driver.startCableAutorunAcquire(budget(), token),
-    driver.startInterruptTest(budget(), token), driver.modifyInterruptEnables(0x12, 1, 1, io),
-    driver.modifyWakeControl(1, 1, false, io), driver.startLoopback({}, budget(), token),
-    driver.acquireEvidence(evidenceBit(EvidenceSource::FLDS) | evidenceBit(EvidenceSource::MISR1), evidence, io)
-  };
-  for (const auto status : blocked) {
-    CHECK(status.is(Err::INVALID_CONFIG) && status.detail == static_cast<int32_t>(ConfigDetail::SOURCE_GATE));
-  }
+  // Local policy still protects selectors, opaque words and raw LEDCR. The
+  // collector owns FLDS and MISR1 together for both revision-4 declarations.
   CHECK(bus.calls == calls && bus.clocks == clocks);
-  CHECK(driver.acquireEvidence(evidenceBit(EvidenceSource::FLDS), evidence, io).ok());
-  CHECK(bus.frames == before + 10 && evidence.samples[3].samples == 1);
+  CHECK(driver.acquireEvidence(evidenceBit(EvidenceSource::FLDS) | evidenceBit(EvidenceSource::MISR1),
+                               evidence, io).ok());
+  CHECK(bus.frames == before + 11 && evidence.samples[3].samples == 1);
+  wire(bus, before + 9, FrameKind::READ, 15);
+  wire(bus, before + 10, FrameKind::READ, 18);
   // The opposite generation responds at the same address. No further
   // observation may write selectors or read a target after this failed probe.
   bus.phys[1].id2 = 0xA131;

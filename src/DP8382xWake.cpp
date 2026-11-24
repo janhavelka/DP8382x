@@ -19,7 +19,7 @@ Status wakeSyntax(const WakeSettings& settings) noexcept {
 uint16_t credentialWord(const WakeSettings& settings,uint8_t index) noexcept {
   const auto* octets=index<3U?settings.mac:settings.password;
   const auto offset=static_cast<uint8_t>((index%3U)*2U);
-  // SNLS647I 8-92..97: API octet 0 is transmitted first (datasheet MAC byte 5).
+  // SNLS647I tables 8-92..97 and SNLS783A tables 8-93..98: API octet 0 is transmitted first (datasheet MAC byte 5).
   return static_cast<uint16_t>(uint16_t{octets[offset]}|(uint16_t{octets[offset+1U]}<<8U));
 }
 MdioBatch wakeRead(uint8_t address) noexcept {
@@ -40,28 +40,29 @@ Status DP8382x::_validateWake(const WakeSettings& settings) const noexcept {
   if (!settings.maintenanceAdmitted || !settings.receiveTrafficQuiesced) {
     return wakeConfig("Wake settings require quiesced receive traffic and maintenance admission");
   }
-  if (settings.route==WakeRoute::LED0 || settings.route==WakeRoute::LED3) {
+  if (!isA(_config.variant) && (settings.route==WakeRoute::LED0 || settings.route==WakeRoute::LED3)) {
     return Status::Error(Err::UNSUPPORTED,"Wake pin route lacks admitted GPIO capability",static_cast<int32_t>(ConfigDetail::SOURCE_GATE));
   }
   if (settings.enabled && _interrupts.desiredValid && _interrupts.desired.sharedSource!=InterruptSharedSource::WAKE) {
     return wakeConfig("Enabled WoL conflicts with the owned polarity interrupt source");
   }
   if (_pins.desiredValid) {
-    for (uint8_t i=1;i<=2U;++i) {
+    for (uint8_t i=0;i<4U;++i) {
       if (_pins.desired.pins[i].function==PinFunction::WAKE &&
-          settings.route!=(i==1U?WakeRoute::LED1:WakeRoute::LED2)) {
+          ledIndex(settings.route)!=i) {
         return wakeConfig("Release the dependent pin profile before moving the wake route");
       }
     }
   }
   if (settings.route==WakeRoute::STATUS_ONLY) { return Status::Ok(); }
-  const uint8_t directPin=settings.route==WakeRoute::LED1?1U:settings.route==WakeRoute::LED2?2U:0U;
+  const uint8_t directPin=ledIndex(settings.route);
   if (_interface.desiredValid &&
-      ((directPin==1U && _interface.desired.clockOutput==ClockOutput::CLKOUT25) ||
+      ((isA(_config.variant) && directPin==0U && _interface.desired.clockOutput!=ClockOutput::UNOWNED) ||
+       (directPin==1U && _interface.desired.clockOutput==ClockOutput::CLKOUT25) ||
        (directPin==2U && _interface.desired.collisionFullDuplex))) {
     return wakeConfig("Wake route conflicts with the interface clock/COL owner");
   }
-  if (directPin!=0U && _pins.desiredValid &&
+  if (directPin<4U && _pins.desiredValid &&
       _pins.desired.pins[directPin].function!=PinFunction::UNOWNED &&
       _pins.desired.pins[directPin].function!=PinFunction::WAKE) {
     return wakeConfig("Wake route conflicts with the owned pin profile");
@@ -79,8 +80,8 @@ Status DP8382x::_validateWake(const WakeSettings& settings) const noexcept {
   if (_eee.desiredValid && _eee.desired.enabled && settings.route==WakeRoute::LED1) {
     return wakeConfig("Disable EEE before conflicting LED1 clock/wake routing");
   }
-  if (_identity.mode==OperatingMode::BASIC && settings.route==WakeRoute::LED2) {
-    return Status::Error(Err::UNSUPPORTED,"BASIC has no LED2 wake output");
+  if (_identity.mode==OperatingMode::BASIC && (directPin==2U || directPin==3U)) {
+    return Status::Error(Err::UNSUPPORTED,"BASIC exposes only LED0 and LED1");
   }
   if (_identity.mode==OperatingMode::ENHANCED && settings.route==WakeRoute::LED1 && !settings.led1ClockUnused) {
     return wakeConfig("LED1 clock consumer conflicts with wake output");
@@ -89,16 +90,16 @@ Status DP8382x::_validateWake(const WakeSettings& settings) const noexcept {
       _config.interface==MacInterface::MII && !settings.colUnused) {
     return wakeConfig("MII COL consumer conflicts with LED2 wake output");
   }
-  if (_interrupts.desiredValid &&
-      ((settings.route==WakeRoute::LED1 && _interrupts.desired.pin==InterruptPin::LED1) ||
-       (settings.route==WakeRoute::LED2 && _interrupts.desired.pin==InterruptPin::LED2))) {
+  if (directPin==3U && _config.interface==MacInterface::MII && !settings.crsUnused) {
+    return wakeConfig("MII CRS consumer conflicts with LED3 wake output");
+  }
+  if (_interrupts.desiredValid && directPin==ledIndex(_interrupts.desired.pin)) {
     return wakeConfig("Wake GPIO and interrupt owner require different pin functions");
   }
   return Status::Ok();
 }
 
 Status DP8382x::startConfigureWake(const WakeSettings& settings,const OperationBudget& budget,OperationToken& token) noexcept {
-  if (isA(_config.variant)) { return _unsupportedFeature(); }
   auto status=wakeSyntax(settings); if (!status.ok()) { return status; }
   if (budget.pollIntervalUs==0U || budget.maxStalledPolls==0U) {
     return Status::Error(Err::INVALID_PARAM,"Invalid wake budget",static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
@@ -123,7 +124,6 @@ Status DP8382x::startConfigureWake(const WakeSettings& settings,const OperationB
 }
 
 Status DP8382x::acknowledgeWake(const OperationBudget& budget,OperationToken& token) noexcept {
-  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (budget.pollIntervalUs==0U || budget.maxStalledPolls==0U) {
     return Status::Error(Err::INVALID_PARAM,"Invalid wake acknowledgement budget",static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
   }
@@ -151,13 +151,10 @@ uint16_t DP8382x::_wakeControl() const noexcept {
       (settings.enabled && settings.secureOn?0x0020U:0U));
 }
 uint8_t DP8382x::_wakePin() const noexcept {
-  if (_wake.desired.route==WakeRoute::LED1) { return 1; }
-  if (_wake.desired.route==WakeRoute::LED2) { return 2; }
   if (_wake.desired.route==WakeRoute::INTERRUPT && _interrupts.desiredValid) {
-    if (_interrupts.desired.pin==InterruptPin::LED1) { return 1; }
-    if (_interrupts.desired.pin==InterruptPin::LED2) { return 2; }
+    return ledIndex(_interrupts.desired.pin);
   }
-  return 0;
+  return ledIndex(_wake.desired.route);
 }
 uint16_t DP8382x::_wakePinFunction() const noexcept {
   return _wake.desired.route==WakeRoute::INTERRUPT?uint16_t{4}:uint16_t{2};
@@ -169,7 +166,7 @@ void DP8382x::_retainWakeControl(uint16_t value) noexcept {
   _wake.levelMode=(value&0x0100U)!=0U; _wake.pulseWidth=static_cast<uint8_t>((value>>9U)&3U);
 }
 void DP8382x::_retainWakeWord(uint16_t address,uint16_t value) noexcept {
-  const bool pin=_wake.desiredValid && _wakePin()!=0U && address==(_wakePin()==1U?0x0304U:0x0305U);
+  const bool pin=_wake.desiredValid && _wakePin()<4U && address==(0x0303U+_wakePin());
   if (!pin && (address<0x04A0U || address>0x04A7U)) { return; }
   _wake.observedStale=true;
   uint16_t mask=0,expected=0;
@@ -212,6 +209,47 @@ void DP8382x::_setWakeStep(WakeStep step) noexcept {
   _operation.phase=step==WakeStep::IDENTIFY?OperationPhase::IDENTIFY:OperationPhase::VERIFY;
   if (step==WakeStep::IDENTIFY) { _wakeExpectedMode=_identity.mode; _wakeWord=0; _wakeCredentialsChanged=false; _wakePinNeedsApply=false; }
 }
+void DP8382x::_wakePassCost(bool verifyOnly,uint32_t& frames,uint32_t& callbacks) const noexcept {
+  frames=callbacks=0;
+  if (!_wake.desiredValid) return;
+  const auto pin=_wakePin();
+  if (!_wakeWorking || _wakeStep==WakeStep::IDENTIFY) {
+    if (_wakeWorking && _operation.kind==OperationKind::WOL_ACKNOWLEDGE) {
+      frames=25; callbacks=7; // ID, control, harvest, W0C, verify, selector, MISR2
+      return;
+    }
+    frames=35; callbacks=10; // ID, RXFCFG1, six credentials, selector and MISR2
+    if (pin<4U) { frames+=pin>=2U?5U:4U; ++callbacks; }
+    if (pin==1U && _identity.mode==OperatingMode::ENHANCED) { frames+=4; ++callbacks; }
+    if (!_wakeWorking && !verifyOnly) {
+      // Before HARD, detector/strap state and credential matches are unknown.
+      // Reserve disable and final apply (harvest + RMW + readback each), all
+      // six credential writes/readbacks, and the selected mux when present.
+      frames+=76; callbacks+=18;
+      if (pin<4U) { frames+=9; callbacks+=2; }
+    }
+  } else if (_wakeStep==WakeStep::HARVEST_ACK) {
+    frames=19; callbacks=5; return;
+  } else if (_wakeStep==WakeStep::HARVEST_DISABLE || _wakeStep==WakeStep::HARVEST_APPLY ||
+             _wakeStep==WakeStep::PIN_APPLY || (_wakeStep==WakeStep::WRITE_CREDENTIAL && _wakeWord==0U)) {
+    // The preflight now pins the exact remaining sequence. Re-admit at every
+    // first mutation category so scheduling lag cannot consume its deadline.
+    frames=5; callbacks=2; // READ_SELECTOR and DRAIN_SELECTOR
+    const bool disable=_wakeStep==WakeStep::HARVEST_DISABLE;
+    const bool applying=_wakeStep==WakeStep::HARVEST_APPLY;
+    if (disable) { frames+=14; callbacks+=3; }
+    if (!applying && _wakePinNeedsApply) { frames+=9; callbacks+=2; }
+    if (!applying && _wakeCredentialsChanged) { frames+=48; callbacks+=12; }
+    const uint16_t control=static_cast<uint16_t>(_wake.rawControl & (disable?0x1700U:0x17A1U));
+    if (applying || control!=_wakeControl()) { frames+=14; callbacks+=3; }
+  } else return;
+  if (_wakeWorking && _operation.kind==OperationKind::WOL_CONFIGURE && _interruptTailPending) {
+    uint32_t irqFrames=0,irqCallbacks=0;
+    _interruptPassCost(true,irqFrames,irqCallbacks);
+    frames+=irqFrames; callbacks+=irqCallbacks;
+  }
+}
+
 MdioBatch DP8382x::_wakeBatch() const noexcept {
   switch (_wakeStep) {
     case WakeStep::IDENTIFY: {
@@ -219,14 +257,14 @@ MdioBatch DP8382x::_wakeBatch() const noexcept {
     }
     case WakeStep::PIN_CLOCK: return _mmdBatch(0x0308,FrameKind::READ,0);
     case WakeStep::PIN_MUX: case WakeStep::PIN_VERIFY: {
-      auto batch=_mmdBatch(_wakePin()==1U?0x0304:0x0305,FrameKind::READ,0);
-      if (_wakeStep==WakeStep::PIN_MUX && _wakePin()==2U) {
+      auto batch=_mmdBatch(static_cast<uint16_t>(0x0303U+_wakePin()),FrameKind::READ,0);
+      if (_wakeStep==WakeStep::PIN_MUX && _wakePin()>=2U) {
         batch.frames[batch.frameCount++]={FrameKind::READ,0x17,0,0,NO_READ_INDEX};
       }
       return batch;
     }
     case WakeStep::PIN_APPLY: {
-      auto batch=_mmdBatch(_wakePin()==1U?0x0304:0x0305,FrameKind::READ,0); batch.frameCount=5;
+      auto batch=_mmdBatch(static_cast<uint16_t>(0x0303U+_wakePin()),FrameKind::READ,0); batch.frameCount=5;
       // Only the documented GPIO function field belongs to this narrow owner.
       batch.frames[4]={FrameKind::WRITE,0x0E,_wakePinFunction(),0xFFF8,3}; return batch;
     }
@@ -263,7 +301,7 @@ Status DP8382x::_advanceWake(Status status,bool called,const MdioBatch& batch) n
     if (address==0x04A0U) { _wake.controlValid=false; }
     else if (address>=0x04A2U && address<=0x04A7U) {
       _wake.credentialValidMask&=static_cast<uint8_t>(~(1U<<(address-0x04A2U)));
-    } else if (address==0x0304U || address==0x0305U) { _wake.pinControlValid=false; }
+    } else if (address>=0x0303U && address<=0x0306U) { _wake.pinControlValid=false; }
     else if (address==0x04A1U) { _wake.rxfsValid=false; }
   }
   if ((_wakeStep==WakeStep::HARVEST_DISABLE || _wakeStep==WakeStep::HARVEST_APPLY ||
@@ -327,28 +365,32 @@ Status DP8382x::_advanceWake(Status status,bool called,const MdioBatch& batch) n
       const auto valid=_validateWake(_wake.desired); if (!valid.ok()) { return _finishOperation(valid); }
       if (ack) { afterPins(); }
       else if (_wakePin()==1U && _identity.mode==OperatingMode::ENHANCED) { _setWakeStep(WakeStep::PIN_CLOCK); }
-      else if (_wakePin()!=0U) { _setWakeStep(WakeStep::PIN_MUX); }
+      else if (_wakePin()<4U) { _setWakeStep(WakeStep::PIN_MUX); }
       else { afterPins(); }
       break;
     }
     case WakeStep::PIN_CLOCK:
       if ((value&1U)==0U) { return _finishOperation(wakeConfig("LED1 clock output remains active")); }
       _setWakeStep(WakeStep::PIN_MUX); break;
-    case WakeStep::PIN_MUX:
-      if (_wakePin()==2U &&
+    case WakeStep::PIN_MUX: {
+      if (_wakePin()>=2U &&
           (_transport.lastBatch.frames[4].value&0x0020U)!=(_config.interface==MacInterface::RMII?0x0020U:0U)) {
         return _finishOperation(wakeConfig("Observed interface differs from LED2 wake wiring"));
       }
       _wakePinNeedsApply=(value&7U)!=_wakePinFunction();
-      if (_wakeVerifyOnly && _wakePinNeedsApply) {
-        _result.mismatch={true,true,31,static_cast<uint16_t>(_wakePin()==1U?0x0304:0x0305),7,_wakePinFunction(),value};
+      // Restoration reaches this owner ahead of IRQ. It restores the common mux
+      // with the detector disabled; the later IRQ pass verifies the same row.
+      const bool dependent=_wake.desired.route==WakeRoute::INTERRUPT && _operation.kind==OperationKind::WOL_CONFIGURE;
+      if ((_wakeVerifyOnly || dependent) && _wakePinNeedsApply) {
+        _result.mismatch={true,true,31,static_cast<uint16_t>(0x0303U+_wakePin()),7,_wakePinFunction(),value};
         return _finishOperation(Status::Error(Err::CONFIG_MISMATCH,"Wake pin function differs"));
       }
       afterPins(); break;
+    }
     case WakeStep::PIN_APPLY: _setWakeStep(WakeStep::PIN_VERIFY); break;
     case WakeStep::PIN_VERIFY:
       if ((value&7U)!=_wakePinFunction()) {
-        _result.mismatch={true,true,31,static_cast<uint16_t>(_wakePin()==1U?0x0304:0x0305),7,_wakePinFunction(),value};
+        _result.mismatch={true,true,31,static_cast<uint16_t>(0x0303U+_wakePin()),7,_wakePinFunction(),value};
         return _finishOperation(Status::Error(Err::CONFIG_MISMATCH,"Wake pin function readback mismatch"));
       }
       _wakePinNeedsApply=false; afterDisable(); break;
@@ -400,7 +442,6 @@ Status DP8382x::_advanceWake(Status status,bool called,const MdioBatch& batch) n
 }
 
 Status DP8382x::readWakeStatus(WakeSnapshot& snapshot,const IoBudget& budget) noexcept {
-  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
   if (_active || _polling) { return wakeBusy(BusyDetail::OPERATION_ACTIVE); }
   const auto fail=[&](Status status) noexcept {

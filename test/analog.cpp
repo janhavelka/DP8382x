@@ -18,7 +18,7 @@ struct Controller {
   std::array<uint16_t,0x500> ext{};
   std::array<uint16_t,64> mmd3{},mmd7{};
   std::array<Wire,8192> trace{};
-  uint16_t selector{0},address{0},id2{0xA131};
+  uint16_t selector{0},address{0},id2{test::enhancedId2()};
   MacInterface boardInterface{MacInterface::MII};
   uint64_t now{100};
   unsigned frames{0},calls{0},clocks{0},releases{0},mutations{0},hard{0};

@@ -5,7 +5,7 @@ transport implementation. [Initialization](initialization.md) documents NONE/PCS
 retained operation evidence and separately admitted restoration. There is no
 generic job engine or desired profile inferred from raw maintenance writes.
 
-The framework-independent C++17 DP8382x core supports declared DP83826I/E and the DP83826AI/AE core/link procedures. It is
+The framework-independent C++17 DP8382x core supports declared DP83826I/E and the revision-4 DP83826AI/AE procedures in the [coverage matrix](feature-coverage.md#dp83826ai-and-dp83826ae). It is
 shared by portable applications and a native ESP-IDF adapter. Shipped behavior
 is recorded in [implementation progress](implementation-progress.md); design
 contracts are not placeholder APIs or claims of physical support.

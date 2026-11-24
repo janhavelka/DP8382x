@@ -52,7 +52,6 @@ Status DP8382x::_validateAnalog(const AnalogSettings& s) const noexcept {
 }
 
 Status DP8382x::startConfigureAnalog(const AnalogSettings& settings,const OperationBudget& budget,OperationToken& token) noexcept {
-  if (isA(_config.variant)) { return _unsupportedFeature(); }
   const auto syntax=analogSyntax(settings); if (!syntax.ok()) { return syntax; }
   if (budget.pollIntervalUs==0U || budget.maxStalledPolls==0U) {
     return Status::Error(Err::INVALID_PARAM,"Invalid analog operation budget",static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
@@ -94,6 +93,17 @@ bool DP8382x::_analogRowValue(uint8_t row,uint16_t& address,uint16_t& mask,uint1
     default: break;
   }
   return mask!=0U;
+}
+void DP8382x::_analogReplayCost(uint32_t& frames,uint32_t& callbacks) const noexcept {
+  // One two-frame preflight, then snapshot, apply and verify each owned word.
+  frames=2; callbacks=1;
+  for (uint8_t row=0;row<5U;++row) {
+    uint16_t address=0,mask=0,value=0;
+    if (_analogRowValue(row,address,mask,value)) { frames+=12; callbacks+=3; }
+  }
+  // HARD does not specify every split MDIX amplitude bit. Reserve a bridge
+  // write and readback until the post-reset snapshot establishes both halves.
+  if (_analog.desired.amplitudeOwned) { frames+=8; callbacks+=2; }
 }
 void DP8382x::_nextAnalogRow() noexcept {
   uint16_t a=0,m=0,v=0;

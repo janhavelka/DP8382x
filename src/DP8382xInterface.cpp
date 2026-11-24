@@ -71,6 +71,16 @@ Status DP8382x::_validateInterface(const InterfaceSettings& settings) const noex
     if (settings.clockOutput==ClockOutput::LED1 || settings.clockOutput==ClockOutput::CLKOUT25) {
       return interfaceConfig("A-generation pin 31 mux programming remains source-gated");
     }
+    const auto role=_pins.desiredValid?_pins.desired.pins[0].function:PinFunction::UNOWNED;
+    if (role==PinFunction::CLOCK && settings.clockOutput==ClockOutput::UNOWNED) {
+      return interfaceConfig("Release the dependent pin 30 clock profile before dropping its source");
+    }
+    if (settings.clockOutput!=ClockOutput::UNOWNED &&
+        ((role!=PinFunction::UNOWNED && role!=PinFunction::CLOCK) ||
+         (_interrupts.desiredValid && _interrupts.desired.pin==InterruptPin::LED0) ||
+         (_wake.desiredValid && _wake.desired.route==WakeRoute::LED0))) {
+      return interfaceConfig("Pin 30 clock conflicts with an owned LED0 GPIO route");
+    }
     if (settings.observePin31 && _identity.mode!=OperatingMode::ENHANCED) {
       return interfaceConfig("Pin 31 route status requires ENHANCED mode");
     }
@@ -227,8 +237,8 @@ void DP8382x::_retainInterfaceWord(uint16_t address,uint16_t value) noexcept {
     // LED2 source owners share the same mode prerequisite even without a pin
     // profile. A later collector observation cannot leave their route verified.
     if (_interface.observedInterface!=_config.interface) {
-      const bool irq=_interrupts.desiredValid && _interrupts.desired.pin==InterruptPin::LED2;
-      const bool wake=_wake.desiredValid && _wakePin()==2U;
+      const bool irq=_interrupts.desiredValid && (_interrupts.desired.pin==InterruptPin::LED2 || _interrupts.desired.pin==InterruptPin::LED3);
+      const bool wake=_wake.desiredValid && (_wakePin()==2U || _wakePin()==3U);
       if (irq) { _interrupts.trust=ConfigurationTrust::DIRTY; _interrupts.observedStale=true; }
       if (wake) { _wake.trust=ConfigurationTrust::DIRTY; _wake.observedStale=true; }
       const bool proved=(irq && _interruptWorking && _interruptStep!=InterruptStep::IDENTIFY && _interruptStep!=InterruptStep::PIN_MUX) ||
@@ -252,6 +262,10 @@ void DP8382x::_retainInterfaceWord(uint16_t address,uint16_t value) noexcept {
   }
   if ((value&mask)==expected) { return; }
   _interface.trust=ConfigurationTrust::DIRTY; _interface.observedStale=true;
+  if (index==8 && proved && _pins.desiredValid && _pins.desired.pins[0].function==PinFunction::CLOCK) {
+    _pins.trust=ConfigurationTrust::DIRTY;
+    _pins.observedStale=true;
+  }
   if (_interfaceWorking && proved && !_interfaceResult.mismatch.valid) {
     _interfaceResult.mismatch={true,address>0x1FU,static_cast<uint8_t>(address>0x1FU?31:0),address,mask,expected,value};
   }
@@ -399,6 +413,8 @@ Status DP8382x::configureInterface(const InterfaceSettings& settings,InterfaceRe
   return _interfaceResult.status;
 }
 bool DP8382x::_led1RouteVerified() const noexcept {
+  // On A the interface clock owner selects pin 30. Pin 31 has a separate POR observation.
+  if (isA(_config.variant)) { return true; }
   const bool pinRoute=!_pins.desiredValid || !_pins.desired.led1ClockOverride ||
       _pins.trust==ConfigurationTrust::VERIFIED;
   const bool interfaceRoute=!_interface.desiredValid || _interface.desired.clockOutput==ClockOutput::UNOWNED ||

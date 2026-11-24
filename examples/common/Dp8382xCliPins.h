@@ -57,10 +57,11 @@ inline bool decodePin(std::string_view text, PinSetting& pin) {
            static_cast<LedDrive>(drive)};
     return true;
   }
-  const int role = featureChoice(text, "keep|wake|irq|col3|col5|col6|high|tx-error|clock");
+  const int role = featureChoice(text, "keep|wake|irq|col3|col5|col6|high|tx-error|clock|low3|low5|low6|crs3|crs5|crs6");
   constexpr PinFunction roles[]{PinFunction::UNOWNED, PinFunction::WAKE, PinFunction::INTERRUPT,
       PinFunction::COLLISION3, PinFunction::COLLISION5, PinFunction::COLLISION6, PinFunction::HIGH,
-      PinFunction::TX_ERROR, PinFunction::CLOCK};
+      PinFunction::TX_ERROR, PinFunction::CLOCK, PinFunction::LOW3, PinFunction::LOW5, PinFunction::LOW6,
+      PinFunction::CARRIER_SENSE3, PinFunction::CARRIER_SENSE5, PinFunction::CARRIER_SENSE6};
   if (role < 0) return false;
   pin.function = roles[role];
   return true;
@@ -315,6 +316,11 @@ Status pinFeature(Access& io, Feature feature, const FeatureArgs& args, FeatureF
       settings.maintenanceAdmitted = settings.macStopped = settings.outputsQuiesced = true;
       settings.led1ClockUnused = led1;
       settings.colUnused = col;
+      const auto role3 = settings.pins[3].function;
+      if (role3 != PinFunction::UNOWNED && role3 != PinFunction::CARRIER_SENSE3 &&
+          role3 != PinFunction::CARRIER_SENSE5 && role3 != PinFunction::CARRIER_SENSE6) {
+        settings.crsUnused = io.attest(0x80U);
+      }
       PinResult result{};
       const auto status = io.template direct<&Core::configurePins>(settings, result);
       if (result.status.code != Err::RESULT_NOT_AVAILABLE) directFields(result.pins, result, out);

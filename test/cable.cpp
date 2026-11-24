@@ -1,3 +1,4 @@
+#include "support/PartSelection.h"
 #include "support/BoundDriver.h"
 #include <DP8382x/DP8382x.h>
 #include <array>
@@ -18,7 +19,7 @@ struct Controller {
   std::array<Target,2048> writes{};
   std::array<unsigned,2048> callFirst{};
   std::array<std::array<uint16_t,3>,6> peaks{{{{6,68,0}},{{12,6,0x0800}},{{0,0,0}},{{0,0,0}},{{0,0,0}},{{120,17,0}}}};
-  uint16_t selector{0}, address{0}, id2{0xA131};
+  uint16_t selector{0}, address{0}, id2{test::enhancedId2()};
   uint64_t now{100}, frameTime{2};
   unsigned frames{0}, calls{0}, clocks{0}, writeCount{0}, releases{0}, triggers{0}, cdcrReads{0}, hardResets{0};
   int failFrame{-1}, releaseCall{-1}, lateCall{-1}, regressCall{-1}, overflowCall{-1};
@@ -35,7 +36,7 @@ struct Controller {
     ext[0x0467]=0x1234; ext[0x0468]=0x5678;
   }
   Config config(uint32_t phy=1, MacInterface interface=MacInterface::RMII) {
-    Config c; c.variant=Variant::DP83826I; c.interface=interface; c.phyAddress=phy;
+    Config c; c.variant=test::declaredVariant; c.interface=interface; c.phyAddress=phy;
     c.transport={this,execute,clock,{8,4,1}}; return c;
   }
   static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context); ++b.clocks; return b.now; }
@@ -227,7 +228,15 @@ void raw() {
     CHECK(b.ext[0x0176]==((0xA516U&0xFFE0U)|(maximum?0x001FU:0U)));
     CHECK(b.ext[0x0177]==((0xB234U&0xE0FFU)|(maximum?0x1F00U:0U)));
     CHECK(b.ext[0x0178]==((0xAAADU&0xFFF8U)|(maximum?0x0007U:0U)));
-    for(unsigned i=first;i<b.writeCount;++i) CHECK(b.writes[i].address!=0x0411 && b.writes[i].address!=0x0416);
+    unsigned triggers=0;
+    for(unsigned i=first;i<b.writeCount;++i) {
+      CHECK(b.writes[i].address!=0x0411 && b.writes[i].address!=0x0416);
+      if (b.writes[i].address==30) {
+        ++triggers;
+        CHECK(b.writes[i].value==(test::aGrade()?0x8100:0x8102));
+      }
+    }
+    CHECK(triggers==1);
     CHECK(r.cable.complete); CableDiagnosis sentinel; sentinel.metres=999;
     CHECK(!interpretCable(r.cable,5.35,sentinel).ok() && sentinel.metres==999);
     const auto stopFrames=b.frames,stopCalls=b.calls;finishStop(d,b);
@@ -493,7 +502,7 @@ void lifecycle() {
   CHECK(d.end().is(Err::BUSY));OperationToken other;
   CHECK(d.startInitialize({ResetKind::NONE},allowance(),other).is(Err::BUSY));
   CHECK(d.startCableTest(settings(1),allowance(),other).is(Err::BUSY));
-  CHECK(d.writeClause22(0x18,0,{1000000,1}).is(Err::BUSY));
+  CHECK(d.modifyInterruptEnables(0x12,1,0,{1000000,2}).is(Err::BUSY));
   b.words[30]|=0x4000;const auto writes=b.writeCount;const auto rejected=stop(d,b);
   CHECK(!drain(d,b,rejected).ok());const auto failed=take(d,rejected);
   CHECK(b.writeCount==writes && failed.cleanupOwed && failed.cable.prerequisiteCdcr.valid);
@@ -636,5 +645,5 @@ void interpretation() {
 int main(int argc,char** argv) {
   const test::Suite suites[]={{"matrix",matrix},{"raw",raw},{"admission",admission},{"capture",capture},
     {"failures",failures},{"lifecycle",lifecycle},{"timing",timing},{"interpretation",interpretation}};
-  return test::runSuites(argc,argv,suites);
+  return test::runVariantSuites(argc,argv,suites);
 }

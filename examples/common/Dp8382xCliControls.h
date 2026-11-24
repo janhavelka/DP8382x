@@ -18,7 +18,10 @@ enum class ControlProof : uint32_t {
   MANAGEMENT_CLOCK = 1U << 6U, ///< Board retains the reference/MDIO clock for the transition.
   CLOCK_LOSS = 1U << 7U, ///< Application admits interruption of PHY-generated clocks.
   RX_DRAIN = 1U << 8U, ///< Application has quiesced receive traffic.
-  TX_DRAIN = 1U << 9U ///< Application has stopped and drained transmit traffic.
+  TX_DRAIN = 1U << 9U, ///< Application has stopped and drained transmit traffic.
+  LED0_PIN = 1U << 10U, ///< Application releases pin 30 and owns the pin 21 role.
+  LED3_PIN = 1U << 11U, ///< Application releases pin 29 and owns the pin 21 role.
+  CRS_UNUSED = 1U << 12U ///< MII carrier sense has no active board consumer.
 };
 
 namespace control_detail {
@@ -87,16 +90,17 @@ inline void format(const PowerSnapshot& view, FeatureFields& out) noexcept {
 /// @brief Encode EEE fields and independent validity, without a physical readiness claim.
 /// @param[in] view Copied core snapshot.
 /// @param[out] out Bounded record fields.
-inline void format(const EeeSnapshot& view, FeatureFields& out) noexcept {
+/// @param[in] restart Optional A recipe restart receipt for the operation terminal.
+inline void format(const EeeSnapshot& view, FeatureFields& out, const char* restart = "") noexcept {
   out.set(" valid=%u stale=%u trust=%u desired_valid=%u enabled=%u capability_valid=%u capability=%u"
           " advertised_valid=%u advertised=%u partner_valid=%u partner=%u eee_status_valid=%u eee_status=%u"
-          " wake_errors_valid=%u wake_errors=%u control_valid=%u control=%u negotiated_valid=%u negotiated=%u",
+          " wake_errors_valid=%u wake_errors=%u control_valid=%u control=%u negotiated_valid=%u negotiated=%u%s",
           unsigned(view.valid), unsigned(view.stale), unsigned(view.trust), unsigned(view.desiredValid),
           unsigned(view.desired.enabled), unsigned(view.capabilityValid), unsigned(view.capability),
           unsigned(view.advertisementValid), unsigned(view.advertisement), unsigned(view.partnerValid),
           unsigned(view.partner), unsigned(view.statusValid), unsigned(view.status), unsigned(view.wakeErrorsValid),
           unsigned(view.wakeErrors), unsigned(view.controlValid), unsigned(view.control),
-          unsigned(view.negotiatedValid), unsigned(view.negotiatedValid && view.negotiated));
+          unsigned(view.negotiatedValid), unsigned(view.negotiatedValid && view.negotiated), restart);
 }
 
 /// @brief Encode wake controls and event evidence. Match MAC and password bytes are never emitted.
@@ -152,7 +156,7 @@ Status controlFeature(Access& io, Feature feature, const FeatureArgs& args, Feat
     case Feature::IRQ_CONFIGURE: {
       uint32_t first{}, second{}, flags{};
       const int source = featureChoice(args[2], "polarity|wake");
-      const int pin = featureChoice(args[3], "intr|led1|led2");
+      const int pin = featureChoice(args[3], "intr|led1|led2|led0|led3");
       if (source < 0 || pin < 0 || !featureNumber(args[0], 255, first) || !featureNumber(args[1], 255, second) ||
           !featureNumber(args[4], 7, flags)) return featureInvalid();
       InterruptSettings settings{};
@@ -164,10 +168,12 @@ Status controlFeature(Access& io, Feature feature, const FeatureArgs& args, Feat
       settings.globalEnable = (flags & 2U) != 0U;
       settings.outputEnable = (flags & 4U) == 0U;
       settings.maintenanceAdmitted = true;
-      settings.pinAvailable = approve(io, pin == 0 ? ControlProof::INTR_PIN :
-          (pin == 1 ? ControlProof::LED1_PIN : ControlProof::LED2_PIN));
+      constexpr ControlProof grants[]{ControlProof::INTR_PIN, ControlProof::LED1_PIN, ControlProof::LED2_PIN,
+                                      ControlProof::LED0_PIN, ControlProof::LED3_PIN};
+      settings.pinAvailable = approve(io, grants[pin]);
       if (!settings.pinAvailable) return featureDenied();
       settings.led1ClockUnused = pin == 1 && approve(io, ControlProof::LED1_CLOCK_UNUSED);
+      settings.crsUnused = pin == 4 && approve(io, ControlProof::CRS_UNUSED);
       settings.colUnused = pin == 2 && approve(io, ControlProof::COL_UNUSED);
       settings.powerDownInputSafe = !settings.outputEnable && approve(io, ControlProof::POWER_DOWN_INPUT_SAFE);
       return io.template start<&Core::startConfigureInterrupts>(settings);
@@ -264,7 +270,10 @@ Status controlFeature(Access& io, Feature feature, const FeatureArgs& args, Feat
       if (route == 1) settings.pinAvailable = approve(io, ControlProof::INTR_PIN);
       if (route == 2) settings.pinAvailable = approve(io, ControlProof::LED1_PIN);
       if (route == 3) settings.pinAvailable = approve(io, ControlProof::LED2_PIN);
-      if (route >= 1 && route <= 3 && !settings.pinAvailable) return featureDenied();
+      if (route == 4) settings.pinAvailable = approve(io, ControlProof::LED0_PIN);
+      if (route == 5) settings.pinAvailable = approve(io, ControlProof::LED3_PIN);
+      settings.crsUnused = route == 5 && approve(io, ControlProof::CRS_UNUSED);
+      if (route >= 1 && !settings.pinAvailable) return featureDenied();
       settings.led1ClockUnused = route == 2 && approve(io, ControlProof::LED1_CLOCK_UNUSED);
       settings.colUnused = route == 3 && approve(io, ControlProof::COL_UNUSED);
       return io.template start<&Core::startConfigureWake>(settings);
@@ -285,7 +294,18 @@ inline void controlResult(Feature feature, const OperationResult& result, Featur
     case Feature::IRQ_CONFIGURE: case Feature::IRQ_TEST_START: case Feature::IRQ_TEST_STOP:
       control_detail::format(result.interrupts, out); break;
     case Feature::POWER_CONFIGURE: control_detail::format(result.power, out); break;
-    case Feature::EEE_CONFIGURE: control_detail::format(result.eee, out); break;
+    case Feature::EEE_CONFIGURE: {
+      const auto& eee = result.eee;
+      const char* restart = "";
+      if (isA(result.identity.declaredVariant)) {
+        if (eee.recipeRestartAccepted) restart = " recipe_restart=accepted";
+        else if (eee.recipeRestartPossible) restart = " recipe_restart=uncertain";
+        else if (eee.recipeRestartAttempted) restart = " recipe_restart=attempted";
+        else restart = " recipe_restart=none";
+      }
+      control_detail::format(eee, out, restart);
+      break;
+    }
     case Feature::WOL_CONFIGURE: case Feature::WOL_ACKNOWLEDGE: control_detail::format(result.wake, out); break;
     default: break;
   }

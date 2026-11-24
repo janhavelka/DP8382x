@@ -620,11 +620,6 @@ Capabilities DP8382x::capabilities() const noexcept {
           _part->interfaceMask, (_part->featureMask & detail::FEATURE_COPPER) != 0U, false, false, _config.variant};
 }
 
-Status DP8382x::_unsupportedFeature() noexcept {
-  return Status::Error(Err::INVALID_CONFIG, "Procedure unavailable for declared part",
-                       static_cast<int32_t>(ConfigDetail::SOURCE_GATE));
-}
-
 Status DP8382x::_checkMutation() noexcept {
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (_active || _polling || _operation.state == OperationState::RUNNING) { return busy(BusyDetail::OPERATION_ACTIVE); }
@@ -786,9 +781,6 @@ Status DP8382x::acquireEvidence(uint32_t sourceMask, EvidenceSnapshot& evidence,
                                const IoBudget& budget, bool* invoked) noexcept {
   if (invoked) *invoked = false;
   if (sourceMask == 0U || (sourceMask & ~ALL_EVIDENCE) != 0U) { return paramError(ParamDetail::ACCESS_POLICY); }
-  constexpr uint32_t aSources = evidenceBit(EvidenceSource::PHYSTS) | evidenceBit(EvidenceSource::BMSR) |
-      evidenceBit(EvidenceSource::ANER) | evidenceBit(EvidenceSource::FLDS) | evidenceBit(EvidenceSource::RCSR);
-  if (isA(_config.variant) && (sourceMask & ~aSources) != 0U) { return _unsupportedFeature(); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (_active || _polling || (_operation.state == OperationState::RUNNING && !_configuring && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && !_analogWorking && !_electricalWorking &&
       _operation.phase == OperationPhase::WAIT)) { return busy(BusyDetail::OPERATION_ACTIVE); }
@@ -896,7 +888,6 @@ Status DP8382x::clearEvidence() noexcept {
 
 Status DP8382x::modifyInterruptEnables(uint32_t address, uint32_t mask, uint32_t value,
                                       const IoBudget& budget) noexcept {
-  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (address != 0x12U && address != 0x13U) { return paramError(ParamDetail::ACCESS_POLICY); }
   if (mask > 0xFFFFU || value > 0xFFFFU) { return paramError(ParamDetail::VALUE_WIDTH); }
   if (mask == 0U || (mask & ~uint32_t{0x00FF}) != 0U || (value & ~mask) != 0U) {
@@ -915,7 +906,6 @@ Status DP8382x::modifyInterruptEnables(uint32_t address, uint32_t mask, uint32_t
 
 Status DP8382x::modifyWakeControl(uint32_t mask, uint32_t value, bool acknowledge,
                                  const IoBudget& budget) noexcept {
-  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (mask > 0xFFFFU || value > 0xFFFFU) { return paramError(ParamDetail::VALUE_WIDTH); }
   if ((mask == 0U && !acknowledge) || (mask & ~uint32_t{0x17A1}) != 0U || (value & ~mask) != 0U ||
       ((mask & 0x0600U) != 0U && (mask & 0x0600U) != 0x0600U)) {
@@ -1029,7 +1019,7 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
       _retainQualityWord(address, receipt.value);
       _retainAnalogWord(address, receipt.value);
     }
-    if (target && frame.kind == FrameKind::READ && ((address >= 0x04A0U && address <= 0x04A7U) || address == 0x0304U || address == 0x0305U) && completed) {
+    if (target && frame.kind == FrameKind::READ && ((address >= 0x04A0U && address <= 0x04A7U) || (address >= 0x0303U && address <= 0x0306U)) && completed) {
       _retainWakeWord(address, receipt.value);
     }
     if (target && frame.kind == FrameKind::READ && (address == 0x04A1U || address == 0x0013U) &&
@@ -1149,10 +1139,9 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
         _invalidateLink();
       } else if (_pinsWorking) {
         _pins.trust = ConfigurationTrust::DIRTY; _pins.observedStale = true;
-      } else if (_wakeWorking && ((address >= 0x04A0U && address <= 0x04A7U) || address == 0x0304U || address == 0x0305U)) {
+      } else if (_wakeWorking && ((address >= 0x04A0U && address <= 0x04A7U) || (address >= 0x0303U && address <= 0x0306U))) {
         if (_interrupts.desiredValid &&
-            ((address == 0x0304U && _interrupts.desired.pin == InterruptPin::LED1) ||
-             (address == 0x0305U && _interrupts.desired.pin == InterruptPin::LED2))) {
+            (ledIndex(_interrupts.desired.pin) < 4U && address == 0x0303U + ledIndex(_interrupts.desired.pin))) {
           _interrupts.trust = ConfigurationTrust::DIRTY; _interrupts.observedStale = true;
         }
         if (_operation.kind != OperationKind::WOL_ACKNOWLEDGE) { _wake.trust = ConfigurationTrust::DIRTY; }
@@ -1428,6 +1417,9 @@ void DP8382x::_beginOperation(OperationKind kind, const OperationBudget& budget)
   _operation.remaining = budget.io;
   _operationBudget = budget;
   _result = {};
+  if (kind == OperationKind::EEE_CONFIGURE || (kind == OperationKind::INITIALIZE && _eee.desiredValid)) {
+    _eee.recipeRestartAttempted = _eee.recipeRestartAccepted = _eee.recipeRestartPossible = false;
+  }
   _result.token = _operation.token;
   _result.kind = _operation.kind;
   _result.identity = _identity; // Every running feature is tied to its admitted identity.
@@ -1844,10 +1836,17 @@ Status DP8382x::_admitProfilePass(const IoBudget& budget, uint64_t upper) const 
   if (!isA(_config.variant)) { return Status::Ok(); }
   uint32_t frames = 0, callbacks = 0;
   if (_qualityWorking && _qualityStep == QualityStep::PREFLIGHT) {
-    _qualityPassCost(frames, callbacks);
+    _qualityPassCost(_qualityVerifyOnly, frames, callbacks);
   } else if (_interfaceWorking && _interfaceStep == InterfaceStep::PREFLIGHT) {
     _interfacePassCost(_interfaceVerifyOnly, frames, callbacks);
-  } else { return Status::Ok(); }
+  } else if (_pinsWorking && _pinResult.transactions == 0U) {
+    _pinPassCost(_pinsVerifyOnly, frames, callbacks);
+  } else if (_wakeWorking) {
+    _wakePassCost(_wakeVerifyOnly, frames, callbacks);
+  } else if (_interruptWorking) {
+    _interruptPassCost(_interruptVerifyOnly, frames, callbacks);
+  }
+  if (frames == 0U) { return Status::Ok(); }
   if (budget.maxFrames < frames) { return timeout(TimeoutDetail::FRAME_BUDGET); }
   const auto& bounds = _config.transport.bounds;
   const uint64_t cost = uint64_t{frames} * bounds.frameUs + uint64_t{callbacks} * bounds.fixedUs;
@@ -1878,10 +1877,40 @@ Status DP8382x::_admitEeeStep(const IoBudget& budget, uint64_t raw) const noexce
                        !_qualityWorking && !_analogWorking && !_electricalWorking && _initStep == InitStep::COMMAND;
   if (!capability && !command) { return Status::Ok(); }
 
-  // The 18 recipe writes use 66 frames. Include two four-frame checks and the
-  // first HARD poll. At command entry the capability check has already run.
-  const uint32_t frames = _eeeCapabilityChecked ? 71U : 75U;
-  const uint32_t callbacks = _eeeCapabilityChecked ? 20U : 21U;
+  // Include the capability and advertisement reads and the first HARD poll.
+  // A uses 25 addressed writes and two direct writes. Original uses 16 and two.
+  const bool a = isA(_config.variant);
+  uint32_t frames = (a ? 111U : 75U) - (_eeeCapabilityChecked ? 4U : 0U);
+  uint32_t callbacks = (a ? 30U : 21U) - (_eeeCapabilityChecked ? 1U : 0U);
+  if (a) {
+    // HARD re-identification and two SOR reads (10/3), EEE policy write and
+    // verification (17/4), VOD (8/2), owned AN (24/18), final EEE proof (8/2).
+    // The first successful reset poll is included above. Further hardware
+    // polling consumes the remaining aggregate allowance and can time out.
+    frames += 67U;
+    callbacks += 29U;
+    const auto addPass = [&](bool owned, auto cost) {
+      if (owned) {
+        uint32_t passFrames = 0, passCallbacks = 0;
+        (this->*cost)(false, passFrames, passCallbacks);
+        frames += passFrames;
+        callbacks += passCallbacks;
+      }
+    };
+    addPass(_interface.desiredValid, &DP8382x::_interfacePassCost);
+    addPass(_quality.desiredValid, &DP8382x::_qualityPassCost);
+    addPass(_pins.desiredValid, &DP8382x::_pinPassCost);
+    addPass(_wake.desiredValid, &DP8382x::_wakePassCost);
+    addPass(_interrupts.desiredValid, &DP8382x::_interruptPassCost);
+    if (_analog.desiredValid) {
+      uint32_t analogFrames = 0, analogCallbacks = 0;
+      _analogReplayCost(analogFrames, analogCallbacks);
+      frames += analogFrames;
+      callbacks += analogCallbacks;
+    }
+    if (_autorun.desiredValid) { frames += 3U; callbacks += 2U; }
+    if (_power.desiredValid) { frames += 9U; callbacks += 7U; }
+  }
   const auto& bounds = _config.transport.bounds;
   const uint64_t floor = uint64_t{4} * bounds.clockLagUs + uint64_t{frames} * bounds.frameUs +
                          uint64_t{callbacks} * bounds.fixedUs + _commandWaitUs();

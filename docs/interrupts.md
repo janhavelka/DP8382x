@@ -28,6 +28,13 @@ Maintenance and pin ownership must be explicitly declared before any callback.
 `pinAvailable` authorizes both the selected route and pin 21's electrical role:
 selecting an alternate LED mux does not disconnect the dedicated interrupt pin.
 
+The following table describes the original I/E map. On revision-4 AI/AE,
+LED0 can also route IRQ in both modes and LED3 can route IRQ in ENHANCED.
+In MII, LED2 needs the COL release and LED3 needs the CRS release. Each route
+uses its own mux field and preserves adjacent bits. The interface owner must
+release any conflicting pin 30 clock selection before an IRQ claim.
+See the [AI/AE coverage matrix](feature-coverage.md).
+
 | Route/mode | Admission and live proof |
 | --- | --- |
 | BASIC pin 21 | Observed BASIC identity means strap-selected INT. PHYSCR OE is preserved and has no power-down meaning. |

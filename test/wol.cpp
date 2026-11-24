@@ -1,5 +1,5 @@
 #include "../examples/portable/Wake.h"
-#include "support/Check.h"
+#include "support/PartSelection.h"
 #include <DP8382x/DP8382x.h>
 #include <array>
 #include <cstdint>
@@ -17,7 +17,7 @@ struct Controller {
   std::array<uint16_t,32> words{};
   std::array<uint16_t,0x500> ext{};
   std::array<Wire,8192> trace{};
-  uint16_t selector{0},address{0},id2{0xA131},wakePin{0};
+  uint16_t selector{0},address{0},id2{test::enhancedId2()},wakePin{0};
   uint64_t now{100},frameTime{2};
   unsigned frames{0},calls{0},clocks{0},releases{0},mutations{0},hard{0};
   int failFrame{-1},releaseCall{-1},corruptFrame{-1},lateCall{-1},regressCall{-1},invalidCall{-1},badReceiptCall{-1};
@@ -29,11 +29,11 @@ struct Controller {
   void defaults() {
     words.fill(0);ext.fill(0);words[0]=0x3100;words[4]=0x01E1;
     words[25]=0x8001;words[22]=0x0100;words[30]=0x0102;
-    words[23]=(id2==0xA111 || enhancedMii)?0U:0x0020U;
-    ext[0x030E]=0x8400;ext[0x04A1]=0x1000;ext[0x04A0]=0x1081;ext[0x0308]=clockOffStrap?1U:0U;pendingWake=true;
+    words[23]=(id2==test::basicId2() || enhancedMii)?0U:0x0020U;
+    ext[0x030E]=test::aGrade()?0x4A40:0x8400;ext[0x04A1]=0x1000;ext[0x04A0]=0x1081;ext[0x0308]=clockOffStrap?1U:0U;pendingWake=true;
   }
   Config config(uint32_t phy=1) {
-    Config c;c.variant=Variant::DP83826I;c.interface=(id2==0xA111 || enhancedMii)?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
+    Config c;c.variant=test::declaredVariant;c.interface=(id2==test::basicId2() || enhancedMii)?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
   static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context);++b.clocks;return b.now; }
@@ -162,7 +162,7 @@ void vectors() {
   }
 
   for(bool basic:{false,true})for(bool crc:{false,true})for(bool level:{false,true})for(bool secure:{false,true})for(uint8_t pulse=0;pulse<4U;++pulse) {
-    Controller b;b.id2=basic?0xA111:0xA131;Driver d;ready(d,b);auto s=settings();s.crcGate=crc;s.levelMode=level;s.secureOn=secure;s.pulseWidth=pulse;
+    Controller b;b.id2=basic?test::basicId2():test::enhancedId2();Driver d;ready(d,b);auto s=settings();s.crcGate=crc;s.levelMode=level;s.secureOn=secure;s.pulseWidth=pulse;
     b.ext[0x04A0]|=0xE01E;const auto first=b.frames;configured(d,b,s);
     const uint16_t expected=static_cast<uint16_t>((crc?0x1000U:0U)|(level?0x0100U:0U)|(uint32_t{pulse}<<9U)|0x0081U|(secure?0x0020U:0U));
     CHECK((b.ext[0x04A0]&0x17A1U)==expected && (b.ext[0x04A0]&0xE01EU)==0xE01E);
@@ -273,7 +273,7 @@ void liveModeRouting() {
 void routing() {
   liveModeRouting();
   for(bool basic:{false,true}) {
-    Controller b;b.id2=basic?0xA111:0xA131;b.enhancedMii=!basic;Driver d;ready(d,b);auto wake=settings();
+    Controller b;b.id2=basic?test::basicId2():test::enhancedId2();b.enhancedMii=!basic;Driver d;ready(d,b);auto wake=settings();
     wake.route=basic?WakeRoute::LED1:WakeRoute::LED2;wake.pinAvailable=wake.colUnused=true;
     configured(d,b,wake);CHECK((b.ext[basic?0x0304U:0x0305U]&7U)==2U);
   }
@@ -308,7 +308,7 @@ void routing() {
     if(d.operationSnapshot().state==OperationState::RESULT_PENDING)take(d,t);
   }
   for(bool basic:{false,true}) {
-    Controller b;b.id2=basic?0xA111:0xA131;b.enhancedMii=!basic;Driver d;ready(d,b);
+    Controller b;b.id2=basic?test::basicId2():test::enhancedId2();b.enhancedMii=!basic;Driver d;ready(d,b);
     auto s=settings();s.route=WakeRoute::LED2;s.pinAvailable=true;s.colUnused=false;
     const auto calls=b.calls,clocks=b.clocks;OperationToken token{999};
     CHECK(!d.startConfigureWake(s,budget(),token).inProgress());CHECK(token.value==999 && b.calls==calls && b.clocks==clocks);
@@ -632,7 +632,7 @@ void ownership() {
   }
   {
     Controller b;Driver d;ready(d,b);const auto token=configure(d,b,settings());CHECK(poll(d,b,token).inProgress());
-    b.id2=0xA111;DeviceIdentity id;CHECK(d.readIdentity(id,{1000000,2}).ok());CHECK(id.mode==OperatingMode::BASIC && !d.isInitialized());const auto mutations=b.mutations;
+    b.id2=test::basicId2();DeviceIdentity id;CHECK(d.readIdentity(id,{1000000,2}).ok());CHECK(id.mode==OperatingMode::BASIC && !d.isInitialized());const auto mutations=b.mutations;
     CHECK(!drain(d,b,token).ok());take(d,token);CHECK(b.mutations==mutations);
   }
 
@@ -668,7 +668,11 @@ void timing() {
   for(uint32_t allowance:{110U,111U}) {
     Controller b;Driver d;ready(d,b);OperationToken token;
     CHECK(d.startConfigureWake(settings(),budget(allowance),token).inProgress());const auto status=drain(d,b,token);const auto result=take(d,token);
-    if(allowance==111U)CHECK(status.ok());else CHECK(status.is(Err::OPERATION_TIMEOUT) && result.cleanupOwed);
+    if (allowance==111U) CHECK(status.ok());
+    else {
+      CHECK(status.is(Err::OPERATION_TIMEOUT) && result.cleanupOwed==!test::aGrade());
+      if (test::aGrade()) CHECK(!result.mutationPossible);
+    }
   }
 
   Controller b;Driver d;ready(d,b);const auto token=configure(d,b,settings());
@@ -686,9 +690,69 @@ void timing() {
   Status status{Err::IN_PROGRESS,0,"Pending"};for(unsigned i=0;i<12U && status.inProgress();++i)status=stuck.pollOperation(t,0);
   CHECK(status.is(Err::OPERATION_TIMEOUT) && frozen.calls==calls);take(stuck,t);
 }
+void aWake() {
+  CHECK(test::aGrade());
+  constexpr WakeRoute routes[]={WakeRoute::LED0,WakeRoute::LED1,WakeRoute::LED2,WakeRoute::LED3};
+  constexpr InterruptPin irqPins[]={InterruptPin::LED0,InterruptPin::LED1,InterruptPin::LED2,InterruptPin::LED3};
+  constexpr uint8_t mac[]={2,0x12,0x34,0x56,0x78,0x9A},password[]={0xA1,0xB2,0xC3,0xD4,0xE5,0xF6};
+  constexpr uint16_t words[]={0x1202,0x5634,0x9A78,0xB2A1,0xD4C3,0xF6E5};
+  constexpr uint16_t levels[]={0x1000,0x1001,0x1080,0x1081};
+  for (bool basic:{false,true}) for (uint16_t level:levels) {
+    Controller bus; bus.id2=basic?0xA114:0xA134;
+    bus.ext[0x4A0]=level; Driver driver; ready(driver,bus);
+    WakeSnapshot sample; CHECK(driver.readWakeStatus(sample,{1000000,33}).ok());
+    CHECK(sample.rawControl==level && sample.enabled==bool(level&0x80) && sample.magicMatch==bool(level&1U));
+  }
+  // LED3 MII: 111-frame rekey, 5-frame mux/interface preflight and nine
+  // frames to program/verify the mux. The observed strap changes the tail.
+  for (bool matching:{false,true}) for (bool exact:{false,true}) {
+    Controller bus; bus.enhancedMii=true; Driver driver; ready(driver,bus);
+    auto policy=settings(); policy.pinAvailable=policy.crsUnused=true; policy.route=WakeRoute::LED3;
+    bus.ext[0x306]=matching?2:3;
+    const uint32_t required=matching?116U:125U;
+    const auto first=bus.frames,mutations=bus.mutations;
+    OperationToken t; CHECK(driver.startConfigureWake(policy,budget(required-(exact?0U:1U)),t).inProgress());
+    const auto status=drain(driver,bus,t); const auto receipt=take(driver,t);
+    if (exact) CHECK(status.ok() && bus.frames==first+required);
+    else CHECK(status.is(Err::OPERATION_TIMEOUT) && bus.mutations==mutations && !receipt.mutationPossible);
+  }
+  for (unsigned pin=0;pin<4;++pin) for (bool basic:{false,true}) for (bool secure:{false,true}) {
+    Controller b; b.id2=basic?0xA114:0xA134; b.enhancedMii=true;
+    b.ext[0x308]=1; b.ext[0x4A0]=basic?0x1001:0x1081;
+    Driver d; ready(d,b); WakeSnapshot por;
+    CHECK(d.readWakeStatus(por,{1000000,33}).ok() && por.magicMatch && por.enabled==!basic);
+    auto wake=settings(); wake.secureOn=secure; wake.pinAvailable=wake.led1ClockUnused=wake.colUnused=wake.crsUnused=true;
+    wake.route=routes[pin];
+    for (unsigned i=0;i<6;++i) { wake.mac[i]=mac[i]; wake.password[i]=password[i]; }
+    const auto address=static_cast<uint16_t>(0x303U+pin); b.ext[address]=0x5AA3;
+    const auto first=b.frames; OperationToken t;
+    if (basic && pin>=2U) {
+      CHECK(!d.startConfigureWake(wake,budget(),t).inProgress() && b.frames==first); continue;
+    }
+    if (pin>=2U) {
+      auto denied=wake;
+      if (pin==2U) denied.colUnused=false; else denied.crsUnused=false;
+      CHECK(!d.startConfigureWake(denied,budget(),t).inProgress() && b.frames==first);
+    }
+    t=configure(d,b,wake); b.wakePin=address;
+    CHECK(drain(d,b,t).ok()); take(d,t); CHECK(!b.matchWhileEnabled && b.ext[address]==0x5AA2);
+    uint16_t ordinary=0;
+    for (unsigned n=first;n<b.frames;++n) if (semantic(b.trace[n]) && b.trace[n].target==0x4A0) ordinary=b.trace[n].value;
+    CHECK(ordinary==(secure?0x19A1:0x1981));
+    for (unsigned i=0;i<6;++i) CHECK(b.ext[0x4A2U+i]==words[i]);
+    harvestBeforeWrites(b,first);
+    const auto ack=b.frames; CHECK(d.acknowledgeWake(budget(),t).inProgress() && drain(d,b,t).ok()); take(d,t);
+    uint16_t word=0;
+    for (unsigned n=ack;n<b.frames;++n) if (semantic(b.trace[n]) && b.trace[n].target==0x4A0) word=b.trace[n].value;
+    CHECK(word==(secure?0x11A1:0x1181) && !b.pendingWake); harvestBeforeWrites(b,ack);
+    InterruptSettings irq; irq.maintenanceAdmitted=irq.pinAvailable=irq.led1ClockUnused=irq.colUnused=irq.crsUnused=true;
+    irq.pin=irqPins[pin]; const auto old=b.frames;
+    CHECK(!d.startConfigureInterrupts(irq,budget(),t).inProgress() && b.frames==old);
+  }
+}
 } // namespace
 int main(int argc,char** argv) {
-  const test::Suite suites[]={{"vectors",vectors},{"admission",admission},{"routing",routing},{"acquisition",acquisition},
+  const test::Suite suites[]={{"a_wake",aWake},{"vectors",vectors},{"admission",admission},{"routing",routing},{"acquisition",acquisition},
     {"failures",failures},{"replay",replay},{"ownership",ownership},{"timing",timing}};
-  return test::runSuites(argc,argv,suites);
+  return test::runVariantSuites(argc,argv,suites);
 }

@@ -66,7 +66,8 @@ class CliCoverageTests(unittest.TestCase):
 
     def rows(self, matrix=None):
         rows = {}
-        for line in (self.matrix if matrix is None else matrix).splitlines():
+        original = (self.matrix if matrix is None else matrix).split("## DP83826AI and DP83826AE", 1)[0]
+        for line in original.splitlines():
             match = re.match(r"^\| `([a-z0-9_]+)`", line)
             if not match:
                 continue
@@ -78,6 +79,73 @@ class CliCoverageTests(unittest.TestCase):
             self.assertNotRegex(line, r"(?i)\b(pending [0-9]+|tbd|todo)\b")
             rows[identifier] = cells
         return rows
+
+    def a_rows(self, matrix, heading):
+        section = matrix.split("## DP83826AI and DP83826AE", 1)[1].split("### " + heading + "\n", 1)[1]
+        rows = {}
+        for line in section.split("\n### ", 1)[0].splitlines():
+            if line.startswith("| `"):
+                cells = [cell.strip() for cell in line.strip("|").split("|")]
+                identifier = cells[0].strip("`")
+                self.assertNotIn(identifier, rows, f"Duplicate A row: {identifier}")
+                rows[identifier] = cells
+        return rows
+
+    def check_a_matrix(self, matrix):
+        source = json.loads((ROOT / "docs/registers/dp83826a-procedures.json").read_text(encoding="utf-8"))
+        fields = json.loads((ROOT / "docs/registers/dp83826a.json").read_text(encoding="utf-8"))
+        procedures = self.a_rows(matrix, "Procedures")
+        features = self.a_rows(matrix, "Features and qualification cases")
+        registers = self.a_rows(matrix, "Register fields")
+        recipes = self.a_rows(matrix, "Recipe access")
+        for records, rows in ((source["procedures"], procedures), (source["features"], features),
+                              (fields["registers"], registers), (fields["recipeRegisters"], recipes)):
+            self.assertEqual(set(rows), {entry["id"] for entry in records})
+        for entry in source["procedures"]:
+            row = procedures[entry["id"]]
+            self.assertEqual(row[1], f"`{entry['feature']}`")
+            self.assertEqual(row[2], self.procedures[entry["id"]]["owner"]["api"].replace("; later", ", then"))
+            self.assertTrue(quoted(row[3]) and quoted(row[4]))
+        for entry in source["features"]:
+            row = features[entry["id"]]
+            self.assertEqual(quoted(row[1]), set(entry["procedures"]))
+            self.assertEqual(quoted(row[2]), set(entry["gates"]))
+        original = {f["id"]: f["owner"] for reg in self.ledger["registers"] for f in reg["fields"]}
+        for reg in fields["registers"]:
+            row = registers[reg["id"]]
+            self.assertEqual(row[1:3], [f"{reg['space']} {reg['address']}", reg["table"]])
+            groups = {}
+            for field in reg["fields"]:
+                owner = original.get(field["originalField"], "straps" if reg["id"] == "SOR1" else "led")
+                groups.setdefault(owner, set()).add(f"{field['id']}={field['mask']}")
+            if not groups:
+                self.assertEqual(row[3], "No named fields")
+                continue
+            actual = {owner: quoted(words) for owner, words in
+                      (group.split(" &mdash; ") for group in row[3].split("<br>"))}
+            self.assertEqual(actual, groups, reg["id"])
+        for reg in fields["recipeRegisters"]:
+            row = recipes[reg["id"]]
+            self.assertEqual(row[1], f"{reg['devad']}:{reg['address']}")
+            self.assertEqual(row[2] == "Original only", reg["status"] == "ORIGINAL_ONLY")
+
+        actions = self.a_rows(matrix, "Exceptional writes")
+        owners = {row["id"]: row["feature"] for row in self.ledger["writeActions"]}
+        expected = {}
+        for action in source["writeActions"]:
+            item = action["id"]
+            if action.get("rows"):
+                item += " @ " + ",".join(map(str, action["rows"]))
+            expected.setdefault(owners.get(action["id"], "eee"), set()).add(item)
+        self.assertEqual({owner: quoted(row[1]) for owner, row in actions.items()}, expected)
+
+    def test_a_generation_coverage_and_negative_controls(self):
+        self.check_a_matrix(self.matrix)
+        lines = self.matrix.splitlines(keepends=True)
+        led = next(line for line in lines if line.startswith("| `LEDCFG`"))
+        for replacement in ("", led + led, led.replace("0x000F", "0x00F0")):
+            with self.assertRaises(AssertionError):
+                self.check_a_matrix(self.matrix.replace(led, replacement))
 
     def test_complete_feature_and_procedure_matrix(self):
         rows = self.rows()
@@ -173,7 +241,7 @@ class CliCoverageTests(unittest.TestCase):
     def test_matrix_rejects_misdirected_or_incomplete_evidence(self):
         first = next(line for line in self.matrix.splitlines() if line.startswith("| `identity`"))
         with self.assertRaisesRegex(AssertionError, "Duplicate"):
-            self.rows(self.matrix + "\n" + first)
+            self.rows(first + "\n" + self.matrix)
         with self.assertRaises(AssertionError):
             self.rows(self.matrix.replace("`connection probe`", "Pending 47", 1))
         rows = self.rows()
@@ -207,6 +275,10 @@ class CliCoverageTests(unittest.TestCase):
         names = {test["name"] for test in tests if test.get("command") and not any(
             p["name"] == "DISABLED" and p["value"] for p in test["properties"])}
         self.check_registrations(names)
+        for row in self.a_rows(self.matrix, "Procedures").values():
+            stem, = quoted(row[4])
+            for grade in ("ai", "ae"):
+                self.assertIn(f"{grade}_{stem}", names)
 
     def test_listed_commands_have_dispatch_and_evidence(self):
         rows = self.rows()

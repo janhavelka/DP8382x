@@ -23,7 +23,14 @@ preserved; no custom pattern engine is exposed or inferred from its name.
 | INTERRUPT | An explicitly owned verified WAKE interrupt policy, global enable, MISR2 wake enable and applicable output direction; existing pin contracts apply |
 | LED1 | Declared unused/available pin; ENHANCED additionally needs unused clock consumer and live clock-off evidence; narrow mux 2 ownership |
 | LED2 | ENHANCED only, available pin and unused MII COL where applicable; narrow mux 2 ownership |
-| LED0 / LED3 | Rejected before I/O: conflicting read-only mux access remains source-gated |
+| LED0 / LED3 on original I/E | Read-only mux fields preclude direct wake routing |
+| LED0 on AI/AE | Both modes allow direct wake with board ownership and a free pin 30 clock route |
+| LED3 on AI/AE | ENHANCED allows direct wake. MII requires the owner to release CRS |
+
+AI/AE uses the SNLS783A RXFCFG1 W0C indication and the same wire-octet
+ordering. MAC bytes `02:12:34:56:78:9A` produce the three words `1202`,
+`5634` and `9A78` in ascending register order. The collector retains an
+indication before an unrelated control update writes neutral one.
 
 Enable cannot silently replace an owned polarity-source IRQ policy. Direct WoL
 and IRQ functions cannot share one LED mux. An owned wake IRQ prevents later

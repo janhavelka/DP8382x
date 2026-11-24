@@ -85,7 +85,6 @@ Status DP8382x::startLoopback(const LoopbackOptions& options, const OperationBud
 }
 Status DP8382x::_startLoopback(const LoopbackOptions& options, const OperationBudget& budget,
                               OperationToken& token, bool lineBist) noexcept {
-  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (_interface.desiredValid && _interface.desired.isolationOwned && _interface.desired.isolate) {
     return rejected("Release owned MAC isolation before diagnostic traffic");
   }
@@ -145,7 +144,6 @@ Status DP8382x::_startLoopback(const LoopbackOptions& options, const OperationBu
 }
 
 Status DP8382x::stopLoopback(const OperationBudget& budget, OperationToken& token) noexcept {
-  if (isA(_config.variant)) { return _unsupportedFeature(); }
   const auto polling = validBudget(budget); if (!polling.ok()) { return polling; }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (_active || _polling || _operation.state == OperationState::RUNNING) { return busyLoop(BusyDetail::OPERATION_ACTIVE); }
@@ -194,6 +192,8 @@ void DP8382x::_beginLoopbackRestore() noexcept {
 
 MdioBatch DP8382x::_loopbackBatch() const noexcept {
   const auto& options = _loopback.options;
+  // SNLS783A table 8-41: generator, lock and power indications are RH.
+  const uint16_t preserve=isA(_config.variant)?0xF4FFU:0xFFFFU;
   switch (_loopStep) {
     case LoopStep::IDENTIFY_STOP: {
       auto batch = readWord(2); batch.frameCount = 2; batch.frames[1] = {FrameKind::READ, 3, 0, 0, NO_READ_INDEX}; return batch;
@@ -205,12 +205,12 @@ MdioBatch DP8382x::_loopbackBatch() const noexcept {
     case LoopStep::CHECK_LINK: case LoopStep::RELINK: return readWord(0x10);
     // Table 8-19 commands neutral 0; never echo the power-pin OR bit into software.
     case LoopStep::CLEAR_BMCR: case LoopStep::STOP_BMCR: return updateWord(0, 0x35FF, _softwarePowerWord());
-    case LoopStep::CLEAR_BISCR: case LoopStep::STOP_BISCR: return updateWord(0x16, 0xFFA0, 0);
+    case LoopStep::CLEAR_BISCR: case LoopStep::STOP_BISCR: return updateWord(0x16, static_cast<uint16_t>(0xFFA0U & preserve), 0);
     case LoopStep::SET_FIFO: return updateWord(0x11, 0xFCFF, static_cast<uint16_t>(uint16_t{options.reverseFifoDepth} << 8U));
     case LoopStep::DIGITAL_BMCR: return writeWord(0, static_cast<uint16_t>(0x2100U | _softwarePowerWord()));
     case LoopStep::SET_BISCR:
-      if (options.mode == LoopbackMode::DIGITAL) { return writeWord(0x16, 0x0104); }
-      return updateWord(0x16, 0xFFA0, static_cast<uint16_t>(selector(options) | (options.transmitOnLine ? 0x0040U : 0U)));
+      if (options.mode == LoopbackMode::DIGITAL) { return writeWord(0x16, isA(_config.variant)?0x0004:0x0104); }
+      return updateWord(0x16, static_cast<uint16_t>(0xFFA0U & preserve), static_cast<uint16_t>(selector(options) | (options.transmitOnLine ? 0x0040U : 0U)));
     case LoopStep::SET_MII: return updateWord(0, 0x35FF, 0x4000);
     case LoopStep::DIGITAL_0122: return _mmdBatch(0x0122, FrameKind::WRITE, 0x2000);
     case LoopStep::DIGITAL_0123: return _mmdBatch(0x0123, FrameKind::WRITE, 0x2000);
@@ -219,7 +219,7 @@ MdioBatch DP8382x::_loopbackBatch() const noexcept {
     // HARD may reload BASIC isolation straps. Restore only the saved ordinary
     // extras (preflight required zero), owned power intent and neutral reset/restart.
     case LoopStep::RESTORE_BMCR: return updateWord(0, 0x317F, static_cast<uint16_t>((_loopSavedBmcr & 0x0480) | _softwarePowerWord()));
-    case LoopStep::RESTORE_BISCR: return updateWord(0x16, 0x8FA0, static_cast<uint16_t>(_loopSavedBiscr & 0x705F));
+    case LoopStep::RESTORE_BISCR: return updateWord(0x16, static_cast<uint16_t>(0x8FA0U & preserve), static_cast<uint16_t>(_loopSavedBiscr & 0x705F));
     case LoopStep::RESTORE_FIFO: return updateWord(0x11, 0xFCFF, static_cast<uint16_t>(_loopSavedPhyscr & 0x0300));
   }
   return {};
@@ -415,7 +415,6 @@ Status DP8382x::startBist(const BistOptions& options, const OperationBudget& bud
   return status;
 }
 Status DP8382x::_admitBistOperation(const OperationBudget& budget, bool stop) const noexcept {
-  if (isA(_config.variant)) { return _unsupportedFeature(); }
   const auto polling = validBudget(budget); if (!polling.ok()) { return polling; }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (_active || _polling || _operation.state == OperationState::RUNNING) { return busyLoop(BusyDetail::OPERATION_ACTIVE); }
@@ -478,9 +477,9 @@ MdioBatch DP8382x::_bistBatch() const noexcept {
       batch.frameCount = 2; batch.frames[1] = {FrameKind::READ, 0x1B, 0, 0, NO_READ_INDEX}; return batch;
     }
     case BistStep::LINK: return readWord(0x10);
-    case BistStep::ENABLE: return updateWord(0x16, 0x8FFF, controls);
+    case BistStep::ENABLE: return updateWord(0x16, isA(_config.variant)?0x84FF:0x8FFF, controls);
     case BistStep::VERIFY_ENABLE: case BistStep::BEFORE: case BistStep::AFTER: case BistStep::VERIFY_DISABLE: return readWord(0x16);
-    case BistStep::DISABLE: return updateWord(0x16, 0x8FFF, 0);
+    case BistStep::DISABLE: return updateWord(0x16, isA(_config.variant)?0x84FF:0x8FFF, 0);
     case BistStep::RESTORE_IPG: return writeWord(0x1B, _bistSavedIpg);
     case BistStep::RESTORE_PACKET: return updateWord(0x1C, 0xF800, _bistSavedPacket);
   }

@@ -18,7 +18,7 @@ struct Controller {
   std::array<uint16_t,0x500> ext{};
   std::array<uint16_t,64> mmd3{},mmd7{};
   std::array<Wire,8192> trace{};
-  uint16_t selector{0},address{0},id2{0xA131};
+  uint16_t selector{0},address{0},id2{test::enhancedId2()};
   uint64_t now{100};
   unsigned jumpClockCall{0};
   uint64_t jumpClockTo{0};
@@ -35,11 +35,11 @@ struct Controller {
   void defaults() {
     words.fill(0);ext.fill(0);mmd3.fill(0);mmd7.fill(0);words[0]=0x3100;words[4]=0x01E1;
     words[1]=0x0024;words[5]=0x0101;words[6]=1;words[16]=0x15;
-    words[25]=0x8001;words[22]=0x0100;words[30]=0x0102;
+    words[25]=0x8001;words[22]=0x0100;words[30]=0x0102;words[23]=0x0061;
     ext[0x030E]=0x8400;ext[0x04A1]=0x1000;ext[0x04D1]=0x0080;
   }
   Config config(uint32_t phy=1) {
-    Config c;c.variant=test::declaredVariant;c.interface=id2==0xA111?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
+    Config c;c.variant=test::declaredVariant;c.interface=id2==test::basicId2()?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
   static uint64_t clock(void* context) noexcept {
@@ -184,16 +184,23 @@ void raw() {
 }
 void recipe() {
   // Original SNLS647I p26 literal rows, independently transcribed before source implementation.
-  constexpr std::array<uint16_t,18> address{{0x1F,0x3C,0x4D1,0x4D3,0x4DF,0x33E,0x33F,0x123,0x31B,0x466,0x4CF,0x416,0x4F5,0x4E0,0x31F,0x308,0x4F4,0}};
-  constexpr std::array<uint16_t,18> value{{0x8000,2,0x008B,0x4F12,0x0180,0xA681,3,0x0800,0x8848,0xFE00,0x261D,0x1F30,0x2864,0xFFF2,0xFE36,0,0x0800,0x3300}};
+  constexpr std::array<uint16_t,18> origAddress{{0x1F,0x3C,0x4D1,0x4D3,0x4DF,0x33E,0x33F,0x123,0x31B,0x466,0x4CF,0x416,0x4F5,0x4E0,0x31F,0x308,0x4F4,0}};
+  constexpr std::array<uint16_t,18> origValue{{0x8000,2,0x008B,0x4F12,0x0180,0xA681,3,0x0800,0x8848,0xFE00,0x261D,0x1F30,0x2864,0xFFF2,0xFE36,0,0x0800,0x3300}};
+  // SNLS783A pp. 27 and 28, including the duplicate row and trailing CLK word.
+  constexpr uint16_t aAddress[]={31,60,0x4D1,0x4DF,0x33E,0x33F,0x4F5,0x4E0,0x31F,0x308,0x4F4,0x123,
+    0x126,0x132,0x4D4,0x4CF,0x310,0x416,0x311,0x313,0x33A,0x33C,0x317,0x31B,0x4F5,0,0x466};
+  constexpr uint16_t aValue[]={0x8000,2,0x008B,0x0180,0xA681,3,0x2864,0xFFF2,0xFE36,0,0x0800,0x0800,
+    0x5D23,0x0183,0x3322,0x261D,0x76E1,0x1830,0x01FC,0x06E3,0x579B,0xEC00,0x1000,0x8848,0x2864,0x3300,0xFD00};
+  const auto* address=test::aGrade()?aAddress:origAddress.data();
+  const auto* value=test::aGrade()?aValue:origValue.data();
   Controller b;Driver d;ready(d,b);const auto first=b.frames;configured(d,b);
   unsigned index=findWrite(b,first,31,0x1F,0x8000);
-  for(unsigned row=0;row<18U;++row) {
+  for(unsigned row=0;row<(test::aGrade()?27U:18U);++row) {
     while(index<b.frames && !semantic(b.trace[index]))++index;
     CHECK(index<b.frames);if(index>=b.frames)break;
     const auto& frame=b.trace[index];const uint16_t devad=row==1U?uint16_t{7}:uint16_t{31};
     CHECK(frame.target==address[row] && frame.value==value[row] && frame.devad==devad);
-    if(row!=0U && row!=17U)literalMmd(b,index-3U,devad,address[row],FrameKind::WRITE,value[row]);
+    if(row!=0U && address[row]!=0U)literalMmd(b,index-3U,devad,address[row],FrameKind::WRITE,value[row]);
     if(row==0U) {
       CHECK(index+1U<b.frames && b.trace[index+1U].at>=frame.at+2000U);
     }
@@ -303,6 +310,11 @@ void status() {
     bus.capability=capability;bus.mmd7[0x3D]=partner;
     const auto calls=bus.calls,frames=bus.frames;EeeSnapshot out;CHECK(driver.readEeeStatus(out,{1000000,31}).ok());
     CHECK(bus.frames==frames+31U && bus.calls==calls+8U);
+    if (test::aGrade()) {
+      constexpr unsigned indices[]={0,1,2,3,28,29,30};
+      constexpr unsigned registers[]={0,16,1,1,16,1,0};
+      for(unsigned i=0;i<7U;++i) CHECK(bus.trace[frames+indices[i]].reg==registers[i]);
+    }
     CHECK(out.valid && !out.stale && out.capabilityValid && out.advertisementValid && out.partnerValid && out.negotiatedValid);
     CHECK(out.capability==capability && out.advertisement==local && out.partner==partner);
     CHECK(out.negotiated==(capability==2 && local==2 && partner==2));
@@ -339,12 +351,26 @@ void status() {
 void failures() {
   Controller reference;Driver ref;ready(ref,reference);const auto first=reference.frames;configured(ref,reference);const auto count=reference.frames-first;
   CHECK(count>=74U && count<512U);
+  const auto restart=findWrite(reference,first,31,0,0x3300)-first;
   for(bool accepted:{false,true})for(unsigned phase=0;phase<count;++phase) {
     Controller b;Driver d;ready(d,b);const auto start=b.frames;b.failFrame=static_cast<int>(start+phase);b.acceptedFailure=accepted;const auto t=configure(d,b);
     CHECK(drain(d,b,t).is(Err::MDIO_TIMEOUT));const auto r=take(d,t);
     CHECK(r.status.detail==-29029 && b.frames==start+phase+1U && b.calls==b.releases && !b.locked);
     CHECK(!r.persistentRestored && d.eeeSnapshot().trust!=ConfigurationTrust::VERIFIED);
+    CHECK(r.eee.recipeRestartAttempted==(phase>=restart));
+    CHECK(r.eee.recipeRestartAccepted==(phase>restart));
+    CHECK(r.eee.recipeRestartPossible==(phase>restart || (phase==restart && accepted)));
     if(b.hard!=0U)CHECK(r.cleanupOwed && !d.isInitialized());
+    if (test::aGrade() && phase>=restart && phase<=restart+4U) {
+      // A row 26 is direct. All four selector/data cuts of row 27 occur
+      // after the accepted AN restart. Detachment requires explicit abandonment.
+      const auto calls=b.calls, clocks=b.clocks;
+      CHECK(d.end().is(Err::BUSY));
+      CHECK(d.abandonCleanup().ok() && d.end().ok());
+      CHECK(r.eee.recipeRestartAccepted==(phase>restart));
+      CHECK(r.eee.recipeRestartPossible==(phase>restart || accepted));
+      CHECK(b.calls==calls && b.clocks==clocks);
+    }
 
   }
   // Every release failure retains primary/release separation and consumes no retry.
@@ -391,6 +417,10 @@ void acquisitionFailures() {
     CHECK(d.readEeeStatus(sentinel,{1000000,128}).is(Err::MDIO_TIMEOUT));CHECK(sentinel.partner==0xCAFE && b.frames==first+phase+1U);
     CHECK(d.eeeSnapshot().stale && !d.eeeSnapshot().negotiatedValid);
     const auto evidence=d.evidenceSnapshot();
+    if (test::aGrade() && phase==2U) {
+      const auto& mirror=evidence.samples[static_cast<unsigned>(EvidenceSource::PHYSTS)];
+      CHECK(mirror.valid && mirror.raw==0x15U);
+    }
     for(unsigned i=first;i<b.frames;++i) {
       if(b.trace[i].kind==FrameKind::READ && b.trace[i].devad==3 && (b.trace[i].target==1 || b.trace[i].target==0x16)) {
         const auto source=b.trace[i].target==1?EvidenceSource::EEE_STATUS:EvidenceSource::EEE_ERRORS;
@@ -421,7 +451,8 @@ void restoreFailures() {
   }
   // Retained failure and restoration are different tokens/results.
   Controller b;Driver d;ready(d,b);const auto first=b.frames;const auto t=configure(d,b);
-  while(b.ext[0x0123]!=0x0800)CHECK(poll(d,b,t).inProgress());
+  for(unsigned i=0;i<128U && b.ext[0x0123]!=0x0800;++i) CHECK(poll(d,b,t).inProgress());
+  CHECK(b.ext[0x0123]==0x0800);
   b.failFrame=static_cast<int>(b.frames);CHECK(drain(d,b,t).is(Err::MDIO_TIMEOUT));const auto failed=take(d,t);
   CHECK(failed.cleanupOwed && writes(b,first,31,0x0123)==1U);b.failFrame=-1;OperationToken recovery;
   CHECK(d.startInitialize({ResetKind::HARD},budget(),recovery).inProgress());CHECK(drain(d,b,recovery).ok());const auto restored=take(d,recovery);
@@ -456,6 +487,8 @@ void recipeAdmission() {
   // Identity (2), SOR1/SOR2 (4 each), BMCR and PHYRCR (1 each) precede
   // capability. Only the remaining frames are available to the recipe.
   constexpr unsigned preflightFrames = 12;
+  const unsigned requiredFrames=test::aGrade()?178U:75U;
+  const unsigned requiredCalls=test::aGrade()?59U:21U;
   for (bool replay : {false, true}) {
     for (bool command : {false, true}) {
       for (unsigned slack : {0U, 1U}) {
@@ -463,7 +496,7 @@ void recipeAdmission() {
         Driver driver;
         ready(driver, bus);
         OperationToken token;
-        const auto allowance = budget(preflightFrames + 75, deadline);
+        const auto allowance = budget(preflightFrames + requiredFrames, deadline);
         if (replay) {
           configured(driver, bus);
           CHECK(driver.startInitialize({ResetKind::NONE}, allowance, token).inProgress());
@@ -478,11 +511,11 @@ void recipeAdmission() {
           literalMmd(bus, first + preflightFrames, 3, 0x14, FrameKind::READ);
         }
         const auto frames = bus.frames, calls = bus.calls, hard = bus.hard;
-        CHECK(driver.operationSnapshot().remaining.maxFrames == (command ? 71U : 75U));
+        CHECK(driver.operationSnapshot().remaining.maxFrames == requiredFrames - (command ? 4U : 0U));
         // 4 ticks + 4 us/frame + 8 us/callback + HARD's 2000 us wait.
-        // 75 frames/21 callbacks before capability, 71/20 after it.
+        // A reserves the full re-identification, VOD, AN and EEE replay tail.
         bus.jumpClockCall = bus.clocks + 2;
-        bus.jumpClockTo = deadline - (command ? 2448U : 2472U) - slack;
+        bus.jumpClockTo = deadline - (2004U + 4U * requiredFrames + 8U * requiredCalls - (command?24U:0U)) - slack;
         const auto status = poll(driver, bus, token);
         CHECK(bus.clocks >= bus.jumpClockCall);
         if (slack == 0U) {
@@ -510,9 +543,9 @@ void recipeAdmission() {
   Driver driver;
   ready(driver, bus);
   OperationToken token;
-  CHECK(driver.startConfigureEee(settings(), budget(preflightFrames + 74, deadline), token).inProgress());
+  CHECK(driver.startConfigureEee(settings(), budget(preflightFrames + requiredFrames - 1U, deadline), token).inProgress());
   for (unsigned i = 0; i < 5; ++i) { CHECK(poll(driver, bus, token).inProgress()); }
-  CHECK(driver.operationSnapshot().remaining.maxFrames == 74);
+  CHECK(driver.operationSnapshot().remaining.maxFrames == requiredFrames - 1U);
   const auto frames = bus.frames, calls = bus.calls;
   CHECK(poll(driver, bus, token, 3).inProgress()); // Yield before admitting the four-frame capability read.
   const auto status = poll(driver, bus, token, 4);
@@ -520,8 +553,54 @@ void recipeAdmission() {
   CHECK(bus.frames == frames && bus.calls == calls && bus.hard == 0 && !take(driver, token).mutationAttempted);
 }
 
+void aOwnerAdmission() {
+  if (!test::aGrade()) return;
+  // At capability entry: 111/30 for recipe, checks and HARD poll, 10/3 to
+  // identify and resample straps, 17/4 to apply EEE, 8/2 VOD, 24/18 link,
+  // and 8/2 for final EEE verification. The leading preflight costs 12/5.
+  for(unsigned owners=0;owners<8U;++owners) for(bool shortBudget:{false,true}) {
+    Controller b; Driver d; ready(d,b); unsigned frames=190;
+    OperationToken token;
+    if ((owners&1U)!=0U) {
+      PowerSettings power; power.maintenanceAdmitted=power.managementClockAvailable=true;
+      CHECK(d.startConfigurePower(power,budget(),token).inProgress());
+      CHECK(drain(d,b,token).ok()); take(d,token); frames+=9;
+    }
+    if ((owners&2U)!=0U) {
+      AnalogSettings analog; analog.terminationOwned=analog.terminationOverrideAdmitted=true;
+      analog.macStopped=analog.maintenanceAdmitted=analog.fixtureAdmitted=true;
+      analog.mdiTermination=6;
+      CHECK(d.startConfigureAnalog(analog,budget(),token).inProgress());
+      CHECK(drain(d,b,token).ok()); take(d,token); frames+=14;
+    }
+    if ((owners&4U)!=0U) {
+      QualitySettings quality; quality.tx10.owned=quality.partnerPreambleAdmitted=true;
+      quality.maintenanceAdmitted=quality.macStopped=true; quality.tx10.squelchCode=3;
+      CHECK(d.startConfigureQuality(quality,budget(),token).inProgress());
+      CHECK(drain(d,b,token).ok()); take(d,token); frames+=19;
+    }
+    const auto first=b.frames, mutations=b.mutations;
+    CHECK(d.startConfigureEee(settings(),budget(frames-(shortBudget?1U:0U)),token).inProgress());
+    const auto status=drain(d,b,token);
+    const auto r=take(d,token);
+    if(shortBudget) {
+      CHECK(status.is(Err::OPERATION_TIMEOUT) && b.frames==first+12 && b.mutations==mutations);
+      CHECK(!r.eee.recipeRestartAttempted && !r.mutationPossible);
+    } else {
+      CHECK(status.ok() && r.persistentRestored && b.frames==first+frames);
+      CHECK(r.eee.recipeRestartAccepted && r.eee.recipeRestartPossible);
+      // A new failure before capability must not inherit the previous restart.
+      b.failFrame=static_cast<int>(b.frames);
+      CHECK(d.startConfigureEee(settings(false),budget(),token).inProgress());
+      CHECK(drain(d,b,token).is(Err::MDIO_TIMEOUT));
+      CHECK(!take(d,token).eee.recipeRestartPossible && r.eee.recipeRestartAccepted);
+    }
+  }
+}
+
 void ownershipTiming() {
   recipeAdmission();
+  aOwnerAdmission();
   for(uint32_t allowance:{0U,73U}) {
     Controller bus;Driver driver;ready(driver,bus);const auto mutation=bus.mutations;OperationToken t{999};
     const auto result=driver.startConfigureEee(settings(),budget(allowance),t);

@@ -142,16 +142,17 @@ class CompiledFeatureTests(unittest.TestCase):
     def test_a_feature_cases_require_their_generation_profiles(self):
         for grade in ("DP83826AI", "DP83826AE"):
             args = ("--fixture-variant", grade, "--variant", grade)
-            for name in ("quality", "interface-mii", "interface-rmii25", "interface-rmii50",
-                         "repeater-leader", "repeater-follower", "eee", "loopback-digital"):
+            for name, (_, module) in feature_modules().items():
                 with self.subTest(grade=grade, case=name):
-                    result, data, _ = self.run_case(name, "-" + grade, args)
+                    result, data, raw = self.run_case(name, "-" + grade, args)
                     row, = data["cases"]
-                    if name in ("eee", "loopback-digital"):
-                        self.assertEqual((result, row["verdict"], len(data["commands"])), (2, "BLOCKED", 1))
+                    if name in getattr(module, "BLOCKED_CASES", ()):
+                        self.assertEqual((result, row["verdict"]), (2, "BLOCKED"))
                     else:
-                        self.assertEqual((result, row["verdict"], row["restoration"]["verdict"]),
-                                         (0, "PASS", "PASS"), data["issues"])
+                        self.assertEqual((result, row["verdict"]), (0, "PASS"), row)
+                        if module.CASES[name][1]:
+                            self.assertEqual(row["restoration"]["verdict"], "PASS")
+                        self.assertEqual(replay(data, decoded(raw)), "PASS")
 
             mismatch = ("--fixture-variant", "DP83826AE" if grade == "DP83826AI" else "DP83826AI",
                         "--variant", grade)
@@ -164,6 +165,27 @@ class CompiledFeatureTests(unittest.TestCase):
             self.assertEqual(result, 2)
             self.assertEqual(len(data["commands"]), 1)
             self.assertTrue(all(row.cmd == "session" for row in decoded(raw)))
+
+    def test_a_wake_setup_interruption_and_replay(self):
+        from test_hil_soak import assert_soak_required_fields
+        for grade in ("DP83826AI", "DP83826AE"):
+            args = ("--fixture-variant", grade, "--variant", grade, "--soak-count", "2",
+                    "--soak-duration-ms", "8000", "--timeout", "15")
+            code, data, raw = self.run_case("wol-secure", "-setup-" + grade, args)
+            self.assertEqual(code, 0, data["issues"])
+            self.assertEqual([step["state"] for step in data["soak"]["setup"]], ["terminal", "terminal"])
+            self.assertGreater(assert_soak_required_fields(self, "wol-secure", data, raw), 0)
+
+            send = runner.FixtureProcess.send
+            def lose_ack(fixture, line, deadline=None):
+                send(fixture, line, deadline)
+                if line == b"wol acknowledge\n":
+                    raise runner.FixtureError("injected loss after the pre-nonce acknowledgement")
+            with patch.object(runner.FixtureProcess, "send", lose_ack):
+                code, data, raw = self.run_case("wol-secure", "-lost-" + grade, args)
+            self.assertEqual((code, data["verdict"], data["soak"]["attempted"]), (2, "INCONCLUSIVE", 0))
+            self.assertEqual([step["state"] for step in data["soak"]["setup"]], ["terminal", "uncertain"])
+            self.assertFalse(any(row.cmd == "session" for row in decoded(raw)))
 
     def test_e_feature_cases_use_the_shared_cli_and_keep_source_gates(self):
         for name, (_, module) in feature_modules().items():

@@ -898,3 +898,17 @@ feature-specific admission, effects, output validity, bounds and source gates.
 
 See [Electrical/compliance/calibration procedures](electrical.md) and the shipped header Doxygen for the
 feature-specific admission, effects, output validity, bounds and source gates.
+
+### A-generation diagnostic effects
+
+A declared AI or AE accepts revision 4. Pin 30 clock selection uses the
+interface owner. Per-pin profiles, wake and IRQ use the LED index and reject
+conflicting claims before touching the bus. Raw LEDCR writes remain fenced
+on A. The shared collector retains a completed MISR1 if the MISR2 read
+fails. FCSCR saturation establishes a lower bound and RECR retains its raw word.
+
+An enabled A EEE recipe records `recipeRestartAttempted`,
+`recipeRestartAccepted` and `recipeRestartPossible` in the frozen EEE result.
+Row 26 issues the BMCR restart. Row 27 completes the recipe at 0466. A
+failure in that final transaction preserves any accepted restart and leaves
+restoration to the separately admitted owner. [A field and procedure coverage](feature-coverage.md#dp83826ai-and-dp83826ae)

@@ -3,7 +3,11 @@
 Supply the board's ordering grade in `PhyConfig::core.variant`. The factory
 retains a DP83826E declaration through the same BASIC/ENHANCED identity and
 configuration paths used by DP83826I. The adapter link fixture defaults to E and accepts a build-time A declaration.
-AI/AE use the same factory and board owner with revision-4 core/link admission.
+AI/AE use the same factory, serialized feature dispatch and board owner.
+On an accepted revision-4 device the native CLI can run the A procedures
+under their individual maintenance and board grants. The stock P4 examples
+supply no feature attestation. Dedicated pin 30/29 grants and the MII CRS
+release are required for the corresponding alternate outputs.
 If an A link poll observes an active BMCR reset, the owner records the loss
 of configuration trust, withdraws any published UP and requires stop. The
 previous link sample stays cached as stale until initialization and refresh.

@@ -18,7 +18,7 @@ MdioBatch updateIrq(uint8_t address,uint16_t preserve,uint16_t value) noexcept {
   batch.frames[1]={FrameKind::WRITE,address,value,preserve,0}; return batch;
 }
 Status interruptSyntax(const InterruptSettings& s) noexcept {
-  if (s.pin>InterruptPin::LED2 || s.sharedSource==InterruptSharedSource::UNKNOWN || s.sharedSource>InterruptSharedSource::WAKE ||
+  if (s.pin>InterruptPin::LED3 || s.sharedSource==InterruptSharedSource::UNKNOWN || s.sharedSource>InterruptSharedSource::WAKE ||
       s.misr1Mask>0x00FFU || s.misr2Mask>0x00FFU) {
     return Status::Error(Err::INVALID_PARAM,"Invalid interrupt encoding",static_cast<int32_t>(ParamDetail::VALUE_WIDTH));
   }
@@ -38,20 +38,23 @@ Status serviceBudgetError() noexcept {
 
 Status DP8382x::_validateInterruptSettings(const InterruptSettings& s) const noexcept {
   const auto syntax=interruptSyntax(s); if (!syntax.ok()) { return syntax; }
-  const uint8_t pin=s.pin==InterruptPin::LED1?1U:s.pin==InterruptPin::LED2?2U:0U;
+  const uint8_t pin=ledIndex(s.pin);
+  const bool a=isA(_config.variant);
+  if (!a && (pin==0U || pin==3U)) { return Status::Error(Err::UNSUPPORTED,"Read-only IRQ mux on this grade"); }
   if (_interface.desiredValid &&
-      ((pin==1U && _interface.desired.clockOutput==ClockOutput::CLKOUT25) ||
+      ((a && pin==0U && _interface.desired.clockOutput!=ClockOutput::UNOWNED) ||
+       (pin==1U && _interface.desired.clockOutput==ClockOutput::CLKOUT25) ||
        (pin==2U && _interface.desired.collisionFullDuplex))) {
     return invalidIrq("Interrupt route conflicts with the interface clock/COL owner");
   }
   if (_pins.desiredValid) {
-    for (uint8_t i=1;i<=2U;++i) {
+    for (uint8_t i=0;i<4U;++i) {
       if (_pins.desired.pins[i].function==PinFunction::INTERRUPT && pin!=i) {
         return invalidIrq("Release the dependent pin profile before moving the interrupt route");
       }
     }
   }
-  if (pin!=0U && _pins.desiredValid && _pins.desired.pins[pin].function!=PinFunction::UNOWNED &&
+  if (pin<4U && _pins.desiredValid && _pins.desired.pins[pin].function!=PinFunction::UNOWNED &&
       _pins.desired.pins[pin].function!=PinFunction::INTERRUPT) {
     return invalidIrq("Interrupt route conflicts with the owned pin profile");
   }
@@ -59,8 +62,7 @@ Status DP8382x::_validateInterruptSettings(const InterruptSettings& s) const noe
     // Disabling the detector does not release its separately selected route.
     if ((_wake.desired.enabled || _wake.desired.route == WakeRoute::INTERRUPT) &&
         s.sharedSource != InterruptSharedSource::WAKE) { return invalidIrq("Owned WoL requires WAKE shared-source selection"); }
-    if ((_wake.desired.route == WakeRoute::LED1 && s.pin == InterruptPin::LED1) ||
-        (_wake.desired.route == WakeRoute::LED2 && s.pin == InterruptPin::LED2)) {
+    if (pin<4U && ledIndex(_wake.desired.route)==pin) {
       return invalidIrq("Direct WoL and interrupt output cannot share the same LED mux");
     }
     if (_wake.desired.route == WakeRoute::INTERRUPT &&
@@ -74,10 +76,13 @@ Status DP8382x::_validateInterruptSettings(const InterruptSettings& s) const noe
   }
   if (!s.maintenanceAdmitted || !s.pinAvailable) { return invalidIrq("Interrupt pin maintenance not admitted"); }
   if (_identity.mode==OperatingMode::BASIC) {
-    if (s.pin==InterruptPin::LED2) { return Status::Error(Err::UNSUPPORTED,"BASIC has no LED2 output"); }
+    if (pin==2U || pin==3U) { return Status::Error(Err::UNSUPPORTED,"BASIC exposes only LED0 and LED1"); }
   } else {
     if (!s.outputEnable && !s.powerDownInputSafe) { return invalidIrq("ENHANCED power-down input needs board compatibility"); }
     if (s.pin==InterruptPin::LED1 && !s.led1ClockUnused) { return invalidIrq("LED1 clock consumer conflicts with IRQ"); }
+    if (pin==3U && _config.interface==MacInterface::MII && !s.crsUnused) {
+      return invalidIrq("MII CRS consumer conflicts with LED3 IRQ");
+    }
     if (s.pin==InterruptPin::LED2 && _config.interface==MacInterface::MII && !s.colUnused) {
       return invalidIrq("MII COL consumer conflicts with LED2 IRQ");
     }
@@ -85,7 +90,6 @@ Status DP8382x::_validateInterruptSettings(const InterruptSettings& s) const noe
   return Status::Ok();
 }
 Status DP8382x::_admitInterrupt(const OperationBudget& budget,bool stop) const noexcept {
-  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (budget.pollIntervalUs==0U || budget.maxStalledPolls==0U) {
     return Status::Error(Err::INVALID_PARAM,"Invalid interrupt operation budget",static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
   }
@@ -148,6 +152,36 @@ void DP8382x::_setInterruptStep(InterruptStep step) noexcept {
   if (step==InterruptStep::IDENTIFY) { _interruptExpectedMode=_identity.mode; _interruptPinRestore=false; }
   _operation.phase=step==InterruptStep::IDENTIFY ? OperationPhase::IDENTIFY : OperationPhase::VERIFY;
 }
+void DP8382x::_interruptPassCost(bool verifyOnly,uint32_t& frames,uint32_t& callbacks) const noexcept {
+  frames=callbacks=0;
+  if (!_interrupts.desiredValid) return;
+  const bool check=_interruptWorking;
+  const auto pin=ledIndex(_interrupts.desired.pin);
+  if (check && _interruptStep==InterruptStep::DISABLE) {
+    // Mask delivery, drain, select/read/cross, set both masks, enable last,
+    // then read both masks and PHYSCR. The pin preflight resolved replay.
+    frames=23; callbacks=12;
+    if (_interruptPinRestore) { frames+=9; callbacks+=2; }
+    return;
+  }
+  if (check && _interruptStep==InterruptStep::TEST_WRITE) { frames=3; callbacks=2; return; }
+  if (check && _interruptStep!=InterruptStep::IDENTIFY) return;
+  if (check && _operation.kind==OperationKind::INTERRUPT_TEST_STOP) { frames=5; callbacks=3; return; }
+  if (check && _operation.kind==OperationKind::INTERRUPT_TEST_START) { frames=6; callbacks=4; }
+  else if (verifyOnly) { frames=10; callbacks=6; } // ID, selector, crossing, MISR1/2, PHYSCR
+  else {
+    frames=25; callbacks=13; // ID and complete mask/delivery pass
+    if (check && _operation.kind==OperationKind::INTERRUPT_CONFIGURE) { ++frames; ++callbacks; } // CHECK_TEST
+    // A prior reset invalidates live mux evidence. The WoL tail restores a
+    // shared IRQ mux once, otherwise reserve this owner's RMW plus verification.
+    if (!check && pin<4U && !(_wake.desiredValid && _wake.desired.route==WakeRoute::INTERRUPT)) {
+      frames+=9; callbacks+=2;
+    }
+  }
+  if (pin<4U) { frames+=pin>=2U?5U:4U; ++callbacks; }
+  if (pin==1U && _identity.mode==OperatingMode::ENHANCED) { frames+=4; ++callbacks; }
+}
+
 MdioBatch DP8382x::_interruptBatch() const noexcept {
   switch (_interruptStep) {
     case InterruptStep::IDENTIFY: {
@@ -155,14 +189,14 @@ MdioBatch DP8382x::_interruptBatch() const noexcept {
     }
     case InterruptStep::PIN_CLOCK: return _mmdBatch(0x0308,FrameKind::READ,0);
     case InterruptStep::PIN_MUX: case InterruptStep::PIN_VERIFY: {
-      auto batch=_mmdBatch(_interrupts.desired.pin==InterruptPin::LED1?0x0304:0x0305,FrameKind::READ,0);
-      if (_interruptStep==InterruptStep::PIN_MUX && _interrupts.desired.pin==InterruptPin::LED2) {
+      auto batch=_mmdBatch(static_cast<uint16_t>(0x0303U+ledIndex(_interrupts.desired.pin)),FrameKind::READ,0);
+      if (_interruptStep==InterruptStep::PIN_MUX && ledIndex(_interrupts.desired.pin)>=2U) {
         batch.frames[batch.frameCount++]={FrameKind::READ,0x17,0,0,NO_READ_INDEX};
       }
       return batch;
     }
     case InterruptStep::PIN_APPLY: {
-      auto batch=_mmdBatch(_interrupts.desired.pin==InterruptPin::LED1?0x0304:0x0305,FrameKind::READ,0);
+      auto batch=_mmdBatch(static_cast<uint16_t>(0x0303U+ledIndex(_interrupts.desired.pin)),FrameKind::READ,0);
       batch.frameCount=5; batch.frames[4]={FrameKind::WRITE,0x0E,4,0xFFF8,3}; return batch;
     }
     case InterruptStep::CHECK_TEST: case InterruptStep::VERIFY_CONTROL: case InterruptStep::TEST_VERIFY: return readIrq(0x11);
@@ -216,7 +250,7 @@ Status DP8382x::_advanceInterrupt(Status status,bool called,const MdioBatch& bat
   if (complete && batch.frames[last].kind==FrameKind::READ) {
     switch (_interruptStep) {
       case InterruptStep::PIN_VERIFY:
-        address=_interrupts.desired.pin==InterruptPin::LED1?0x0304:0x0305; mask=7; expected=4; break;
+        address=static_cast<uint16_t>(0x0303U+ledIndex(_interrupts.desired.pin)); mask=7; expected=4; break;
       case InterruptStep::VERIFY1:
         _interrupts.rawMisr1=value; _interrupts.misr1Valid=true; mask=0x00FF; expected=_interrupts.desired.misr1Mask; break;
       case InterruptStep::VERIFY2:
@@ -271,7 +305,7 @@ Status DP8382x::_advanceInterrupt(Status status,bool called,const MdioBatch& bat
       if ((value&1U)==0U) { return _finishOperation(invalidIrq("LED1 is routed to clock output")); }
       _setInterruptStep(InterruptStep::PIN_MUX); break;
     case InterruptStep::PIN_MUX:
-      if (_interrupts.desired.pin==InterruptPin::LED2 &&
+      if (ledIndex(_interrupts.desired.pin)>=2U &&
           (_transport.lastBatch.frames[4].value&0x0020U)!=(_config.interface==MacInterface::RMII?0x0020U:0U)) {
         return _finishOperation(invalidIrq("Observed interface differs from LED2 IRQ wiring"));
       }
@@ -337,7 +371,6 @@ Status DP8382x::_advanceInterrupt(Status status,bool called,const MdioBatch& bat
 }
 
 Status DP8382x::serviceInterrupts(InterruptServiceSnapshot& snapshot,const InterruptServiceBudget& budget) noexcept {
-  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (_active || _polling) { return busyIrq(BusyDetail::OPERATION_ACTIVE); }
   const auto fail=[&](Status status) noexcept {
     _interruptService.stale=true; _interruptService.morePossiblyPending=true;

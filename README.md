@@ -9,7 +9,8 @@ revision-1 BASIC and ENHANCED IDs are shared with I. The board supplies the
 ordering grade. The implemented procedures and source-gated features apply to
 both declarations. DP83826AI and DP83826AE accept revision 4 for initialization,
 link negotiation and observation, MII/RMII, clocks, fast link drop and recovery.
-Diagnostic and optional-control support for these two grades is still pending.
+Both A grades also have typed diagnostics, IRQ and wake routes, LED and GPIO
+profiles, power controls and the 27-write EEE recipe. The [coverage matrix](docs/feature-coverage.md#dp83826ai-and-dp83826ae) records the supported paths and open silicon gates.
 [Device coverage](docs/variants.md)
 
 **Status: prompts 1-35 complete for supported procedures; prompts 37-39 add native ESP-IDF lifecycle, SDK state arbitration and notification conformance. Prompt 40 adds a native P4 Ethernet/IP application with a default-closed board gate. Deep-power-down and full primary closure remain source-blocked; hardware qualification remains future work.**

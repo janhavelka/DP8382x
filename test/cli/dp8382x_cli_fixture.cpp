@@ -135,7 +135,16 @@ struct Bus {
     vendor[0x0117] = 0x8147;
     vendor[0x0131] = 0x0288;
     vendor[0x0302] = 0;
+    // SNLS783A tables 8-43/50/75..78/86/90. Select external pull-ups
+    // for active-low LEDs and model pin 31 in its POR clock role.
+    words[24] = 0x0400;
+    vendor[0x0025] = 0x0041;
     vendor[0x0303] = 0x0008;
+    vendor[0x0304] = 0x0008;
+    vendor[0x0305] = rmii ? 0x0008 : 0x000B;
+    vendor[0x0306] = 0x0008;
+    vendor[0x0460] = 0x5565;
+    vendor[0x0469] = 0;
     vendor[0x0308] = 0x0002;
     vendor[0x0456] = 0x0008;
   }
@@ -186,7 +195,7 @@ struct Bus {
       vendor[0x0468] = rmii ? 0x0010 : 0;
       resetAControls();
     }
-    vendor[0x04A0] = 0x1881; // Wake indication pending with a reset detector profile.
+    vendor[0x04A0] = aGrade && basic ? 0x1800 : 0x1881; // Wake indication pending with a reset detector profile.
     vendor[0x04A1] = 0x1000;
     vendor[0x04D1] = 0x0080;
     if (options.partner == Partner::DOWN) return;
@@ -295,7 +304,7 @@ struct Bus {
           words[17] = 0;
           if (aGrade) resetAControls();
           words[22] = 0x0100;
-          words[24] = 0; // Reload the modeled LED register on hard reset.
+          words[24] = aGrade ? 0x0400 : 0;
           words[27] = 0x007D;
           words[28] = 0x05EE;
           words[30] = 0x0102;
@@ -313,7 +322,8 @@ struct Bus {
         words[address] = value & 0x00FFU;
         if ((value & 0x8000U) != 0U) { bistCaptured = bistErrors; bistErrors = 0; }
       } else if (address == 30) {
-        words[address] = value;
+        // CDCR[1:0] are hardware status on A. Command writes cannot erase them.
+        words[address] = aGrade ? static_cast<uint16_t>((value & 0xFFFCU) | (words[address] & 3U)) : value;
         if ((value & 0x8000U) != 0U) tdrPolls = 0;
       } else {
         // The AN restart bit clears independently of the modeled partner.

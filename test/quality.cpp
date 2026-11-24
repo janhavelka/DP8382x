@@ -1,3 +1,4 @@
+#include "support/PartSelection.h"
 #include "support/Check.h"
 #include <DP8382x/DP8382x.h>
 #include "../examples/portable/Quality.h"
@@ -17,8 +18,8 @@ struct Controller {
   std::array<uint16_t,0x500> ext{};
   std::array<uint16_t,64> mmd3{},mmd7{};
   std::array<Wire,8192> trace{};
-  uint16_t selector{0},address{0},id2{0xA131};
-  Variant declared{Variant::DP83826I};
+  uint16_t selector{0},address{0},id2{test::enhancedId2()};
+  Variant declared{test::declaredVariant};
   MacInterface boardInterface{MacInterface::MII};
   uint64_t now{100};
   unsigned frames{0},calls{0},clocks{0},releases{0},mutations{0},hard{0};
@@ -173,6 +174,11 @@ void vectors() {
   for(unsigned bits=0;bits<32U;++bits) {
     Controller b;Driver d;ready(d,b);auto s=settings(false);
     s.fastDrop.causeMask=static_cast<uint16_t>((bits&15U)|((bits&16U)!=0U?0x0400U:0U));
+    if (test::aGrade() && (bits & 0x16U)!=0U && (bits & 9U)==0U) {
+      const auto frames=b.frames; OperationToken token;
+      CHECK(d.startConfigureQuality(s,budget(),token).is(Err::INVALID_CONFIG) && frames==b.frames);
+      continue;
+    }
     b.words[11]=0xA170;const auto first=b.frames;configured(d,b,s);
     CHECK(b.words[11]==static_cast<uint16_t>(0xA170U|s.fastDrop.causeMask));
     CHECK(writes(b,first,11)==(bits==0U?1U:2U));
@@ -210,7 +216,11 @@ void vectors() {
   // An unexpected reserved readback is preserved, without claiming the exact 0417 recipe.
   {
     Controller unexpected;Driver phy;ready(phy,unexpected);unexpected.ext[0x117]=0x0413;
-    configured(phy,unexpected,settings(false));
+    if (test::aGrade()) {
+      const auto token=start(phy,unexpected,settings(false));
+      CHECK(drain(phy,unexpected,token).is(Err::CONFIG_MISMATCH));
+      CHECK(take(phy,token).mismatch.observed==0x0413U);
+    } else { configured(phy,unexpected,settings(false)); }
     CHECK(unexpected.ext[0x117]==0x0413U && !phy.qualitySnapshot().fldMaximumApplicable);
   }
   // Source-defined zero-cause disable is admitted on RMII, without inventing a detector.
@@ -238,6 +248,11 @@ void admission() {
   }
   Controller b;b.boardInterface=MacInterface::RMII;Driver d;ready(d,b);const auto frames=b.frames,clocks=b.clocks;OperationToken token{777};
   CHECK(!d.startConfigureQuality(settings(),budget(),token).inProgress() && b.frames==frames && b.clocks==clocks);
+  for(uint8_t reserved=9;reserved<=15;++reserved) {
+    auto invalid=settings(); invalid.tx10.squelchCode=reserved;
+    CHECK(d.startConfigureQuality(invalid,budget(),token).is(Err::INVALID_PARAM));
+    CHECK(b.frames==frames && b.clocks==clocks);
+  }
   // A contradictory live mode is rejected before a semantic write, after bounded evidence.
   Controller live;Driver phy;ready(phy,live);live.words[23]|=0x20;const auto mutations=live.mutations;
   token=start(phy,live,settings());CHECK(!drain(phy,live,token).ok());CHECK(!take(phy,token).mutationPossible && live.mutations==mutations);
@@ -568,13 +583,9 @@ template<Variant grade> void aQuality() {
     CHECK(driver.startConfigureQuality(denied,budget(),t).is(Err::INVALID_CONFIG));
     CHECK(ref.calls==calls && ref.clocks==clocks && !driver.qualitySnapshot().desiredValid);
   }
-  for (bool tx100:{false,true}) {
-    auto denied=s; denied.tx10.owned=!tx100; denied.tx100.owned=tx100; OperationToken t;
-    const auto calls=ref.calls,clocks=ref.clocks;
-    CHECK(driver.startConfigureQuality(denied,budget(),t).is(Err::INVALID_CONFIG));
-    SignalQualitySnapshot mse; CHECK(driver.readSignalQuality(mse,{1000000,4}).is(Err::INVALID_CONFIG));
-    CHECK(ref.calls==calls && ref.clocks==clocks);
-  }
+  // Read the raw exact-part MSE word under its original address.
+  SignalQualitySnapshot mse; ref.ext[0x218]=0xABCD;
+  CHECK(driver.readSignalQuality(mse,{1000000,4}).ok() && mse.rawMse==0xABCD);
   const auto first=ref.frames,calls=ref.calls; ref.words[9]=0x0120; ref.words[11]=0x042F;
   ref.words[15]=0x01F0; ref.ext[0x131]=0x0288;
   auto result=configured(driver,ref,s);
@@ -678,5 +689,5 @@ int main(int argc,char** argv) {
   const test::Suite suites[]={{"vectors",vectors},{"admission",admission},{"failures",failures},{"replay",replay},
     {"collector",collector},{"ownership",ownership},{"timing",timing},{"raw",raw},
     {"ai",aQuality<Variant::DP83826AI>},{"ae",aQuality<Variant::DP83826AE>}};
-  return test::runSuites(argc,argv,suites);
+  return test::runVariantSuites(argc,argv,suites);
 }

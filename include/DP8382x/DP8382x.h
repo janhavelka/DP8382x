@@ -658,8 +658,22 @@ struct CableAutorunSnapshot {
 enum class InterruptPin : uint8_t {
   INTR_PWRDN, ///< Pin 21: BASIC INT or ENHANCED direction selected by OE.
   LED1, ///< Requires live mux 0304=4; ENHANCED also requires GPIO availability.
-  LED2 ///< ENHANCED only; MII additionally requires declared unused COL.
+  LED2, ///< ENHANCED only. MII requires a released COL consumer.
+  LED0, ///< A generation. Requires pin 30 released by the clock owner.
+  LED3 ///< A generation, ENHANCED. MII requires a released CRS consumer.
 };
+/// @brief Return the LED mux index for a routed interrupt.
+/// @param[in] pin Selected interrupt output.
+/// @return LED index 0 through 3, or 4 for the dedicated interrupt pin.
+inline constexpr uint8_t ledIndex(InterruptPin pin) noexcept {
+  switch (pin) {
+    case InterruptPin::LED0: return 0;
+    case InterruptPin::LED1: return 1;
+    case InterruptPin::LED2: return 2;
+    case InterruptPin::LED3: return 3;
+    default: return 4;
+  }
+}
 /// @brief Complete opt-in policy; masks use named cmd::MASK_MISR*_ENABLE fields.
 /// @note SNLS647I tables 8-35..37/74..78/91. Board declarations are permissions,
 /// not measurements. No mux, GPIO, MCU ISR or scheduler is configured here.
@@ -676,6 +690,7 @@ struct InterruptSettings {
   bool led1ClockUnused{false}; ///< Required board declaration for ENHANCED LED1.
   bool colUnused{false}; ///< Required board declaration for ENHANCED MII LED2.
   bool powerDownInputSafe{false}; ///< Required whenever ENHANCED OE=0 is requested.
+  bool crsUnused{false}; ///< Board releases MII CRS for alternate use of A pin 29.
 };
 /// @brief Passive interrupt intent/readback and test-stimulus evidence.
 struct InterruptSnapshot {
@@ -811,7 +826,13 @@ enum class PinFunction : uint8_t {
   COLLISION6, ///< LED2 table 8-76 COL code 6, MII only.
   HIGH, ///< LED2 constant-high mux 7.
   TX_ERROR, ///< Pin 31 figure/table contradiction; source-gated, never guessed.
-  CLOCK ///< Clock mux permissions remain source-gated; no generic clock recipe.
+  CLOCK, ///< Clock selection belongs to the interface owner.
+  LOW3, ///< Constant low through documented mux code 3.
+  LOW5, ///< Constant low through documented mux code 5.
+  LOW6, ///< Constant low through documented mux code 6.
+  CARRIER_SENSE3, ///< MII CRS on A pin 29 through mux code 3.
+  CARRIER_SENSE5, ///< MII CRS on A pin 29 through mux code 5.
+  CARRIER_SENSE6 ///< MII CRS on A pin 29 through mux code 6.
 };
 /// @brief Source encodings from SNLS647I tables 8-49/85; reserved 15 is rejected.
 enum class LedSource : uint8_t {
@@ -837,7 +858,7 @@ enum class LedPolarity : uint8_t {
   ACTIVE_LOW, ///< Own the documented polarity field as active-low.
   ACTIVE_HIGH ///< Own the documented polarity field as active-high.
 };
-/// @brief Output override; no LED3 force fields are documented.
+/// @brief Output override on LED0 through LED2 and on A-generation LED3.
 enum class LedDrive : uint8_t {
   NORMAL, ///< Source-driven output.
   LOW, ///< Force physical low using the documented drive override.
@@ -845,10 +866,10 @@ enum class LedDrive : uint8_t {
 };
 /// @brief One pin's source-backed settings; no independent object or bus owner.
 struct PinSetting {
-  PinFunction function{PinFunction::UNOWNED}; ///< Selected role; pin 0/3 admit LED only.
+  PinFunction function{PinFunction::UNOWNED}; ///< Selected role, validated against the exact mux table.
   LedSource source{LedSource::LINK}; ///< Used only with LED; shared collector owns latch acknowledgements.
-  LedPolarity polarity{LedPolarity::PRESERVE}; ///< Optional polarity override on LED0/1/2.
-  LedDrive drive{LedDrive::NORMAL}; ///< Physical low/high override on LED0/1/2.
+  LedPolarity polarity{LedPolarity::PRESERVE}; ///< Optional polarity override where the selected pin implements it.
+  LedDrive drive{LedDrive::NORMAL}; ///< Physical low/high override where the selected pin implements it.
 };
 /// @brief Complete owned pin profile; untouched pins and globals are preserved.
 struct PinSettings {
@@ -859,13 +880,14 @@ struct PinSettings {
   bool stretchBypass{false}; ///< True bypasses pulse stretching.
   bool led0SwapOwned{false}; ///< Own separate MLEDCR polarity-swap bit, ENHANCED only.
   bool led0Swap{false}; ///< Invert LED0 source polarity when owned; separate from drive polarity.
-  bool led1ClockOverride{false}; ///< Own IO_CFG1[6]=1 to release CLKOUT for LED1; ENHANCED only.
+  bool led1ClockOverride{false}; ///< Own original ENHANCED IO_CFG1[6]. Reserved on A.
   bool maintenanceAdmitted{false}; ///< Owner permits disruptive pin reconfiguration.
   bool macStopped{false}; ///< Owner stopped MAC use while changing interface-shared pins.
   bool outputsQuiesced{false}; ///< Owner admits output transitions; no silicon glitch-free promise.
   uint8_t availableMask{0}; ///< Bits 0..3 release board consumers; LED2/3 also require matching live RCSR mode.
   bool led1ClockUnused{false}; ///< No consumer depends on LED1/CLKOUT during this profile.
   bool colUnused{false}; ///< Required for non-COL roles on ENHANCED MII LED2.
+  bool crsUnused{false}; ///< Board releases MII CRS for alternate use of A pin 29.
 };
 /// @brief Pin intent and stable register evidence, never measured electrical output.
 struct PinSnapshot {
@@ -1115,9 +1137,21 @@ enum class WakeRoute : uint8_t {
   INTERRUPT, ///< Existing verified task 27 WAKE interrupt policy and pin route.
   LED1, ///< Own LED1 mux 2; receiver stays disabled while routing changes.
   LED2, ///< Own ENHANCED LED2 mux 2; MII COL must be unused.
-  LED0, ///< Read-only mux contradiction; rejected until source authority exists.
-  LED3 ///< Read-only mux contradiction; rejected until source authority exists.
+  LED0, ///< A-generation pin 30, independent of the interface clock owner.
+  LED3 ///< A-generation pin 29 in ENHANCED, shared with MII CRS.
 };
+/// @brief Return the LED mux index for a routed wake indication.
+/// @param[in] route Selected wake indication route.
+/// @return LED index 0 through 3, or 4 for a route outside the LED mux.
+inline constexpr uint8_t ledIndex(WakeRoute route) noexcept {
+  switch (route) {
+    case WakeRoute::LED0: return 0;
+    case WakeRoute::LED1: return 1;
+    case WakeRoute::LED2: return 2;
+    case WakeRoute::LED3: return 3;
+    default: return 4;
+  }
+}
 /// @brief Complete opt-in WoL intent; six fixed octets use transmission order.
 struct WakeSettings {
   bool enabled{false}; ///< Explicit disable clears enable, Secure-ON and magic-match bits.
@@ -1133,6 +1167,7 @@ struct WakeSettings {
   bool pinAvailable{false}; ///< Required for any output route; no physical wiring proof.
   bool led1ClockUnused{false}; ///< Required for ENHANCED LED1 route.
   bool colUnused{false}; ///< Required for ENHANCED MII LED2 route.
+  bool crsUnused{false}; ///< Board releases MII CRS for alternate use of A pin 29.
 };
 /// @brief Persistent intent and partial observations; event history lives in the collector.
 struct WakeSnapshot {
@@ -1197,7 +1232,7 @@ struct LpiSnapshot {
 
 /// @brief Explicit EEE intent; defaults do not activate the feature.
 struct EeeSettings {
-  bool enabled{false}; ///< Enable the exact eighteen-row recipe; disable uses HARD/replay.
+  bool enabled{false}; ///< Select the exact-part recipe (18 original or 27 A writes). Disable uses HARD and replay.
   uint16_t advertisement{0x0002}; ///< Only 0 or 2 (100BASE-TX EEE); no other technologies.
   bool bypassBit0{false}; ///< Capability bypass control at EEECFG3 bit 0; true encodes zero.
   bool bypassBit3{false}; ///< Capability bypass control at EEECFG3 bit 3; true encodes zero.
@@ -1227,6 +1262,9 @@ struct EeeSnapshot {
   bool negotiatedValid{false}; ///< Complete coherent AN 100/full observation and known controls.
   bool negotiated{false}; ///< Local/partner EEE100 advertised; does not prove current LPI.
   Status lastStatus{}; ///< Latest operation or acquisition outcome.
+  bool recipeRestartAttempted{false}; ///< The current EEE recipe reached the restart write.
+  bool recipeRestartAccepted{false}; ///< The backend reported a completed recipe restart.
+  bool recipeRestartPossible{false}; ///< Restart may have taken effect, including an uncertain write.
 };
 
 /// @brief Frozen evidence delivered once; restoration uses a separate token/result.
@@ -2041,7 +2079,7 @@ private:
   MdioBatch _qualityBatch() const noexcept;
   Status _advanceQuality(Status status, bool called, const MdioBatch& batch) noexcept;
   void _retainQualityWord(uint16_t address, uint16_t value) noexcept;
-  void _qualityPassCost(uint32_t& frames, uint32_t& callbacks) const noexcept;
+  void _qualityPassCost(bool verifyOnly, uint32_t& frames, uint32_t& callbacks) const noexcept;
   bool _qualityRowValue(uint8_t row, uint16_t& address, uint16_t& mask, uint16_t& value,
                         bool readback = false) const noexcept;
   void _nextQualityRow() noexcept;
@@ -2071,7 +2109,11 @@ private:
   MdioBatch _pinsBatch() const noexcept;
   Status _advancePins(Status status, bool called, const MdioBatch& batch) noexcept;
   void _retainPinWord(uint16_t address, uint16_t value) noexcept;
-  bool _pinRowValue(uint8_t row, uint16_t& address, uint16_t& mask, uint16_t& value) const noexcept;
+  bool _pinRowValue(uint8_t row, uint16_t& address, uint16_t& mask, uint16_t& value, bool verifyOnly) const noexcept;
+  void _pinPassCost(bool verifyOnly, uint32_t& frames, uint32_t& callbacks) const noexcept;
+  void _wakePassCost(bool verifyOnly, uint32_t& frames, uint32_t& callbacks) const noexcept;
+  void _interruptPassCost(bool verifyOnly, uint32_t& frames, uint32_t& callbacks) const noexcept;
+  void _analogReplayCost(uint32_t& frames, uint32_t& callbacks) const noexcept;
   void _nextPinRow() noexcept;
   Status _finishPins(Status status) noexcept;
   enum class WakeStep : uint8_t { IDENTIFY, PIN_CLOCK, PIN_MUX, PIN_APPLY, PIN_VERIFY, READ_CONTROL, READ_CREDENTIAL,
@@ -2255,7 +2297,6 @@ private:
   void _invalidateEvidence() noexcept;
   void _markEvidenceDiscontinuous() noexcept;
   void _invalidateLink() noexcept;
-  static Status _unsupportedFeature() noexcept;
   Status _checkMutation() noexcept;
   Status _checkToken(OperationToken token) const noexcept;
   bool _otherControlsVerified(OperationKind owner) const noexcept;

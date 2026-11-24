@@ -1,3 +1,4 @@
+#include "support/PartSelection.h"
 #include "support/Check.h"
 #include <DP8382x/DP8382x.h>
 #include <array>
@@ -16,7 +17,7 @@ struct Controller {
   std::array<uint16_t,32> words{};
   std::array<uint16_t,0x500> ext{};
   std::array<Wire,4096> trace{};
-  uint16_t selector{0},address{0},id2{0xA131};
+  uint16_t selector{0},address{0},id2{test::enhancedId2()};
   uint64_t now{100};
   unsigned frames{0},calls{0},clocks{0},releases{0},mutations{0};
   int failFrame{-1},releaseCall{-1},corruptFrame{-1},lateCall{-1},regressCall{-1},invalidCall{-1},badReceiptCall{-1};
@@ -32,7 +33,7 @@ struct Controller {
     ext[0x030E]=0x8400;ext[0x04A1]=0x1000;
   }
   Config config(uint32_t phy=1) {
-    Config c;c.variant=Variant::DP83826I;c.interface=id2==0xA111?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
+    Config c;c.variant=test::declaredVariant;c.interface=id2==test::basicId2()?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
   static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context);++b.clocks;return b.now; }
@@ -131,7 +132,7 @@ unsigned lastWrite(const Controller& b,unsigned first,uint16_t target) {
 }
 void policy() {
   for(bool basic:{false,true})for(bool enable:{false,true})for(bool awake:{false,true}) {
-    Controller b;b.id2=basic?0xA111:0xA131;Driver d;ready(d,b);
+    Controller b;b.id2=basic?test::basicId2():test::enhancedId2();Driver d;ready(d,b);
     b.words[17]=0x010B;b.words[22]=awake?0x0100:0;auto s=settings();s.activeSleep=enable;
     const auto first=b.frames,calls=b.calls;configured(d,b,s);
     CHECK(b.frames==first+9U && b.calls==calls+7U);
@@ -423,7 +424,7 @@ void auditInterleavedEvidence() {
     Controller b;Driver d;ready(d,b);auto s=settings();s.activeSleep=true;const auto first=b.frames;
     const auto token=configure(d,b,s);
     for(unsigned n=0;n<phase;++n)CHECK(poll(d,b,token).inProgress());
-    b.id2=0xA111;DeviceIdentity identity;CHECK(d.readIdentity(identity,{1000000,2}).ok());
+    b.id2=test::basicId2();DeviceIdentity identity;CHECK(d.readIdentity(identity,{1000000,2}).ok());
     const auto calls=b.calls,clocks=b.clocks;
     const auto status=d.pollOperation(token);
     CHECK(status.is(Err::INVALID_CONFIG) && status.detail==static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED));
@@ -579,5 +580,5 @@ void timing() {
 int main(int argc,char** argv) {
   const test::Suite suites[]={{"policy",policy},{"transitions",transitions},{"failures",failures},
     {"replay",replay},{"ownership",ownership},{"timing",timing}};
-  return test::runSuites(argc,argv,suites);
+  return test::runVariantSuites(argc,argv,suites);
 }

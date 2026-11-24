@@ -119,3 +119,18 @@ Q1 remains NOT RUN: record exact part/revision/straps and real DEVAD 3/7 traces,
 self-check words, partner agreement, bypass behavior and wake-error access.
 Measure MAC/PHY interoperability, wake latency and energy separately. SDK/package
 and physical evidence are separate from portable protocol tests.
+
+## DP83826AI and DP83826AE
+
+The revision-4 profile executes SNLS783A section 8.3.3.1 in order. From the
+capability check the recipe, whole-word advertisement check and first HARD
+poll require 111 frames in 30 callbacks. With reidentification, strap
+capture, VOD, AN policy and final EEE verification, the minimum for that
+path is 178 frames in 59 callbacks. The five prior preflight callbacks use
+12 frames. Additional owned controls reserve their replay before the reset.
+Further hardware polling consumes the remaining allowance. Live status reads
+take PHYSTS before the consuming BMSR samples at both ends.
+
+The last two writes are BMCR=3300 and vendor 0466=FD00. The result retains
+the restart outcome separately if the last transaction fails. The 36 microsecond wake
+value is nominal. [A procedure ledger](registers/dp83826a-procedures.json)

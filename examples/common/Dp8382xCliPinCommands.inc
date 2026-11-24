@@ -1,4 +1,4 @@
-FEATURE(PINS, "controls pins", 8, 8, WRITE, "<led0> <led1> <led2> <led3> <blink> <stretch> <swap0> <clock1>", "Apply owned pin roles: keep, led,SOURCE,POLARITY,DRIVE, wake, irq, col3/5/6, high, tx-error or clock")
+FEATURE(PINS, "controls pins", 8, 8, WRITE, "<led0> <led1> <led2> <led3> <blink> <stretch> <swap0> <clock1>", "keep, led,SOURCE,POLARITY,DRIVE, wake, irq, col3/5/6, crs3/5/6, low3/5/6, high, tx-error or clock")
 FEATURE(PINS_STATUS, "controls pins-status", 0, 0, CACHED, "", "Cached LED and GPIO profile readback")
 FEATURE(INTERFACE, "controls interface", 8, 8, WRITE, "<mii|rmii25|rmii50> <rmii-flags> <elasticity> <bytes> <ppm> <compat-flags> <clock> <isolate>", "Apply clock, MII/RMII, one repeater side and compatibility controls")
 FEATURE(INTERFACE_STATUS, "controls interface-status", 0, 0, CACHED, "", "Cached interface, clock and isolation evidence")

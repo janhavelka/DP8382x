@@ -1,4 +1,4 @@
-#include "support/Check.h"
+#include "support/PartSelection.h"
 #include <DP8382x/DP8382x.h>
 #include "../examples/portable/Pins.h"
 #include <array>
@@ -17,7 +17,7 @@ struct Controller {
   std::array<uint16_t,32> words{};
   std::array<uint16_t,0x500> ext{};
   std::array<Wire,8192> trace{};
-  uint16_t selector{0},address{0},id2{0xA131},wakePin{0};
+  uint16_t selector{0},address{0},id2{test::enhancedId2()},wakePin{0};
   uint64_t now{100},frameTime{2};
   unsigned frames{0},calls{0},clocks{0},releases{0},mutations{0},hard{0};
   int failFrame{-1},releaseCall{-1},corruptFrame{-1},lateCall{-1},regressCall{-1},invalidCall{-1},badReceiptCall{-1};
@@ -29,12 +29,12 @@ struct Controller {
   void defaults() {
     words.fill(0);ext.fill(0);words[0]=0x3100;words[4]=0x01E1;
     words[25]=0x8001;words[22]=0x0100;words[30]=0x0102;
-    words[23]=(id2==0xA111 || enhancedMii)?0U:0x0020U;
-    words[24]=0x0400;words[27]=0x007D;words[28]=0x05EE;ext[0x0025]=0x0041;ext[0x0460]=0x5665;ext[0x0303]=ext[0x0304]=ext[0x0305]=ext[0x0306]=8;
-    ext[0x030E]=0x8400;ext[0x04A1]=0x1000;ext[0x04A0]=0x1081;ext[0x0308]=clockOffStrap?1U:0U;pendingWake=true;
+    words[23]=(id2==test::basicId2() || enhancedMii)?0U:0x0020U;
+    words[24]=0x0400;words[27]=0x007D;words[28]=0x05EE;ext[0x0025]=0x0041;ext[0x0460]=test::aGrade()?0x5565:0x5665;ext[0x0303]=ext[0x0304]=ext[0x0305]=ext[0x0306]=8;
+    ext[0x030E]=test::aGrade()?0x4A40:0x8400;ext[0x04A1]=0x1000;ext[0x04A0]=0x1081;ext[0x0308]=clockOffStrap?1U:0U;pendingWake=true;
   }
   Config config(uint32_t phy=1) {
-    Config c;c.variant=Variant::DP83826I;c.interface=(id2==0xA111 || enhancedMii)?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
+    Config c;c.variant=test::declaredVariant;c.interface=(id2==test::basicId2() || enhancedMii)?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
     words[23]=static_cast<uint16_t>((words[23]&0xFFDFU)|(c.interface==MacInterface::RMII?0x0020U:0U));
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
@@ -207,7 +207,7 @@ void admission() {
     CHECK(!d.pinsSnapshot().desiredValid);
   }
   for(unsigned pin=0;pin<4;++pin)for(bool overridePolarity:{false,true}) {
-    Controller b;b.id2=0xA111;Driver d;ready(d,b);auto s=settings(static_cast<uint8_t>(1U<<pin));
+    Controller b;b.id2=test::basicId2();Driver d;ready(d,b);auto s=settings(static_cast<uint8_t>(1U<<pin));
     if(overridePolarity)s.pins[pin].polarity=LedPolarity::ACTIVE_LOW;
     const auto frames=b.frames;PinResult out;const auto status=d.configurePins(s,out,{1000000,2048});
     if(pin<2 && !overridePolarity)CHECK(status.ok());else CHECK(!status.ok() && b.frames==frames);
@@ -571,9 +571,134 @@ void collector() {
   CHECK((example.ext[0x25]&0x0079U)==0x0041 && (example.words[24]&0x0600U)==0x0400);
   CHECK(tryLed2(application,result,{1000000,128}).ok());
 }
+void aPins() {
+  CHECK(test::aGrade());
+  Controller b;
+  b.enhancedMii=b.clockOffStrap=true;
+  Driver d; ready(d,b);
+  auto profile=settings();
+  profile.crsUnused=true;
+  profile.pins[1].source=LedSource::TX;
+  profile.pins[2].source=LedSource::COLLISION;
+  profile.pins[3].source=LedSource::AN100_FULL;
+  profile.pins[3].polarity=LedPolarity::ACTIVE_HIGH;
+  profile.pins[3].drive=LedDrive::HIGH;
+  // Seed different strap-dependent mux codes, source nibbles and reserved bits.
+  b.ext[0x304]=0x0034; b.ext[0x305]=0x002B;
+  b.ext[0x306]=0x000D; b.ext[0x469]=0x8888;
+  b.words[25]|=0x20; b.ext[0x302]=0x40;
+  const auto first=b.frames;
+  auto result=configured(d,b,profile);
+  CHECK(b.ext[0x460]==0x5A42 && b.ext[0x469]==0x8F88);
+  CHECK(b.ext[0x304]==0x30 && b.ext[0x305]==0x28 && b.ext[0x306]==8);
+  CHECK((b.words[25]&0x20U)!=0U && b.ext[0x302]==0x40);
+  CHECK(writes(b,first,0x302)==0U && writes(b,first,0x19)==0U);
+  const auto frames=result.attemptedFrames; const auto calls=result.transactions;
+  for (unsigned n=0;n<frames;++n) {
+    Controller bus; bus.clockOffStrap=bus.enhancedMii=true; Driver driver; ready(driver,bus);
+    bus.failFrame=static_cast<int>(bus.frames+n); PinResult cut;
+    CHECK(driver.configurePins(profile,cut,{1000000,frames}).is(Err::MDIO_TIMEOUT));
+    CHECK(cut.attemptedFrames==n+1 && cut.completedFrames==n);
+    CHECK(!cut.verified && driver.operationSnapshot().cleanupOwed==cut.mutationPossible);
+  }
+  const auto before=b.frames;
+  CHECK(d.configurePins(profile,result,{1000000,frames-1U}).is(Err::OPERATION_TIMEOUT));
+  CHECK(b.frames==before && d.configurePins(profile,result,{1000000,frames}).ok());
+  CHECK(result.transactions==calls && result.attemptedFrames==frames);
+  OperationToken t; CHECK(d.startInitialize({ResetKind::HARD},budget(),t).inProgress());
+  CHECK(drain(d,b,t).ok()); take(d,t);
+  CHECK(b.ext[0x460]==0x5A42 && (b.ext[0x469]&0x700U)==0x700U);
+  for (unsigned pin=1;pin<=3;++pin) {
+    for (unsigned control=0;control<3;++control) {
+      Controller bus; bus.clockOffStrap=true; Driver driver; ready(driver,bus);
+      auto one=settings(static_cast<uint8_t>(1U<<pin));
+      one.pins[pin].source=LedSource::RX;
+      if (control==0U) one.pins[pin].polarity=LedPolarity::ACTIVE_HIGH;
+      if (control==1U) one.pins[pin].drive=LedDrive::LOW;
+      if (control==2U) one.pins[pin].drive=LedDrive::HIGH;
+      bus.ext[0x460]=0xA965; bus.ext[0x469]=0x8888; const auto from=bus.frames;
+      configured(driver,bus,one);
+      constexpr uint16_t sourceWord[]={0xA963,0xA935,0xA365};
+      constexpr uint16_t bits[][3]={{4,1,3},{0x40,0x10,0x30},{0x400,0x100,0x300}};
+      CHECK(bus.ext[0x460]==sourceWord[pin-1] && bus.ext[0x469]==(0x8888U|bits[pin-1][control]));
+      if (control==2U) {
+        bool prepared=false;
+        for (unsigned n=from;n<bus.frames;++n) if (semantic(bus.trace[n]) && bus.trace[n].target==0x469) {
+          if (bus.trace[n].value==(0x8888U|(bits[pin-1][2]^bits[pin-1][1]))) prepared=true;
+          else CHECK(prepared);
+        }
+        CHECK(prepared);
+      }
+    }
+  }
+  struct Mux { unsigned pin,code; PinFunction role; };
+  constexpr Mux roles[]={{0,3,PinFunction::LOW3},{0,5,PinFunction::LOW5},{0,6,PinFunction::LOW6},
+    {0,7,PinFunction::HIGH},{2,3,PinFunction::COLLISION3},{2,5,PinFunction::COLLISION5},
+    {2,6,PinFunction::COLLISION6},{2,7,PinFunction::HIGH},{3,3,PinFunction::CARRIER_SENSE3},
+    {3,5,PinFunction::CARRIER_SENSE5},{3,6,PinFunction::CARRIER_SENSE6},{3,7,PinFunction::HIGH}};
+  for (const auto& row:roles) {
+    auto one=settings(static_cast<uint8_t>(1U<<row.pin)); one.crsUnused=true;
+    one.pins[row.pin].function=row.role;
+    configured(d,b,one);
+    CHECK((b.ext[0x303+row.pin]&7U)==row.code);
+  }
+  // The interface owns clock selection and its low six bits. A dependent
+  // pin profile adds no transfer and must release its claim first.
+  for (bool clockFirst:{false,true}) for (unsigned other=0;other<3;++other) {
+    Controller bus; bus.enhancedMii=true; Driver driver; ready(driver,bus);
+    InterfaceSettings clock; clock.interface=MacInterface::MII; clock.referenceClockMHz=25;
+    clock.clockOutput=ClockOutput::PLL; clock.maintenanceAdmitted=clock.macStopped=clock.pinsAvailable=true;
+    clock.referenceClockStable=clock.managementClockAvailable=clock.clockChangeApproved=true;
+    InterfaceResult applied;
+    auto setClock=[&] { return driver.configureInterface(clock,applied,{1000000,512}); };
+    auto setOther=[&] {
+      if (other==0) { PinResult r; return driver.configurePins(settings(1),r,{1000000,128}); }
+      OperationToken token;
+      Status status;
+      if (other==1) {
+        InterruptSettings irq; irq.pin=InterruptPin::LED0; irq.maintenanceAdmitted=irq.pinAvailable=true;
+        status=driver.startConfigureInterrupts(irq,budget(),token);
+      } else {
+        WakeSettings wake; wake.route=WakeRoute::LED0; wake.pinAvailable=wake.receiveTrafficQuiesced=wake.maintenanceAdmitted=true;
+        status=driver.startConfigureWake(wake,budget(),token);
+      }
+      if (status.inProgress()) { status=drain(driver,bus,token); take(driver,token); }
+      return status;
+    };
+    CHECK((clockFirst?setClock():setOther()).ok());
+    const auto before=bus.frames;
+    CHECK(!(clockFirst?setOther():setClock()).ok() && bus.frames==before);
+    if (clockFirst) {
+      auto dependent=settings(1); dependent.pins[0].function=PinFunction::CLOCK;
+      configured(driver,bus,dependent); CHECK(bus.frames==before && (bus.ext[0x303]&0x3F)==0x29);
+      clock.clockOutput=ClockOutput::UNOWNED;
+      CHECK(!setClock().ok() && bus.frames==before);
+    }
+  }
+  for (unsigned issue=0;issue<7;++issue) {
+    auto bad=settings();
+    bad.crsUnused=issue!=0U;
+    if (issue==1U) bad.colUnused=false;
+    if (issue==2U) bad.led1ClockOverride=true;
+    if (issue==3U) bad.pins[1].function=PinFunction::CLOCK;
+    if (issue==4U) bad.pins[1].function=PinFunction::TX_ERROR;
+    if (issue==5U) bad.pins[1].function=PinFunction::HIGH;
+    if (issue==6U) bad.pins[1].source=static_cast<LedSource>(15);
+    const auto old=b.frames; CHECK(!d.configurePins(bad,result,{1000000,1000}).ok() && b.frames==old);
+  }
+  for (unsigned pin=0;pin<4;++pin) {
+    Controller bus; bus.id2=0xA114; Driver driver; ready(driver,bus);
+    auto one=settings(static_cast<uint8_t>(1U<<pin));
+    const auto old=bus.frames;
+    CHECK(driver.configurePins(one,result,{1000000,1000}).ok()==(pin<2));
+    if (pin>=2) CHECK(bus.frames==old);
+    one.pins[pin].polarity=LedPolarity::ACTIVE_HIGH;
+    const auto checked=bus.frames; CHECK(!driver.configurePins(one,result,{1000000,1000}).ok() && bus.frames==checked);
+  }
+}
 } // namespace
 int main(int argc,char** argv) {
-  const test::Suite suites[]={{"vectors",vectors},{"admission",admission},{"routing",routing},{"failures",failures},
+  const test::Suite suites[]={{"a_pins",aPins},{"vectors",vectors},{"admission",admission},{"routing",routing},{"failures",failures},
     {"replay",replay},{"ownership",ownership},{"timing",timing},{"collector",collector}};
-  return test::runSuites(argc,argv,suites);
+  return test::runVariantSuites(argc,argv,suites);
 }

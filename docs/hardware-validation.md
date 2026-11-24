@@ -249,3 +249,11 @@ and the synthetic WoL vectors are in the
 [control case definitions](../tools/dp8382x_hil_controls.py).
 The [diagnostic case definitions](../tools/dp8382x_hil_diagnostics.py) list
 the full BIST mode, counter, length, IPG and dwell tuples.
+
+AI and AE each need an identified revision-4 fixture and an independent
+qualification record. Match the declared grade, mode, interface and board
+permissions. Measure pin 30 clock and LED3/CRS on the selected routes,
+observe IRQ and wake line levels independently, and correlate EEE/LPI with
+the partner. Strap11 EMC and analog amplitude need the specified instruments
+and conditions. Both grades have physical status **NOT RUN**.
+[Per-feature cases and gates](feature-coverage.md#dp83826ai-and-dp83826ae)

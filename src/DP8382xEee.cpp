@@ -15,6 +15,17 @@ constexpr RecipeWord RECIPE[] = {
   {0x04F5,0x2864},{0x04E0,0xFFF2},{0x031F,0xFE36},{0x0308,0x0000},
   {0x04F4,0x0800},{0x0000,0x3300}
 };
+// SNLS783A 8.3.3.1, pp. 27-28. The repeated 04F5 and final 0466
+// after the direct BMCR restart are ordered silicon requirements.
+constexpr RecipeWord A_RECIPE[] = {
+  {0x001F,0x8000},{0x003C,0x0002},{0x04D1,0x008B},{0x04DF,0x0180},
+  {0x033E,0xA681},{0x033F,0x0003},{0x04F5,0x2864},{0x04E0,0xFFF2},
+  {0x031F,0xFE36},{0x0308,0x0000},{0x04F4,0x0800},{0x0123,0x0800},
+  {0x0126,0x5D23},{0x0132,0x0183},{0x04D4,0x3322},{0x04CF,0x261D},
+  {0x0310,0x76E1},{0x0416,0x1830},{0x0311,0x01FC},{0x0313,0x06E3},
+  {0x033A,0x579B},{0x033C,0xEC00},{0x0317,0x1000},{0x031B,0x8848},
+  {0x04F5,0x2864},{0x0000,0x3300},{0x0466,0xFD00}
+};
 Status eeeConfig(const char* message) noexcept {
   return Status::Error(Err::INVALID_CONFIG,message,static_cast<int32_t>(ConfigDetail::SOURCE_GATE));
 }
@@ -73,7 +84,6 @@ Status DP8382x::_validateEee(const EeeSettings& settings) const noexcept {
 }
 
 Status DP8382x::startConfigureEee(const EeeSettings& settings,const OperationBudget& budget,OperationToken& token) noexcept {
-  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (settings.advertisement!=0U && settings.advertisement!=2U) {
     return Status::Error(Err::INVALID_PARAM,"EEE advertisement is zero or two",static_cast<int32_t>(ParamDetail::VALUE_WIDTH));
   }
@@ -118,8 +128,8 @@ MdioBatch DP8382x::_eeeBatch() const noexcept {
   switch (_eeeStep) {
     case EeeStep::CAPABILITY: return _mmdBatch(0x0014,FrameKind::READ,0,3);
     case EeeStep::RECIPE: {
-      const auto& row=RECIPE[_eeeRow];
-      if (_eeeRow==17U) {
+      const auto& row=isA(_config.variant)?A_RECIPE[_eeeRow]:RECIPE[_eeeRow];
+      if (row.address==0U) {
         auto batch=directRead(0); batch.frames[0]={FrameKind::WRITE,0,row.value,0,NO_READ_INDEX}; return batch;
       }
       return _mmdBatch(row.address,FrameKind::WRITE,row.value,_eeeRow==1U?7:31);
@@ -144,6 +154,12 @@ Status DP8382x::_advanceEee(Status status,bool called,const MdioBatch& batch) no
   const bool complete=called && _result.failingBatch.completedFrames==batch.frameCount;
   if (called && batch.frames[last].kind==FrameKind::WRITE) {
     const auto& target=_transport.lastBatch.frames[last];
+    if (_eeeStep==EeeStep::RECIPE && batch.frames[last].registerAddress==0U) {
+      _eee.recipeRestartAttempted=target.attempted;
+      _eee.recipeRestartAccepted=complete;
+      _eee.recipeRestartPossible=complete || target.effectPossible || target.valueValid ||
+                                 _transport.violation!=TransportViolation::NONE;
+    }
     _result.mutationAttempted|=target.attempted;
     _result.mutationCompleted|=complete;
     _result.mutationPossible|=target.completed || target.effectPossible || target.valueValid || _transport.violation!=TransportViolation::NONE;
@@ -178,7 +194,7 @@ Status DP8382x::_advanceEee(Status status,bool called,const MdioBatch& batch) no
       _eeeCapabilityChecked=true; _eeeWorking=false; _setInitStep(InitStep::COMMAND); break;
     case EeeStep::RECIPE:
       if (_eeeRow==1U) { _setEeeStep(EeeStep::ADVERTISEMENT_CHECK); }
-      else if (++_eeeRow<18U) { _setEeeStep(EeeStep::RECIPE); }
+      else if (++_eeeRow<(isA(_config.variant)?std::size(A_RECIPE):std::size(RECIPE))) { _setEeeStep(EeeStep::RECIPE); }
       else {
         _eeeRecipePending=false; _eeeOpaqueValid=true; _eeeResumeInit=true;
         _setEeeStep(EeeStep::SET_ADVERTISEMENT);
@@ -209,7 +225,6 @@ Status DP8382x::_advanceEee(Status status,bool called,const MdioBatch& batch) no
 }
 
 Status DP8382x::readEeeStatus(EeeSnapshot& snapshot,const IoBudget& budget) noexcept {
-  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
   if (_active || _polling || (_operation.state==OperationState::RUNNING &&
       (_operation.phase==OperationPhase::WAIT || _result.nextPage.requested))) {
@@ -236,7 +251,11 @@ Status DP8382x::readEeeStatus(EeeSnapshot& snapshot,const IoBudget& budget) noex
   const uint64_t bound=uint64_t{callbacks}*bounds.fixedUs+uint64_t{frames}*bounds.frameUs;
   if (upper>=budget.deadlineUs || bound>=budget.deadlineUs-upper) { return fail(eeeTimeout(TimeoutDetail::BOUND_ADMISSION)); }
   uint16_t bookends[7]{};
-  constexpr uint8_t direct[]={0,1,1,0x10,1,0x10,0};
+  // SNLS783A table 8-35: capture the PHYSTS fault mirror before BMSR clears it.
+  constexpr uint8_t originalOrder[]={0,1,1,0x10,1,0x10,0};
+  constexpr uint8_t aOrder[]={0,0x10,1,1,0x10,1,0};
+  const bool aPart=isA(_config.variant);
+  const auto* direct=aPart?aOrder:originalOrder;
   constexpr uint8_t devads[]={3,3,7,7,3,31};
   constexpr uint16_t addresses[]={0x0001,0x0014,0x003C,0x003D,0x0016,0x04D1};
   uint16_t* words[]={&_eee.status,&_eee.capability,&_eee.advertisement,&_eee.partner,&_eee.wakeErrors,&_eee.control};
@@ -254,7 +273,7 @@ Status DP8382x::readEeeStatus(EeeSnapshot& snapshot,const IoBudget& budget) noex
       batch=_mmdBatch(addresses[phase-1U],FrameKind::READ,0,devads[phase-1U]);
       *validity[phase-1U]=false;
     }
-    bool called=false; const auto status=_execute(batch,remaining,&called);
+    bool called=false; const auto status=_execute(batch,remaining,&called,false,Traffic::RAW,32,phase==0U?bound:0U);
     bool resetObserved=false;
     if (called && (phase==0U || phase==7U)) {
       for (uint8_t i=0;i<batch.frameCount;++i) {
@@ -290,10 +309,12 @@ Status DP8382x::readEeeStatus(EeeSnapshot& snapshot,const IoBudget& budget) noex
     }
     remaining.maxFrames-=batch.frameCount;
   }
-  if (((bookends[0]^bookends[6])&0xFF00U)!=0U || ((bookends[2]^bookends[4])&0x0024U)!=0U ||
-      ((bookends[3]^bookends[5])&0x0017U)!=0U ||
-      ((bookends[4]&4U)!=0U)!=((bookends[5]&1U)!=0U) ||
-      ((bookends[4]&0x20U)!=0U)!=((bookends[5]&0x10U)!=0U)) {
+  const auto firstBmsr=bookends[aPart?3:2], finalBmsr=bookends[aPart?5:4];
+  const auto firstPhysts=bookends[aPart?1:3], finalPhysts=bookends[aPart?4:5];
+  if (((bookends[0]^bookends[6])&0xFF00U)!=0U || ((firstBmsr^finalBmsr)&0x0024U)!=0U ||
+      ((firstPhysts^finalPhysts)&0x0017U)!=0U ||
+      ((finalBmsr&4U)!=0U)!=((finalPhysts&1U)!=0U) ||
+      ((finalBmsr&0x20U)!=0U)!=((finalPhysts&0x10U)!=0U)) {
     return fail(eeeBusy(BusyDetail::OBSERVATION_CHANGED));
   }
   const bool active=_operation.temporaryMayBeActive || (_operation.state==OperationState::RUNNING &&
@@ -301,7 +322,7 @@ Status DP8382x::readEeeStatus(EeeSnapshot& snapshot,const IoBudget& budget) noex
   _eee.negotiatedValid=!active && _eee.desiredValid && _eee.desired.enabled && _eeeOpaqueValid &&
       _eee.trust==ConfigurationTrust::VERIFIED && (_eee.capability&0xFFFDU)==0U &&
       (bookends[6]&0xDE00U)==0x1000U &&
-      (bookends[4]&0x0024U)==0x0024U && (bookends[5]&0x0017U)==0x0015U &&
+      (finalBmsr&0x0024U)==0x0024U && (finalPhysts&0x0017U)==0x0015U &&
       (_eee.control&0x1009U)==0x0009U;
   _eee.negotiated=_eee.negotiatedValid && (_eee.capability&_eee.advertisement&_eee.partner&2U)!=0U;
   _eee.valid=true; _eee.stale=false; _eee.timeValid=true;
@@ -315,7 +336,6 @@ Status DP8382x::stopLpi(LpiResult& result,const IoBudget& budget) noexcept {
   return _setLpi(false,{},result,budget);
 }
 Status DP8382x::_setLpi(bool enabled,const LpiOptions& options,LpiResult& result,const IoBudget& budget) noexcept {
-  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
   if (_active || _polling || _operation.state==OperationState::RUNNING) { return eeeBusy(BusyDetail::OPERATION_ACTIVE); }
   if (_operation.state==OperationState::RESULT_PENDING) { return eeeBusy(BusyDetail::RESULT_PENDING); }

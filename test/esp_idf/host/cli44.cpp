@@ -45,6 +45,11 @@ struct Endpoint {
     config.core.transport.bounds = {2000, 1000, 1};
     config.notificationUs = 10;
     config.maxFencePolls = 10;
+    if (test::aGrade()) {
+      mac.registers[3] = 0xA134;
+      mac.extended[0x0467] = 0x0102;
+      mac.extended[0x0468] = 0x0010;
+    }
     mac.extended[0x030E] = 0x8400;
     mac.registers[0x19] = 0x8001;
     mac.registers[0x1C] = 0x0100;
@@ -834,7 +839,7 @@ void features() {
   if (!install(endpoint, bus) || !peer.install(bus, 1) || !endpoint.initialize()) { CHECK(false); return; }
   endpoint.owner.write = Endpoint::write;
   Processor cli;
-  CHECK(cli.setup(endpoint.owner.platform(), Identity{}));
+  CHECK(attach(endpoint, cli));
   const auto original = endpoint.mac.frames.size();
   CHECK(command(cli, "power status\n"));
   CHECK(command(cli, "power configure normal 0 0\n"));
@@ -905,7 +910,7 @@ void featureAdmission() {
   CHECK(endpoint.transcript.find("cmd=irq.service op=0 state=terminal primary=DEVICE_MISMATCH") != std::string::npos);
   CHECK(endpoint.mac.frames.size() == before);
 
-  endpoint.mac.registers[3] = 0xA131;
+  endpoint.mac.registers[3] = test::enhancedId2();
   CHECK(endpoint.call(request(Action::PROBE), receipt).ok());
   CHECK(receipt.identity.declaredVariant == test::declaredVariant);
   before = endpoint.mac.frames.size();

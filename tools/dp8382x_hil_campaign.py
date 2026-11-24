@@ -288,10 +288,10 @@ class Campaign:
         self.backend = expected["backend"]
         self.a_feature = self.feature is not None and expected["variant"] in ("DP83826AI", "DP83826AE")
         self.a_control = None
-        if self.a_feature:
-            if self.spec.group == "controls":
-                self.a_control = self.feature.a_control(self.spec.id, declaration["mode"])
-            self.baseline = (self.a_control.baseline.command,) if self.a_control else ()
+        if self.a_feature and self.spec.group == "controls":
+            self.a_control = self.feature.a_control(self.spec.id, declaration["mode"])
+            if self.a_control:
+                self.baseline = (self.a_control.baseline.command,)
         self.primary_record = None
         self.interventions = []
         self.last = None
@@ -308,8 +308,6 @@ class Campaign:
 
     def feature_gate(self):
         """Return the prerequisite that prevents the selected feature from running."""
-        if self.a_feature and self.a_control is None:
-            return "A-generation feature procedure awaits qualification"
         if (self.expected["target"], self.backend) != ("host", "sim-mdio"):
             return "qualified native feature grant and independent measurement route unavailable"
         if self.spec.id in getattr(self.feature, "MII_CASES", ()) and self.expected["interface"] != "MII":

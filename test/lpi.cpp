@@ -1,3 +1,4 @@
+#include "support/PartSelection.h"
 #include "support/Check.h"
 #include "../examples/portable/Lpi.h"
 #include <DP8382x/DP8382x.h>
@@ -19,7 +20,7 @@ struct Controller {
   std::array<uint16_t,0x500> ext{};
   std::array<uint16_t,64> mmd3{},mmd7{};
   std::array<Wire,8192> trace{};
-  uint16_t selector{0},address{0},id2{0xA131};
+  uint16_t selector{0},address{0},id2{test::enhancedId2()};
   uint64_t now{100};
   unsigned frames{0},calls{0},clocks{0},releases{0},mutations{0},hard{0};
   Err failStatus{Err::MDIO_TIMEOUT};
@@ -37,7 +38,7 @@ struct Controller {
     ext[0x030E]=0x8400;ext[0x04A1]=0x1000;ext[0x04D1]=0x0080;
   }
   Config config(uint32_t phy=1) {
-    Config c;c.variant=Variant::DP83826I;c.interface=id2==0xA111?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
+    Config c;c.variant=test::declaredVariant;c.interface=id2==test::basicId2()?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
   static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context);++b.clocks;return b.now; }
@@ -411,5 +412,5 @@ void recovery() {
 int main(int argc,char** argv) {
   const test::Suite suites[]={{"traces",traces},{"admission",admission},{"failures",failures},
     {"timing",timing},{"ownership",ownership},{"recovery",recovery}};
-  return test::runSuites(argc,argv,suites);
+  return test::runVariantSuites(argc,argv,suites);
 }

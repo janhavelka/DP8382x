@@ -294,7 +294,7 @@ def autorun_policy(enabled):
     return dict(desired_valid=1, desired=enabled, observed_valid=1, observed=enabled, stale=0, trust=1)
 
 
-def check_baseline(row, text, mode):
+def check_baseline(row, text, mode, a_grade=False):
     """The cable fixture starts with a verified disabled autorun policy."""
     require(text == BASELINES["cable-autorun"][0], row, "unrecognized compiled diagnostic setup")
     result(row, autorun_policy(0), **effect(1, restored=1))
@@ -385,11 +385,16 @@ def replay(c, saved):
     require(matches(desired.fields, valid=1, stale=0, trust="DIRTY") and Profile.read(desired.fields) == saved,
             desired, "HARD reset left no known entry profile for replay")
     row = yield from c.command("recovery reinitialize none", "operation", True)
+    sor1, sor2 = 0xA567, 0xA568
+    if c.a_feature:
+        rmii = c.expected["interface"] == "RMII"
+        sor1 = (0x0010 if c.declaration["mode"] == "basic" else 0x0102) if rmii else 0
+        sor2 = 0x0010 if rmii else 0
     result(row, dict(core_status="OK", core_detail=0, requested_reset="none", effective_reset="none",
                      reset_required=0, reset_accepted=0, reset_complete=0, persistent_restored=1,
                      mutation_completed=1, mutation_possible=1, cleanup_owed=0, temporary=0,
-                     clock_invalid=0, link_valid=0, sor1_valid=1, sor1=0xA567,
-                     sor2_valid=1, sor2=0xA568, straps_stale=0))
+                     clock_invalid=0, link_valid=0, sor1_valid=1, sor1=sor1,
+                     sor2_valid=1, sor2=sor2, straps_stale=0))
 
 
 def electrical(c, saved, family, selection):

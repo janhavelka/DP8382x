@@ -91,7 +91,6 @@ Status interpretCable(const CableResult& result, double delay, CableDiagnosis& d
 }
 
 Status DP8382x::_admitCable(const OperationBudget& budget, bool stop) const noexcept {
-  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (budget.pollIntervalUs == 0U || budget.maxStalledPolls == 0U) {
     return Status::Error(Err::INVALID_PARAM, "Invalid cable polling budget", static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
   }
@@ -234,12 +233,14 @@ MdioBatch DP8382x::_cableBatch() const noexcept {
       const auto field = _cable.settings.recipe == CableRecipe::RAW ? _cableField : recipeFields[_cableField];
       return _mmdBatch(addresses[field],FrameKind::READ,0);
     }
+    // D3's complete command literal is confined to that recipe. Ordinary
+    // A commands leave RH completion/failure bits [1:0] neutral.
     case CableStep::TRIGGER: return direct(0x1E,FrameKind::WRITE,_cable.settings.recipe == CableRecipe::SNLA428 ?
-        uint16_t{0x8102} : static_cast<uint16_t>((_cable.result.prerequisiteCdcr.raw & 0x3FFFU) | 0x8000U));
+        uint16_t{0x8102} : static_cast<uint16_t>((_cable.result.prerequisiteCdcr.raw & (isA(_config.variant)?0x3FFCU:0x3FFFU)) | 0x8000U));
     case CableStep::INDEX: return _mmdBatch(0x0180,FrameKind::READ,0);
     case CableStep::AMPLITUDE: return _mmdBatch(0x0185,FrameKind::READ,0);
     case CableStep::PEAK: return _mmdBatch(0x018A,FrameKind::READ,0);
-    case CableStep::STOP_COMMAND: return direct(0x1E,FrameKind::WRITE,static_cast<uint16_t>(_cable.result.prerequisiteCdcr.raw & 0x3FFFU));
+    case CableStep::STOP_COMMAND: return direct(0x1E,FrameKind::WRITE,static_cast<uint16_t>(_cable.result.prerequisiteCdcr.raw & (isA(_config.variant)?0x3FFCU:0x3FFFU)));
     case CableStep::RESTORE_BMCR: {
       auto batch = direct(0); batch.frameCount = 2;
       batch.frames[1] = {FrameKind::WRITE,0,static_cast<uint16_t>((_cableSavedBmcr & 0x0480U) | _softwarePowerWord()),0x317F,0}; return batch;

@@ -1,4 +1,4 @@
-#include "support/Check.h"
+#include "support/PartSelection.h"
 #include <DP8382x/DP8382x.h>
 #include <array>
 #include <cstdint>
@@ -17,7 +17,7 @@ struct Controller {
   std::array<uint16_t,0x500> ext{};
   std::array<Wire,4096> trace{};
   std::array<unsigned,1024> callFirst{};
-  uint16_t selector{0},address{0},id2{0xA131};
+  uint16_t selector{0},address{0},id2{test::enhancedId2()};
   uint64_t now{100};
   unsigned frames{0},calls{0},clocks{0},releases{0},mutations{0},hard{0};
   int failFrame{-1},releaseCall{-1},corruptFrame{-1},lateCall{-1},regressCall{-1},invalidCall{-1},badReceiptCall{-1};
@@ -30,11 +30,11 @@ struct Controller {
   void defaults() {
     words.fill(0);ext.fill(0);words[0]=0x3100;words[4]=0x01E1;
     words[25]=0x8001;words[22]=0x0100;words[30]=0x0102;
-    words[23]=(id2==0xA111 || enhancedMii)?0U:0x0020U;
-    ext[0x030E]=0x8400;ext[0x04A1]=0x1000;
+    words[23]=(id2==test::basicId2() || enhancedMii)?0U:0x0020U;
+    ext[0x030E]=test::aGrade()?0x4A40:0x8400;ext[0x04A1]=0x1000;
   }
   Config config(uint32_t phy=1) {
-    Config c;c.variant=Variant::DP83826I;c.interface=(id2==0xA111 || enhancedMii)?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
+    Config c;c.variant=test::declaredVariant;c.interface=(id2==test::basicId2() || enhancedMii)?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
   static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context);++b.clocks;return b.now; }
@@ -74,7 +74,7 @@ struct Controller {
       if(q.readIndex!=NO_READ_INDEX) { CHECK(q.readIndex<i && r.frames[q.readIndex].valueValid);value=static_cast<uint16_t>((r.frames[q.readIndex].value&q.preserveMask)|q.value); }
       const uint16_t target=q.registerAddress==14 && b.selector==0x401F?b.address:uint16_t{q.registerAddress};
       CHECK(b.frames<b.trace.size());const auto frame=b.frames++;b.trace[frame]={q.kind,q.registerAddress,value,target};
-      if(static_cast<int>(frame)==b.identityChangeFrame) { b.id2=0xA111;b.mutationsAtIdentityChange=b.mutations; }
+      if(static_cast<int>(frame)==b.identityChangeFrame) { b.id2=test::basicId2();b.mutationsAtIdentityChange=b.mutations; }
       f.attempted=true;const bool failed=static_cast<int>(frame)==b.failFrame;
       if(!failed || b.acceptedFailure) {
         if(q.kind==FrameKind::WRITE)b.write(q.registerAddress,value);
@@ -140,7 +140,7 @@ void policy() {
     CHECK(b.frames==frames+26U && b.calls==calls+14U);
   }
   for(bool basic:{false,true})for(bool activeLow:{false,true})for(bool enabled:{false,true})for(bool output:{false,true}) {
-    Controller b;b.id2=basic?0xA111:0xA131;Driver d;ready(d,b);b.words[17]=0xA5F1;
+    Controller b;b.id2=basic?test::basicId2():test::enhancedId2();Driver d;ready(d,b);b.words[17]=0xA5F1;
     b.words[18]=0xA520;b.words[19]=0x5A02;
     auto s=settings();s.activeLow=activeLow;s.globalEnable=enabled;s.outputEnable=output;s.powerDownInputSafe=true;
     s.misr1Mask=0x20;s.misr2Mask=0x02;
@@ -443,7 +443,7 @@ void pins() {
     CHECK(d.startVerify(budget(),verify).inProgress());CHECK(drain(d,b,verify).is(Err::INVALID_CONFIG));take(d,verify);
     CHECK(b.mutations==writes); // Verification never silently repairs a mux.
   }
-  Controller basic;basic.id2=0xA111;Driver d;ready(d,basic);auto s=settings();s.pin=InterruptPin::LED2;
+  Controller basic;basic.id2=test::basicId2();Driver d;ready(d,basic);auto s=settings();s.pin=InterruptPin::LED2;
   const auto calls=basic.calls;OperationToken token;CHECK(!d.startConfigureInterrupts(s,budget(),token).inProgress() && basic.calls==calls);
   for(auto route:{InterruptPin::LED1,InterruptPin::LED2}) {
     Controller bus;Driver driver;ready(driver,bus);auto denied=settings();denied.pin=route;denied.pinAvailable=false;
@@ -581,7 +581,7 @@ void replay() {
     const auto result=take(driver,token);
     CHECK(bus.frames==initial+identity-first+2U && bus.mutations==bus.mutationsAtIdentityChange);
     CHECK(!driver.isInitialized() && !result.persistentRestored && driver.settingsSnapshot().trust==ConfigurationTrust::DIRTY);
-    CHECK(result.identity.id1Valid && result.identity.id2Valid && result.identity.id1==0x2000 && result.identity.id2==0xA111);
+    CHECK(result.identity.id1Valid && result.identity.id2Valid && result.identity.id1==0x2000 && result.identity.id2==test::basicId2());
     CHECK(result.identity.mode==OperatingMode::BASIC && driver.interruptSnapshot().trust!=ConfigurationTrust::VERIFIED);
   }
 }
@@ -730,9 +730,63 @@ void ownership() {
   CHECK(unchanged.value==999 && regressed.calls==cb && regressed.clocks==ck);
 }
 
+void aRoutes() {
+  CHECK(test::aGrade());
+  constexpr InterruptPin pins[]={InterruptPin::LED0,InterruptPin::LED1,InterruptPin::LED2,InterruptPin::LED3};
+  // Mask/apply/verify needs 26 on pin21. Pin29 adds a 5-frame preflight
+  // and adds a 9-frame RMW/readback only for a live mux mismatch.
+  for (bool matching:{false,true}) for (bool exact:{false,true}) {
+    Controller bus; bus.enhancedMii=true; Driver driver; ready(driver,bus);
+    auto policy=settings(); policy.pin=InterruptPin::LED3; policy.crsUnused=true;
+    bus.ext[0x306]=matching?4:3;
+    const uint32_t required=matching?31U:40U;
+    const auto first=bus.frames,mutations=bus.mutations;
+    OperationToken t; CHECK(driver.startConfigureInterrupts(policy,budget(required-(exact?0U:1U)),t).inProgress());
+    const auto status=drain(driver,bus,t); const auto receipt=take(driver,t);
+    if (exact) CHECK(status.ok() && bus.frames==first+required);
+    else CHECK(status.is(Err::OPERATION_TIMEOUT) && bus.mutations==mutations && !receipt.mutationPossible);
+  }
+  for (unsigned pin=0;pin<4;++pin) {
+    for (bool basic:{false,true}) {
+      Controller b; b.id2=basic?0xA114:0xA134; b.enhancedMii=true; b.ext[0x308]=1;
+      Driver d; ready(d,b);
+      const auto address=static_cast<uint16_t>(0x303U+pin);
+      b.ext[address]=0xA5E3; auto irq=settings(); irq.pin=pins[pin];
+      irq.led1ClockUnused=irq.colUnused=irq.crsUnused=true;
+      const auto first=b.frames; OperationToken t;
+      if (basic && pin>=2U) {
+        CHECK(!d.startConfigureInterrupts(irq,budget(),t).inProgress() && b.frames==first); continue;
+      }
+      if (pin>=2U) {
+        auto denied=irq;
+        if (pin==2) denied.colUnused=false; else denied.crsUnused=false;
+        CHECK(!d.startConfigureInterrupts(denied,budget(),t).inProgress() && b.frames==first);
+      }
+      configured(d,b,irq);
+      CHECK(b.ext[address]==0xA5E4 && (b.words[18]&0xFF)==0xFF && (b.words[19]&0xFF)==0xFF);
+      unsigned disabled=b.frames,mux=b.frames,enabled=b.frames;
+      for (unsigned n=first;n<b.frames;++n) {
+        if (b.trace[n].kind!=FrameKind::WRITE) continue;
+        if (b.trace[n].target==address) mux=n;
+        if (b.trace[n].target==17 && disabled==b.frames && !(b.trace[n].value&2U)) disabled=n;
+        if (b.trace[n].target==17 && (b.trace[n].value&2U)) enabled=n;
+      }
+      CHECK(disabled<mux && mux<enabled);
+      WakeSettings wake; wake.enabled=wake.maintenanceAdmitted=wake.receiveTrafficQuiesced=wake.pinAvailable=true;
+      wake.crsUnused=wake.colUnused=wake.led1ClockUnused=true;
+      constexpr WakeRoute routes[]={WakeRoute::LED0,WakeRoute::LED1,WakeRoute::LED2,WakeRoute::LED3};
+      wake.route=routes[pin];
+      const auto old=b.frames;
+      CHECK(!d.startConfigureWake(wake,budget(),t).inProgress() && b.frames==old);
+      b.ext[address]=0xA5E2; uint16_t raw=0;
+      CHECK(d.readMmd(31,address,raw,{1000000,4}).ok() && raw==0xA5E2);
+      CHECK(d.interruptSnapshot().trust==ConfigurationTrust::DIRTY);
+    }
+  }
+}
 } // namespace
 int main(int argc,char** argv) {
-  const test::Suite suites[]={{"policy",policy},{"service",service},{"attribution",attribution},
+  const test::Suite suites[]={{"a_routes",aRoutes},{"policy",policy},{"service",service},{"attribution",attribution},
     {"service_failures",serviceFailures},{"failures",failures},{"pins",pins},{"stimulus",stimulus},{"replay",replay},{"ownership",ownership}};
-  return test::runSuites(argc,argv,suites);
+  return test::runVariantSuites(argc,argv,suites);
 }

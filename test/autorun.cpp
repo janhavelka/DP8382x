@@ -1,3 +1,4 @@
+#include "support/PartSelection.h"
 #include "support/Check.h"
 #include <DP8382x/DP8382x.h>
 #include <array>
@@ -29,13 +30,13 @@ struct Controller {
     ext[0x0456]=8; ext[0x0180]=0x0078; ext[0x0185]=0x0011; ext[0x018A]=0;
   }
   Config config(uint32_t phy=1) {
-    Config c; c.variant=Variant::DP83826I; c.interface=MacInterface::RMII; c.phyAddress=phy;
+    Config c; c.variant=test::declaredVariant; c.interface=MacInterface::RMII; c.phyAddress=phy;
     c.transport={this,execute,clock,{8,4,1}}; return c;
   }
   static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context); ++b.clocks; return b.now; }
   uint16_t read(uint16_t target) {
     if(target==2) return 0x2000;
-    if(target==3) return 0xA131;
+    if(target==3) return test::enhancedId2();
     if(target==0) words[0]&=0x7DFF;
     if(target==31) words[31]=0;
     if(target==30 && (words[30]&0x8000U)!=0U && triggers!=0U) {
@@ -423,5 +424,5 @@ void timing() {
 int main(int argc,char** argv) {
   const test::Suite suites[]={{"policy",policy},{"acquisition",acquisition},{"failures",failures},
     {"replay",replay},{"handoff",handoff},{"lifecycle",lifecycle},{"timing",timing}};
-  return test::runSuites(argc,argv,suites);
+  return test::runVariantSuites(argc,argv,suites);
 }

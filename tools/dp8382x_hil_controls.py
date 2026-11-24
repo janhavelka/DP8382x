@@ -199,16 +199,41 @@ CONTROLS = {
 def a_control(name, mode):
     """Independently expected A register words for the simulated entry and target profiles."""
     physcr = 0x010B if mode == "basic" else 0x0108
+    if name.startswith("power-") and name in CONTROLS:
+        spec = CONTROLS[name]
+        def setting(profile):
+            return replace(profile, fields={**profile.fields, "physcr": physcr | profile.fields["physcr"]})
+        return replace(spec, baseline=setting(spec.baseline), target=setting(spec.target))
+    if name == "analog":
+        return CONTROLS[name]
+    if name == "pins-basic":
+        base = pins("led,0,keep,normal led,0,keep,normal keep keep 0 enabled keep keep",
+                    223, ledcr=0, phycr=0x4001, mledcr=1, ledcfg=0x5560, ledcfg2=0,
+                    io_cfg1=0, gpio0=8, gpio1=8, gpio2=0, gpio3=0)
+        target = pins("led,8,keep,high led,2,keep,low keep keep 1 bypass keep keep",
+                      223, ledcr=530, phycr=0x4081, mledcr=65, ledcfg=0x5562, ledcfg2=1,
+                      io_cfg1=0, gpio0=8, gpio1=8, gpio2=0, gpio3=0)
+        return Control(PINS, "controls pins-status", base, target, "terminal")
+    if name == "pins":
+        # Pin 31 remains the POR clock output. Pin 29 uses its independent LED3 force bank.
+        base = pins("led,0,low,normal keep led,0,low,normal led,0,low,normal 0 enabled off keep",
+                    863, ledcr=0, phycr=0x4001, mledcr=1, ledcfg=0x5005, ledcfg2=0,
+                    io_cfg1=0, gpio0=8, gpio1=0, gpio2=8, gpio3=8)
+        target = pins("led,8,high,high keep led,4,low,normal led,10,high,high 1 bypass on keep",
+                      863, ledcr=0x292, phycr=0x4081, mledcr=0x241, ledcfg=0x5A45, ledcfg2=0x700,
+                      io_cfg1=0, gpio0=8, gpio1=0, gpio2=8, gpio3=8)
+        return Control(PINS, "controls pins-status", base, target, "terminal")
     if name == "quality":
-        def fld(causes, recovery, cr3, cr1):
-            return Setting(f"controls quality {causes} keep keep {recovery}",
-                           dict(desired=1, trust=1, stale=0, valid_mask=159, fld_bound_applicable=1,
-                                cr3=cr3, fld_cfg1=0x0417, fld_cfg2=0x0288, physcr=physcr, cr2=0x0102,
-                                btscr=0, config10=0, cr1=cr1))
-        # Retain CR3[6:5] from the entry MDIX profile. Both profiles program the
-        # documented thresholds and preserve the PHYSCR reset bits for this mode.
-        return Control(QUALITY, "controls quality-status", fld("0x405", "off", 0x0465, 32),
-                       fld("0x40d", "on", 0x046D, 160))
+        # SNLS783A tables 8-29/33/36/45. Keep CR3[6:5] from entry MDIX.
+        # The profiles exercise FIFO codes 0 and 3;
+        # both own 10M squelch/preamble and preserve the other mode bits.
+        base = quality("0x405 0,0,0 1,4,0,0,0 off", cr3=0x0465, fld_cfg1=0x0417, fld_cfg2=0x0288,
+                       physcr=physcr & ~0x0B00, cr2=0x0102, btscr=0x2800, config10=0x3998, cr1=32)
+        target = quality("0x40d 1,3,1 1,8,1,1,1 on", cr3=0x046D, fld_cfg1=0x0417, fld_cfg2=0x0288,
+                         physcr=physcr | 0x0B00, cr2=0x0106, btscr=0x3081, config10=0x7998, cr1=160)
+        return Control(QUALITY, "controls quality-status",
+                       replace(base, fields={**base.fields, "fld_bound_applicable": 1}),
+                       replace(target, fields={**target.fields, "fld_bound_applicable": 1}))
     if name == "interface-mii":
         # The ENHANCED case verifies the independent pin 30 PLL mux and pin 31 sample.
         base = interface("mii 0 0 1518 50 16 pll off", 495, cr1=32, cr2=0x0100, physcr=0x0108, gencfg=0,
@@ -356,7 +381,7 @@ def persistent_case(c, saved):
             if int(current.fields["physcr"]) & 0x8000:
                 evidence(current, {"indicated_down": 1, "power_state": 3},
                          "cannot select PLL exit without current IEEE down")
-                interim = power("down")
+                interim = (a_control("power-ieee", c.declaration["mode"]).target if c.a_feature else power("down"))
                 yield from apply(c, spec, interim, cleanup=True)
                 yield from observe(c, spec, interim, cleanup=True)
         yield from apply(c, spec, spec.baseline, cleanup=True)
@@ -375,7 +400,7 @@ def inject(c, action):
 
 def irq(c):
     """Own and stop interrupt stimulus, consuming one guarded modeled event sample."""
-    output_enable = int(c.declaration["mode"] == "enhanced")
+    output_enable = 0x0101 if c.a_feature else int(c.declaration["mode"] == "enhanced")
     stable = dict(valid=1, trust=1, stale=0, physcr_valid=1, misr1_valid=1, misr2_valid=1, rxfs_valid=1)
     baseline = dict(stable, selector=1, test_active=0, physcr=8 | output_enable, misr1=0, misr2=0, rxfs=0)
     target = dict(stable, selector=2, test_active=0, physcr=10 | output_enable, misr1=32, misr2=2, rxfs=4096)
@@ -449,11 +474,13 @@ def eee_read(c, enabled, cleanup=False, verdict="FAIL"):
     yield from inspect(c, "eee status", EEE, payload(row), cleanup=cleanup, verdict=verdict)
 
 
-def eee_terminal(row, enabled):
+def eee_terminal(row, enabled, a_grade=False):
     # An EEE reset terminal carries a stale history prefix. A failed earlier
     # acquisition can legitimately change it, so prove ownership here and
     # require separate live words after the reset.
-    operation(row, EEE, dict(stale=1, trust=1, desired_valid=1, enabled=int(enabled),
+    restart = {"recipe_restart": "accepted" if enabled else "none"} if a_grade else {}
+    schema = {**EEE, "recipe_restart": ("accepted", "uncertain", "attempted", "none")} if a_grade else EEE
+    operation(row, schema, dict(**restart, stale=1, trust=1, desired_valid=1, enabled=int(enabled),
                              advertised_valid=1, advertised=2 if enabled else 0,
                              negotiated_valid=0, negotiated=0), reset=True)
 
@@ -474,13 +501,15 @@ def eee(c, saved):
         yield from link100(c, saved)
         yield from eee_read(c, False, verdict="BLOCKED")
         row = yield from issue_mutation(c, "eee configure on 2 0", "operation")
-        eee_terminal(row, True)
+        eee_terminal(row, True, c.a_feature)
         yield from link100(c, saved)
         yield from eee_read(c, True)
         if c.spec.id == "lpi":
             yield from inspect(c, "power read", POWER, dict(valid=0, trust=0, stale=0, power_state=1, indicated_down=0,
                                requested_down=0, requested_sleep=0, requested_pll_off=0,
-                               bmcr_valid=1, bmcr=4096, physcr_valid=1, physcr=0, biscr_valid=1, biscr=256))
+                               bmcr_valid=1, bmcr=4096, physcr_valid=1,
+                               physcr=(0x010B if c.declaration["mode"] == "basic" else 0x0108) if c.a_feature else 0,
+                               biscr_valid=1, biscr=256))
             yield from inspect(c, "lpi status", LPI, dict(lpi=0, readback_valid=0, control=0, attempted=0,
                                completed=0, transactions=0, effect_completed=0, effect_possible=0,
                                batch_primary="RESULT_NOT_AVAILABLE", primary_detail=0,
@@ -505,7 +534,7 @@ def eee(c, saved):
     try:
         yield from persistent_guard(c)
         row = yield from c.command(EEE_BASE, "operation", True)
-        eee_terminal(row, False)
+        eee_terminal(row, False, c.a_feature)
         yield from link100(c, saved, True)
         yield from eee_read(c, False, cleanup=True)
     except AssertionFailed as error:
@@ -521,7 +550,7 @@ def wake_view(enabled=False, secure=False, pulse=0, pending=False, event=False):
                 rxfs_valid=1, rxfs=0x1000 | int(event), misr2_valid=1, misr2=int(event) << 9)
 
 
-def check_baseline(row, text, mode):
+def check_baseline(row, text, mode, a_grade=False):
     """Validate the simulator's pre-session write using its normal typed effect receipt."""
     for spec in CONTROLS.values():
         if text == spec.baseline.command:
@@ -532,10 +561,10 @@ def check_baseline(row, text, mode):
         direct(row, INTERFACE, {**RMII50_BASE.fields, "valid_mask": 255, "io_cfg1": 64, "clk_led_status": 1})
     elif text == IRQ_BASE:
         operation(row, IRQ, dict(valid=1, stale=0, trust=1, selector=1, test_active=0,
-                                 physcr_valid=1, physcr=8 | int(mode == "enhanced"), misr1_valid=1, misr1=0,
+                                 physcr_valid=1, physcr=(0x0108 | 1) if a_grade else 8 | int(mode == "enhanced"), misr1_valid=1, misr1=0,
                                  misr2_valid=1, misr2=0, rxfs_valid=1, rxfs=0))
     elif text == EEE_BASE:
-        eee_terminal(row, False)
+        eee_terminal(row, False, a_grade)
     elif text in (WOL_BASE, "wol acknowledge"):
         operation(row, WOL, wake_view(pending=text == WOL_BASE))
     else:

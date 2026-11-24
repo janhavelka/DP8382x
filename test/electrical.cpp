@@ -1,3 +1,4 @@
+#include "support/PartSelection.h"
 #include "support/Check.h"
 #include <DP8382x/DP8382x.h>
 #include "../examples/portable/Electrical.h"
@@ -16,7 +17,7 @@ struct Controller {
   std::array<uint16_t,32> words{};
   std::array<uint16_t,0x500> ext{};
   std::array<Wire,8192> trace{};
-  uint16_t selector{0},address{0},id2{0xA131};
+  uint16_t selector{0},address{0},id2{test::enhancedId2()};
   MacInterface boardInterface{MacInterface::MII};
   uint64_t now{100};
   unsigned jumpClockCall{0};
@@ -37,7 +38,7 @@ struct Controller {
     ext[0x117]=0x8147;ext[0x131]=0x2284;ext[0x2A]=0x7998;ext[0x030E]=0x8400;ext[0x04A1]=0x1000;ext[0x04D1]=0x0080;
   }
   Config config(uint32_t phy=1) {
-    Config c;c.variant=Variant::DP83826I;c.interface=boardInterface;c.phyAddress=phy;
+    Config c;c.variant=test::declaredVariant;c.interface=boardInterface;c.phyAddress=phy;
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
   static uint64_t clock(void* context) noexcept {
@@ -75,7 +76,7 @@ struct Controller {
     if(target==26)CHECK((value&0x0010U)==0U);
     if(target==23)CHECK((value&0x000CU)==0U);
     // SNLS647I table 8-40: BISCR Power Mode [8] is read-only, reset one.
-    if(target==22) { words[target]=static_cast<uint16_t>((value&0xFEFFU)|(words[target]&0x0100U));return; }
+    if(target==22) { if(test::aGrade()) CHECK((value & 0x0B00U)==0U); words[target]=static_cast<uint16_t>((value&0xFEFFU)|(words[target]&0x0100U));return; }
     if(target==18 || target==19) { CHECK((value&0xFF00U)==0U);words[target]=static_cast<uint16_t>((words[target]&0xFF00U)|value);return; }
     if(target==0x04A1) {
       CHECK(value==0x1000 || value==0);
@@ -180,9 +181,8 @@ void vectors() {
         const auto& w=b.trace[i];if(w.target==0)CHECK((w.value&0x0C00U)==0U);
         if(w.target==0x1F) { CHECK(w.value==0x8000 || w.value==0x4000);hardWrites+=w.value==0x8000?1U:0U;restartWrites+=w.value==0x4000?1U:0U; }
         if(w.target==0x19)CHECK((w.value&0x003FU)==1U);
-        // The wire word must preserve observed RO bit 8 even though the fake ignores its writes.
-        // This literal regression fails with the old 0x8EE0 preserve mask.
-        if(w.target==0x16)CHECK(w.value==((0x0100U&0x8FE0U)|0x7001U) && w.value==0x7101U);
+        // The original recipe echoes the power bit. A composes only controls.
+        if(w.target==0x16)CHECK(w.value==(test::aGrade()?0x7001U:0x7101U));
       }
       CHECK(hardWrites==1U && restartWrites==(mode==ComplianceMode::PATTERN10?0U:1U));
       const auto cached=b.frames;d.electricalSnapshot();d.electricalSnapshot();CHECK(b.frames==cached);
@@ -458,7 +458,7 @@ void calibrationAdmission() {
         CHECK(!result.mutationAttempted && !result.commandAccepted && !result.electrical.hardResetOwed);
       } else {
         CHECK(status.inProgress() && bus.calls == calls + 1 && bus.frames == frames + 2 && bus.hard == 1);
-        CHECK(bus.trace[frames].kind == FrameKind::WRITE && bus.trace[frames].reg == 0x1E && bus.trace[frames].value == 0x0102);
+        CHECK(bus.trace[frames].kind == FrameKind::WRITE && bus.trace[frames].reg == 0x1E && bus.trace[frames].value == (test::aGrade()?0x0100:0x0102));
         CHECK(bus.trace[frames+1].kind == FrameKind::WRITE && bus.trace[frames+1].reg == 0x1F && bus.trace[frames+1].value == 0x8000);
         CHECK(driver.cancel(token).ok());
         CHECK(take(driver, token).commandAccepted);
@@ -499,7 +499,7 @@ void calibration() {
     CHECK(result.electrical.recoveryNeeded==((initial&0x4000U)!=0U));
     CHECK(b.trace[first].kind==FrameKind::READ && b.trace[first].reg==0x1E);
     if((initial&0x4000U)!=0U) {
-      CHECK(b.trace[first+1U].reg==0x1E && b.trace[first+1U].value==0x0142);
+      CHECK(b.trace[first+1U].reg==0x1E && b.trace[first+1U].value==(test::aGrade()?0x0140:0x0142));
       CHECK(b.trace[first+2U].reg==0x1F && b.trace[first+2U].value==0x8000);
       CHECK(result.electrical.resetComplete && result.cleanupOwed && !d.isInitialized());
       CHECK(b.trace[first+3U].at>=b.trace[first+2U].at+2002U);
@@ -573,5 +573,5 @@ void bounds() {
 int main(int argc,char** argv) {
   const test::Suite suites[]={ {"traces",vectors},{"admission",invalid},{"failures",failures},{"lifecycle",cancellation},
     {"collision",collision},{"calibration",calibration},{"timing",bounds} };
-  return test::runSuites(argc,argv,suites);
+  return test::runVariantSuites(argc,argv,suites);
 }

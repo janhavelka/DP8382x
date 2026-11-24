@@ -1,3 +1,4 @@
+#include "support/PartSelection.h"
 #include "support/Check.h"
 #include <DP8382x/DP8382x.h>
 #include <array>
@@ -15,7 +16,7 @@ struct Controller {
   std::array<uint16_t, 32> words{};
   std::array<Wire, 4096> trace{};
   std::array<uint8_t, 1024> sizes{};
-  uint16_t selector{0}, address{0}, vod{0x8400}, id2{0xA131};
+  uint16_t selector{0}, address{0}, vod{0x8400}, id2{test::enhancedId2()};
   struct Target { uint16_t address, value; bool mmd; };
   std::array<Target, 2048> writes{};
   std::array<uint16_t, 3> opaque{};
@@ -33,7 +34,7 @@ struct Controller {
   unsigned exclusions{0};
   Controller() { words[0] = 0x3100; words[4] = 0x01E1; words[25] = 0x8001; words[1] = 0x0024; words[16] = 0x0005; words[22] = 0x0100; }
   Config config(uint32_t phy = 1, MacInterface interface = MacInterface::RMII) noexcept {
-    Config c; c.variant = Variant::DP83826I; c.interface = interface;
+    Config c; c.variant = test::declaredVariant; c.interface = interface;
     c.phyAddress = phy; c.transport = {this, execute, clock, {8, 4, 1}}; return c;
   }
   static uint64_t clock(void* context) noexcept {
@@ -66,6 +67,7 @@ struct Controller {
     return words[reg];
   }
   void write(uint8_t reg, uint16_t value) noexcept {
+    if (reg == 22 && test::aGrade()) CHECK((value&0x0B00U)==0U);
     if (reg == 13) { selector = value; return; }
     if (reg == 14 && selector == 0x001F) { address = value; return; }
     CHECK(semanticWrites < writes.size());
@@ -634,7 +636,7 @@ void lifecycle() {
     CHECK(b.trace[firstFrame+1U].kind==FrameKind::READ && b.trace[firstFrame+1U].reg==3U);
     CHECK(!result.mutationAttempted && result.cleanupOwed && result.temporaryMayBeActive);
     if(!mismatch) CHECK(result.status.detail==-22022);
-    b.id2=0xA131; b.failFrame=-1;
+    b.id2=test::enhancedId2(); b.failFrame=-1;
     finishStop(d,b,desired);
   }
   Controller bus; Driver driver; ready(driver,bus); const auto intent=driver.settingsSnapshot();
@@ -783,5 +785,5 @@ int main(int argc,char** argv) {
   const test::Suite suites[]={{"matrix",matrix},{"fields",fields},{"measurements",measurements},
     {"acquire_failures",acquireFailures},{"operation_failures",operationFailures},{"cancellation",cancellation},
     {"lifecycle",lifecycle},{"timing_ownership",timingOwnership}};
-  return test::runSuites(argc,argv,suites);
+  return test::runVariantSuites(argc,argv,suites);
 }
