@@ -1,9 +1,9 @@
 # Prompt 58 · DP83826AI/AE identity, reset and link
 
-**IN PROGRESS. Phase (c) reviewed and corrected.** The portable core and native owner accept
+**IN PROGRESS. Phase (d) SDK links passed.** The portable core and native owner accept
 declared DP83826AI and DP83826AE for the 21 procedures below. The two grades
-share revision-4 identity words. Phase (d) verifies the synchronized review
-checkpoint. Prompt 59 owns optional and diagnostic controls.
+share revision-4 identity words. Final host verification remains. Prompt 59
+owns optional and diagnostic controls.
 [Prompt requirements](../../prompts/58-a-core-link.md)
 
 ## Phase (a) assessment
@@ -434,3 +434,31 @@ consumer build passed 2/2. Exported package, remote CI and physical evidence
 were **NOT RUN**. Remote CI belongs to prompt 71. Grade-specific clock, reset,
 FLD timing and Strap11 EMC qualification still require identified, authorized
 fixtures. Phase (d) starts after the wrapper synchronizes this review.
+
+## Phase (d) SDK links
+
+The wrapper verified `main` equal to `origin/main` at the review commit
+`38ec9f1ef4d50d6af34c0ad4a22e3c2877b0299b`. The worktree and index were
+clean throughout the builds. On Windows x86-64, two parallel build workers
+ran the phase (b) `scripts/idf.cmd` commands in separate ESP32-P4 build
+directories against ESP-IDF v6.1 at `fff9895c82d744c7237be8847347bdd1b07c6643`.
+Each used the scoped Git and clangd settings from the prompt 53 report, with
+`CCACHE_DIR` under its own build directory. The examples used
+`IDF_COMPONENT_MANAGER=0`. All four commands exited 0.
+
+**SDK link PASS (4/4).** Each ELF and binary contains the full review SHA
+and clean-tree identity. Both adapter fixture pairs contain their selected
+grade. The basic and owner examples build with the fitted DP83826I board
+declaration. The directories below are under `C:/esp/build/dp8382x-loop`.
+
+| P4 image | Directory | ELF bytes | Binary bytes | Binary SHA-256 |
+| --- | --- | ---: | ---: | --- |
+| DP83826AI adapter | `53l` | 7379936 | 391664 | `802718f83c317bde315137d6a33cf8be15b2d400386d21976717c170e8d9a794` |
+| DP83826AE adapter | `56l` | 7379936 | 391664 | `80721b4b636318be70624ff9b3a4cc2431c8db1875397206f7ef696abc7333fe` |
+| DP83826I basic | `56b` | 10055116 | 688896 | `053cc6b7ac5d2917146ee1ed71c21e2a3bcd91ad19202ab970482fcde1a2f11f` |
+| DP83826I owner | `56o` | 8748588 | 567008 | `135a5d0d95b4499c7a31c2765c7a4d6a102e7c88c79e592cf6f26ec1ed2dac65` |
+
+The build logs are `58d-link.log` for the fixtures and `phase-d-link.log` for
+the examples, each in its image directory. Host and portable consumer checks
+remain for phase (d). Exported package, remote CI and physical evidence
+are **NOT RUN** for this slice.
