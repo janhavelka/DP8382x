@@ -1,8 +1,10 @@
 # Prompt 58 · DP83826AI/AE identity, reset and link
 
-**IN PROGRESS. Phase (d) Release host, SDK links and AI/AE UBSan passed.** The portable core and native owner accept
+**IN PROGRESS.** Release host, AI/AE UBSan, SDK links, portable consumers
+and the focused compiled campaign passed phase (d) verification.
+The portable core and native owner accept
 declared DP83826AI and DP83826AE for the 21 procedures below. The two grades
-share revision-4 identity words. Final portable consumer, Python and
+share revision-4 identity words. Standalone Python, source and
 documentation checks remain. Prompt 59
 owns optional and diagnostic controls.
 [Prompt requirements](../../prompts/58-a-core-link.md)
@@ -563,3 +565,29 @@ receipt is `build/p53-baseline/58d-pipe-fix-release.log`. The earlier
 SDK links and AI/AE UBSan results apply to the same firmware and C++ inputs.
 Portable and exported package consumers, remote CI and physical evidence
 were **NOT RUN** in this slice.
+
+### Portable consumers and compiled AI/AE campaign
+
+On 2026-11-24 the wrapper had verified clean `main` equal to `origin/main`
+at `00db7c0b165fc7a48bc6860db5c87d1cb0bdbde8`. A second worker built the
+consumers in a fresh directory while the lead ran the compiled CLI fixture.
+
+```powershell
+cmake -S test/consumer -B build/p58d-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF
+cmake --build build/p58d-consumer --parallel 3
+ctest --test-dir build/p58d-consumer --no-tests=error --output-on-failure -V
+python -B test/test_hil_features.py --fixture build/p53-baseline/test/cli/dp8382x_cli_fixture.exe --work-dir build/p58d-runner CompiledFeatureTests.test_a_feature_cases_require_their_generation_profiles
+```
+
+**Portable consumer PASS.** On Windows x86-64 with GNU 15.1.0, CMake 4.0.1
+and Ninja 1.12.1, both `portable_consumer` and `portable_cable_consumer`
+linked through `DP8382x::DP8382x` and executed. CTest passed 2/2 in 0.09 s.
+The receipt is `build/p58d-consumer/Testing/Temporary/LastTest.log`.
+
+**Compiled CLI campaign PASS.** Python 3.12.10 ran the focused test in
+2.913 s with simulated MDIO. Across AI and AE, 16 campaigns completed
+with restoration, including BASIC quality and RMII25 for each grade.
+Four EEE or digital-loopback requests returned BLOCKED. Two swapped grade
+declarations stopped after the session command. All 22 saved results
+matched offline replay. Exported package, remote CI and physical evidence
+were **NOT RUN**.
