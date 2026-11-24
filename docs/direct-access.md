@@ -1,5 +1,13 @@
 # Bounded portable Clause 22 and indirect MMD access
 
+AI and AE share the documented stable direct and vendor-alias reads and the
+selected IEEE MMD reads. For example, 7:003C uses the selector sequence
+`0007,003C,4007` followed by a data read under one lock. Original LEDCR
+maintenance, wake and interrupt writers, recipe-only offsets and selector
+aliases are closed on A. BMCR link maintenance retains its robust-crossover
+precondition. Explicit destructive acquisition on A admits PHYSTS, BMSR,
+ANER, FLDS and RCSR through the existing collector.
+
 Initialization uses these same terminal batches under [OP-14](api-contracts.md#one-cooperative-operation-and-retained-result).
 All raw writes reject an occupied operation slot or cleanup barrier. Safe reads
 remain admitted between polls and with retained results, except reset WAIT.

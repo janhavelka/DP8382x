@@ -1,6 +1,14 @@
 # Initialization and reset operations
 
-The core implements exact-address DP83826I/E initialization with `ResetKind::NONE`,
+For either A grade, SNLS783A sections 7.5, 7.6 and 8.4.1 require the
+same `030E=4A40` startup recipe. HARD restores the POR value `8400`;
+PCS preserves vendor words and RESTART preserves settings. Each requested
+initialization rechecks identity, SOR1/SOR2 and the VOD readback. Use
+`strapSnapshot()` for current-epoch validity per word, including a valid
+SOR1 if the second read fails. On A, `strap11High()` reports pin 19 when
+SOR1 is valid. ENHANCED Strap1 and Strap6 are POR-only.
+
+The core implements exact-address DP83826I/E and DP83826AI/AE initialization with `ResetKind::NONE`,
 `PCS`, `HARD` or `RESTART`. Every path accepts identity, captures raw straps,
 checks BMCR and PHYRCR for active commands, then writes and verifies mandatory
 VOD settings. Initialization

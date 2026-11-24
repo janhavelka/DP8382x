@@ -18,6 +18,7 @@ struct Controller {
   std::array<uint16_t,64> mmd3{},mmd7{};
   std::array<Wire,8192> trace{};
   uint16_t selector{0},address{0},id2{0xA131};
+  Variant declared{Variant::DP83826I};
   MacInterface boardInterface{MacInterface::MII};
   uint64_t now{100};
   unsigned frames{0},calls{0},clocks{0},releases{0},mutations{0},hard{0};
@@ -38,7 +39,7 @@ struct Controller {
     ext[0x117]=0x8147;ext[0x131]=0x2284;ext[0x2A]=0x7998;ext[0x030E]=0x8400;ext[0x04A1]=0x1000;ext[0x04D1]=0x0080;
   }
   Config config(uint32_t phy=1) {
-    Config c;c.variant=Variant::DP83826I;c.interface=boardInterface;c.phyAddress=phy;
+    Config c;c.variant=declared;c.interface=boardInterface;c.phyAddress=phy;
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
   static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context);++b.clocks;return b.now; }
@@ -526,9 +527,134 @@ void raw() {
   const auto acquired=view.frames;QualityViews views;CHECK(acquireQualityViews(phy,views,{1000000,4}).ok() && view.frames==acquired+4U);
   CHECK((views.events.samples[static_cast<unsigned>(EvidenceSource::BTSCR)].observedOnes&0x10U)!=0U);
 }
+template<Variant grade> void aQuality() {
+  // SNLS783A tables 8-5/6, 8-31/34/36/53/54/88. Inject distinct
+  // sampled straps and CR3 reset words; an explicit application request
+  // can select a different cause set while retaining both mirror bits.
+  struct StrapRow { uint16_t id,sor1,causes; };
+  constexpr StrapRow rows[]={
+    {0xA114,0,0x000D},{0xA114,0x0800,0x0001},{0xA134,0,0},
+    {0xA134,0x0082,0x040F},{0xA134,0x0080,0x000D},{0xA134,0x0180,0x000C},
+    {0xA134,0x0880,0x0001},{0xA134,0x0882,0x0403}
+  };
+  {
+    Controller b; Driver d; b.declared=grade; b.id2=0xA114; initialized(d,b);
+    b.ext[0x467]=0x0800; b.failFrame=static_cast<int>(b.frames+9);
+    OperationToken init; CHECK(d.startInitialize({ResetKind::NONE},budget(),init).inProgress());
+    CHECK(drain(d,b,init).is(Err::MDIO_TIMEOUT));
+    const auto partial=take(d,init); const auto current=d.strapSnapshot();
+    CHECK(partial.straps.sor1Valid && !partial.straps.sor2Valid && partial.straps.strap11High());
+    CHECK(current.sor1Valid && current.strap11High() && !current.sor2Valid && !current.timeValid && current.stale);
+  }
+  for (const auto& row:rows) for (uint16_t mirrors:{uint16_t{0x20},uint16_t{0x40}}) {
+    Controller b; Driver d; b.declared=grade; b.id2=row.id; b.ext[0x467]=row.sor1;
+    b.words[11]=row.causes|mirrors; b.words[17]=row.id==0xA114?3:0; b.ext[0x131]=0x0288;
+    initialized(d,b);
+    const auto straps=d.strapSnapshot();
+    CHECK(straps.sor1Valid && straps.sor1==row.sor1 && straps.strap11High()==((row.sor1&0x0800)!=0));
+    const auto calls=b.calls,clocks=b.clocks; uint16_t initial=0;
+    CHECK(d.readClause22(0x0B,initial,{1000000,1}).ok() && (initial&0x040F)==row.causes);
+    CHECK(b.calls==calls+1 && b.clocks>clocks);
+    auto s=settings(false); s.fastDrop.causeMask=1; auto result=configured(d,b,s);
+    CHECK(b.words[11]==(mirrors|1) && (result.quality.raw[3]&3U)==(row.id==0xA114?3U:0U));
+    CHECK(b.ext[0x131]==0x0288);
+  }
+  Controller ref; Driver driver; ref.declared=grade; ref.id2=0xA134; initialized(driver,ref);
+  auto s=settings(false); s.recoveryOwned=s.linkRecovery=true;
+  constexpr uint16_t dependentOnly[]={2,4,0x0400,0x0406};
+  for (bool raw:{false,true}) for (uint16_t mask:dependentOnly) {
+    auto denied=s; denied.fastDrop.rawThresholdOverride=raw; denied.fastDrop.causeMask=mask;
+    const auto calls=ref.calls,clocks=ref.clocks; OperationToken t;
+    CHECK(driver.startConfigureQuality(denied,budget(),t).is(Err::INVALID_CONFIG));
+    CHECK(ref.calls==calls && ref.clocks==clocks && !driver.qualitySnapshot().desiredValid);
+  }
+  for (bool tx100:{false,true}) {
+    auto denied=s; denied.tx10.owned=!tx100; denied.tx100.owned=tx100; OperationToken t;
+    const auto calls=ref.calls,clocks=ref.clocks;
+    CHECK(driver.startConfigureQuality(denied,budget(),t).is(Err::INVALID_CONFIG));
+    SignalQualitySnapshot mse; CHECK(driver.readSignalQuality(mse,{1000000,4}).is(Err::INVALID_CONFIG));
+    CHECK(ref.calls==calls && ref.clocks==clocks);
+  }
+  const auto first=ref.frames,calls=ref.calls; ref.words[9]=0x0120; ref.words[11]=0x042F;
+  ref.words[15]=0x01F0; ref.ext[0x131]=0x0288;
+  auto result=configured(driver,ref,s);
+  CHECK(ref.frames-first==32 && ref.calls-calls==11 && ref.words[9]==0x01A0);
+  CHECK(ref.words[11]==0x042F && ref.ext[0x117]==0x0417 && ref.ext[0x131]==0x0288);
+  CHECK(result.quality.fldMaximumApplicable);
+  const auto flds=driver.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::FLDS)];
+  CHECK(flds.samples==1 && flds.eventBits==0x01F0);
+  constexpr uint16_t targets[]={11,0x117,0x131,9,11};
+  constexpr uint16_t values[]={0x0020,0x0417,0x0288,0x01A0,0x042F};
+  unsigned target=0;
+  for (unsigned n=first;n<ref.frames;++n) if (semantic(ref.trace[n])) {
+    CHECK(target<5);
+    if (target<5) { CHECK(ref.trace[n].target==targets[target] && ref.trace[n].value==values[target]); }
+    ++target;
+  }
+  CHECK(target==5);
+  OperationToken verify; const auto beforeVerify=ref.mutations;
+  CHECK(driver.startVerify(budget(),verify).inProgress() && drain(driver,ref,verify).ok());
+  CHECK(take(driver,verify).persistentRestored && ref.mutations==beforeVerify);
+  CHECK(ref.frames-ref.firstFrame[ref.calls-5]==15 && ref.trace[ref.frames-15].target==0);
+  for (unsigned offset=0;offset<32;++offset) {
+    Controller b; Driver d; b.declared=grade; b.id2=0xA134; initialized(d,b);
+    b.failFrame=static_cast<int>(b.frames+offset); const auto t=start(d,b,s);
+    CHECK(drain(d,b,t).is(Err::MDIO_TIMEOUT));
+    const auto failed=take(d,t);
+    CHECK(!failed.persistentRestored && failed.cleanupOwed==(offset>=6) && b.calls==b.releases);
+  }
+  for (unsigned call=0;call<11;++call) {
+    Controller b; Driver d; b.declared=grade; b.id2=0xA134; initialized(d,b);
+    b.releaseCall=static_cast<int>(b.calls+call); const auto t=start(d,b,s);
+    CHECK(drain(d,b,t).is(Err::MDIO_ERROR));
+    CHECK(take(d,t).failingBatch.release.detail==-37 && b.calls==b.releases);
+  }
+  for (unsigned fault=0;fault<4;++fault) {
+    Controller b; Driver d; b.declared=grade; b.id2=0xA134; initialized(d,b);
+    OperationToken token; auto limit=budget();
+    if (fault==0) limit.io.maxFrames=31;
+    if (fault==1) limit.io.deadlineUs=b.now+217; // 1 us lag + 32*4 + 11*8; equality expires
+    if (fault==2) b.words[23]|=0x20;           // independently observed RMII
+    if (fault==3) b.locked=true;              // owner admission failure
+    const auto mutations=b.mutations,frames=b.frames;
+    CHECK(d.startConfigureQuality(s,limit,token).inProgress());
+    if (fault==3) {
+      CHECK(d.pollOperation(token).is(Err::BUSY)); b.locked=false;
+      const auto busy=take(d,token);
+      CHECK(!busy.mutationPossible && !busy.cleanupOwed && b.mutations==mutations);
+      continue;
+    }
+    CHECK(!drain(d,b,token).ok());
+    const auto failed=take(d,token); CHECK(!failed.persistentRestored);
+    CHECK(b.mutations==mutations && !failed.cleanupOwed);
+    if (fault<2) CHECK(b.frames==frames && failed.status.is(Err::OPERATION_TIMEOUT));
+  }
+  for (unsigned after=0;after<11;++after) {
+    Controller b; Driver d; b.declared=grade; b.id2=0xA114; initialized(d,b);
+    const auto t=start(d,b,s);
+    for (unsigned n=0;n<after;++n) CHECK(poll(d,b,t).inProgress());
+    const auto callsBefore=b.calls,clocksBefore=b.clocks; CHECK(d.cancel(t).ok());
+    const auto cancelled=take(d,t);
+    CHECK(cancelled.status.is(Err::CANCELLED) && cancelled.cleanupOwed==(after>=2));
+    d.qualitySnapshot(); d.strapSnapshot(); CHECK(b.calls==callsBefore && b.clocks==clocksBefore);
+    if (after>=2) {
+      OperationToken restore;
+      CHECK(d.startInitialize({ResetKind::NONE},budget(),restore).inProgress() && drain(d,b,restore).ok());
+      CHECK(take(d,restore).persistentRestored && !d.operationSnapshot().cleanupOwed);
+    }
+  }
+  Controller wrongNibble; Driver wrong; wrongNibble.declared=grade; wrongNibble.id2=0xA134;
+  initialized(wrong,wrongNibble); wrongNibble.ext[0x117]=6;
+  const auto t=start(wrong,wrongNibble,s);
+  CHECK(drain(wrong,wrongNibble,t).is(Err::CONFIG_MISMATCH));
+  const auto failure=take(wrong,t);
+  CHECK(failure.mismatch.valid && failure.mismatch.mask==0xFFFF && failure.mismatch.expected==0x0417);
+  CHECK((wrongNibble.words[11]&0x040F)==0 && failure.cleanupOwed);
+}
 } // namespace
 int main(int argc,char** argv) {
   const test::Suite suites[]={{"vectors",vectors},{"admission",admission},{"failures",failures},{"replay",replay},
-    {"collector",collector},{"ownership",ownership},{"timing",timing},{"raw",raw}};
+    {"collector",collector},{"ownership",ownership},{"timing",timing},{"raw",raw},
+    {"ai",aQuality<Variant::DP83826AI>},{"ae",aQuality<Variant::DP83826AE>}};
   return test::runSuites(argc,argv,suites);
 }

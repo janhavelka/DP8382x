@@ -4,7 +4,7 @@
 
 namespace DP8382x {
 namespace {
-constexpr uint8_t INTERFACE_ROWS=7;
+constexpr uint8_t INTERFACE_ROWS=8;
 Status interfaceConfig(const char* message) noexcept {
   return Status::Error(Err::INVALID_CONFIG,message,static_cast<int32_t>(ConfigDetail::SOURCE_GATE));
 }
@@ -22,9 +22,27 @@ Status interfaceSyntax(const InterfaceSettings& settings) noexcept {
   return Status::Ok();
 }
 int interfaceWord(uint16_t address) noexcept {
-  constexpr uint16_t addresses[]={0x0009,0x000A,0x0011,0x0456,0x0302,0x0017,0x0000,0x0308};
-  for (unsigned i=0;i<8U;++i) { if (addresses[i]==address) { return static_cast<int>(i); } }
+  constexpr uint16_t addresses[]={0x0009,0x000A,0x0011,0x0456,0x0302,0x0017,0x0000,0x0308,0x0303};
+  for (unsigned i=0;i<9U;++i) { if (addresses[i]==address) { return static_cast<int>(i); } }
   return -1;
+}
+// SNLS783A fig. 8-13 and tables 8-13/89. Compare the sampled interface
+// selection to the raw strap evidence. RCSR is separately programmable.
+Status checkStartupInterface(const StrapEvidence& straps,OperatingMode mode) noexcept {
+  if (!straps.sor1Valid || !straps.sor2Valid) { return interfaceConfig("Current interface strap samples required"); }
+  bool rmii=false, follower=false;
+  if (mode==OperatingMode::BASIC) {
+    rmii=(straps.sor1&0x0010U)!=0U;
+    follower=(straps.sor1&0x0400U)!=0U;
+    if (!rmii && follower) { return interfaceConfig("Reserved BASIC Strap10/4 interface selection"); }
+  } else {
+    rmii=(straps.sor1&0x0102U)==0x0102U;
+    follower=(straps.sor1&0x0020U)!=0U;
+  }
+  if (rmii!=((straps.sor2&0x0010U)!=0U) || (rmii && follower!=((straps.sor2&0x0008U)!=0U))) {
+    return interfaceConfig("Raw interface straps disagree with sampled SOR2 mode or clock role");
+  }
+  return Status::Ok();
 }
 bool interfacePrefix(const MdioBatch& batch,const BatchResult& receipt,uint8_t last) noexcept {
   for (uint8_t i=0;i<=last;++i) {
@@ -46,8 +64,18 @@ Status DP8382x::_validateInterface(const InterfaceSettings& settings) const noex
     return interfaceConfig("Interface and clock transition requires stopped consumers and stable admitted clocks");
   }
   if (settings.isolate && !settings.isolationOwned) { return interfaceConfig("Isolation requires explicit ownership"); }
-  if (settings.clockOutput==ClockOutput::PLL || settings.clockOutput==ClockOutput::RECOVERED) {
-    return interfaceConfig("Clock selector activation mux remains source-gated");
+  const bool a=isA(_config.variant);
+  if (a) {
+    const auto startup=checkStartupInterface(_straps,_identity.mode);
+    if (!startup.ok()) { return startup; }
+    if (settings.clockOutput==ClockOutput::LED1 || settings.clockOutput==ClockOutput::CLKOUT25) {
+      return interfaceConfig("A-generation pin 31 mux programming remains source-gated");
+    }
+    if (settings.observePin31 && _identity.mode!=OperatingMode::ENHANCED) {
+      return interfaceConfig("Pin 31 route status requires ENHANCED mode");
+    }
+  } else if (settings.observePin31 || settings.clockOutput==ClockOutput::PLL || settings.clockOutput==ClockOutput::RECOVERED) {
+    return interfaceConfig("Requested pin clock operation is unavailable for this part");
   }
   if (settings.interface==MacInterface::MII) {
     if (settings.rmiiClock!=RmiiClock::LEADER_25MHZ || settings.txClockShift || settings.revision10 ||
@@ -72,7 +100,7 @@ Status DP8382x::_validateInterface(const InterfaceSettings& settings) const noex
       return interfaceConfig("Repeater requires explicit crossed RX_DV wiring and clock ownership");
     }
   }
-  if (settings.clockOutput!=ClockOutput::UNOWNED) {
+  if (!a && settings.clockOutput!=ClockOutput::UNOWNED) {
     if (_identity.mode!=OperatingMode::ENHANCED) { return interfaceConfig("Runtime CLKOUT/LED1 selection requires ENHANCED mode"); }
     if (_pins.desiredValid && _pins.desired.led1ClockOverride) {
       return interfaceConfig("Release the pin owner's clock override before interface ownership");
@@ -115,7 +143,7 @@ bool DP8382x::_interfaceRowValue(uint8_t row,uint16_t& address,uint16_t& mask,ui
     case 4:
       address=0x0302;
       if (settings.interface==MacInterface::RMII) { mask=0x0100; value=settings.rxDv?0x0100:0; }
-      if (settings.clockOutput!=ClockOutput::UNOWNED) {
+      if (!isA(_config.variant) && settings.clockOutput!=ClockOutput::UNOWNED) {
         mask|=0x0040; if (settings.clockOutput==ClockOutput::LED1) { value|=0x0040; }
       }
       break;
@@ -128,6 +156,14 @@ bool DP8382x::_interfaceRowValue(uint8_t row,uint16_t& address,uint16_t& mask,ui
       }
       break;
     case 6: address=0; if (settings.isolationOwned) { mask=0x0400; value=settings.isolate?0x0400:0; } break;
+    case 7:
+      address=0x0303;
+      if (isA(_config.variant) && settings.clockOutput!=ClockOutput::UNOWNED) {
+        // SNLS783A table 8-75: enable the pin 30 clock mux and select its
+        // source in one RMW. Pin 31 and the RMII RX_DV route are independent.
+        mask=0x003F; value=settings.clockOutput==ClockOutput::PLL?0x0029:0x0031;
+      }
+      break;
     default: return false;
   }
   return mask!=0U;
@@ -136,7 +172,13 @@ bool DP8382x::_interfaceRowValue(uint8_t row,uint16_t& address,uint16_t& mask,ui
 void DP8382x::_nextInterfaceRow() noexcept {
   uint16_t address=0,mask=0,value=0;
   while (_interfaceRow<INTERFACE_ROWS && !_interfaceRowValue(_interfaceRow,address,mask,value)) { ++_interfaceRow; }
-  _interfaceStep=_interfaceRow<INTERFACE_ROWS?(_interfaceVerifyOnly?InterfaceStep::VERIFY:InterfaceStep::APPLY):InterfaceStep::COMPLETE;
+  if (_interfaceRow<INTERFACE_ROWS) {
+    _interfaceStep=_interfaceVerifyOnly?InterfaceStep::VERIFY:InterfaceStep::APPLY;
+  } else if (_interface.desired.observePin31 && _interfaceStep!=InterfaceStep::CLOCK_STATUS) {
+    _interfaceStep=InterfaceStep::CLOCK_STATUS;
+  } else {
+    _interfaceStep=InterfaceStep::COMPLETE;
+  }
 }
 void DP8382x::_beginInterface(bool verifyOnly) noexcept {
   _pinsWorking=_wakeWorking=_eeeWorking=_powerWorking=_interruptWorking=false;
@@ -152,7 +194,11 @@ MdioBatch DP8382x::_interfaceBatch() const noexcept {
   if (_interfaceStep==InterfaceStep::PREFLIGHT) {
     MdioBatch batch; batch.frameCount=2;
     batch.frames[0]={FrameKind::READ,0,0,0,NO_READ_INDEX};
-    batch.frames[1]={FrameKind::READ,0x11,0,0,NO_READ_INDEX}; return batch;
+    batch.frames[1]={FrameKind::READ,0x11,0,0,NO_READ_INDEX};
+    if (_interface.desired.clockOutput==ClockOutput::RECOVERED) {
+      batch.frames[batch.frameCount++]={FrameKind::READ,0x10,0,0,NO_READ_INDEX};
+    }
+    return batch;
   }
   if (_interfaceStep==InterfaceStep::CLOCK_STATUS) { return _mmdBatch(0x0308,FrameKind::READ,0); }
   uint16_t address=0,mask=0,value=0; _interfaceRowValue(_interfaceRow,address,mask,value);
@@ -172,8 +218,9 @@ MdioBatch DP8382x::_interfaceBatch() const noexcept {
 }
 
 void DP8382x::_retainInterfaceWord(uint16_t address,uint16_t value) noexcept {
-  const int index=interfaceWord(address); if (index<0) { return; }
-  _interface.raw[index]=value; _interface.validMask|=static_cast<uint8_t>(1U<<index);
+  const int index=interfaceWord(address);
+  if (index<0 || (index==8 && !isA(_config.variant))) { return; }
+  _interface.raw[index]=value; _interface.validMask|=static_cast<uint16_t>(1U<<index);
   if (address==0x0017U) {
     _interface.observedInterface=(value&0x0020U)!=0U?MacInterface::RMII:MacInterface::MII;
     _interface.modeValid=true;
@@ -195,13 +242,13 @@ void DP8382x::_retainInterfaceWord(uint16_t address,uint16_t value) noexcept {
   uint16_t target=0,mask=0,expected=0;
   bool proved=!_interfaceWorking;
   if (index==7) {
-    if (_interface.desired.clockOutput==ClockOutput::UNOWNED) { return; }
+    if (isA(_config.variant) || _interface.desired.clockOutput==ClockOutput::UNOWNED) { return; }
     mask=1; expected=_interface.desired.clockOutput==ClockOutput::LED1?1:0;
     proved|=_interfaceRow>4U;
   } else {
-    if (!_interfaceRowValue(static_cast<uint8_t>(index),target,mask,expected)) { return; }
-    proved|=_interfaceVerifyOnly || static_cast<uint8_t>(index)<_interfaceRow ||
-        (static_cast<uint8_t>(index)==_interfaceRow && _interfaceStep==InterfaceStep::VERIFY);
+    const uint8_t row=index==8?7:static_cast<uint8_t>(index);
+    if (!_interfaceRowValue(row,target,mask,expected)) { return; }
+    proved|=_interfaceVerifyOnly || row<_interfaceRow || (row==_interfaceRow && _interfaceStep==InterfaceStep::VERIFY);
   }
   if ((value&mask)==expected) { return; }
   _interface.trust=ConfigurationTrust::DIRTY; _interface.observedStale=true;
@@ -229,10 +276,10 @@ Status DP8382x::_advanceInterface(Status status,bool called,const MdioBatch& bat
   const auto address=batch.frameCount>=4U?batch.frames[1].value:uint16_t{batch.frames[0].registerAddress};
   const bool readValid=called && interfacePrefix(batch,receipt,readIndex);
   const int index=interfaceWord(address);
-  if (index>=0 && !readValid) { _interface.validMask&=static_cast<uint8_t>(~(1U<<index)); }
+  if (index>=0 && !readValid) { _interface.validMask&=static_cast<uint16_t>(~(1U<<index)); }
   if (address==0x0017U && !readValid) { _interface.modeValid=false; }
   if (_interfaceStep==InterfaceStep::PREFLIGHT && (!called || !interfacePrefix(batch,receipt,1))) {
-    _interface.validMask&=static_cast<uint8_t>(~0x04U);
+    _interface.validMask&=static_cast<uint16_t>(~0x04U);
   }
   if (called) {
     ++_interfaceResult.transactions; _interfaceResult.primary=receipt.status; _interfaceResult.release=receipt.releaseStatus;
@@ -255,6 +302,9 @@ Status DP8382x::_advanceInterface(Status status,bool called,const MdioBatch& bat
   switch (_interfaceStep) {
     case InterfaceStep::PREFLIGHT: {
       const auto bmcr=receipt.frames[0].value,physcr=receipt.frames[1].value;
+      if (_interface.desired.clockOutput==ClockOutput::RECOVERED && (receipt.frames[2].value&1U)==0U) {
+        return _finishInterface(interfaceConfig("Recovered 125 MHz clock requires an observed active partner link"));
+      }
       if ((bmcr&0x8200U)!=0U) { return _finishInterface(interfaceConfig("Reset/restart is active")); }
       if (!_interfaceVerifyOnly && (physcr&4U)!=0U) { return _finishInterface(interfaceConfig("Unowned interrupt stimulus is active")); }
       if (!_interfaceVerifyOnly && !_power.desiredValid && (bmcr&0x0800U)!=0U) { return _finishInterface(interfaceConfig("Unowned power request cannot be echoed into interface writes")); }
@@ -269,13 +319,13 @@ Status DP8382x::_advanceInterface(Status status,bool called,const MdioBatch& bat
         return _finishInterface(Status::Error(Err::CONFIG_MISMATCH,"Interface readback mismatch"));
       }
       ++_interfaceRow;
-      if (target==0x0302U && _interface.desired.clockOutput!=ClockOutput::UNOWNED) { _interfaceStep=InterfaceStep::CLOCK_STATUS; }
+      if (!isA(_config.variant) && target==0x0302U && _interface.desired.clockOutput!=ClockOutput::UNOWNED) { _interfaceStep=InterfaceStep::CLOCK_STATUS; }
       else { _nextInterfaceRow(); }
       break;
     }
     case InterfaceStep::CLOCK_STATUS: {
       const uint16_t expected=_interface.desired.clockOutput==ClockOutput::LED1?1:0;
-      if ((receipt.frames[readIndex].value&1U)!=expected) {
+      if (!isA(_config.variant) && (receipt.frames[readIndex].value&1U)!=expected) {
         _interfaceResult.mismatch={true,true,31,0x0308,1,expected,receipt.frames[readIndex].value};
         return _finishInterface(Status::Error(Err::CONFIG_MISMATCH,"Clock route status mismatch"));
       }
@@ -284,6 +334,22 @@ Status DP8382x::_advanceInterface(Status status,bool called,const MdioBatch& bat
     case InterfaceStep::COMPLETE: break;
   }
   return _interfaceStep==InterfaceStep::COMPLETE?_finishInterface(Status::Ok()):Status::Error(Err::IN_PROGRESS,"Interface pass in progress");
+}
+
+void DP8382x::_interfacePassCost(bool verifyOnly,uint32_t& frames,uint32_t& callbacks) const noexcept {
+  const auto& settings=_interface.desired;
+  frames=settings.clockOutput==ClockOutput::RECOVERED?3U:2U; callbacks=1;
+  for (uint8_t row=0;row<INTERFACE_ROWS;++row) {
+    uint16_t address=0,mask=0,value=0;
+    if (_interfaceRowValue(row,address,mask,value)) {
+      const uint32_t readFrames=address<=0x1FU?1U:4U;
+      frames+=verifyOnly?readFrames:readFrames*2U+1U;
+      callbacks+=verifyOnly?1U:2U;
+    }
+  }
+  if (settings.observePin31 || (!isA(_config.variant) && settings.clockOutput!=ClockOutput::UNOWNED)) {
+    frames+=4; ++callbacks;
+  }
 }
 
 Status DP8382x::configureInterface(const InterfaceSettings& settings,InterfaceResult& result,const IoBudget& budget) noexcept {
@@ -300,12 +366,8 @@ Status DP8382x::configureInterface(const InterfaceSettings& settings,InterfaceRe
   const auto quiet=_checkQuiet(); if (!quiet.ok()) { return quiet; }
   // Compute this finite complete pass before replacing retained desired intent.
   const auto old=_interface; _interface.desired=settings;
-  uint32_t frames=2,callbacks=1;
-  for (uint8_t row=0;row<INTERFACE_ROWS;++row) {
-    uint16_t address=0,mask=0,value=0;
-    if (_interfaceRowValue(row,address,mask,value)) { frames+=address<=0x1FU?3U:9U; callbacks+=2; }
-  }
-  if (settings.clockOutput!=ClockOutput::UNOWNED) { frames+=4; ++callbacks; }
+  uint32_t frames=0,callbacks=0;
+  _interfacePassCost(false,frames,callbacks);
   _interface=old;
   if (budget.maxFrames==0U || budget.maxFrames<frames) { return interfaceTimeout(TimeoutDetail::FRAME_BUDGET); }
   uint64_t raw=0,upper=0;

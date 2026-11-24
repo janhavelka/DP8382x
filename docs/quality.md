@@ -1,5 +1,15 @@
 # Quality and hardware link-loss controls
 
+AI/AE admit FLD in declared and observed MII. MLT3, low SNR or descrambler
+selection requires energy or RX-error detection, including with raw threshold
+overrides. The owner disables detectors before programming thresholds and
+verifies the recipe before enabling CR3[10,3:0]. Bits 6:5 remain preserved.
+Use `strapSnapshot()` for the sampled Strap11 level. RX-error with MLT3
+(option 4) and energy alone (option 5) are distinct board choices. TI recommends
+disabling energy detection when baseline wander is expected. The rollover
+guide recommends Strap11 HIGH for its EMC result. Each board needs its own
+timing and EMC measurements. A profiles selecting TX controls are gated.
+
 The [typed control CLI](cli.md#typed-controls) applies quality and link-loss settings and exposes raw or cached MSE through the existing owner.
 
 `startConfigureQuality` admits an explicit `QualitySettings` profile into the

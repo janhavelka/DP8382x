@@ -15,7 +15,7 @@ using Driver = ::DP8382x::DP8382x;
 using test::Fault;
 struct ResetWire {
   struct Phy {
-    uint16_t id1{0x2000}, id2{0xA131}, bmcr{0x3100}, phyrcr{0};
+    uint16_t id1{0x2000}, id2{test::enhancedId2()}, bmcr{0x3100}, phyrcr{0};
     uint16_t sor1{0x1234}, sor2{0x5678}, vod{0x8400}, led{0};
     uint16_t selector{0}, address{0};
     unsigned resetReads{0};
@@ -56,7 +56,7 @@ struct ResetWire {
         phy.led = 0;
         phy.bmcr = 0x3100;
         if (resampleOnHard) {
-          phy.id2 = 0xA111;
+          phy.id2 = test::basicId2();
           phy.sor1 = 0x00A5;
           phy.sor2 = 0x005A;
         }
@@ -147,7 +147,7 @@ void traces() {
     CHECK(result.status.ok() && result.commandAccepted && result.protocolComplete && result.persistentRestored);
     CHECK(!result.cleanupOwed && !result.temporaryMayBeActive);
     CHECK(result.identity.declaredVariant == test::declaredVariant && result.identity.id1 == 0x2000);
-    CHECK(result.identity.id2 == (reset == ResetKind::HARD ? 0xA111 : 0xA131));
+    CHECK(result.identity.id2 == (reset == ResetKind::HARD ? test::basicId2() : test::enhancedId2()));
     CHECK(result.identity.mode == (reset == ResetKind::HARD ? OperatingMode::BASIC : OperatingMode::ENHANCED));
     CHECK(result.straps.sor1 == (reset == ResetKind::HARD ? 0x00A5 : 0x1234));
     CHECK(result.straps.sor2 == (reset == ResetKind::HARD ? 0x005A : 0x5678));
@@ -215,7 +215,7 @@ void traces() {
     const auto token = start(driver, reset);
     for (unsigned i = 0; i < 5; ++i) CHECK(driver.pollOperation(token).inProgress());
     CHECK(driver.operationSnapshot().phase == OperationPhase::WAIT);
-    bus.phys[1].id2 = 0xA111;
+    bus.phys[1].id2 = test::basicId2();
     bus.stickyReset = false;
     const auto status = drain(driver, bus, token);
     CHECK(status.is(Err::DEVICE_MISMATCH) && status.detail == static_cast<int32_t>(IdentityDetail::MODE_MISMATCH));
@@ -423,7 +423,7 @@ void failures() {
   noEffect.now = floor;
   CHECK(clean.operationSnapshot().busQuietValid); // Cached anchor remains until owner admission.
   CHECK(clean.readIdentityAt(0, id1, id2, {100000, 2}, &invoked).ok());
-  CHECK(invoked && id1 == 0x2000 && id2 == 0xA131 && noEffect.frames == before + 2U);
+  CHECK(invoked && id1 == 0x2000 && id2 == test::enhancedId2() && noEffect.frames == before + 2U);
   CHECK(clean.readIdentityAt(1, id1, id2, {100000, 2}, &invoked).ok());
   CHECK(invoked && noEffect.frames == before + 4U);
 
@@ -659,12 +659,78 @@ void ownership() {
   CHECK(other.readClause22(2, word, {100000, 1}).ok() && word == 0x2000);
   CHECK(bus.acquisitions == bus.releases && !bus.locked);
 }
+// SNLS783A tables 8-18, 8-32/33. Every observation uses a fresh selection.
+void access() {
+  auto [bus, driver] = test::BoundDriver<Controller>{};
+  const IoBudget io{100000, 32};
+  auto token = start(driver, ResetKind::NONE);
+  CHECK(drain(driver, bus, token).ok());
+  CHECK(take(driver, token).identity.declaredVariant == test::declaredVariant);
+  uint16_t word = 0xCAFE;
+  const auto before = bus.frames;
+  CHECK(driver.readClause22(3, word, io).ok() && word == 0xA134);
+  wire(bus, before, FrameKind::READ, 3);
+  CHECK(driver.readMmd(31, 0x030E, word, io).ok() && word == 0x4A40);
+  indirect(bus, before + 1, 0x030E, false);
+  CHECK(driver.readMmd(7, 0x003C, word, io).ok());
+  wire(bus, before + 5, FrameKind::WRITE, 0x0D, 7);
+  wire(bus, before + 6, FrameKind::WRITE, 0x0E, 0x003C);
+  wire(bus, before + 7, FrameKind::WRITE, 0x0D, 0x4007);
+  wire(bus, before + 8, FrameKind::READ, 0x0E);
+  CHECK(bus.frames == before + 9);
+  const auto clocks = bus.clocks, calls = bus.calls;
+  word = 0xCAFE;
+  for (const auto reg : {0x01U,0x06U,0x0CU,0x0DU,0x0EU,0x0FU,0x10U,0x17U,0x1DU,0x1EU}) {
+    CHECK(driver.readClause22(reg, word, io).is(Err::INVALID_PARAM));
+    CHECK(driver.readMmd(31, reg, word, io).is(Err::INVALID_PARAM));
+  }
+  CHECK(driver.readMmd(31, 0x04D3, word, io).is(Err::INVALID_PARAM));
+  CHECK(driver.readMmd(3, 0x003C, word, io).is(Err::INVALID_PARAM));
+  CHECK(driver.writeClause22(0x18, 2, io).is(Err::INVALID_PARAM));
+  CHECK(driver.writeMmd(31, 0x18, 2, io).is(Err::INVALID_PARAM));
+  CHECK(driver.modifyMmd(31, 0x18, 2, 2, io).is(Err::INVALID_PARAM));
+  DeviceIdentity identity = driver.identitySnapshot();
+  CHECK(word == 0xCAFE && identity.declaredVariant == test::declaredVariant);
+  CHECK(driver.capabilities().valid && driver.strapSnapshot().sor2Valid);
+  EvidenceSnapshot evidence;
+  EeeSnapshot eee;
+  PowerSnapshot power;
+  WakeSnapshot wake;
+  PinResult pins;
+  LpiResult lpi;
+  const auto blocked = {
+    driver.startConfigureEee({}, budget(), token), driver.readEeeStatus(eee, io),
+    driver.startLpi({}, lpi, io), driver.startConfigurePower({}, budget(), token),
+    driver.readPowerStatus(power, io), driver.configurePins({}, pins, io),
+    driver.startConfigureWake({}, budget(), token), driver.readWakeStatus(wake, io),
+    driver.startConfigureAnalog({}, budget(), token), driver.startCableAutorunAcquire(budget(), token),
+    driver.startInterruptTest(budget(), token), driver.modifyInterruptEnables(0x12, 1, 1, io),
+    driver.modifyWakeControl(1, 1, false, io), driver.startLoopback({}, budget(), token),
+    driver.acquireEvidence(evidenceBit(EvidenceSource::FLDS) | evidenceBit(EvidenceSource::MISR1), evidence, io)
+  };
+  for (const auto status : blocked) {
+    CHECK(status.is(Err::INVALID_CONFIG) && status.detail == static_cast<int32_t>(ConfigDetail::SOURCE_GATE));
+  }
+  CHECK(bus.calls == calls && bus.clocks == clocks);
+  CHECK(driver.acquireEvidence(evidenceBit(EvidenceSource::FLDS), evidence, io).ok());
+  CHECK(bus.frames == before + 10 && evidence.samples[3].samples == 1);
+  // The opposite generation responds at the same address. No further
+  // observation may write selectors or read a target after this failed probe.
+  bus.phys[1].id2 = 0xA131;
+  CHECK(driver.readIdentity(identity, io).is(Err::DEVICE_MISMATCH));
+  CHECK(!driver.strapSnapshot().sor1Valid && !driver.capabilities().valid);
+  const auto rejectedAt = bus.frames;
+  CHECK(driver.readMmd(31, 0x030E, word, io).is(Err::DEVICE_MISMATCH));
+  CHECK(bus.frames == rejectedAt);
+  bus.phys[1].id2 = 0xA134;
+  CHECK(driver.readIdentity(identity, io).ok() && bus.frames == rejectedAt + 2);
+}
 } // namespace
 
 int main(int argc, char** argv) {
   const test::Suite suites[] = {
     {"traces", traces}, {"floor", floor}, {"failures", failures},
-    {"timing", timing}, {"external", external}, {"ownership", ownership}
+    {"timing", timing}, {"external", external}, {"ownership", ownership}, {"access", access}
   };
   return test::runVariantSuites(argc, argv, suites);
 }

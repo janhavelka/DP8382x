@@ -73,6 +73,7 @@ Status DP8382x::_validateEee(const EeeSettings& settings) const noexcept {
 }
 
 Status DP8382x::startConfigureEee(const EeeSettings& settings,const OperationBudget& budget,OperationToken& token) noexcept {
+  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (settings.advertisement!=0U && settings.advertisement!=2U) {
     return Status::Error(Err::INVALID_PARAM,"EEE advertisement is zero or two",static_cast<int32_t>(ParamDetail::VALUE_WIDTH));
   }
@@ -208,6 +209,7 @@ Status DP8382x::_advanceEee(Status status,bool called,const MdioBatch& batch) no
 }
 
 Status DP8382x::readEeeStatus(EeeSnapshot& snapshot,const IoBudget& budget) noexcept {
+  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
   if (_active || _polling || (_operation.state==OperationState::RUNNING &&
       (_operation.phase==OperationPhase::WAIT || _result.nextPage.requested))) {
@@ -313,6 +315,7 @@ Status DP8382x::stopLpi(LpiResult& result,const IoBudget& budget) noexcept {
   return _setLpi(false,{},result,budget);
 }
 Status DP8382x::_setLpi(bool enabled,const LpiOptions& options,LpiResult& result,const IoBudget& budget) noexcept {
+  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
   if (_active || _polling || _operation.state==OperationState::RUNNING) { return eeeBusy(BusyDetail::OPERATION_ACTIVE); }
   if (_operation.state==OperationState::RESULT_PENDING) { return eeeBusy(BusyDetail::RESULT_PENDING); }

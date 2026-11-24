@@ -1,5 +1,15 @@
 # DP83826I and DP83826E hardware validation
 
+For each of DP83826AI and DP83826AE, retain the BOM grade, ID1/2, revision,
+mode, address, SOR1/SOR2 and live RCSR before testing. Record POR/RESET_N,
+the reference clock and first allowed SMI edge. Measure 10/100 link outcomes,
+both RMII clock roles, pin 30 PLL/recovered clocks with a known partner and
+isolation effects on dependent clocks. For MII FLD capture Strap11, CR3,
+0117, 0131, the single collected FLDS word, fault stimulus and independently
+timed link loss. Qualify baseline-wander and EMC conditions separately for
+each identified board. AI and AE physical results are pending. [Procedure
+vectors](registers/dp83826a-procedures.json)
+
 The campaign runner implements the cases below through the shared CLI.
 Prompt 50 exercises them using the compiled host fixture, offline replay and
 an injected serial backend. Use an identified, approved fixture for physical

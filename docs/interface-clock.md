@@ -1,5 +1,14 @@
 # Clock, interface and repeater configuration
 
+On AI/AE, initialization records the raw startup straps, which the interface
+owner checks against SOR2. RCSR supplies the live mode. RMII owns IO_CFG1[8].
+Pin 30 clock selection uses LED0_GPIO_CFG[5:0] at 0303, preserving the upper
+bits. PLL selects 29h and recovered 125 MHz selects 31h with a live partner.
+The owner must admit the pins, reference and clock change. Set `observePin31`
+for an ENHANCED status read at 0308. The snapshot retains 0303 at index 8,
+with validity bit 8. Programming the pin 31 mux remains source-gated.
+[Register tables and ownership](registers/dp83826a-procedures.json)
+
 The [typed control CLI](cli.md#typed-controls) applies one interface and repeater side per owner and exposes cached clock and mode evidence.
 
 `configureInterface` applies one complete `InterfaceSettings` profile with a
@@ -102,7 +111,7 @@ additionally admits the documented IO_CFG1 selection:
 
 The pass verifies the owned control and the read-only clock/LED availability
 status. BASIC rejects these runtime clock-output requests because the detailed
-override is ENHANCED-only. `PLL` and `RECOVERED` requests remain explicitly
+override is ENHANCED-only. On original I/E, `PLL` and `RECOVERED` requests remain explicitly
 source-gated: selectors are named, but the detailed mux tables do not provide
 an unambiguous usable activation route. No input or tri-state clock-disable
 encoding is invented from prose.

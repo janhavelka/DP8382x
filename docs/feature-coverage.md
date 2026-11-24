@@ -1,4 +1,10 @@
-# DP83826I feature coverage
+# DP83826 feature coverage
+
+The DP83826AI/AE software covers the 21 procedures assigned to prompt 58.
+The exact IDs, grade-specific executing tests and limits are in the
+[implementation record](reports/implementation/58-a-core-link.md). Prompt 59
+owns the 31 diagnostic and optional procedures. Hardware evidence is pending
+for each grade.
 
 DP83826E shares the original I register map, including the 10BASE-Te sequence
 and the prohibition on local remote-fault advertisement. The primary matrix

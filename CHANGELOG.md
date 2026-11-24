@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add declared DP83826AI and DP83826AE revision-4 core/link support. Initialization
+  retains per-epoch strap evidence, link acquisition captures the remote-fault
+  mirror before BMSR and fast-drop configuration validates detector dependencies.
+  The interface owner can select the pin 30 clock and observe ENHANCED pin 31.
+  The CLI, simulator and runner preserve the ordering grade. [Variant coverage](docs/variants.md)
+
 - Add declared DP83826E selection to the portable core, ESP-IDF adapter, CLI
   and simulated runner. I and E share revision-1 procedures and retain their
   declared suffix in identity and fixture evidence. Forced robust crossover

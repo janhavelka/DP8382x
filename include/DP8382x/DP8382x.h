@@ -86,6 +86,7 @@ struct Capabilities {
   bool copper{false}; ///< Copper medium documented for the accepted part.
   bool fiber{false}; ///< Fiber medium documented for the accepted part.
   bool gigabit{false}; ///< Gigabit speed documented for the accepted part.
+  Variant declaredVariant{Variant::UNKNOWN}; ///< Board ordering grade associated with this accepted capability set.
 };
 
 /// @brief Current negotiation evidence, separate from link and transport success.
@@ -767,6 +768,9 @@ struct NextPageResult {
 };
 /// @brief Raw captured straps, never assumed pin levels or decoded BASIC/ENHANCED defaults.
 struct StrapEvidence {
+  /// @brief Return captured A Strap11 (pin 19). Use a current valid SOR1 sample.
+  /// @return True when SOR1 bit 11 was high.
+  bool strap11High() const noexcept { return (sor1 & 0x0800U) != 0U; }
   uint16_t sor1{0}; ///< Latest returned SOR1 word, subject to sor1Valid.
   uint16_t sor2{0}; ///< Latest returned SOR2 word, subject to sor2Valid.
   bool sor1Valid{false}; ///< A valid SOR1 word has been captured.
@@ -898,10 +902,10 @@ enum class RmiiClock : uint8_t {
 /// @brief Clock/LED1 route ownership; uncertain selector paths stay rejected.
 enum class ClockOutput : uint8_t {
   UNOWNED, ///< Preserve the existing route and another pin owner's override.
-  CLKOUT25, ///< ENHANCED IO_CFG1[6]=0; application owns clock consumers.
-  LED1, ///< ENHANCED IO_CFG1[6]=1; release the CLKOUT consumer first.
-  PLL, ///< Representable source-gated request; no proved activation mux.
-  RECOVERED ///< Representable source-gated request; no proved activation mux.
+  CLKOUT25, ///< Original ENHANCED IO_CFG1[6]=0; application owns clock consumers.
+  LED1, ///< Original ENHANCED IO_CFG1[6]=1; release the CLKOUT consumer first.
+  PLL, ///< A pin 30 PLL clock, LED0_GPIO_CFG[5:0]=0x29.
+  RECOVERED ///< A pin 30 recovered 125 MHz clock, requires a live partner.
 };
 /// @brief Persistent exact-part electrical intent; SNLS647I tables 8-73/79..81/86.
 struct AnalogSettings {
@@ -1062,7 +1066,7 @@ struct InterfaceSettings {
   bool oddNibbleDisable{false}; ///< CR2[1]: one DISABLES odd-nibble detection.
   bool collisionFullDuplex{false}; ///< PHYSCR[4]: also generate COL in full duplex, MII only.
   bool shortIpg{false}; ///< GENCFG[3]: 120ns rather than 200ns minimum IPG.
-  ClockOutput clockOutput{ClockOutput::UNOWNED}; ///< Optional ENHANCED clock/LED1 route ownership.
+  ClockOutput clockOutput{ClockOutput::UNOWNED}; ///< Optional declared-part clock route ownership.
   bool isolationOwned{false}; ///< Explicitly own BMCR[10], separately from power-down.
   bool isolate{false}; ///< Isolate MAC; stops RMII-leader 50MHz output, not SMI.
   bool maintenanceAdmitted{false}; ///< Owner permits disruptive interface transitions.
@@ -1073,6 +1077,7 @@ struct InterfaceSettings {
   bool clockChangeApproved{false}; ///< Owner approves clock removal AND reconnection; neither is implicit.
   uint8_t referenceClockMHz{0}; ///< Actual declared reference 25MHz or 50MHz, matching the requested role.
   bool repeaterWiringAdmitted{false}; ///< Crossed data/RX_DV and single-driver clock wiring are application-owned.
+  bool observePin31{false}; ///< Request ENHANCED A pin 31 status (0308 bit 0) during interface verification.
 };
 /// @brief Retained interface words and intent, distinct from observed working traffic.
 struct InterfaceSnapshot {
@@ -1081,8 +1086,8 @@ struct InterfaceSnapshot {
   MacInterface observedInterface{MacInterface::UNKNOWN}; ///< Decoded RCSR mode, independent of desired wiring.
   bool modeValid{false}; ///< RCSR mode word was successfully observed; stale still marks old context.
   ConfigurationTrust trust{ConfigurationTrust::UNKNOWN}; ///< Stable-owned-field verification only.
-  uint16_t raw[8]{}; ///< CR1,CR2,PHYSCR,GENCFG,IO_CFG1,RCSR,BMCR,CLK_OUT_LED_STATUS.
-  uint8_t validMask{0}; ///< Successfully retained raw words; failed requested words become invalid.
+  uint16_t raw[9]{}; ///< CR1,CR2,PHYSCR,GENCFG,IO_CFG1,RCSR,BMCR,pin 31 status,A pin 30 control.
+  uint16_t validMask{0}; ///< Successfully retained raw words; failed requested words become invalid.
   bool observedStale{true}; ///< Partial, failed or invalidated proof; old words remain historical.
   bool timeValid{false}; ///< Completion timestamp validity; zero can be valid.
   uint64_t observedAtUs{0}; ///< Conservative completion upper bound in microseconds.
@@ -1296,6 +1301,9 @@ struct OperationSnapshot {
 /// @note No allocation, SDK, hidden retries or work without caller polling.
 /// Maintenance writes return a cached failed/rejected readIdentity status before
 /// any callback. Successful reprobe or explicit rebind clears that restriction.
+/// AI/AE admit initialization, link, FLD/recovery and interface/clock control.
+/// Optional diagnostic, power, pin, wake, interrupt and EEE procedures are gated
+/// for these grades. A rejected A identity permits only identity reads until reprobe.
 /// Existing owner-attested maintenance before the first probe remains allowed;
 /// stale successful identity withdraws capabilities but permits that maintenance.
 class DP8382x {
@@ -1847,6 +1855,10 @@ public:
   /// @return Invalid until a fresh identity is accepted; no link/settings/qualification claim.
   Capabilities capabilities() const noexcept;
 
+  /// @brief Return the cached strap capture under the application owner without I/O.
+  /// @return Independently valid SOR words for this binding and reset epoch.
+  StrapEvidence strapSnapshot() const noexcept { return _straps; }
+
   /// @brief Read one nonconsuming Clause 22 word using one terminal owned batch.
   /// @param[in] registerAddress Five-bit address, validated before narrowing.
   /// @param[out] value Assigned only on complete valid in-budget success.
@@ -2029,6 +2041,7 @@ private:
   MdioBatch _qualityBatch() const noexcept;
   Status _advanceQuality(Status status, bool called, const MdioBatch& batch) noexcept;
   void _retainQualityWord(uint16_t address, uint16_t value) noexcept;
+  void _qualityPassCost(uint32_t& frames, uint32_t& callbacks) const noexcept;
   bool _qualityRowValue(uint8_t row, uint16_t& address, uint16_t& mask, uint16_t& value) const noexcept;
   void _nextQualityRow() noexcept;
   Status _finishQuality(Status status) noexcept;
@@ -2043,6 +2056,7 @@ private:
   MdioBatch _interfaceBatch() const noexcept;
   Status _advanceInterface(Status status, bool called, const MdioBatch& batch) noexcept;
   void _retainInterfaceWord(uint16_t address, uint16_t value) noexcept;
+  void _interfacePassCost(bool verifyOnly, uint32_t& frames, uint32_t& callbacks) const noexcept;
   bool _interfaceRowValue(uint8_t row, uint16_t& address, uint16_t& mask, uint16_t& value) const noexcept;
   void _nextInterfaceRow() noexcept;
   Status _finishInterface(Status status) noexcept;
@@ -2182,6 +2196,7 @@ private:
   bool _loopRestoreTail{false};
   const detail::PartProfile* _part{nullptr};
   Config _config{};
+  StrapEvidence _straps{};
   HealthSnapshot _health{};
   TransportSnapshot _transport{};
   EvidenceSnapshot _evidence{};
@@ -2238,6 +2253,7 @@ private:
   void _invalidateEvidence() noexcept;
   void _markEvidenceDiscontinuous() noexcept;
   void _invalidateLink() noexcept;
+  static Status _unsupportedFeature() noexcept;
   Status _checkMutation() noexcept;
   Status _checkToken(OperationToken token) const noexcept;
   bool _otherControlsVerified(OperationKind owner) const noexcept;
@@ -2252,6 +2268,7 @@ private:
   Status _checkQuiet() noexcept;
   Status _anchorQuiet() noexcept;
   uint32_t _commandWaitUs() const noexcept;
+  Status _admitProfilePass(const IoBudget& budget, uint64_t upper) const noexcept;
   Status _admitResetStep(const IoBudget& budget, uint64_t raw) const noexcept;
   Status _admitEeeStep(const IoBudget& budget, uint64_t raw) const noexcept;
   void _invalidateResetEvidence(bool configurationLost) noexcept;

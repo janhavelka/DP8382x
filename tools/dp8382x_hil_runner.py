@@ -26,7 +26,7 @@ from dp8382x_hil_campaign import (
 )
 from dp8382x_hil_fixture import FixtureError, FixtureProcess
 from dp8382x_hil_protocol import (
-    TERMINAL_STATUS, U32_MAX, U64_MAX, VARIANTS, Decoder, ProtocolError, Record,
+    PHY_ID2, TERMINAL_STATUS, U32_MAX, U64_MAX, VARIANTS, Decoder, ProtocolError, Record,
     identity, integer, observed_identity, validate_expected_identity,
 )
 from dp8382x_hil_serial import (
@@ -405,8 +405,8 @@ def cases_for(suite, results, pending_samples=()):
                                           "attempted_known": "1", "managed": "0"} and
                       payload(samples[0]) in (
                           {"check": "identity", "id1_valid": "1", "id1": "8192", "id2_valid": "1",
-                           "id2": model, "value": "0", "attempted": "2"}
-                          for model in ("41233", "41265")) and
+                           "id2": str(model), "value": "0", "attempted": "2"}
+                          for model in PHY_ID2[rows[0].fields["variant"]]) and
                       samples[1].fields["check"] == "reset_status" and
                       samples[1].fields["id1_valid"] == samples[1].fields["id2_valid"] == "0" and
                       samples[1].fields["attempted"] == "1" and not int(samples[1].fields["value"]) & 0xC000)
@@ -609,7 +609,14 @@ def baseline_reply(record, command, prior, admission, session):
         raise ProtocolError(f"compiled feature baseline did not complete: {command.text} ({record.primary})")
     campaign = session.campaign
     try:
-        campaign.feature.check_baseline(record, command.text, campaign.declaration["mode"])
+        if campaign.expected["variant"] in ("DP83826AI", "DP83826AE"):
+            spec = campaign.feature.a_control(campaign.spec.id, campaign.declaration["mode"])
+            if spec is None or command.text != spec.baseline.command:
+                raise ProtocolError("unsupported A-generation baseline")
+            check = campaign.feature.operation if spec.form == "operation" else campaign.feature.direct
+            check(record, spec.schema, spec.baseline.fields)
+        else:
+            campaign.feature.check_baseline(record, command.text, campaign.declaration["mode"])
     except AssertionFailed as error:
         raise ProtocolError(str(error)) from error
     return None
@@ -856,7 +863,10 @@ def capture(args, suite, nonce, expected, declaration=None, recorded=None):
                 peer = spec.peer or "an-100-full"
                 if feature:
                     peer = getattr(feature, "PEERS", {}).get(spec.id, "open")
-                    if declaration["polling"] == "exclusive" and session.campaign.feature_gate() is None:
+                    # A mismatched simulated declaration may only establish the
+                    # failed session identity. Keep pre-nonce feature setup idle.
+                    grade_matches = (args.fixture_variant or "DP83826I") == expected["variant"]
+                    if grade_matches and declaration["polling"] == "exclusive" and session.campaign.feature_gate() is None:
                         argv.append("--attest-features")
                         if not args.fixture_deny_maintenance:
                             baseline = session.campaign.baseline

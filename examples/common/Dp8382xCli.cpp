@@ -83,6 +83,8 @@ const char* variantName(Variant variant) {
   switch (variant) {
     case Variant::DP83826I: return "DP83826I";
     case Variant::DP83826E: return "DP83826E";
+    case Variant::DP83826AI: return "DP83826AI";
+    case Variant::DP83826AE: return "DP83826AE";
     default: return "unknown";
   }
 }
@@ -672,7 +674,7 @@ void Processor::profileHelp() {
       "     Optional: wait, or <partner-limit 1..16> <packed four-digit hex pages>\r\n"
       "  forced <%s> <%s> <%s> <flags>\r\n"
       "  Flags: 1 robust, 2 coupled pair/polarity mirror, 4 extended full duplex.\r\n"
-      "  DP83826I/E forced mode requires robust. Extended duplex excludes forced 10 and native half duplex.\r\n",
+      "  DP83826I/E/AI/AE forced mode requires robust. Extended duplex excludes forced 10 and native half duplex.\r\n",
       unsigned(CONFIG[MODES].min), unsigned(CONFIG[MODES].max), CONFIG[PAUSE].enumValues.data(),
       CONFIG[PAIR].enumValues.data(), unsigned(CONFIG[FLAGS].min), unsigned(CONFIG[FLAGS].max),
       CONFIG[SPEED].enumValues.data(), CONFIG[DUPLEX].enumValues.data(), CONFIG[PAIR].enumValues.data());

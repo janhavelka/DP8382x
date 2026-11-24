@@ -49,6 +49,18 @@ class PinTranscript(unittest.TestCase):
         self.assertEqual((repeater["primary"], shift["primary"]), ("INVALID_CONFIG", "INVALID_CONFIG"))
         self.assert_silent(before, after)
 
+    def test_a_pin30_recovered_clock_and_independent_pin31_read(self):
+        for grade in ("DP83826AI", "DP83826AE"):
+            command = b"controls interface rmii25 0 0 1518 50 16 recovered off\n"
+            out = invoke(command + b"controls interface-status\n", "--variant", grade, ATTEST, TRACE)
+            for row in records(out.stdout):
+                self.assertEqual((row["primary"], row["valid_mask"], row["clk_led_status"], row["pin30_mux"]),
+                                 ("OK", "511", "0", "49"))
+            self.assertIn(b"mdio-write 1f 0303 0031", out.stderr.splitlines())
+            down = invoke(command, "--variant", grade, "--partner", "down", ATTEST, TRACE)
+            self.assertEqual(records(down.stdout)[0]["primary"], "INVALID_CONFIG")
+            self.assertNotIn(b"mdio-write 1f 0303", down.stderr)
+
     def test_mii_compatibility_clock_and_isolation(self):
         result = invoke(b"controls interface mii 0 0 1518 50 15 led1 on\n"
                         b"controls interface-status\n", "--mii", ATTEST, TRACE)

@@ -1,4 +1,4 @@
-#include "support/Check.h"
+#include "support/PartSelection.h"
 #include <DP8382x/DP8382x.h>
 #include "../examples/portable/LinkStatus.h"
 
@@ -10,7 +10,11 @@ namespace {
 using namespace DP8382x;
 using Driver = ::DP8382x::DP8382x;
 
-// Independent literal SNLS647I controller: tables 8-19..26, 8-34 and 8-43.
+// Literal controller for SNLS647I tables 8-19..26/34/43 and SNLS783A
+// tables 8-20..27/35/44. Revision 4 mirrors the BMSR fault before clearing.
+constexpr uint8_t originalTrace[] = {1, 1, 16, 0, 4, 5, 6, 25, 1, 16};
+constexpr uint8_t aTrace[] = {16, 1, 1, 0, 4, 5, 6, 25, 16, 1};
+
 // Script positions are physical reads, including destructive reads. No device
 // masks or implementation decode helpers are used to construct expected values.
 struct Controller {
@@ -28,7 +32,7 @@ struct Controller {
   Controller() { words[0] = 0x3100; words[4] = 0x0101; words[5] = 0x0101; words[6] = 1; }
   Config config(uint32_t phy = 1) noexcept {
     Config result;
-    result.variant = Variant::DP83826I;
+    result.variant = test::declaredVariant;
     result.interface = MacInterface::RMII;
     result.phyAddress = phy;
     result.transport = {this, execute, clock, {8, 4, 1}};
@@ -41,7 +45,7 @@ struct Controller {
   }
   uint16_t read(uint8_t reg) noexcept {
     if (reg == 2) return 0x2000;
-    if (reg == 3) return 0xA131;
+    if (reg == 3) return test::enhancedId2();
     if (reg == 0) words[0] = static_cast<uint16_t>(words[0] & 0x7DFFU);
     if (reg == 31) words[31] = 0;
     if (reg == 14 && selector == 0x401F) {
@@ -52,11 +56,18 @@ struct Controller {
     if (sampling) {
       const auto position = sampleIndex++;
       if (static_cast<int>(position) == changeAt) down = !down;
-      if (reg == 1) return static_cast<uint16_t>((words[1] &
-          ((down || (firstLow && position == 0)) ? 0xFFFBU : 0xFFFFU)) ^
-          (position == 8 ? finalBasicXor : 0));
+      if (reg == 1) {
+        const auto word = words[1];
+        if (test::aGrade()) {
+          words[1] &= 0xFFEFU; // BMSR[4] and its PHYSTS[6] indication clear on BMSR read.
+          words[16] &= 0xFFBFU;
+        }
+        const bool latchedLow = firstLow && position == (test::aGrade() ? 1U : 0U);
+        return static_cast<uint16_t>((word & ((down || latchedLow) ? 0xFFFBU : 0xFFFFU)) ^
+            (position == (test::aGrade() ? 9U : 8U) ? finalBasicXor : 0));
+      }
       if (reg == 16) return static_cast<uint16_t>((words[16] & (down ? 0xFFFEU : 0xFFFFU)) ^
-          (position == 9 ? finalStatusXor : 0));
+          (position == (test::aGrade() ? 8U : 9U) ? finalStatusXor : 0));
     }
     const auto value = words[reg];
     if (reg == 6) words[6] = static_cast<uint16_t>(value & 0xFFFDU);
@@ -178,20 +189,26 @@ void readPlan() {
   Controller bus; Driver driver; initialize(driver, bus); up(bus);
   bus.firstLow = true;
   bus.words[6] = 3;
+  if (test::aGrade()) {
+    bus.words[1] |= 0x10U;
+    bus.words[16] |= 0x40U;
+    bus.words[5] |= 0x2000U; // Partner RF advertises independently of latched fault evidence.
+  }
   const auto first = bus.frames;
   const auto call = bus.calls;
   const auto started = bus.now;
   const auto before = driver.evidenceSnapshot();
   LinkSnapshot result;
   CHECK(refresh(driver, bus, result).ok());
-  constexpr uint8_t expected[] = {1, 1, 16, 0, 4, 5, 6, 25, 1, 16};
+  const auto* expected = test::aGrade() ? aTrace : originalTrace;
   CHECK(bus.frames == first + 10 && bus.calls == call + 2);
   CHECK(bus.sizes[call] == 8 && bus.sizes[call + 1] == 2);
   for (unsigned i = 0; i < 10; ++i) CHECK(bus.trace[first + i] == expected[i]);
   CHECK(result.valid && !result.stale && result.linkUp);
-  CHECK(result.rawBmsrFirst == 0x0020 && result.rawBmsrCurrent == 0x0024);
-  CHECK(result.rawPhystsFirst == 0x0015 && result.rawPhystsFinal == 0x0015);
+  CHECK(result.rawBmsrFirst == (test::aGrade() ? 0x0030 : 0x0020) && result.rawBmsrCurrent == 0x0024);
+  CHECK(result.rawPhystsFirst == (test::aGrade() ? 0x0055 : 0x0015) && result.rawPhystsFinal == 0x0015);
   CHECK(result.rawBmsrFinal == 0x0024 && result.rawAner == 3);
+  CHECK(result.rawAnlpar == (test::aGrade() ? 0x2101 : 0x0101));
   CHECK(result.resolvedModeValid && result.speed == LinkSpeed::MBPS_100 && result.duplex == Duplex::FULL);
   CHECK(result.pauseValid && !result.pauseRx && !result.pauseTx);
   CHECK(result.negotiation == NegotiationState::COMPLETE);
@@ -267,7 +284,7 @@ void coherence() {
     const auto frames = bus.frames;
     bus.changeAt = position;
     const auto status = refresh(driver, bus, result);
-    if (position <= 1) {
+    if (position <= (test::aGrade() ? 0 : 1)) {
       CHECK(status.ok() && result.linkUp == initialDown);
       CHECK(result.resolvedModeValid == initialDown);
     } else {
@@ -411,7 +428,7 @@ void failures() {
       CHECK(driver.healthSnapshot().totalFailures==health.totalFailures && driver.healthSnapshot().totalSuccess==health.totalSuccess);
     }
   }
-  constexpr uint8_t sourceAt[] = {1,1,16,0,4,5,6,25,1,16};
+  const auto* sourceAt = test::aGrade() ? aTrace : originalTrace;
   for (unsigned failure = 0; failure < 10; ++failure) {
     Controller bus; Driver driver; initialize(driver, bus); up(bus);
     LinkSnapshot result;
@@ -419,6 +436,7 @@ void failures() {
     const auto old = result;
     const auto before = driver.evidenceSnapshot();
     const auto first = bus.frames;
+    bus.words[16] |= 0x40; // Set after baseline. First A BMSR read may fail after consuming the mirror.
     bus.failFrame = static_cast<int>(first + failure);
     CHECK(refresh(driver, bus, result).is(Err::MDIO_TIMEOUT));
     CHECK(bus.frames == first + failure + 1);
@@ -428,6 +446,11 @@ void failures() {
     CHECK(cached.observedSinceUs == old.observedSinceUs);
     CHECK(cached.lastRefreshStatus.is(Err::MDIO_TIMEOUT) && cached.lastRefreshStatus.detail == -19019);
     const auto retained = driver.evidenceSnapshot();
+    if (test::aGrade() && failure == 1U) {
+      CHECK(evidence(retained, EvidenceSource::PHYSTS).raw == 0x0055U);
+      CHECK((evidence(retained, EvidenceSource::PHYSTS).observedOnes & 0x40U) != 0U);
+      CHECK((bus.words[16] & 0x40U) == 0U);
+    }
     for (auto source : {EvidenceSource::BMSR, EvidenceSource::PHYSTS, EvidenceSource::ANER}) {
       const uint8_t reg = source == EvidenceSource::BMSR ? 1 : source == EvidenceSource::PHYSTS ? 16 : 6;
       unsigned consumed = 0;
@@ -612,5 +635,5 @@ int main(int argc, char** argv) {
     {"pause", pause}, {"forced", forced}, {"failures", failures},
     {"budgets", budgets}, {"clocks", clocks}, {"ownership", ownership}
   };
-  return test::runSuites(argc, argv, suites);
+  return test::runVariantSuites(argc, argv, suites);
 }

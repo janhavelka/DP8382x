@@ -8,7 +8,7 @@
 
 namespace DP8382x {
 namespace {
-// SNLS647I tables 8-19/23/26: keep unrelated fields while neutralizing
+// SNLS647I tables 8-19/23/26 and SNLS783A tables 8-20/24/27: preserve unrelated fields while neutralizing
 // reset/restart and the prohibited ANAR remote-fault advertisement.
 constexpr uint16_t ANAR_PRESERVE = 0x5200;
 constexpr uint16_t ANAR_VERIFY = 0xADFF;
@@ -216,7 +216,7 @@ Status DP8382x::modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget
   if (_softwarePowerWord() || !_settings.bmcrValid || (_settings.rawBmcr & 0xCC00U)) {
     return invalidSettings("BMCR maintenance requires an awake normal profile");
   }
-  // Table 8-28 requires CR1[5] in forced mode. A preserved AN bit needs
+  // CR1[5] is required in forced mode (SNLS647I table 8-28, SNLS783A table 8-29). A preserved AN bit needs
   // current readback, just as a preserved robust crossover setting does.
   const bool current = _settings.trust == ConfigurationTrust::VERIFIED && !_settings.observedStale;
   const bool anEnabled = (mask & cmd::MASK_BMCR_AN_ENABLE) != 0 ? (value & cmd::MASK_BMCR_AN_ENABLE) != 0 :

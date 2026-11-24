@@ -64,7 +64,7 @@ struct Controller {
       return badBmcr < 0 ? phy.bmcr : static_cast<uint16_t>(badBmcr);
     case 0x01: return phy.bmsr;
     case 0x02: return 0x2000;
-    case 0x03: return 0xA131;
+    case 0x03: return test::enhancedId2();
     case 0x04: return badAnar < 0 ? phy.anar : static_cast<uint16_t>(badAnar);
     case 0x05: return phy.partnerBase;
     case 0x06: {

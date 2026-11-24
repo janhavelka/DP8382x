@@ -135,7 +135,7 @@ class DecoderTests(unittest.TestCase):
             with self.subTest(overrides=overrides):
                 with self.assertRaises(ProtocolError):
                     decode(frame(**overrides))
-        for value in (True, False, 1, None, "１", "9" * 10000):
+        for value in (True, False, 1, None, "ï¼‘", "9" * 10000):
             with self.subTest(value=repr(value)[:30]):
                 with self.assertRaises(ProtocolError):
                     integer(value, 0, 2)
@@ -212,13 +212,14 @@ class IdentityTests(unittest.TestCase):
         with self.assertRaises(ProtocolError):
             identity(session(firmware=SHA64), {**EXPECT, "firmware": SHA40})
 
-    def test_declared_original_grade_requires_an_exact_match(self):
-        for declared, other in (("DP83826E", "DP83826I"), ("DP83826I", "DP83826E")):
+    def test_declared_grade_requires_an_exact_match(self):
+        for declared, other in (("DP83826E", "DP83826I"), ("DP83826I", "DP83826E"),
+                                ("DP83826AI", "DP83826AE"), ("DP83826AE", "DP83826AI")):
             record = session(variant=declared)
             self.assertEqual(identity(record, {**EXPECT, "variant": declared})["variant"], declared)
             with self.assertRaisesRegex(ProtocolError, "identity mismatch: variant"):
                 identity(record, {**EXPECT, "variant": other})
-        for unsupported in ("DP83826", "DP83826AE", "dp83826e"):
+        for unsupported in ("DP83826", "DP83826A", "dp83826e"):
             with self.assertRaises(ProtocolError):
                 session(variant=unsupported)
             with self.assertRaises(ProtocolError):
@@ -246,7 +247,7 @@ class IdentityTests(unittest.TestCase):
         for overrides in ({"address": True}, {"baud": False}, {"address": "1"}, {"address": 32},
                           {"firmware": "unknown"}, {"firmware": SHA40.upper()}, {"firmware": SHA40[:7]},
                           {"firmware": SHA40, "firmware_prefix": SHA40[:7]}, {"firmware_prefix": SHA40[:6]},
-                          {"firmware_prefix": "1" * 65}, {"backend": "unknown"}, {"target": "not asciié"},
+                          {"firmware_prefix": "1" * 65}, {"backend": "unknown"}, {"target": "not asciiÃ©"},
                           {"firmware": None}, {"firmware_prefix": None}, {"tree": None}, {"sdk": None},
                           {"clock": None}, {"console": None}, {"baud": None},
                           {"wrong_option": None}):

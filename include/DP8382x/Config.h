@@ -14,7 +14,9 @@ namespace DP8382x {
 enum class Variant : uint8_t {
   UNKNOWN,  ///< No ordering part has been declared.
   DP83826I, ///< Original industrial grade, declared by the application.
-  DP83826E  ///< Original extended temperature grade, shares I identity words.
+  DP83826E, ///< Original extended temperature grade, shares I identity words.
+  DP83826AI, ///< A industrial grade, declared independently of the revision-4 ID.
+  DP83826AE ///< A extended grade, sharing both mode-dependent IDs with AI.
 };
 
 /// @brief Observed PHY identity mode; it is never a software selector.
@@ -103,11 +105,18 @@ struct LinkSettings {
   bool extendedFullDuplex{false};        ///< CR2[5] opt-in; incompatible with forced 10, no partner preflight.
 };
 
+/// @brief Identify an A-generation declaration without probing the PHY.
+/// @param[in] variant Application-declared ordering part.
+/// @return True for either grade sharing the SNLS783A map.
+inline constexpr bool isA(Variant variant) noexcept {
+  return variant == Variant::DP83826AI || variant == Variant::DP83826AE;
+}
+
 /// @brief Check exact supported part membership without I/O or a clock.
 /// @param[in] variant Declared ordering part, including possible invalid casts.
-/// @return True for an implemented original DP83826I or DP83826E declaration.
+/// @return True for a selectable original or A ordering part.
 inline constexpr bool isValidVariant(Variant variant) noexcept {
-  return variant == Variant::DP83826I || variant == Variant::DP83826E;
+  return variant == Variant::DP83826I || variant == Variant::DP83826E || isA(variant);
 }
 
 /// @brief Check Clause 22 PHY-address width without narrowing the input.

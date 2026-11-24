@@ -108,7 +108,7 @@ void testLink() {
           const bool valid = speed != 0U && duplex != 0U && (flags & 30U) == 0U &&
               !(speed == 1U && (flags & 64U) != 0U);
           expectLink(settings, valid ? Err::OK : Err::INVALID_CONFIG);
-          for (const auto part : {Variant::DP83826I, Variant::DP83826E}) {
+          for (const auto part : {Variant::DP83826I, Variant::DP83826E, Variant::DP83826AI, Variant::DP83826AE}) {
             CHECK(validateLinkSettings(part, settings).ok() == (valid && settings.crossover.robust));
           }
           // AN requires no contradictory inactive forced intent; robust remains optional.
@@ -139,14 +139,15 @@ void testLink() {
   }
   for (unsigned raw = 0; raw < 256U; ++raw) {
     const auto part = static_cast<Variant>(raw);
-    const bool original = raw == 1U || raw == 2U;
-    CHECK(isValidVariant(part) == original);
+    const bool supported = raw >= 1U && raw <= 4U;
+    CHECK(isA(part) == (raw == 3U || raw == 4U));
+    CHECK(isValidVariant(part) == supported);
     uint8_t maximum = 0xFF;
-    CHECK(strapAddressMax(part, maximum) == original);
-    CHECK(maximum == (original ? 7U : 0xFFU));
+    CHECK(strapAddressMax(part, maximum) == supported);
+    CHECK(maximum == (supported ? 7U : 0xFFU));
     LinkSettings settings;
     settings.advertisement.technologyMask = 1U;
-    CHECK(validateLinkSettings(part, settings).ok() == original);
+    CHECK(validateLinkSettings(part, settings).ok() == supported);
   }
   for (uint32_t address = 0; address < 64U; ++address) {
     CHECK(isValidPhyAddress(address) == (address < 32U));

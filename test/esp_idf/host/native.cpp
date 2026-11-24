@@ -30,6 +30,7 @@ struct Fixture {
         bus.mutex = xSemaphoreCreateMutex();
         config.mac = &mac.native; config.bus = &bus;
         config.core.variant = test::declaredVariant;
+        mac.registers[3] = test::enhancedId2();
         config.core.interface = MacInterface::RMII;
         config.core.phyAddress = 0;
         config.core.transport.bounds = {2000, 1000, 1};
@@ -133,7 +134,7 @@ void factory() {
     auto* output = reinterpret_cast<Native*>(0x1234);
     auto invalid = f.config; invalid.core.phyAddress = 32;
     assert(Native::create(invalid, output) == ESP_ERR_INVALID_ARG && output == reinterpret_cast<Native*>(0x1234));
-    invalid = f.config; invalid.core.variant = static_cast<Variant>(3);
+    invalid = f.config; invalid.core.variant = static_cast<Variant>(255);
     assert(Native::create(invalid, output) == ESP_ERR_INVALID_ARG && output == reinterpret_cast<Native*>(0x1234));
     invalid = f.config; invalid.maxObservationMisses = 0;
     assert(Native::create(invalid, output) == ESP_ERR_INVALID_ARG && output == reinterpret_cast<Native*>(0x1234));
@@ -3567,6 +3568,12 @@ int main(int argc, char** argv) {
     else if (suite == "glue_rx_retention") retainedRx(true);
     else if (suite == "stop_failures") stopFailures();
     else if (suite == "partial_start_fence") partialStartFence();
+    else if (suite == "a_lifecycle") {
+        assert(test::declaredVariant == Variant::DP83826AI || test::declaredVariant == Variant::DP83826AE);
+        configurationAdmission();
+        notifications();
+        notificationFailures();
+    }
     else if (suite == "notifications") notifications();
     else if (suite == "notification_failures") notificationFailures();
     else if (suite == "lost_link_event") lostLinkEvent();

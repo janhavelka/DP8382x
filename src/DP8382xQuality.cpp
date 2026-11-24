@@ -37,6 +37,15 @@ bool qualityPrefix(const MdioBatch& batch,const BatchResult& receipt,uint8_t las
 Status DP8382x::_validateQuality(const QualitySettings& settings) const noexcept {
   const auto syntax=qualitySyntax(settings); if (!syntax.ok()) { return syntax; }
   const auto& fld=settings.fastDrop;
+  if (isA(_config.variant)) {
+    if (settings.tx10.owned || settings.tx100.owned) { return _unsupportedFeature(); }
+    if ((fld.causeMask&0x0406U)!=0U && (fld.causeMask&0x0009U)==0U) {
+      return qualityConfig("A-generation MLT3, SNR and descrambler detectors require RX error or energy detection");
+    }
+    if (fld.owned && !_straps.sor1Valid) {
+      return qualityConfig("Fast Link Drop requires current SOR1 strap evidence");
+    }
+  }
   if (!fld.owned && !settings.tx100.owned && !settings.tx10.owned && !settings.recoveryOwned) {
     return qualityConfig("Explicit quality ownership is required");
   }
@@ -141,6 +150,19 @@ void DP8382x::_nextQualityRow() noexcept {
   while (_qualityRow<QUALITY_ROWS && !_qualityRowValue(_qualityRow,address,mask,value)) { ++_qualityRow; }
   _qualityStep=_qualityRow<QUALITY_ROWS?(_qualityVerifyOnly?QualityStep::VERIFY:QualityStep::APPLY):QualityStep::COMPLETE;
   _operation.phase=_qualityStep==QualityStep::APPLY?OperationPhase::RESTORE:OperationPhase::VERIFY;
+}
+void DP8382x::_qualityPassCost(uint32_t& frames,uint32_t& callbacks) const noexcept {
+  // Five direct preflight samples share one acquisition. Each selected
+  // direct/MMD row then requires a read, or an atomic RMW plus readback.
+  frames=5; callbacks=1;
+  for (uint8_t row=0;row<QUALITY_ROWS;++row) {
+    uint16_t address=0,mask=0,value=0;
+    if (_qualityRowValue(row,address,mask,value)) {
+      const uint32_t readFrames=address>0x1FU?4U:address==0x001AU?2U:1U;
+      frames+=_qualityVerifyOnly?readFrames:readFrames*2U+1U;
+      callbacks+=_qualityVerifyOnly?1U:2U;
+    }
+  }
 }
 void DP8382x::_beginQuality(bool verifyOnly) noexcept {
   _interfaceWorking=_pinsWorking=_wakeWorking=_eeeWorking=_powerWorking=_interruptWorking=false;
@@ -265,6 +287,11 @@ Status DP8382x::_advanceQuality(Status status,bool called,const MdioBatch& batch
     case QualityStep::APPLY:
       _qualityStep=QualityStep::VERIFY; _operation.phase=OperationPhase::VERIFY; break;
     case QualityStep::VERIFY:
+      // SNLS783A 8.3.17 specifies the complete MLT3 recipe word, including
+      // the preserved low nibble. Check it before enabling the detectors.
+      if (isA(_config.variant) && address==0x0117U && !_quality.desired.fastDrop.rawThresholdOverride) {
+        mask=0xFFFF; expected=0x0417;
+      }
       if ((receipt.frames[readIndex].value&mask)!=expected) {
         if (!_result.mismatch.valid) {
           _result.mismatch={true,address>0x1FU,static_cast<uint8_t>(address>0x1FU?31:0),address,mask,expected,receipt.frames[readIndex].value};
@@ -279,6 +306,7 @@ Status DP8382x::_advanceQuality(Status status,bool called,const MdioBatch& batch
 
 Status DP8382x::readSignalQuality(SignalQualitySnapshot& snapshot,const IoBudget& budget) noexcept {
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
+  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (_active || _polling || (_operation.state==OperationState::RUNNING &&
       !_qualityWorking && !_configuring && !_cableWorking && !_interruptWorking && !_powerWorking &&
       !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && _operation.phase==OperationPhase::WAIT)) {

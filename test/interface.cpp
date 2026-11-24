@@ -19,6 +19,7 @@ struct Controller {
   std::array<uint16_t,64> mmd3{},mmd7{};
   std::array<Wire,8192> trace{};
   uint16_t selector{0},address{0},id2{0xA131};
+  Variant declared{Variant::DP83826I};
   MacInterface boardInterface{MacInterface::RMII};
   uint64_t now{100};
   unsigned frames{0},calls{0},clocks{0},releases{0},mutations{0},hard{0};
@@ -39,7 +40,7 @@ struct Controller {
     ext[0x030E]=0x8400;ext[0x04A1]=0x1000;ext[0x04D1]=0x0080;
   }
   Config config(uint32_t phy=1) {
-    Config c;c.variant=Variant::DP83826I;c.interface=boardInterface;c.phyAddress=phy;
+    Config c;c.variant=declared;c.interface=boardInterface;c.phyAddress=phy;
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
   static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context);++b.clocks;return b.now; }
@@ -55,7 +56,7 @@ struct Controller {
     if(target==3)return id2;
     if(target==0) { words[0]&=stickyRestart?0x7FFFU:0x7DFFU;return static_cast<uint16_t>(words[0]|(powerPin?0x0800U:0U)); }
     if(target==31)words[31]=0;
-    if(target==0x0308)return static_cast<uint16_t>((ext[0x0302]&0x0040U)!=0U?1U:0U);
+    if(target==0x0308 && (id2&15U)!=4U)return static_cast<uint16_t>((ext[0x0302]&0x0040U)!=0U?1U:0U);
     const auto value=target<32U?words[target]:ext[target];
     if(target==18 || target==19) { words[target]&=0x00FF;words[16]&=0xFF7F; }
     if(target==20) { words[20]&=0xFF00;words[16]&=0xF7FF; }
@@ -633,9 +634,123 @@ void repeater() {
     const auto before=b.frames;InterfaceResult out;CHECK(!d.configureInterface(rejected,out,{1000000,2048}).ok() && b.frames==before);
   }
 }
+template<Variant grade> void aInterface() {
+  // SNLS783A fig. 8-13 and tables 8-13, 8-74/75/79/89. SOR1 is
+  // physical strap evidence, SOR2 records startup mode and RCSR is live.
+  struct Startup { uint16_t id, sor1, sor2; bool allowed; };
+  constexpr Startup startup[]={
+    {0xA114,0,0,true},{0xA114,0x10,0x10,true},{0xA114,0x400,0,false},
+    {0xA114,0x410,0x18,true},{0xA114,0x410,0x10,false},
+    {0xA134,0,0,true},{0xA134,0x100,0,true},{0xA134,2,0,true},
+    {0xA134,0x102,0x10,true},{0xA134,0x122,0x18,true},{0xA134,0x100,0x10,false}
+  };
+  for (const auto& row:startup) {
+    Controller b; Driver d; b.declared=grade; b.id2=row.id;
+    b.ext[0x467]=row.sor1; b.ext[0x468]=row.sor2; ready(d,b);
+    const auto straps=d.strapSnapshot();
+    CHECK(straps.sor1Valid && straps.sor2Valid && straps.sor1==row.sor1 && straps.sor2==row.sor2);
+    auto s=settings(); s.isolationOwned=true; s.clockOutput=ClockOutput::PLL;
+    s.shortIpg=s.oddNibbleDisable=s.repeater=s.rxDv=s.repeaterWiringAdmitted=true;
+    b.ext[0x302]=0x8040; b.ext[0x303]=0xA5FE; b.words[23]=0x4C;
+    const auto calls=b.calls,clocks=b.clocks;
+    InterfaceResult out;
+    const auto status=d.configureInterface(s,out,{1000000,44});
+    if (!row.allowed) {
+      CHECK(status.is(Err::INVALID_CONFIG) && b.calls==calls && b.clocks==clocks);
+      continue;
+    }
+    CHECK(status.ok() && out.transactions==17 && out.attemptedFrames==44);
+    CHECK(b.ext[0x302]==0x8140 && b.ext[0x303]==0xA5E9 && b.words[23]==0x60);
+    CHECK((b.ext[0x456]&8U)!=0 && (b.words[10]&2U)!=0);
+    CHECK(out.interfaceState.raw[8]==0xA5E9 && (out.interfaceState.validMask&0x180U)==0x100U);
+    const auto rcsr=d.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::RCSR)];
+    CHECK((rcsr.observedOnes&0xCU)==0xCU && (rcsr.observedZeros&0xCU)==0xCU);
+    OperationToken verify; const auto before=b.mutations;
+    CHECK(d.startVerify(budget(),verify).inProgress() && drain(d,b,verify).ok());
+    CHECK(take(d,verify).persistentRestored && b.mutations==before);
+    CHECK(b.frames-b.firstFrame[b.calls-9]==19 && b.trace[b.frames-19].target==0);
+  }
+  auto profile=settings(); profile.clockOutput=ClockOutput::RECOVERED;
+  profile.isolationOwned=true; profile.observePin31=true;
+  for (bool statusBit:{false,true}) {
+    Controller b; Driver d; b.declared=grade; b.id2=0xA134; ready(d,b);
+    b.ext[0x303]=0x5AFE; b.ext[0x308]=statusBit?0x8001:0x8000;
+    InterfaceResult out;
+    const auto calls=b.calls;
+    CHECK(d.configureInterface(profile,out,{1000000,48}).is(Err::OPERATION_TIMEOUT) && b.calls==calls);
+    b.words[16]&=0xFFFE;
+    CHECK(d.configureInterface(profile,out,{1000000,49}).is(Err::INVALID_CONFIG) && out.attemptedFrames==3 && !out.mutationPossible);
+    b.words[16]|=1;
+    out=configured(d,b,profile);
+    CHECK(out.attemptedFrames==49 && out.transactions==18 && out.interfaceState.raw[8]==0x5AF1);
+    CHECK((out.interfaceState.validMask&0x180)==0x180 && out.interfaceState.raw[7]==b.ext[0x308]);
+    const auto frames=b.frames,clocks=b.clocks;
+    d.interfaceSnapshot(); d.strapSnapshot(); CHECK(b.frames==frames && b.clocks==clocks);
+    for (auto output:{ClockOutput::CLKOUT25,ClockOutput::LED1}) {
+      auto denied=profile; denied.clockOutput=output;
+      CHECK(d.configureInterface(denied,out,{1000000,49}).is(Err::INVALID_CONFIG) && b.frames==frames && b.clocks==clocks);
+    }
+    OperationToken token; const auto mutations=b.mutations;
+    CHECK(d.startVerify(budget(),token).inProgress() && drain(d,b,token).ok());
+    CHECK(take(d,token).interfaceState.trust==ConfigurationTrust::VERIFIED && b.mutations==mutations);
+    b.ext[0x303]^=0x0008;
+    CHECK(d.startVerify(budget(),token).inProgress() && drain(d,b,token).is(Err::CONFIG_MISMATCH));
+    CHECK(take(d,token).mismatch.registerAddress==0x0303 && b.mutations==mutations);
+  }
+  // The last 13 frames in the 49-frame pass are pin 30 RMW/readback and
+  // passive pin 31 status. Every failure there must retain earlier writes.
+  for (unsigned offset=0;offset<49;++offset) {
+    Controller b; Driver d; b.declared=grade; b.id2=0xA134; ready(d,b);
+    b.failFrame=static_cast<int>(b.frames+offset);
+    InterfaceResult out;
+    CHECK(d.configureInterface(profile,out,{1000000,49}).is(Err::MDIO_TIMEOUT));
+    CHECK(out.attemptedFrames==offset+1 && out.completedFrames==offset && !out.verified && b.calls==b.releases);
+    CHECK(d.operationSnapshot().cleanupOwed==(offset>=4));
+  }
+  for (unsigned call=0;call<18;++call) {
+    Controller b; Driver d; b.declared=grade; b.id2=0xA134; ready(d,b);
+    b.releaseCall=static_cast<int>(b.calls+call);
+    InterfaceResult out;
+    CHECK(d.configureInterface(profile,out,{1000000,49}).is(Err::MDIO_ERROR));
+    CHECK(!out.verified && out.release.detail==-37 && b.releases==b.calls);
+  }
+  for (bool cancelAfterPin:{false,true}) {
+    Controller b; Driver d; b.declared=grade; b.id2=0xA134; ready(d,b);
+    auto pll=profile; pll.clockOutput=ClockOutput::PLL; pll.observePin31=false;
+    configured(d,b,pll);
+    OperationToken token; const auto before=b.frames;
+    CHECK(d.startInitialize({ResetKind::HARD},budget(),token).inProgress());
+    if (cancelAfterPin) {
+      for (unsigned i=0;i<128 && !writes(b,before,0x0303);++i) CHECK(poll(d,b,token).inProgress());
+      CHECK(writes(b,before,0x0303)==1);
+    }
+    const auto frame=b.frames,clocks=b.clocks; CHECK(d.cancel(token).ok());
+    const auto cancelled=take(d,token);
+    CHECK(cancelled.status.is(Err::CANCELLED) && cancelled.cleanupOwed==cancelAfterPin);
+    CHECK(b.frames==frame && b.clocks==clocks);
+    CHECK(d.startInitialize({ResetKind::HARD},budget(),token).inProgress() && drain(d,b,token).ok());
+    const auto replay=take(d,token);
+    CHECK(replay.persistentRestored && replay.interfaceState.trust==ConfigurationTrust::VERIFIED);
+    CHECK((replay.interfaceState.raw[8]&0x003FU)==0x29 && !replay.cleanupOwed);
+  }
+  for (bool follower:{false,true}) for (bool revision:{false,true}) for (unsigned ppm:{50U,100U}) {
+    Controller b; Driver d; b.declared=grade; b.id2=0xA114; ready(d,b);
+    auto s=settings(); s.elasticityCode=1; s.maxFrameBytes=ppm==50?2400:1200;
+    s.clockTolerancePpm=static_cast<uint16_t>(ppm); s.revision10=revision;
+    s.rmiiClock=follower?RmiiClock::FOLLOWER_50MHZ:RmiiClock::LEADER_25MHZ;
+    s.referenceClockMHz=follower?50:25; s.txClockShift=follower; configured(d,b,s);
+    CHECK((b.words[23]&0x1B3U)==(0x21U|(follower?0x180U:0U)|(revision?0x10U:0U)));
+    const auto calls=b.calls,clocks=b.clocks; InterfaceResult out;
+    ++s.maxFrameBytes;
+    CHECK(d.configureInterface(s,out,{1000000,44}).is(Err::INVALID_CONFIG) && b.calls==calls && b.clocks==clocks);
+    --s.maxFrameBytes; s.observePin31=true;
+    CHECK(d.configureInterface(s,out,{1000000,48}).is(Err::INVALID_CONFIG) && b.calls==calls && b.clocks==clocks);
+  }
+}
 } // namespace
 int main(int argc,char** argv) {
   const test::Suite suites[]={{"vectors",vectors},{"admission",admission},{"failures",failures},{"replay",replay},
-    {"ownership",ownership},{"collector",collector},{"timing",timing},{"repeater",repeater}};
+    {"ownership",ownership},{"collector",collector},{"timing",timing},{"repeater",repeater},
+    {"ai",aInterface<Variant::DP83826AI>},{"ae",aInterface<Variant::DP83826AE>}};
   return test::runSuites(argc,argv,suites);
 }

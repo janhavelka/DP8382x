@@ -246,6 +246,27 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("duplicate record", message)
         self.assertEqual((self.path / "late.txt").read_bytes(), b"".join(rows + rows[-1:]))
 
+    def test_selftest_generation_matches_firmware_grade(self):
+        if FIXTURE is None:
+            self.skipTest("compiled fixture supplied by cli_hil_runner CTest")
+        for grade in ("DP83826AI", "DP83826AE"):
+            options = [*EXPECTED, "--variant", grade, "--out-dir", self.path]
+            status, _, error = invoke("run-fixture", FIXTURE, "--suite", "fixture-operations",
+                                      "--nonce", NONCE, *options, "--run", grade, "--fixture-variant", grade)
+            self.assertEqual(status, 0, error)
+            target = self.path / f"{grade}.json"
+            self.assertEqual(runner.verify(target)["cases"][3]["verdict"], "PASS")
+            raw = target.with_suffix(".txt").read_bytes()
+            changed = raw.replace(b"id2=41268 ", b"id2=41265 ")
+            self.assertNotEqual(changed, raw)
+            source = self.path / f"{grade}-wrong.input"
+            source.write_bytes(changed)
+            status, _, error = invoke("verify-transcript", source, "--suite", "fixture-operations",
+                                      "--nonce", NONCE, *options, "--run", grade + "-wrong")
+            self.assertEqual(status, 1, error)
+            evidence = runner.verify(self.path / f"{grade}-wrong.json")
+            self.assertEqual(evidence["cases"][3]["verdict"], "FAIL")
+
     def test_compiled_fixture_and_full_identity(self):
         if FIXTURE is None:
             self.skipTest("compiled fixture supplied by cli_hil_runner CTest")

@@ -105,7 +105,7 @@ inline bool decodeInterface(const FeatureArgs& args, InterfaceSettings& settings
   const int isolate = featureChoice(args[7], "keep|off|on");
   if (wiring < 0 || clock < 0 || isolate < 0 || !featureNumber(args[1], 15, modeFlags) ||
       !featureNumber(args[2], 3, elasticity) || !featureNumber(args[3], UINT32_MAX, bytes) ||
-      !featureNumber(args[4], UINT16_MAX, ppm) || !featureNumber(args[5], 15, controls)) return false;
+      !featureNumber(args[4], UINT16_MAX, ppm) || !featureNumber(args[5], 31, controls)) return false;
   settings.interface = wiring == 0 ? MacInterface::MII : MacInterface::RMII;
   settings.rmiiClock = wiring == 2 ? RmiiClock::FOLLOWER_50MHZ : RmiiClock::LEADER_25MHZ;
   settings.referenceClockMHz = wiring == 2 ? 50 : 25;
@@ -121,6 +121,7 @@ inline bool decodeInterface(const FeatureArgs& args, InterfaceSettings& settings
   settings.oddNibbleDisable = (controls & 2U) != 0;
   settings.collisionFullDuplex = (controls & 4U) != 0;
   settings.shortIpg = (controls & 8U) != 0;
+  settings.observePin31 = (controls & 16U) != 0;
   settings.clockOutput = static_cast<ClockOutput>(clock);
   settings.isolationOwned = isolate != 0;
   settings.isolate = isolate == 2;
@@ -231,10 +232,14 @@ inline void fields(const PinSnapshot& s, FeatureFields& out) {
 /// @param[in] s Cached or direct-operation proof.
 /// @param[out] out Machine fields with validity independent of mode and clock evidence.
 inline void fields(const InterfaceSnapshot& s, FeatureFields& out) {
-  out.set(" desired=%u trust=%u stale=%u valid_mask=%u mode_valid=%u cr1=%u cr2=%u physcr=%u gencfg=%u io_cfg1=%u rcsr=%u bmcr=%u clk_led_status=%u",
+  char clockWord[24]{};
+  if ((s.validMask & 0x100U) != 0U) {
+    std::snprintf(clockWord, sizeof(clockWord), " pin30_mux=%u", unsigned(s.raw[8]));
+  }
+  out.set(" desired=%u trust=%u stale=%u valid_mask=%u mode_valid=%u cr1=%u cr2=%u physcr=%u gencfg=%u io_cfg1=%u rcsr=%u bmcr=%u clk_led_status=%u%s",
           unsigned(s.desiredValid), unsigned(s.trust), unsigned(s.observedStale), unsigned(s.validMask),
           unsigned(s.modeValid), unsigned(s.raw[0]), unsigned(s.raw[1]), unsigned(s.raw[2]), unsigned(s.raw[3]),
-          unsigned(s.raw[4]), unsigned(s.raw[5]), unsigned(s.raw[6]), unsigned(s.raw[7]));
+          unsigned(s.raw[4]), unsigned(s.raw[5]), unsigned(s.raw[6]), unsigned(s.raw[7]), clockWord);
 }
 
 /// @brief Format terminal or cached quality configuration evidence.

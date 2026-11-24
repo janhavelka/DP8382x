@@ -49,7 +49,7 @@ struct Controller {
   }
   uint16_t read(Phy& phy, uint8_t reg) noexcept {
     if (reg == 2) return 0x2000;
-    if (reg == 3) return 0xA131;
+    if (reg == 3) return test::enhancedId2();
     if (reg == 0) {
       if ((phy.words[0] & 0x8000U) != 0) phy.words[0] = 0x3100;
       phy.words[0] = static_cast<uint16_t>(phy.words[0] & 0xFDFFU);

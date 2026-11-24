@@ -28,9 +28,9 @@ struct Controller : test::FakeController {
     first.fill(0xFFFF);
     second.fill(0xFFFF);
     first[1] = 0x2000;
-    second[1] = 0xA111;
+    second[1] = test::basicId2();
     first[2] = 0x2000;
-    second[2] = 0xA131;
+    second[2] = test::enhancedId2();
     duration = 2;
     onFrame = step;
   }
@@ -139,7 +139,7 @@ void noCapabilities(const Driver& driver) {
 }
 void acceptedCapabilities(const Driver& driver) {
   const auto value = driver.capabilities();
-  CHECK(value.valid);
+  CHECK(value.valid && value.declaredVariant == driver.identitySnapshot().declaredVariant);
   CHECK(value.linkModeMask == 0x0FU && value.interfaceMask == 0x03U);
   CHECK(value.copper && !value.fiber && !value.gigabit);
 }
@@ -155,6 +155,12 @@ void literalTrace(const Controller& bus, uint8_t phy) {
 void blockedMutations(Controller& bus, Driver& driver, const Status& expected) {
   const auto calls = bus.callbacks;
   const auto clocks = bus.clocks;
+  if (test::aGrade()) {
+    const auto status = driver.modifyBasicControl(0x1000, 0x1000, {10000, 2});
+    CHECK(status.code == expected.code && status.detail == expected.detail);
+    CHECK(bus.callbacks == calls && bus.clocks == clocks);
+    return;
+  }
   const Status results[] = {
     driver.writeClause22(0x18, 0x12, {10000, 1}),
     driver.writeMmd(31, 0x18, 0x12, {10000, 4}),
@@ -174,7 +180,7 @@ void testDecode() {
       for (const auto requirement : {OperatingMode::UNKNOWN, mode}) {
         Controller bus;
         Driver driver;
-        bus.second[1] = mode == OperatingMode::BASIC ? 0xA111 : 0xA131;
+        bus.second[1] = mode == OperatingMode::BASIC ? test::basicId2() : test::enhancedId2();
         auto config = bus.config();
         config.interface = interface;
         config.requiredMode = requirement;
@@ -188,7 +194,7 @@ void testDecode() {
         CHECK(output.id1Valid && output.id2Valid && output.decodedValid);
         CHECK(output.oui == 0x080028U);
         CHECK(output.model == (mode == OperatingMode::BASIC ? 0x11U : 0x13U));
-        CHECK(output.revision == 1U && output.mode == mode);
+        CHECK(output.revision == (test::aGrade() ? 4U : 1U) && output.mode == mode);
         CHECK(output.acceptance == IdentityAcceptance::ACCEPTED && output.admissionStatus.ok());
         CHECK(!output.stale && output.timeValid && output.observedAtUs == 106U);
         CHECK(sameIdentity(output, driver.identitySnapshot()));
@@ -212,7 +218,7 @@ void testDecode() {
     Controller bus;
     Driver driver;
     bus.first[phy] = 0x2000;
-    bus.second[phy] = 0xA131;
+    bus.second[phy] = test::enhancedId2();
     CHECK(driver.bind(bus.config(phy)).ok());
     DeviceIdentity output;
     CHECK(driver.readIdentity(output, BUDGET).ok());
@@ -222,7 +228,7 @@ void testDecode() {
 
 void testPolicy() {
   // Every raw revision and model code is checked independently of the production
-  // accepted-revision table. A-generation revision 4 is deliberately rejected.
+  // accepted-revision table. Each declaration admits exactly one generation.
   for (uint16_t model = 0; model < 64U; ++model) {
     for (uint16_t revision = 0; revision < 16U; ++revision) {
       Controller bus;
@@ -232,7 +238,7 @@ void testPolicy() {
       auto output = sentinel();
       const auto status = driver.readIdentity(output, BUDGET);
       const bool modelAccepted = model == 0x11U || model == 0x13U;
-      const bool accepted = modelAccepted && revision == 1U;
+      const bool accepted = modelAccepted && revision == (test::aGrade() ? 4U : 1U);
       CHECK(status.ok() == accepted);
       const auto snapshot = driver.identitySnapshot();
       CHECK(snapshot.oui == 0x080028U && snapshot.model == model && snapshot.revision == revision);
@@ -257,15 +263,15 @@ void testPolicy() {
     {0xFFFF, 0, OperatingMode::UNKNOWN, Err::DEVICE_NOT_FOUND, IdentityDetail::ZERO_ID},
     {0x2000, 0, OperatingMode::UNKNOWN, Err::DEVICE_NOT_FOUND, IdentityDetail::ZERO_ID},
     {0x2000, 0xFFFF, OperatingMode::UNKNOWN, Err::DEVICE_NOT_FOUND, IdentityDetail::ONES_ID},
-    {0, 0xA111, OperatingMode::UNKNOWN, Err::DEVICE_NOT_FOUND, IdentityDetail::ZERO_ID},
-    {0xFFFF, 0xA111, OperatingMode::UNKNOWN, Err::DEVICE_NOT_FOUND, IdentityDetail::ONES_ID},
-    {0x2001, 0xA111, OperatingMode::UNKNOWN, Err::DEVICE_MISMATCH, IdentityDetail::WRONG_OUI},
+    {0, test::basicId2(), OperatingMode::UNKNOWN, Err::DEVICE_NOT_FOUND, IdentityDetail::ZERO_ID},
+    {0xFFFF, test::basicId2(), OperatingMode::UNKNOWN, Err::DEVICE_NOT_FOUND, IdentityDetail::ONES_ID},
+    {0x2001, test::basicId2(), OperatingMode::UNKNOWN, Err::DEVICE_MISMATCH, IdentityDetail::WRONG_OUI},
     {0x2000, 0xA511, OperatingMode::UNKNOWN, Err::DEVICE_MISMATCH, IdentityDetail::WRONG_OUI},
     {0x2001, 0xA144, OperatingMode::ENHANCED, Err::DEVICE_MISMATCH, IdentityDetail::WRONG_OUI},
     {0x2000, 0xA144, OperatingMode::ENHANCED, Err::DEVICE_MISMATCH, IdentityDetail::WRONG_MODEL},
-    {0x2000, 0xA114, OperatingMode::ENHANCED, Err::DEVICE_MISMATCH, IdentityDetail::REVISION_NOT_ACCEPTED},
-    {0x2000, 0xA111, OperatingMode::ENHANCED, Err::DEVICE_MISMATCH, IdentityDetail::MODE_MISMATCH},
-    {0x2000, 0xA131, OperatingMode::BASIC, Err::DEVICE_MISMATCH, IdentityDetail::MODE_MISMATCH},
+    {0x2000, static_cast<uint16_t>(test::aGrade() ? 0xA111 : 0xA114), OperatingMode::ENHANCED, Err::DEVICE_MISMATCH, IdentityDetail::REVISION_NOT_ACCEPTED},
+    {0x2000, test::basicId2(), OperatingMode::ENHANCED, Err::DEVICE_MISMATCH, IdentityDetail::MODE_MISMATCH},
+    {0x2000, test::enhancedId2(), OperatingMode::BASIC, Err::DEVICE_MISMATCH, IdentityDetail::MODE_MISMATCH},
     {0x2000, 0xA140, OperatingMode::UNKNOWN, Err::DEVICE_MISMATCH, IdentityDetail::WRONG_MODEL},
     {0x2000, 0xA150, OperatingMode::UNKNOWN, Err::DEVICE_MISMATCH, IdentityDetail::WRONG_MODEL}
   };
@@ -402,7 +408,7 @@ void testLifecycle() {
     acceptedCapabilities(driver);
     CHECK(bus.callbacks == calls);
   }
-  for (const auto variant : {Variant::UNKNOWN, static_cast<Variant>(3), static_cast<Variant>(255)}) {
+  for (const auto variant : {Variant::UNKNOWN, static_cast<Variant>(5), static_cast<Variant>(255)}) {
     auto config = bus.config();
     config.variant = variant;
     const auto clocks = bus.clocks;
@@ -474,7 +480,7 @@ void testLifecycle() {
   CHECK(driver.identitySnapshot().stale);
   noCapabilities(driver);
   CHECK(driver.readIdentity(output, BUDGET).ok());
-  bus.second[1] = 0xA131;
+  bus.second[1] = test::enhancedId2();
   CHECK(driver.readIdentity(output, BUDGET).ok());
   CHECK(output.mode == OperatingMode::ENHANCED && output.model == 0x13U);
   bus.failAt = 1;
@@ -494,7 +500,7 @@ void testLifecycle() {
   const auto rejected = driver.readIdentity(output, BUDGET);
   CHECK(rejected.is(Err::DEVICE_MISMATCH));
   blockedMutations(bus, driver, rejected);
-  bus.second[1] = 0xA111;
+  bus.second[1] = test::basicId2();
   CHECK(driver.readIdentity(output, BUDGET).ok());
   CHECK(driver.writeClause22(0x18, 0x12, {10000, 1}).ok());
   bus.second[1] = 0xA140;
@@ -511,7 +517,7 @@ void testLifecycle() {
   CHECK(observed.readIdentity(output, BUDGET).ok());
   CHECK(!observed.evidenceSnapshot().samples[1].stale);
   CHECK(!observed.evidenceSnapshot().configurationDirty);
-  changed.second[1] = 0xA131;
+  changed.second[1] = test::enhancedId2();
   CHECK(observed.readIdentity(output, BUDGET).ok());
   CHECK(observed.evidenceSnapshot().samples[1].stale);
   CHECK(observed.evidenceSnapshot().configurationDirty);
@@ -608,7 +614,7 @@ void testScan() {
   CHECK(driver.healthSnapshot().totalSuccess == health.totalSuccess);
   CHECK(driver.healthSnapshot().totalFailures == health.totalFailures);
   CHECK(driver.readIdentity(identity, BUDGET).ok());
-  CHECK(bus.lastRequest.phyAddress == 1U && identity.id2 == 0xA111);
+  CHECK(bus.lastRequest.phyAddress == 1U && identity.id2 == test::basicId2());
   invoked = true;
   CHECK(driver.readIdentityAt(31, id1, id2, {10000, 1}, &invoked).is(Err::OPERATION_TIMEOUT));
   CHECK(!invoked && driver.transportSnapshot().totalBatches == scanned.totalBatches + 1U);

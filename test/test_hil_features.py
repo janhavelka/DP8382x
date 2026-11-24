@@ -139,6 +139,27 @@ class CompiledFeatureTests(unittest.TestCase):
                     self.assertNotEqual(replay(data, decoded(altered)), "PASS")
         self.assertGreater(mutations, 30_000)
 
+    def test_a_feature_cases_require_their_generation_profiles(self):
+        for grade in ("DP83826AI", "DP83826AE"):
+            args = ("--fixture-variant", grade, "--variant", grade)
+            for name in ("quality", "interface-mii", "interface-rmii25", "interface-rmii50",
+                         "repeater-leader", "repeater-follower", "eee", "loopback-digital"):
+                with self.subTest(grade=grade, case=name):
+                    result, data, _ = self.run_case(name, "-" + grade, args)
+                    row, = data["cases"]
+                    if name in ("eee", "loopback-digital"):
+                        self.assertEqual((result, row["verdict"], len(data["commands"])), (2, "BLOCKED", 1))
+                    else:
+                        self.assertEqual((result, row["verdict"], row["restoration"]["verdict"]),
+                                         (0, "PASS", "PASS"), data["issues"])
+
+            mismatch = ("--fixture-variant", "DP83826AE" if grade == "DP83826AI" else "DP83826AI",
+                        "--variant", grade)
+            result, data, raw = self.run_case("quality", "-swap-" + grade, mismatch)
+            self.assertEqual(result, 2)
+            self.assertEqual(len(data["commands"]), 1)
+            self.assertTrue(all(row.cmd == "session" for row in decoded(raw)))
+
     def test_e_feature_cases_use_the_shared_cli_and_keep_source_gates(self):
         for name, (_, module) in feature_modules().items():
             with self.subTest(case=name):

@@ -1,5 +1,10 @@
 # Exact identity and foundational capabilities
 
+DP83826AI and DP83826AE require ID1 `2000` with ID2 `A114` (BASIC) or
+`A134` (ENHANCED), as specified in SNLS783A tables 8-22/23. A contradictory
+mode or revision retains the observed identity and ends initialization before
+selector writes. The application declaration distinguishes the grades.
+
 During a running initialization, identity reads use OP-14 admission: reset WAIT
 rejects them locally; other between-poll reads remain admitted. A failed or
 changed live identity freezes that initialization before another mutation.

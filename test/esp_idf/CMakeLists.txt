@@ -298,3 +298,8 @@ function(add_native_tick_rate rate)
 endfunction()
 add_native_tick_rate(100 ${native_suites})
 add_native_tick_rate(333 ${native_suites})
+
+foreach(grade IN ITEMS ai ae)
+  add_test(NAME ${grade}_native_lifecycle COMMAND dp8382x_native_host_tests a_lifecycle --dp83826${grade})
+  set_tests_properties(${grade}_native_lifecycle PROPERTIES TIMEOUT 30)
+endforeach()

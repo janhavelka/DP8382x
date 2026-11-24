@@ -50,7 +50,7 @@ class FixtureTranscript(unittest.TestCase):
                   b"configuration validate forced 100 full mdi 0\n"
                   b"configuration validate forced 100 full mdi 1\n"
                   b"configuration validate an 15 none auto 0\ncached transport\n")
-        for variant in ("DP83826I", "DP83826E"):
+        for variant in ("DP83826I", "DP83826E", "DP83826AI", "DP83826AE"):
             rows = records(run(stream, "--variant", variant))
             self.assertEqual([r["variant"] for r in rows[1:4]], [variant] * 3)
             self.assertEqual((rows[4]["valid"], rows[4]["modes"], rows[4]["interfaces"]), ("1", "15", "3"))

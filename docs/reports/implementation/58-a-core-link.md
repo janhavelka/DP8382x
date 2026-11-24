@@ -1,9 +1,10 @@
 # Prompt 58 · DP83826AI/AE identity, reset and link
 
-**IN PROGRESS. Phase (a) assessment complete.** The application can currently
-select I or E. Phase (b) can implement the A core procedures from the
-verified source record. AI and AE need separate software test rows and
-separate identified fixtures. [Prompt requirements](../../prompts/58-a-core-link.md)
+**IN PROGRESS. Phase (b) implemented.** The portable core and native owner accept
+declared DP83826AI and DP83826AE for the 21 procedures below. The two grades
+share revision-4 identity words. Prompt 58 still requires independent review
+and final verification. Prompt 59 owns optional and diagnostic controls.
+[Prompt requirements](../../prompts/58-a-core-link.md)
 
 ## Phase (a) assessment
 
@@ -228,3 +229,125 @@ ctest --test-dir build/p53-baseline -R '^(e_native_(factory|configuration_admiss
   prompt 71. Each grade needs an identified and authorized fixture for
   strap sampling, reset/clock timing, link behavior and electrical/EMC claims.
   Phase (b) has no blocking dependency on these measurements.
+
+## Phase (b) implementation
+
+The wrapper verified clean `main` at `4bcfe04ebb2b01147e0e4876b518912c0a844ee3`
+equal to `origin/main`. The lead implemented selection, map gates, strap
+lifetime, pass admission, tests and integration. Two high-reasoning agents
+implemented disjoint interface/quality and link/consumer paths. Both tasks
+required reasoning about destructive reads, partial results and exact-part
+source evidence. The lead retained shared declarations, registrations, this
+report and the commit request.
+
+The phase (a) sibling table still applies. On this run MB85RC, TMP1x2 and
+TUSB32x were clean at the listed revisions. The lead reopened their live
+declarations, source, example/CLI, test and runner conventions. The compact
+part table, exhaustive enum validation and independent declaration versus
+observed identity checks carry over. Automatic grade selection cannot
+distinguish either pair of temperature grades. The two PDF cross-checks listed
+under phase (a) passed again. They compared 79 detailed tables and 427 rows
+per generation and reproduced the eight FLD vectors. No workflow exists at
+this checkpoint. ESP-IDF host verification used v6.1
+`fff9895c82d744c7237be8847347bdd1b07c6643`.
+
+Each test suffix below runs with both the `ai_` and `ae_` prefix. The CTests
+execute with Release-active checks. The stage uses the existing register and
+procedure modules and extends their current fake controllers.
+
+| Procedure IDs | Executing grade-specific CTest suffixes | Evidence |
+| --- | --- | --- |
+| `identify` | `identity_decode`, `identity_policy`, `identity_failures`, `operation_initialization` | Retained declaration, two modes, every model/revision encoding, partial pair, rejected requirements and wrong generation before any write. `foundation_link` covers all 256 enum encodings. |
+| `direct_access`, `mmd_access` | `reset_access` | Direct holes, aliases, selector exclusions, DEVAD 7 data function 4007, original-only raw writes and optional typed owners rejected, once-collected FLDS and passive cached evidence. |
+| `initialize_10base`, `pcs_reset`, `hard_reset`, `restart` | `operation_initialization`, `operation_failures`, `reset_traces`, `reset_floor`, `reset_failures`, `reset_timing` | Literal command and completion reads, distinct reset domains, reidentification, 030E=4A40, partial batches, deadlines, cancellation, recovery and retained bus silence on uncertain HARD. NONE takes 20 frames and a commanded initialization takes 32 on first-clear with no owned profiles. |
+| `external_reset` | `reset_external`, `reset_ownership`, `native_lifecycle` | External invalidation, owner/pin preparation and independent board timing bounds. The native owner requires a 25 us minimum assertion, waits for clock/power readiness including its 100 us margin, and preserves 50 ms POR and 2 ms post-reset SMI floors. |
+| `configure_an`, `next_page_exchange` | `negotiation_vectors`, `negotiation_pages`, `negotiation_page_failures`, `negotiation_page_boundaries`, `negotiation_replay` | ANAR prohibits local bit 13, D8 toggle, ACK, null page, partial receive and cleanup. |
+| `configure_forced`, `extended_link_configure` | `forced_matrix`, `forced_transitions`, `forced_verification_outcomes`, `forced_replay`, `forced_power_pin` | Robust CR1 through the forced interval, BMCR and duplex restrictions, MDIX and unrelated bits through apply/replay. |
+| `observe_link` | `link_read_plan`, `link_failures`, `link_coherence`, `link_forced`, `link_pause`, `native_lifecycle` | Both PHYSTS-first bookends, partial mirror retention, coherent tuple, forced BMCR source, parallel detect, pause matrix and separate native notification failures. |
+| `configure_fast_drop`, `link_recovery_configure` | `quality` | All eight strap vectors, pin 19/SOR1 and failed SOR2, reset PHYSCR bits, MII precondition, detector prerequisites, 0117/0131 thresholds, separate CR1[7] and CR3[6:5] preservation. Combined admitted FLD/recovery case takes 32 frames/11 callbacks to apply and 15/5 to verify with current straps. |
+| `mii_configure`, `rmii_configure`, `clock_configure`, `repeater_configure`, `compatibility_configure`, `isolation_configure` | `interface` | Raw straps, sampled startup mode and live RCSR are distinct. Pin 30 control at 0303, optional ENHANCED pin 31 observation at 0308, clock-role/wiring checks, IPG, odd nibble and isolation readbacks. RMII with PLL and owned isolation takes 44/17 to apply and 19/9 to verify. Recovered clock adds one PHYSTS frame; requested status adds a four-frame transaction. |
+
+`strapSnapshot()` retains the independently valid current SOR prefix. A new
+capture, reset, invalidated device or changed identity withdraws previous
+epoch validity. The operation result also retains historical evidence with
+its own stale flag. Capabilities carry the accepted declaration. The interface
+snapshot extends the original word indexes with pin 30 control at index 8.
+Finite profile-pass admission checks the selected rows in polling and
+resamples the available allowance at terminal callback entry.
+
+The CLI, compiled fixture and Python runner validate exact declarations and
+raw words. Each A grade runs the 21 core campaign cases outside observe/INT,
+observe in both modes, and six admitted interface/repeater/quality cases.
+The simulated selftest and offline replay reject wrong-generation or
+swapped-grade evidence. Pin 30 programming preserves the reserved IO_CFG1
+bit and pin 31 observation grants no mux write. Existing I/E artifact schema
+and fitted P4 board declarations remain in use. The adapter link fixture
+takes an explicit build-time grade so AI and AE can be linked independently.
+
+The seven source dispositions in phase (a) retain their limits. In particular,
+FLD readback and Strap11 evidence establish the programmed selection only.
+An authorized board with a known fault stimulus is required for timing and
+EMC evidence. Prompt 59 retains its 31 procedures and 56 exceptional writes,
+including the distinct A EEE recipe. Physical evidence for both grades is
+**NOT RUN**. Exported package consumption and remote CI are **NOT RUN** in
+phase (b). Prompt 71 owns remote CI.
+
+### Phase (b) local verification
+
+Windows x86-64, GNU 15.1.0, Ninja, CMake 4.0.1 and Python 3.12.10.
+The host configure step verified 45 SDK inputs at the pin above. Supply the
+process-scoped SDK safe.directory setting from the prompt 53 report for the
+SDK identity check. The first configure encountered Git's SDK ownership check
+and succeeded with that exact checkout setting. The first focused build found
+signed test literals under `-Werror=sign-conversion`; the raw-address vector
+now uses unsigned literals. The integrated suite caught the earlier two-part
+expectation in `foundation_link`. Its 256-value check now exercises both A
+declarations, both original declarations and every unsupported encoding.
+
+```powershell
+cmake -S . -B build/p53-baseline -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON -DDP8382X_BUILD_PINNED_IDF_TESTS=ON -DDP8382X_PINNED_IDF_PATH=C:/esp/v6.1/esp-idf
+cmake --build build/p53-baseline --parallel 6
+ctest --test-dir build/p53-baseline --no-tests=error --output-on-failure -j 3
+ctest --test-dir build/p55-ubsan -R '^(ai|ae)_' --no-tests=error --output-on-failure -j 3
+cmake -S test/consumer -B build/p58-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF
+cmake --build build/p58-consumer --parallel 3
+ctest --test-dir build/p58-consumer --no-tests=error --output-on-failure
+python -B -m unittest discover -s test -p 'test_*.py' -q
+python -B tools/verify_ledger.py
+python -B tools/verify_references.py
+python -B tools/check_doxygen.py
+python -B scripts/generate_version.py check
+git diff --check
+```
+
+The final integrated **Release host PASS** was 791/791 in 141.91 seconds.
+The interruption registration completed in 141.83 seconds. The procedure/test
+join above matches the 21 owned ledger IDs and all named per-grade CTests.
+Both implementations were joined before handoff. Phase (c) should review
+the actual checkpoint, particularly map exclusions, reset-epoch validity,
+consuming order, interface/quality admission and grade-aware offline replay.
+
+The Release UBSan build used `-fsanitize=undefined -fsanitize-trap=undefined`
+for C and C++. Its rebuilt identity, operation, reset, forced, negotiation,
+link, quality, interface and native host executables passed all 94 A-specific
+tests. Both tests-OFF portable consumers passed. Standalone Python discovery
+ran 269 tests with 55 compiled-fixture skips; the Release CTests supply those
+fixtures. The ledger check passed, including all 79 detailed A tables. Version, whitespace, references (29 payloads, 27 extracts, 2363 links)
+and Doxygen passed (294 generated pages and both negative fixtures).
+
+ESP32-P4 **SDK link PASS**. The adapter fixtures explicitly select AI and AE.
+The basic and owner applications use their fitted I declaration. All four
+ELF and binary pairs contain the entry SHA with dirty worktree identity.
+The two fixture binaries also contain the selected grade strings. The builds
+used the process-local SDK environment and cache from prompt 53 and the
+repository wrapper. Reproduce with
+`scripts/idf.cmd -C <project> -B <dir> -D IDF_TARGET=esp32p4 -D SDKCONFIG=<dir>/sdkconfig build`,
+adding `-D DP8382X_FIXTURE_VARIANT=DP83826AI` or `DP83826AE` for the adapter
+link fixture. Short directories below are under `C:/esp/build/dp8382x-loop`.
+
+| Project and directory | Binary bytes | Binary SHA-256 |
+| --- | ---: | --- |
+| AI adapter fixture, `53l` | 391216 | `d2763a653597804d71e88ee3bb77000098662afb84da5b27b9aa37a417c1f990` |
+| AE adapter fixture, `56l` | 391216 | `a148fa5c86a875d7a4439680df4ffcc82e1f3e78da15be4833facbde578b9d9a` |
+| I basic example, `56b` | 688240 | `8344fc3bfa89992fa2ad947cf2fb120f416264aa4f8c8fc6e51ad54867901976` |
+| I owner example, `56o` | 566336 | `9b7bf0940adda98de618126094fc5a215ab2ec7a4aaa3bf688f586a886c653d3` |

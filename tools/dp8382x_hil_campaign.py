@@ -1,14 +1,18 @@
-"""Original DP83826I/E campaign plans and assertions shared by every runner backend."""
+"""DP83826 campaign plans and assertions shared by every runner backend."""
 
 from dataclasses import dataclass
 from functools import cache
 import ipaddress
 
 if __package__:
-    from .dp8382x_hil_protocol import COMMON_FIELDS, TERMINAL_STATUS, U32_MAX, U64_MAX, ProtocolError, identity, integer
+    from .dp8382x_hil_protocol import (
+        COMMON_FIELDS, PHY_ID2, TERMINAL_STATUS, U32_MAX, U64_MAX, ProtocolError, identity, integer,
+    )
     from .dp8382x_hil_serial import fixture_identifier
 else:
-    from dp8382x_hil_protocol import COMMON_FIELDS, TERMINAL_STATUS, U32_MAX, U64_MAX, ProtocolError, identity, integer
+    from dp8382x_hil_protocol import (
+        COMMON_FIELDS, PHY_ID2, TERMINAL_STATUS, U32_MAX, U64_MAX, ProtocolError, identity, integer,
+    )
     from dp8382x_hil_serial import fixture_identifier
 
 
@@ -282,6 +286,12 @@ class Campaign:
         self.declaration = declaration
         self.expected = expected
         self.backend = expected["backend"]
+        self.a_feature = self.feature is not None and expected["variant"] in ("DP83826AI", "DP83826AE")
+        self.a_control = None
+        if self.a_feature:
+            if self.spec.group == "controls":
+                self.a_control = self.feature.a_control(self.spec.id, declaration["mode"])
+            self.baseline = (self.a_control.baseline.command,) if self.a_control else ()
         self.primary_record = None
         self.interventions = []
         self.last = None
@@ -298,6 +308,8 @@ class Campaign:
 
     def feature_gate(self):
         """Return the prerequisite that prevents the selected feature from running."""
+        if self.a_feature and self.a_control is None:
+            return "A-generation feature procedure awaits qualification"
         if (self.expected["target"], self.backend) != ("host", "sim-mdio"):
             return "qualified native feature grant and independent measurement route unavailable"
         if self.spec.id in getattr(self.feature, "MII_CASES", ()) and self.expected["interface"] != "MII":
@@ -415,8 +427,9 @@ class Campaign:
 
     def check_device(self, row):
         basic = self.declaration["mode"] == "basic"
-        require(matches(row.fields, id1_valid=1, id1=0x2000, id2_valid=1, id2=0xA111 if basic else 0xA131,
-                        decoded_valid=1, oui=524328, model=17 if basic else 19, revision=1,
+        id2 = PHY_ID2[self.expected["variant"]][0 if basic else 1]
+        require(matches(row.fields, id1_valid=1, id1=0x2000, id2_valid=1, id2=id2,
+                        decoded_valid=1, oui=524328, model=17 if basic else 19, revision=id2 & 0xF,
                         mode=self.declaration["mode"], identity_state="accepted", stale=0,
                         identity_status="OK", identity_detail=0), row,
                 f"declared {self.expected['variant']} identity is not current")

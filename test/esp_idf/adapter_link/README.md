@@ -1,5 +1,10 @@
 # ESP32-P4 adapter link fixture
 
+The default build declares DP83826E. Add `-D DP8382X_FIXTURE_VARIANT=DP83826AI`
+or `-D DP8382X_FIXTURE_VARIANT=DP83826AE` to the build command to link the
+same adapter with the corresponding revision-4 declaration. Each image keeps
+the board operation gate closed at boot. [Grade and mode checks](../../../docs/identity.md)
+
 Build from the repository root with the pinned side-by-side SDK:
 
 ```bat
@@ -19,7 +24,7 @@ of the release version read from `library.json`. Archives report `unknown`.
 
 No flashing or board operation is part of prompts 37-38. Before deliberately enabling
 `runBoardFixture`, review the final board/netlist, authorize the identified fixture,
-verify the declared DP83826E, enhanced mode/address 0, continuous valid clocks, reset circuitry,
+verify the selected ordering grade, enhanced mode/address 0, continuous valid clocks, reset circuitry,
 and measure or replace the conditional transport bounds. The source's
 `{fixedUs=2000, frameUs=1500, clockLagUs=1}` values are **unmeasured conditional
 application assumptions**, as are `notificationUs=101000` and the aggregate

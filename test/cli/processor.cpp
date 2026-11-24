@@ -280,7 +280,7 @@ void retention() {
 void routes() {
   // Discovery uses the board declaration before any probe. Explicit scanning
   // also works when the application has supplied no ordering grade.
-  for (const auto variant : {Variant::DP83826I, Variant::DP83826E, Variant::UNKNOWN}) {
+  for (const auto variant : {Variant::DP83826I, Variant::DP83826E, Variant::DP83826AI, Variant::DP83826AE, Variant::UNKNOWN}) {
     Stream unprobed;
     unprobed.attachLive(variant);
     unprobed.send("connection discover\n");

@@ -5,7 +5,7 @@ transport implementation. [Initialization](initialization.md) documents NONE/PCS
 retained operation evidence and separately admitted restoration. There is no
 generic job engine or desired profile inferred from raw maintenance writes.
 
-The framework-independent C++17 DP8382x core supports declared DP83826I and DP83826E and is
+The framework-independent C++17 DP8382x core supports declared DP83826I/E and the DP83826AI/AE core/link procedures. It is
 shared by portable applications and a native ESP-IDF adapter. Shipped behavior
 is recorded in [implementation progress](implementation-progress.md); design
 contracts are not placeholder APIs or claims of physical support.
@@ -15,9 +15,8 @@ reviewed model and revision set, interface mask and forced crossover policy.
 I and E use one transaction owner, register policy and initialization sequence.
 The shared model words preserve the board declaration. [Identity](identity.md)
 
-The A-generation research specifies the same ownership boundaries for AI and
-AE. Future implementations select revision 4 from a declared grade, observe
-mode and straps, then apply the register map for that generation. In particular,
+The A-generation profiles require revision 4 and preserve the declaration
+through reset, strap capture and restored configuration. On AI and AE,
 FLD configuration owns CR3 mask `040F`, while the collector owns the
 consuming FLDS read. Clock, IRQ and wake procedures that need a pin share its
 board-assigned mux owner. The 27-write EEE sequence includes a write after

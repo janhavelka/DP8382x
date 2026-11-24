@@ -377,6 +377,7 @@ Status DP8382x::_advancePins(Status status,bool called,const MdioBatch& batch) n
 }
 
 Status DP8382x::configurePins(const PinSettings& settings,PinResult& result,const IoBudget& budget) noexcept {
+  if (isA(_config.variant)) { return _unsupportedFeature(); }
   const auto syntax=pinSyntax(settings); if (!syntax.ok()) { return syntax; }
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
   if (_active || _polling || _operation.state==OperationState::RUNNING) { return pinBusy(BusyDetail::OPERATION_ACTIVE); }

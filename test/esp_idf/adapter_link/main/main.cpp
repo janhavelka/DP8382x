@@ -137,7 +137,7 @@ void runFixture() {
   if (!fixture.mac) { releaseBeforeInstall(); return; }
 
   PhyConfig config{};
-  config.core.variant = Variant::DP83826E;
+  config.core.variant = Variant::DP8382X_FIXTURE_VARIANT;
   config.core.interface = MacInterface::RMII;
   config.core.requiredMode = OperatingMode::ENHANCED;
   config.core.phyAddress = 0;
@@ -265,8 +265,8 @@ void runFixture() {
 } // namespace
 
 extern "C" void app_main(void) {
-  std::printf("DP8382x adapter link fixture: SDK=%s target=%s git=%s tree=%s\n",
-              esp_get_idf_version(), CONFIG_IDF_TARGET, FIXTURE_GIT_COMMIT, FIXTURE_GIT_TREE);
+  std::printf("DP8382x adapter link fixture: SDK=%s target=%s variant=%s git=%s tree=%s\n",
+              esp_get_idf_version(), CONFIG_IDF_TARGET, DP8382X_FIXTURE_VARIANT_NAME, FIXTURE_GIT_COMMIT, FIXTURE_GIT_TREE);
   if (runBoardFixture) runFixture();
   else std::puts("Board execution disabled; linked-image evidence only; physical qualification NOT RUN.");
 }

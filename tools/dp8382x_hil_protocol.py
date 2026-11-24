@@ -33,7 +33,11 @@ _REVISION = re.compile(r"[0-9a-f]{7,64}", re.ASCII)
 _PAGES = re.compile(r"(?:[0-9A-F]{4}|----)+", re.ASCII)
 _TREES = {"clean", "dirty", "unknown"}
 _INTERFACES = {"MII", "RMII"}
-VARIANTS = frozenset({"DP83826I", "DP83826E"})
+# SNLS647I and SNLS783A PHYIDR2: BASIC then ENHANCED. AI and AE have
+# indistinguishable wire words. The firmware/board declaration binds the grade.
+PHY_ID2 = {"DP83826I": (0xA111, 0xA131), "DP83826E": (0xA111, 0xA131),
+           "DP83826AI": (0xA114, 0xA134), "DP83826AE": (0xA114, 0xA134)}
+VARIANTS = frozenset(PHY_ID2)
 
 
 class ProtocolError(ValueError):

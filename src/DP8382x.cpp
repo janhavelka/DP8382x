@@ -185,7 +185,7 @@ detail::RegisterMap policyMap(const detail::PartProfile* part) noexcept {
   return part == nullptr ? detail::RegisterMap::DP83826 : part->map;
 }
 const RegisterPolicy* registerPolicy(detail::RegisterMap map, uint32_t address) noexcept {
-  if (map != detail::RegisterMap::DP83826) { return nullptr; }
+  if (map != detail::RegisterMap::DP83826 && map != detail::RegisterMap::DP83826A) { return nullptr; }
   for (const auto& row : REGISTER_POLICY) {
     if (row.address == address) { return &row; }
   }
@@ -197,10 +197,11 @@ bool readable(detail::RegisterMap map, uint32_t address) noexcept {
 }
 uint16_t writableMask(detail::RegisterMap map, uint32_t address) noexcept {
   const auto* row = registerPolicy(map, address);
-  return row == nullptr ? uint16_t{0} : row->writableMask;
+  // The original LEDCR whole-word maintenance contract does not cover A pin routing.
+  return row == nullptr || map == detail::RegisterMap::DP83826A ? uint16_t{0} : row->writableMask;
 }
 bool readableMmd(detail::RegisterMap map, uint32_t devad, uint32_t address) noexcept {
-  if (map != detail::RegisterMap::DP83826) { return false; }
+  if (map != detail::RegisterMap::DP83826 && map != detail::RegisterMap::DP83826A) { return false; }
   if (devad == cmd::DEVAD_VENDOR && readable(map, address)) { return true; }
   for (const auto& row : cmd::EEE_REGISTERS) {
     if (row.devad == devad && row.address == address && row.safeRead) { return true; }
@@ -427,6 +428,7 @@ Status DP8382x::bind(const Config& config) noexcept {
   _evidence = {};
   _counters = {};
   _identity = {};
+  _straps = {};
   _settings = {};
   _link = {};
   _configuring = false;
@@ -477,6 +479,7 @@ Status DP8382x::end() noexcept {
   _evidence = {};
   _counters = {};
   _identity = {};
+  _straps = {};
   _settings = {};
   _link = {};
   _configuring = false;
@@ -592,6 +595,7 @@ Status DP8382x::_readIdentity(DeviceIdentity& identity, const IoBudget& budget, 
   observed.admissionStatus = status;
   if (!status.ok() || (_identity.decodedValid && observed.decodedValid &&
       (_identity.id1 != observed.id1 || _identity.id2 != observed.id2))) {
+    _straps = {};
     _invalidateEvidence(); // Old device-state observations cannot describe a different identity.
   }
   _identity = observed;
@@ -610,7 +614,12 @@ Capabilities DP8382x::capabilities() const noexcept {
   // SNLS647I table 4-3 and 8.4.1: both identity modes support MII and RMII.
   // No fixture availability or incomplete typed-feature implementation is inferred.
   return {true, static_cast<uint8_t>(_part->featureMask & LINK_TECHNOLOGY_MASK),
-          _part->interfaceMask, (_part->featureMask & detail::FEATURE_COPPER) != 0U, false, false};
+          _part->interfaceMask, (_part->featureMask & detail::FEATURE_COPPER) != 0U, false, false, _config.variant};
+}
+
+Status DP8382x::_unsupportedFeature() noexcept {
+  return Status::Error(Err::INVALID_CONFIG, "Procedure unavailable for declared part",
+                       static_cast<int32_t>(ConfigDetail::SOURCE_GATE));
 }
 
 Status DP8382x::_checkMutation() noexcept {
@@ -738,6 +747,7 @@ void DP8382x::_markEvidenceDiscontinuous() noexcept {
 Status DP8382x::invalidateDeviceState(InvalidationReason reason) noexcept {
   if (reason > InvalidationReason::AMBIGUOUS_MUTATION) { return paramError(ParamDetail::ENUM_VALUE); }
   if (_active || _polling) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  _straps = {};
   _invalidateEvidence();
   if (_operation.state == OperationState::RUNNING) {
     _result.identity.stale = true;
@@ -771,6 +781,9 @@ Status DP8382x::acquireEvidence(uint32_t sourceMask, EvidenceSnapshot& evidence,
                                const IoBudget& budget, bool* invoked) noexcept {
   if (invoked) *invoked = false;
   if (sourceMask == 0U || (sourceMask & ~ALL_EVIDENCE) != 0U) { return paramError(ParamDetail::ACCESS_POLICY); }
+  constexpr uint32_t aSources = evidenceBit(EvidenceSource::PHYSTS) | evidenceBit(EvidenceSource::BMSR) |
+      evidenceBit(EvidenceSource::ANER) | evidenceBit(EvidenceSource::FLDS) | evidenceBit(EvidenceSource::RCSR);
+  if (isA(_config.variant) && (sourceMask & ~aSources) != 0U) { return _unsupportedFeature(); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (_active || _polling || (_operation.state == OperationState::RUNNING && !_configuring && !_cableWorking && !_interruptWorking && !_powerWorking && !_eeeWorking && !_wakeWorking && !_pinsWorking && !_interfaceWorking && !_qualityWorking && !_analogWorking && !_electricalWorking &&
       _operation.phase == OperationPhase::WAIT)) { return busy(BusyDetail::OPERATION_ACTIVE); }
@@ -878,6 +891,7 @@ Status DP8382x::clearEvidence() noexcept {
 
 Status DP8382x::modifyInterruptEnables(uint32_t address, uint32_t mask, uint32_t value,
                                       const IoBudget& budget) noexcept {
+  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (address != 0x12U && address != 0x13U) { return paramError(ParamDetail::ACCESS_POLICY); }
   if (mask > 0xFFFFU || value > 0xFFFFU) { return paramError(ParamDetail::VALUE_WIDTH); }
   if (mask == 0U || (mask & ~uint32_t{0x00FF}) != 0U || (value & ~mask) != 0U) {
@@ -896,6 +910,7 @@ Status DP8382x::modifyInterruptEnables(uint32_t address, uint32_t mask, uint32_t
 
 Status DP8382x::modifyWakeControl(uint32_t mask, uint32_t value, bool acknowledge,
                                  const IoBudget& budget) noexcept {
+  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (mask > 0xFFFFU || value > 0xFFFFU) { return paramError(ParamDetail::VALUE_WIDTH); }
   if ((mask == 0U && !acknowledge) || (mask & ~uint32_t{0x17A1}) != 0U || (value & ~mask) != 0U ||
       ((mask & 0x0600U) != 0U && (mask & 0x0600U) != 0x0600U)) {
@@ -1253,6 +1268,17 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
       _operation.phase == OperationPhase::WAIT)))) { return busy(BusyDetail::OPERATION_ACTIVE); }
   if (_transport.clockInvalid) { return configError(ConfigDetail::CLOCK_CONTRACT); }
   if (_stopped) { return busy(BusyDetail::CONTROLLER_QUARANTINED); }
+  if (isA(_config.variant) && _identity.acceptance == IdentityAcceptance::REJECTED) {
+    // A rejected device may be reprobed. Even selector writes for a stable
+    // MMD observation must wait for a matching declaration and identity.
+    for (uint8_t i = 0; i < batch.frameCount; ++i) {
+      const auto& frame = batch.frames[i];
+      if (frame.kind != FrameKind::READ ||
+          (frame.registerAddress != cmd::REG_PHYIDR1 && frame.registerAddress != cmd::REG_PHYIDR2)) {
+        return _identity.admissionStatus;
+      }
+    }
+  }
   CallGuard guard(_active);
   uint64_t before = 0;
   uint64_t upper = 0;
@@ -1263,6 +1289,7 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
   }
   // Scheduling after poll admission can consume the reserve before the callback.
   if (status.ok() && operation) { status = _admitResetStep(budget, before); }
+  if (status.ok() && operation) { status = _admitProfilePass(budget, upper); }
   if (status.ok() && operation) { status = _admitEeeStep(budget, before); }
   if (!status.ok()) {
     return status;
@@ -1724,6 +1751,10 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
 }
 
 void DP8382x::_setInitStep(InitStep step) noexcept {
+  if (step == InitStep::SOR1 || step == InitStep::RESOR1) {
+    _straps = {};
+    // OperationResult keeps historical words with its stale marker.
+  }
   if (step == InitStep::COMMAND && _eeeRecipePending && !_eeeCapabilityChecked) {
     _setEeeStep(EeeStep::CAPABILITY); return;
   }
@@ -1798,6 +1829,25 @@ uint32_t DP8382x::_commandWaitUs() const noexcept {
   return _result.reset == ResetKind::HARD && interval < 2000U ? 2000U : interval;
 }
 
+// Reserve the selected pass before its first consuming preflight read.
+// Re-evaluate at the terminal callback boundary after any scheduling delay.
+Status DP8382x::_admitProfilePass(const IoBudget& budget, uint64_t upper) const noexcept {
+  if (!isA(_config.variant)) { return Status::Ok(); }
+  uint32_t frames = 0, callbacks = 0;
+  if (_qualityWorking && _qualityStep == QualityStep::PREFLIGHT) {
+    _qualityPassCost(frames, callbacks);
+  } else if (_interfaceWorking && _interfaceStep == InterfaceStep::PREFLIGHT) {
+    _interfacePassCost(_interfaceVerifyOnly, frames, callbacks);
+  } else { return Status::Ok(); }
+  if (budget.maxFrames < frames) { return timeout(TimeoutDetail::FRAME_BUDGET); }
+  const auto& bounds = _config.transport.bounds;
+  const uint64_t cost = uint64_t{frames} * bounds.frameUs + uint64_t{callbacks} * bounds.fixedUs;
+  if (upper >= budget.deadlineUs || cost >= budget.deadlineUs - upper) {
+    return timeout(TimeoutDetail::BOUND_ADMISSION);
+  }
+  return Status::Ok();
+}
+
 Status DP8382x::_admitResetStep(const IoBudget& budget, uint64_t raw) const noexcept {
   // Each reset needs its command, the scheduled wait and a first status read.
   // Calibration sends the CDCR clear and HARD command in one callback.
@@ -1868,6 +1918,7 @@ Status DP8382x::_anchorQuiet() noexcept {
 }
 
 void DP8382x::_invalidateResetEvidence(bool configurationLost) noexcept {
+  _straps = {};
   _invalidateLink();
   if (configurationLost) {
     _invalidateEvidence();
@@ -1940,6 +1991,8 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
   status = admitBudget(_operation.remaining, _config.transport.bounds, batch.frameCount, raw, upper);
   if (!status.ok()) { return _finishOperation(status); }
   if (batch.frameCount > maxFrames) { return _yieldOperation(raw); }
+  status = _admitProfilePass(_operation.remaining, upper);
+  if (!status.ok()) { return _finishOperation(status); }
   status = _admitResetStep(_operation.remaining, raw);
   if (!status.ok()) { return _finishOperation(status); }
   bool called = false;
@@ -1969,9 +2022,13 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
       if (_initStep == InitStep::SOR1 || _initStep == InitStep::RESOR1) {
         _result.straps.sor1 = receipt.frames[3].value;
         _result.straps.sor1Valid = true;
+        _straps.sor1 = _result.straps.sor1;
+        _straps.sor1Valid = true;
       } else {
         _result.straps.sor2 = receipt.frames[3].value;
         _result.straps.sor2Valid = true;
+        _straps.sor2 = _result.straps.sor2;
+        _straps.sor2Valid = true;
       }
       _result.straps.stale = true;
       _result.straps.timeValid = false;
@@ -2115,6 +2172,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
       _result.straps.stale = false;
       _result.straps.timeValid = true;
       _result.straps.observedAtUs = _lastTimeUs + _config.transport.bounds.clockLagUs;
+      _straps = _result.straps;
       _setInitStep(_initStep == InitStep::SOR2 ? InitStep::CHECK_RESET :
           (_result.commandRequired && !_result.commandAccepted ? InitStep::COMMAND : InitStep::APPLY)); break;
     case InitStep::CHECK_RESET:

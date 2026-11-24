@@ -36,6 +36,7 @@ Status DP8382x::_validatePower(const PowerSettings& s) const noexcept {
   return Status::Ok();
 }
 Status DP8382x::startConfigurePower(const PowerSettings& settings,const OperationBudget& budget,OperationToken& token) noexcept {
+  if (isA(_config.variant)) { return _unsupportedFeature(); }
   if (settings.request>PowerRequest::DEEP_POWER_DOWN) {
     return Status::Error(Err::INVALID_PARAM,"Invalid power request",static_cast<int32_t>(ParamDetail::ENUM_VALUE));
   }
@@ -215,6 +216,7 @@ Status DP8382x::_advancePower(Status status,bool called,const MdioBatch& batch) 
   return _operation.status;
 }
 Status DP8382x::readPowerStatus(PowerSnapshot& snapshot,const IoBudget& budget) noexcept {
+  if (isA(_config.variant)) { return _unsupportedFeature(); }
   // _execute enforces the same OP14/raw-read guards and collector ownership.
   if (_active || _polling) { return Status::Error(Err::BUSY,"Power owner active",static_cast<int32_t>(BusyDetail::OPERATION_ACTIVE)); }
   auto batch=powerRead(0); batch.frameCount=3;

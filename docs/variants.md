@@ -23,7 +23,7 @@ gates. Later variants must qualify these independently.
 | --- | --- | --- | --- |
 | DP83826I, including DP83826IRHBR | First implementation target | [SNLS647I, Aug 2025](reference/source/TI-DP83826I-E-SNLS647I.pdf) | Verify selected mode, PHY identity, straps, reset and 10BASE-Te setup |
 | DP83826E | Declared original extended-temperature grade | SNLS647I above | Same core procedures as I. Declared-E host, SDK and physical evidence are recorded separately in the [qualification report](reports/implementation/56-e-support.md) |
-| DP83826AI / DP83826AE | A-generation research, software admission pending | [SNLS783A, Oct 2025](reference/source/TI-DP83826AI-AE-SNLS783A.pdf) | Shared revision-4 policy and procedures. AI is rated −40 to +85 °C, AE −40 to +105 °C. Each grade needs its own qualification. |
+| DP83826AI / DP83826AE | Revision-4 core/link, FLD and interface/clock procedures | [SNLS783A, Oct 2025](reference/source/TI-DP83826AI-AE-SNLS783A.pdf) | Shared revision-4 policy and procedures. AI is rated −40 to +85 °C, AE −40 to +105 °C. Each grade needs its own qualification. |
 | DP83825I | Family expansion reference | [SNLS638C, Apr 2026](reference/source/TI-DP83825I-SNLS638C.pdf) | RMII-only device; do not expose unsupported MII/fiber features |
 | DP83822I / H / IF / HF | Family expansion reference | [SNLS505H, Jul 2026](reference/source/TI-DP83822-SNLS505H.pdf) | Interface, temperature and fiber capabilities differ by exact variant |
 
@@ -47,9 +47,15 @@ Similarly, Linux's DP83826C/DP83826NC labels must not be mapped directly to TI
 orderable suffixes. Resolve their operating-mode/compatibility meaning from the
 exact datasheet and observed device ID. See [the pinned source](reference/source-code.md).
 
-## Before extending support
+## A-generation software scope
 
-For either A declaration, the researched BASIC identity is `2000 A114` and
+Declare `Variant::DP83826AI` or `Variant::DP83826AE` in the binding. Identity,
+reset, startup VOD, link configuration and observation, fast link drop, recovery
+and interface/clock control use the shared driver. Original-only feature
+writers are gated. Both A grades require separate fixture records. [Procedure
+coverage](reports/implementation/58-a-core-link.md)
+
+For either A declaration, the accepted BASIC identity is `2000 A114` and
 ENHANCED is `2000 A134`. Only revision 4 has an accepted A source record.
 The application supplies the suffix. The register comparison identifies each
 field by its original semantic ID and A table, including reserved bits, strap

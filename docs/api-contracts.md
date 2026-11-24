@@ -1,5 +1,12 @@
 # DP8382x value and direct-call contracts
 
+AI and AE share the revision-4 identity, initialization, link, interface,
+fast-drop and recovery APIs. The ordering grade stays in `DeviceIdentity` and the accepted `Capabilities`.
+`strapSnapshot()` performs no I/O and exposes each current SOR word's
+validity. `InterfaceSnapshot::validMask` includes bit 8 for A pin 30 control.
+Diagnostic and optional A feature procedures remain gated before feature I/O.
+[Source and procedure assignments](registers/dp83826a-procedures.json)
+
 Public headers own the shipped API. This contract specifies future behavior
 introduced with its owning implementation stage. The OP-1 through OP-17 rules
 below supersede prompt 8's earlier cooperative design under the remaining-prompts

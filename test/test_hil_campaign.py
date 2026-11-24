@@ -186,44 +186,62 @@ class CompiledCampaignTests(unittest.TestCase):
                         for name, (data, raw) in self.positives.items())
         self.assertGreater(mutations, 30_000)
 
-    def test_original_e_modes_and_artifact_grade(self):
-        for mode, id2 in (("basic", 0xA111), ("enhanced", 0xA131)):
-            with self.subTest(mode=mode):
-                run = "-e-" + mode
-                args = ("--fixture-variant", "DP83826E", "--variant", "DP83826E", "--operating-mode", mode)
-                result, data, raw = self.run_case("observe", run, args)
-                self.assertEqual((result, data["verdict"]), (0, "PASS"), data["issues"])
-                self.assertEqual(data["identity"]["variant"], "DP83826E")
-                device = next(row for row in decoded(raw) if row.cmd == "connection.identity")
-                self.assertEqual((device.fields["id2"], device.fields["mode"]), (str(id2), mode))
-                path = self.folder / ("observe" + run + ".json")
-                self.assertEqual(runner.verify(path), data)
+    def test_grade_mode_and_artifact_identity(self):
+        for variant, other, basic, enhanced in (
+                ("DP83826E", "DP83826I", 0xA111, 0xA131),
+                ("DP83826AI", "DP83826AE", 0xA114, 0xA134),
+                ("DP83826AE", "DP83826AI", 0xA114, 0xA134)):
+            for mode, id2 in (("basic", basic), ("enhanced", enhanced)):
+                with self.subTest(variant=variant, mode=mode):
+                    run = f"-{variant}-{mode}"
+                    args = ("--fixture-variant", variant, "--variant", variant, "--operating-mode", mode)
+                    result, data, raw = self.run_case("observe", run, args)
+                    self.assertEqual((result, data["verdict"]), (0, "PASS"), data["issues"])
+                    self.assertEqual(data["identity"]["variant"], variant)
+                    device = next(row for row in decoded(raw) if row.cmd == "connection.identity")
+                    self.assertEqual((device.fields["id2"], device.fields["mode"]), (str(id2), mode))
+                    path = self.folder / ("observe" + run + ".json")
+                    self.assertEqual(runner.verify(path), data)
 
-                # Recompute the digest after altering the wire declaration so
-                # replay must detect the contradiction with the saved identity.
-                changed = raw.replace(b"variant=DP83826E", b"variant=DP83826I")
-                self.assertNotEqual(changed, raw)
-                path.with_suffix(".txt").write_bytes(changed)
-                forged = deepcopy(data)
-                forged["transcript"]["sha256"] = hashlib.sha256(changed).hexdigest()
-                path.write_text(json.dumps(forged), encoding="utf-8")
-                with self.assertRaises((EvidenceError, ProtocolError)):
-                    runner.verify(path)
+                    # Recompute the digest; the decoded observation must independently reject
+                    # a swapped grade or a valid ID and revision from the other generation.
+                    wrong_id = (id2 & 0xFFF0) | (1 if (id2 & 15) == 4 else 4)
+                    for changed in (raw.replace(variant.encode(), other.encode()),
+                                    raw.replace(f"id2={id2} ".encode(), f"id2={wrong_id} ".encode())
+                                       .replace(f"revision={id2 & 15} ".encode(), f"revision={wrong_id & 15} ".encode())):
+                        self.assertNotEqual(changed, raw)
+                        path.with_suffix(".txt").write_bytes(changed)
+                        forged = deepcopy(data)
+                        forged["transcript"]["sha256"] = hashlib.sha256(changed).hexdigest()
+                        path.write_text(json.dumps(forged), encoding="utf-8")
+                        with self.assertRaises((EvidenceError, ProtocolError)):
+                            runner.verify(path)
 
-                path.with_suffix(".txt").write_bytes(raw)
-                for field in ("identity", "expectations"):
-                    forged = deepcopy(data)
-                    forged[field]["variant"] = "DP83826I"
-                    path.write_text(json.dumps(forged), encoding="utf-8")
-                    with self.assertRaises((EvidenceError, ProtocolError)):
-                        runner.verify(path)
+                    path.with_suffix(".txt").write_bytes(raw)
+                    for field in ("identity", "expectations"):
+                        forged = deepcopy(data)
+                        forged[field]["variant"] = other
+                        path.write_text(json.dumps(forged), encoding="utf-8")
+                        with self.assertRaises((EvidenceError, ProtocolError)):
+                            runner.verify(path)
 
-        result, data, _ = self.run_case("observe", "-wrong-grade",
-                                        ("--fixture-variant", "DP83826I", "--variant", "DP83826E"))
-        self.assertEqual(result, 2)
-        self.assertEqual(data["identity"]["variant"], "DP83826I")
-        self.assertIn("identity mismatch: variant", " ".join(data["issues"]))
-        self.assertEqual(len(data["commands"]), 1)
+            result, data, _ = self.run_case("observe", "-wrong-" + variant,
+                                            ("--fixture-variant", other, "--variant", variant))
+            self.assertEqual(result, 2)
+            self.assertEqual(data["identity"]["variant"], other)
+            self.assertIn("identity mismatch: variant", " ".join(data["issues"]))
+            self.assertEqual(len(data["commands"]), 1)
+
+    def test_a_campaigns_replay_link_reset_and_recovery(self):
+        for grade in ("DP83826AI", "DP83826AE"):
+            for name in CASES:
+                if name in ("observe", "int-pin"):
+                    continue
+                with self.subTest(grade=grade, case=name):
+                    args = ("--fixture-variant", grade, "--variant", grade)
+                    result, data, raw = self.run_case(name, "-" + grade, args)
+                    self.assertEqual((result, data["verdict"]), (0, "PASS"), data["cases"])
+                    self.assertEqual(replay(data, decoded(raw)), "PASS")
 
     def test_forged_aggregate_and_intervention_order_are_rejected(self):
         data, raw = self.positives["unplug-replug"]

@@ -69,9 +69,16 @@ Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) n
 
   // SNLS647I tables 8-20/34: first BMSR consumes historical latch-low; second
   // establishes current state. PHYSTS precedes the clearing ANER dependency.
-  constexpr uint8_t addresses[] = {cmd::REG_BMSR, cmd::REG_BMSR, cmd::REG_PHYSTS,
+  constexpr uint8_t originalOrder[] = {cmd::REG_BMSR, cmd::REG_BMSR, cmd::REG_PHYSTS,
       cmd::REG_BMCR, cmd::REG_ANAR, cmd::REG_ALNPAR, cmd::REG_ANER, cmd::REG_PHYCR,
       cmd::REG_BMSR, cmd::REG_PHYSTS};
+  // SNLS783A tables 8-21/35: reading BMSR clears the remote-fault
+  // indication mirrored in PHYSTS[6]. Capture the mirror at both bookends.
+  constexpr uint8_t aOrder[] = {cmd::REG_PHYSTS, cmd::REG_BMSR, cmd::REG_BMSR,
+      cmd::REG_BMCR, cmd::REG_ANAR, cmd::REG_ALNPAR, cmd::REG_ANER, cmd::REG_PHYCR,
+      cmd::REG_PHYSTS, cmd::REG_BMSR};
+  const bool aGeneration = isA(_config.variant);
+  const auto* addresses = aGeneration ? aOrder : originalOrder;
   uint16_t words[10]{};
   IoBudget remaining = budget;
   _evidence.lastRequested = evidenceBit(EvidenceSource::BMSR) | evidenceBit(EvidenceSource::PHYSTS) |
@@ -90,18 +97,22 @@ Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) n
   }
 
   LinkSnapshot next;
-  next.rawBmsrFirst = words[0]; next.rawBmsrCurrent = words[1]; next.rawPhystsFirst = words[2];
+  next.rawBmsrFirst = words[aGeneration ? 1 : 0];
+  next.rawBmsrCurrent = words[aGeneration ? 2 : 1];
+  next.rawPhystsFirst = words[aGeneration ? 0 : 2];
   next.rawBmcr = words[3]; next.rawAnar = words[4]; next.rawAnlpar = words[5];
   next.rawAner = words[6]; next.rawPhycr = words[7];
-  next.rawBmsrFinal = words[8]; next.rawPhystsFinal = words[9];
+  next.rawBmsrFinal = words[aGeneration ? 9 : 8];
+  next.rawPhystsFinal = words[aGeneration ? 8 : 9];
   constexpr uint16_t basicMask = cmd::MASK_BMSR_LINK | cmd::MASK_BMSR_AN_COMPLETE;
   constexpr uint16_t statusMask = cmd::MASK_PHYSTS_LINK | cmd::MASK_PHYSTS_AN_COMPLETE;
   const auto agrees = [](uint16_t basic, uint16_t status) noexcept {
     return ((basic & cmd::MASK_BMSR_LINK) != 0U) == ((status & cmd::MASK_PHYSTS_LINK) != 0U) &&
         ((basic & cmd::MASK_BMSR_AN_COMPLETE) != 0U) == ((status & cmd::MASK_PHYSTS_AN_COMPLETE) != 0U);
   };
-  if (((words[1] ^ words[8]) & basicMask) != 0U || ((words[2] ^ words[9]) & statusMask) != 0U ||
-      !agrees(words[1], words[2]) || !agrees(words[8], words[9])) {
+  if (((next.rawBmsrCurrent ^ next.rawBmsrFinal) & basicMask) != 0U ||
+      ((next.rawPhystsFirst ^ next.rawPhystsFinal) & statusMask) != 0U ||
+      !agrees(next.rawBmsrCurrent, next.rawPhystsFirst) || !agrees(next.rawBmsrFinal, next.rawPhystsFinal)) {
     return fail(Status::Error(Err::BUSY, "Link changed during observation", static_cast<int32_t>(BusyDetail::OBSERVATION_CHANGED)));
   }
   const bool an = (next.rawBmcr & cmd::MASK_BMCR_AN_ENABLE) != 0U;

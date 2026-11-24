@@ -52,6 +52,7 @@ Status DP8382x::_validateAnalog(const AnalogSettings& s) const noexcept {
 }
 
 Status DP8382x::startConfigureAnalog(const AnalogSettings& settings,const OperationBudget& budget,OperationToken& token) noexcept {
+  if (isA(_config.variant)) { return _unsupportedFeature(); }
   const auto syntax=analogSyntax(settings); if (!syntax.ok()) { return syntax; }
   if (budget.pollIntervalUs==0U || budget.maxStalledPolls==0U) {
     return Status::Error(Err::INVALID_PARAM,"Invalid analog operation budget",static_cast<int32_t>(ParamDetail::BUDGET_RANGE));

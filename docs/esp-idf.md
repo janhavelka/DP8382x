@@ -2,7 +2,8 @@
 
 Supply the board's ordering grade in `PhyConfig::core.variant`. The factory
 retains a DP83826E declaration through the same BASIC/ENHANCED identity and
-configuration paths used by DP83826I. The adapter link fixture declares E.
+configuration paths used by DP83826I. The adapter link fixture defaults to E and accepts a build-time A declaration.
+AI/AE use the same factory and board owner with revision-4 core/link admission.
 Both fitted P4 applications declare I. [Identity policy](identity.md)
 
 ## P4 ordinary Ethernet application

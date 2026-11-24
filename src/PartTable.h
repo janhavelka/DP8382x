@@ -24,17 +24,18 @@ struct PartProfile {
 // The low four feature bits are the public LINK_* modes. The original map
 // has copper media and no gigabit or fiber procedure (SNLS647I, sections 4/8).
 constexpr uint32_t FEATURE_COPPER = 1U << 4;
-constexpr PartProfile original(Variant variant) noexcept {
-  return {variant, RegisterMap::DP83826, 2, {0x11, 0x13}, 0x0002,
+constexpr PartProfile copper826(Variant variant, RegisterMap map, uint16_t revisions) noexcept {
+  return {variant, map, 2, {0x11, 0x13}, revisions,
           INTERFACE_MII | INTERFACE_RMII, LINK_TECHNOLOGY_MASK | FEATURE_COPPER, true, 7, true};
 }
 
 // UNKNOWN rows record the frozen future map contracts and have no selectable
 // ordering part or implemented features. Admission is by declaration only.
 inline constexpr PartProfile PART_TABLE[] = {
-  original(Variant::DP83826I), original(Variant::DP83826E),
-  {Variant::UNKNOWN, RegisterMap::DP83826A, 2, {0x11, 0x13}, 0x0010,
-   INTERFACE_MII | INTERFACE_RMII, 0, true, 7, true},
+  copper826(Variant::DP83826I, RegisterMap::DP83826, 0x0002),
+  copper826(Variant::DP83826E, RegisterMap::DP83826, 0x0002),
+  copper826(Variant::DP83826AI, RegisterMap::DP83826A, 0x0010),
+  copper826(Variant::DP83826AE, RegisterMap::DP83826A, 0x0010),
   {Variant::UNKNOWN, RegisterMap::DP83825, 1, {0x14, 0}, 0x0001,
    INTERFACE_RMII, 0, false, 3, false},
   {Variant::UNKNOWN, RegisterMap::DP83822, 1, {0x24, 0}, 0x0001,

@@ -1,5 +1,11 @@
 # Live and cached link observations
 
+On AI and AE, a ten-frame observation reads hex C22 `10 01 01 00 04 05 06 19`
+then `10 01`. PHYSTS[6] mirrors a latch that the BMSR read clears. The
+collector retains the first PHYSTS sample even when the following frame fails.
+BMCR supplies forced speed and duplex. Partner advertisement and latched
+remote-fault evidence have separate meanings. [Identity policy](identity.md)
+
 `readLinkStatus` acquires a bounded DP83826I observation at the configured address.
 `linkSnapshot` copies the retained value without MDIO, clock callbacks, event
 acknowledgement or age calculation. Serialize both through the application owner.

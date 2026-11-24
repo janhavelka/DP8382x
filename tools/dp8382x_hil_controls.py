@@ -1,6 +1,6 @@
-"""Original DP83826I/E opt-in control procedures and evidence for the compiled fixture."""
+"""DP83826 opt-in control procedures and evidence for the compiled fixture."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 if __package__:
     from .dp8382x_hil_campaign import (
@@ -195,6 +195,35 @@ CONTROLS = {
                       analog("0x28,0x2f,0x18,8,0 4,4,0,1 slow fast keep", vod1=10752,
                              vod2=61976, vod3=16960, ioctrl=17, io_cfg1=16384)),
 }
+
+def a_control(name, mode):
+    """Independently expected A register words for the simulated entry and target profiles."""
+    physcr = 3 if mode == "basic" else 0
+    if name == "quality":
+        def fld(causes, recovery, cr3, cr1):
+            return Setting(f"controls quality {causes} keep keep {recovery}",
+                           dict(desired=1, trust=1, stale=0, valid_mask=159, fld_bound_applicable=1,
+                                cr3=cr3, fld_cfg1=0x0417, fld_cfg2=0x0288, physcr=physcr, cr2=0,
+                                btscr=0, config10=0, cr1=cr1))
+        # Retain CR3[6:5] from the entry MDIX profile. Both profiles program the
+        # documented thresholds and preserve the PHYSCR reset bits for this mode.
+        return Control(QUALITY, "controls quality-status", fld("0x405", "off", 0x0465, 32),
+                       fld("0x40d", "on", 0x046D, 160))
+    if name == "interface-mii":
+        # The ENHANCED case verifies the independent pin 30 PLL mux and pin 31 sample.
+        base = interface("mii 0 0 1518 50 16 pll off", 495, cr1=32, cr2=0, physcr=0, gencfg=0,
+                         io_cfg1=0, rcsr=65, bmcr=4096, clk_led_status=0, pin30_mux=0x29)
+        target = interface("mii 0 0 1518 50 31 pll on", 495, cr1=34, cr2=2, physcr=16, gencfg=8,
+                           io_cfg1=0, rcsr=65, bmcr=5120, clk_led_status=0, pin30_mux=0x29)
+        return Control({**INTERFACE, "pin30_mux": WORD}, "controls interface-status", base, target, "terminal")
+    if name in ("interface-rmii25", "interface-rmii50", "repeater-leader", "repeater-follower"):
+        spec = CONTROLS[name]
+        base = replace(spec.baseline, fields={**spec.baseline.fields, "physcr": physcr})
+        target = replace(spec.target, fields={**spec.target.fields, "physcr": physcr})
+        return replace(spec, baseline=base, target=target)
+    return None
+
+
 BASELINES = {case_id: (spec.baseline.command,) for case_id, spec in CONTROLS.items()}
 BASELINES.update(irq=(IRQ_BASE,), eee=(EEE_BASE,), lpi=(EEE_BASE,),
                  pins=("controls interface rmii50 0 0 1518 50 0 led1 off", CONTROLS["pins"].baseline.command))
@@ -304,7 +333,7 @@ def observe(c, spec, setting, *, cleanup=False, verdict="FAIL"):
 
 def persistent_case(c, saved):
     """Verify an explicit entry baseline, apply one profile and prove its independent restoration."""
-    spec = CONTROLS[c.spec.id]
+    spec = c.a_control or CONTROLS[c.spec.id]
     try:
         yield from observe(c, spec, spec.baseline, verdict="BLOCKED")
         yield from apply(c, spec, spec.target)

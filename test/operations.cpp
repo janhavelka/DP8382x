@@ -37,7 +37,7 @@ using Driver = ::DP8382x::DP8382x;
 using test::Fault;
 struct PcsWire {
   struct Phy {
-    uint16_t id1{0x2000}, id2{0xA131}, bmcr{0x3100};
+    uint16_t id1{0x2000}, id2{test::enhancedId2()}, bmcr{0x3100};
     uint16_t sor1{0x1234}, sor2{0x5678}, vod{0x8400}, led{0};
     uint16_t selector{0}, address{0}, falseCarriers{0};
     unsigned resetReads{0};
@@ -128,12 +128,12 @@ void initialization() {
     IdentityDetail detail;
   };
   const RejectedPair rejected[] = {
-    {0x2000, 0xA111, OperatingMode::ENHANCED, Err::DEVICE_MISMATCH, IdentityDetail::MODE_MISMATCH},
-    {0x2000, 0xA131, OperatingMode::BASIC, Err::DEVICE_MISMATCH, IdentityDetail::MODE_MISMATCH},
+    {0x2000, test::basicId2(), OperatingMode::ENHANCED, Err::DEVICE_MISMATCH, IdentityDetail::MODE_MISMATCH},
+    {0x2000, test::enhancedId2(), OperatingMode::BASIC, Err::DEVICE_MISMATCH, IdentityDetail::MODE_MISMATCH},
     {0x2000, 0xA130, OperatingMode::UNKNOWN, Err::DEVICE_MISMATCH, IdentityDetail::REVISION_NOT_ACCEPTED},
-    {0x2000, 0xA114, OperatingMode::UNKNOWN, Err::DEVICE_MISMATCH, IdentityDetail::REVISION_NOT_ACCEPTED},
+    {0x2000, static_cast<uint16_t>(test::aGrade() ? 0xA111 : 0xA114), OperatingMode::UNKNOWN, Err::DEVICE_MISMATCH, IdentityDetail::REVISION_NOT_ACCEPTED},
     {0x2000, 0xA140, OperatingMode::UNKNOWN, Err::DEVICE_MISMATCH, IdentityDetail::WRONG_MODEL},
-    {0x3000, 0xA111, OperatingMode::UNKNOWN, Err::DEVICE_MISMATCH, IdentityDetail::WRONG_OUI},
+    {0x3000, test::basicId2(), OperatingMode::UNKNOWN, Err::DEVICE_MISMATCH, IdentityDetail::WRONG_OUI},
     {0, 0, OperatingMode::UNKNOWN, Err::DEVICE_NOT_FOUND, IdentityDetail::ZERO_ID},
     {0xFFFF, 0xFFFF, OperatingMode::UNKNOWN, Err::DEVICE_NOT_FOUND, IdentityDetail::ONES_ID}
   };
@@ -198,7 +198,7 @@ void initialization() {
     CHECK(result.commandRequired == (reset == ResetKind::PCS));
     CHECK(result.commandAccepted == (reset == ResetKind::PCS));
     CHECK(result.protocolComplete == (reset == ResetKind::PCS));
-    CHECK(result.identity.id1 == 0x2000 && result.identity.id2 == 0xA131);
+    CHECK(result.identity.id1 == 0x2000 && result.identity.id2 == test::enhancedId2());
     CHECK(result.identity.declaredVariant == test::declaredVariant);
     CHECK(result.identity.acceptance == IdentityAcceptance::ACCEPTED && !result.identity.stale);
     CHECK(result.straps.sor1 == 0x1234 && result.straps.sor2 == 0x5678);
@@ -623,6 +623,9 @@ void failures() {
       if (batch == 1 || batch == 2 || (reset == ResetKind::PCS && (batch == 8 || batch == 9))) {
         CHECK(result.straps.sor1Valid && result.straps.sor1 == 0x1234);
         if (batch == 2 || batch >= 8) CHECK(result.straps.sor2Valid && result.straps.sor2 == 0x5678);
+        const auto current = driver.strapSnapshot();
+        CHECK(current.sor1Valid && current.sor1 == 0x1234);
+        CHECK(current.sor2Valid == (batch == 2 || batch == 9));
         CHECK(result.straps.stale && !result.straps.timeValid);
       }
       uint16_t output = 0xCAFE;

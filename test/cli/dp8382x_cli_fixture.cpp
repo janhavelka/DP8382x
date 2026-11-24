@@ -81,6 +81,8 @@ bool parseOptions(int argc, char** argv, Options& options) {
     else if (option == "--variant") {
       if (value == "DP83826I") options.variant = Variant::DP83826I;
       else if (value == "DP83826E") options.variant = Variant::DP83826E;
+      else if (value == "DP83826AI") options.variant = Variant::DP83826AI;
+      else if (value == "DP83826AE") options.variant = Variant::DP83826AE;
       else return false;
     } else if (option == "--partner") {
       if (value == "down") options.partner = Partner::DOWN;
@@ -116,7 +118,7 @@ struct Bus {
   std::optional<uint64_t> failOnce;
   bool holdReset{false}, regressHard{false}, traceResets{false}, linkLatchedLow{false}, isolated{false};
   bool traceWrites{false}, holdTdr{false};
-  bool campaign{false};
+  bool campaign{false}, aGrade{false}, basic{false};
   uint16_t peer{0};
   uint64_t peerReadyUs{0};
   bool peerStartsDuringSample{false};
@@ -133,7 +135,9 @@ struct Bus {
     peer = campaignPartner(options.campaignPeer);
     words[0] = 0x3100; // Autonegotiation enabled, no reset in progress.
     words[2] = 0x2000;
-    words[3] = options.campaignMode == "basic" ? 0xA111 : 0xA131;
+    basic = options.campaignMode == "basic";
+    aGrade = options.variant == Variant::DP83826AI || options.variant == Variant::DP83826AE;
+    words[3] = aGrade ? (basic ? 0xA114 : 0xA134) : (basic ? 0xA111 : 0xA131);
     words[4] = 0x01E1;
     words[22] = 0x0100; // BISCR current power-mode indication.
     words[23] = options.interface == MacInterface::MII ? 0x0041 : 0x0061;
@@ -158,6 +162,14 @@ struct Bus {
     vendor[0x0461] = 0x0010;
     vendor[0x0467] = 0xA567;
     vendor[0x0468] = 0xA568;
+    if (aGrade) {
+      // Model a sampled RMII leader or MII. SNLS783A tables 8-13/88/89.
+      const bool rmii = options.interface == MacInterface::RMII;
+      vendor[0x0467] = rmii ? (basic ? 0x0010 : 0x0102) : 0;
+      vendor[0x0468] = rmii ? 0x0010 : 0;
+      vendor[0x0131] = 0x0288;
+      words[17] = basic ? 3 : 0;
+    }
     vendor[0x04A0] = 0x1881; // Wake indication pending with a reset detector profile.
     vendor[0x04A1] = 0x1000;
     vendor[0x04D1] = 0x0080;
@@ -235,7 +247,7 @@ struct Bus {
     if (devad == 31) {
       if (offset < words.size()) return readDirect(static_cast<uint8_t>(offset));
       if (offset >= vendor.size()) return 0;
-      if (offset == 0x0308U) return (vendor[0x0302] & 0x0040U) != 0U ? 1U : 0U;
+      if (!aGrade && offset == 0x0308U) return (vendor[0x0302] & 0x0040U) != 0U ? 1U : 0U;
       const auto word = vendor[offset];
       if (offset == 0x04A1U) vendor[offset] &= 0xFF00U; // RXFS selector survives status consumption.
       return word;
@@ -264,7 +276,7 @@ struct Bus {
         words[31] = holdReset ? value : uint16_t{0};
         if (value == 0x8000U) {
           words[0] = 0x3100;
-          words[17] = 0;
+          words[17] = aGrade && basic ? 3 : 0;
           words[22] = 0x0100;
           words[24] = 0; // Reload the modeled LED register on hard reset.
           words[27] = 0x007D;
@@ -663,7 +675,7 @@ private:
 
 int main(int argc, char** argv) {
   constexpr const char* usage =
-      "Usage: dp8382x_cli_fixture [--identity TOKEN] [--variant DP83826I|DP83826E] [--partner down|pending|100-full|10-half] "
+      "Usage: dp8382x_cli_fixture [--identity TOKEN] [--variant DP83826I|DP83826E|DP83826AI|DP83826AE] [--partner down|pending|100-full|10-half] "
       "[--fail-after N] [--reboot-after N] [--partial-record] [--deny-maintenance|--no-maintenance] "
       "[--hold-reset] [--regress-after-hard] [--trace-resets] [--trace-writes] [--mii] [--hold-tdr] "
       "[--attest-features] [--campaign basic|enhanced] [--campaign-peer PROFILE]\n";
