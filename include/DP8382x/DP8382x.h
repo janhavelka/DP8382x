@@ -1019,7 +1019,9 @@ struct FastLinkDropSettings {
   uint8_t errorThreshold{1}; ///< MLT3 error count 1..63; zero reserved.
   uint8_t descramblerThreshold{8}; ///< Raw six-bit descrambler code; default source recipe 0x08.
 };
-/// @brief Owned 100BASE-TX controls; SNLS647I tables 8-29/35.
+/// @brief Owned 100BASE-TX controls (SNLS647I tables 8-29/35).
+/// On DP83825I, ownership covers only RX_ER during idle (SNLS638C table 7-13).
+/// Leave scramblerBypass false and fifoDepthCode zero to preserve PHYSCR.
 struct Tx100Settings {
   bool owned{false}; ///< Apply only on explicit owner request.
   bool scramblerBypass{false}; ///< Coordinated test/partner use, never normal default policy.

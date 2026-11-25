@@ -2,8 +2,10 @@
 
 On DP83825I, section 6.3.16.2 permits all combinations of CR3[10,3:0].
 The quality owner updates those bits independently of the crossover fields
-and retains PHYSTS and FLDS evidence. The TX100 owner also supports PHYSCR
-scrambler bypass and FIFO depth, and CR2 idle-error detection. The DP83826
+and retains PHYSTS and FLDS evidence. The TX100 owner sets CR2[2] for idle
+RX errors. Leave `scramblerBypass` false and `fifoDepthCode` zero. Configuration
+and restoration preserve PHYSCR[11] and [9:8] for compliance and loopback.
+Requests for bypass or a nonzero FIFO code return `UNSUPPORTED` at admission. The DP83826
 threshold recipe and its maximum timing claim apply only to that map.
 [DP83825I register and procedure inventory](registers/dp83825i.json)
 

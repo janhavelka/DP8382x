@@ -474,3 +474,47 @@ builds, SDK links, remote CI and physical evidence were **NOT RUN** in this
 source-review slice. Continue phase (c) with field ownership and procedure
 dispositions at the optional-feature gates, then the native/compiled CLI
 campaigns and replay. Physical Q15 remains open.
+
+## Phase (c) review of TX100 field ownership
+
+The wrapper verified clean `main` at `10ea3129075fae2579f87b78cf680d5529ac49fe`.
+Two read-only reviewers used the session model in parallel to trace raw and
+collector access and the 33 procedure assignments. In the original SNLS638C
+PDF, table 7-20 gives PHYSCR[11] to scrambler bypass and PHYSCR[9:8] to the
+far-end loopback FIFO. Its reset code 1 selects five nibbles. The ledger assigns
+those fields to the compliance and loopback procedures in 61. The TX100 quality
+path for CR2[2] was also writing both PHYSCR fields, even with default arguments.
+
+The TX100 path now preserves both fields on apply and replay. A bypass request
+or a nonzero FIFO code returns `UNSUPPORTED` before any callback, token change
+or desired-state update. The regression failed 40 assertions before the fix.
+It checks all 32 fast-drop combinations with PHYSCR seeded to `0900`, changes
+PHYSCR to `0200` before a separate NONE restoration, and checks the actual
+frame trace for writes to register 11h. The public settings and quality guide
+document the accepted values. The sibling revisions in the phase (a) table
+were still clean. Their explicit per-part feature checks apply here.
+
+Host **PASS** on Windows x86-64, GCC 15.1.0. Release and UBSan trap mode each
+passed 28/28 focused CTests. Use `build/p60-tests` and `build/p55-ubsan`
+respectively for `<dir>`. Doxygen passed with 294 pages and two negative fixtures.
+
+```powershell
+cmake --build <dir> --target dp8382x_quality_tests dp8382x_interface_tests --parallel 3
+ctest --test-dir <dir> -R '^(p25_(core|profiles)|((e|ai|ae)_)?quality_.*|ai_quality|ae_quality)$' --output-on-failure --no-tests=error -j 2
+python -B tools/check_doxygen.py
+```
+
+The next review slice should close the repeater admission finding. Figure 6-4
+shows both DP83825I devices as followers of an external 50 MHz oscillator.
+The interface validator and `p25TimingAndInterface` currently admit a leader
+for that topology. Ordinary leader RX_DV selection is independently documented
+in section 6.3.9. The raw-access reviewer also found three ledger discrepancies
+to reconcile: the missing PHYSTS collector mirror in `ownerAccess`, the HARD
+reset contract's reference to both strap registers where the driver reads SOR1
+and RCSR, and the assignment of SOR2[11] to clock-role verification despite
+its raw-only pin 20 constraint in table 7-81.
+
+Portable/package consumers, SDK link, remote CI and physical evidence were
+**NOT RUN** in this slice. Rebuild the SDK images for the changed core during
+final local verification. Native and compiled CLI campaign review and physical
+Q15 remain open.

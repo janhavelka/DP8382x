@@ -200,6 +200,16 @@ void p25OptionalAdmission() {
   CHECK(driver.startInterruptTest(budget(), token).is(Err::UNSUPPORTED));
   CHECK(driver.startCableAcquire(budget(), token).is(Err::UNSUPPORTED));
   CHECK(driver.startConfigureAnalog({}, budget(), token).is(Err::UNSUPPORTED));
+  QualitySettings quality;
+  quality.tx100.owned = quality.maintenanceAdmitted = quality.macStopped = true;
+  quality.tx100.scramblerBypass = true;
+  CHECK(driver.startConfigureQuality(quality, budget(), token).is(Err::UNSUPPORTED));
+  quality.tx100.scramblerBypass = false;
+  for (uint8_t code = 1; code <= 3; ++code) {
+    quality.tx100.fifoDepthCode = code;
+    CHECK(driver.startConfigureQuality(quality, budget(), token).is(Err::UNSUPPORTED));
+  }
+  CHECK(!driver.qualitySnapshot().desiredValid);
   CHECK(driver.modifyInterruptEnables(0x12, 1, 1, io).is(Err::UNSUPPORTED));
   CHECK(driver.modifyWakeControl(1, 1, false, io).is(Err::UNSUPPORTED));
   PinResult pins;
@@ -231,15 +241,26 @@ void p25Profiles() {
     options.tx100.rxErrorDuringIdle = (subset & 1) != 0;
     const auto start = bus.frames;
     bus.words[11] |= 0x0060;
+    // PHYSCR[11,9:8] belong to compliance and far-end loopback (table 7-20).
+    bus.words[0x11] = 0x0900;
     OperationToken token;
     CHECK(driver.startConfigureQuality(options, budget(), token).inProgress());
     CHECK(drain(driver, bus, token).ok());
     CHECK(take(driver, token).status.ok());
     CHECK(bus.words[11] == (0x0060 | options.fastDrop.causeMask));
     CHECK(((bus.words[10] & 4) != 0) == options.tx100.rxErrorDuringIdle);
+    CHECK(writes(bus, start, 0x11) == 0 && bus.words[0x11] == 0x0900);
     CHECK(writes(bus, start, 0x117) == 0 && writes(bus, start, 0x131) == 0);
     CHECK(!driver.qualitySnapshot().fldMaximumApplicable);
   }
+  // A separate owner changes both fields before persistent quality replay.
+  bus.words[0x11] = 0x0200;
+  OperationToken restore;
+  const auto first = bus.frames;
+  CHECK(driver.startInitialize({ResetKind::NONE}, budget(), restore).inProgress());
+  CHECK(drain(driver, bus, restore).ok() && take(driver, restore).persistentRestored);
+  CHECK(writes(bus, first, 0x11) == 0 && bus.words[0x11] == 0x0200);
+  CHECK(driver.qualitySnapshot().trust == ConfigurationTrust::VERIFIED);
   auto invalid = bus.config();
   for (auto medium : {Medium::FIBER, static_cast<Medium>(255)}) {
     invalid.medium = medium;

@@ -38,7 +38,8 @@ Status DP8382x::_validateQuality(const QualitySettings& settings) const noexcept
   const auto syntax=qualitySyntax(settings); if (!syntax.ok()) { return syntax; }
   const auto& fld=settings.fastDrop;
   if (_config.variant == Variant::DP83825I &&
-      (fld.rawThresholdOverride || settings.tx10.owned || settings.recoveryOwned)) {
+      (fld.rawThresholdOverride || settings.tx10.owned || settings.recoveryOwned ||
+       settings.tx100.scramblerBypass || settings.tx100.fifoDepthCode != 0U)) {
     return _unsupportedFeature();
   }
   if (isA(_config.variant)) {
@@ -118,8 +119,9 @@ bool DP8382x::_qualityRowValue(uint8_t row,uint16_t& address,uint16_t& mask,uint
       address=0x000B; mask=0x040F; value=fld.causeMask;
       return true;
     }
-    // Tables 7-13/20 authorize the two shared TX100 rows below.
-    if (row!=3 && row!=4) { return false; }
+    // CR2[2] controls idle RX errors. PHYSCR[11,9:8] belong to the
+    // compliance and loopback procedures in SNLS638C table 7-20.
+    if (row!=4) { return false; }
   }
   // SNLS647I 8.3.17: disable detectors before their threshold recipes; restore
   // only explicitly owned stable fields, then enable the selected cause set.
