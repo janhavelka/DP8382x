@@ -794,7 +794,7 @@ struct StrapEvidence {
   bool timeValid{false}; ///< Complete-capture timestamp is usable.
   bool stale{true}; ///< Reset or partial recapture can mix historical/current words.
   uint16_t rcsr{0}; ///< DP83825I direct RCSR sample, including consumed FIFO indications.
-  bool rcsrValid{false}; ///< RCSR clock-role observation is available.
+  bool rcsrValid{false}; ///< RCSR was captured; a stale operation result can retain the pre-reset word.
 };
 /// @brief First failed stable-bit comparison, retained even if the pass is interrupted.
 struct ConfigurationMismatch {

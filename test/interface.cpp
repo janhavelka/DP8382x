@@ -822,7 +822,49 @@ void p25StartupFailures() {
     }
   }
 }
+void p25InterruptedStrapRecapture() {
+  // HARD reloads distinct strap words so a mixed capture cannot pass as fresh.
+  for (bool failRcsr : {false, true}) for (bool failRelease : {false, true}) {
+    Controller bus;
+    Driver driver;
+    p25Board(bus, false, false, false);
+    bus.ext[0x467] = 0x0001;
+    bus.sampledSor = failRcsr && failRelease ? 0x0002 : 0x000A;
+    bus.sampledRcsr = 0x00E5;
+    CHECK(driver.bind(bus.config()).ok());
+    OperationToken token;
+    CHECK(driver.startInitialize({ResetKind::HARD}, budget(), token).inProgress());
+    for (unsigned i = 0; i < 32; ++i) {
+      if (!poll(driver, bus, token).inProgress()) break;
+      if (bus.hard == 1 && bus.trace[bus.frames - 1].target == 3) break;
+    }
+    CHECK(bus.hard == 1 && bus.trace[bus.frames - 1].target == 3);
+    if (failRcsr) CHECK(poll(driver, bus, token).inProgress());
+    if (failRelease) bus.releaseCall = static_cast<int>(bus.calls);
+    else bus.failFrame = static_cast<int>(bus.frames + (failRcsr ? 0U : 3U));
+
+    const auto status = drain(driver, bus, token);
+    const auto result = take(driver, token);
+    CHECK(status.is(failRelease ? Err::MDIO_ERROR : Err::MDIO_TIMEOUT));
+    CHECK(result.commandAccepted && result.cleanupOwed && !driver.isInitialized());
+    CHECK(result.straps.stale && !result.straps.timeValid);
+    const bool sorReturned = failRcsr || failRelease;
+    const bool rcsrReturned = failRcsr && failRelease;
+    CHECK(result.straps.sor1Valid && result.straps.sor1 == (sorReturned ? bus.sampledSor : 0x0001));
+    CHECK(result.straps.rcsrValid && result.straps.rcsr == (rcsrReturned ? bus.sampledRcsr : 0x006D));
+    const auto current = driver.strapSnapshot();
+    CHECK(current.stale && !current.timeValid);
+    CHECK(current.sor1Valid == sorReturned && current.rcsrValid == rcsrReturned);
+    CHECK(result.mismatch.valid == sorReturned);
+    if (sorReturned) {
+      CHECK(result.mismatch.registerAddress == (rcsrReturned ? 0x17 : 0x0467));
+      CHECK(result.mismatch.mask == (rcsrReturned ? 0x80 : 8) && result.mismatch.expected == 0);
+      CHECK(result.mismatch.observed == (rcsrReturned ? bus.sampledRcsr : bus.sampledSor));
+    }
+  }
+}
 void p25Core() {
+  p25InterruptedStrapRecapture();
   p25StartupFailures();
   for (bool declaredFollower : {false,true}) for (bool sor : {false,true}) for (bool rcsr : {false,true}) {
     Controller b; Driver d;

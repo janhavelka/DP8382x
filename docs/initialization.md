@@ -6,6 +6,11 @@ with separate validity flags. NONE, PCS, HARD and RESTART use this part's
 default functional mode. No VOD programming or verification is required.
 After each reset the owner reacquires identity and clock role before replaying
 persistent settings. VERIFY checks both role sources even with no profile.
+If recapture stops partway, the operation result retains the latest returned
+word for each register, marks the pair stale and withdraws its timestamp.
+The live strap snapshot shows which words returned during recapture. A
+returned word that contradicts the declared role sets the result's mismatch
+even when the terminal status reports a transfer or controller-release failure.
 A HARD reset retains the controller-wide quiet period. For a physical reset,
 the application supplies stable XI, RESET_N timing and the idle MDC cycle.
 [Clock and interface procedure](interface-clock.md)

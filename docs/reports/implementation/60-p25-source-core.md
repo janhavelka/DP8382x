@@ -334,3 +334,36 @@ SDK builds used `scripts/idf.cmd -C <project> -B <dir> -D IDF_TARGET=esp32p4
 Phase (c) should independently review the actual synchronized diff against
 the source tables, controller contract and offline replay. The wrapper owns
 the phase (b) commit and post-push equality verification.
+
+## Phase (c) review of identity and interrupted strap capture
+
+The wrapper verified phase (b) at `3d7487908bc1d1e626dbfe288697ff202ac89cae`.
+The tree and index were clean on entry, with `main` equal to `origin/main`.
+Two read-only reviewers worked in parallel using the session model for exact
+identity admission and the reset state machine. The identity review traced
+SNLS638C tables 7-5/6 through the part table, failed-probe prefix, direct
+ID-only guard and bounded native discovery. It found no defect in those paths.
+
+The clock review checked SOR1[3], RCSR[7] and the FIFO read-clear fields in
+SNLS638C tables 7-26 and 7-80. When a HARD reset interrupted recapture, the
+driver could discard earlier returned words or omit a role mismatch already
+proved by a completed read. The new `p25_core` test uses distinct pre- and
+post-reset words, then injects a transfer or release failure at SOR1 or RCSR.
+It reproduced 16 failed assertions on the phase (b) implementation.
+The operation result now retains historical words and their stale status.
+The live snapshot records the current capture. The first observed role
+mismatch survives alongside the terminal transport failure.
+
+On Windows x86-64 with GCC 15.1.0, the focused Release and UBSan trap-mode
+suites each passed 19/19 after the fix. Run the following for both
+`build/p60-tests` and `build/p55-ubsan` as `<dir>`.
+
+```powershell
+cmake --build <dir> --target dp8382x_interface_tests dp8382x_identity_tests dp8382x_reset_tests --parallel 3
+ctest --test-dir <dir> -R '^(p25_(core|profiles|identity)|reset_.*|interface_.*|ai_interface|ae_interface)$' --output-on-failure --no-tests=error -j 2
+```
+
+Portable/package consumers, SDK link, remote CI and physical qualification
+were **NOT RUN** in this slice. Phase (c) remains in progress. Continue
+with follower timing restoration, clock-loss guards across controllers,
+link semantics, the source inventory and native/CLI replay evidence.

@@ -1883,9 +1883,9 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
 
 void DP8382x::_setInitStep(InitStep step) noexcept {
   if (step == InitStep::SOR1 || step == InitStep::RESOR1) {
+    // Start a fresh live capture. The operation retains each historical word
+    // until a completed read replaces it, even if recapture is interrupted.
     _straps = {};
-    if (_config.variant == Variant::DP83825I) { _result.straps = {}; }
-    // OperationResult keeps historical words with its stale marker.
   }
   if (step == InitStep::COMMAND && _eeeRecipePending && !_eeeCapabilityChecked) {
     _setEeeStep(EeeStep::CAPABILITY); return;
@@ -2212,6 +2212,10 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
       }
       _result.straps.stale = true;
       _result.straps.timeValid = false;
+      if (_config.variant == Variant::DP83825I && !_result.mismatch.valid) {
+        // A returned word can disprove the role before the next read or release fails.
+        _result.mismatch = _clockRoleMismatch();
+      }
     }
     if (_configuring) {
       for (uint8_t i = 0; i < batch.frameCount; ++i) {
@@ -2355,9 +2359,7 @@ Status DP8382x::pollOperation(OperationToken token, uint32_t maxFrames) noexcept
       _result.straps.observedAtUs = _lastTimeUs + _config.transport.bounds.clockLagUs;
       _straps = _result.straps;
       if (_config.variant == Variant::DP83825I) {
-        const auto mismatch = _clockRoleMismatch();
-        if (mismatch.valid) {
-          _result.mismatch = mismatch;
+        if (_result.mismatch.valid) {
           _initialized = false;
           return _finishOperation(Status::Error(Err::CONFIG_MISMATCH, "DP83825I clock role disagrees with board"));
         }
