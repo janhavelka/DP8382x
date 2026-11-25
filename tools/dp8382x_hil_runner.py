@@ -66,7 +66,7 @@ class Response:
     samples: list[Record] = field(default_factory=list)
 
 
-def check_payload(record, variant=None):
+def check_payload(record, variant):
     """Check typed operation and sequencer data consumed by the built-in plans."""
     fields = payload(record)
     if record.cmd == "registers.write" and record.primary == "INVALID_PARAM":
@@ -84,7 +84,8 @@ def check_payload(record, variant=None):
                        ("requested_reset", "effective_reset")})
         checks.update({"core_status": tuple(TERMINAL_STATUS), "core_detail": (-2**31, 2**31-1),
                        "sor1": (0, 65535), "sor2": (0, 65535)})
-        if variant == "DP83825I":
+        # Before the nonce binds, prior firmware can emit either complete reset shape.
+        if variant == "DP83825I" or (variant is None and "rcsr" in fields):
             checks.update({"rcsr_valid": ("0", "1"), "rcsr": (0, 65535)})
         exact_fields(fields, checks)
     elif record.cmd == "diagnostics.selftest":
@@ -130,7 +131,7 @@ class Session:
 
     def accept(self, record):
         """Accept one decoded record, or reject it before changing case evidence."""
-        check_payload(record, self.expected["variant"])
+        check_payload(record, self.identity.get("variant"))
         index = len(self.results)
         if not self.identity:
             # Well-formed prior traffic cannot supply the nonce for this run.
@@ -593,7 +594,7 @@ def baseline_reply(record, command, prior, admission, session):
     if (record.cmd != command.name or
             (prior and (record.boot != prior.boot or record.req != prior.req + 1))):
         raise ProtocolError("compiled feature baseline reply is out of sequence")
-    check_payload(record)
+    check_payload(record, session.expected["variant"])
     check_feature_envelope(record)
     fields = record.fields
     timestamp = int(fields["time_us"])

@@ -17,9 +17,11 @@ For a leader, setting BMCR isolation or selecting a nonzero pin 2 mux also
 requires `Config::clockLossApproved`. An owner can set the mux with
 `modifyMmd(31, 0x0305, 7, code, budget)`. Raw maintenance invalidates
 configuration trust. Deep power remains gated. A later contradictory role
-sample withdraws mutation authority. Repeater wiring admission on this part
-includes the section 6.3.10 simultaneous external reset of the two PHYs.
-The application owns both RESET_N pins and the single RMII clock source.
+sample withdraws mutation authority. For repeater wiring, declare both PHYs
+as followers of the same external 50 MHz oscillator as shown in figure 6-4.
+The application owns that clock and the simultaneous external reset required
+by section 6.3.10 for a managed pair. For an ordinary leader, section 6.3.9
+permits `rxDv=true` with `repeater=false`.
 [Source inventory](registers/dp83825i.json)
 
 On AI/AE, initialization records the raw startup straps, which the interface
@@ -222,7 +224,8 @@ pin/interface replay. Failed or cancelled restoration retains uninitialized stat
 The application configures and verifies each identified PHY independently. It
 first admits both board profiles and finite allowances, declares crossed
 RX_D[1:0] to peer TX_D[1:0] and RX_DV to peer TX_EN, and establishes either one
-leader plus one follower or two followers sharing one external 50 MHz source.
+leader plus one follower (DP83826), or two followers sharing one external
+50 MHz source (DP83826 or DP83825I).
 It must never connect two clock outputs. Matching traffic/speed requirements,
 MAC replacement, scheduling and cable paths remain application responsibilities.
 
@@ -234,13 +237,13 @@ retry until the environment happens to work.
 Physical qualification remains NOT RUN. Record exact part/revision, mode/straps,
 board wiring, clock sources and consumers, firmware identity and instruments.
 Measure reference/output frequency, jitter, interface edges, isolation/removal
-and reconnect behavior, packet limits and repeater traffic in both topologies.
+and reconnect behavior, packet limits and repeater traffic in each admitted topology.
 `pin_fields`/Q12 retains unresolved clock/mux permissions; `rmii_rc`/Q17 needs
 controlled clock-offset/fault-injection and read-clear traces. Host tests prove
 bounded composition, ownership and retained effects, not a working MAC clock,
 repeater link or compliant electrical timing.
 
 [Quality profiles](quality.md) own CR2 RX_ER-during-IDLE separately from this
-profile's odd-nibble-disable bit and GENCFG IPG. Quality nonzero Fast Link Drop
-requires declared and observed MII; a zero disable remains legal on RMII.
+profile's odd-nibble-disable bit and GENCFG IPG. Enabling Fast Link Drop on
+DP83826 requires declared and observed MII. DP83825I supports it on RMII.
 Both profiles preserve one another's masks and share restoration.

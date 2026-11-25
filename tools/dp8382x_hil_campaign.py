@@ -594,10 +594,12 @@ class Campaign:
         self.last_observed = at
         if profile.mode == "an":
             local = int(f["anar"])
+            # SNLS638C table 7-7 requires the local remote-fault bit to be zero.
+            local_mask = 0x2DFF if self.p25 else 0x0DFF
             complete = bool(current & 32)
             require(matches(f, advertised_valid=1, advertised_modes=profile.modes,
                             negotiation="complete" if complete else "in_progress") and
-                    (local & 0x0DFF) == (1 | profile.modes << 5 | profile.pause_sym << 10 | profile.pause_asym << 11),
+                    (local & local_mask) == (1 | profile.modes << 5 | profile.pause_sym << 10 | profile.pause_asym << 11),
                     row, "local advertisement or AN state differs from readback")
         else:
             require(matches(f, negotiation="disabled", advertised_valid=0, advertised_modes=0, partner_valid=0,

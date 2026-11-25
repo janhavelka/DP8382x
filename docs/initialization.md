@@ -73,7 +73,8 @@ returns IN_PROGRESS with a nonzero object-lifetime token. A rejected start leave
 the caller token and state unchanged. Each `pollOperation` runs at most one batch:
 
 1. Read both identity words in one batch and accept the declared exact part.
-2. Capture SOR1 and SOR2 in separate complete indirect batches.
+2. Capture vendor SOR1. On DP83825I, collect direct RCSR next. On DP83826,
+   read SOR2 in a second complete indirect batch.
 3. Read BMCR and PHYRCR separately. Wait out any active command, withdrawing
    identity/configuration knowledge when its reset domain requires it. NONE also
    refreshes identity/straps after an observed configuration reset. This prevents
@@ -89,8 +90,8 @@ the caller token and state unchanged. Each `pollOperation` runs at most one batc
    must match every owned stable bit. A mismatch retains expected, mask and raw
    observed value in `ConfigurationMismatch`.
 
-With no owned link or optional-feature settings, clear initial commands and the
-first completion read clear, NONE uses 20 frames; PCS/HARD/RESTART use 32.
+On DP83826 with no owned link or optional-feature settings, clear initial commands
+and a clear first completion read, NONE uses 20 frames and PCS/HARD/RESTART use 32.
 Owned desired settings add their shared replay and verification steps in the
 finite restoration order. Interface replay may update stable RCSR fields while
 retaining its destructive samples through the collector; an unowned interface

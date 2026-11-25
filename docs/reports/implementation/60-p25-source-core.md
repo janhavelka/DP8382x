@@ -518,3 +518,68 @@ Portable/package consumers, SDK link, remote CI and physical evidence were
 **NOT RUN** in this slice. Rebuild the SDK images for the changed core during
 final local verification. Native and compiled CLI campaign review and physical
 Q15 remain open.
+
+## Phase (c) final review of repeater admission and campaign replay
+
+The wrapper verified `88500931a970461711b95987381f6f5da30c85c9` equal to
+`origin/main`. The index and worktree were clean on entry. Two parallel
+read-only reviewers used the session model for silicon and native/replay
+reasoning. The lead rechecked the phase (a) sibling sources and revisions.
+Their declared-part checks and separate firmware identity still apply.
+Both reviews covered the prompt 60 changes since `5aa3a5f`.
+
+| Finding | Correction and regression |
+| --- | --- |
+| Repeater topology | SNLS638C figure 6-4 (p. 25) shows a common 50 MHz oscillator feeding both XI pins. The shared validator now rejects a 25 MHz repeater side before transport or clock callbacks. The caller's result sentinel and previously verified leader RX_DV profile survive rejection. The tests also exercise a follower repeater and an ordinary leader through the core and compiled CLI. The uncorrected leader path failed 24 assertions. |
+| Quality preflight | Both declared roles exercise an opposite RCSR[7] sample containing two FIFO events. The result records the full word, register, mask and expected bit after successful preflight, a failure on the next read or a failed release. Transport failure stays primary, initialization is withdrawn and the trace contains no target writes. The missing mismatch details failed 18 assertions before the fix. |
+| Register ownership | Table 7-19 makes PHYSTS a collector mirror. The direct ownership list now includes 0010. HARD reidentifies at the configured address and recaptures SOR1 and RCSR. Table 7-81 leaves the SOR2[11] description blank. The ledger assigns that raw pin strap to the repeater context. Role verification uses table 7-80 SOR1[3] and table 7-26 RCSR[7]. |
+| Local and partner advertisement | Replay of a compiled 10BASE-Te run previously passed with bit 13 set in the local ANAR word in both roles. The local comparison now checks that bit against zero under table 7-7. The paired positive test accepts a partner advertisement with bit 13 set under table 7-8. |
+| Reset records before session identity | A well-formed reset terminal from the other part previously made replay inconclusive before the nonce arrived. The runner validates either complete reset shape before the nonce and requires the identified part's shape afterward. Tests replay both orderings and reject a malformed prefix and a wrong in-session shape. |
+
+The native review traced factory admission, board reset timing, the locked
+write predicate, identity/strap snapshots and the ESP32-P4 adapter selection.
+The host build verified 45 pinned SDK files at
+`fff9895c82d744c7237be8847347bdd1b07c6643`. The two original example board
+declarations remain application-specific. Reviewed README and CHANGELOG.
+Updated the public Doxygen, initialization, quality, interface, CLI and
+fixture guides with the corrected behavior.
+[SNLS638C](../../reference/source/TI-DP83825I-SNLS638C.pdf) ·
+[Exact-part ledger](../../registers/dp83825i.json)
+
+Host **PASS** on Windows x86-64, GCC 15.1.0, CMake 4.0.1, Ninja and Python
+3.12.10. The focused Release selection passed 80/80 and UBSan trap mode
+passed 77/77. Release includes the runner, simulated serial and campaign
+registrations. The two-role test executes seven campaigns per role and
+replays the receipts. After final test edits, both interface binaries ran
+12,797 checks with zero failures, and both affected compiled Python tests
+passed again. The additional compiled feature, soak and interruption replay
+suites passed 3/3 in 258.19 seconds. Standalone Python discovery ran 278 tests with 58
+compiled-fixture skips. The ledger, generated version and Doxygen checks
+passed, including 294 HTML pages and two rejected negative fixtures.
+Reference verification checked 29 archived payloads, 27 extracts and 2,432
+local links. The final whitespace check passed.
+
+To reproduce, use `build/p60-tests` for Release and `build/p55-ubsan` for
+UBSan as `<dir>`. Use the process-local SDK Git setting from the native
+isolation review above.
+
+```powershell
+cmake --build <dir> --parallel 5 --target dp8382x_interface_tests dp8382x_quality_tests dp8382x_cli_fixture dp8382x_native_host_tests dp8382x_native_host_100hz_tests dp8382x_native_host_333hz_tests
+$suites = 'p25_(core|profiles)|interface_.*|quality_.*|(ai|ae)_(interface|quality|quality_.*)|(e_)?native_factory.*|native_board_.*|native_shared_.*|cli_(fixture|pin)_transcript'
+ctest --test-dir <dir> -R "^($suites)$" --output-on-failure --no-tests=error -j 2
+ctest --test-dir build/p60-tests -R '^cli_hil_(runner|serial|campaign)$' --output-on-failure --no-tests=error -j 2
+ctest --test-dir build/p60-tests -R '^cli_hil_(features|soak|interruptions)$' --output-on-failure --no-tests=error -j 1
+python -B -S test/test_hil_campaign.py --fixture build/p60-tests/test/cli/dp8382x_cli_fixture.exe --work-dir build/p60-tests/review-c CompiledCampaignTests.test_reset_shape_before_and_after_session_identity CompiledCampaignTests.test_p25_roles_and_exact_part_replay
+python -B -m unittest discover -s test -p 'test_*.py' -q
+python -B tools/verify_ledger.py
+python -B tools/check_doxygen.py
+python -B scripts/generate_version.py check
+python -B tools/verify_references.py
+git diff --check
+```
+
+Phase (c) is finished. Portable consumer, exported package consumer and ESP32-P4 SDK link
+**NOT RUN** in this review. Phase (d) must rebuild and test those consumers
+and relink all three images with the reviewed core. Remote CI **NOT RUN**
+(prompt 71). Physical **NOT RUN**. Q15 still requires an identified and
+authorized fixture for the clock, reset and link measurements.

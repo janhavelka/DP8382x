@@ -323,9 +323,12 @@ above. A zero mask still asks for a feature grant, for example when arming the
 IRQ stimulus or link-loss cable autorun. Pin bits 0–3 release selected LED pins,
 bit 4 releases LED1/CLKOUT, bit 5 releases MII COL and bit 6 requests quiesced
 outputs. Interface bits 0–3 cover pins, reference, SMI and clock changes, bit 4
-covers repeater wiring and bits 15:8 carry the requested reference MHz. The
-10M quality gate uses bit 0. Analog bits 0 and 1 cover the identified fixture
-and termination override. IRQ, power, LPI and WoL use the `ControlProof` values
+covers repeater wiring and bits 15:8 carry the requested reference MHz.
+For a DP83825I repeater side, select `rmii50` and flags `12` for RX_DV and
+repeater. The board grant covers the shared external clock and simultaneous
+external reset of both PHYs. An ordinary `rmii25` leader can select RX_DV
+with flag `4`. The 10M quality gate uses bit 0. Analog bits 0 and 1 cover the
+identified fixture and termination override. IRQ, power, LPI and WoL use the `ControlProof` values
 documented in the owner header. A valid grant depends on current application
 state and must survive the admitted procedure's terminal delivery.
 

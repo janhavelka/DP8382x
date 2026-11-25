@@ -253,10 +253,40 @@ class CompiledCampaignTests(unittest.TestCase):
                         current = next(row for row in changed if row.cmd == "connection.identity")
                         current.fields[key] = value
                         self.assertNotEqual(replay(data, changed), "PASS", key)
+                    if name == "10base-te":
+                        # Tables 7-7/8 prohibit local remote fault while allowing
+                        # the partner to advertise it in its own base page.
+                        for field in ("anar", "anlpar"):
+                            changed = decoded(raw)
+                            link = next(row for row in changed if row.cmd in ("link.read", "link.partner")
+                                        and row.fields.get("partner_valid") == "1")
+                            link.fields[field] = str(int(link.fields[field]) | 0x2000)
+                            self.assertEqual(replay(data, changed) == "PASS", field == "anlpar", field)
             result, data, _ = self.run_case("observe", "-wrong-role-" + role, args + ("--rmii-role", other))
             self.assertEqual(result, 2)
             self.assertIn("identity mismatch: rmii_role", " ".join(data["issues"]))
             self.assertEqual(len(data["commands"]), 1)
+
+    def test_reset_shape_before_and_after_session_identity(self):
+        _, p25, p25_raw = self.run_case("hard", "-825-prefix", (
+            "--fixture-variant", "DP83825I", "--variant", "DP83825I", "--operating-mode", "none",
+            "--fixture-rmii-role", "leader", "--rmii-role", "leader"))
+        p26, p26_raw = self.positives["hard"]
+        for data, raw, prior in ((p25, p25_raw, p26_raw), (p26, p26_raw, p25_raw)):
+            with self.subTest(variant=data["expectations"]["variant"]):
+                previous = next(r for r in decoded(prior) if r.cmd == "recovery.reset" and r.state == "terminal")
+                self.assertEqual(replay(data, [previous, *decoded(raw)]), "PASS")
+                malformed = deepcopy(previous)
+                del malformed.fields["sor1_valid"]
+                self.assertNotEqual(replay(data, [malformed, *decoded(raw)]), "PASS")
+                rows = decoded(raw)
+                bound = next(r for r in rows if r.cmd == "recovery.reset" and r.state == "terminal")
+                for field in ("rcsr_valid", "rcsr"):
+                    if field in previous.fields:
+                        bound.fields[field] = previous.fields[field]
+                    else:
+                        del bound.fields[field]
+                self.assertNotEqual(replay(data, rows), "PASS")
 
     def test_a_campaigns_replay_link_reset_and_recovery(self):
         for grade in ("DP83826AI", "DP83826AE"):

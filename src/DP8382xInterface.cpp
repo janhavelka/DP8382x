@@ -66,6 +66,10 @@ Status DP8382x::_validateInterface(const InterfaceSettings& settings) const noex
   if (settings.isolate && !settings.isolationOwned) { return interfaceConfig("Isolation requires explicit ownership"); }
   const bool a=isA(_config.variant);
   if (_config.variant==Variant::DP83825I) {
+    // SNLS638C figure 6-4 feeds both repeater PHYs from the same oscillator.
+    if (settings.repeater && settings.rmiiClock!=RmiiClock::FOLLOWER_50MHZ) {
+      return interfaceConfig("DP83825I repeater requires a shared external 50 MHz reference");
+    }
     if (settings.rmiiClock!=_config.rmiiClock || _straps.stale || !_straps.rcsrValid ||
         !_straps.sor1Valid || _clockRoleMismatch().valid) {
       return interfaceConfig("DP83825I requires its observed board clock role");

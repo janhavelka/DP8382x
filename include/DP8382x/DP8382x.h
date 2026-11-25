@@ -1097,7 +1097,9 @@ struct InterfaceSettings {
   bool managementClockAvailable{false}; ///< MDIO controller/reference remains usable through changes.
   bool clockChangeApproved{false}; ///< Owner approves clock removal AND reconnection; neither is implicit.
   uint8_t referenceClockMHz{0}; ///< Actual declared reference 25MHz or 50MHz, matching the requested role.
-  bool repeaterWiringAdmitted{false}; ///< Crossed data/RX_DV and single clock driver confirmed; DP83825I managed pair also requires simultaneous external reset.
+  /// Crossed data/RX_DV and a single clock driver confirmed. A managed DP83825I pair
+  /// requires two followers on a common external 50 MHz clock and simultaneous external reset.
+  bool repeaterWiringAdmitted{false};
   bool observePin31{false}; ///< Request ENHANCED A pin 31 status (0308 bit 0) during interface verification.
 };
 /// @brief Retained interface words and intent, distinct from observed working traffic.
@@ -1626,6 +1628,8 @@ public:
   /// @return IN_PROGRESS on admission; invalid/source-gated requests perform no I/O.
   /// @note SNLS647I 8.3.17/tables 8-28..30/35/44/51..53. Cancellation freezes effects;
   /// later startInitialize restores behind OP-9. No silicon latency or link claim.
+  /// On DP83825I, a preflight clock-role mismatch retains the RCSR sample even
+  /// when a later transfer or controller release fails.
   Status startConfigureQuality(const QualitySettings& settings, const OperationBudget& budget, OperationToken& token) noexcept;
   /// @brief Passive owned quality configuration; caller serializes all access.
   /// @return Retained desired/partial observed values without I/O or a clock read.

@@ -47,8 +47,11 @@ class P25LedgerTests(unittest.TestCase):
         self.assertEqual(fifo, {"3", "2"})
         self.assertEqual(self.data["ownerAccess"]["irqSource"], ["0012", "0013"])
         self.assertEqual(self.data["ownerAccess"]["selectorsDirectOnly"], ["000D", "000E"])
-        self.assertTrue({"000C", "000F", "0012", "0013", "0017"}
-                        <= set(self.data["ownerAccess"]["collectorDirect"]))
+        self.assertEqual(self.data["ownerAccess"]["collectorDirect"],
+                         ["0001", "0006", "000C", "000F", "0010", "0012",
+                          "0013", "0014", "0015", "0017", "001A"])
+        pin_strap = next(f for f in self.reg["0468"]["fields"] if f["bits"] == "11")
+        self.assertEqual(pin_strap["use"], "repeater")
         self.assertEqual(self.data["timing"],
                          {"mdcMaxHz": 20000000, "resetPulseMinUs": 25, "releaseToSmiMaxUs": 2000,
                           "porToSmiMaxUs": 50000, "lateClockStableBeforeReleaseMinUs": 100,

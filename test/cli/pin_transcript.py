@@ -49,6 +49,23 @@ class PinTranscript(unittest.TestCase):
         self.assertEqual((repeater["primary"], shift["primary"]), ("INVALID_CONFIG", "INVALID_CONFIG"))
         self.assert_silent(before, after)
 
+    def test_p25_repeater_role_and_ordinary_leader_rx_dv(self):
+        for role, mode in (("leader", "rmii25"), ("follower", "rmii50")):
+            with self.subTest(role=role):
+                stream = (f"controls interface {mode} 4 0 1518 50 0 keep keep\ncached transport\n"
+                          f"controls interface {mode} 12 0 1518 50 0 keep keep\ncached transport\n"
+                          "controls interface-status\n")
+                rows = records(invoke(stream.encode(), "--variant", "DP83825I", "--rmii-role", role,
+                                      ATTEST).stdout)
+                ordinary, before, repeater, after, cached = rows
+                self.assertEqual((ordinary["primary"], ordinary["io_cfg1"]), ("OK", "256"))
+                self.assertEqual((cached["primary"], cached["io_cfg1"]), ("OK", "256"))
+                if role == "follower":
+                    self.assertEqual((repeater["primary"], repeater["verified"]), ("OK", "1"))
+                else:
+                    self.assertEqual(repeater["primary"], "INVALID_CONFIG")
+                    self.assert_silent(before, after)
+
     def test_a_pin30_recovered_clock_and_independent_pin31_read(self):
         for grade in ("DP83826AI", "DP83826AE"):
             command = b"controls interface rmii25 0 0 1518 50 16 recovered off\n"

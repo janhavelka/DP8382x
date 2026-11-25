@@ -282,6 +282,14 @@ Status DP8382x::_advanceQuality(Status status,bool called,const MdioBatch& batch
   uint8_t readIndex=0;
   if (_qualityStep==QualityStep::PREFLIGHT) {
     if (!called || !qualityPrefix(batch,receipt,1)) { _quality.validMask&=0xF7U; }
+    // A completed RCSR sample survives a subsequent transfer or release failure.
+    if (_config.variant==Variant::DP83825I) {
+      const auto role=_clockRoleMismatch();
+      if (role.valid) {
+        if (!_result.mismatch.valid) { _result.mismatch=role; }
+        return _finishQuality(status.ok()?Status::Error(Err::CONFIG_MISMATCH,"RMII strap evidence changed"):status);
+      }
+    }
   } else {
     _qualityRowValue(_qualityRow,address,mask,expected,true);
     readIndex=address>0x1FU?uint8_t{3}:address==0x001AU?uint8_t{1}:uint8_t{0};
@@ -297,9 +305,6 @@ Status DP8382x::_advanceQuality(Status status,bool called,const MdioBatch& batch
       const auto bmcr=receipt.frames[0].value,physcr=receipt.frames[1].value;
       if ((bmcr&0x8200U)!=0U) { return _finishQuality(qualityConfig("Reset/restart is active")); }
       if (!_qualityVerifyOnly && (physcr&0x8004U)!=0U) { return _finishQuality(qualityConfig("Restore PLL or interrupt stimulus before quality mutation")); }
-      if (_config.variant==Variant::DP83825I && _clockRoleMismatch().valid) {
-        return _finishQuality(Status::Error(Err::CONFIG_MISMATCH,"RMII strap evidence changed"));
-      }
       if (_config.variant!=Variant::DP83825I && _quality.desired.fastDrop.causeMask!=0U && (receipt.frames[2].value&0x0020U)!=0U) {
         return _finishQuality(qualityConfig("Observed RMII mode cannot enable Fast Link Drop"));
       }

@@ -13,7 +13,8 @@ void p25TimingAndInterface() {
         request.referenceClockMHz = follower ? 50 : 25;
         request.revision10 = revision10;
         request.elasticityCode = depth;
-        request.rxDv = request.repeater = request.repeaterWiringAdmitted = true;
+        request.rxDv = true;
+        request.repeater = request.repeaterWiringAdmitted = follower;
         request.fastRxDv = request.oddNibbleDisable = request.shortIpg = true;
         bus.words[23] |= 0x000C;
         const auto start = bus.frames;
@@ -22,6 +23,19 @@ void p25TimingAndInterface() {
         CHECK((bus.words[9] & 2) && (bus.words[10] & 2) && (bus.ext[0x456] & 8));
         CHECK((bus.ext[0x302] & 0x0100) != 0 && writes(bus, start, 0x42) == 0);
         CHECK(writes(bus, start, 0x17) == 1 && writes(bus, start, 0x11) == 0);
+        if (!follower) {
+          // Figure 6-4 uses a common 50 MHz oscillator for both PHYs.
+          // Section 6.3.9 separately permits RX_DV on this ordinary leader.
+          request.repeater = request.repeaterWiringAdmitted = true;
+          InterfaceResult result;
+          result.attemptedFrames = 999;
+          const auto calls = bus.calls, clocks = bus.clocks;
+          CHECK(driver.configureInterface(request, result, {1000000, 256}).is(Err::INVALID_CONFIG));
+          CHECK(bus.calls == calls && bus.clocks == clocks && result.attemptedFrames == 999);
+          const auto view = driver.interfaceSnapshot();
+          CHECK(view.desiredValid && view.desired.rxDv && !view.desired.repeater);
+          CHECK(view.trust == ConfigurationTrust::VERIFIED);
+        }
       }
     }
   }
@@ -225,10 +239,44 @@ void p25OptionalAdmission() {
   CHECK(!driver.pinsSnapshot().desiredValid && !driver.wakeSnapshot().desiredValid);
 }
 
+void p25QualityClockEvidence() {
+  for (bool follower : {false, true}) {
+    for (auto expected : {Err::CONFIG_MISMATCH, Err::MDIO_TIMEOUT, Err::MDIO_ERROR}) {
+      Controller bus;
+      Driver driver;
+      p25Board(bus, follower, follower, follower);
+      ready(driver, bus);
+      CHECK(driver.clearEvidence().ok());
+      bus.words[23] ^= 0x0080;
+      bus.words[23] |= 0x000C;
+      const auto observed = bus.words[23];
+      QualitySettings settings;
+      settings.tx100.owned = settings.maintenanceAdmitted = settings.macStopped = true;
+      OperationToken token;
+      CHECK(driver.startConfigureQuality(settings, budget(), token).inProgress());
+      // RCSR is the third preflight read. Fail the next read or the batch release.
+      if (expected == Err::MDIO_TIMEOUT) bus.failFrame = static_cast<int>(bus.frames + 3);
+      if (expected == Err::MDIO_ERROR) bus.releaseCall = static_cast<int>(bus.calls);
+      const auto mutations = bus.mutations;
+      const auto status = drain(driver, bus, token);
+      const auto result = take(driver, token);
+      const auto& mismatch = result.mismatch;
+      CHECK(status.is(expected) && result.status.is(expected));
+      CHECK(mismatch.valid && !mismatch.mmd && mismatch.registerAddress == 0x17);
+      CHECK(mismatch.mask == 0x0080 && mismatch.expected == (follower ? 0x0080 : 0));
+      CHECK(mismatch.observed == observed);
+      const auto fifo = driver.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::RCSR)];
+      CHECK(fifo.samples == 1 && fifo.eventBits == 0x000C);
+      CHECK(!driver.isInitialized() && bus.mutations == mutations && !result.mutationPossible);
+    }
+  }
+}
+
 void p25Profiles() {
   p25OptionalAdmission();
   p25TimingAndInterface();
   p25ClockLossAndGuards();
+  p25QualityClockEvidence();
   Controller bus;
   Driver driver;
   p25Board(bus, false, false, false);

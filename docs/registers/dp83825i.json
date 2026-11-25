@@ -17,7 +17,7 @@
     "ids": "A field is identified by the printed offset and field name; use its bits to distinguish repeated RESERVED names. Each non-reserved use joins the procedure ID and its stage, prerequisites, source and independent acceptance vector. The register section and table apply to every field. Assignments are implementation obligations, not executing evidence.",
     "encodings": "codes, where present, are right-aligned encodings enumerated in the field description. The exact description, procedure prerequisites and constraint further restrict use. If no enumerated meaning is given, a bit width or R/W does not establish safe standalone encodings. Opaque analog/DSP fields stay protected pending documented values. The finite recipes authorize whole words at their listed position only.",
     "reset": "Field reset and headingReset are source cells, not write templates or live verification masks. Board strap/OTP/status readbacks take precedence. RCSR heading 0061h differs from reserved 6:5 reset cells. Bit 7 varies with the role. PCS control heading 4000h contradicts the zero reset cells. Preserve actual reserved bits.",
-    "ownership": "Reserve every reserved/reserved_by_description row against ordinary writes, including named read-write fields that say Reserved. Observe-only and read-clear permissions are independent of R/RW notation. 0001/0006 can clear mirrors. Protect 000C,000F,0012,0013,0014,0015,0017,001A,04A1 and 3:0016 through the applicable owner, including incidental reads. Unlisted addresses are reserved except the exact procedure exceptions. Vendor 31 direct-register aliases have identical effects and exclusions.",
+    "ownership": "Reserve every reserved/reserved_by_description row against ordinary writes, including named read-write fields that say Reserved. Observe-only and read-clear permissions are independent of R/RW notation. Collect PHYSTS (0010) before 0001/0006 clear its mirrors. Protect 000C,000F,0012,0013,0014,0015,0017,001A,04A1 and 3:0016 through the applicable owner, including incidental reads. Unlisted addresses are reserved except the exact procedure exceptions. Vendor 31 direct-register aliases have identical effects and exclusions.",
     "faults": "For every procedure, inject each transfer/lock-release fault, deadline crossing, uncertain accepted write, cancellation and retry. Reject locally invalid values before callbacks. Under a single operation deadline retain consumed reads, uncertain effects and separate release status. Keep caches bus-silent. Restore only verified persistent owners via a separately bounded recovery; temporary diagnostic states require explicit stop and cleanup.",
     "outside": "RMII and copper 10/100 only; MII, RGMII, fiber and gigabit declarations cannot enter. Application owns clocks, reset, pins, qualified test fixtures and power. No physical qualification inferred from the vectors."
   },
@@ -85,6 +85,7 @@
       "0006",
       "000C",
       "000F",
+      "0010",
       "0012",
       "0013",
       "0014",
@@ -160,7 +161,7 @@
         "implementationStage": 60
       },
       "source": "7-33, 6.5.1",
-      "contract": "PHYRCR[15] acts like pin reset. Software strap reload and hard-reset sampling text overlap. Re-observe address, both strap registers and clock role after the wait.",
+      "contract": "PHYRCR[15] acts like pin reset. Software strap reload and hard-reset sampling text overlap. After the wait, reidentify at the configured address and confirm the clock role from vendor 0467 SOR1[3] and collected direct 17 RCSR[7]. Retain FIFO events from that read.",
       "vector": "W1F=8000, completion-anchored bus silence, then a bounded command-clear check. A changed address or role prevents replay."
     },
     {
@@ -278,7 +279,7 @@
       },
       "source": "6.3.10, fig 6-4, 6-10, 7-60/80/81",
       "contract": "Back-to-back RMII followers share 50 MHz and cross TX to RX. Select RX_DV on pin 20 using the strap or 0302[8]. Managed reset requires simultaneous external reset of both PHYs, owned by the application.",
-      "vector": "Require both declarations, independent ID/role, clock and external-reset board evidence. Reject the MII repeater settings. On a second-PHY failure preserve the first effect."
+      "vector": "Require both follower declarations, independent ID/role, common external 50 MHz clock and simultaneous external-reset board evidence. Reject MII and a 25 MHz repeater side at admission. Ordinary leader RX_DV remains selectable. On a second-PHY failure preserve the first effect."
     },
     {
       "id": "functional_mode",
@@ -1951,7 +1952,7 @@
       "fields": [
         {"bits": "15-13", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
         {"bits": "12", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
-        {"bits": "11", "name": "CRS_DV_vs_RX_DV", "access": "R", "reset": "0h", "use": "clock_role", "constraint": "Table 7-81 has no description. Report raw only, compare pin 20 strap to independent evidence."},
+        {"bits": "11", "name": "CRS_DV_vs_RX_DV", "access": "R", "reset": "0h", "use": "repeater", "constraint": "Table 7-81 has no description. Record as raw pin 20 strap evidence only when independently available. Clock role uses SOR1 and RCSR; runtime RX_DV selection uses 0302[8]."},
         {"bits": "10", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
         {"bits": "9", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
         {"bits": "8", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
