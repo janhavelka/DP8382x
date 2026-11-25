@@ -613,11 +613,14 @@ The feature owners below apply the [A write-action records](registers/dp83826a-p
 
 ## DP83825I
 
-The phase (b) implementation covers exact identity, default initialization,
-PCS/HARD/RESTART, role verification, RMII interface and manual clock mux,
-link profiles, next pages, live status and fast link drop. Each stage 60
-procedure and each remaining stage 61 family is identified in the
-[DP83825I register/field ledger](registers/dp83825i.json). Functional mode
-recipes, power and EEE, optional event/counter services, BIST, loopback, TDR,
-analog/electrical settings, wake and pin profiles require exact-part closure.
-Physical clock, link and electrical qualification are pending under Q15.
+The revision-0 core covers 18 procedures, including exact identity, default
+initialization, PCS/HARD/RESTART, RMII clock-role verification and clock mux
+selection, link profiles, next pages, live status and fast link drop.
+Both declared RMII roles have compiled fixture and offline replay evidence.
+[Prompt 60 verification](reports/implementation/60-p25-source-core.md#phase-d-final-verification)
+
+The ledger assigns 15 further procedures to prompt 61, including functional
+mode recipes, power and EEE, event/counter services, BIST, loopback, TDR,
+analog/electrical settings, wake and pin profiles. Physical clock, link and
+electrical qualification remain open under Q15.
+[DP83825I register and procedure ledger](registers/dp83825i.json)

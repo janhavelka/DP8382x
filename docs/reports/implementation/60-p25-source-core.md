@@ -583,3 +583,113 @@ Phase (c) is finished. Portable consumer, exported package consumer and ESP32-P4
 and relink all three images with the reviewed core. Remote CI **NOT RUN**
 (prompt 71). Physical **NOT RUN**. Q15 still requires an identified and
 authorized fixture for the clock, reset and link measurements.
+
+## Phase (d) final verification
+
+The tested checkpoint on 2026-11-26 was
+`4412a2db233defcd4542c2d63d58dc3663fee00b`. The wrapper had pushed the
+phase (c) fixes and verified equality with `origin/main`. The lead confirmed
+a clean index and worktree and 0 ahead, 0 behind on entry. Two workers used
+the session model for separate SDK and consumer/UBSan builds. The lead ran
+the Release, source and documentation checks. The host was Windows x86-64
+with MinGW-w64 GNU 15.1.0, CMake 4.0.1, Ninja 1.12.1 and Python 3.12.10.
+
+### Source and procedure coverage
+
+SNLS638C pp. 39–81 matched the ledger for all 101 detailed register headings
+(section, name, printed offset and printed reset) and all 570 field rows
+(bit range, name, access and reset). The independent comparison used the
+archived PDF with the SHA-256 recorded in phase (a) and PyMuPDF 1.27.2.2.
+The ledger checker verified six printed MMD headings and their wire tuples,
+ten recipe-only offsets and all 33 procedure assignments.
+
+| Prompt 60 responsibility | Procedure IDs covered by this checkpoint |
+| --- | --- |
+| Identity and bus | `identify`, `mdio` |
+| Board and PHY initialization | `external_reset`, `pcs_reset`, `hard_reset`, `restart`, `initialize` |
+| RMII configuration | `clock_role`, `rmii`, `follower_timing`, `clock_loss`, `repeater` |
+| Copper link | `configure_an`, `configure_forced`, `next_page`, `observe_link`, `fast_drop`, `link_options` |
+
+The declared I accepts `2000:A140` at revision 0 under table 7-6. The Linux
+I/S labels remain a recorded discrepancy. The RCSR heading and reserved
+reset cells also disagree. The driver preserves the reserved bits it reads
+and checks the declared role against SOR1[3] and RCSR[7]. The README,
+changelog, variants, API, clock and fixture guides describe this scope. The
+lead reopened the sibling headers, implementations, CLI, tests, runners and
+agent rules listed in the phase (a) table. All three trees were clean at the
+recorded revisions. Their explicit device selection and separate firmware
+identity conventions still apply. [Sibling sources](#sibling-audit-and-verification-plan)
+
+### Consumers and SDK links
+
+| Layer | Result on the reviewed sources |
+| --- | --- |
+| Portable consumer | **PASS**. A fresh Release build of `test/consumer` with library tests off passed both the public core and cable consumer registrations. |
+| Exported source consumer | **PASS**. A fresh application linked `DP8382x::DP8382x` from 29 hash-matched files including public headers, sources, CMake, manifests and license. Git discovery stopped at the export boundary. The consumer checked the upper strap address of 3, accepted the 100-full advertisement and rejected empty and unknown masks. The initial scratch consumer expected an empty advertisement to succeed and exited 2. Correcting that expectation and exercising the positive and negative cases passed 1/1 with the same package. |
+| ESP32-P4 SDK link | **PASS**. Each ELF and application binary contains the clean reviewed SHA. The adapter fixture selected the DP83825I 25 MHz leader. The basic and owner examples retained their DP83826I board declarations and disabled board-ready setting. |
+
+The SDK was ESP-IDF v6.1 at `fff9895c82d744c7237be8847347bdd1b07c6643`.
+The phase (b) wrapper commands, build directories and adapter selection above
+reproduced all three links. Build logs are in `build/p60d-sdk`.
+
+| Build directory | Application binary | Bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| `56l` | `dp8382x_adapter_link.bin` | 400288 | `b0b81ec1e73e7dc30b42fc77d9e63ce3e5e818bf275b29fbde134551b5259ba1` |
+| `56b` | `dp8382x_p4_ethernet.bin` | 705152 | `f7ea4548f2b4919a9d5dc8f4492a2a59f1915b0f6ca568328d13f2a758108be8` |
+| `56o` | `dp8382x_p4_owner.bin` | 583264 | `a07455ce35b0cd60c60c070eb1aacd154759874fac1783e604c52ade08174fa1` |
+
+The focused undefined-behavior sanitizer build used
+`-fsanitize=undefined -fsanitize-trap=undefined` for C and C++. All 273
+selected CTests passed in 3.58 s. The pinned host build verified 45 SDK
+sources and headers. Use the phase (c) process-local SDK Git setting for
+the host builds.
+
+```powershell
+cmake -S . -B build/p60-tests -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON -DDP8382X_BUILD_PINNED_IDF_TESTS=ON -DDP8382X_PINNED_IDF_PATH=C:/esp/v6.1/esp-idf
+cmake --build build/p60-tests --parallel 4
+cmake --build build/p55-ubsan --parallel 3
+$selection = '^(p25_.*|((e|ai|ae)_)?(link_|negotiation_|interface_|quality_|reset_|identity_).*|(ai|ae)_(interface|quality)|(e_)?native_factory.*|native_board_.*|native_shared_.*|cli_(fixture|pin)_transcript|cli_processor.*|((ai|ae)_)?(bist|lpi|loopback)(_|$).*)$'
+ctest --test-dir build/p55-ubsan -R $selection --output-on-failure --no-tests=error -j 3
+cmake -S test/consumer -B build/p60d-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF
+cmake --build build/p60d-consumer --parallel 2
+ctest --test-dir build/p60d-consumer --output-on-failure --no-tests=error
+cmake -S build/p60d-export/application -B build/p60d-export/out -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF -DDP8382X_BUILD_PINNED_IDF_TESTS=OFF
+cmake --build build/p60d-export/out --parallel 2
+ctest --test-dir build/p60d-export/out --output-on-failure --no-tests=error
+```
+
+### Host tests and completion
+
+**Host PASS.** The complete Release suite passed 1,013/1,013 in 150.15 s.
+It includes 22 named `p25_` registrations. The identity, core and profile
+tests executed 27,864, 5,787 and 12,797 checks respectively. The compiled
+campaign suite ran seven cases in each declared RMII role. All 14 cases
+passed against the simulated PHY and matched offline replay. The 10BASE-Te
+case checked local and partner remote-fault bits. Standalone Python discovery ran 278 tests,
+with 220 passes and 58 skips that require a compiled fixture. The full
+Release run also exercised the compiled CLI and simulated serial suites.
+Doxygen verified 294 generated HTML pages and rejected two negative
+fixtures. Reference integrity, ledger, generated version and final diff
+whitespace checks passed.
+
+```powershell
+ctest --test-dir build/p60-tests -j 3 --output-on-failure --no-tests=error --output-log build/p60-tests/60d-ctest.log
+python -B -m unittest discover -s test -p 'test_*.py' -v
+python -B tools/check_doxygen.py
+python -B tools/verify_ledger.py
+python -B scripts/generate_version.py check
+python -B tools/verify_references.py
+git diff --check
+```
+
+**Prompt 60 COMPLETE** for the 18 assigned DP83825I core procedures. The
+remaining 15 procedures belong to prompt 61. The final commit request covers
+the report, feature coverage and progress record. The wrapper records the
+documentation commit and verifies synchronization after this run.
+
+**Remote CI NOT RUN.** Prompt 71 owns the first remote checkpoint.
+**Physical NOT RUN.** Q15 requires identified silicon for each clock role,
+reset and first-SMI timing, RMII clock direction and loss, follower setup
+timing and negotiated link. Default follower timing recovery still requires
+a known reset baseline. The interaction of register 000C with the MISR
+latches also remains unresolved. [Physical evidence required](../../hardware-validation.md)
