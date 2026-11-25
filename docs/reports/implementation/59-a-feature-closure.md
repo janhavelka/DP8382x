@@ -391,3 +391,106 @@ Each grade exercised 42 passing BASIC cases and 43 passing ENHANCED cases
 with matching replay. Deep power returned the expected BLOCKED verdict in
 each mode and grade. Final reference verification covered 29 vendor artifacts,
 27 text extracts and 2,400 local links. Phase (d) is the next step for prompt 59.
+
+## Phase (d) final verification
+
+**COMPLETE for revision-4 DP83826AI and DP83826AE software within the
+documented silicon limits.** The full Release rerun passed **991/991** in
+251.26 s, including the original I/E regressions and both A grades. The
+log is `build/p59d-final-release.log`. The 31 assigned procedures have
+executing coverage or a source-backed restriction for the affected mode.
+Deep-power exit and the COUNT100 pattern remain blocked on safe 0428 access.
+Pin 31 mux codes 5/6 need TI clarification. Receiver-gain programming and
+MSE-to-SNR conversion still lack qualified mappings. Each grade retains
+its own physical qualification gate.
+
+On 2026-11-25 the wrapper confirmed that `main` and `origin/main` both pointed
+to the reviewed implementation at `d6834d873fdadf591c7d7aee6b9ba0a4cf517d62`.
+The index and worktree were clean. The lead checked the host, simulated CLI,
+source records and documentation. Two verification workers used the session
+model for separate SDK and consumer/UBSan builds. Both finished on that
+checkpoint. Only this report and the progress row changed in phase (d).
+
+The 31 distinct procedures in the assessment match all 31 prompt 59 ledger
+assignments. The two local PDF comparisons covered 79 tables and 427 rows
+per generation, all 27 A-generation EEE rows and 48 TDR words. The CLI
+coverage check joins the shared A map to the procedure routes, commands,
+register fields, recipe addresses, exceptional writes and fixture cases.
+The sibling paths in the [peer audit](#peer-and-source-audit) still support
+exact-part selection, bounded diagnostics and retention of partial results.
+TMP1x2, MB85RC and TUSB32x were clean at `0791429`, `a9a83ca` and
+`6989c77`. The README, changelog, variants, API, adapter, CLI and fixture
+guides already describe the delivered behavior and its limits.
+
+### Consumer and SDK results
+
+| Layer | Phase (d) result |
+| --- | --- |
+| AI/AE UBSan | **PASS**. All 294 AI/AE registrations passed in 3.57 s with traps enabled. |
+| Portable consumer | **PASS**. Both executables from the fresh Release tests-OFF build passed, 2/2. |
+| Isolated source-package consumer | **PASS**. The separate C++ application compiled, linked and ran against the A public pin, IRQ, wake and EEE interfaces, 1/1. The worker hash-checked 29 copied package inputs and verified that Git discovery stopped outside the package. |
+| ESP32-P4 SDK link | **PASS**. Both adapter selections and both example ELFs relinked against ESP-IDF v6.1 `fff9895c82d744c7237be8847347bdd1b07c6643`. Each binary contains the clean implementation SHA above. Both examples kept their board-ready gate closed. |
+| Remote CI | **NOT RUN**. First-execution remote CI is assigned to prompt 71. |
+| DP83826AI physical | **NOT RUN**. Wake, IRQ, cable, analog and Strap11/FLD EMC measurements require an identified, authorized AI board and fixtures. |
+| DP83826AE physical | **NOT RUN**. AE requires a separate board and qualification record, including temperature-dependent evidence. |
+
+The SDK commands used `scripts/idf.cmd -C <project> -B <dir> -D IDF_TARGET=esp32p4 -D SDKCONFIG=<dir>/sdkconfig build`.
+The directories are under `C:/esp/build/dp8382x-loop`. The four build logs
+are in `build/p59d-sdk`.
+
+| Directory | Project and selection | Binary SHA-256 |
+| --- | --- | --- |
+| 53l | test/esp_idf/adapter_link, DP83826AI | `532983922bc51b86333d517e576c595b071a604e1e88e59f4342e39bd7311925` |
+| 56l | test/esp_idf/adapter_link, DP83826AE | `e783b3ff3e79535f3cd1755a3d648b9415d528d173ac4d357e4b3003c3a25822` |
+| 56b | examples/esp_idf/basic | `925c6b194a123c8c5ac38b96d917df58ba452bb3774196cfbee8efc35005596c` |
+| 56o | examples/esp_idf/owner | `a532c2ca861f8ef4a2ced112d1143a2a708a9ff22988b5a219277024e96e0ed0` |
+
+On Windows 11 AMD64 with GNU C++ 15.1.0, CMake 4.0.1, Ninja 1.12.1 and
+CPython 3.12.10, the host and consumer checks used the phase (c) process-local
+Git settings. The package build used the phase (c) consumer application and
+current public headers, sources, CMake file, license and manifests.
+
+```powershell
+cmake --build build/p55-ubsan --parallel 3
+ctest --test-dir build/p55-ubsan -R '^(ai|ae)_' --output-on-failure --no-tests=error -j 4
+cmake -S test/consumer -B build/p59d-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF
+cmake --build build/p59d-consumer --parallel 2
+ctest --test-dir build/p59d-consumer --output-on-failure --no-tests=error
+cmake -S build/p59d-export/application -B build/p59d-export/out -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF
+cmake --build build/p59d-export/out --parallel 2
+ctest --test-dir build/p59d-export/out --output-on-failure --no-tests=error
+```
+
+### Host, source and documentation checks
+
+The Release configuration verified 45 pinned SDK inputs for the native host
+tests. The first full run (`-j 8`) passed 990/991 in 153.66 s. The injected
+serial cold-boot case with concurrent polling returned runner exit 2 after
+a receive deadline expired, despite a PASS case verdict. The failure is
+recorded in `build/p59d-release.log`. The isolated `cli_hil_campaign` rerun
+passed in 15.67 s with the original deadlines. The subsequent full run used
+one CTest job to avoid overlap between the timing-sensitive suites.
+
+The compiled feature campaign exercises each declared grade in BASIC and
+ENHANCED. For each grade, 42 BASIC and 43 ENHANCED cases passed and matched
+offline replay. The deep-power case returned the expected BLOCKED verdict
+in both modes. Standalone Python discovery ran 272 tests in 33.749 s,
+with 216 passes and 56 compiled-build skips. Doxygen checked 294 HTML pages
+and rejected both negative fixtures. The archived references, local links,
+ledger, generated version and diff whitespace checks passed.
+
+```powershell
+cmake -S . -B build/p53-baseline -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=ON -DDP8382X_BUILD_PINNED_IDF_TESTS=ON -DDP8382X_PINNED_IDF_PATH=C:/esp/v6.1/esp-idf
+cmake --build build/p53-baseline --parallel 5
+ctest --test-dir build/p53-baseline --output-on-failure --no-tests=error -j 8
+ctest --test-dir build/p53-baseline -R '^cli_hil_campaign$' --output-on-failure --no-tests=error
+ctest --test-dir build/p53-baseline --output-on-failure --no-tests=error -j 1
+python -B build/p57-final-sources/crosscheck.py
+python -B build/p57-procedures/check.py
+python -B -m unittest discover -s test -p 'test_*.py' -v
+python -B tools/check_doxygen.py
+python -B tools/verify_ledger.py
+python -B scripts/generate_version.py check
+python -B tools/verify_references.py
+git diff --check
+```
