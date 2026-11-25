@@ -404,3 +404,40 @@ ctest --test-dir <dir> -R '^(p25_(core|profiles)|(e_)?native_factory(_100hz|_333
 Portable/package consumers, SDK link, remote CI and physical evidence were
 **NOT RUN** in this test-only slice. Phase (c) continues with link semantics,
 inventory and optional feature boundaries, and native/CLI campaign evidence.
+
+## Phase (c) review of remote-fault evidence
+
+The wrapper verified clean `main` at `ed4581856990e748f7c9f04e1a8d800cb6be5f1e`
+against its upstream. Two parallel read-only reviewers used the current model
+to trace link acquisition and local advertisement independently. The lead
+checked the original SNLS638C PDF on pages 41–43 and 49. The sibling revisions
+in the phase (a) table were still clean. Their declared-part conventions apply
+to test selection. The PHY datasheet supplies the expected register values.
+
+Tables 7-4 and 7-19 establish that reading BMSR clears the remote-fault latch
+and its PHYSTS mirror. The link owner reads PHYSTS before BMSR in both batches.
+The link failure test now seeds both bits and fails the controller release
+after eight or ten completed reads. It checks each source's sample count,
+last raw word and retained fault bit, and checks the caller's sentinel.
+The link guide now gives the read order and reset handling by part.
+
+Tables 7-7 and 7-8 distinguish prohibited local ANAR[13] from the partner's
+advertised fault. The native adapter uses the common configuration owner.
+The existing next-page test checks both local advertisement writes against
+RF-set input words and retains the partner's raw base page. A new readback
+case injects `2101` after requesting `0101`. The operation records the
+bit-13 mismatch under mask `ADFF`, retains cleanup owed and leaves trust DIRTY.
+The simulated PHY received `0101`.
+
+Host **PASS** on Windows x86-64, GCC 15.1.0. The selected link and negotiation
+suites passed 82/82 in Release and 82/82 in UBSan trap mode. Use
+`build/p60-tests` and `build/p55-ubsan` respectively for `<dir>`.
+
+```powershell
+cmake --build <dir> --target dp8382x_link_tests dp8382x_negotiation_tests --parallel 2
+ctest --test-dir <dir> -R '^((p25|ai|ae|e)_)?(link|negotiation)_.*$' --output-on-failure --no-tests=error -j 2
+```
+
+Portable/package consumers, SDK link, remote CI and physical qualification
+were **NOT RUN** in this slice. Phase (c) continues with the register and
+procedure inventory, optional-feature gates and native/compiled CLI replay.

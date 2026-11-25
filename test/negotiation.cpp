@@ -469,6 +469,20 @@ void failures() {
   CHECK(mismatch.cleanupOwed);
   CHECK(mismatch.failingBatch.normalized.is(Err::MDIO_TIMEOUT));
 
+  if (test::p25()) {
+    auto [faultBus, faultDriver] = test::BoundDriver<Controller>{};
+    initialize(faultDriver, faultBus);
+    faultBus.badAnar = 0x2101; // Table 7-7: only the prohibited local fault bit differs.
+    token = configure(faultDriver);
+    CHECK(drain(faultDriver, faultBus, token).is(Err::CONFIG_MISMATCH));
+    const auto result = take(faultDriver, token);
+    CHECK(result.mismatch.valid && result.mismatch.registerAddress == 4);
+    CHECK(result.mismatch.mask == 0xADFF && result.mismatch.expected == 0x0101);
+    CHECK(result.mismatch.observed == 0x2101 && result.cleanupOwed);
+    CHECK(faultBus.phys[1].anar == 0x0101);
+    CHECK(faultDriver.settingsSnapshot().trust == ConfigurationTrust::DIRTY);
+  }
+
   auto [controlBus, controlDriver] = test::BoundDriver<Controller>{};
   initialize(controlDriver, controlBus);
   token = configure(controlDriver);

@@ -1,20 +1,15 @@
 # Live and cached link observations
 
-DP83825I uses the PHYSTS-first sequence below. A remote fault can disappear
-from PHYSTS when BMSR is read. The collector retains the earlier sample even
-on a subsequent transport error. Twisted-pair AN supports every nonempty
-subset of the four 10/100 half/full technologies. Local ANAR[13] stays low.
+On DP83825I, twisted-pair AN supports every nonempty subset of the four
+10/100 half/full technologies. The configuration owner writes local ANAR[13]
+as zero and verifies that it reads back as zero. Partner ALNPAR[13] records
+the partner's advertisement. [SNLS638C, tables 7-7 and 7-8](reference/source/TI-DP83825I-SNLS638C.pdf)
+
 Forced operation permits either robust crossover setting. Extended full duplex
 is meaningful with a forced 100BASE-TX peer. Without partner evidence a
 forced local 100/half observation can still leave the duplex unresolved.
 
-On AI and AE, a ten-frame observation reads hex C22 `10 01 01 00 04 05 06 19`
-then `10 01`. PHYSTS[6] mirrors a latch that the BMSR read clears. The
-collector retains the first PHYSTS sample even when the following frame fails.
-BMCR supplies forced speed and duplex. Partner advertisement and latched
-remote-fault evidence have separate meanings. [Identity policy](identity.md)
-
-`readLinkStatus` acquires a bounded DP83826I observation at the configured address.
+`readLinkStatus` acquires a bounded observation at the configured PHY address.
 `linkSnapshot` copies the retained value without MDIO, clock callbacks, event
 acknowledgement or age calculation. Serialize both through the application owner.
 The [linked example](../examples/portable/LinkStatus.h) separates sampling from
@@ -23,7 +18,7 @@ the application's optional 100/full and maximum-age policy.
 ## Admission and acquisition
 
 Link acquisition rechecks the ten-frame, two-callback reserve at the first
-submission. If the first AI/AE batch observes BMCR reset, the collector retains the
+submission. If the first DP83825I or DP83826AI/AE batch observes BMCR reset, the collector retains the
 completed reads, the cached link becomes stale and the caller's output stays
 unchanged. Reinitialize before acquiring a fresh link.
 
@@ -39,18 +34,24 @@ A link read can update per-source partial history and stale a previously complet
 counter aggregate; cached link/counter readers consume neither. Chip error counts
 remain separate from MDIO activity and [passive managed health](health.md).
 
-Success uses exactly ten C22 reads in two terminal batches:
+Each successful observation uses ten Clause 22 reads. Addresses are hexadecimal.
 
-1. BMSR(first), BMSR(current), PHYSTS(first), BMCR, ANAR, ALNPAR, ANER, PHYCR.
-2. BMSR(final), PHYSTS(final).
+| Declared PHY | First batch | Second batch |
+| --- | --- | --- |
+| DP83826I/E | `01 01 10 00 04 05 06 19` | `01 10` |
+| DP83825I, DP83826AI/AE | `10 01 01 00 04 05 06 19` | `10 01` |
+
+In the PHYSTS-first sequence, reading BMSR clears the remote fault in BMSR[4]
+and its PHYSTS[6] mirror. The collector retains fault bits from completed reads
+even if a later read or the controller release fails. [DP83825I tables 7-4 and 7-19](reference/source/TI-DP83825I-SNLS638C.pdf)
 
 Admission reserves ten frames and both callback bounds under one absolute
 deadline. Each batch rechecks its remaining allowance. The lock is released
 when each callback returns; there is no wait, retry or resampling loop. All
 destructive receipts use the existing collector. A later failure cannot erase
 the successfully consumed prefix, and an ambiguous destructive failure marks
-possible history loss. The first BMSR retains latch-low history; the second
-supplies current link. PHYSTS precedes ANER's dependent clearing effects.
+possible history loss. The snapshot retains the first BMSR word and uses the
+second as its current link sample. PHYSTS precedes ANER's dependent clearing effects.
 
 Current/final BMSR and both PHYSTS words must agree on link and AN completion,
 including agreement between BMSR and PHYSTS at each bookend. Applicable resolved

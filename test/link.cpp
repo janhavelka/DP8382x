@@ -484,11 +484,26 @@ void failures() {
   // publishes a successful aggregate or loses the controller failure detail.
   for (unsigned phase = 0; phase < 2; ++phase) {
     Controller bus; Driver driver; initialize(driver, bus); up(bus);
+    const auto before = driver.evidenceSnapshot();
+    if (bmsrClearsRemoteFault()) {
+      bus.words[1] |= 0x0010U;
+      bus.words[16] |= 0x0040U;
+    }
     bus.releaseFailCall = static_cast<int>(bus.calls + phase);
     LinkSnapshot result; result.rawBmcr = 0xBEEF;
     CHECK(!refresh(driver, bus, result).ok());
     CHECK(result.rawBmcr == 0xBEEF && !driver.linkSnapshot().valid);
     CHECK(driver.transportSnapshot().lastBatch.releaseStatus.detail == -19020);
+    if (bmsrClearsRemoteFault()) {
+      const auto retained = driver.evidenceSnapshot();
+      const auto& basic = evidence(retained, EvidenceSource::BMSR);
+      const auto& status = evidence(retained, EvidenceSource::PHYSTS);
+      CHECK(basic.samples == evidence(before, EvidenceSource::BMSR).samples + 2U + phase);
+      CHECK(status.samples == evidence(before, EvidenceSource::PHYSTS).samples + 1U + phase);
+      CHECK(basic.raw == 0x0024 && (basic.observedOnes & 0x0010U) != 0U);
+      CHECK(status.raw == (phase == 0 ? 0x0055 : 0x0015) && (status.observedOnes & 0x0040U) != 0U);
+      CHECK(!basic.historyLost && !status.historyLost);
+    }
   }
 }
 
