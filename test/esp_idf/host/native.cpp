@@ -213,8 +213,58 @@ void p25Factory() {
         assert(board.mac.extended[0x030E] == 0x8400);
     }
 }
+void p25NativeIsolationGuard() {
+    for (bool approved : {false, true}) {
+        Host::reset();
+        Fixture board;
+        board.config.core.variant = Variant::DP83825I;
+        board.config.core.rmiiClock = RmiiClock::LEADER_25MHZ;
+        board.config.core.clockLossApproved = approved;
+        board.mac.registers[3] = 0xA140;
+        board.mac.registers[23] = 0x006D;
+        board.install();
+        OperationToken token;
+        const OperationBudget budget{{Host::state().nowUs + 1000000, 512}, 10, 16};
+        assert(board.owner->startInitialize({ResetKind::NONE}, budget, token).inProgress());
+        board.finish(token);
+
+        LinkSettings settings;
+        settings.advertisement.technologyMask = LINK_100_FULL;
+        assert(board.owner->startConfigure(settings, budget, token).inProgress());
+        OperationSnapshot progress;
+        for (unsigned i = 0; i < 64; ++i) {
+            assert(board.owner->operationSnapshot(progress).ok());
+            if (progress.phase == OperationPhase::COMMAND) break;
+            assert(board.owner->pollOperation(token).inProgress());
+        }
+        assert(progress.phase == OperationPhase::COMMAND);
+        // SNLS638C table 7-3. Isolation changes after preflight and would
+        // be carried into the command by the BMCR preserve mask.
+        board.mac.registers[0] |= 0x0400;
+        const auto isolated = board.mac.registers[0];
+        const auto first = board.mac.frames.size();
+        board.mac.onFrame = [&](const Host::Frame&) { assert(Host::semaphoreHeld(board.bus.mutex)); };
+        const auto status = board.owner->pollOperation(token);
+        board.mac.onFrame = nullptr;
+        assert(!Host::semaphoreHeld(board.bus.mutex) && !board.bus.quarantined);
+        const auto& frames = board.mac.frames;
+        assert(frames.size() == first + (approved ? 2U : 1U));
+        assert(!frames[first].write && frames[first].reg == 0 && frames[first].value == isolated);
+        if (approved) {
+            assert(status.inProgress() && frames.back().write && frames.back().reg == 0);
+            assert((frames.back().value & 0x0400) != 0);
+            board.finish(token);
+        } else {
+            assert(status.is(Err::CONFIG_MISMATCH) && board.mac.registers[0] == isolated);
+            OperationResult result;
+            assert(board.owner->takeResult(token, result).ok());
+            assert(result.status.is(Err::CONFIG_MISMATCH) && result.mutationPossible && result.cleanupOwed);
+        }
+    }
+}
 void factory() {
     p25Factory();
+    p25NativeIsolationGuard();
     Host::reset(); Fixture f;
     auto* output = reinterpret_cast<Native*>(0x1234);
     auto invalid = f.config; invalid.core.phyAddress = 32;

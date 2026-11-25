@@ -367,3 +367,40 @@ Portable/package consumers, SDK link, remote CI and physical qualification
 were **NOT RUN** in this slice. Phase (c) remains in progress. Continue
 with follower timing restoration, clock-loss guards across controllers,
 link semantics, the source inventory and native/CLI replay evidence.
+
+## Phase (c) review of follower timing and leader isolation
+
+Two independent read-only reviewers traced the changes from `5115dd0` to the
+synchronized `395ba14` checkpoint. The follower review confirmed the section
+5.6 footnote 2 sequence in SNLS638C. The interface owner sets RCSR[8], writes
+vendor 0042=0014 and retains proof for later verification. The host fixture
+clears both registers on HARD. Its interruption tests check that replay restores
+shifted timing after confirmed and uncertain writes. A board reset baseline and
+fresh binding remain necessary to select default timing.
+
+The leader review checked BMCR isolation against table 7-3 and traced the
+pin 2 mux and deep-power guards against table 7-61 and section 6.3.8. The
+portable test already changes BMCR[10] after link preflight. The installed
+native fixture now repeats that change just before the command. Without
+clock-loss approval the instrumented MAC records one locked BMCR read, the
+mutex releases, and the result retains CONFIG_MISMATCH and cleanup owed for
+earlier configuration writes. With approval the MAC records the read and
+the isolation-preserving write under lock, and configuration finishes.
+
+Host **PASS** on Windows x86-64 with GCC 15.1.0. The six selected CTests
+passed in both Release and UBSan trap mode, including native factory tests at
+100, 333 and 1000 Hz. Repeat with `build/p60-tests` and `build/p55-ubsan`
+as `<dir>`. The first build used an incorrect SDK directory for Git ownership
+and stopped at the verifier. Both reruns verified 45 pinned SDK files.
+
+```powershell
+$env:GIT_CONFIG_COUNT='1'
+$env:GIT_CONFIG_KEY_0='safe.directory'
+$env:GIT_CONFIG_VALUE_0='C:/esp/v6.1/esp-idf'
+cmake --build <dir> --target dp8382x_interface_tests dp8382x_native_host_tests dp8382x_native_host_100hz_tests dp8382x_native_host_333hz_tests --parallel 3
+ctest --test-dir <dir> -R '^(p25_(core|profiles)|(e_)?native_factory(_100hz|_333hz)?)$' --output-on-failure --no-tests=error
+```
+
+Portable/package consumers, SDK link, remote CI and physical evidence were
+**NOT RUN** in this test-only slice. Phase (c) continues with link semantics,
+inventory and optional feature boundaries, and native/CLI campaign evidence.
