@@ -131,7 +131,7 @@ Status DP8382x::_validatePins(const PinSettings& settings) const noexcept {
     if (a && i==3U && _config.interface==MacInterface::MII && !carrier(pin.function) && !settings.crsUnused) {
       return pinConfig("LED3 alternate output requires the MII CRS consumer stopped");
     }
-    if (i==1U && !basic && (!settings.led1ClockUnused || (_eee.desiredValid && _eee.desired.enabled))) {
+    if (i==1U && ((!basic && !settings.led1ClockUnused) || (_eee.desiredValid && _eee.desired.enabled))) {
       return pinConfig("LED1 conflicts with a clock consumer or the owned EEE recipe");
     }
     if (i==2U && _config.interface==MacInterface::MII && !collision(pin.function) && !settings.colUnused) {
@@ -311,9 +311,9 @@ void DP8382x::_retainPinWord(uint16_t address,uint16_t value) noexcept {
       // A live read in the setup pass can legitimately precede PIN_APPLY.
       // Once preflight proves the route, a later independent contradiction
       // must survive the remaining mask writes and terminal verification.
-      if (_interruptWorking && !_interruptPinRestore && _interruptStep!=InterruptStep::IDENTIFY &&
-          _interruptStep!=InterruptStep::PIN_CLOCK && _interruptStep!=InterruptStep::PIN_MUX &&
-          !_result.mismatch.valid) {
+      const bool clockChecked=_interruptStep!=InterruptStep::IDENTIFY && _interruptStep!=InterruptStep::PIN_CLOCK;
+      const bool muxChecked=clockChecked && _interruptStep!=InterruptStep::PIN_MUX && !_interruptPinRestore;
+      if (_interruptWorking && (clockLost?clockChecked:muxChecked) && !_result.mismatch.valid) {
         const uint16_t mask=clockLost?1U:7U, expected=clockLost?1U:4U;
         _result.mismatch={true,true,31,address,mask,expected,value};
       }

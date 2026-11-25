@@ -384,7 +384,7 @@ Both grades need identified boards for Strap11 and the FLD/EMC measurements.
 | --- | --- | --- | --- | --- |
 | `identify` | `identity` | readIdentity / identitySnapshot / capabilities | `connection identity`, `connection probe`, `connection discover`, `capabilities` | `identity_policy` |
 | `direct_access` | `access` | readClause22 / writeClause22 / readMmd / writeMmd | `registers read`, `registers dump`, `registers bmcr` (raw LEDCR writes fenced) | `reset_access` |
-| `mmd_access` | `access` | readClause22 / writeClause22 / readMmd / writeMmd / modifyMmd | `registers read`, `registers dump`, `registers bmcr` (raw LEDCR writes fenced) | `reset_access` |
+| `mmd_access` | `access` | readClause22 / writeClause22 / readMmd / writeMmd / modifyMmd | `registers read`, `registers dump` (raw LEDCR writes and RMW fenced) | `reset_access` |
 | `pcs_reset` | `reset` | startInitialize({PCS}) | `recovery reset` (PCS) | `reset_traces` |
 | `hard_reset` | `reset` | startInitialize({HARD}) | `recovery reset` (hard) | `reset_traces` |
 | `restart` | `reset` | startInitialize({RESTART}) | `recovery restart` | `reset_traces` |

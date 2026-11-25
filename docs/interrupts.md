@@ -179,6 +179,9 @@ same owned batch. Current MII/RMII mode must match declared wiring before any
 route write; declaration alone cannot waive COL admission. RC samples remain in
 the single collector. A later contradictory mode observation withdraws route
 trust and stops an active pass before another mutation.
+On AI and AE the ENHANCED LED1 route also requires a clock-release sample
+at 0308. A later contradictory sample stops setup even if the mux still
+needs repair.
 
 The host [tests](../test/interrupts.cpp) cover every source, simultaneous events,
 pin/mode admission, transitions, bounds, partial read effects, all apply/stop/

@@ -1,4 +1,4 @@
-FEATURE(IRQ_CONFIGURE, "irq configure", 5, 5, START, "misr1 misr2 polarity|wake intr|led1|led2 flags", "Apply interrupt masks, route and delivery")
+FEATURE(IRQ_CONFIGURE, "irq configure", 5, 5, START, "misr1 misr2 polarity|wake intr|led1|led2|led0|led3 flags", "Apply interrupt masks, route and delivery (LED0/3 on AI/AE)")
 FEATURE(IRQ_STATUS, "irq status", 0, 0, CACHED, "", "Copy retained interrupt policy and stimulus")
 FEATURE(IRQ_SERVICE, "irq service", 0, 3, READ, "[transactions samples frames]", "Consume both MISRs and requested counters once")
 FEATURE(IRQ_CACHED_SERVICE, "irq cached-service", 0, 0, CACHED, "", "Copy retained interrupt service")

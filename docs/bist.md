@@ -8,7 +8,7 @@ Consume each result before admitting the next operation. The application owns
 dwell, normal-traffic quiescence and external stimulus; the controller lock covers
 one batch and is released before waits. `bistSnapshot()` is passive.
 
-Start requires fresh exact DP83826I identity, initialization, a VERIFIED desired
+Start requires fresh identity for the declared DP83826I, E, AI or AE, initialization, a VERIFIED desired
 profile and `options.loopback.maintenanceAdmitted`. Persistent desired settings
 remain unchanged. Normal line operation uses `useLoopback=false`: it does not
 pretend an external-loop fixture exists. Optional digital, analog and external
@@ -33,7 +33,10 @@ combinations reject before I/O. Digital requires admitted HARD exit, analog its
 The [ledger](register-map.md) owns the numeric catalog. Source definitions are
 SNLS647I 8.3.15, table 8-40 (BISCR), table 8-45 (BICSR1) and table 8-46 (BICSR2).
 Mode, packet and gap options have no additional guessed dependency on each other.
-There is no source-backed independent continuous-generator-only encoding.
+The hardware has no documented independent continuous-generator-only encoding.
+On AI/AE, SNLS783A table 8-41 assigns BISCR bits 11 through 8 to hardware.
+Loopback, PRBS and compliance writes put zero in all four positions, including
+the sync-loss indication. [A-generation datasheet](reference/source/TI-DP83826AI-AE-SNLS783A.pdf)
 
 Before any temporary mutation start saves packet/IPG, then invokes the shared
 loopback procedure or its ordinary line path. It programs and verifies packet/IPG,
@@ -71,6 +74,12 @@ validity and tokens; collector history keeps its own historical validity.
 Permitted dwell reads of BISCR through the collector, C22 or its vendor alias
 contribute activity and sync-loss observations to the same session. Clearing
 host collector history cannot erase those retained session observations.
+For generator/checker mode, attributing a nonzero error sample requires
+generator activity during the dwell or the opening bookend of this capture.
+An accepted or uncertain counter freeze retires that interval's activity proof.
+A definitely ineffective freeze preserves it for a later sample. Earlier
+activity remains visible in the session history. Both bookends retain raw lock
+bits, and only a mode with the checker enabled can report observed lock.
 
 | Evidence | Result |
 | --- | --- |
@@ -124,5 +133,5 @@ within the supplied budget. These are host protocol bounds, not latency promises
 [Bist.h](../examples/portable/Bist.h) compiles in the separate tests-OFF consumer.
 It reuses the common owner loop and shared HARD-reset floor. The consumer acquires
 once, copies two cached views without I/O, then stops with a separate result.
-CLI/runner mappings remain planned. Physical counters, lock behavior, packets,
-termination and signal integrity are NOT RUN; no simulated sample qualifies them.
+The compiled runner exercises the BIST modes and replay. Physical counters,
+lock behavior, packets, termination and signal integrity await fixture evidence.

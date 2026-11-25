@@ -262,6 +262,18 @@ void admission() {
   CHECK(b.hard==1U && r.cleanupOwed && !d.isInitialized() && writes(b,first,31,0x4D1)==0U);
 }
 void conflicts() {
+  for (bool eeeFirst:{false,true}) {
+    Controller bus; bus.id2=test::basicId2(); Driver driver; ready(driver,bus);
+    PinSettings pins; pins.availableMask=2; pins.pins[1].function=PinFunction::LED;
+    pins.maintenanceAdmitted=pins.macStopped=pins.outputsQuiesced=true;
+    PinResult result; OperationToken token{999};
+    if (eeeFirst) configured(driver,bus);
+    else CHECK(driver.configurePins(pins,result,{1000000,2048}).ok());
+    const auto frames=bus.frames, clocks=bus.clocks;
+    const auto denied=eeeFirst?driver.configurePins(pins,result,{1000000,2048}):
+                               driver.startConfigureEee(settings(),budget(),token);
+    CHECK(denied.is(Err::INVALID_CONFIG) && token.value==999 && bus.frames==frames && bus.clocks==clocks);
+  }
   for(bool eeeFirst:{false,true}) {
     Controller b;Driver d;ready(d,b);InterruptSettings irq;irq.pin=InterruptPin::LED1;
     irq.maintenanceAdmitted=irq.pinAvailable=irq.led1ClockUnused=true;

@@ -140,13 +140,17 @@ struct Bus {
     words[24] = 0x0400;
     vendor[0x0025] = 0x0041;
     vendor[0x0303] = 0x0008;
-    vendor[0x0304] = 0x0008;
+    // Table 8-76 strap sample. The model never programs the disputed 5/6 roles.
+    vendor[0x0304] = basic ? 0x0008 : 0x000E;
     vendor[0x0305] = rmii ? 0x0008 : 0x000B;
     vendor[0x0306] = 0x0008;
     vendor[0x0460] = 0x5565;
     vendor[0x0469] = 0;
     vendor[0x0308] = 0x0002;
     vendor[0x0456] = 0x0008;
+    vendor[0x04A0] = basic ? 0x1000 : 0x1081;
+    vendor[0x04A1] = 0x1000;
+    for (unsigned address = 0x04A2; address <= 0x04A7; ++address) vendor[address] = 0;
   }
 
   void setup(const Options& options) {
@@ -195,7 +199,8 @@ struct Bus {
       vendor[0x0468] = rmii ? 0x0010 : 0;
       resetAControls();
     }
-    vendor[0x04A0] = aGrade && basic ? 0x1800 : 0x1881; // Wake indication pending with a reset detector profile.
+    // Inject a pending indication at fixture entry only. HARD reloads the A strap profile.
+    vendor[0x04A0] = aGrade ? static_cast<uint16_t>(vendor[0x04A0] | 0x0800U) : 0x1881;
     vendor[0x04A1] = 0x1000;
     vendor[0x04D1] = 0x0080;
     if (options.partner == Partner::DOWN) return;

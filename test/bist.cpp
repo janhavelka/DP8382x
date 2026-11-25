@@ -22,7 +22,7 @@ struct Controller {
   std::array<uint16_t, 3> opaque{};
   bool holdLinkDown{false}; unsigned phystsReads{0};
   uint8_t liveErrors{0}, capturedErrors{0xCC};
-  uint16_t statusBits{0x0A00}; unsigned captures{0};
+  uint16_t statusBits{0x0A00}; bool staleLock{false}; unsigned captures{0};
   bool holdGeneratorActive{false}; unsigned heldOffReads{0};
   int changeStatusCall{-1}; uint16_t changedStatus{0};
   uint64_t now{100}, frameTime{2};
@@ -47,7 +47,7 @@ struct Controller {
       const uint16_t allowed=mode==0x2000U?0x0C00U:mode==0x1000U?0x0200U:mode==0x3000U?0x0E00U:0U;
       const bool held=mode==0U && (holdGeneratorActive || heldOffReads!=0U);
       if(mode==0U && heldOffReads!=0U) --heldOffReads;
-      return static_cast<uint16_t>((words[22]&0xF1FFU)|(statusBits&allowed)|(held?0x0200U:0U));
+      return static_cast<uint16_t>((words[22]&0xF1FFU)|(statusBits&allowed)|(held?0x0200U:0U)|(staleLock?0x0800U:0U));
     }
     if (reg == 16) { ++phystsReads; return holdLinkDown ? uint16_t{0} : words[16]; }
     if (reg == 2) return 0x2000;
@@ -67,7 +67,7 @@ struct Controller {
     return words[reg];
   }
   void write(uint8_t reg, uint16_t value) noexcept {
-    if (reg == 22 && test::aGrade()) CHECK((value&0x0B00U)==0U);
+    if (reg == 22 && test::aGrade()) CHECK((value&0x0F00U)==0U);
     if (reg == 13) { selector = value; return; }
     if (reg == 14 && selector == 0x001F) { address = value; return; }
     CHECK(semanticWrites < writes.size());
@@ -418,6 +418,25 @@ void fields() {
   CHECK(active.semanticWrites==mutations && !subject.operationSnapshot().cleanupOwed);
 }
 void measurements() {
+  {
+    Controller bus; Driver driver; ready(driver,bus); activate(driver,bus);
+    for (bool active:{true,false}) {
+      bus.statusBits=active?0x0A00:0x0800; bus.liveErrors=1;
+      const auto token=acquire(driver,bus); CHECK(drain(driver,bus,token).ok());
+      const auto sample=take(driver,token).bist;
+      CHECK(sample.activityObserved && sample.lockObserved && sample.errorBytes==1);
+      CHECK(sample.outcome==(active?BistOutcome::ERRORS_OBSERVED:BistOutcome::INCONCLUSIVE));
+    }
+    bus.statusBits=0x0C00; // Sync loss remains observable as the PRBS owner stops.
+    const auto token=stop(driver,bus); CHECK(drain(driver,bus,token).ok()); take(driver,token);
+  }
+  for (auto mode:{BistMode::OFF,BistMode::SINGLE_PACKET}) {
+    Controller bus; Driver driver; ready(driver,bus);
+    auto opts=options(); opts.mode=mode; activate(driver,bus,opts); bus.staleLock=true;
+    const auto token=acquire(driver,bus); CHECK(drain(driver,bus,token).ok());
+    const auto sample=take(driver,token).bist;
+    CHECK((sample.rawBefore&sample.rawAfter&0x0800U)!=0 && !sample.lockObserved);
+  }
   // Dwell observations use the same collector as typed acquisition. A loss or
   // activity sample must count even when RH changes before the next bookends.
   for(unsigned route=0;route<3;++route) for(bool loss:{false,true}) {
@@ -478,6 +497,20 @@ void measurements() {
   }
 }
 void acquireFailures() {
+  // A lost capture reply may follow a counter clear. Its activity proof
+  // cannot qualify new errors if the application takes another sample.
+  for (bool applied:{false,true}) {
+    Controller bus; Driver driver; ready(driver,bus); activate(driver,bus);
+    bus.failAfterEffect=applied; bus.failFrame=static_cast<int>(bus.frames+1U);
+    const auto first=acquire(driver,bus); CHECK(drain(driver,bus,first).is(Err::MDIO_TIMEOUT));
+    const auto incomplete=take(driver,first).bist;
+    CHECK(!incomplete.measurementValid && incomplete.historyLost==applied);
+    bus.failFrame=-1; bus.statusBits=0x0800; bus.liveErrors=2;
+    const auto next=acquire(driver,bus); CHECK(drain(driver,bus,next).ok());
+    const auto sample=take(driver,next).bist;
+    CHECK(sample.activityObserved && sample.errorBytes==2);
+    CHECK(sample.outcome==(applied?BistOutcome::INCONCLUSIVE:BistOutcome::ERRORS_OBSERVED));
+  }
   for(unsigned phase=0;phase<4;++phase) {
     Controller bus; Driver driver; ready(driver,bus); activate(driver,bus);
     const auto intent=driver.settingsSnapshot(); bus.liveErrors=3;

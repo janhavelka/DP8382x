@@ -170,9 +170,14 @@ void DP8382x::_retainWakeWord(uint16_t address,uint16_t value) noexcept {
   if (!pin && (address<0x04A0U || address>0x04A7U)) { return; }
   _wake.observedStale=true;
   uint16_t mask=0,expected=0;
+  // A planned mux or credential update is safe only while all matching
+  // functions remain disabled. An independent observation can revoke that proof.
+  const bool rekeying=_wakeWorking && (_wakeStep==WakeStep::PIN_APPLY || _wakeStep==WakeStep::PIN_VERIFY ||
+      _wakeStep==WakeStep::WRITE_CREDENTIAL || _wakeStep==WakeStep::VERIFY_CREDENTIAL);
   if (pin) { _wake.rawPinControl=value; _wake.pinControlValid=true; mask=7; expected=_wakePinFunction(); }
   else if (address==0x04A0U) {
-    _retainWakeControl(value); mask=0x17A1; expected=_wakeControl();
+    _retainWakeControl(value);
+    mask=rekeying?0x00A1:0x17A1; expected=rekeying?0:_wakeControl();
   } else if (address>=0x04A2U && address<=0x04A7U) {
     const auto index=static_cast<uint8_t>(address-0x04A2U);
     if (index<3U) { _wake.rawMac[index]=value; } else { _wake.rawPassword[index-3U]=value; }
@@ -186,17 +191,17 @@ void DP8382x::_retainWakeWord(uint16_t address,uint16_t value) noexcept {
   if (contradiction) {
     _wake.trust=ConfigurationTrust::DIRTY;
     if (_wakeWorking && _wakeStep==WakeStep::READ_CREDENTIAL && address>=0x04A2U) { _wakeCredentialsChanged=true; }
-    if (_wakeWorking && pin && (_wakeStep==WakeStep::PIN_MUX || _wakeStep==WakeStep::READ_CONTROL || _wakeStep==WakeStep::READ_CREDENTIAL)) {
-      _wakePinNeedsApply=true;
-    }
   }
   // A late external observation cannot erase an earlier verification phase.
   // Transient disable/read-before-write values are intentionally not compared here.
   if (contradiction && _wakeWorking && !_result.mismatch.valid &&
       (_wakeVerifyOnly || _operation.kind==OperationKind::WOL_ACKNOWLEDGE ||
        _wakeStep==WakeStep::READ_SELECTOR || _wakeStep==WakeStep::DRAIN_SELECTOR ||
-       (pin && (_wakeStep==WakeStep::PIN_VERIFY || _wakeStep==WakeStep::WRITE_CREDENTIAL || _wakeStep==WakeStep::VERIFY_CREDENTIAL ||
-                _wakeStep==WakeStep::HARVEST_APPLY || _wakeStep==WakeStep::APPLY || _wakeStep==WakeStep::VERIFY_CONTROL)) ||
+       (rekeying && address==0x04A0U) ||
+       (pin && (_wakeStep==WakeStep::PIN_VERIFY || (!_wakePinNeedsApply &&
+          _wakeStep!=WakeStep::IDENTIFY && _wakeStep!=WakeStep::PIN_CLOCK && _wakeStep!=WakeStep::PIN_MUX))) ||
+       (address>=0x04A2U && !_wakeCredentialsChanged && (_wakeStep==WakeStep::HARVEST_DISABLE ||
+        _wakeStep==WakeStep::DISABLE || _wakeStep==WakeStep::VERIFY_DISABLE || rekeying)) ||
        (address>=0x04A2U && (_wakeStep==WakeStep::VERIFY_CREDENTIAL ||
         _wakeStep==WakeStep::HARVEST_APPLY || _wakeStep==WakeStep::APPLY || _wakeStep==WakeStep::VERIFY_CONTROL)))) {
     _result.mismatch={true,true,31,address,mask,expected,value};

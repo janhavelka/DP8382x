@@ -31,6 +31,9 @@ Those choices conflict with this recipe's AN, clock or opaque diagnostic state;
 the library does not silently turn them off. A known conflict rejects without
 callbacks or desired-state changes. The exact clock row remains in the recipe;
 its explicit sequence permission does not authorize generic reserved-bit writes.
+The recipe owns the LED1 clock setting. A BASIC or ENHANCED pin profile
+must release LED1 before enabling EEE. The same check applies when an
+application requests LED1 after enabling EEE.
 
 ## One reset-bearing procedure
 

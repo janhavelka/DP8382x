@@ -53,6 +53,7 @@ struct Controller {
     if(target==0 && exposePcs) { exposePcs=false;return static_cast<uint16_t>(words[0]|0x8000U); }
     if(target==0) { words[0]&=0x7DFFU;return words[0]; }
     if(target==31)words[31]=stickyHard?0x8000:0;
+    if(target==22 && test::aGrade()) return static_cast<uint16_t>(words[22]|0x0400U);
     if(target==0x0308)return static_cast<uint16_t>((ext[0x0302]&0x0040U)!=0U?1U:0U);
     const auto value=target<32U?words[target]:ext[target];
     if(target==18 || target==19) { words[target]&=0x00FF;words[16]&=0xFF7F; }
@@ -76,7 +77,11 @@ struct Controller {
     if(target==26)CHECK((value&0x0010U)==0U);
     if(target==23)CHECK((value&0x000CU)==0U);
     // SNLS647I table 8-40: BISCR Power Mode [8] is read-only, reset one.
-    if(target==22) { if(test::aGrade()) CHECK((value & 0x0B00U)==0U); words[target]=static_cast<uint16_t>((value&0xFEFFU)|(words[target]&0x0100U));return; }
+    if(target==22) {
+      const uint16_t hardware=test::aGrade()?0x0F00U:0x0100U;
+      if(test::aGrade()) CHECK((value&hardware)==0U);
+      words[target]=static_cast<uint16_t>((value&~hardware)|(words[target]&hardware)); return;
+    }
     if(target==18 || target==19) { CHECK((value&0xFF00U)==0U);words[target]=static_cast<uint16_t>((words[target]&0xFF00U)|value);return; }
     if(target==0x04A1) {
       CHECK(value==0x1000 || value==0);

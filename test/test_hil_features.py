@@ -143,24 +143,22 @@ class CompiledFeatureTests(unittest.TestCase):
         for grade in ("DP83826AI", "DP83826AE"):
             args = ("--fixture-variant", grade, "--variant", grade)
             for name, (_, module) in feature_modules().items():
-                with self.subTest(grade=grade, case=name):
-                    result, data, raw = self.run_case(name, "-" + grade, args)
-                    row, = data["cases"]
-                    if name in getattr(module, "BLOCKED_CASES", ()):
-                        self.assertEqual((result, row["verdict"]), (2, "BLOCKED"))
-                    else:
-                        self.assertEqual((result, row["verdict"]), (0, "PASS"), row)
-                        if module.CASES[name][1]:
-                            self.assertEqual(row["restoration"]["verdict"], "PASS")
-                        self.assertEqual(replay(data, decoded(raw)), "PASS")
+                required_mode = getattr(module, "MODES", {}).get(name)
+                for mode in ((required_mode,) if required_mode else ("basic", "enhanced")):
+                    with self.subTest(grade=grade, case=name, mode=mode):
+                        result, data, raw = self.run_case(name, f"-{grade}-{mode}",
+                                                          args + ("--operating-mode", mode))
+                        row, = data["cases"]
+                        if name in getattr(module, "BLOCKED_CASES", ()):
+                            self.assertEqual((result, row["verdict"]), (2, "BLOCKED"))
+                        else:
+                            self.assertEqual((result, row["verdict"]), (0, "PASS"), row)
+                            if module.CASES[name][1]:
+                                self.assertEqual(row["restoration"]["verdict"], "PASS")
+                            self.assertEqual(replay(data, decoded(raw)), "PASS")
 
             mismatch = ("--fixture-variant", "DP83826AE" if grade == "DP83826AI" else "DP83826AI",
                         "--variant", grade)
-            for name in ("quality", "interface-rmii25"):
-                with self.subTest(grade=grade, case=name, mode="basic"):
-                    result, data, _ = self.run_case(name, "-" + grade + "-basic",
-                                                    args + ("--operating-mode", "basic"))
-                    self.assertEqual((result, data["cases"][0]["restoration"]["verdict"]), (0, "PASS"))
             result, data, raw = self.run_case("quality", "-swap-" + grade, mismatch)
             self.assertEqual(result, 2)
             self.assertEqual(len(data["commands"]), 1)

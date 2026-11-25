@@ -66,15 +66,18 @@ class PinTranscript(unittest.TestCase):
                   b"controls interface rmii25 0 0 1518 50 0 keep off\n"
                   b"registers read mmd 31 0x0303\nrecovery reset hard\n"
                   b"registers read mmd 31 0x0303\nregisters read c22 0x11\n"
-                  b"registers read mmd 31 0x0131\nregisters read c22 0x0b\n")
+                  b"registers read mmd 31 0x0131\nregisters read c22 0x0b\n"
+                  b"registers read mmd 31 0x0304\nregisters read mmd 31 0x04a0\n")
         for grade in ("DP83826AI", "DP83826AE"):
             for mode, physcr, cr3 in (("basic", 0x010B, 0x006D), ("enhanced", 0x0108, 0x0060)):
                 with self.subTest(grade=grade, mode=mode):
                     rows = records(invoke(stream, "--variant", grade, "--campaign", mode, ATTEST).stdout)
                     self.assertEqual(request(rows, 4)[-1]["persistent_restored"], "1")
-                    reads = [request(rows, n)[0] for n in (3, 5, 6, 7, 8)]
+                    reads = [request(rows, n)[0] for n in (3, 5, 6, 7, 8, 9, 10)]
                     self.assertTrue(all(row["primary"] == "OK" for row in reads))
-                    self.assertEqual([int(row["value"]) for row in reads], [0x29, 8, physcr, 0x0288, cr3])
+                    basic = mode == "basic"
+                    self.assertEqual([int(row["value"]) for row in reads],
+                                     [0x29, 8, physcr, 0x0288, cr3, 8 if basic else 14, 0x1000 if basic else 0x1081])
 
     def test_mii_compatibility_clock_and_isolation(self):
         result = invoke(b"controls interface mii 0 0 1518 50 15 led1 on\n"

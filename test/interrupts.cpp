@@ -733,6 +733,22 @@ void ownership() {
 void aRoutes() {
   CHECK(test::aGrade());
   constexpr InterruptPin pins[]={InterruptPin::LED0,InterruptPin::LED1,InterruptPin::LED2,InterruptPin::LED3};
+  // An independent observation can withdraw the clock proof before or after
+  // mux preflight. A planned mux repair cannot restore the clock prerequisite.
+  for (unsigned polls:{2U,3U}) {
+    Controller bus; Driver driver; ready(driver,bus);
+    auto policy=settings(); policy.pin=InterruptPin::LED1; policy.led1ClockUnused=true;
+    bus.ext[0x308]=1; bus.ext[0x304]=0;
+    const auto token=configure(driver,bus,policy);
+    for (unsigned i=0;i<polls;++i) CHECK(poll(driver,bus,token).inProgress());
+    bus.ext[0x308]=0; uint16_t raw=0xFFFF;
+    CHECK(driver.readMmd(31,0x308,raw,{1000000,4}).ok() && raw==0);
+    const auto frames=bus.frames;
+    const auto receipt=take(driver,token);
+    CHECK(receipt.status.is(Err::CONFIG_MISMATCH) && receipt.mismatch.valid);
+    CHECK(receipt.mismatch.registerAddress==0x308 && receipt.mismatch.mask==1 && !receipt.mutationPossible);
+    CHECK(driver.interruptSnapshot().trust==ConfigurationTrust::DIRTY && bus.frames==frames && bus.ext[0x304]==0);
+  }
   // Mask/apply/verify needs 26 on pin21. Pin29 adds a 5-frame preflight
   // and adds a 9-frame RMW/readback only for a live mux mismatch.
   for (bool matching:{false,true}) for (bool exact:{false,true}) {

@@ -1076,7 +1076,14 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
         // session, including explicit reads between typed acquisitions.
         if (address == 0x0016U && _bistSession &&
             (_bist.active || (_bistWorking && _bistStep == BistStep::VERIFY_ENABLE))) {
-          _bistActivity = _bistActivity || (receipt.value & 0x0200U) != 0U;
+          if ((receipt.value & 0x0200U) != 0U) {
+            _bistActivity = true;
+            // The closing bookend belongs to this observation. Do not lend
+            // it to the following interval or to the counter already frozen.
+            if (!(_polling && _bistWorking && _bistStep == BistStep::AFTER)) {
+              _bistIntervalActivity = true;
+            }
+          }
           _bistLoss = _bistLoss || (receipt.value & 0x0400U) != 0U;
         }
         if (address == cmd::REG_MISR2) {
@@ -1113,8 +1120,10 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
       }
     }
     if (target && address == 0x001BU && frame.kind == FrameKind::WRITE && (frame.value & 0x8000U) != 0U &&
-        (receipt.attempted || receipt.completed || receipt.effectPossible || _transport.violation != TransportViolation::NONE)) {
+        (receipt.completed || receipt.effectPossible || receipt.valueValid || _transport.violation != TransportViolation::NONE)) {
       _bistCapturePending = true;
+      _bistCapturedActivity = _bistIntervalActivity;
+      _bistIntervalActivity = false;
     }
     if (target && address == 0x001BU && frame.kind == FrameKind::READ && completed) { _bistCapturePending = false; }
     // A raw target write cannot establish configuration trust, even on success.

@@ -301,3 +301,93 @@ were linked from the phase (b) working tree before the wrapper commit.
 Phase (c) reviews the actual checked commit against the PDF tables, the
 31 assignments, bounded reset and failure behavior, and per-grade CLI and
 runner evidence. Prompt 59 remains open for that review and final verification.
+
+## Phase (c) independent review and fixes
+
+The wrapper verified phase (b) on main at
+`f39fb69051d4355f51b267a8ecd441cbd544cacd`, equal to origin/main. Two
+read-only reviewers used the session's high-reasoning model in parallel to
+trace the silicon fields and state transitions in `e26bc81..f39fb69`. They
+reproduced the failures against that implementation on both grades. The lead
+reviewed CLI, fixture and matrix coverage, integrated the fixes and checked
+the resulting tree. The only entry status flag was the CRLF working copy of
+`Dp8382xCliControlCommands.inc`. Its normalized blob matched HEAD
+(`c1954fa`), and the revision changes one help line.
+
+The prerequisite reports for 57 and 58, the 31 assigned procedures above and
+the SNLS783A tables remain the scope. The peer audit reopened the variant and
+validation paths in TMP1x2 at `0791429`, MB85RC's selection and CLI at
+`a9a83ca`, and the TUSB32x diagnostic tests and runner at `6989c77`. All
+three worktrees were clean. The [peer audit](#peer-and-source-audit) lists
+the paths. Exact declaration, bus-silent conflict rejection and retained
+partial evidence carried through to the MDIO tests.
+
+| Finding on the implementation commit | Fix and executing regression |
+| --- | --- |
+| An ENHANCED LED1 IRQ setup could observe 0308 changing from 1 to 0 and still write the mux and report VERIFIED. | The clock proof and the planned mux repair now have independent lifetimes. `interrupt_a_routes` interrupts both sides of mux preflight. It checks the 0308 mismatch, dirty trust and zero subsequent mutation. |
+| After wake preflight, a changed mux could leave the output on constant-low. Observing an enabled detector after disable could still lead to live credential writes. | The owner stops on loss of an established route or credential match and requires RXFCFG1[7,5,0] clear throughout rekeying. `wol_a_wake` changes a proved route, the detector, and a previously matching MAC word during a mux-only update. Earlier disable effects and cleanup debt survive. |
+| A BASIC LED1 request after enabling EEE succeeded and left settings that the next HARD operation could not replay. | Both acquisition orders reject the conflict before any clock or MDIO callback. `eee_admission` checks both directions with independent owners. |
+| Loopback, PRBS stop and electrical PRBS composition could echo BISCR[10] into a write. | SNLS783A table 8-41 assigns all four bits 11 through 8 to hardware. Loopback, BIST and compliance tests inject sync loss and check outgoing write words. [Datasheet](../../reference/source/TI-DP83826AI-AE-SNLS783A.pdf) |
+| After one active capture, generator/checker mode attributed new errors to generator traffic without activity in the new observation interval. Disabled checkers could report lock from stale status bits. | The collector keeps session history and captures interval activity at the counter freeze. A definite no-effect failure preserves the interval, while an accepted or uncertain clear retires it. `bist_measurements` and `bist_acquire_failures` exercise successive captures, failed clears and raw lock in disabled-checker modes. |
+| IRQ help omitted the supported LED0 and LED3 routes. The A coverage matrix listed direct BMCR maintenance under MMD access. | The transcript exercises the advertised IRQ commands on each A grade. Matrix tests compare all A procedure routes and feature case names with the registered shared mappings and the raw LEDCR gates, and reject an incorrect CLI route or fixture case. |
+| The A fixture used the BASIC LED1 mux sample in ENHANCED mode and kept live wake credentials over HARD. | The fixture models table 8-76's ENHANCED POR example and the table 8-91 through 8-98 reset words. `cli_pin_transcript` checks both mux/strap profiles. `cli_control_transcript` sees all six credential writes after HARD on each grade and keeps Secure-ON words redacted. |
+
+The pin 31 discrepancy between table 8-76 and figure 8-10 still gates
+software activation of mux codes 5 and 6. Its modeled POR sample supplies
+fixture input only. The 0428, analog and Strap11 EMC dispositions remain
+as recorded in the [coverage matrix](../../feature-coverage.md).
+
+### Phase (c) verification
+
+Windows 11 AMD64, GNU C++ 15.1.0, Ninja, CMake 4.0.1 and Python 3.12.10.
+The existing Release and UBSan builds use the phase (b) configuration. For
+the pinned Release build **and CTest**, use the three process-local Git
+safe directories recorded in the [prompt 53 report](53-regression-transaction-ownership.md).
+The first full Release pass ran without that setting on CTest. The SDK header
+drift check stopped at Git ownership validation. It passed with the scoped
+setting in a seven-test rerun before the final full pass.
+
+```powershell
+cmake --build build/p53-baseline --parallel 5
+ctest --test-dir build/p53-baseline --output-on-failure --no-tests=error -j 8
+cmake --build build/p55-ubsan --parallel 4
+ctest --test-dir build/p55-ubsan -R '^(ai|ae)_(interrupt|wol|eee|loopback|bist|electrical)_' --output-on-failure --no-tests=error -j 4
+cmake --build build/p59b-consumer
+ctest --test-dir build/p59b-consumer --output-on-failure --no-tests=error
+cmake --build build/p59c-export/out
+ctest --test-dir build/p59c-export/out --output-on-failure --no-tests=error
+python -B build/p57-final-sources/crosscheck.py
+python -B build/p57-procedures/check.py
+python -B -m unittest discover -s test -p 'test_*.py' -v
+python -B tools/check_doxygen.py
+python -B tools/verify_ledger.py
+python -B tools/verify_references.py
+python -B scripts/generate_version.py check
+git diff --check
+```
+
+| Evidence layer | Phase (c) result |
+| --- | --- |
+| Host Release | PASS. All 991 registrations passed in 141.63 s, including original-grade regressions, pinned native hosts, CLI, runner, replay and interruption cases. The final six-family AI/AE UBSan selection passed 102/102. Logs are in `build/p59c-final-release.log` and `build/p59c-ubsan.log`. |
+| Source, Python and documentation | PASS. Both PDF comparisons covered 79 tables and 427 rows per generation, all 27 A recipe rows and 48 TDR words. Ledgers and version passed. Python discovered 272 tests, with 216 passed and 56 compiled-fixture skips. Doxygen passed 294 generated pages and two negative fixtures. |
+| Portable consumer | PASS, 2/2 in the separate tests-OFF consumer. |
+| Isolated source-package consumer | PASS, 1/1. The Git-free application was rebuilt against the current headers, source, root CMake file, metadata and license. The first reference scan found two copied developer README files with links outside this scratch package. Removing the scratch copies restored the phase (b) consumer layout. The consumer and repository reference check both passed. |
+| ESP32-P4 SDK links | PASS. Four images built with `scripts/idf.cmd`, ESP-IDF v6.1 at `fff9895c82d744c7237be8847347bdd1b07c6643` and the phase (b) project paths. Their firmware identity is `f39fb69` with a dirty worktree. |
+| Remote CI | NOT RUN. First-execution remote CI is assigned to prompt 71. |
+| DP83826AI physical | NOT RUN. Authorized, identified fixture and Strap11 EMC evidence are pending. |
+| DP83826AE physical | NOT RUN. This grade requires its own fixture and measurements. |
+
+| SDK build / selection | Binary SHA-256 |
+| --- | --- |
+| 53l, AI adapter | `e666932a33cbdabc9c01a1219720ad80f022d899b2b67dc16b8c0bc2f4c7811f` |
+| 56l, AE adapter | `6a1960caa0cc38ef51373d312792588df9a93bed56e899625b1a69fd824da6c4` |
+| 56b, basic example | `b205e801a7d95f9b64cc829e6839e098bcfd0dbdabea7d1f6e533c1d829d1335` |
+| 56o, owner example | `02730ff9af834d61f65f82dc06ca34e0a76ce63537f6f1ed9da80cccae29eb96` |
+
+After the full run, the maintained grade campaign test was extended to cover
+every eligible mode. Rerunning `ctest --test-dir build/p53-baseline -R
+'^cli_hil_features$' --output-on-failure --no-tests=error` passed in 52.69 s.
+Each grade exercised 42 passing BASIC cases and 43 passing ENHANCED cases
+with matching replay. Deep power returned the expected BLOCKED verdict in
+each mode and grade. Final reference verification covered 29 vendor artifacts,
+27 text extracts and 2,400 local links. Phase (d) is the next step for prompt 59.

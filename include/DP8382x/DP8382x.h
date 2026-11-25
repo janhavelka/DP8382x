@@ -423,7 +423,7 @@ struct BistResult {
   bool afterValid{false}; ///< Independent valid post-capture status.
   bool measurementValid{false}; ///< Complete current acquisition, not an exact interval or PASS.
   bool activityObserved{false}; ///< At least one current-session generator-active observation.
-  bool lockObserved{false}; ///< Both acquisition bookends show checker lock.
+  bool lockObserved{false}; ///< Checker enabled and both acquisition bookends show lock.
   bool syncLossObserved{false}; ///< Any current-session collector read observed loss; not an invented RC interval.
   uint8_t errorBytes{0}; ///< Eight-bit captured sample; meaningful only with counterValid.
   bool saturated{false}; ///< SATURATE mode and FF: count is a lower bound.
@@ -2221,6 +2221,7 @@ private:
   bool _bistSession{false}, _bistWorking{false}, _bistRestoreTail{false};
   bool _bistSavedIpgValid{false}, _bistSavedPacketValid{false};
   bool _bistActivity{false}, _bistLoss{false}, _bistCapturePending{false};
+  bool _bistIntervalActivity{false}, _bistCapturedActivity{false};
   enum class LoopStep : uint8_t {
     IDENTIFY_STOP, READ_BMCR, READ_PHYRCR, READ_BISCR, READ_PHYSCR, CHECK_LINK,
     CLEAR_BMCR, CLEAR_BISCR, SET_FIFO, DIGITAL_BMCR, SET_BISCR, SET_MII,

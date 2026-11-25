@@ -192,8 +192,8 @@ void DP8382x::_beginLoopbackRestore() noexcept {
 
 MdioBatch DP8382x::_loopbackBatch() const noexcept {
   const auto& options = _loopback.options;
-  // SNLS783A table 8-41: generator, lock and power indications are RH.
-  const uint16_t preserve=isA(_config.variant)?0xF4FFU:0xFFFFU;
+  // SNLS783A table 8-41 assigns bits 11:8 to lock, sync loss, activity and power.
+  const uint16_t preserve=isA(_config.variant)?0xF0FFU:0xFFFFU;
   switch (_loopStep) {
     case LoopStep::IDENTIFY_STOP: {
       auto batch = readWord(2); batch.frameCount = 2; batch.frames[1] = {FrameKind::READ, 3, 0, 0, NO_READ_INDEX}; return batch;
@@ -407,6 +407,7 @@ Status DP8382x::startBist(const BistOptions& options, const OperationBudget& bud
   _bistSession = _bistRestoreTail = true;
   _bistWorking = _bistSavedIpgValid = _bistSavedPacketValid = false;
   _bistActivity = _bistLoss = _bistCapturePending = false;
+  _bistIntervalActivity = _bistCapturedActivity = false;
   _result.bist.session = token;
   _result.bist.mode = options.mode;
   // Save before any companion mutation: even a failed digital setup needs HARD,
@@ -477,9 +478,9 @@ MdioBatch DP8382x::_bistBatch() const noexcept {
       batch.frameCount = 2; batch.frames[1] = {FrameKind::READ, 0x1B, 0, 0, NO_READ_INDEX}; return batch;
     }
     case BistStep::LINK: return readWord(0x10);
-    case BistStep::ENABLE: return updateWord(0x16, isA(_config.variant)?0x84FF:0x8FFF, controls);
+    case BistStep::ENABLE: return updateWord(0x16, isA(_config.variant)?0x80FF:0x8FFF, controls);
     case BistStep::VERIFY_ENABLE: case BistStep::BEFORE: case BistStep::AFTER: case BistStep::VERIFY_DISABLE: return readWord(0x16);
-    case BistStep::DISABLE: return updateWord(0x16, isA(_config.variant)?0x84FF:0x8FFF, 0);
+    case BistStep::DISABLE: return updateWord(0x16, isA(_config.variant)?0x80FF:0x8FFF, 0);
     case BistStep::RESTORE_IPG: return writeWord(0x1B, _bistSavedIpg);
     case BistStep::RESTORE_PACKET: return updateWord(0x1C, 0xF800, _bistSavedPacket);
   }
@@ -559,7 +560,8 @@ Status DP8382x::_advanceBist(Status status, bool called, const MdioBatch& batch)
       if (_bistStep == BistStep::VERIFY_ENABLE) { _bist.active = true; return _finishOperation(Status::Ok()); }
       measured.measurementValid = true;
       measured.activityObserved = _bistActivity;
-      measured.lockObserved = (measured.rawBefore & measured.rawAfter & 0x0800U) != 0U;
+      const bool checker = measured.mode == BistMode::CHECKER || measured.mode == BistMode::GENERATOR_CHECKER;
+      measured.lockObserved = checker && (measured.rawBefore & measured.rawAfter & 0x0800U) != 0U;
       measured.syncLossObserved = _bistLoss;
       // RH does not prove an uninterrupted lock window. Repeat-latch semantics
       // remain gated: zero never becomes PASS, even with apparently good traffic.
@@ -567,7 +569,7 @@ Status DP8382x::_advanceBist(Status status, bool called, const MdioBatch& batch)
       else if (_bist.options.mode == BistMode::SINGLE_PACKET) {
         if (_bistObservation.singlePacketObserved) { measured.outcome = BistOutcome::SINGLE_PACKET_OBSERVED; }
       } else if (measured.lockObserved && !measured.syncLossObserved && measured.errorBytes != 0U &&
-          (_bist.options.mode == BistMode::CHECKER ? _bistObservation.externalStimulusObserved : measured.activityObserved)) {
+          (_bist.options.mode == BistMode::CHECKER ? _bistObservation.externalStimulusObserved : _bistCapturedActivity)) {
         measured.outcome = BistOutcome::ERRORS_OBSERVED;
       }
       return _finishOperation(Status::Ok());

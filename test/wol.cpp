@@ -692,6 +692,38 @@ void timing() {
 }
 void aWake() {
   CHECK(test::aGrade());
+  for (bool detector:{false,true}) {
+    Controller bus; Driver driver; ready(driver,bus);
+    auto policy=settings(); policy.pinAvailable=true; policy.route=WakeRoute::LED0;
+    bus.ext[0x303]=2;
+    const auto token=configure(driver,bus,policy);
+    bus.wakePin=0x303;
+    // The route was established in preflight. At poll 12 the detector has
+    // also been disabled and its readback precedes the first credential write.
+    for (unsigned i=0;i<(detector?12U:9U);++i) CHECK(poll(driver,bus,token).inProgress());
+    const uint16_t address=detector?0x4A0:0x303, changed=detector?0x11A1:3;
+    bus.ext[address]=changed; uint16_t raw=0;
+    CHECK(driver.readMmd(31,address,raw,{1000000,4}).ok() && raw==changed);
+    const auto receipt=take(driver,token);
+    CHECK(receipt.status.is(Err::CONFIG_MISMATCH) && receipt.mismatch.registerAddress==address);
+    CHECK(receipt.mismatch.mask==(detector?0x00A1:7) && receipt.mismatch.expected==(detector?0:2));
+    CHECK(!bus.matchWhileEnabled && receipt.mutationPossible==detector && receipt.cleanupOwed==detector);
+    CHECK(driver.wakeSnapshot().trust==ConfigurationTrust::DIRTY);
+  }
+  {
+    Controller bus; Driver driver; ready(driver,bus); auto policy=settings();
+    configured(driver,bus,policy); // Match words are already verified.
+    policy.pinAvailable=true; policy.route=WakeRoute::LED0;
+    const auto token=configure(driver,bus,policy); bus.wakePin=0x303;
+    for (unsigned i=0;i<9U;++i) CHECK(poll(driver,bus,token).inProgress());
+    // The only planned change is the mux. A new MAC mismatch invalidates
+    // the preflight even though it was not scheduled for repair.
+    bus.ext[0x4A2]=0; uint16_t raw=0xFFFF;
+    CHECK(driver.readMmd(31,0x4A2,raw,{1000000,4}).ok() && raw==0);
+    const auto receipt=take(driver,token);
+    CHECK(receipt.status.is(Err::CONFIG_MISMATCH) && receipt.mismatch.registerAddress==0x4A2);
+    CHECK(receipt.mismatch.expected==0x2211 && !receipt.mutationPossible);
+  }
   constexpr WakeRoute routes[]={WakeRoute::LED0,WakeRoute::LED1,WakeRoute::LED2,WakeRoute::LED3};
   constexpr InterruptPin irqPins[]={InterruptPin::LED0,InterruptPin::LED1,InterruptPin::LED2,InterruptPin::LED3};
   constexpr uint8_t mac[]={2,0x12,0x34,0x56,0x78,0x9A},password[]={0xA1,0xB2,0xC3,0xD4,0xE5,0xF6};

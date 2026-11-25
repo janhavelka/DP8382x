@@ -5,7 +5,10 @@
 - Add revision-4 AI and AE diagnostics and optional controls. The A pin and
   interrupt owners use the documented per-pin mux and LED fields. EEE reserves
   the recipe and owned replay before HARD and reports the row-26 restart even
-  if row 27 fails. The CLI fixture and runner exercise each grade separately.
+  if row 27 fails. IRQ and wake setup stop when a later observation contradicts
+  a required route or detector state. BIST retains session activity and checks
+  for traffic in the interval associated with each captured error count.
+  The CLI fixture and runner exercise each grade separately.
   [A coverage](docs/feature-coverage.md#dp83826ai-and-dp83826ae)
 
 - Add declared DP83826AI and DP83826AE revision-4 core/link support. Initialization

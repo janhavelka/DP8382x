@@ -59,7 +59,7 @@ struct Controller {
     return words[reg];
   }
   void write(uint8_t reg, uint16_t value) noexcept {
-    if (reg == 22 && test::aGrade()) CHECK((value&0x0B00U)==0U);
+    if (reg == 22 && test::aGrade()) CHECK((value&0x0F00U)==0U);
     if (reg == 13) { selector = value; return; }
     if (reg == 14 && selector == 0x001F) { address = value; return; }
     // Table 8-40: line transmission is legal only while BMCR 14 is set.
@@ -256,6 +256,7 @@ void matrix() {
     for (LinkSpeed speed : {LinkSpeed::MBPS_10, LinkSpeed::MBPS_100}) {
       if ((mode.only10 && speed != LinkSpeed::MBPS_10) || (mode.only100 && speed != LinkSpeed::MBPS_100)) continue;
       Controller bus; Driver driver; ready(driver, bus, interface);
+        if (test::aGrade()) bus.words[22]|=0x0400;
       bus.words[16] = speed == LinkSpeed::MBPS_10 ? 0x0007 : 0x0005;
       const auto intent = driver.settingsSnapshot(); const auto health = driver.healthSnapshot();
       const auto writes = bus.semanticWrites, vod = bus.vodWrites, reset = bus.resets;

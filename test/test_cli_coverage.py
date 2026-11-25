@@ -98,6 +98,7 @@ class CliCoverageTests(unittest.TestCase):
         features = self.a_rows(matrix, "Features and qualification cases")
         registers = self.a_rows(matrix, "Register fields")
         recipes = self.a_rows(matrix, "Recipe access")
+        original_routes = self.rows(matrix)
         for records, rows in ((source["procedures"], procedures), (source["features"], features),
                               (fields["registers"], registers), (fields["recipeRegisters"], recipes)):
             self.assertEqual(set(rows), {entry["id"] for entry in records})
@@ -105,11 +106,17 @@ class CliCoverageTests(unittest.TestCase):
             row = procedures[entry["id"]]
             self.assertEqual(row[1], f"`{entry['feature']}`")
             self.assertEqual(row[2], self.procedures[entry["id"]]["owner"]["api"].replace("; later", ", then"))
-            self.assertTrue(quoted(row[3]) and quoted(row[4]))
+            identifier = entry["id"]
+            commands = quoted(original_routes[identifier][5])
+            if identifier in ("direct_access", "mmd_access"):
+                commands -= {"registers write", "registers modify"}  # Raw LEDCR writes are fenced on A.
+            self.assertEqual(quoted(row[3]), commands, identifier)
+            self.assertTrue(quoted(row[4]))
         for entry in source["features"]:
             row = features[entry["id"]]
             self.assertEqual(quoted(row[1]), set(entry["procedures"]))
             self.assertEqual(quoted(row[2]), set(entry["gates"]))
+            self.assertEqual(quoted(row[3]), quoted(original_routes[entry["id"]][8]), entry["id"])
         original = {f["id"]: f["owner"] for reg in self.ledger["registers"] for f in reg["fields"]}
         for reg in fields["registers"]:
             row = registers[reg["id"]]
@@ -146,6 +153,11 @@ class CliCoverageTests(unittest.TestCase):
         for replacement in ("", led + led, led.replace("0x000F", "0x00F0")):
             with self.assertRaises(AssertionError):
                 self.check_a_matrix(self.matrix.replace(led, replacement))
+        original, a = self.matrix.split("## DP83826AI and DP83826AE", 1)
+        for expected, wrong in (("`irq configure`", "`power configure`"), ("Case `bist-off`", "Case `eee`")):
+            self.assertIn(expected, a)
+            with self.assertRaises(AssertionError):
+                self.check_a_matrix(original + "## DP83826AI and DP83826AE" + a.replace(expected, wrong, 1))
 
     def test_complete_feature_and_procedure_matrix(self):
         rows = self.rows()

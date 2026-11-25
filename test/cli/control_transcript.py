@@ -32,6 +32,15 @@ class ControlTranscript(unittest.TestCase):
         self.assertIn(b"mdio-write 1f 0011 000f", result.stderr)
         self.assertIn(b"mdio-write 1f 0011 000b", result.stderr)
 
+    def test_a_irq_help_and_pad_selection(self):
+        for grade in ("DP83826AI", "DP83826AE"):
+            for route, address in ((b"led0", b"0303"), (b"led3", b"0306")):
+                rows, result = self.run_controls(b"help irq\nirq configure 32 2 wake " + route + b" 2\n",
+                                                 "--variant", grade, "--trace-writes")
+                self.assertIn(b"intr|led1|led2|led0|led3", result.stdout)
+                self.terminal(rows, 2)
+                self.assertIn(b"mdio-write 1f " + address + b" 000c", result.stderr)
+
     def test_power_policy_and_source_gate(self):
         rows, result = self.run_controls(
             b"power configure down 1 1\npower read\npower configure normal 0 0\npower status\n"
@@ -98,6 +107,22 @@ class ControlTranscript(unittest.TestCase):
         for secret in (b"2a:2b:2c:2d:2e:2f", b"2b2a", b"2d2c", b"2f2e"):
             self.assertNotIn(secret, result.stdout)
             self.assertNotIn(secret, result.stderr)
+
+    def test_a_secure_wake_replays_erased_credentials_after_hard(self):
+        for grade in ("DP83826AI", "DP83826AE"):
+            rows, result = self.run_controls(
+                b"wol configure secure status 1 level 0 02:12:34:56:78:9a a1:b2:c3:d4:e5:f6\n"
+                b"recovery reset hard\nwol read\n", "--variant", grade, "--trace-writes")
+            self.assertEqual(self.terminal(rows, 2)["persistent_restored"], "1")
+            self.assertEqual(self.terminal(rows, 3)["match_word_mask"], "63")
+            writes = result.stderr.splitlines()
+            after = writes[writes.index(b"mdio-write 1f 001f 8000") + 1:]
+            match_writes = [line for line in after if line.startswith(b"mdio-write 1f 04a")
+                            and 0x4A2 <= int(line.split()[2], 16) <= 0x4A7]
+            self.assertEqual(match_writes, [
+                b"mdio-write 1f 04a2 1202", b"mdio-write 1f 04a3 5634", b"mdio-write 1f 04a4 9a78",
+                b"mdio-write 1f 04a5 redacted", b"mdio-write 1f 04a6 redacted", b"mdio-write 1f 04a7 redacted",
+            ])
 
     def test_reject_invalid_or_unapproved_before_transferring(self):
         data = (b"cached transport\nirq configure 0x100 2 wake intr 2\n"

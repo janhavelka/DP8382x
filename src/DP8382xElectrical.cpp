@@ -137,7 +137,7 @@ MdioBatch DP8382x::_electricalBatch() const noexcept {
       if (_electrical.compliance.mode==ComplianceMode::PRBS10) {
         batch=electricalRead(0x16); batch.frameCount=2;
         // SNLA266B table 5-4 adapted to table 8-40: bit 8 is observed only.
-        batch.frames[1]={FrameKind::WRITE,0x16,0x7001,static_cast<uint16_t>(isA(_config.variant)?0x84E0:0x8FE0),0};
+        batch.frames[1]={FrameKind::WRITE,0x16,0x7001,static_cast<uint16_t>(isA(_config.variant)?0x80E0:0x8FE0),0};
       } else {
         batch=_mmdBatch(0x0027,FrameKind::READ,0);
         batch.frames[batch.frameCount++]={FrameKind::WRITE,0x0E,static_cast<uint16_t>(0x0010U|_electrical.compliance.pattern),0xFFE0,3};

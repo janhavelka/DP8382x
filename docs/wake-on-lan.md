@@ -125,6 +125,11 @@ is managed traffic; acknowledgement and live status are raw evidence traffic.
 observation, passive rendering and explicit acknowledgement. Keep the original
 failed result while admitting any restoration with a new token/budget.
 
+If a read between operation polls contradicts a proved output route, the
+owner retains the raw mismatch and stops. During mux changes and rekeying,
+RXFCFG1 bits 7, 5 and 0 must stay clear. Observing any of them set stops
+the pass before another write and preserves the effects of earlier writes.
+
 ## Physical qualification
 
 Before configuring an LED2 output, the source owner reads RCSR as the fifth frame
