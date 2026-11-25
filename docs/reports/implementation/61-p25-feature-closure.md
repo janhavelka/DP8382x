@@ -1,0 +1,159 @@
+# Prompt 61 · DP83825I feature and integration coverage
+
+## Phase (a) assessment
+
+**IN PROGRESS.** On 2026-11-26 the wrapper verified prompt 60 at
+`30500a369abe1d794c2207d925ba37f622b7017c` on `main`. The index and
+worktree were clean, with zero ahead and behind `origin/main`. The last
+production and test change was `4412a2db233defcd4542c2d63d58dc3663fee00b`.
+Prompt 60 supplies the 18 core procedures, exact revision-0 identity
+`2000:A140`, declared RMII roles, clock-loss admission, guarded MDIO and
+the compiled fixture. Its adapter link used ESP-IDF v6.1
+`fff9895c82d744c7237be8847347bdd1b07c6643`.
+[Prompt 60 verification](60-p25-source-core.md#phase-d-final-verification)
+
+The 15 assigned IDs are `functional_mode`, `eee`, `legacy_lpi`, `power`,
+`irq`, `counters`, `quality`, `loopback`, `bist`, `tdr`, `led_pin`,
+`wake`, `vod`, `analog` and `compliance`. Of 570 printed field rows in
+101 register tables, 252 name these owners, including 92 for analog.
+201 rows are explicitly reserved and eight more are reserved by description.
+`quality` has zero printed field rows. Its input is a separately documented
+read. At closure, join every field to its disposition and check **all 33
+procedures and all ten address exceptions** against the one coverage matrix.
+Count aliases by address space and route. Check exceptional writes within
+listed registers as well. [Exact ledger](../../registers/dp83825i.json) ·
+[Feature matrix](../../feature-coverage.md#dp83825i)
+
+### Phase (b) work and acceptance
+
+Hex values below are register words or addresses. Vendor offsets use DEVAD
+31, IEEE PCS uses 3 and auto-negotiation uses 7. The lead owns the C++17
+public declarations, part profile, operation and restoration ordering,
+adapter integration, coverage and commit request. Extend the existing
+feature owners and CLI. Two read-only assessors used the session's
+high-reasoning model in parallel to check diagnostic recipes and power/pin
+interactions against the PDFs. The lead checked register ownership, code,
+runner admission, sibling conventions and test registration.
+
+| Procedure | Exact-part decision and independent acceptance |
+| --- | --- |
+| `irq`, `counters` | Extend the existing collector in `src/DP8382x.cpp` and `DP8382xInterrupts.cpp`. SNLS638C tables 7-15 and 7-18 through 7-26 protect consuming C22 000C, FLDS 000F, PHYSTS, MISR1/2 and counter/FIFO reads. Protect the vendor aliases and incidental RMW reads too. Service IRQs through MISR1/2 only. Their upper-byte events correspond to lower-byte enables despite the R marking. The relationship to 000C is unknown. Capture PHYSTS before its clearers, retain each consumed word after a failed second read, target write or controller release. RCSR bits 3:2 are RC and bit 8 is follower-only. Collect RXFS and PCS status/wake faults through that same owner. Table 7-24 labels RECR a 16-bit sample and describes FF saturation and a 7F threshold. Keep its raw width and record that discrepancy. Exercise all interrupt masks, source selection, polarity, stimulus and bounded stop. |
+| `functional_mode` | One finite typed procedure owns default, power optimized, extended reach and extended reach with EEE. Tables 6-5 through 6-7 prescribe 13, 13 and 32 writes including final direct 001F=4000. Default needs zero mode writes from a known reset baseline. It cannot undo another mode by doing nothing. The two shorter scripts differ at 0404=0000/0080. Compare every write to independently transcribed literals. Allow 031B, 033A and 033D only at the specified recipe positions. Account for simultaneous ownership of 030B/C (VOD) and 0308 (clock controls) before mutation. For each prefix, including uncertain final RESTART, retain completed/possible effects and dirty trust. Poll restart and verify or separately recover before declaring the new state. |
+| `eee`, `legacy_lpi` | Share the extended-reach-with-EEE executor rather than replaying the existing I/E or A recipe. Sections 6.3.3.2 and 6.3.4 and table 6-7 require 04D1=00C2 with bits 0 and 3 clear despite table 7-92's access/polarity conflict. Set 7:003C[1], restart AN and observe partner ability and PCS. Test the six IEEE tuples individually, including 3:0000[15] PCS reset and [10] RX clock-stoppable. Retain PCS/MMD3/7 reset effects independently from vendor state and BMCR. Distinguish advertised LPI from bilateral force code 3, reject codes 1 and 2. Cover failure between advertisement and restart, the request/stop at bit 12, and the collector's saturating read-clear waking fault count. SNLA328 §§2.2.1–2 require at least 36 µs of MAC Normal Inter-Frame after exit before data. Verify the stop and require application evidence for MAC readiness. |
+| `power` | Sections 6.3.6–8 and tables 7-3, 7-20 and 7-75 distinguish normal, active sleep (0011[14:12]=6), IEEE down (BMCR[11] or board input), PLL disable while in IEEE down and deep power (IEEE first, then 0428[2]). Prove management, recovery and clock-loss authority before a disruptive transition. Distinguish attempted deep entry, observed down and verified recovery. Exercise both declared clock roles and simultaneous compliance ownership of 0428. |
+| `led_pin`, `wake` | Implement LED0 and LED2 from tables 7-27/28/34/60–62/78/81–87. Test LED source codes 0–14 and reject 15. Pin 2 mux 0305[2:0] has a role-dependent default, LED2=1, wake=2, MDINT=4, high=6 and low=3/5/7. Reuse the prompt 60 clock owner for every route which moves that pin. LED2 source is 0460[7:4] and its manual drive/polarity is in 0469[6:4]. Preserve undefined PHYCR[5]. Check data before enabling drive, conflicts and each interrupted restoration. For wake, verify disable before rekeying. MAC octets 11:22:33:44:55:66 pack to 2211/4433/6655 at 04A2–4. Password 3C:41:9D:44:BB:5E packs to 413C/449D/5EBB at 04A5–7. SNLA261A table 2-1 and §2.2.2 supply those three otherwise unlisted addresses for Secure-ON. Restrict them to this procedure. Exercise CRC gate, pulse widths, level and direct/IRQ indication, source attribution, RXFS/MISR2 harvest before write-zero acknowledge, and neutral bit 11 in other writes. Keep DP83822 pattern filters outside exact-I admission. |
+| `quality` | SDAA081 §2.3.3 table 2-6 gives one vendor 0218 read on a powered PHY with connected partner. Feed it 0209/020A/020B/033A/033B/033C and expect excellent/unclassified/good/good/unclassified/poor. Preserve the raw value. Separate unavailable link, failed read and successful measurement. The existing `readSignalQuality` only returns raw MSE plus context on earlier parts. |
+| `loopback`, `bist` | Sections 6.3.14–15 and tables 7-3/25/30/31 govern admission. Disable AN for every internal loop, including reverse. Local RMII uses BMCR[14] plus BISCR selector 1 at 10 or 4 at 100. Check each one-hot PCS, digital, analog and reverse mode, 100 Mbit/s transmit option, fixture terminations and partner. Bypass the DP83826-specific digital writes to 0122/0123/0130. PRBS15 tests must distinguish generator, checker, both, single and continuous counting. SDAA081's 5000 is generator-only, with a one-second wait in its example. The 3108 analog case combines generator and checker. Test 11-bit packet bytes, IPG in four-byte units, bit-15 freeze/clear and interruption before the following count read. Save and restore actual packet/IPG words. |
+| `tdr` | Use quiet/disconnected partner, CR1[8] auto-run or CDCR[15] manual start under §6.3.16.1 and tables 7-12/32/40–59. Cover channel, thresholds, segments 1–5, averages 0–6, done/fail and interrupted result reads. Detailed tables support 0180[7:0], 0185[6:0] and 018A[11,5]. Retain valid first-peak, sign and cross data. Peaks 2–5 are reserved. Cable propagation evidence is a prerequisite for distance conversion. CDCR[14] calibration completion/recovery needs clarification. Exclude the DP83826 SNLA428 recipe and DP83822 calibration. |
+| `vod`, `analog` | Tables 8-2/3 and SNLA266B §4.1 give 17 coarse pairs and unit-specific 0333 trim for a whole 030E write. The 50% pair is 00E0/0008. At 0333=520B, A=10, B=8, clamped C=6 and offset −1 give 5800 after 0C40/000F. Exercise both clamp bounds, offsets −2 through +2 and unrepresentable results. Remove the earlier-part 4A40 fallback from the DP83825I path. Use documented 001A squelch codes 0–8 and 0302[15:14] impedance codes 0/1 for 50/25 Ω. Inspect every named DSP/analog field, including subcontrols in 0308, source-specific reset values and recipe overlaps. Give each a typed route or a cited limitation. A field width alone supplies no electrical operating range. |
+| `compliance` | Table 7-35 supplies 10BASE-T selectors 0–13 and the five-bit 100BASE-TX count from 0428[5] and 0027[3:0]. Code 0 clears the shift register, 1–31 select zero counts. Force the matching speed, clear then reassert 0428[4] to change the pattern, keep deep-power bit 2 separate and admit reserved-bit exceptions solely for this test. Cover collision and scrambler controls, the SNLA266B §5 transmit, link-pulse, data and harmonic procedures, explicit stop and partial restoration. Preserve strap address and reserved fields in place of blindly writing the example PHYCR. Distinguish register control from an observable collision pin on an RMII board. |
+
+Primary sources are the archived [SNLS638C datasheet](../../reference/source/TI-DP83825I-SNLS638C.pdf),
+[SDAA081 diagnostic guide](../../reference/source/TI-DP83825-Troubleshooting-SDAA081.pdf),
+[SNLA328 EEE guide](../../reference/source/TI-Energy-Efficient-Ethernet-SNLA328.pdf),
+[SNLA261A wake guide](../../reference/source/TI-Wake-on-LAN-SNLA261A.pdf),
+[SNLA266B compliance guide](../../reference/source/TI-DP8382x-Compliance-SNLA266B.pdf)
+and [SNLU239A EVM guide](../../reference/source/TI-DP83825EVM-SNLU239A.pdf).
+TI Linux uses common IRQ and wake callbacks, including a set-bit acknowledge
+which conflicts with table 7-83. Zephyr enables PHYSCR[1:0] and MISR1[5],
+and reads MISR1 for link IRQ service. Use the numeric comparison and exact
+silicon semantics. [TI Linux at 97becb13](https://github.com/TexasInstruments/ti-linux-kernel/blob/97becb13b81c314c1d17fcf2226aac9a32086f3d/drivers/net/phy/dp83822.c) ·
+[Zephyr at bc5d59d1](https://github.com/zephyrproject-rtos/zephyr/blob/bc5d59d1b6657cfeef30124b818c8fbd69da68ac/drivers/ethernet/phy/phy_ti_dp83825.c)
+
+### Integration order
+
+1. Start with exact access policy, collector and fault tests in
+   `src/DP8382x.cpp`, `src/DP8382xInterrupts.cpp`, `test/access.cpp`,
+   `test/events.cpp` and `test/interrupts.cpp`. The core currently limits
+   `acquireEvidence` to seven sources for this part. `readableMmd` allows
+   only vendor aliases of admitted addresses. Separate ordinary safe reads,
+   owner-only reads and recipe-only actions. Test selectors, holes, direct
+   aliases, retained status and release errors through CLI dump and SDK access.
+2. Add the mode procedure and define recovery from an interrupted script
+   before enabling dependent EEE, power, pin and analog operations. Keep
+   desired, observed, trust, partial effects and the OP-9 recovery barrier
+   distinct. Reuse the state machines in `src/DP8382x*.cpp`. Document
+   bounds, valid state, units and output lifetime as public APIs change.
+   Keep retained results independent of later mutable snapshots and respect
+   COMMON's limit on by-value feature additions to `OperationResult`.
+3. Integrate each verified operation through the shared commands in
+   `examples/common/`, portable and installed adapter entry points,
+   `examples/esp_idf/common/Dp8382xCliNative.h`, the compiled fixture and
+   `tools/dp8382x_hil_{campaign,controls,diagnostics}.py`. Today
+   `Campaign.feature_gate` blocks every optional DP83825I campaign and its
+   constructor discards feature baselines. Select explicit cases and known
+   restoration baselines for both roles. Preserve native application grants.
+   Replace the corresponding blanket denials in `test/p25_profiles.inc`
+   with exact positive cases and specific zero-callback negatives.
+4. Add independent literal vectors in the existing family suites and
+   register actual executing DP83825I tests in CMake. After each transfer
+   and lock-release cut, verify retained data, possible write effects,
+   token/output validity, deadline and cancellation behavior, and separately
+   budgeted recovery. Check reset/replay, stale/bus-silent snapshots, and
+   the no-link outcome separately from transport failure. Compare compiled
+   command traces with offline replay, including failures. Extend
+   `test/test_cli_coverage.py` to check the DP83825I matrix join and reject
+   missing or cross-part evidence. Keep earlier-part tests registered.
+5. With the behavior, update README, CHANGELOG, variants, API, feature,
+   CLI, ESP-IDF, runner and RMII fixture guides. Run the full Release and
+   focused UBSan host suites, Python/Doxygen/ledger/version checks, tests-OFF
+   and exported consumers, the DP83825I adapter link and both P4 example
+   links using the prompt 60 wrapper commands. Record reopened or unresolved
+   software rows explicitly. Q15 requires identified board/role, clock loss
+   and recovery, Secure-ON recognition, 000C/MISR interaction, partner and
+   measured electrical behavior. Phase (a) grants no fixture operation.
+
+### Sibling audit and phase receipts
+
+Both sibling worktrees and indexes were clean on `main`. TMP1x2 at
+`0791429f8fce1170e2082f1b011456fc461318b8` tests model capability and
+every address against literal expectations, counting bus and GPIO callbacks.
+Use that approach for part/role rejection. Its CLI restores the captured
+profile and its runner tests loss of framing and reboot during cleanup.
+Reviewed `include/TMP1x2/Config.h`, `src/TMP1x2Configuration.cpp`,
+`test/variants/test_variants.cpp`, `examples/common/Tmp1x2CliDiagnostics.cpp`
+and `tools/test_hil_tmp1x2_runner.py`.
+
+MB85RC at `a9a83cafd6cd84cd41e7233332e854d9c32cde47` validates actual
+manufacturer and product ID against selected metadata. Keep the declared
+PHY and independent observed identity even when comparator drivers assign
+different suffixes. Its runner requires evidence that restoration succeeded.
+Reviewed `include/MB85RC/CommandTable.h`, `src/MB85RC.cpp`,
+`test/test_public_contracts.cpp`, `examples/common/DiagnosticCore.h`,
+`tools/hil_runner.py` and `tools/test_hil_runner.py`. Both siblings'
+`AGENTS.md` and `.github/workflows/ci.yml` were inspected. The PHY uses its
+own MDIO ownership and CMake/CTest registrations. This repository has no
+tracked workflow at entry.
+
+**Host PASS for the existing baseline.** Windows x86-64, GNU 15.1.0,
+CMake/CTest 4.0.1, Ninja Release, Python 3.12.10. Reused prompt 60's
+verified build. Only documentation changed between that tested source and
+entry. The 22 DP83825I core tests and 17 existing event/IRQ/CLI tests passed.
+Four ledger tests passed, including the original-PDF comparison.
+Nine CLI coverage/registration tests passed against the current matrix.
+The ledger verifier confirmed the 101 tables, 570 fields and 33 assignments.
+An independent extraction from original PDF pages 33–35 matched all
+13/13/32 ordered mode writes. Page 85 matched all 17 VOD coarse triples.
+These checks compare the ledger with silicon documentation. The compiled
+feature procedures and their fault tests are phase (b) deliverables.
+Reference verification passed for 29 payloads, 27 extracts and 2,438 local
+links. Doxygen passed for 294 pages and two negative fixtures. Version and
+whitespace checks passed.
+
+```powershell
+ctest --test-dir build/p60-tests -R '^p25_' --output-on-failure --no-tests=error -j 3
+ctest --test-dir build/p60-tests -R '^(events_|interrupt_|cli_(diagnostic|control|pin)_transcript$)' -j 2 --output-on-failure --no-tests=error
+python -B -m unittest discover -s test -p 'test_p25_ledger.py' -v
+python -B test/test_cli_coverage.py --ctest ctest build/p60-tests
+python -B tools/verify_ledger.py
+python -B tools/verify_references.py
+python -B tools/check_doxygen.py
+python -B scripts/generate_version.py check
+git diff --check
+```
+
+**Portable/package consumer, SDK link, remote CI and physical evidence
+NOT RUN in phase (a).** Prompt 71 owns remote CI. The historical build
+and fixture receipts remain in prompt 60. Phase (b) can begin with access
+and collector behavior. Full DP83825I software and physical qualification
+remain open.
