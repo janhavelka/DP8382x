@@ -5,7 +5,6 @@
 #include <DP8382x/Version.h>
 #include <algorithm>
 #include <cinttypes>
-#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <limits>
@@ -85,6 +84,7 @@ const char* variantName(Variant variant) {
     case Variant::DP83826E: return "DP83826E";
     case Variant::DP83826AI: return "DP83826AI";
     case Variant::DP83826AE: return "DP83826AE";
+    case Variant::DP83825I: return "DP83825I";
     default: return "unknown";
   }
 }
@@ -260,12 +260,17 @@ struct Processor::Reply {
     reason = "format";
   }
 
-  void fields(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    const int count = std::vsnprintf(payload.data(), payload.size(), format, args);
-    va_end(args);
-    if (count < 0 || static_cast<std::size_t>(count) >= payload.size()) {
+  template<class... Args>
+  void fields(const char* format, Args... args) {
+    payload[0] = '\0';
+    appendFields(format, args...);
+  }
+
+  template<class... Args>
+  void appendFields(const char* format, Args... args) {
+    const std::size_t used = std::strlen(payload.data());
+    const int count = std::snprintf(payload.data() + used, payload.size() - used, format, args...);
+    if (count < 0 || static_cast<std::size_t>(count) >= payload.size() - used) {
       payload[0] = '\0';
       status = Status::Error(Err::INVALID_CONFIG, "CLI payload capacity exceeded");
       reason = "format";
@@ -431,6 +436,9 @@ bool Processor::setup(const Platform& platform, const Identity& identity) {
       !safeString(identity.sdk) || !safeString(identity.target) ||
       !safeString(identity.backend) || !safeString(identity.clock) || !safeString(identity.console) ||
       !isValidPhyAddress(identity.phyAddress) ||
+      (identity.variant == Variant::DP83825I &&
+       (identity.interface != MacInterface::RMII ||
+        (identity.rmiiClock != RmiiClock::LEADER_25MHZ && identity.rmiiClock != RmiiClock::FOLLOWER_50MHZ))) ||
       (identity.variant != Variant::UNKNOWN && !isValidVariant(identity.variant)) ||
       (identity.interface != MacInterface::RMII && identity.interface != MacInterface::MII)) return false;
   const std::string_view tree(identity.tree);
@@ -623,7 +631,8 @@ void Processor::help(const Command&, const Args& args, std::size_t count, Reply&
       human("  C22 offsets 0..31. MMD takes an explicit DEVAD and 16-bit offset.\r\n"
             "  Dumps skip protected registers. Writes require maintenance.\r\n"
             "  BMCR allows mask 0x3100.\r\n");
-      human(isA(_identity.variant) ? "  A LEDCR 0x18 is read-only through raw access. Use controls pins.\r\n" :
+      if (_identity.variant == Variant::DP83825I) human("  DP83825I raw LED programming is unavailable.\r\n");
+      else human(isA(_identity.variant) ? "  A LEDCR 0x18 is read-only through raw access. Use controls pins.\r\n" :
             "  I/E LEDCR 0x18 or 31:0x18 allows bits 0x0692.\r\n");
     }
     if (group == "link" && !topic.empty()) human("  Allowed modes: mask 1..15 for 10/half, 10/full, 100/half, 100/full.\r\n"
@@ -697,6 +706,8 @@ void Processor::identity(const Command& command, const Args& args, std::size_t, 
                _identity.sdk, _identity.target, _identity.backend, _identity.clock,
                variantName(_identity.variant),
                interfaceName(_identity.interface), _identity.phyAddress, _identity.console, _identity.baud);
+  if (_identity.variant == Variant::DP83825I)
+    reply.appendFields(" rmii_role=%s", _identity.rmiiClock == RmiiClock::LEADER_25MHZ ? "leader" : "follower");
 }
 
 void Processor::configure(const Command& command, const Args& args, std::size_t count, Reply& reply) {
@@ -842,6 +853,11 @@ void Processor::cached(const Command& command, const Args&, std::size_t, Reply& 
     }
     case SnapshotKind::IDENTITY:
       reply.identityFields(copy.identity);
+      if (_identity.variant == Variant::DP83825I) {
+        reply.appendFields(" sor1_valid=%u sor1=%u rcsr_valid=%u rcsr=%u straps_stale=%u",
+                     unsigned(copy.straps.sor1Valid), unsigned(copy.straps.sor1), unsigned(copy.straps.rcsrValid),
+                     unsigned(copy.straps.rcsr), unsigned(copy.straps.stale));
+      }
       break;
     case SnapshotKind::EVENTS: {
       reply.eventFields(copy.counters, copy.eventValidMask, copy.eventWords);
@@ -1299,6 +1315,8 @@ void Processor::serviceJob() {
                    unsigned(result.temporary), unsigned(result.clockInvalid || _clockFault),
                    unsigned(straps.sor1Valid), unsigned(straps.sor1), unsigned(straps.sor2Valid), unsigned(straps.sor2),
                    unsigned(straps.stale));
+      if (_identity.variant == Variant::DP83825I)
+        reply.appendFields(" rcsr_valid=%u rcsr=%u", unsigned(straps.rcsrValid), unsigned(straps.rcsr));
     } else if (request.feature != Feature::NONE) {
       reply.fields(" core_status=%s core_detail=%" PRId32 " mutation_completed=%u mutation_possible=%u"
                    " cleanup_owed=%u temporary=%u persistent_restored=%u effective_reset=%s"

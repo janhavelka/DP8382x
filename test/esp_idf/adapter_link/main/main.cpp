@@ -139,7 +139,10 @@ void runFixture() {
   PhyConfig config{};
   config.core.variant = Variant::DP8382X_FIXTURE_VARIANT;
   config.core.interface = MacInterface::RMII;
-  config.core.requiredMode = OperatingMode::ENHANCED;
+  if (config.core.variant == Variant::DP83825I)
+    config.core.rmiiClock = RmiiClock::LEADER_25MHZ; // PHY supplies the MAC input clock.
+  else
+    config.core.requiredMode = OperatingMode::ENHANCED;
   config.core.phyAddress = 0;
   // Conditional application admission values, UNMEASURED. SDK busy-loop
   // limits do not prove these scheduling-inclusive bounds; see README.md.

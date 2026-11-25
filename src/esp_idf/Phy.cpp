@@ -299,6 +299,10 @@ BatchResult Phy::execute(void* context, const MdioBatch& batch, const IoBudget& 
         report.status = Status::Error(Err::OPERATION_TIMEOUT, "Native frame deadline expired", static_cast<int32_t>(TimeoutDetail::DEADLINE)); break;
       }
       const auto& frame = batch.frames[i]; auto& result = report.frames[i];
+      if (frame.readIndex < i && !frame.acceptsRead(report.frames[frame.readIndex].value)) {
+        report.status = Status::Error(Err::CONFIG_MISMATCH, "Guarded MDIO prerequisite changed");
+        break;
+      }
       result.attempted = true;
       esp_err_t error;
       uint32_t word = 0;
@@ -418,7 +422,7 @@ esp_err_t Phy::prepareBoard(const BoardControl& board, uint64_t deadlineUs) noex
   // bounds, including event timestamps supplied in the same time domain.
   if (result == ESP_OK) result = waitUntil(assertionReady);
   const uint64_t holdUs = board.assertionUs + lag;
-  const uint64_t quietUs = 2000U + lag;
+  const uint64_t quietUs = _config.core.hardResetQuietUs() + lag;
   // Each elapsed wait may overshoot by one rational RTOS tick. A first delay
   // immediately before a tick edge may also consume a poll with almost no wait.
   constexpr uint64_t tickUs = (1000000ULL + configTICK_RATE_HZ - 1) / configTICK_RATE_HZ;
@@ -1195,9 +1199,11 @@ Status Phy::operationSnapshot(OperationSnapshot& output) noexcept {
   if (!enter()) return busy();
   output = _core.operationSnapshot(); leave(); return Status::Ok();
 }
-Status Phy::identitySnapshot(DeviceIdentity& output) noexcept {
+Status Phy::identitySnapshot(DeviceIdentity& output, StrapEvidence* straps) noexcept {
   if (!enter()) return busy();
-  output = _core.identitySnapshot(); leave(); return Status::Ok();
+  output = _core.identitySnapshot();
+  if (straps) { *straps = _core.strapSnapshot(); }
+  leave(); return Status::Ok();
 }
 Status Phy::capabilitiesSnapshot(Capabilities& output) noexcept {
   if (!enter()) return busy();

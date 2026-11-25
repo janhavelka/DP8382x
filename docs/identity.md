@@ -1,5 +1,13 @@
 # Exact identity and foundational capabilities
 
+DP83825I requires ID1 `2000` and ID2 `A140` (SNLS638C table 7-6).
+Its model is 20, revision is zero, and the operating-mode field stays
+`UNKNOWN`. The two other revision-1 models, the A grades and the Linux label
+`A150` all fail this declaration. A partial or rejected probe retains each
+returned word. Only direct ID observation can proceed until a successful
+probe or a new binding. Strap discovery covers addresses 0 through 3.
+[Exact-part sources and discrepancy](variants.md)
+
 DP83826AI and DP83826AE require ID1 `2000` with ID2 `A114` (BASIC) or
 `A134` (ENHANCED), as specified in SNLS783A tables 8-22/23. A contradictory
 mode or revision retains the observed identity and ends initialization before
@@ -37,6 +45,8 @@ models. The shared source record identifies the ordering-grade differences.
 | DP83826I or E | Wrong OUI or model | DEVICE_MISMATCH / WRONG_OUI or WRONG_MODEL | OUI checked before model, then revision and required mode |
 | DP83826I or E | Either required word zero | DEVICE_NOT_FOUND / ZERO_ID | Plausibility failure, not evidence of physical absence |
 | DP83826I or E | Either word FFFF, neither zero | DEVICE_NOT_FOUND / ONES_ID | Controller data retained; no guessed MDIO acknowledgement |
+| DP83825I / UNKNOWN | `2000 A140` | Accepted revision 0 | Model 20, copper RMII, address straps 0..3, physical pending |
+| DP83825I / UNKNOWN | `2000 A141` through `A14F`, or Linux I label `A150` | DEVICE_MISMATCH | Preserve raw ID and allow direct identity reprobe |
 | UNKNOWN or unimplemented relative represented by an invalid enum cast | No read | INVALID_CONFIG / ENUM_VALUE at bind | No automatic family selection, no callbacks |
 | DP83826I or E / RGMII declaration | No read | UNSUPPORTED / INTERFACE at bind | Exact part has no RGMII; MII and RMII are both legal in both modes |
 

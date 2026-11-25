@@ -1,5 +1,15 @@
 # Initialization and reset operations
 
+DP83825I checks the declared ID followed by vendor 31:0467 and direct
+RCSR (17h). `strapSnapshot()` and the operation result retain SOR1 and RCSR
+with separate validity flags. NONE, PCS, HARD and RESTART use this part's
+default functional mode. No VOD programming or verification is required.
+After each reset the owner reacquires identity and clock role before replaying
+persistent settings. VERIFY checks both role sources even with no profile.
+A HARD reset retains the controller-wide quiet period. For a physical reset,
+the application supplies stable XI, RESET_N timing and the idle MDC cycle.
+[Clock and interface procedure](interface-clock.md)
+
 For either A grade, SNLS783A sections 7.5, 7.6 and 8.4.1 require the
 same `030E=4A40` startup recipe. HARD restores the POR value `8400`;
 PCS preserves vendor words and RESTART preserves settings. Each requested
@@ -69,7 +79,7 @@ the caller token and state unchanged. Each `pollOperation` runs at most one batc
    bits C000 so neither PHYRCR command may remain active. Refresh identity and
    straps at the configured address. An already-active configuration reset also
    requires fresh identity acceptance before issuing the requested command.
-5. Always issue the complete mandatory VOD write and separate verification read.
+5. For DP83826 I/E or AI/AE, issue the mandatory VOD write and separate verification read.
    PCS retains vendor registers; it cannot substitute for this write. Readback
    must match every owned stable bit. A mismatch retains expected, mask and raw
    observed value in `ConfigurationMismatch`.

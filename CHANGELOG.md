@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add DP83825I revision-0 identity, RMII clock-role checks, reset and verified
+  link, interface and fast link-drop settings. A guarded MDIO write can now
+  stop on a prerequisite read while holding the controller lock. The compiled
+  fixture and offline runner distinguish declared and observed clock roles.
+
 - Add revision-4 AI and AE diagnostics and optional controls. The A pin and
   interrupt owners use the documented per-pin mux and LED fields. EEE reserves
   the recipe and owned replay before HARD and reports the row-26 restart even

@@ -85,6 +85,7 @@ Status DP8382x::startLoopback(const LoopbackOptions& options, const OperationBud
 }
 Status DP8382x::_startLoopback(const LoopbackOptions& options, const OperationBudget& budget,
                               OperationToken& token, bool lineBist) noexcept {
+  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   if (_interface.desiredValid && _interface.desired.isolationOwned && _interface.desired.isolate) {
     return rejected("Release owned MAC isolation before diagnostic traffic");
   }
@@ -144,6 +145,7 @@ Status DP8382x::_startLoopback(const LoopbackOptions& options, const OperationBu
 }
 
 Status DP8382x::stopLoopback(const OperationBudget& budget, OperationToken& token) noexcept {
+  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   const auto polling = validBudget(budget); if (!polling.ok()) { return polling; }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (_active || _polling || _operation.state == OperationState::RUNNING) { return busyLoop(BusyDetail::OPERATION_ACTIVE); }
@@ -416,6 +418,7 @@ Status DP8382x::startBist(const BistOptions& options, const OperationBudget& bud
   return status;
 }
 Status DP8382x::_admitBistOperation(const OperationBudget& budget, bool stop) const noexcept {
+  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   const auto polling = validBudget(budget); if (!polling.ok()) { return polling; }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (_active || _polling || _operation.state == OperationState::RUNNING) { return busyLoop(BusyDetail::OPERATION_ACTIVE); }

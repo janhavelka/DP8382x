@@ -1,5 +1,13 @@
 # Live and cached link observations
 
+DP83825I uses the PHYSTS-first sequence below. A remote fault can disappear
+from PHYSTS when BMSR is read. The collector retains the earlier sample even
+on a subsequent transport error. Twisted-pair AN supports every nonempty
+subset of the four 10/100 half/full technologies. Local ANAR[13] stays low.
+Forced operation permits either robust crossover setting. Extended full duplex
+is meaningful with a forced 100BASE-TX peer. Without partner evidence a
+forced local 100/half observation can still leave the duplex unresolved.
+
 On AI and AE, a ten-frame observation reads hex C22 `10 01 01 00 04 05 06 19`
 then `10 01`. PHYSTS[6] mirrors a latch that the BMSR read clears. The
 collector retains the first PHYSTS sample even when the following frame fails.

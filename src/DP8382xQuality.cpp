@@ -37,6 +37,10 @@ bool qualityPrefix(const MdioBatch& batch,const BatchResult& receipt,uint8_t las
 Status DP8382x::_validateQuality(const QualitySettings& settings) const noexcept {
   const auto syntax=qualitySyntax(settings); if (!syntax.ok()) { return syntax; }
   const auto& fld=settings.fastDrop;
+  if (_config.variant == Variant::DP83825I &&
+      (fld.rawThresholdOverride || settings.tx10.owned || settings.recoveryOwned)) {
+    return _unsupportedFeature();
+  }
   if (isA(_config.variant)) {
     if ((fld.causeMask&0x0406U)!=0U && (fld.causeMask&0x0009U)==0U) {
       return qualityConfig("A-generation MLT3, SNR and descrambler detectors require RX error or energy detection");
@@ -51,7 +55,7 @@ Status DP8382x::_validateQuality(const QualitySettings& settings) const noexcept
   if (!settings.maintenanceAdmitted || !settings.macStopped) {
     return qualityConfig("Quality mutation requires maintenance admission and stopped MAC traffic");
   }
-  if (fld.causeMask!=0U && (!fld.owned || _config.interface!=MacInterface::MII)) {
+  if (fld.causeMask!=0U && (!fld.owned || (_config.variant!=Variant::DP83825I && _config.interface!=MacInterface::MII))) {
     return qualityConfig("Nonzero Fast Link Drop causes require owned MII policy");
   }
   if (!fld.rawThresholdOverride && (fld.windowCode!=1U || fld.errorThreshold!=1U || fld.descramblerThreshold!=8U)) {
@@ -107,6 +111,16 @@ bool DP8382x::_qualityRowValue(uint8_t row,uint16_t& address,uint16_t& mask,uint
   const auto& settings=_quality.desired;
   const auto& fld=settings.fastDrop;
   mask=value=0;
+  if (_config.variant == Variant::DP83825I) {
+    // SNLS638C 6.3.16.2 and table 7-14 permit every combination. Only CR3
+    // belongs to this procedure; the DP83826 threshold recipe does not apply.
+    if (row==8 && fld.owned) {
+      address=0x000B; mask=0x040F; value=fld.causeMask;
+      return true;
+    }
+    // Tables 7-13/20 authorize the two shared TX100 rows below.
+    if (row!=3 && row!=4) { return false; }
+  }
   // SNLS647I 8.3.17: disable detectors before their threshold recipes; restore
   // only explicitly owned stable fields, then enable the selected cause set.
   switch (row) {
@@ -204,7 +218,7 @@ MdioBatch DP8382x::_qualityBatch() const noexcept {
 }
 
 void DP8382x::_retainQualityWord(uint16_t address,uint16_t value) noexcept {
-  if (address==0x0017U && _quality.desiredValid && _quality.desired.fastDrop.owned &&
+  if (_config.variant!=Variant::DP83825I && address==0x0017U && _quality.desiredValid && _quality.desired.fastDrop.owned &&
       _quality.desired.fastDrop.causeMask!=0U && (value&0x0020U)!=0U) {
     _quality.trust=ConfigurationTrust::DIRTY; _quality.observedStale=true; _quality.fldMaximumApplicable=false;
     if (_qualityWorking && !_result.mismatch.valid) {
@@ -245,7 +259,7 @@ Status DP8382x::_finishQuality(Status status) noexcept {
   _quality.observedStale=!status.ok();
   const auto& fld=_quality.desired.fastDrop;
   // 7.6 footnote 5: SNR/MLT3/descrambler maxima also require RX-error or energy.
-  _quality.fldMaximumApplicable=status.ok() && fld.owned && fld.causeMask!=0U && !fld.rawThresholdOverride &&
+  _quality.fldMaximumApplicable=_config.variant!=Variant::DP83825I && status.ok() && fld.owned && fld.causeMask!=0U && !fld.rawThresholdOverride &&
       ((fld.causeMask&0x0406U)==0U || (fld.causeMask&0x0009U)!=0U) &&
       ((fld.causeMask&4U)==0U || _quality.raw[1]==0x0417U);
   if (status.ok()) { _quality.timeValid=true; _quality.observedAtUs=_lastTimeUs+_config.transport.bounds.clockLagUs; }
@@ -281,7 +295,10 @@ Status DP8382x::_advanceQuality(Status status,bool called,const MdioBatch& batch
       const auto bmcr=receipt.frames[0].value,physcr=receipt.frames[1].value;
       if ((bmcr&0x8200U)!=0U) { return _finishQuality(qualityConfig("Reset/restart is active")); }
       if (!_qualityVerifyOnly && (physcr&0x8004U)!=0U) { return _finishQuality(qualityConfig("Restore PLL or interrupt stimulus before quality mutation")); }
-      if (_quality.desired.fastDrop.causeMask!=0U && (receipt.frames[2].value&0x0020U)!=0U) {
+      if (_config.variant==Variant::DP83825I && _clockRoleMismatch().valid) {
+        return _finishQuality(Status::Error(Err::CONFIG_MISMATCH,"RMII strap evidence changed"));
+      }
+      if (_config.variant!=Variant::DP83825I && _quality.desired.fastDrop.causeMask!=0U && (receipt.frames[2].value&0x0020U)!=0U) {
         return _finishQuality(qualityConfig("Observed RMII mode cannot enable Fast Link Drop"));
       }
       _nextQualityRow(); break;
@@ -302,6 +319,7 @@ Status DP8382x::_advanceQuality(Status status,bool called,const MdioBatch& batch
 }
 
 Status DP8382x::readSignalQuality(SignalQualitySnapshot& snapshot,const IoBudget& budget) noexcept {
+  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
   if (_active || _polling || (_operation.state==OperationState::RUNNING &&
       !_qualityWorking && !_configuring && !_cableWorking && !_interruptWorking && !_powerWorking &&

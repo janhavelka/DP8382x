@@ -1,0 +1,2360 @@
+{
+  "variant": "DP83825I",
+  "schemaVersion": 1,
+  "sources": {
+    "datasheet": "TI SNLS638C, April 2026. Table 7-1 and each original field table 7-3 through 7-103, pp. 37..81. Technical cells reproduce the printed name, partition, access and right-aligned reset. Comparison sources and application exceptions are individually identified. Archived PDFs and hashes are in docs/reference/source/provenance.json.",
+    "board": "TI SDAA081 (September 2025) sections 2.2.4, 2.3.3 and 2.4; TI SNLU239A (December 2023) section 3.1. Hardware strap loading and RMII readbacks qualify the actual board. No bench evidence in this ledger.",
+    "application": "TI SNLA266B April 2025 sections 4/4.1 and 5 (exact DP83825 VOD example and DP83825/6 compliance sequences); SNLA328 October 2019 sections 2.1 through 2.3 (DP83825 EEE advertisement, 36 us MAC wake and PCS status); SNLA261A March 2024 table 2-1 and 2.2.2 (family Secure-ON password map; example GPIOs and MAC byte names require part-specific comparison). See archive manifest for dates, URL, rights and SHA-256.",
+    "identityConflict": "TI Linux 97becb13b81c314c1d17fcf2226aac9a32086f3d/drivers/net/phy/dp83822.c and TI mirror 450af1144b8caeb58724bcbae081b409f6bf5c3a/linux_drivers/dp83822.c (GPL-2.0) call A150 I and A140 S. A160 and A170 have CM/CS labels. Only the exact datasheet qualifies 2000:A140 for this declaration.",
+    "driverComparison": "Zephyr bc5d59d1b6657cfeef30124b818c8fbd69da68ac/drivers/ethernet/phy/phy_ti_dp83825.c (Apache-2.0) writes role, handles one link interrupt and chooses 1 ms/50 ms delays. Treat these as framework policy.",
+    "mmd": "SNLS638C 6.3.11.1 assigns vendor 31. Tables 7-16, 7-92, 7-98..103 and 6.3.3.2 identify PCS and AN and the EEE registers; 7-92 names low offsets 0014,003C,003D. Compare the same Clause 45 roles in Linux v6.1 include/uapi/linux/mdio.h (MDIO_CTRL1/STAT1, PCS_EEE_ABLE/WK_ERR, AN_EEE_ADV/LPABLE) and mii.h (MII_BMCR/BMSR): DEVAD 3 offsets 0,1,20,22 and DEVAD 7 offsets 60,61 decimal. These independent standard names establish the low wire offsets including PCS control, not a general prefix translation. GPL-2.0 WITH Linux-syscall-note, numeric comparison only.",
+    "mmdHeaders": [
+      "https://raw.githubusercontent.com/torvalds/linux/v6.1/include/uapi/linux/mdio.h",
+      "https://raw.githubusercontent.com/torvalds/linux/v6.1/include/uapi/linux/mii.h"
+    ]
+  },
+  "interpretation": {
+    "ids": "A field is identified by the printed offset and field name; use its bits to distinguish repeated RESERVED names. Each non-reserved use joins the procedure ID and its stage, prerequisites, source and independent acceptance vector. The register section and table apply to every field. Assignments are implementation obligations, not executing evidence.",
+    "encodings": "codes, where present, are right-aligned encodings enumerated in the field description. The exact description, procedure prerequisites and constraint further restrict use. If no enumerated meaning is given, a bit width or R/W does not establish safe standalone encodings. Opaque analog/DSP fields stay protected pending documented values. The finite recipes authorize whole words at their listed position only.",
+    "reset": "Field reset and headingReset are source cells, not write templates or live verification masks. Board strap/OTP/status readbacks take precedence. RCSR heading 0061h differs from reserved 6:5 reset cells. Bit 7 varies with the role. PCS control heading 4000h contradicts the zero reset cells. Preserve actual reserved bits.",
+    "ownership": "Reserve every reserved/reserved_by_description row against ordinary writes, including named read-write fields that say Reserved. Observe-only and read-clear permissions are independent of R/RW notation. 0001/0006 can clear mirrors. Protect 000C,000F,0012,0013,0014,0015,0017,001A,04A1 and 3:0016 through the applicable owner, including incidental reads. Unlisted addresses are reserved except the exact procedure exceptions. Vendor 31 direct-register aliases have identical effects and exclusions.",
+    "faults": "For every procedure, inject each transfer/lock-release fault, deadline crossing, uncertain accepted write, cancellation and retry. Reject locally invalid values before callbacks. Under a single operation deadline retain consumed reads, uncertain effects and separate release status. Keep caches bus-silent. Restore only verified persistent owners via a separately bounded recovery; temporary diagnostic states require explicit stop and cleanup.",
+    "outside": "RMII and copper 10/100 only; MII, RGMII, fiber and gigabit declarations cannot enter. Application owns clocks, reset, pins, qualified test fixtures and power. No physical qualification inferred from the vectors."
+  },
+  "identity": {
+    "id1": "2000",
+    "id2": "A140",
+    "model": 20,
+    "revisions": [
+      0
+    ],
+    "strapAddresses": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source": "7-5/6 and 6-9"
+  },
+  "role": {
+    "interface": "RMII",
+    "medium": "copper",
+    "strap": {
+      "devad": 31,
+      "wireOffset": "0467",
+      "mask": "0008"
+    },
+    "confirmation": {
+      "direct": "17",
+      "mask": "0080",
+      "fifoRcMask": "000C"
+    },
+    "allowed": {
+      "LEADER": [
+        0,
+        0
+      ],
+      "FOLLOWER": [
+        1,
+        1
+      ]
+    },
+    "settingsMask": "0013",
+    "clockLossGuards": {
+      "0000": "0400",
+      "0305": "0007",
+      "0428": "0004"
+    }
+  },
+  "timing": {
+    "mdcMaxHz": 20000000,
+    "resetPulseMinUs": 25,
+    "releaseToSmiMaxUs": 2000,
+    "porToSmiMaxUs": 50000,
+    "lateClockStableBeforeReleaseMinUs": 100,
+    "resetToLeaderClockNominalUs": 200,
+    "resetToFlpNominalMs": 1500
+  },
+  "ownerAccess": {
+    "selectorsDirectOnly": [
+      "000D",
+      "000E"
+    ],
+    "collectorDirect": [
+      "0001",
+      "0006",
+      "000C",
+      "000F",
+      "0012",
+      "0013",
+      "0014",
+      "0015",
+      "0017",
+      "001A"
+    ],
+    "collectorVendor": [
+      "04A1"
+    ],
+    "collectorPcs": [
+      "0001",
+      "0016"
+    ],
+    "irqSource": [
+      "0012",
+      "0013"
+    ],
+    "prohibitedStartupWrite": [
+      "030E",
+      "4A40"
+    ]
+  },
+  "secureOnExample": {
+    "source": "SNLA261A 2.2.2",
+    "bytes": "3C 41 9D 44 BB 5E",
+    "words": {
+      "04A5": "413C",
+      "04A6": "449D",
+      "04A7": "5EBB"
+    }
+  },
+  "procedures": [
+    {
+      "id": "identify",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "7-5/6, 6-9",
+      "contract": "Require declared I, copper RMII and an explicit clock role. ID2 is independent of strap role. Discovery defaults to addresses 0..3. Retain the addressed raw ID and completed prefix on mismatch or failure. Permit only bounded ID observation after rejection.",
+      "vector": "Read 02 then 03. Accept 2000:A140 only. Reject A14[1..F], A150/A160/A170, A111/A131/A114/A134, wrong OUI, zero and all ones. A failed second read cannot qualify."
+    },
+    {
+      "id": "mdio",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "6.3.11.1-6, 5.6 T4, 7-16/17",
+      "contract": "One serialized C22 or addressed MMD transaction. Vendor DEVAD 31 also aliases mapped direct registers except the two selector primitives. Keep the same collector and command ownership across aliases. Maximum MDC 20 MHz (timing T4), despite the 24 MHz text.",
+      "vector": "Read 1F:0467 as W0D=001F W0E=0467 W0D=401F R0E. Never expose selector reads/writes or 31:000D/000E. Reject 001D and missing target tuples."
+    },
+    {
+      "id": "external_reset",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "5.6, fig 5-1, 6.3.11, 6.5.1",
+      "contract": "Owner handles power, clock and reset pins. At least 25 us low, 2 ms maximum release-to-SMI and 50 ms maximum POR-to-SMI. With late XI, wait at least 100 us stable before release. Provide an idle MDC cycle before the first transaction. Reset-to-FLP 1500 ms and leader-clock 0.2 ms are nominal.",
+      "vector": "Time events at the actual release. Test exact bounds and failure after assertion/release. Report an uncertain pin effect separately and enforce silence for all bus participants."
+    },
+    {
+      "id": "pcs_reset",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "7-3, 6.5.1",
+      "contract": "C22 BMCR[15] resets PCS while retaining vendor-specific registers. Track attempted command independently from observed completion. Requalify identity, role and owned standard controls.",
+      "vector": "W00=8000, bounded clear poll. Preserve a vendor sentinel, invalidate prior time/role evidence and never issue 030E=4A40."
+    },
+    {
+      "id": "hard_reset",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "7-33, 6.5.1",
+      "contract": "PHYRCR[15] acts like pin reset. Software strap reload and hard-reset sampling text overlap. Re-observe address, both strap registers and clock role after the wait.",
+      "vector": "W1F=8000, completion-anchored bus silence, then a bounded command-clear check. A changed address or role prevents replay."
+    },
+    {
+      "id": "restart",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "7-33, 6.5.1",
+      "contract": "PHYRCR[14] resets digital circuitry, retaining registers. Invalidate previous observations and verify the actual reset epoch before restoring persistent owners.",
+      "vector": "W1F=4000, observe both command bits deasserted. Keep a vendor sentinel. Never replay a transient restart/loop/test bit."
+    },
+    {
+      "id": "initialize",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "6.4, 6.5.1, 7-26/80/81",
+      "contract": "Default functional mode requires no whole-word recipe. Restore only configured persistent owners under the current ID, address and clock role after reset.",
+      "vector": "Across NONE/PCS/HARD/RESTART/verify/retry, trace no 030E=4A40, no implicit optional-mode recipe and no replay on identity/role mismatch."
+    },
+    {
+      "id": "clock_role",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "6-9/10/11, 7-26/80/81, 6.3.9, SDAA081 2.4",
+      "contract": "Read SOR1 bit 3 then collector RCSR bit 7. Leader uses 25 MHz XI and drives 50 MHz, follower needs a 50 MHz XI source. A disagreement invalidates proof. Preserve the entire FIFO sample even if the next transfer or release fails. Neither readback selects the role.",
+      "vector": "Cross both roles with each strap/clock pair. Only matching 0/0 and 1/1 qualify. RCSR 006D and 00ED consume 000C and retain reserved 0060."
+    },
+    {
+      "id": "rmii",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "7-26, 6.3.9",
+      "contract": "Apply revision and elasticity with owned mask 0013. Acquire the read in the same RMW lock, retain FIFO events and preserve non-owned readbacks including the ambiguous reset bits 6:5. Bit 7 belongs to strap confirmation.",
+      "vector": "Both revisions times four depths. Test FIFO events during a failed write/release and preserve 0060. Reject MII/RGMII/fiber."
+    },
+    {
+      "id": "follower_timing",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "5.6 footnote 2, 7-26",
+      "contract": "Default supports up to 7.5 ns. For the 7.5..10.5 ns option first set C22 17[8] then write vendor 0042=0014 on a verified follower. Previous 0042 state, inverse recipe and readable/restore semantics are undocumented. Limit admission to procedures with an established recovery route.",
+      "vector": "Reject leader. Split after bit 8 and distinguish an attempted/uncertain 0042 write. Never clear bit 8 and assert restored without evidence for 0042."
+    },
+    {
+      "id": "clock_loss",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "7-3/61, 6.3.8/9, 7-80",
+      "contract": "Leader needs explicit owner approval for BMCR isolation, selecting an alternate pin 2 mux or deep power. Evaluate the full outgoing word on raw/alias/RMW/replay. Later role contradiction vetoes mutation. Mux and deep-power clock effects are inferred, pending Q15.",
+      "vector": "Reject known 0000:0400, 0305[2:0]!=0 and 0428:0004 before callbacks. Test BMCR 0400 preserved through a different masked update and a later SOR1 mismatch."
+    },
+    {
+      "id": "configure_an",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "6.3.1, 7-3/4/7/8/28",
+      "contract": "Validate nonempty subsets of the four copper technologies, selector 1 and local pause settings. ANAR[13] must be zero on every path. Start negotiation after staging desired advertisement and crossover.",
+      "vector": "All 15 nonempty subsets and four pause words. Seed ANAR=2000. Mismatch, no common mode or transport failure leaves link validity separate from advertisement."
+    },
+    {
+      "id": "configure_forced",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "6.3.2, 7-3/12/14/28",
+      "contract": "Support both speeds and duplexes, automatic/manual MDI/MDIX and optional robust mode. Mirror requires the two pair and polarity-swap bits together. In forced mode pause resolution is unavailable.",
+      "vector": "10/100 x half/full x supported crossover options. CR1 0020 may be zero or set. CR3 mirror masks are 0060. Check independently preserved neighbor bits."
+    },
+    {
+      "id": "next_page",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "6.3.1/3.2, 7-7..11/19",
+      "contract": "Keep page indicator and PHYSTS mirror with the sole collector. Bound exchange rounds, track toggle, acknowledgement and word validity. Coordinate with EEE hardware next pages.",
+      "vector": "Exercise codes 0000 and 07FF, acknowledgement/toggle changes, a failed next frame after page consumption and an ineligible partner."
+    },
+    {
+      "id": "observe_link",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "7-4/8/9/19/28",
+      "contract": "Read PHYSTS before BMSR clears its remote fault mirror, and before ANER clears its page indication. Preserve prior BMSR link-low history, then observe current status and coherent speed/duplex. Partner remote fault remains visible. Resolve pause only at negotiated full duplex.",
+      "vector": "PHYSTS 0040 then BMSR 0010(first) and current read. Fail each read, keeping earlier evidence. Distinguish cable down, AN pending, fault and bus failure. Test all 16 pause combinations."
+    },
+    {
+      "id": "fast_drop",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "6.3.16.2, 7-14/18",
+      "contract": "Any combination of CR3[10,3:0] is allowed. The hardware ORs the enabled causes. FLDS[8:4] is a consuming latch. RX errors 32 in 10 us, MLT3 errors and SNR crossings 20 in 10 us, energy loss and descrambler loss have separate bits.",
+      "vector": "All 32 masks and independently latched reasons. Preserve CR3[6:5]. Keep the first consumed FLDS word on subsequent failure."
+    },
+    {
+      "id": "link_options",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "7-12/13/28/77",
+      "contract": "CR2[5] extends full duplex with a forced 100BASE-TX peer when local mode is AN or forced 100. CR1[1], CR2[2:1] and GENCFG[3] have independent timing/error/IPG semantics. Respect the exact applicability of each option.",
+      "vector": "Test local AN and forced 100 versus forced 10 with the required partner. Preserve CR2 unrelated fields. GENCFG[3] selects 120 ns versus 200 ns."
+    },
+    {
+      "id": "repeater",
+      "owner": {
+        "implementationStage": 60
+      },
+      "source": "6.3.10, fig 6-4, 6-10, 7-60/80/81",
+      "contract": "Back-to-back RMII followers share 50 MHz and cross TX to RX. Select RX_DV on pin 20 using the strap or 0302[8]. Managed reset requires simultaneous external reset of both PHYs, owned by the application.",
+      "vector": "Require both declarations, independent ID/role, clock and external-reset board evidence. Reject the MII repeater settings. On a second-PHY failure preserve the first effect."
+    },
+    {
+      "id": "functional_mode",
+      "owner": {
+        "implementationStage": 61
+      },
+      "source": "6.4 tables 6-5..7",
+      "contract": "Default requires no writes. Power optimized, extended reach and extended reach with EEE own distinct ordered whole-word recipes and a final digital restart. No free-standing write permission follows from these exceptions.",
+      "vector": "Match the full 13/13/32 ordered traces. For every interrupted prefix retain uncertain effects, require a separately authorized recovery and never automatically continue or claim default."
+    },
+    {
+      "id": "eee",
+      "owner": {
+        "implementationStage": 61
+      },
+      "source": "6.3.3/4, 7-92/98..103, SNLA328",
+      "contract": "After the EEE mode recipe, 04D1[0,3]=0 enables standards-based advertisement despite access/polarity wording in table 7-92. Set MMD7:003C[1], renegotiate and check partner and PCS state. Isolate the MMD3 PCS reset and clock-stoppable control from BMCR reset.",
+      "vector": "Test 04D1=00C2, 3:0000/0001/0014/0016 and 7:003C/003D individually. PCS reset clears PCS and MMD3/7 but leaves vendor registers. Collect waking faults once."
+    },
+    {
+      "id": "legacy_lpi",
+      "owner": {
+        "implementationStage": 61
+      },
+      "source": "6.3.4, 7-92",
+      "contract": "Coordinate both partners and stop MAC traffic. Enable EEE advertisement, restart AN and request/clear TX LPI with 04D1[12]. SNLA328 2.2.2 corroborates register-controlled LPI with successful advertisement; distinguish bilateral forced operation in table 7-92 ([14:13]=3). After clearing bit 12 verify stop and require at least 36 us of MAC Normal Inter-Frame before data (SNLA328 2.2.1/2).",
+      "vector": "Test fail between EEE advertisement and restart, enter/stop LPI and separately bounded restoration. Reserved force values 1/2 are rejected."
+    },
+    {
+      "id": "power",
+      "owner": {
+        "implementationStage": 61
+      },
+      "source": "6.3.6..8, 7-3/20/75",
+      "contract": "Support IEEE power-down by BMCR[11] or application pin, active sleep by PHYSCR[14:12]=6 and PLL shutdown only while in IEEE mode. Deep power requires IEEE mode first then 0428[2]. Confirm independent management and recovery before clock loss.",
+      "vector": "Test normal and active sleep (not undefined mode 3 or reserved 1), veto unapproved clock loss, fail after each transition, withhold normal state until recovery is verified."
+    },
+    {
+      "id": "irq",
+      "owner": {
+        "implementationStage": 61
+      },
+      "source": "7-15/19..22/84, SDAA081",
+      "contract": "MISR1/2 deliver IRQ source bits and consume status despite R notation. Register 000C has RC upper byte and offers similar enables. Latch sharing with MISR1 is unknown. Use MISR1/2 for service, one collector and no ordinary reads of 000C. PHYSCR selects pin/polarity/enable/test.",
+      "vector": "Inject distinct upper bytes in MISR1/2. Fail the second read and keep the first. Never service 000C as an additional independent source. Release interrupt test under a finite cleanup budget."
+    },
+    {
+      "id": "counters",
+      "owner": {
+        "implementationStage": 61
+      },
+      "source": "7-18/19/23/24/26/29/84/99/101",
+      "contract": "One collector consumes error counters, mixed status and latch mirrors in defined order. Capture PHYSTS before associated clearers. RCSR FIFO evidence includes incidental RMW reads in the core.",
+      "vector": "Use asymmetric counter values, saturating/wrapping and mirror cases per source, a failed second transfer and release after a successful read. No raw/dump alias bypass."
+    },
+    {
+      "id": "quality",
+      "owner": {
+        "implementationStage": 61
+      },
+      "source": "SDAA081 2.3.3 table 2-6",
+      "contract": "Read vendor 0218 for MSE with powered PHY and connected partner. Threshold equality has no printed classification.",
+      "vector": "Read 0209, 020A, 020B, 033A, 033B, 033C; preserve raw words and leave exact threshold equality unclassified."
+    },
+    {
+      "id": "loopback",
+      "owner": {
+        "implementationStage": 61
+      },
+      "source": "6.3.14, 7-3/20/25, SDAA081",
+      "contract": "Select speed-appropriate local RMII, PCS input/output, digital, analog or reverse loop. BISCR[4:0] selects 1/2/4/8/16. Analog and reverse require the specified fixtures. Use external loop cable as board procedure.",
+      "vector": "Test local loop BMCR[14] with BISCR=4 at 100 and =1 at 10. Verify analog terminations and reverse partner; reject simultaneous conflicting selections and restore the prior link profile."
+    },
+    {
+      "id": "bist",
+      "owner": {
+        "implementationStage": 61
+      },
+      "source": "6.3.15, 7-25/30/31",
+      "contract": "PRBS15 with BISCR[13:12] 0/1/2/3, counter mode [14], sync and generator flags. Packet length in bytes, IPG code times four bytes. Writing BICSR1[15] freezes the prior count for a read and clears it. SDAA081 2.5.3 uses 5000 followed by at least one second before checking lock; table 7-25 decodes its [13:12] as generator-only. The analog fixture uses 3108 for generator plus checker. Validate the checker mode independently.",
+      "vector": "Bound stimulus duration and cleanup. Cover one-shot/continuous, reject packet overflow, guard mixed command 8000 and preserve evidence after a failed count read."
+    },
+    {
+      "id": "tdr",
+      "owner": {
+        "implementationStage": 61
+      },
+      "source": "6.3.16.1, 7-12/32/40..59",
+      "contract": "Quiet/disconnected partner; manual CDCR[15] or armed CR1[8]. Configure channel, segment, averages and thresholds. Signal only documented result bits. Prose lists five peaks; detailed tables reserve peak 2..5 words. Retain first peak, polarity and cross information, never fabricate reserved measurements. Calibration start [14] lacks a documented completion/recovery procedure.",
+      "vector": "Cover segments 1..5, averages 0..6, report done/fail and partial result reads. Require cable propagation evidence before distance conversion. Reset finite temporary settings after interruption."
+    },
+    {
+      "id": "led_pin",
+      "owner": {
+        "implementationStage": 61
+      },
+      "source": "6-10/11, 7-27/28/34/60..62/78/81/82, SNLU239A 3.1",
+      "contract": "Use actual LED0/LED2 source, polarity, blink, manual drive, PMD/MDINT mux and clock status. Data/enable ordering and board route ownership are explicit. Undefined field polarity (e.g. PHYCR[5]) needs source clarification.",
+      "vector": "Test all printed source/mux codes, leader clock veto, and restoration after intermediate drive-value or mux change. Verify electrical outputs separately."
+    },
+    {
+      "id": "wake",
+      "owner": {
+        "implementationStage": 61
+      },
+      "source": "6.3.5, 7-22/83..87, SNLA261A table 2-1 and 2.2.2",
+      "contract": "Magic and Secure-ON with three destination and three password words, CRC gate, GPIO/IRQ indication, pulse/level and write-zero clear. RXFS status is destructive. No arbitrary DP83822 patterns.",
+      "vector": "Test six unequal destination and password bytes, verify word ordering, masked enable and harvest-before-ack. Secure-ON 04A5..04A7 uses the application note and requires physical Q15."
+    },
+    {
+      "id": "vod",
+      "owner": {
+        "implementationStage": 61
+      },
+      "source": "8-2/3, 7-63/64",
+      "contract": "Use the published VOD coarse pairs. The 50 percent row is nonmonotonic. Fine tuning reads device-dependent 0333 and computes a whole 030E word from 5-bit A/B slices. Clamp C=8-A+B to [0,15] before adding x; reject unrepresentable final words. Table 8-3 duplicates the +1.25 percent label for Offset_-1. SNLA266B table 4-1 and worked section 4.1 support a negative step. Measure actual amplitude on each board/unit.",
+      "vector": "Cover coarse endpoints including 030B=00E0/030C=0008. SNLA266B 4.1 gives 0333=520B, A=10, B=8, C=6, D=5, 030E=5800 for x=-1 following 030B=0C40/030C=000F. Check both clamp boundaries and x=-2..+2. Never import 4A40 as an initialization step."
+    },
+    {
+      "id": "analog",
+      "owner": {
+        "implementationStage": 61
+      },
+      "source": "7-29/36..39/60/62..76/88..97, 6-5..7",
+      "contract": "Cover 10BASE-Te squelch, receiver threshold/NLP/jabber, MAC impedance, RX gains and documented DSP/analog runtime fields. Preserve opaque/reset-dependent settings. Sparse descriptions and reserved subfields limit standalone choices to published encodings or a named recipe.",
+      "vector": "Squelch codes 0..8 map to 200..600 mV in 50 mV steps; reject 9..15. Check all documented impedance codes and reject other values. Do not treat the width of an analog field as electrical qualification."
+    },
+    {
+      "id": "compliance",
+      "owner": {
+        "implementationStage": 61
+      },
+      "source": "7-3/20/35/75, SNLA266B, SDAA081 2.3.4",
+      "contract": "10BASE-T pattern selectors 0..13 with 0027[4] enable. 100BASE-TX enable at 0428[4] with combined count selector 0428[5] and 0027[3:0]. Limit reserved exceptions to the named test. Collision test and scrambler bypass require explicit test ownership.",
+      "vector": "Test each documented code, independent stop and partial restoration. Never confuse 0428[4] with deep power [2]. SNLA266B tables 5-1/2/4/5 specify 100 TX, 10 link pulse, 10 data (BISCR 7101), and harmonic (0027=0013) tests. Adapt the shared script PHYCR 0021/4021 to exact masks and strap address. Actual transmit measurements require a qualified fixture."
+    }
+  ],
+  "modeRecipes": {
+    "powerOptimized": [
+      ["0416", "1F30"],
+      ["040D", "000D"],
+      ["0429", "0200"],
+      ["030B", "0BC0"],
+      ["030C", "0011"],
+      ["033C", "0001"],
+      ["0311", "0000"],
+      ["0313", "06E3"],
+      ["033A", "579C"],
+      ["0404", "0000"],
+      ["033D", "8110"],
+      ["031B", "0048"],
+      ["001F", "4000"]
+    ],
+    "reachOptimized": [
+      ["0416", "1F30"],
+      ["040D", "000D"],
+      ["0429", "0200"],
+      ["030B", "0BC0"],
+      ["030C", "0011"],
+      ["033C", "0001"],
+      ["0311", "0000"],
+      ["0313", "06E3"],
+      ["033A", "579C"],
+      ["0404", "0080"],
+      ["033D", "8110"],
+      ["031B", "0048"],
+      ["001F", "4000"]
+    ],
+    "reachWithEee": [
+      ["0416", "1F30"],
+      ["040D", "000D"],
+      ["0429", "0200"],
+      ["030B", "0BC0"],
+      ["030C", "0011"],
+      ["033C", "0001"],
+      ["0311", "0000"],
+      ["0313", "06E3"],
+      ["033A", "579C"],
+      ["0404", "0080"],
+      ["0130", "4750"],
+      ["0123", "0800"],
+      ["030F", "0400"],
+      ["04D4", "6633"],
+      ["04D5", "027F"],
+      ["04D6", "01B0"],
+      ["04D7", "01B0"],
+      ["031F", "FC36"],
+      ["031C", "1103"],
+      ["0101", "0882"],
+      ["010A", "2010"],
+      ["04CE", "00FF"],
+      ["04CD", "A5A5"],
+      ["0308", "0982"],
+      ["04CF", "231D"],
+      ["04D0", "0F8F"],
+      ["033E", "861E"],
+      ["04D1", "00C2"],
+      ["04D2", "215B"],
+      ["033D", "8110"],
+      ["031B", "0048"],
+      ["001F", "4000"]
+    ]
+  },
+  "recipeOnly": [
+    {
+      "wireOffset": "0042",
+      "devad": 31,
+      "procedure": "follower_timing",
+      "source": "5.6 footnote 2",
+      "action": "Write exactly 0014 after 0017[8]=1 on a confirmed follower. Inverse and readback unspecified."
+    },
+    {
+      "wireOffset": "0218",
+      "devad": 31,
+      "procedure": "quality",
+      "source": "SDAA081 2.3.3 table 2-6",
+      "action": "Read only with powered PHY and connected partner; retain equality at either threshold as unclassified."
+    },
+    {
+      "wireOffset": "030E",
+      "devad": 31,
+      "procedure": "vod",
+      "source": "8-3",
+      "action": "Write only the computed fine tuning word, with admissible Offset_x; no unconditional startup value."
+    },
+    {
+      "wireOffset": "0333",
+      "devad": 31,
+      "procedure": "vod",
+      "source": "8-3",
+      "action": "Read unit-specific trim bits 15:11 and 10:6 to compute C; no write."
+    },
+    {
+      "wireOffset": "031B",
+      "devad": 31,
+      "procedure": "functional_mode",
+      "source": "6-5/6/7",
+      "action": "Write 0048 in the cited position of the selected mode."
+    },
+    {
+      "wireOffset": "033A",
+      "devad": 31,
+      "procedure": "functional_mode",
+      "source": "6-5/6/7",
+      "action": "Write 579C in the cited position of the selected mode."
+    },
+    {
+      "wireOffset": "033D",
+      "devad": 31,
+      "procedure": "functional_mode",
+      "source": "6-5/6/7",
+      "action": "Write 8110 in the cited position of the selected mode."
+    },
+    {
+      "wireOffset": "04A5",
+      "devad": 31,
+      "procedure": "wake",
+      "source": "SNLA261A table 2-1 and 2.2.2",
+      "action": "Secure-ON password word; only under the authenticated wake configuration owner. Verify on Q15."
+    },
+    {
+      "wireOffset": "04A6",
+      "devad": 31,
+      "procedure": "wake",
+      "source": "SNLA261A table 2-1 and 2.2.2",
+      "action": "Secure-ON password word; only under the authenticated wake configuration owner. Verify on Q15."
+    },
+    {
+      "wireOffset": "04A7",
+      "devad": 31,
+      "procedure": "wake",
+      "source": "SNLA261A table 2-1 and 2.2.2",
+      "action": "Secure-ON password word; only under the authenticated wake configuration owner. Verify on Q15."
+    }
+  ],
+  "vodCoarse": [
+    ["150", "0A00", "0018"],
+    ["143.75", "0A40", "0017"],
+    ["137.50", "0A80", "0016"],
+    ["131.25", "0AC0", "0015"],
+    ["125", "0B00", "0014"],
+    ["118.75", "0B40", "0013"],
+    ["112.50", "0B80", "0012"],
+    ["106.25", "0BC0", "0011"],
+    ["100", "0C00", "0010"],
+    ["93.75", "0C40", "000F"],
+    ["87.50", "0C80", "000E"],
+    ["81.25", "0CC0", "000D"],
+    ["75", "0D00", "000C"],
+    ["68.75", "0D40", "000B"],
+    ["62.50", "0D80", "000A"],
+    ["56.25", "0DC0", "0009"],
+    ["50", "00E0", "0008"]
+  ],
+  "registers": [
+    {
+      "section": "7.1",
+      "name": "BMCR_Register",
+      "offset": "0000",
+      "headingReset": "3100h",
+      "table": "7-3",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0000",
+      "fields": [
+        {"bits": "15", "name": "Reset", "access": "W", "reset": "0h", "use": "pcs_reset", "constraint": "Pulse 1; poll until complete."},
+        {"bits": "14", "name": "MII_Loopback", "access": "R/W", "reset": "0h", "use": "loopback", "codes": [0, 1]},
+        {"bits": "13", "name": "Speed_Selection", "access": "R/W", "reset": "1h", "use": "configure_forced", "codes": [0, 1]},
+        {"bits": "12", "name": "Auto-Negotiation_Enable", "access": "R/W", "reset": "1h", "use": "configure_an", "codes": [0, 1]},
+        {"bits": "11", "name": "IEEE_Power_Down", "access": "R/W", "reset": "0h", "use": "power", "codes": [0, 1]},
+        {"bits": "10", "name": "Isolate", "access": "R/W", "reset": "0h", "use": "clock_loss", "constraint": "0 or 1; leader clock-loss approval for 1."},
+        {"bits": "9", "name": "Restart_Auto-Negotiation", "access": "R/W", "reset": "0h", "use": "configure_an", "constraint": "Pulse 1 only during AN."},
+        {"bits": "8", "name": "Duplex_Mode", "access": "R/W", "reset": "1h", "use": "configure_forced", "codes": [0, 1]},
+        {"bits": "7", "name": "Collision_Test", "access": "R/W", "reset": "0h", "use": "compliance", "codes": [0, 1]},
+        {"bits": "6-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.2",
+      "name": "BMSR_Register",
+      "offset": "0001",
+      "headingReset": "7849h",
+      "table": "7-4",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0001",
+      "fields": [
+        {"bits": "15", "name": "100Base-T4", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "14", "name": "100Base-TX_Full-Duplex", "access": "R", "reset": "1h", "use": "observe_link"},
+        {"bits": "13", "name": "100Base-TX_Half-Duplex", "access": "R", "reset": "1h", "use": "observe_link"},
+        {"bits": "12", "name": "10Base-T_Full-Duplex", "access": "R", "reset": "1h", "use": "observe_link"},
+        {"bits": "11", "name": "10Base-T_Half-Duplex", "access": "R", "reset": "1h", "use": "observe_link"},
+        {"bits": "10-7", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "6", "name": "SMI_Preamble_Suppression", "access": "R", "reset": "1h", "use": "observe_link"},
+        {"bits": "5", "name": "Auto-Negotiation_Complete", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "4", "name": "Remote_Fault", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "3", "name": "Auto-Negotiation_Ability", "access": "R", "reset": "1h", "use": "observe_link"},
+        {"bits": "2", "name": "Link_Status", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "1", "name": "Jabber_Detect", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "0", "name": "Extended_Capability", "access": "R", "reset": "1h", "use": "observe_link"}
+      ]
+    },
+    {
+      "section": "7.3",
+      "name": "PHYIDR1_Register",
+      "offset": "0002",
+      "headingReset": "2000h",
+      "table": "7-5",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0002",
+      "fields": [
+        {"bits": "15-0", "name": "Organizationally_Unique_Identifier_Bits_21:6", "access": "R", "reset": "2000h", "use": "identify"}
+      ]
+    },
+    {
+      "section": "7.4",
+      "name": "PHYIDR2_Register",
+      "offset": "0003",
+      "headingReset": "A140h",
+      "table": "7-6",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0003",
+      "fields": [
+        {"bits": "15-10", "name": "Organizationally_Unique_Identifier_Bits_5:0", "access": "R", "reset": "28h", "use": "identify"},
+        {"bits": "9-4", "name": "Model_Number", "access": "R", "reset": "14h", "use": "identify"},
+        {"bits": "3-0", "name": "Revision_Number", "access": "R", "reset": "0h", "use": "identify"}
+      ]
+    },
+    {
+      "section": "7.5",
+      "name": "ANAR_Register",
+      "offset": "0004",
+      "headingReset": "01E1h",
+      "table": "7-7",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0004",
+      "fields": [
+        {"bits": "15", "name": "Next_Page", "access": "R/W", "reset": "0h", "use": "next_page", "codes": [0, 1]},
+        {"bits": "14", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "13", "name": "Remote_Fault", "access": "R/W", "reset": "0h", "use": "configure_an", "constraint": "0 only."},
+        {"bits": "12", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "11", "name": "Asymmetric_Pause", "access": "R/W", "reset": "0h", "use": "configure_an", "codes": [0, 1]},
+        {"bits": "10", "name": "Pause", "access": "R/W", "reset": "0h", "use": "configure_an", "codes": [0, 1]},
+        {"bits": "9", "name": "100Base-T4", "access": "R", "reset": "0h", "use": "configure_an", "constraint": "Read-only zero; 100BASE-T4 unavailable."},
+        {"bits": "8", "name": "100Base-TX_Full-Duplex", "access": "R/W", "reset": "1h", "use": "configure_an", "codes": [0, 1]},
+        {"bits": "7", "name": "100Base-TX_Half-Duplex", "access": "R/W", "reset": "1h", "use": "configure_an", "codes": [0, 1]},
+        {"bits": "6", "name": "10Base-T_Full-Duplex", "access": "R/W", "reset": "1h", "use": "configure_an", "codes": [0, 1]},
+        {"bits": "5", "name": "10Base-T_Half-Duplex", "access": "R/W", "reset": "1h", "use": "configure_an", "codes": [0, 1]},
+        {"bits": "4-0", "name": "Selector_Field", "access": "R/W", "reset": "1h", "use": "configure_an", "constraint": "00001 (IEEE 802.3)."}
+      ]
+    },
+    {
+      "section": "7.6",
+      "name": "ALNPAR_Register",
+      "offset": "0005",
+      "headingReset": "0000h",
+      "table": "7-8",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0005",
+      "fields": [
+        {"bits": "15", "name": "Next_Page", "access": "R", "reset": "0h", "use": "next_page"},
+        {"bits": "14", "name": "Acknowledge", "access": "R", "reset": "0h", "use": "next_page"},
+        {"bits": "13", "name": "Remote_Fault", "access": "R", "reset": "0h", "use": "configure_an"},
+        {"bits": "12", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "11", "name": "Asymmetric_Pause", "access": "R", "reset": "0h", "use": "configure_an"},
+        {"bits": "10", "name": "Pause", "access": "R", "reset": "0h", "use": "configure_an"},
+        {"bits": "9", "name": "100Base-T4", "access": "R", "reset": "0h", "use": "configure_an"},
+        {"bits": "8", "name": "100Base-TX_Full-Duplex", "access": "R", "reset": "0h", "use": "configure_an"},
+        {"bits": "7", "name": "100Base-TX_Half-Duplex", "access": "R", "reset": "0h", "use": "configure_an"},
+        {"bits": "6", "name": "10Base-T_Full-Duplex", "access": "R", "reset": "0h", "use": "configure_an"},
+        {"bits": "5", "name": "10Base-T_Half-Duplex", "access": "R", "reset": "0h", "use": "configure_an"},
+        {"bits": "4-0", "name": "Selector_Field", "access": "R", "reset": "0h", "use": "configure_an"}
+      ]
+    },
+    {
+      "section": "7.7",
+      "name": "ANER_Register",
+      "offset": "0006",
+      "headingReset": "0004h",
+      "table": "7-9",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0006",
+      "fields": [
+        {"bits": "15-5", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "4", "name": "Parallel_Detection_Fault", "access": "R", "reset": "0h", "use": "next_page"},
+        {"bits": "3", "name": "Link_Partner_Next_Page_Able", "access": "R", "reset": "0h", "use": "next_page"},
+        {"bits": "2", "name": "Local_Device_Next_Page_Able", "access": "R", "reset": "1h", "use": "next_page"},
+        {"bits": "1", "name": "Page_Received", "access": "R", "reset": "0h", "use": "next_page"},
+        {"bits": "0", "name": "Link_Partner_Auto-Negotiation_Able", "access": "R", "reset": "0h", "use": "next_page"}
+      ]
+    },
+    {
+      "section": "7.8",
+      "name": "ANNPTR_Register",
+      "offset": "0007",
+      "headingReset": "2001h",
+      "table": "7-10",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0007",
+      "fields": [
+        {"bits": "15", "name": "Next_Page", "access": "R/W", "reset": "0h", "use": "next_page", "codes": [0, 1]},
+        {"bits": "14", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "13", "name": "Message_Page", "access": "R/W", "reset": "1h", "use": "next_page", "codes": [0, 1]},
+        {"bits": "12", "name": "Acknowledge_2", "access": "R/W", "reset": "0h", "use": "next_page", "codes": [0, 1]},
+        {"bits": "11", "name": "Toggle", "access": "R", "reset": "0h", "use": "next_page"},
+        {"bits": "10-0", "name": "CODE", "access": "R/W", "reset": "1h", "use": "next_page"}
+      ]
+    },
+    {
+      "section": "7.9",
+      "name": "ANLNPTR_Register",
+      "offset": "0008",
+      "headingReset": "0000h",
+      "table": "7-11",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0008",
+      "fields": [
+        {"bits": "15", "name": "Next_Page", "access": "R", "reset": "0h", "use": "next_page"},
+        {"bits": "14", "name": "Acknowledge", "access": "R", "reset": "0h", "use": "next_page"},
+        {"bits": "13", "name": "Message_Page", "access": "R", "reset": "0h", "use": "next_page"},
+        {"bits": "12", "name": "Acknowledge_2", "access": "R", "reset": "0h", "use": "next_page"},
+        {"bits": "11", "name": "Toggle", "access": "R", "reset": "0h", "use": "next_page"},
+        {"bits": "10-0", "name": "Message/Unformatted_Field", "access": "R", "reset": "0h", "use": "next_page"}
+      ]
+    },
+    {
+      "section": "7.10",
+      "name": "CR1_Register",
+      "offset": "0009",
+      "headingReset": "0000h",
+      "table": "7-12",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0009",
+      "fields": [
+        {"bits": "15-10", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "9", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "8", "name": "TDR_Auto-Run", "access": "R/W", "reset": "0h", "use": "tdr", "codes": [0, 1]},
+        {"bits": "7", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "6", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "5", "name": "robust_Auto_MDIX", "access": "R/W", "reset": "0h", "use": "configure_forced", "codes": [0, 1]},
+        {"bits": "4", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "3-2", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "1", "name": "Fast_RXDV_Detection", "access": "R/W", "reset": "0h", "use": "link_options", "codes": [0, 1]},
+        {"bits": "0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.11",
+      "name": "CR2_Register",
+      "offset": "000A",
+      "headingReset": "0100h",
+      "table": "7-13",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "000A",
+      "fields": [
+        {"bits": "15", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "14", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "13-7", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "6", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "5", "name": "Extended_Full-Duplex_Ability", "access": "R/W", "reset": "0h", "use": "link_options", "codes": [0, 1]},
+        {"bits": "4", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "3", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "2", "name": "RX_ER_During_IDLE", "access": "R/W", "reset": "0h", "use": "link_options", "codes": [0, 1]},
+        {"bits": "1", "name": "Odd-Nibble_Detection_Disable", "access": "R/W", "reset": "0h", "use": "link_options", "codes": [0, 1]},
+        {"bits": "0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.12",
+      "name": "CR3_Register",
+      "offset": "000B",
+      "headingReset": "0000h",
+      "table": "7-14",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "000B",
+      "fields": [
+        {"bits": "15-11", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "10", "name": "Descrambler_Fast_Link_Down_Mode", "access": "R/W", "reset": "0h", "use": "fast_drop", "codes": [0, 1]},
+        {"bits": "9", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "8", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "7", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "6", "name": "Polarity_Swap", "access": "R/W", "reset": "0h", "use": "configure_forced", "codes": [1, 0]},
+        {"bits": "5", "name": "MDI/MDIX_Swap", "access": "R/W", "reset": "0h", "use": "configure_forced", "codes": [0, 1]},
+        {"bits": "4", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "3-0", "name": "Fast_Link_Down_Mode", "access": "R/W", "reset": "0h", "use": "fast_drop"}
+      ]
+    },
+    {
+      "section": "7.13",
+      "name": "Register_12",
+      "offset": "000C",
+      "headingReset": "0000h",
+      "table": "7-15",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "000C",
+      "fields": [
+        {"bits": "15", "name": "Link_Quality_interrupt", "access": "RC", "reset": "0h", "use": "irq"},
+        {"bits": "14", "name": "energy_detect_interrupt", "access": "RC", "reset": "0h", "use": "irq"},
+        {"bits": "13", "name": "link_interrupt", "access": "RC", "reset": "0h", "use": "irq"},
+        {"bits": "12", "name": "speed_interrupt", "access": "RC", "reset": "0h", "use": "irq"},
+        {"bits": "11", "name": "duplex_interrupt", "access": "RC", "reset": "0h", "use": "irq"},
+        {"bits": "10", "name": "auto_negotiation_complete_interrupt", "access": "RC", "reset": "0h", "use": "irq"},
+        {"bits": "9", "name": "false_carrier_half_full_interrupt", "access": "RC", "reset": "0h", "use": "irq"},
+        {"bits": "8", "name": "rhf_interrupt", "access": "RC", "reset": "0h", "use": "irq"},
+        {"bits": "7", "name": "Link_Quality_interrupt_enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "6", "name": "energy_detect_interrupt_enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "5", "name": "link_interrupt_enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "4", "name": "speed_interrupt_enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "3", "name": "duplex_interrupt_enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "2", "name": "auto_negotiation_complete_interrupt_enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "1", "name": "false_carrier_half_full_interrupt_enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "0", "name": "rhf_interrupt_enable", "access": "R/W", "reset": "0h", "use": "irq"}
+      ]
+    },
+    {
+      "section": "7.14",
+      "name": "REGCR_Register",
+      "offset": "000D",
+      "headingReset": "0000h",
+      "table": "7-16",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "000D",
+      "fields": [
+        {"bits": "15-14", "name": "Extended_Register_Command", "access": "R/W", "reset": "0h", "use": "mdio", "codes": [0, 1, 2, 3]},
+        {"bits": "13-5", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "4-0", "name": "DEVAD", "access": "R/W", "reset": "0h", "use": "mdio", "constraint": "3 (PCS), 7 (AN), 31 (vendor); authorized target tuple only."}
+      ]
+    },
+    {
+      "section": "7.15",
+      "name": "ADDAR_Register",
+      "offset": "000E",
+      "headingReset": "0000h",
+      "table": "7-17",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "000E",
+      "fields": [
+        {"bits": "15-0", "name": "Address/Data", "access": "R/W", "reset": "0h", "use": "mdio"}
+      ]
+    },
+    {
+      "section": "7.16",
+      "name": "FLDS_Register",
+      "offset": "000F",
+      "headingReset": "0000h",
+      "table": "7-18",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "000F",
+      "fields": [
+        {"bits": "15-9", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "8-4", "name": "Fast_Link_Down_Status", "access": "R", "reset": "0h", "use": "fast_drop"},
+        {"bits": "3-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.17",
+      "name": "PHYSTS_Register",
+      "offset": "0010",
+      "headingReset": "0000h",
+      "table": "7-19",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0010",
+      "fields": [
+        {"bits": "15", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "14", "name": "MDI/MDIX_Mode", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "13", "name": "Receive_error_Latch", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "12", "name": "Polarity_Status", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "11", "name": "False_Carrier_Sense_Latch", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "10", "name": "Signal_Detect", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "9", "name": "Descrambler_Lock", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "8", "name": "Page_Received", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "7", "name": "MII_Interrupt", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "6", "name": "Remote_Fault", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "5", "name": "Jabber_Detect", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "4", "name": "Auto-Negotiation_Status", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "3", "name": "MII_Loopback_Status", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "2", "name": "Duplex_Status", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "1", "name": "Speed_Status", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "0", "name": "Link_Status", "access": "R", "reset": "0h", "use": "observe_link"}
+      ]
+    },
+    {
+      "section": "7.18",
+      "name": "PHYSCR_Register",
+      "offset": "0011",
+      "headingReset": "0108h",
+      "table": "7-20",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0011",
+      "fields": [
+        {"bits": "15", "name": "Disable_PLL", "access": "R/W", "reset": "0h", "use": "power", "codes": [0, 1]},
+        {"bits": "14", "name": "Power_Save_Mode_Enable", "access": "R/W", "reset": "0h", "use": "power", "codes": [0, 1]},
+        {"bits": "13-12", "name": "Power_Save_Modes", "access": "R/W", "reset": "0h", "use": "power", "constraint": "0 normal or 2 active sleep; no other code."},
+        {"bits": "11", "name": "Scrambler_Bypass", "access": "R/W", "reset": "0h", "use": "compliance", "codes": [0, 1]},
+        {"bits": "10", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "9-8", "name": "Loopback_FIFO_Depth", "access": "R/W", "reset": "1h", "use": "loopback", "codes": [0, 1, 2, 3]},
+        {"bits": "7-5", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "4", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "3", "name": "Interrupt_Polarity", "access": "R/W", "reset": "1h", "use": "irq", "codes": [0, 1]},
+        {"bits": "2", "name": "Test_Interrupt", "access": "R/W", "reset": "0h", "use": "irq", "codes": [0, 1]},
+        {"bits": "1", "name": "Interrupt_Enable", "access": "R/W", "reset": "0h", "use": "irq", "codes": [0, 1]},
+        {"bits": "0", "name": "Interrupt_Output_Enable", "access": "R/W", "reset": "0h", "use": "irq", "codes": [0, 1]}
+      ]
+    },
+    {
+      "section": "7.19",
+      "name": "MISR1_Register",
+      "offset": "0012",
+      "headingReset": "0000h",
+      "table": "7-21",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0012",
+      "fields": [
+        {"bits": "15", "name": "Link_Quality_Interrupt", "access": "R", "reset": "0h", "use": "irq"},
+        {"bits": "14", "name": "Energy_Detect_Interrupt", "access": "R", "reset": "0h", "use": "irq"},
+        {"bits": "13", "name": "Link_Status_Changed_Interrupt", "access": "R", "reset": "0h", "use": "irq"},
+        {"bits": "12", "name": "Speed_Changed_Interrupt", "access": "R", "reset": "0h", "use": "irq"},
+        {"bits": "11", "name": "Duplex_Mode_Changed_Interrupt", "access": "R", "reset": "0h", "use": "irq"},
+        {"bits": "10", "name": "Auto-Negotiation_Completed_Interrupt", "access": "R", "reset": "0h", "use": "irq"},
+        {"bits": "9", "name": "False_Carrier_Counter_Half-Full_Interrupt", "access": "R", "reset": "0h", "use": "irq"},
+        {"bits": "8", "name": "Receive_error_Counter_Half-Full_Interrupt", "access": "R", "reset": "0h", "use": "irq"},
+        {"bits": "7", "name": "Link_Quality_Interrupt_Enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "6", "name": "Energy_Detect_Interrupt_Enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "5", "name": "Link_Status_Changed_Enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "4", "name": "Speed_Changed_Interrupt_Enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "3", "name": "Duplex_Mode_Changed_Interrupt_Enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "2", "name": "Auto-Negotiation_Completed_Enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "1", "name": "False_Carrier_HF_Enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "0", "name": "Receive_error_HF_Enable", "access": "R/W", "reset": "0h", "use": "irq"}
+      ]
+    },
+    {
+      "section": "7.20",
+      "name": "MISR2_Register",
+      "offset": "0013",
+      "headingReset": "0000h",
+      "table": "7-22",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0013",
+      "fields": [
+        {"bits": "15", "name": "EEE_error_Interrupt", "access": "R", "reset": "0h", "use": "irq"},
+        {"bits": "14", "name": "Auto-Negotiation_error_Interrupt", "access": "R", "reset": "0h", "use": "irq"},
+        {"bits": "13", "name": "Page_Received_Interrupt", "access": "R", "reset": "0h", "use": "irq"},
+        {"bits": "12", "name": "Loopback_FIFO_OF/UF_Event_Interrupt", "access": "R", "reset": "0h", "use": "irq"},
+        {"bits": "11", "name": "MDI_CRssover_Change_Interrupt", "access": "R", "reset": "0h", "use": "irq"},
+        {"bits": "10", "name": "Sleep_Mode_Interrupt", "access": "R", "reset": "0h", "use": "irq"},
+        {"bits": "9", "name": "Inverted_Polarity_Interrupt__/_WoL_Packet_Received_Interrupt", "access": "R", "reset": "0h", "use": "irq"},
+        {"bits": "8", "name": "Jabber_Detect_Interrupt", "access": "R", "reset": "0h", "use": "irq"},
+        {"bits": "7", "name": "EEE_error_Interrupt_Enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "6", "name": "Auto-Negotiation_error_Interrupt_Enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "5", "name": "Page_Received_Interrupt_Enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "4", "name": "Loopback_FIFO_OF/UF_Enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "3", "name": "MDI_CRssover_Change_Enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "2", "name": "Sleep_Mode_Event_Enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "1", "name": "Polarity_Changed_/_WoL_Packet_Enable", "access": "R/W", "reset": "0h", "use": "irq"},
+        {"bits": "0", "name": "Jabber_Detect_Enable", "access": "R/W", "reset": "0h", "use": "irq"}
+      ]
+    },
+    {
+      "section": "7.21",
+      "name": "FCSCR_Register",
+      "offset": "0014",
+      "headingReset": "0000h",
+      "table": "7-23",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0014",
+      "fields": [
+        {"bits": "15-8", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "7-0", "name": "False_Carrier_Event_Counter", "access": "R", "reset": "0h", "use": "counters"}
+      ]
+    },
+    {
+      "section": "7.22",
+      "name": "RECR_Register",
+      "offset": "0015",
+      "headingReset": "0000h",
+      "table": "7-24",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0015",
+      "fields": [
+        {"bits": "15-0", "name": "Receive_error_Counter", "access": "R", "reset": "0h", "use": "counters", "constraint": "16-bit field; prose says saturates at FFh with half-full at 7Fh. Preserve the raw width; check saturation on hardware."}
+      ]
+    },
+    {
+      "section": "7.23",
+      "name": "BISCR_Register",
+      "offset": "0016",
+      "headingReset": "0100h",
+      "table": "7-25",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0016",
+      "fields": [
+        {"bits": "15", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "14", "name": "BIST_error_Counter_Mode", "access": "R/W", "reset": "0h", "use": "bist", "codes": [0, 1]},
+        {"bits": "13", "name": "PRBS_Checker_Config", "access": "R/W", "reset": "0h", "use": "bist", "constraint": "Joint 13:12 code 0..3."},
+        {"bits": "12", "name": "Packet_Generation_Enable", "access": "R/W", "reset": "0h", "use": "bist", "constraint": "Joint 13:12 code 0..3."},
+        {"bits": "11", "name": "PRBS_Checker_Lock/Sync", "access": "R", "reset": "0h", "use": "bist"},
+        {"bits": "10", "name": "PRBS_Checker_Sync_Loss", "access": "R", "reset": "0h", "use": "bist"},
+        {"bits": "9", "name": "Packet_Generator_Status", "access": "R", "reset": "0h", "use": "bist"},
+        {"bits": "8", "name": "Power_Mode", "access": "R", "reset": "1h", "use": "power"},
+        {"bits": "7", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "6", "name": "Transmit_in_MII_Loopback", "access": "R/W", "reset": "0h", "use": "loopback", "codes": [0, 1]},
+        {"bits": "5", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "4-0", "name": "Loopback_Mode", "access": "R/W", "reset": "0h", "use": "loopback", "constraint": "0 (off), 1,2,4,8,16; apply speed and termination prerequisites."}
+      ]
+    },
+    {
+      "section": "7.24",
+      "name": "RCSR_Register",
+      "offset": "0017",
+      "headingReset": "0061h",
+      "table": "7-26",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0017",
+      "fields": [
+        {"bits": "15-13", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "12", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "11", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "10", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "9", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "8", "name": "RMII_TX_Clock_Shift", "access": "R/W", "reset": "0h", "use": "follower_timing", "constraint": "1 only on follower with 0042=0014."},
+        {"bits": "7", "name": "RMII_Clock_Select", "access": "R/W", "reset": "0h", "use": "clock_role", "constraint": "Observe board strap; prohibit software role selection."},
+        {"bits": "6", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "5", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "4", "name": "RMII_Revision_Select", "access": "R/W", "reset": "0h", "use": "rmii", "constraint": "0 for RMII 1.2, 1 for RMII 1.0."},
+        {"bits": "3", "name": "RMII_Overflow_Status", "access": "RC", "reset": "0h", "use": "clock_role", "codes": [0, 1]},
+        {"bits": "2", "name": "RMII_Underflow_Status", "access": "RC", "reset": "0h", "use": "clock_role", "codes": [0, 1]},
+        {"bits": "1-0", "name": "Receive_Elasticity_Buffer_Size", "access": "R/W", "reset": "1h", "use": "rmii", "constraint": "Codes 0,1,2,3 for 14,2,6,10 bits of elasticity respectively."}
+      ]
+    },
+    {
+      "section": "7.25",
+      "name": "LEDCR_Register",
+      "offset": "0018",
+      "headingReset": "0400h",
+      "table": "7-27",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0018",
+      "fields": [
+        {"bits": "15-11", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "10-9", "name": "Blink_Rate", "access": "R/W", "reset": "2h", "use": "led_pin", "codes": [0, 1, 2, 3]},
+        {"bits": "8", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "7", "name": "LED_Link_Polarity", "access": "R/W", "reset": "0h", "use": "led_pin", "codes": [0, 1]},
+        {"bits": "6-5", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "4", "name": "Drive_Link_LED", "access": "R/W", "reset": "0h", "use": "led_pin", "codes": [0, 1]},
+        {"bits": "3-2", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "1", "name": "Link_LED_ON/OFF_Setting", "access": "R/W", "reset": "0h", "use": "led_pin"},
+        {"bits": "0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.26",
+      "name": "PHYCR_Register",
+      "offset": "0019",
+      "headingReset": "8000h",
+      "table": "7-28",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "0019",
+      "fields": [
+        {"bits": "15", "name": "Auto_MDI/X_Enable", "access": "R/W", "reset": "1h", "use": "configure_forced", "codes": [0, 1]},
+        {"bits": "14", "name": "Force_MDI/X", "access": "R/W", "reset": "0h", "use": "configure_forced", "codes": [0, 1]},
+        {"bits": "13", "name": "Pause_RX_Status", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "12", "name": "Pause_TX_Status", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "11", "name": "MII_Link_Status", "access": "R", "reset": "0h", "use": "observe_link"},
+        {"bits": "10-8", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "7", "name": "Bypass_LED_Stretching", "access": "R/W", "reset": "0h", "use": "led_pin", "codes": [0, 1]},
+        {"bits": "6", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "5", "name": "LED_Configuration", "access": "R/W", "reset": "0h", "use": "led_pin", "constraint": "No description in 7-28. Preserve pending source evidence."},
+        {"bits": "4-0", "name": "PHY_Address", "access": "R", "reset": "0h", "use": "identify", "constraint": "Observe latched address; two hardware straps select 0..3."}
+      ]
+    },
+    {
+      "section": "7.27",
+      "name": "10BTSCR_Register",
+      "offset": "001A",
+      "headingReset": "0000h",
+      "table": "7-29",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "001A",
+      "fields": [
+        {"bits": "15-14", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "13", "name": "Receiver_Threshold_Enable", "access": "R/W", "reset": "0h", "use": "analog", "codes": [0, 1]},
+        {"bits": "12-9", "name": "Squelch", "access": "R/W", "reset": "0h", "use": "analog", "constraint": "0..8 (200..600 mV by 50 mV)."},
+        {"bits": "8", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "7", "name": "NLP_Disable", "access": "R/W", "reset": "0h", "use": "analog", "codes": [0, 1]},
+        {"bits": "6-5", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "4", "name": "Polarity_Status", "access": "R", "reset": "0h", "use": "counters"},
+        {"bits": "3-1", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "0", "name": "Jabber_Disable", "access": "R/W", "reset": "0h", "use": "analog", "codes": [0, 1]}
+      ]
+    },
+    {
+      "section": "7.28",
+      "name": "BICSR1_Register",
+      "offset": "001B",
+      "headingReset": "007Dh",
+      "table": "7-30",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "001B",
+      "fields": [
+        {"bits": "15-8", "name": "BIST_error_Count", "access": "R", "reset": "0h", "use": "bist", "constraint": "Observed byte count; bit 15 write-one freeze/clear only."},
+        {"bits": "7-0", "name": "BIST_IPG_Length", "access": "R/W", "reset": "7Dh", "use": "bist", "constraint": "0..255, in four-byte units."}
+      ]
+    },
+    {
+      "section": "7.29",
+      "name": "BICSR2_Register",
+      "offset": "001C",
+      "headingReset": "05EEh",
+      "table": "7-31",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "001C",
+      "fields": [
+        {"bits": "15-11", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "10-0", "name": "BIST_Packet_Length", "access": "R/W", "reset": "5EEh", "use": "bist"}
+      ]
+    },
+    {
+      "section": "7.30",
+      "name": "CDCR_Register",
+      "offset": "001E",
+      "headingReset": "0000h",
+      "table": "7-32",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "001E",
+      "fields": [
+        {"bits": "15", "name": "Cable_Diagnostic_Start", "access": "R/W", "reset": "0h", "use": "tdr", "codes": [0, 1]},
+        {"bits": "14", "name": "cfg_rescal_en", "access": "R/W", "reset": "0h", "use": "tdr"},
+        {"bits": "13-2", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "1", "name": "Cable_Diagnostic_Status", "access": "R", "reset": "0h", "use": "tdr"},
+        {"bits": "0", "name": "Cable_Diagnostic_Test_Fail", "access": "R", "reset": "0h", "use": "tdr"}
+      ]
+    },
+    {
+      "section": "7.31",
+      "name": "PHYRCR_Register",
+      "offset": "001F",
+      "headingReset": "0000h",
+      "table": "7-33",
+      "space": "C22",
+      "devad": null,
+      "wireOffset": "001F",
+      "fields": [
+        {"bits": "15", "name": "Software_Hard_Reset", "access": "R/W", "reset": "0h", "use": "hard_reset", "codes": [0, 1]},
+        {"bits": "14", "name": "Digital_reset", "access": "R/W", "reset": "0h", "use": "restart", "codes": [0, 1]},
+        {"bits": "13", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "12-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.32",
+      "name": "MLEDCR_Register",
+      "offset": "0025",
+      "headingReset": "0041h",
+      "table": "7-34",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0025",
+      "fields": [
+        {"bits": "15-10", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "9", "name": "MLED_Polarity_Swap", "access": "R/W", "reset": "0h", "use": "led_pin"},
+        {"bits": "8-7", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "6-3", "name": "LED_0_Configuration", "access": "R/W", "reset": "8h", "use": "led_pin", "codes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]},
+        {"bits": "2-1", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "0", "name": "cfg_mled_en", "access": "R/W", "reset": "1h", "use": "led_pin", "codes": [0, 1]}
+      ]
+    },
+    {
+      "section": "7.33",
+      "name": "COMPT_Regsiter Register",
+      "offset": "0027",
+      "headingReset": "0000h",
+      "table": "7-35",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0027",
+      "fields": [
+        {"bits": "15-4", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "3-0", "name": "Compliance_Test_Configuration", "access": "R/W", "reset": "0h", "use": "compliance", "constraint": "10BASE-T 0..13. See 7-35 for combined 100BASE-TX selector."}
+      ]
+    },
+    {
+      "section": "7.34",
+      "name": "Register_101",
+      "offset": "0101",
+      "headingReset": "2082h",
+      "table": "7-36",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0101",
+      "fields": [
+        {"bits": "15-8", "name": "cfg_energy_lost_th_normal", "access": "R/W", "reset": "20h", "use": "analog"},
+        {"bits": "7", "name": "cfg_dfe_freeze", "access": "R/W", "reset": "1h", "use": "analog"},
+        {"bits": "6-5", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "4", "name": "cfg_seq_wd_off", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "3-1", "name": "cfg_ss_bad_mse_tc_sel", "access": "R/W", "reset": "1h", "use": "analog"},
+        {"bits": "0", "name": "cfg_use_nrg_det_le_only_as_int", "access": "R/W", "reset": "0h", "use": "analog"}
+      ]
+    },
+    {
+      "section": "7.35",
+      "name": "Register_10a",
+      "offset": "010A",
+      "headingReset": "2040h",
+      "table": "7-37",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "010A",
+      "fields": [
+        {"bits": "15-8", "name": "cfg_energy_window_len_normal", "access": "R/W", "reset": "20h", "use": "analog"},
+        {"bits": "7-0", "name": "cfg_energy_on_th_normal", "access": "R/W", "reset": "40h", "use": "analog"}
+      ]
+    },
+    {
+      "section": "7.36",
+      "name": "Register_123",
+      "offset": "0123",
+      "headingReset": "051Ch",
+      "table": "7-38",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0123",
+      "fields": [
+        {"bits": "15", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "14-0", "name": "cfg_100m_mse_good2_th", "access": "R/W", "reset": "51Ch", "use": "analog"}
+      ]
+    },
+    {
+      "section": "7.37",
+      "name": "Register_130",
+      "offset": "0130",
+      "headingReset": "4F28h",
+      "table": "7-39",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0130",
+      "fields": [
+        {"bits": "15", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "14-12", "name": "cfg_100m_retrain_tc_sel", "access": "R/W", "reset": "4h", "use": "analog"},
+        {"bits": "11", "name": "cfg_retrain_cagc_bypass", "access": "R/W", "reset": "1h", "use": "analog"},
+        {"bits": "10", "name": "cfg_retrain_cagc_gear", "access": "R/W", "reset": "1h", "use": "analog"},
+        {"bits": "9", "name": "cfg_energy_lost_usec", "access": "R/W", "reset": "1h", "use": "analog"},
+        {"bits": "8", "name": "cfg_energy_lost_clear_sel", "access": "R/W", "reset": "1h", "use": "analog"},
+        {"bits": "7-0", "name": "cfg_seq_wd_sel", "access": "R/W", "reset": "28h", "use": "analog"}
+      ]
+    },
+    {
+      "section": "7.38",
+      "name": "CDSCR_Register",
+      "offset": "0170",
+      "headingReset": "0C12h",
+      "table": "7-40",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0170",
+      "fields": [
+        {"bits": "15", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "14", "name": "Cable_Diagnostic_CRss_Disable", "access": "R/W", "reset": "0h", "use": "tdr", "codes": [0, 1]},
+        {"bits": "13", "name": "cfg_tdr_chan_sel", "access": "R/W", "reset": "0h", "use": "tdr", "codes": [0, 1]},
+        {"bits": "12", "name": "cfg_tdr_dc_rem_no_init", "access": "R/W", "reset": "0h", "use": "tdr"},
+        {"bits": "11", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "10-8", "name": "Cable_Diagnostic_Average_Cycles", "access": "R/W", "reset": "4h", "use": "tdr", "constraint": "0..6 selects 1,2,4,8,16,32,64 cycles."},
+        {"bits": "7", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "6-4", "name": "cfg_tdr_seg_num", "access": "R/W", "reset": "1h", "use": "tdr", "constraint": "1..5 for segments 0..10, 10..20, 20..40, 40..80, and >=80 m."},
+        {"bits": "3-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.39",
+      "name": "CDSCR2_Register",
+      "offset": "0171",
+      "headingReset": "C850h",
+      "table": "7-41",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0171",
+      "fields": [
+        {"bits": "15-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.40",
+      "name": "TDR_172_Register",
+      "offset": "0172",
+      "headingReset": "0000h",
+      "table": "7-42",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0172",
+      "fields": [
+        {"bits": "15-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.41",
+      "name": "CDSCR3_Register",
+      "offset": "0173",
+      "headingReset": "1304h",
+      "table": "7-43",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0173",
+      "fields": [
+        {"bits": "15-8", "name": "cfg_tdr_seg_duration", "access": "R/W", "reset": "13h", "use": "tdr"},
+        {"bits": "7-0", "name": "cfg_tdr_initial_skip", "access": "R/W", "reset": "4h", "use": "tdr"}
+      ]
+    },
+    {
+      "section": "7.42",
+      "name": "TDR_174_Register",
+      "offset": "0174",
+      "headingReset": "0000h",
+      "table": "7-44",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0174",
+      "fields": [
+        {"bits": "15-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.43",
+      "name": "TDR_175_Register",
+      "offset": "0175",
+      "headingReset": "1004h",
+      "table": "7-45",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0175",
+      "fields": [
+        {"bits": "15-14", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "13-11", "name": "cfg_tdr_sdw_avg_loc", "access": "R/W", "reset": "2h", "use": "tdr"},
+        {"bits": "10-5", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "4", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "3-0", "name": "cfg_tdr_fwd_shadow", "access": "R/W", "reset": "4h", "use": "tdr"}
+      ]
+    },
+    {
+      "section": "7.44",
+      "name": "TDR_176_Register",
+      "offset": "0176",
+      "headingReset": "0005h",
+      "table": "7-46",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0176",
+      "fields": [
+        {"bits": "15-5", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "4-0", "name": "cfg_tdr_p_loc_thresh_seg", "access": "R/W", "reset": "5h", "use": "tdr", "constraint": "No description in 7-46. Preserve pending evidence."}
+      ]
+    },
+    {
+      "section": "7.45",
+      "name": "CDSCR4_Register",
+      "offset": "0177",
+      "headingReset": "1E00h",
+      "table": "7-47",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0177",
+      "fields": [
+        {"bits": "15-13", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "12-8", "name": "Short_Cables_Threshold", "access": "R/W", "reset": "1Eh", "use": "tdr"},
+        {"bits": "7-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.46",
+      "name": "TDR_178_Register",
+      "offset": "0178",
+      "headingReset": "0002h",
+      "table": "7-48",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0178",
+      "fields": [
+        {"bits": "15-3", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "2-0", "name": "cfg_tdr_tx_pulse_width_seg", "access": "R/W", "reset": "2h", "use": "tdr"}
+      ]
+    },
+    {
+      "section": "7.47",
+      "name": "CDLRR1_Register",
+      "offset": "0180",
+      "headingReset": "0000h",
+      "table": "7-49",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0180",
+      "fields": [
+        {"bits": "15-8", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "7-0", "name": "TD_Peak_Location_1", "access": "R", "reset": "0h", "use": "tdr"}
+      ]
+    },
+    {
+      "section": "7.48",
+      "name": "CDLRR2_Register",
+      "offset": "0181",
+      "headingReset": "0000h",
+      "table": "7-50",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0181",
+      "fields": [
+        {"bits": "15-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.49",
+      "name": "CDLRR3_Register",
+      "offset": "0182",
+      "headingReset": "0000h",
+      "table": "7-51",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0182",
+      "fields": [
+        {"bits": "15-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.50",
+      "name": "CDLRR4_Register",
+      "offset": "0183",
+      "headingReset": "0000h",
+      "table": "7-52",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0183",
+      "fields": [
+        {"bits": "15-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.51",
+      "name": "CDLRR5_Register",
+      "offset": "0184",
+      "headingReset": "0000h",
+      "table": "7-53",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0184",
+      "fields": [
+        {"bits": "15-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.52",
+      "name": "CDLAR1_Register",
+      "offset": "0185",
+      "headingReset": "0000h",
+      "table": "7-54",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0185",
+      "fields": [
+        {"bits": "15-7", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "6-0", "name": "TD_Peak_Amplitude_1", "access": "R", "reset": "0h", "use": "tdr"}
+      ]
+    },
+    {
+      "section": "7.53",
+      "name": "CDLAR2_Register",
+      "offset": "0186",
+      "headingReset": "0000h",
+      "table": "7-55",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0186",
+      "fields": [
+        {"bits": "15-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.54",
+      "name": "CDLAR3_Register",
+      "offset": "0187",
+      "headingReset": "0000h",
+      "table": "7-56",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0187",
+      "fields": [
+        {"bits": "15-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.55",
+      "name": "CDLAR4_Register",
+      "offset": "0188",
+      "headingReset": "0000h",
+      "table": "7-57",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0188",
+      "fields": [
+        {"bits": "15-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.56",
+      "name": "CDLAR5_Register",
+      "offset": "0189",
+      "headingReset": "0000h",
+      "table": "7-58",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0189",
+      "fields": [
+        {"bits": "15-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.57",
+      "name": "CDLAR6_Register",
+      "offset": "018A",
+      "headingReset": "0000h",
+      "table": "7-59",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "018A",
+      "fields": [
+        {"bits": "15-12", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "11", "name": "TD_Peak_Polarity_1", "access": "R", "reset": "0h", "use": "tdr"},
+        {"bits": "10-6", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "5", "name": "CRss_Detect_on_TD", "access": "R", "reset": "0h", "use": "tdr"},
+        {"bits": "4", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "3", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "2", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "1-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.58",
+      "name": "IO_CFG_Register",
+      "offset": "0302",
+      "headingReset": "0000h",
+      "table": "7-60",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0302",
+      "fields": [
+        {"bits": "15-14", "name": "MaC_Impedance_control", "access": "R/W", "reset": "0h", "use": "analog", "constraint": "0/1 select 50/25 ohms. Other codes unspecified."},
+        {"bits": "13", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "12-9", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "8", "name": "CRS_DV/RX_DV", "access": "R/W", "reset": "0h", "use": "repeater", "codes": [0, 1]},
+        {"bits": "7", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "6", "name": "cfg_clkout25m_off", "access": "R/W", "reset": "0h", "use": "led_pin", "codes": [0, 1]},
+        {"bits": "5-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.59",
+      "name": "IO_CFG_2_Register",
+      "offset": "0305",
+      "headingReset": "0008h",
+      "table": "7-61",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0305",
+      "fields": [
+        {"bits": "15-6", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "5-3", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "2-0", "name": "Pin2_GPIO_Configuration", "access": "R/W", "reset": "0h", "use": "led_pin", "constraint": "0 default; 1 LED2, 2 WoL, 3 low, 4 MDINT, 5 low, 6 high, 7 low. Gate leader clock loss on every nonzero code."}
+      ]
+    },
+    {
+      "section": "7.60",
+      "name": "SPARE_OUT Register",
+      "offset": "0308",
+      "headingReset": "0002h",
+      "table": "7-62",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0308",
+      "fields": [
+        {"bits": "15-1", "name": "spare_out", "access": "R/W", "reset": "1h", "use": "functional_mode", "constraint": "7-62 gives individual controls for bits 2,4..8,10..15 and fixed bit 1. Other bit behavior unidentified. 6-7 authorizes the whole word only in its ordered sequence."},
+        {"bits": "0", "name": "cfg_clkout_25m_off_status", "access": "R", "reset": "0h", "use": "led_pin"}
+      ]
+    },
+    {
+      "section": "7.61",
+      "name": "DAC_CFG_0 Register",
+      "offset": "030B",
+      "headingReset": "0C00h",
+      "table": "7-63",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "030B",
+      "fields": [
+        {"bits": "15-12", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "11-6", "name": "cfg_dac_minus_one_val", "access": "R/W", "reset": "30h", "use": "vod"},
+        {"bits": "5-0", "name": "cfg_dac_zeR_val", "access": "R/W", "reset": "0h", "use": "vod"}
+      ]
+    },
+    {
+      "section": "7.62",
+      "name": "DAC_CFG_1 Register",
+      "offset": "030C",
+      "headingReset": "0020h",
+      "table": "7-64",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "030C",
+      "fields": [
+        {"bits": "15-6", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "5-0", "name": "cfg_dac_plus_one_val", "access": "R/W", "reset": "20h", "use": "vod"}
+      ]
+    },
+    {
+      "section": "7.63",
+      "name": "DSP_CFG_0 Register",
+      "offset": "030F",
+      "headingReset": "0464h",
+      "table": "7-65",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "030F",
+      "fields": [
+        {"bits": "15-11", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "10-8", "name": "cfg_100m_ffe1_tc_sel", "access": "R/W", "reset": "4h", "use": "analog"},
+        {"bits": "7", "name": "cfg_ffe1_freeze", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "6", "name": "cfg_ffe2_freeze", "access": "R/W", "reset": "1h", "use": "analog"},
+        {"bits": "5", "name": "cfg_ffe3_freeze", "access": "R/W", "reset": "1h", "use": "analog"},
+        {"bits": "4-2", "name": "cfg_deq_thr_check_en", "access": "R/W", "reset": "1h", "use": "analog"},
+        {"bits": "1", "name": "cfg_tloop_freqacc_clr_deqsweep", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "0", "name": "cfg_dfe_reset_deqsweep", "access": "R/W", "reset": "0h", "use": "analog"}
+      ]
+    },
+    {
+      "section": "7.64",
+      "name": "DSP_CFG_2 Register",
+      "offset": "0311",
+      "headingReset": "01FCh",
+      "table": "7-66",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0311",
+      "fields": [
+        {"bits": "15-14", "name": "cfg_cagc_gain_mapping_sel", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "13", "name": "cfg_deq_coeff_sel", "access": "R/W", "reset": "0h", "use": "analog", "codes": [0, 1]},
+        {"bits": "12-9", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "8-1", "name": "cfg_deq_coeff_0_val_1", "access": "R/W", "reset": "FEh", "use": "analog"},
+        {"bits": "0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.65",
+      "name": "DSP_CFG_4 Register",
+      "offset": "0313",
+      "headingReset": "06F8h",
+      "table": "7-67",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0313",
+      "fields": [
+        {"bits": "15-8", "name": "cfg_deq_coeff_0_val_4", "access": "R/W", "reset": "6h", "use": "analog"},
+        {"bits": "7-0", "name": "cfg_deq_coeff_1_val_1", "access": "R/W", "reset": "F8h", "use": "analog"}
+      ]
+    },
+    {
+      "section": "7.66",
+      "name": "DSP_CFG_13 Register",
+      "offset": "031C",
+      "headingReset": "1101h",
+      "table": "7-68",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "031C",
+      "fields": [
+        {"bits": "15", "name": "cfg_kp_force_en", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "14", "name": "cfg_kf_force_en", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "13-11", "name": "cfg_kp_force_val", "access": "R/W", "reset": "2h", "use": "analog"},
+        {"bits": "10-7", "name": "cfg_kf_force_val", "access": "R/W", "reset": "2h", "use": "analog"},
+        {"bits": "6", "name": "cfg_kp_freeze_en", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "5", "name": "cfg_kp_freeze_val", "access": "R/W", "reset": "0h", "use": "analog", "codes": [0, 1]},
+        {"bits": "4", "name": "cfg_kf_freeze_en", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "3", "name": "cfg_kf_freeze_val", "access": "R/W", "reset": "0h", "use": "analog", "codes": [0, 1]},
+        {"bits": "2", "name": "cfg_pd_pol", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "1", "name": "cfg_energy_det_in_sel", "access": "R/W", "reset": "0h", "use": "analog", "codes": [0, 1]},
+        {"bits": "0", "name": "cfg_compute_pre_cursor_metric_en", "access": "R/W", "reset": "1h", "use": "analog"}
+      ]
+    },
+    {
+      "section": "7.67",
+      "name": "DSP_CFG_16 Register",
+      "offset": "031F",
+      "headingReset": "FC36h",
+      "table": "7-69",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "031F",
+      "fields": [
+        {"bits": "15-11", "name": "cfg_100m_frz_frz", "access": "R/W", "reset": "1Fh", "use": "analog"},
+        {"bits": "10-6", "name": "cfg_100m_wake_frz", "access": "R/W", "reset": "10h", "use": "analog"},
+        {"bits": "5-1", "name": "cfg_100m_flush_frz", "access": "R/W", "reset": "1Bh", "use": "analog"},
+        {"bits": "0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.68",
+      "name": "DSP_CFG_25 Register",
+      "offset": "033C",
+      "headingReset": "EC00h",
+      "table": "7-70",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "033C",
+      "fields": [
+        {"bits": "15-8", "name": "deq_coeff_1", "access": "R", "reset": "ECh", "use": "reserved_by_description"},
+        {"bits": "7", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "6-0", "name": "cfg_deq_coeff_force", "access": "R/W", "reset": "0h", "use": "analog"}
+      ]
+    },
+    {
+      "section": "7.69",
+      "name": "DSP_CFG_27 Register",
+      "offset": "033E",
+      "headingReset": "261Eh",
+      "table": "7-71",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "033E",
+      "fields": [
+        {"bits": "15", "name": "cfg_wait_lpi_el_dis", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "14-13", "name": "cfg_dfe_coeff_lim_sel", "access": "R/W", "reset": "1h", "use": "analog"},
+        {"bits": "12-8", "name": "cfg_dfe_coeff_lim_val", "access": "R/W", "reset": "6h", "use": "analog"},
+        {"bits": "7", "name": "cfg_wait_lpi_ed_dis", "access": "R", "reset": "0h", "use": "analog"},
+        {"bits": "6", "name": "cfg_mse_th_scaled_en", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "5", "name": "cfg_dfe_th_scaled_en", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "4-0", "name": "cfg_dfe_mse_th_offset", "access": "R/W", "reset": "1Eh", "use": "analog"}
+      ]
+    },
+    {
+      "section": "7.70",
+      "name": "ANA_LD_PRG_SL_Register",
+      "offset": "0404",
+      "headingReset": "0080h",
+      "table": "7-72",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0404",
+      "fields": [
+        {"bits": "15-0", "name": "ld_pRg_sl", "access": "R/W", "reset": "80h", "use": "analog", "constraint": "7-72 assigns 15:12 bias, 11:8 common mode and 7:5 IQ. It calls bits 4:0 unused and bit 0 burn-in. Keep the unresolved bit protected."}
+      ]
+    },
+    {
+      "section": "7.71",
+      "name": "ANA_RX10BT_CTRL_Register",
+      "offset": "040D",
+      "headingReset": "0000h",
+      "table": "7-73",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "040D",
+      "fields": [
+        {"bits": "15-5", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "4-0", "name": "rx10bt_comp_sl", "access": "R/W", "reset": "0h", "use": "analog", "constraint": "Table 7-73 gives a 200..575 mV series in 25 mV steps and PG1.1 bit 3 inversion; confirm applicability before mapping codes."}
+      ]
+    },
+    {
+      "section": "7.72",
+      "name": "Register_416",
+      "offset": "0416",
+      "headingReset": "083Ch",
+      "table": "7-74",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0416",
+      "fields": [
+        {"bits": "15-13", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "12", "name": "hpf_cal_force_ctrl", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "11-8", "name": "hpf_cal_sl", "access": "R/W", "reset": "8h", "use": "reserved_by_description"},
+        {"bits": "7", "name": "hpf_gain_force_ctrl", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "6", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "5-4", "name": "hpf_gain_sl", "access": "R/W", "reset": "3h", "use": "analog"},
+        {"bits": "3-2", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "1", "name": "hpf_en_force_ctrl", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "0", "name": "hpf_en_sl", "access": "R/W", "reset": "0h", "use": "analog"}
+      ]
+    },
+    {
+      "section": "7.73",
+      "name": "DPDWN_Register",
+      "offset": "0428",
+      "headingReset": "0000h",
+      "table": "7-75",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0428",
+      "fields": [
+        {"bits": "15-6", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "5", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "4", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "3", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "2", "name": "Deep_Power_Down_Enable", "access": "R/W", "reset": "0h", "use": "power", "codes": [0, 1]},
+        {"bits": "1", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.74",
+      "name": "Register_429",
+      "offset": "0429",
+      "headingReset": "0000h",
+      "table": "7-76",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0429",
+      "fields": [
+        {"bits": "15-8", "name": "top_pRg_vbgbyr_control", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "7-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.75",
+      "name": "GENCFG_Register",
+      "offset": "0456",
+      "headingReset": "0008h",
+      "table": "7-77",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0456",
+      "fields": [
+        {"bits": "15-4", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "3", "name": "Min_IPG_Enable", "access": "R/W", "reset": "1h", "use": "link_options", "codes": [0, 1]},
+        {"bits": "2-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.76",
+      "name": "LEDCFG_Register",
+      "offset": "0460",
+      "headingReset": "0515h",
+      "table": "7-78",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0460",
+      "fields": [
+        {"bits": "15-12", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "11-8", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "7-4", "name": "LED_2_control", "access": "R/W", "reset": "1h", "use": "led_pin", "codes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]},
+        {"bits": "3-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.77",
+      "name": "IOCTRL_Register",
+      "offset": "0461",
+      "headingReset": "0010h",
+      "table": "7-79",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0461",
+      "fields": [
+        {"bits": "15", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "14", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "13-12", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "11", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "10-7", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "6-5", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "4-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.78",
+      "name": "SOR1_Register",
+      "offset": "0467",
+      "headingReset": "0533h",
+      "table": "7-80",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0467",
+      "fields": [
+        {"bits": "15", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "14", "name": "CRS_DV/RX_DV", "access": "R", "reset": "0h", "use": "reserved_by_description"},
+        {"bits": "13", "name": "CFG_PHY_AD_1", "access": "R", "reset": "0h", "use": "clock_role"},
+        {"bits": "12", "name": "CFG_PHY_AD_0", "access": "R", "reset": "0h", "use": "clock_role"},
+        {"bits": "11", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "10", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "9", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "8", "name": "CFG_AMDIX", "access": "R", "reset": "1h", "use": "clock_role"},
+        {"bits": "7", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "6", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "5", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "4", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "3", "name": "CFG_RMII_Leader/Follower", "access": "R", "reset": "0h", "use": "clock_role"},
+        {"bits": "2", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "1", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "0", "name": "Autonegotiation_enable", "access": "R", "reset": "1h", "use": "clock_role"}
+      ]
+    },
+    {
+      "section": "7.79",
+      "name": "SOR2_Register",
+      "offset": "0468",
+      "headingReset": "1290h",
+      "table": "7-81",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0468",
+      "fields": [
+        {"bits": "15-13", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "12", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "11", "name": "CRS_DV_vs_RX_DV", "access": "R", "reset": "0h", "use": "clock_role", "constraint": "Table 7-81 has no description. Report raw only, compare pin 20 strap to independent evidence."},
+        {"bits": "10", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "9", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "8", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "7", "name": "CFG_LED_LINK_POL", "access": "R", "reset": "1h", "use": "led_pin"},
+        {"bits": "6", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "5", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "4", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "3", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "2", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "1", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.80",
+      "name": "Register_0x469_Register",
+      "offset": "0469",
+      "headingReset": "0040h",
+      "table": "7-82",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "0469",
+      "fields": [
+        {"bits": "15-11", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "10", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "9", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "8", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "7", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "6", "name": "led_2_polarity", "access": "R/W", "reset": "1h", "use": "led_pin", "codes": [0, 1]},
+        {"bits": "5", "name": "led_2_drv_val", "access": "R/W", "reset": "0h", "use": "led_pin"},
+        {"bits": "4", "name": "led_2_drv_en", "access": "R/W", "reset": "0h", "use": "led_pin", "codes": [0, 1]},
+        {"bits": "3", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "2", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "1", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.81",
+      "name": "RXFCFG_Register",
+      "offset": "04A0",
+      "headingReset": "1081h",
+      "table": "7-83",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "04A0",
+      "fields": [
+        {"bits": "15-14", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "13", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "12", "name": "CRC_Gate", "access": "R/W", "reset": "1h", "use": "wake", "codes": [0, 1]},
+        {"bits": "11", "name": "WoL_Level_Change_Indication_Clear", "access": "W", "reset": "0h", "use": "wake", "constraint": "Write 0 for level acknowledgement; use neutral 1 on unrelated updates."},
+        {"bits": "10-9", "name": "WoL_Pulse_Indication_Select", "access": "R/W", "reset": "0h", "use": "wake", "codes": [0, 1, 2, 3]},
+        {"bits": "8", "name": "WoL_Indication_Select", "access": "R/W", "reset": "0h", "use": "wake", "codes": [0, 1]},
+        {"bits": "7", "name": "WoL_Enable", "access": "R/W", "reset": "1h", "use": "wake", "codes": [0, 1]},
+        {"bits": "6", "name": "Bit_Mask_Flag", "access": "R/W", "reset": "0h", "use": "wake", "constraint": "No arbitrary-pattern programming contract in 6.3.5; preserve until exact use is established."},
+        {"bits": "5", "name": "Secure-ON_Enable", "access": "R/W", "reset": "0h", "use": "wake"},
+        {"bits": "4", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "3", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "2", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "1", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "0", "name": "WoL_Magic_Packet_Enable", "access": "R/W", "reset": "1h", "use": "wake"}
+      ]
+    },
+    {
+      "section": "7.82",
+      "name": "RXFS_Register",
+      "offset": "04A1",
+      "headingReset": "1000h",
+      "table": "7-84",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "04A1",
+      "fields": [
+        {"bits": "15-13", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "12", "name": "WoL_Interrupt_Source", "access": "R/W", "reset": "1h", "use": "wake", "codes": [0, 1]},
+        {"bits": "11-8", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "7", "name": "SFD_error", "access": "RC", "reset": "0h", "use": "wake", "codes": [0, 1]},
+        {"bits": "6", "name": "Bad_CRC", "access": "RC", "reset": "0h", "use": "wake", "codes": [0, 1]},
+        {"bits": "5", "name": "Secure-On_Hack_Flag", "access": "RC", "reset": "0h", "use": "wake", "codes": [0, 1]},
+        {"bits": "4", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "3", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "2", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "1", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "0", "name": "WoL_Magic_Packet_Status", "access": "RC", "reset": "0h", "use": "wake"}
+      ]
+    },
+    {
+      "section": "7.83",
+      "name": "RXFPMD1_Register",
+      "offset": "04A2",
+      "headingReset": "0000h",
+      "table": "7-85",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "04A2",
+      "fields": [
+        {"bits": "15-8", "name": "MAC_Destination_Address_Byte_4", "access": "R/W", "reset": "0h", "use": "wake"},
+        {"bits": "7-0", "name": "MAC_Destination_Address_Byte_5__MSB", "access": "R/W", "reset": "0h", "use": "wake"}
+      ]
+    },
+    {
+      "section": "7.84",
+      "name": "RXFPMD2_Register",
+      "offset": "04A3",
+      "headingReset": "0000h",
+      "table": "7-86",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "04A3",
+      "fields": [
+        {"bits": "15-8", "name": "MAC_Destination_Address_Byte_2", "access": "R/W", "reset": "0h", "use": "wake"},
+        {"bits": "7-0", "name": "MAC_Destination_Address_Byte_3", "access": "R/W", "reset": "0h", "use": "wake"}
+      ]
+    },
+    {
+      "section": "7.85",
+      "name": "RXFPMD3_Register",
+      "offset": "04A4",
+      "headingReset": "0000h",
+      "table": "7-87",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "04A4",
+      "fields": [
+        {"bits": "15-8", "name": "MAC_Destination_Address_Byte_0", "access": "R/W", "reset": "0h", "use": "wake"},
+        {"bits": "7-0", "name": "MAC_Destination_Address_Byte_1", "access": "R/W", "reset": "0h", "use": "wake"}
+      ]
+    },
+    {
+      "section": "7.86",
+      "name": "Register_0x4cd",
+      "offset": "04CD",
+      "headingReset": "0408h",
+      "table": "7-88",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "04CD",
+      "fields": [
+        {"bits": "15-8", "name": "cfg_lpi_energy_lost_th", "access": "R/W", "reset": "4h", "use": "analog"},
+        {"bits": "7-0", "name": "cfg_lpi_energy_on_th", "access": "R/W", "reset": "8h", "use": "analog"}
+      ]
+    },
+    {
+      "section": "7.87",
+      "name": "Register_0x4ce",
+      "offset": "04CE",
+      "headingReset": "0012h",
+      "table": "7-89",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "04CE",
+      "fields": [
+        {"bits": "15-8", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "7-0", "name": "cfg_lpi_energy_window_len", "access": "R/W", "reset": "12h", "use": "analog"}
+      ]
+    },
+    {
+      "section": "7.88",
+      "name": "Register_0x4cf",
+      "offset": "04CF",
+      "headingReset": "261Dh",
+      "table": "7-90",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "04CF",
+      "fields": [
+        {"bits": "15-12", "name": "cfg_sd_on_win_len", "access": "R/W", "reset": "2h", "use": "analog"},
+        {"bits": "11-8", "name": "cfg_100m_tloop_kf_step_ss", "access": "R/W", "reset": "6h", "use": "analog"},
+        {"bits": "7-4", "name": "cfg_sd_on_thr_100m", "access": "R/W", "reset": "1h", "use": "reserved_by_description"},
+        {"bits": "3", "name": "cfg_100m_use_sd_en", "access": "R/W", "reset": "1h", "use": "reserved_by_description"},
+        {"bits": "2", "name": "cfg_sd_cnt_level", "access": "R/W", "reset": "1h", "use": "reserved_by_description"},
+        {"bits": "1", "name": "cfg_en_zc_cnt", "access": "R/W", "reset": "0h", "use": "reserved_by_description"},
+        {"bits": "0", "name": "cfg_en_cmp_cnt", "access": "R/W", "reset": "1h", "use": "reserved_by_description"}
+      ]
+    },
+    {
+      "section": "7.89",
+      "name": "EEECFG2_Register",
+      "offset": "04D0",
+      "headingReset": "0302h",
+      "table": "7-91",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "04D0",
+      "fields": [
+        {"bits": "15", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "14", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "13-7", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "6-5", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "4-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.90",
+      "name": "EEECFG3_Register",
+      "offset": "04D1",
+      "headingReset": "018Bh",
+      "table": "7-92",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "04D1",
+      "fields": [
+        {"bits": "15", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "14-13", "name": "Force_EEE_Enable", "access": "R/W", "reset": "0h", "use": "legacy_lpi", "constraint": "0 or 3, both partners for forced mode."},
+        {"bits": "12", "name": "Force_LPI_Request_TX", "access": "R/W", "reset": "0h", "use": "legacy_lpi", "codes": [0, 1]},
+        {"bits": "11", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "10", "name": "cfg_dis_lpi_bypass_rvrs_loop", "access": "R/W", "reset": "0h", "use": "eee"},
+        {"bits": "9", "name": "cfg_dis_lpi_bypass_fifo", "access": "R/W", "reset": "0h", "use": "eee"},
+        {"bits": "8", "name": "cfg_100m_en_lpi_wake_fallback", "access": "R/W", "reset": "1h", "use": "eee"},
+        {"bits": "7-4", "name": "cfg_lpi_mse_timer_tc_val", "access": "R/W", "reset": "8h", "use": "eee"},
+        {"bits": "3", "name": "EEE_Capabilities_Bypass", "access": "R/W", "reset": "1h", "use": "eee", "constraint": "Use 0 for MMD-based abilities; see 6.3.3.2 versus reversed table 7-92 wording."},
+        {"bits": "2", "name": "EEE_Next_Page_Disable", "access": "R/W", "reset": "0h", "use": "eee", "codes": [0, 1]},
+        {"bits": "1", "name": "EEE_RX_Path_Shutdown", "access": "R/W", "reset": "1h", "use": "eee", "codes": [0, 1]},
+        {"bits": "0", "name": "EEE_Capabilities_Enable", "access": "R", "reset": "1h", "use": "eee", "constraint": "Use 0 for EEE in 6.3.3.2/6.3.4/table 6-7 and SNLA328 2.1 despite R notation."}
+      ]
+    },
+    {
+      "section": "7.91",
+      "name": "Register_0x4d2",
+      "offset": "04D2",
+      "headingReset": "354Ah",
+      "table": "7-93",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "04D2",
+      "fields": [
+        {"bits": "15-14", "name": "cfg_flush_ph_shift_updn", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "13", "name": "cfg_ph_shift_toggle_en", "access": "R/W", "reset": "1h", "use": "analog"},
+        {"bits": "12", "name": "cfg_fast_Follower_wake_100", "access": "R/W", "reset": "1h", "use": "analog"},
+        {"bits": "11", "name": "cfg_dis_dscr_100_tout", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "10", "name": "cfg_lpi_pre_flush_en", "access": "R/W", "reset": "1h", "use": "analog"},
+        {"bits": "9-5", "name": "cfg_100m_rx_lpi_ts_timer", "access": "R/W", "reset": "Ah", "use": "analog"},
+        {"bits": "4-0", "name": "cfg_100m_rx_lpi_link_fail", "access": "R/W", "reset": "Ah", "use": "analog"}
+      ]
+    },
+    {
+      "section": "7.92",
+      "name": "Register_0x4d4",
+      "offset": "04D4",
+      "headingReset": "6633h",
+      "table": "7-94",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "04D4",
+      "fields": [
+        {"bits": "15", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "14-12", "name": "cfg_100m_tloop_kp_step_1", "access": "R/W", "reset": "6h", "use": "analog"},
+        {"bits": "11", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "10-8", "name": "cfg_100m_tloop_kp_step_0", "access": "R/W", "reset": "6h", "use": "analog"},
+        {"bits": "7", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "6-4", "name": "cfg_100m_tloop_kf_step_1", "access": "R/W", "reset": "3h", "use": "analog"},
+        {"bits": "3", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "2-0", "name": "cfg_100m_tloop_kf_step_0", "access": "R/W", "reset": "3h", "use": "analog"}
+      ]
+    },
+    {
+      "section": "7.93",
+      "name": "DSP_100M_STEP_2_Register",
+      "offset": "04D5",
+      "headingReset": "02F1h",
+      "table": "7-95",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "04D5",
+      "fields": [
+        {"bits": "15-10", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "9-7", "name": "cfg_100m_tloop_kp_step_2", "access": "R/W", "reset": "5h", "use": "analog"},
+        {"bits": "6-4", "name": "cfg_100m_tloop_kf_step_2", "access": "R/W", "reset": "7h", "use": "analog"},
+        {"bits": "3-2", "name": "cfg_100m_mse_step_2", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "1", "name": "cfg_100m_dfe_step_2", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "0", "name": "cfg_100m_fagc_step_2", "access": "R/W", "reset": "1h", "use": "analog"}
+      ]
+    },
+    {
+      "section": "7.94",
+      "name": "DSP_100M_STEP_3_Register",
+      "offset": "04D6",
+      "headingReset": "0171h",
+      "table": "7-96",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "04D6",
+      "fields": [
+        {"bits": "15-10", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "9-7", "name": "cfg_100m_tloop_kp_step_3", "access": "R/W", "reset": "2h", "use": "analog"},
+        {"bits": "6-4", "name": "cfg_100m_tloop_kf_step_3", "access": "R/W", "reset": "7h", "use": "analog"},
+        {"bits": "3-2", "name": "cfg_100m_mse_step_3", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "1", "name": "cfg_100m_dfe_step_3", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "0", "name": "cfg_100m_fagc_step_3", "access": "R/W", "reset": "1h", "use": "analog"}
+      ]
+    },
+    {
+      "section": "7.95",
+      "name": "DSP_100M_STEP_4_Register",
+      "offset": "04D7",
+      "headingReset": "0171h",
+      "table": "7-97",
+      "space": "MMD",
+      "devad": 31,
+      "wireOffset": "04D7",
+      "fields": [
+        {"bits": "15-10", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "9-7", "name": "cfg_100m_tloop_kp_step_4", "access": "R/W", "reset": "2h", "use": "analog"},
+        {"bits": "6-4", "name": "cfg_100m_tloop_kf_step_4", "access": "R/W", "reset": "7h", "use": "analog"},
+        {"bits": "3-2", "name": "cfg_100m_mse_step_4", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "1", "name": "cfg_100m_dfe_step_4", "access": "R/W", "reset": "0h", "use": "analog"},
+        {"bits": "0", "name": "cfg_100m_fagc_step_4", "access": "R/W", "reset": "1h", "use": "analog"}
+      ]
+    },
+    {
+      "section": "7.96",
+      "name": "MMD3_PCS_CTRL_1_Register",
+      "offset": "1000",
+      "headingReset": "4000h",
+      "table": "7-98",
+      "space": "MMD",
+      "devad": 3,
+      "wireOffset": "0000",
+      "fields": [
+        {"bits": "15", "name": "PCS_Reset", "access": "R/W", "reset": "0h", "use": "eee", "codes": [0, 1]},
+        {"bits": "14-11", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "10", "name": "RX_Clock_Stoppable", "access": "R/W", "reset": "0h", "use": "eee", "codes": [0, 1]},
+        {"bits": "9-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.97",
+      "name": "MMD3_PCS_STATUS_1 Register",
+      "offset": "1001",
+      "headingReset": "0040h",
+      "table": "7-99",
+      "space": "MMD",
+      "devad": 3,
+      "wireOffset": "0001",
+      "fields": [
+        {"bits": "15-12", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "11", "name": "TX_LPI_Received", "access": "R", "reset": "0h", "use": "eee"},
+        {"bits": "10", "name": "RX_LPI_Received", "access": "R", "reset": "0h", "use": "eee"},
+        {"bits": "9", "name": "TX_LPI_Indication", "access": "R", "reset": "0h", "use": "eee"},
+        {"bits": "8", "name": "RX_LPI_Indication", "access": "R", "reset": "0h", "use": "eee"},
+        {"bits": "7", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "6", "name": "TX_Clock_Stoppable", "access": "R", "reset": "1h", "use": "eee"},
+        {"bits": "5-0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.98",
+      "name": "MMD3_EEE_CAPABILITY_Register",
+      "offset": "1014",
+      "headingReset": "0002h",
+      "table": "7-100",
+      "space": "MMD",
+      "devad": 3,
+      "wireOffset": "0014",
+      "fields": [
+        {"bits": "15-3", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "2", "name": "EEE_1Gbps_Enable", "access": "R", "reset": "0h", "use": "eee", "constraint": "Read-only; no gigabit mode on DP83825I."},
+        {"bits": "1", "name": "EEE_100Mbps_Enable", "access": "R", "reset": "1h", "use": "eee"},
+        {"bits": "0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.99",
+      "name": "MMD3_WAKE_ERR_CNT_Register",
+      "offset": "1016",
+      "headingReset": "0000h",
+      "table": "7-101",
+      "space": "MMD",
+      "devad": 3,
+      "wireOffset": "0016",
+      "fields": [
+        {"bits": "15-0", "name": "EEE_Wake_error_Counter", "access": "R", "reset": "0h", "use": "eee"}
+      ]
+    },
+    {
+      "section": "7.100",
+      "name": "MMD7_EEE_ADVERTISEMENT_Register",
+      "offset": "203C",
+      "headingReset": "0000h",
+      "table": "7-102",
+      "space": "MMD",
+      "devad": 7,
+      "wireOffset": "003C",
+      "fields": [
+        {"bits": "15-2", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "1", "name": "Advertise_100Base-TX_EEE", "access": "R/W", "reset": "0h", "use": "eee", "codes": [0, 1]},
+        {"bits": "0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    },
+    {
+      "section": "7.101",
+      "name": "MMD7_EEE_LP_ABILITY_Register",
+      "offset": "203D",
+      "headingReset": "0000h",
+      "table": "7-103",
+      "space": "MMD",
+      "devad": 7,
+      "wireOffset": "003D",
+      "fields": [
+        {"bits": "15-2", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"},
+        {"bits": "1", "name": "Link_Partner_EEE_Capability", "access": "R", "reset": "0h", "use": "eee"},
+        {"bits": "0", "name": "RESERVED", "access": "R", "reset": "0h", "use": "reserved"}
+      ]
+    }
+  ]
+}

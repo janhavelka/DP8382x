@@ -108,7 +108,9 @@ accidental interpretation as negotiated policy. The swap Booleans must match: bo
 true select coupled CR3 port mirror, both false disable it. Extended full duplex
 is an owner opt-in with no partner-evidence preflight; forced 10 plus extension
 rejects. No Config Boolean proves the partner. Next-page NP=1 belongs only to one admitted exchange epoch; it is not a persistent Advertisement field. Source-gated operations reject before mutation.
-Every startInitialize writes and verifies VOD_CFG3=0x4A40 for every ResetKind, including NONE; binding does not apply it.
+On DP83826 I/E and AI/AE, startInitialize writes and verifies VOD_CFG3=0x4A40
+for every ResetKind, including NONE. DP83825I uses its default functional mode
+and verifies SOR1[3] and RCSR[7] against the declared RMII clock role.
 
 ## Borrowed transport and direct-call budgets
 
@@ -310,7 +312,7 @@ old tuple/time as stale, records its error and never promotes trust.
 The additional rawVod/vodValid fields retain an independently returned mandatory
 word even when that batch later fails release or timing. Like other raw-field
 validity flags, they describe historical capture, not whole-profile freshness.
-VERIFY without desired settings checks identity and VOD only and never fabricates
+VERIFY without desired settings checks identity and the part-specific VOD or clock-role proof and never fabricates
 verified profile trust. An accepted changed identity returns
 INVALID_CONFIG/DEVICE_INVALIDATED and requires explicit reinitialization;
 actual declared identity mismatch remains DEVICE_MISMATCH. An observed active
@@ -693,8 +695,8 @@ Initialization reads both IDs, captures applicable SOR1/SOR2, checks live comman
 state and waits out an already active reset, then issues the selected whole-word
 command once: BMCR=0x8000 for PCS, PHYRCR=0x8000 for HARD or 0x4000 for RESTART.
 Never compose reset commands from sampled command bits or poll address 0x8000.
-After required identity/readiness, every startInitialize writes and verifies
-VOD_CFG3=0x4A40 for every ResetKind. Unknown identity forbids configuration writes.
+After identity/readiness, DP83826 I/E and AI/AE write and verify
+VOD_CFG3=0x4A40 for every ResetKind. DP83825I skips this recipe. Unknown identity forbids configuration writes.
 The best reading permits hard reset to resample eligible straps, but software-reset
 wording remains arguable: retain `hard_reset_straps` and Q5, NOT RUN. ENHANCED
 Strap1/6 are not re-latched by reset; no POR-only BASIC restriction is inferred.

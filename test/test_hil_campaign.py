@@ -232,6 +232,32 @@ class CompiledCampaignTests(unittest.TestCase):
             self.assertIn("identity mismatch: variant", " ".join(data["issues"]))
             self.assertEqual(len(data["commands"]), 1)
 
+    def test_p25_roles_and_exact_part_replay(self):
+        for role, other in (("leader", "follower"), ("follower", "leader")):
+            args = ("--fixture-variant", "DP83825I", "--variant", "DP83825I", "--operating-mode", "none",
+                    "--fixture-rmii-role", role, "--rmii-role", role)
+            for name in ("observe", "cold-boot", "pcs", "hard", "restart", "10base-te", "forced-100-half"):
+                with self.subTest(role=role, case=name):
+                    result, data, raw = self.run_case(name, "-825-" + role, args)
+                    self.assertEqual((result, data["verdict"]), (0, "PASS"), (data["issues"], data["cases"]))
+                    self.assertEqual(replay(data, decoded(raw)), "PASS")
+                    self.assertNotIn("registers read mmd 31 0x030E", data["commands"])
+                    self.assertEqual(data["identity"]["rmii_role"], role)
+                    source = next(row for row in decoded(raw) if row.cmd == "connection.identity")
+                    self.assertEqual((source.fields["model"], source.fields["revision"], source.fields["mode"]),
+                                     ("20", "0", "unknown"))
+                    for key, value in (("rcsr_valid", "0"), ("sor1_valid", "0"), ("straps_stale", "1"),
+                                       ("rcsr", str(int(source.fields["rcsr"]) ^ 128)),
+                                       ("sor1", str(int(source.fields["sor1"]) ^ 8))):
+                        changed = decoded(raw)
+                        current = next(row for row in changed if row.cmd == "connection.identity")
+                        current.fields[key] = value
+                        self.assertNotEqual(replay(data, changed), "PASS", key)
+            result, data, _ = self.run_case("observe", "-wrong-role-" + role, args + ("--rmii-role", other))
+            self.assertEqual(result, 2)
+            self.assertIn("identity mismatch: rmii_role", " ".join(data["issues"]))
+            self.assertEqual(len(data["commands"]), 1)
+
     def test_a_campaigns_replay_link_reset_and_recovery(self):
         for grade in ("DP83826AI", "DP83826AE"):
             for name in CASES:

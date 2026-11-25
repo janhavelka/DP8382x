@@ -77,8 +77,8 @@ Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) n
   constexpr uint8_t aOrder[] = {cmd::REG_PHYSTS, cmd::REG_BMSR, cmd::REG_BMSR,
       cmd::REG_BMCR, cmd::REG_ANAR, cmd::REG_ALNPAR, cmd::REG_ANER, cmd::REG_PHYCR,
       cmd::REG_PHYSTS, cmd::REG_BMSR};
-  const bool aGeneration = isA(_config.variant);
-  const auto* addresses = aGeneration ? aOrder : originalOrder;
+  const bool mirrorClearedByBmsr = isA(_config.variant) || _config.variant == Variant::DP83825I;
+  const auto* addresses = mirrorClearedByBmsr ? aOrder : originalOrder;
   uint16_t words[10]{};
   IoBudget remaining = budget;
   _evidence.lastRequested = evidenceBit(EvidenceSource::BMSR) | evidenceBit(EvidenceSource::PHYSTS) |
@@ -91,7 +91,7 @@ Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) n
     }
     const auto status = _execute(batch, remaining, nullptr, false, Traffic::MANAGED, 32, offset == 0U ? bound : 0U);
     if (!status.ok()) { return fail(status); }
-    if (aGeneration && !_initialized) {
+    if (mirrorClearedByBmsr && !_initialized) {
       return fail(Status::Error(Err::INVALID_CONFIG, "Reset observed during link acquisition",
                                 static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED)));
     }
@@ -101,13 +101,13 @@ Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) n
   }
 
   LinkSnapshot next;
-  next.rawBmsrFirst = words[aGeneration ? 1 : 0];
-  next.rawBmsrCurrent = words[aGeneration ? 2 : 1];
-  next.rawPhystsFirst = words[aGeneration ? 0 : 2];
+  next.rawBmsrFirst = words[mirrorClearedByBmsr ? 1 : 0];
+  next.rawBmsrCurrent = words[mirrorClearedByBmsr ? 2 : 1];
+  next.rawPhystsFirst = words[mirrorClearedByBmsr ? 0 : 2];
   next.rawBmcr = words[3]; next.rawAnar = words[4]; next.rawAnlpar = words[5];
   next.rawAner = words[6]; next.rawPhycr = words[7];
-  next.rawBmsrFinal = words[aGeneration ? 9 : 8];
-  next.rawPhystsFinal = words[aGeneration ? 8 : 9];
+  next.rawBmsrFinal = words[mirrorClearedByBmsr ? 9 : 8];
+  next.rawPhystsFinal = words[mirrorClearedByBmsr ? 8 : 9];
   constexpr uint16_t basicMask = cmd::MASK_BMSR_LINK | cmd::MASK_BMSR_AN_COMPLETE;
   constexpr uint16_t statusMask = cmd::MASK_PHYSTS_LINK | cmd::MASK_PHYSTS_AN_COMPLETE;
   const auto agrees = [](uint16_t basic, uint16_t status) noexcept {

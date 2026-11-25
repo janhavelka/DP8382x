@@ -13,7 +13,9 @@ using Driver = ::DP8382x::DP8382x;
 // Literal controller for SNLS647I tables 8-19..26/34/43 and SNLS783A
 // tables 8-20..27/35/44. Revision 4 mirrors the BMSR fault before clearing.
 constexpr uint8_t originalTrace[] = {1, 1, 16, 0, 4, 5, 6, 25, 1, 16};
-constexpr uint8_t aTrace[] = {16, 1, 1, 0, 4, 5, 6, 25, 16, 1};
+// SNLS638C table 7-19 also places remote fault in PHYSTS before BMSR clears it.
+bool bmsrClearsRemoteFault() { return test::aGrade() || test::p25(); }
+constexpr uint8_t faultMirrorTrace[] = {16, 1, 1, 0, 4, 5, 6, 25, 16, 1};
 
 // Script positions are physical reads, including destructive reads. No device
 // masks or implementation decode helpers are used to construct expected values.
@@ -35,6 +37,7 @@ struct Controller {
     Config result;
     result.variant = test::declaredVariant;
     result.interface = MacInterface::RMII;
+    if (test::p25()) result.rmiiClock = RmiiClock::LEADER_25MHZ;
     result.phyAddress = phy;
     result.transport = {this, execute, clock, {8, 4, 1}};
     return result;
@@ -47,9 +50,10 @@ struct Controller {
   }
   uint16_t read(uint8_t reg) noexcept {
     if (reg == 2) return 0x2000;
-    if (reg == 3) return test::enhancedId2();
+    if (reg == 3) return test::p25() ? 0xA140 : test::enhancedId2();
     if (reg == 0 && !sampling) words[0] = static_cast<uint16_t>(words[0] & 0x7DFFU);
     if (reg == 31) words[31] = 0;
+    if (reg == 23 && test::p25()) return 0x0061; // RMII leader, no pending FIFO events.
     if (reg == 14 && selector == 0x401F) {
       if (address == 0x030E) return vod;
       if (address == 0x0467) return 0x1234;
@@ -60,16 +64,16 @@ struct Controller {
       if (static_cast<int>(position) == changeAt) down = !down;
       if (reg == 1) {
         const auto word = words[1];
-        if (test::aGrade()) {
+        if (bmsrClearsRemoteFault()) {
           words[1] &= 0xFFEFU; // BMSR[4] and its PHYSTS[6] indication clear on BMSR read.
           words[16] &= 0xFFBFU;
         }
-        const bool latchedLow = firstLow && position == (test::aGrade() ? 1U : 0U);
+        const bool latchedLow = firstLow && position == (bmsrClearsRemoteFault() ? 1U : 0U);
         return static_cast<uint16_t>((word & ((down || latchedLow) ? 0xFFFBU : 0xFFFFU)) ^
-            (position == (test::aGrade() ? 9U : 8U) ? finalBasicXor : 0));
+            (position == (bmsrClearsRemoteFault() ? 9U : 8U) ? finalBasicXor : 0));
       }
       if (reg == 16) return static_cast<uint16_t>((words[16] & (down ? 0xFFFEU : 0xFFFFU)) ^
-          (position == (test::aGrade() ? 8U : 9U) ? finalStatusXor : 0));
+          (position == (bmsrClearsRemoteFault() ? 8U : 9U) ? finalStatusXor : 0));
     }
     const auto value = words[reg];
     if (reg == 6) words[6] = static_cast<uint16_t>(value & 0xFFFDU);
@@ -102,6 +106,10 @@ struct Controller {
       auto value = frame.value;
       if (frame.readIndex != 0xFF) {
         CHECK(frame.readIndex < i && result.frames[frame.readIndex].valueValid);
+        if (!frame.acceptsRead(result.frames[frame.readIndex].value)) {
+          result.status = Status::Error(Err::CONFIG_MISMATCH, "Dependent write guard");
+          break;
+        }
         value = static_cast<uint16_t>((result.frames[frame.readIndex].value & frame.preserveMask) | value);
       }
       CHECK(bus.frames < bus.trace.size());
@@ -191,7 +199,7 @@ void readPlan() {
   Controller bus; Driver driver; initialize(driver, bus); up(bus);
   bus.firstLow = true;
   bus.words[6] = 3;
-  if (test::aGrade()) {
+  if (bmsrClearsRemoteFault()) {
     bus.words[1] |= 0x10U;
     bus.words[16] |= 0x40U;
     bus.words[5] |= 0x2000U; // Partner RF advertises independently of latched fault evidence.
@@ -202,15 +210,15 @@ void readPlan() {
   const auto before = driver.evidenceSnapshot();
   LinkSnapshot result;
   CHECK(refresh(driver, bus, result).ok());
-  const auto* expected = test::aGrade() ? aTrace : originalTrace;
+  const auto* expected = bmsrClearsRemoteFault() ? faultMirrorTrace : originalTrace;
   CHECK(bus.frames == first + 10 && bus.calls == call + 2);
   CHECK(bus.sizes[call] == 8 && bus.sizes[call + 1] == 2);
   for (unsigned i = 0; i < 10; ++i) CHECK(bus.trace[first + i] == expected[i]);
   CHECK(result.valid && !result.stale && result.linkUp);
-  CHECK(result.rawBmsrFirst == (test::aGrade() ? 0x0030 : 0x0020) && result.rawBmsrCurrent == 0x0024);
-  CHECK(result.rawPhystsFirst == (test::aGrade() ? 0x0055 : 0x0015) && result.rawPhystsFinal == 0x0015);
+  CHECK(result.rawBmsrFirst == (bmsrClearsRemoteFault() ? 0x0030 : 0x0020) && result.rawBmsrCurrent == 0x0024);
+  CHECK(result.rawPhystsFirst == (bmsrClearsRemoteFault() ? 0x0055 : 0x0015) && result.rawPhystsFinal == 0x0015);
   CHECK(result.rawBmsrFinal == 0x0024 && result.rawAner == 3);
-  CHECK(result.rawAnlpar == (test::aGrade() ? 0x2101 : 0x0101));
+  CHECK(result.rawAnlpar == (bmsrClearsRemoteFault() ? 0x2101 : 0x0101));
   CHECK(result.resolvedModeValid && result.speed == LinkSpeed::MBPS_100 && result.duplex == Duplex::FULL);
   CHECK(result.pauseValid && !result.pauseRx && !result.pauseTx);
   CHECK(result.negotiation == NegotiationState::COMPLETE);
@@ -286,7 +294,7 @@ void coherence() {
     const auto frames = bus.frames;
     bus.changeAt = position;
     const auto status = refresh(driver, bus, result);
-    if (position <= (test::aGrade() ? 0 : 1)) {
+    if (position <= (bmsrClearsRemoteFault() ? 0 : 1)) {
       CHECK(status.ok() && result.linkUp == initialDown);
       CHECK(result.resolvedModeValid == initialDown);
     } else {
@@ -408,7 +416,7 @@ void forced() {
 }
 
 void failures() {
-  if (test::aGrade()) {
+  if (bmsrClearsRemoteFault()) {
     Controller bus; Driver driver; initialize(driver,bus); up(bus);
     LinkSnapshot out; CHECK(refresh(driver,bus,out).ok());
     const auto saved = out;
@@ -441,7 +449,7 @@ void failures() {
       CHECK(driver.healthSnapshot().totalFailures==health.totalFailures && driver.healthSnapshot().totalSuccess==health.totalSuccess);
     }
   }
-  const auto* sourceAt = test::aGrade() ? aTrace : originalTrace;
+  const auto* sourceAt = bmsrClearsRemoteFault() ? faultMirrorTrace : originalTrace;
   for (unsigned failure = 0; failure < 10; ++failure) {
     Controller bus; Driver driver; initialize(driver, bus); up(bus);
     LinkSnapshot result;
@@ -459,7 +467,7 @@ void failures() {
     CHECK(cached.observedSinceUs == old.observedSinceUs);
     CHECK(cached.lastRefreshStatus.is(Err::MDIO_TIMEOUT) && cached.lastRefreshStatus.detail == -19019);
     const auto retained = driver.evidenceSnapshot();
-    if (test::aGrade() && failure == 1U) {
+    if (bmsrClearsRemoteFault() && failure == 1U) {
       CHECK(evidence(retained, EvidenceSource::PHYSTS).raw == 0x0055U);
       CHECK((evidence(retained, EvidenceSource::PHYSTS).observedOnes & 0x40U) != 0U);
       CHECK((bus.words[16] & 0x40U) == 0U);

@@ -21,6 +21,9 @@ struct Controller {
   uint16_t selector{0},address{0},id2{0xA131};
   Variant declared{Variant::DP83826I};
   MacInterface boardInterface{MacInterface::RMII};
+  RmiiClock boardRole{RmiiClock::UNSPECIFIED};
+  bool clockLossApproved{false};
+  uint16_t sampledSor{0}, sampledRcsr{0};
   uint64_t now{100};
   unsigned delayedClock{0};
   unsigned frames{0},calls{0},clocks{0},releases{0},mutations{0},hard{0};
@@ -38,10 +41,12 @@ struct Controller {
     words[1]=0x0024;words[5]=0x0101;words[6]=1;words[16]=0x15;
     words[25]=0x8001;words[22]=0x0100;words[30]=0x0102;words[23]=0x0061;
     ext[0x0303]=ext[0x0304]=ext[0x0305]=ext[0x0306]=8;
+    if (declared == Variant::DP83825I) { ext[0x467] = sampledSor; words[23] = sampledRcsr; }
     ext[0x030E]=0x8400;ext[0x04A1]=0x1000;ext[0x04D1]=0x0080;
   }
   Config config(uint32_t phy=1) {
     Config c;c.variant=declared;c.interface=boardInterface;c.phyAddress=phy;
+    c.rmiiClock=boardRole;c.clockLossApproved=clockLossApproved;
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
   static uint64_t clock(void* context) noexcept {
@@ -61,6 +66,7 @@ struct Controller {
     if(target==3)return id2;
     if(target==0) { words[0]&=stickyRestart?0x7FFFU:0x7DFFU;return static_cast<uint16_t>(words[0]|(powerPin?0x0800U:0U)); }
     if(target==31)words[31]=0;
+    if(declared==Variant::DP83825I && target==1)words[16]&=0xFFBF;
     if(target==0x0308 && (id2&15U)!=4U)return static_cast<uint16_t>((ext[0x0302]&0x0040U)!=0U?1U:0U);
     const auto value=target<32U?words[target]:ext[target];
     if(target==18 || target==19) { words[target]&=0x00FF;words[16]&=0xFF7F; }
@@ -81,7 +87,7 @@ struct Controller {
       return;
     }
     if(target==31 && value==0x8000) { ++hard;defaults();return; }
-    if(target==0 && value==0x8000) { words[0]=0x3100;words[9]=words[10]=words[17]=0;words[23]=0x0061;return; }
+    if(target==0 && value==0x8000) { words[0]=0x3100;words[9]=words[10]=words[17]=0;words[23]=declared==Variant::DP83825I?sampledRcsr:0x0061;return; }
     if(target==23)CHECK((value&0x000CU)==0U);
     if(target==18 || target==19) { CHECK((value&0xFF00U)==0U);words[target]=static_cast<uint16_t>((words[target]&0xFF00U)|value);return; }
     if(target==0x04A1) {
@@ -97,7 +103,12 @@ struct Controller {
     CHECK(batch.frameCount<=budget.maxFrames);b.locked=true;const auto call=b.calls++;CHECK(call<b.firstFrame.size());b.firstFrame[call]=b.frames;
     for(uint8_t i=0;i<batch.frameCount;++i) {
       const auto& q=batch.frames[i];auto& f=r.frames[i];uint16_t value=q.value;
-      if(q.readIndex!=NO_READ_INDEX) { CHECK(q.readIndex<i && r.frames[q.readIndex].valueValid);value=static_cast<uint16_t>((r.frames[q.readIndex].value&q.preserveMask)|q.value); }
+      if(q.readIndex!=NO_READ_INDEX) {
+        CHECK(q.readIndex<i && r.frames[q.readIndex].valueValid);
+        const auto sampled=r.frames[q.readIndex].value;
+        if(!q.acceptsRead(sampled)) { r.status=Status::Error(Err::CONFIG_MISMATCH,"Dependent write guard");break; }
+        value=static_cast<uint16_t>((sampled&q.preserveMask)|q.value);
+      }
       const uint16_t target=q.registerAddress==14 && (b.selector&0x4000U)!=0U?b.address:uint16_t{q.registerAddress};
       const uint16_t devad=q.registerAddress==14 && (b.selector&0x4000U)!=0U?static_cast<uint16_t>(b.selector&31U):uint16_t{31};
       CHECK(b.frames<b.trace.size());const auto frame=b.frames++;b.trace[frame]={q.kind,q.registerAddress,value,target,devad,b.now};
@@ -769,9 +780,120 @@ template<Variant grade> void aInterface() {
     CHECK(d.configureInterface(s,out,{1000000,48}).is(Err::INVALID_CONFIG) && b.calls==calls && b.clocks==clocks);
   }
 }
+// SNLS638C tables 7-3, 7-6, 7-19, 7-26 and 7-80. Treat both role
+// observations as independent inputs and both FIFO flags as consumed evidence.
+void p25Board(Controller& b, bool follower, bool sor, bool rcsr) {
+  b.declared=Variant::DP83825I; b.id2=0xA140;
+  b.boardRole=follower ? RmiiClock::FOLLOWER_50MHZ : RmiiClock::LEADER_25MHZ;
+  b.sampledSor=sor ? 0x0008 : 0;
+  b.sampledRcsr=rcsr ? 0x00ED : 0x006D;
+  b.defaults();
+}
+void p25StartupFailures() {
+  // Initialization without reset. Stop after each wire frame with uncertain
+  // consumption and after each complete callback with a failed release.
+  for (bool follower : {false,true}) {
+    unsigned totalFrames=0, totalCalls=0, fifoFrame=0;
+    {
+      Controller b; Driver d;
+      p25Board(b,follower,follower,follower);
+      initialized(d,b);
+      totalFrames=b.frames; totalCalls=b.calls;
+      for (unsigned i=0;i<b.frames;++i) if (b.trace[i].target==23) fifoFrame=i;
+      CHECK(fifoFrame>1 && totalFrames>fifoFrame && b.trace[fifoFrame].kind==FrameKind::READ);
+    }
+    for (bool release : {false,true}) for (unsigned cut=0;cut<(release?totalCalls:totalFrames);++cut) {
+      Controller b; Driver d;
+      p25Board(b,follower,follower,follower);
+      CHECK(d.bind(b.config()).ok());
+      if (release) b.releaseCall=static_cast<int>(cut);
+      else b.failFrame=static_cast<int>(cut);
+      OperationToken token;
+      CHECK(d.startInitialize({ResetKind::NONE},budget(),token).inProgress());
+      CHECK(drain(d,b,token).is(release?Err::MDIO_ERROR:Err::MDIO_TIMEOUT));
+      const auto terminal=take(d,token);
+      CHECK(!d.healthSnapshot().initialized && b.releases==b.calls && writes(b,0,0x030E)==0);
+      CHECK(!terminal.mutationPossible && !terminal.cleanupOwed);
+      const auto sample=d.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::RCSR)];
+      const bool fifoReturned=release?b.frames>fifoFrame:cut>fifoFrame;
+      CHECK(sample.valid==fifoReturned && terminal.straps.rcsrValid==fifoReturned);
+      if (fifoReturned) CHECK((sample.observedOnes&12U)==12U && terminal.straps.rcsr==b.sampledRcsr);
+      if (!release && cut==fifoFrame) CHECK(sample.historyLost && (b.words[23]&12U)==0);
+    }
+  }
+}
+void p25Core() {
+  p25StartupFailures();
+  for (bool declaredFollower : {false,true}) for (bool sor : {false,true}) for (bool rcsr : {false,true}) {
+    Controller b; Driver d;
+    p25Board(b,declaredFollower,sor,rcsr);
+    CHECK(d.bind(b.config()).ok());
+    OperationToken token;
+    CHECK(d.startInitialize({ResetKind::NONE},budget(),token).inProgress());
+    const auto status=drain(d,b,token);
+    const auto result=take(d,token);
+    CHECK(status.ok()==(declaredFollower==sor && sor==rcsr));
+    CHECK(result.straps.sor1Valid && result.straps.sor1==b.sampledSor && !result.straps.sor2Valid);
+    CHECK(result.straps.rcsrValid && result.straps.rcsr==b.sampledRcsr);
+    const auto fifo=d.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::RCSR)];
+    CHECK(fifo.valid && (fifo.observedOnes&0x000C)==0x000C && (b.words[23]&0x000C)==0);
+    CHECK(writes(b,0,0x17)==0 && writes(b,0,0x030E)==0);
+    const auto calls=b.calls, clocks=b.clocks;
+    d.strapSnapshot(); d.healthSnapshot(); d.interfaceSnapshot();
+    CHECK(b.calls==calls && b.clocks==clocks);
+  }
+  for (bool follower : {false,true}) {
+    Controller b; Driver d;
+    p25Board(b,follower,follower,follower);
+    ready(d,b);
+    LinkSettings profile;
+    for (uint8_t modes=1;modes<=15;++modes) {
+      profile.advertisement.technologyMask=modes;
+      b.words[4]|=0x2000; // Local remote-fault advertisement is prohibited.
+      OperationToken token;
+      CHECK(d.startConfigure(profile,{},budget(),token).inProgress());
+      CHECK(drain(d,b,token).ok() && take(d,token).status.ok());
+      CHECK((b.words[4]&0x21E0U)==(uint32_t{modes}<<5U));
+    }
+    for (auto speed:{LinkSpeed::MBPS_10,LinkSpeed::MBPS_100}) for (auto duplex:{Duplex::HALF,Duplex::FULL}) {
+      profile={}; profile.mode=LinkMode::FORCED; profile.forced={speed,duplex}; profile.crossover.robust=false;
+      OperationToken token;
+      CHECK(d.startConfigure(profile,{},budget(),token).inProgress());
+      CHECK(drain(d,b,token).ok() && take(d,token).status.ok());
+      CHECK((b.words[0]&0x3100U)==((speed==LinkSpeed::MBPS_100?0x2000U:0U)|(duplex==Duplex::FULL?0x100U:0U)));
+      CHECK((b.words[9]&0x20U)==0);
+    }
+    for (auto kind:{ResetKind::NONE,ResetKind::PCS,ResetKind::HARD,ResetKind::RESTART}) {
+      OperationToken token;
+      CHECK(d.startInitialize({kind},budget(),token).inProgress());
+      CHECK(drain(d,b,token).ok());
+      const auto result=take(d,token);
+      CHECK(result.persistentRestored && result.straps.rcsrValid && !result.straps.stale);
+      CHECK(writes(b,0,0x030E)==0 && b.ext[0x030E]==0x8400);
+    }
+    LinkSnapshot link{};
+    b.words[16]|=0x0040;
+    const auto before=b.frames;
+    CHECK(d.readLinkStatus(link,{1000000,10}).ok());
+    constexpr uint16_t order[]={16,1,1,0,4,5,6,25,16,1};
+    CHECK(b.frames-before==10);
+    for (unsigned i=0;i<10;++i) CHECK(b.trace[before+i].target==order[i]);
+    CHECK((link.rawPhystsFirst&0x40U)!=0 && (link.rawPhystsFinal&0x40U)==0);
+    const auto calls=b.calls,clocks=b.clocks;
+    uint16_t untouched=0xBEEF;
+    for (uint32_t reg:{12U,15U,18U,19U,23U}) {
+      CHECK(!d.readClause22(reg,untouched,{1000000,1}).ok() && untouched==0xBEEF);
+      CHECK(!d.readMmd(31,reg,untouched,{1000000,4}).ok() && untouched==0xBEEF);
+    }
+    CHECK(!d.writeClause22(4,0x2001,{1000000,1}).ok());
+    CHECK(!d.writeMmd(31,4,0x2001,{1000000,4}).ok());
+    CHECK(b.calls==calls && b.clocks==clocks);
+  }
+}
+#include "p25_profiles.inc"
 } // namespace
 int main(int argc,char** argv) {
-  const test::Suite suites[]={{"vectors",vectors},{"admission",admission},{"failures",failures},{"replay",replay},
+  const test::Suite suites[]={{"p25",p25Core},{"p25_profiles",p25Profiles},{"vectors",vectors},{"admission",admission},{"failures",failures},{"replay",replay},
     {"ownership",ownership},{"collector",collector},{"timing",timing},{"repeater",repeater},
     {"ai",aInterface<Variant::DP83826AI>},{"ae",aInterface<Variant::DP83826AE>}};
   return test::runSuites(argc,argv,suites);

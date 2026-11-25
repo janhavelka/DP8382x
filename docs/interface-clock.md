@@ -1,5 +1,27 @@
 # Clock, interface and repeater configuration
 
+For DP83825I, set `Config::interface` to `RMII` and `rmiiClock` to
+`LEADER_25MHZ` or `FOLLOWER_50MHZ`. The two confirmations are SOR1[3]
+and RCSR[7]. Both clear means leader, both set means follower. Every RCSR
+sample goes through the FIFO collector, including the read of an atomic RMW.
+The driver preserves reserved bits 6:5 despite the conflicting reset values in
+table 7-26. Revision and elasticity occupy 4 and 1:0 respectively.
+
+Follower `txClockShift` applies RCSR[8] and then vendor 0042=0014 for the
+7.5–10.5 ns setup option in section 5.6. A completed companion write is
+retained as procedural evidence. Recovery replays both writes. To return
+to the default, establish a board reset baseline and a fresh binding. The
+datasheet gives no inverse value for 0042. Electrical timing awaits measurement.
+
+For a leader, setting BMCR isolation or selecting a nonzero pin 2 mux also
+requires `Config::clockLossApproved`. An owner can set the mux with
+`modifyMmd(31, 0x0305, 7, code, budget)`. Raw maintenance invalidates
+configuration trust. Deep power remains gated. A later contradictory role
+sample withdraws mutation authority. Repeater wiring admission on this part
+includes the section 6.3.10 simultaneous external reset of the two PHYs.
+The application owns both RESET_N pins and the single RMII clock source.
+[Source inventory](registers/dp83825i.json)
+
 On AI/AE, initialization records the raw startup straps, which the interface
 owner checks against SOR2. RCSR supplies the live mode. RMII owns IO_CFG1[8].
 Pin 30 clock selection uses LED0_GPIO_CFG[5:0] at 0303, preserving the upper

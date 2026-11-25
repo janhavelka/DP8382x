@@ -391,8 +391,9 @@ public:
   Status operationSnapshot(OperationSnapshot& output) noexcept;
   /// @brief Copy cached identity without reading the PHY or changing acceptance.
   /// @param[out] output Copied on OK, unchanged on contention.
+  /// @param[out] straps Optional strap capture copied under the same owner gate.
   /// @return OK or BUSY.
-  Status identitySnapshot(DeviceIdentity& output) noexcept;
+  Status identitySnapshot(DeviceIdentity& output, StrapEvidence* straps = nullptr) noexcept;
   /// @brief Copy capabilities derived from fresh accepted identity without MDIO.
   /// @param[out] output Copied on OK, unchanged on contention.
   /// @return OK or BUSY. Capability validity is separate from status.

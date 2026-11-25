@@ -100,6 +100,7 @@ Status DP8382x::_validateWake(const WakeSettings& settings) const noexcept {
 }
 
 Status DP8382x::startConfigureWake(const WakeSettings& settings,const OperationBudget& budget,OperationToken& token) noexcept {
+  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   auto status=wakeSyntax(settings); if (!status.ok()) { return status; }
   if (budget.pollIntervalUs==0U || budget.maxStalledPolls==0U) {
     return Status::Error(Err::INVALID_PARAM,"Invalid wake budget",static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
@@ -124,6 +125,7 @@ Status DP8382x::startConfigureWake(const WakeSettings& settings,const OperationB
 }
 
 Status DP8382x::acknowledgeWake(const OperationBudget& budget,OperationToken& token) noexcept {
+  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   if (budget.pollIntervalUs==0U || budget.maxStalledPolls==0U) {
     return Status::Error(Err::INVALID_PARAM,"Invalid wake acknowledgement budget",static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
   }
@@ -447,6 +449,7 @@ Status DP8382x::_advanceWake(Status status,bool called,const MdioBatch& batch) n
 }
 
 Status DP8382x::readWakeStatus(WakeSnapshot& snapshot,const IoBudget& budget) noexcept {
+  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
   if (_active || _polling) { return wakeBusy(BusyDetail::OPERATION_ACTIVE); }
   const auto fail=[&](Status status) noexcept {

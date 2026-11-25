@@ -13,6 +13,11 @@ Both A grades also have typed diagnostics, IRQ and wake routes, LED and GPIO
 profiles, power controls and the 27-write EEE recipe. The [coverage matrix](docs/feature-coverage.md#dp83826ai-and-dp83826ae) records the supported paths and open silicon gates.
 [Device coverage](docs/variants.md)
 
+DP83825I accepts the documented revision-0 ID and requires an explicit RMII
+leader or follower declaration. Initialization checks both clock straps, then
+restores owned 10/100 copper settings. Its default mode needs no VOD recipe.
+See [DP83825I coverage and limits](docs/feature-coverage.md#dp83825i).
+
 **Status: prompts 1-35 complete for supported procedures; prompts 37-39 add native ESP-IDF lifecycle, SDK state arbitration and notification conformance. Prompt 40 adds a native P4 Ethernet/IP application with a default-closed board gate. Deep-power-down and full primary closure remain source-blocked; hardware qualification remains future work.**
 The [P4 basic example](examples/esp_idf/basic/README.md) builds against the
 pinned SDK, but its saved board netlist leaves PHY `3V3` without a demonstrated
@@ -74,7 +79,7 @@ direct/indirect transactions, explicit evidence acquisition and
 [exact-address identity probing](docs/identity.md). Identity acceptance is separate
 from initialized settings, link-up and physical qualification.
 [Initialization](docs/initialization.md) now provides caller-driven NONE/PCS/HARD/RESTART,
-mandatory VOD verification, retained results, shared-bus hard-reset silence and explicit bounded restoration.
+part-specific startup verification, retained results, shared-bus hard-reset silence and explicit bounded restoration.
 [Live and cached link observations](docs/link-observation.md) now provide bounded
 current/history evidence, forced-mode qualification and negotiated pause.
 [Typed event/counter acquisition](docs/event-counters.md) adds complete snapshots,

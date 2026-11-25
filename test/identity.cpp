@@ -308,6 +308,80 @@ void testPolicy() {
   literalTrace(bus, 7); // Never silently scans or selects responding address 1.
 }
 
+// SNLS638C tables 6-9 and 7-5/6. Enumerate the entire model/revision
+// space so the Linux I/S labels and the two 826 generations cannot alias 825I.
+void testP25Identity() {
+  CHECK(test::declaredVariant == Variant::DP83825I);
+  uint8_t maximum = 0xEE;
+  CHECK(strapAddressMax(test::declaredVariant, maximum) && maximum == 3);
+  for (unsigned model = 0; model < 64; ++model) {
+    for (unsigned revision = 0; revision < 16; ++revision) {
+      Controller bus;
+      Driver driver;
+      bus.second[1] = static_cast<uint16_t>(0xA000U | (model << 4U) | revision);
+      CHECK(driver.bind(bus.config()).ok() && bus.callbacks == 0 && bus.clocks == 0);
+      auto output = sentinel();
+      const auto status = driver.readIdentity(output, BUDGET);
+      const auto cached = driver.identitySnapshot();
+      const auto calls = bus.callbacks, clocks = bus.clocks;
+      const bool expected = model == 0x14 && revision == 0;
+      CHECK(cached.id1Valid && cached.id2Valid && cached.id1 == 0x2000 && cached.id2 == bus.second[1]);
+      CHECK(cached.model == model && cached.revision == revision && cached.oui == 0x080028);
+      if (expected) {
+        CHECK(status.ok() && output.mode == OperatingMode::UNKNOWN && output.acceptance == IdentityAcceptance::ACCEPTED);
+        const auto caps = driver.capabilities();
+        CHECK(caps.valid && caps.linkModeMask == 15 && caps.interfaceMask == 2 && caps.copper && !caps.fiber);
+      } else {
+        CHECK(status.is(Err::DEVICE_MISMATCH) && sameIdentity(output, sentinel()));
+        CHECK(cached.acceptance == IdentityAcceptance::REJECTED && !driver.capabilities().valid);
+        uint16_t unchanged = 0xC0DE;
+        CHECK(!driver.readMmd(31, 0x0467, unchanged, {10000, 4}).ok() && unchanged == 0xC0DE);
+        CHECK(!driver.modifyBasicControl(0x1000, 0x1000, {10000, 2}).ok());
+      }
+      literalTrace(bus, 1);
+      CHECK(bus.callbacks == calls && bus.clocks == clocks);
+    }
+  }
+  for (auto words : {std::array<uint16_t, 2>{0, 0}, {0xFFFF, 0xFFFF}, {0x2001, 0xA140}}) {
+    Controller bus;
+    Driver driver;
+    bus.first[1] = words[0]; bus.second[1] = words[1];
+    CHECK(driver.bind(bus.config()).ok());
+    auto output = sentinel();
+    CHECK(!driver.readIdentity(output, BUDGET).ok() && sameIdentity(output, sentinel()));
+    CHECK(driver.identitySnapshot().id1 == words[0] && driver.identitySnapshot().id2 == words[1]);
+    literalTrace(bus, 1);
+  }
+  for (int cut = 0; cut < 2; ++cut) {
+    Controller bus;
+    Driver driver;
+    bus.failAt = cut;
+    CHECK(driver.bind(bus.config()).ok());
+    auto output = sentinel();
+    CHECK(driver.readIdentity(output, BUDGET).is(Err::MDIO_TIMEOUT) && sameIdentity(output, sentinel()));
+    const auto saved = driver.identitySnapshot();
+    CHECK(saved.id1Valid == (cut == 1) && !saved.id2Valid && saved.stale && !driver.capabilities().valid);
+  }
+  for (auto invalid : {0, 1, 2, 3, 4, 5, 6, 7}) {
+    Controller bus;
+    Driver driver;
+    auto config = bus.config();
+    if (invalid == 0) config.rmiiClock = RmiiClock::UNSPECIFIED;
+    if (invalid == 1) config.rmiiClock = static_cast<RmiiClock>(0xFE);
+    if (invalid == 2) config.interface = MacInterface::MII;
+    if (invalid == 3) config.interface = MacInterface::RGMII;
+    if (invalid == 4) config.requiredMode = OperatingMode::ENHANCED;
+    if (invalid == 5) config.medium = Medium::FIBER;
+    if (invalid == 6) config.medium = static_cast<Medium>(255);
+    if (invalid == 7) config.mdcHz = 20000001; // Section 5.7 T4, above 20 MHz.
+    CHECK(driver.bind(bus.config()).ok()); // Invalid rebind must preserve the prior binding.
+    CHECK(!driver.bind(config).ok() && bus.callbacks == 0 && bus.clocks == 0);
+    bus.second[1] = 0xA140;
+    DeviceIdentity observed;
+    CHECK(driver.readIdentity(observed, BUDGET).ok() && observed.declaredVariant == Variant::DP83825I);
+  }
+}
+
 void testFailures() {
   for (int phase = 0; phase < 2; ++phase) {
     auto [bus, driver] = test::BoundDriver<Controller>{};
@@ -408,7 +482,7 @@ void testLifecycle() {
     acceptedCapabilities(driver);
     CHECK(bus.callbacks == calls);
   }
-  for (const auto variant : {Variant::UNKNOWN, static_cast<Variant>(5), static_cast<Variant>(255)}) {
+  for (const auto variant : {Variant::UNKNOWN, static_cast<Variant>(6), static_cast<Variant>(255)}) {
     auto config = bus.config();
     config.variant = variant;
     const auto clocks = bus.clocks;
@@ -683,7 +757,7 @@ void testScan() {
 
 int main(int argc, char** argv) {
   const test::Suite suites[] = {
-    {"decode", testDecode}, {"policy", testPolicy}, {"failures", testFailures},
+    {"p25", testP25Identity}, {"decode", testDecode}, {"policy", testPolicy}, {"failures", testFailures},
     {"lifecycle", testLifecycle}, {"ownership", testOwnership}, {"scan", testScan}
   };
   return test::runVariantSuites(argc, argv, suites);

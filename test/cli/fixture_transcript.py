@@ -58,6 +58,36 @@ class FixtureTranscript(unittest.TestCase):
             for field in ("batches", "attempted", "completed"):
                 self.assertEqual(rows[0][field], rows[8][field])
 
+    def test_p25_declared_role_and_partial_samples(self):
+        for role, other, rcsr, sor in (("leader", "follower", 0x006D, 0), ("follower", "leader", 0x00ED, 8)):
+            opts = ("--variant", "DP83825I", "--rmii-role", role, "--trace-writes")
+            output = invoke(b"session p25\nconnection identity\ncaps\ncached transport\n"
+                            b"registers read c22 23\nregisters write c22 4 8193\ncached transport\n", *opts)
+            rows = records(output.stdout)
+            self.assertEqual(rows[0]["rmii_role"], role)
+            self.assertEqual((rows[1]["id2"], rows[1]["model"], rows[1]["mode"]), ("41280", "20", "unknown"))
+            self.assertEqual((int(rows[1]["rcsr"]), int(rows[1]["sor1"])), (rcsr, sor))
+            self.assertEqual(rows[2]["interfaces"], "2")
+            for key in ("batches", "attempted", "completed"):
+                self.assertEqual(rows[3][key], rows[6][key])
+            self.assertNotEqual(rows[4]["primary"], "OK")
+            self.assertNotEqual(rows[5]["primary"], "OK")
+            self.assertNotIn(b"030e 4a40", output.stderr.lower())
+            for option in ("--sor-role", "--rcsr-role"):
+                mismatch = records(run(b"connection identity\ncached health\nconnection initialize none\n", *opts, option, other))
+                self.assertEqual(mismatch[1]["initialized"], "0")
+                self.assertEqual(mismatch[-1]["primary"], "CONFIG_MISMATCH")
+                self.assertEqual(int(mismatch[0]["sor1"]) & 8, (sor ^ 8) if option == "--sor-role" else sor)
+            partial = records(run(b"connection identity\ncached health\n", *opts, "--fail-after", "1"))
+            self.assertEqual((partial[0]["id1_valid"], partial[0]["id2_valid"], partial[0]["rcsr_valid"]),
+                             ("1", "0", "0"))
+            self.assertEqual(partial[1]["initialized"], "0")
+        for bad in ((), ("--rmii-role", "leader", "--mii"), ("--rmii-role", "leader", "--fiber"), ("--rmii-role", "typo")):
+            denied = subprocess.run((FIXTURE, "--variant", "DP83825I", *bad), input=b"", capture_output=True,
+                                    timeout=5)
+            self.assertEqual(denied.returncode, 2)
+            self.assertNotIn(PREFIX, denied.stdout)
+
     def test_real_cached_views_and_zero_frames(self):
         stream = (b"session A.b:43-Thing\r\ncached transport\n"
                   b"drv\ncached link\r\ncfg\ncaps\ncached operation\n"

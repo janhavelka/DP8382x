@@ -143,6 +143,8 @@ enum class TimeoutDetail : int32_t {
 /// @brief Source-proved absent silicon capability detail values.
 enum class UnsupportedDetail : int32_t {
   INTERFACE = 1, ///< Declared MAC interface is absent.
+  FEATURE, ///< Procedure unavailable for this declared ordering part.
+  MEDIUM   ///< Declared physical medium is absent.
 };
 
 } // namespace DP8382x

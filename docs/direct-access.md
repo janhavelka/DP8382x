@@ -1,5 +1,13 @@
 # Bounded portable Clause 22 and indirect MMD access
 
+A DP83825I backend checks `MdioFrame::acceptsRead` on the completed
+`readIndex` word before launching each dependent write, under the same lock.
+If the predicate fails, stop at that prefix, leave the write receipt empty,
+return `CONFIG_MISMATCH` with detail zero and report the actual release status.
+This preserves a consuming RCSR sample and can suppress an isolation-setting
+BMCR write even when an earlier preflight saw isolation clear. On all existing
+DP83826 descriptors the prerequisite mask is zero.
+
 AI and AE share the documented stable direct and vendor-alias reads and the
 selected IEEE MMD reads. For example, 7:003C uses the selector sequence
 `0007,003C,4007` followed by a data read under one lock. Original LEDCR
@@ -108,7 +116,8 @@ or overflow of raw time plus lag latches CLOCK_CONTRACT until owner repair and a
 fresh binding; no later sample silently repairs it. Frozen time cannot add frames.
 
 Only OK, MDIO_ERROR, MDIO_TIMEOUT, the two defined owner/quarantine BUSY details
-and defined OPERATION_TIMEOUT details are terminal primary callback outcomes.
+defined OPERATION_TIMEOUT details and a proved guarded-write CONFIG_MISMATCH
+are terminal primary callback outcomes.
 BUSY has no frames. Release accepts only OK/MDIO_ERROR/MDIO_TIMEOUT. Null messages,
 illegal statuses/details, short success, contradictory frame validity and extra
 slots fail normalization. The exact raw report and signed details remain in the

@@ -79,6 +79,7 @@ struct FakeController : ControllerState {
     result.variant = declaredVariant;
     result.interface = MacInterface::RMII;
     result.phyAddress = phy;
+    if (declaredVariant == Variant::DP83825I) result.rmiiClock = RmiiClock::LEADER_25MHZ;
     const TransportBounds bounds = mmdModel ? TransportBounds{8, 4, 1}
                                            : TransportBounds{9, 5, 2};
     result.transport = {this, execute, clock, bounds};
@@ -178,6 +179,10 @@ struct FakeController : ControllerState {
         uint16_t word = frame.value;
         if (frame.kind == FrameKind::WRITE && frame.readIndex != 0xFFU) {
           CHECK(result.frames[frame.readIndex].completed && result.frames[frame.readIndex].valueValid);
+          if (!frame.acceptsRead(result.frames[frame.readIndex].value)) {
+            result.status = Status::Error(Err::CONFIG_MISMATCH, "Dependent write guard");
+            break;
+          }
           word = static_cast<uint16_t>((result.frames[frame.readIndex].value & frame.preserveMask) | frame.value);
         }
         completed.attempted = true;

@@ -1,5 +1,14 @@
 # DP83826I and DP83826E hardware validation
 
+DP83825I Q15 needs an identified board for each measured role. Record the
+actual package, ID words, SOR1[3], RCSR[7], XI and pin 2 rate and direction,
+plus RESET_N, first idle MDC cycle, first access and negotiated link. Capture
+the 25 µs reset pulse, 2 ms reset-to-SMI and 50 ms POR intervals, including
+the stable-clock margin when XI arrives late. Measure pin 2 under each
+approved isolation/mux/power change and follower setup timing with the paired
+RCSR/0042 settings. Managed repeater tests require simultaneous external
+reset of both identified PHYs. These physical observations remain pending.
+
 For each of DP83826AI and DP83826AE, retain the BOM grade, ID1/2, revision,
 mode, address, SOR1/SOR2 and live RCSR before testing. Record POR/RESET_N,
 the reference clock and first allowed SMI edge. Measure 10/100 link outcomes,

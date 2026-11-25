@@ -1,5 +1,15 @@
 # Native ESP-IDF PHY owner
 
+The DP83825I factory takes the same explicit RMII direction, copper medium
+and controller timing contract as the portable binding. MAC clock wiring and
+the physical idle MDC cycle are board responsibilities. `prepareBoard`
+accounts for 50 ms POR readiness, stable clock, at least 25 µs reset assertion
+and 2 ms after release. The selected MAC must meet the 20 MHz MDC ceiling. When `core.mdcHz` is
+supplied, the owner also reserves a full period for a slow controller.
+The stopped owner can copy the paired strap and identity snapshot under its
+gate. The ESP32-P4 link fixture accepts `DP8382X_FIXTURE_VARIANT=DP83825I`.
+[Adapter link fixture](../test/esp_idf/adapter_link/README.md)
+
 Supply the board's ordering grade in `PhyConfig::core.variant`. The factory
 retains a DP83826E declaration through the same BASIC/ENHANCED identity and
 configuration paths used by DP83826I. The adapter link fixture defaults to E and accepts a build-time A declaration.

@@ -16,7 +16,8 @@ enum class Variant : uint8_t {
   DP83826I, ///< Original industrial grade, declared by the application.
   DP83826E, ///< Original extended temperature grade, shares I identity words.
   DP83826AI, ///< A industrial grade, declared independently of the revision-4 ID.
-  DP83826AE ///< A extended grade, sharing both mode-dependent IDs with AI.
+  DP83826AE, ///< A extended grade, sharing both mode-dependent IDs with AI.
+  DP83825I ///< RMII-only industrial part, SNLS638C table 7-6.
 };
 
 /// @brief Observed PHY identity mode; it is never a software selector.
@@ -34,6 +35,12 @@ enum class MacInterface : uint8_t {
   RGMII    ///< Representable for validation, absent on DP83826I/E.
 };
 
+/// @brief Requested physical medium for this binding.
+enum class Medium : uint8_t {
+  COPPER, ///< Twisted-pair 10/100 operation.
+  FIBER   ///< Representable for admission; no currently selectable part supports it.
+};
+
 /// @brief API technology bits, distinct from ANAR wire positions.
 constexpr uint8_t LINK_10_HALF = 0x01; ///< API bit for 10 Mbit/s half duplex.
 constexpr uint8_t LINK_10_FULL = 0x02; ///< API bit for 10 Mbit/s full duplex.
@@ -48,6 +55,12 @@ constexpr uint8_t INTERFACE_MII = 0x01; ///< API bit for MII.
 constexpr uint8_t INTERFACE_RMII = 0x02; ///< API bit for RMII.
 constexpr uint8_t INTERFACE_RGMII = 0x04; ///< API bit for RGMII, absent on DP83826I/E.
 
+/// @brief RMII reference direction; actual board wiring must agree.
+enum class RmiiClock : uint8_t {
+  LEADER_25MHZ, ///< 25MHz reference; PHY supplies 50MHz to MAC/peer.
+  FOLLOWER_50MHZ, ///< External shared 50MHz reference; no second clock driver.
+  UNSPECIFIED ///< No board role declared. Invalid for DP83825I.
+};
 /// @brief Requested link speed; UNKNOWN is not a valid active forced speed.
 enum class LinkSpeed : uint8_t {
   UNKNOWN, ///< Not selected.
@@ -114,9 +127,10 @@ inline constexpr bool isA(Variant variant) noexcept {
 
 /// @brief Check exact supported part membership without I/O or a clock.
 /// @param[in] variant Declared ordering part, including possible invalid casts.
-/// @return True for a selectable original or A ordering part.
+/// @return True for a selectable DP83826 I/E, AI/AE or DP83825I ordering part.
 inline constexpr bool isValidVariant(Variant variant) noexcept {
-  return variant == Variant::DP83826I || variant == Variant::DP83826E || isA(variant);
+  return variant == Variant::DP83826I || variant == Variant::DP83826E || isA(variant) ||
+         variant == Variant::DP83825I;
 }
 
 /// @brief Check Clause 22 PHY-address width without narrowing the input.
@@ -216,6 +230,14 @@ struct MdioFrame {
   uint16_t value{0};              ///< Literal write bits; ignored on read.
   uint16_t preserveMask{0};       ///< Earlier read bits retained by dependent write.
   uint8_t readIndex{NO_READ_INDEX}; ///< Earlier READ index or literal sentinel.
+  uint16_t requiredMask{0}; ///< Mask of prerequisite bits in that READ for a dependent WRITE.
+  uint16_t requiredValue{0}; ///< Required masked value. Zero mask accepts every word.
+  /// @brief Check the prerequisite while holding the same controller lock as the read.
+  /// @param[in] sampled Completed word from readIndex.
+  /// @return False requires stopping before the write with CONFIG_MISMATCH, detail zero.
+  constexpr bool acceptsRead(uint16_t sampled) const noexcept {
+    return (sampled & requiredMask) == requiredValue;
+  }
 };
 
 /// @brief One PHY's complete terminal operation under a controller-wide lock.
@@ -254,7 +276,7 @@ struct BatchResult {
 /// @note One controller-wide lock covers admission, every frame and release.
 /// Stop on first failure; no reentry, retry, asynchronous completion or retention.
 /// Preserve primary/release/effect evidence and quarantine uncertain ownership.
-/// Dependent writes require their earlier successful read; validate the terminal
+/// Dependent writes require their earlier successful read and acceptsRead(value); validate the terminal
 /// report before reopening admission. See docs/direct-access.md for all report,
 /// lifetime and budget rules, allowed statuses and physical timing obligations.
 /// @warning Host callback success does not prove physical MDC/MDIO timing.
@@ -295,6 +317,19 @@ struct Config {
   OperatingMode requiredMode{OperatingMode::UNKNOWN}; ///< UNKNOWN accepts either valid mode.
   Transport transport{};            ///< Borrowed owner callback and bounds.
   uint32_t offlineThreshold{3};     ///< Passive count threshold; legal 1..UINT32_MAX.
+  RmiiClock rmiiClock{RmiiClock::UNSPECIFIED}; ///< Required DP83825I board role, observed at initialization.
+  bool clockLossApproved{false}; ///< DP83825I leader owner permits an explicitly requested clock interruption.
+  Medium medium{Medium::COPPER}; ///< Application-declared medium, validated before callbacks.
+  uint32_t mdcHz{0}; ///< Optional declared controller rate in Hz. Zero uses the board's timing contract.
+  /// @brief Get the minimum SMI silence after a pin-equivalent reset.
+  /// @return Microseconds from observed release; includes a declared DP83825I MDC period.
+  /// @note With an undeclared rate the board supplies the idle MDC cycle itself.
+  constexpr uint32_t hardResetQuietUs() const noexcept {
+    if (variant == Variant::DP83825I && mdcHz > 0 && mdcHz < 500) {
+      return (1000000U + mdcHz - 1U) / mdcHz;
+    }
+    return 2000U;
+  }
 };
 
 } // namespace DP8382x

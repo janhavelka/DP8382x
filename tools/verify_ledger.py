@@ -695,7 +695,7 @@ def load_ledger(path: Path) -> object:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("ledger", nargs="?", type=Path,
-                        help="validate a standalone original ledger (default: check both generations)")
+                        help="validate a standalone original ledger (default: check all part ledgers)")
     args = parser.parse_args(argv)
     try:
         data = load_ledger(args.ledger or DEFAULT_LEDGER)
@@ -703,13 +703,20 @@ def main(argv: list[str] | None = None) -> int:
         if args.ledger is None:
             if __package__:
                 from .verify_a_ledger import validate as validate_a
+                from .verify_p25_ledger import validate as validate_p25
             else:
                 from verify_a_ledger import validate as validate_a
+                from verify_p25_ledger import validate as validate_p25
             comparison = load_ledger(DEFAULT_LEDGER.with_name("dp83826a.json"))
             procedures = load_ledger(DEFAULT_LEDGER.with_name("dp83826a-procedures.json"))
             validate_a(data, comparison, procedures)
             print(f"PASS: AI/AE comparison of {len(comparison['registers'])} detailed tables, "
                   f"{len(procedures['procedures'])} procedures and {len(procedures['eeeRecipe'])} EEE rows")
+            p25 = load_ledger(DEFAULT_LEDGER.with_name("dp83825i.json"))
+            validate_p25(p25)
+            print(f"PASS: DP83825I {len(p25['registers'])} detailed tables, "
+                  f"{sum(len(r['fields']) for r in p25['registers'])} fields and "
+                  f"{len(p25['procedures'])} procedure assignments")
     except (OSError, UnicodeError, ValueError, TypeError, KeyError) as error:
         print(f"FAIL: {error}", file=sys.stderr)
         return 1

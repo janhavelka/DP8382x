@@ -47,6 +47,7 @@ struct Controller {
     Config result;
     result.variant = test::declaredVariant;
     result.interface = MacInterface::RMII;
+    if (test::p25()) result.rmiiClock = RmiiClock::LEADER_25MHZ;
     result.phyAddress = address;
     result.transport = {this, execute, clock, {8, 4, 1}};
     return result;
@@ -64,7 +65,7 @@ struct Controller {
       return badBmcr < 0 ? phy.bmcr : static_cast<uint16_t>(badBmcr);
     case 0x01: return phy.bmsr;
     case 0x02: return 0x2000;
-    case 0x03: return test::enhancedId2();
+    case 0x03: return test::p25() ? 0xA140 : test::enhancedId2();
     case 0x04: return badAnar < 0 ? phy.anar : static_cast<uint16_t>(badAnar);
     case 0x05: return phy.partnerBase;
     case 0x06: {
@@ -84,6 +85,7 @@ struct Controller {
       return value;
     }
     case 0x09: return phy.cr1;
+    case 0x17: return test::p25() ? 0x0061 : 0; // RMII leader, FIFO indications clear.
     case 0x19: return phy.phycr;
     case 0x0B: return phy.cr3;
     case 0x0A: return phy.cr2;
@@ -167,6 +169,10 @@ struct Controller {
       if (frame.readIndex != 0xFF) {
         CHECK(frame.kind == FrameKind::WRITE && frame.readIndex < index);
         CHECK(result.frames[frame.readIndex].valueValid);
+        if (!frame.acceptsRead(result.frames[frame.readIndex].value)) {
+          result.status = Status::Error(Err::CONFIG_MISMATCH, "Dependent write guard");
+          break;
+        }
         value = static_cast<uint16_t>((result.frames[frame.readIndex].value & frame.preserveMask) | value);
       }
       CHECK(bus.frames < bus.trace.size());
@@ -285,7 +291,7 @@ void vectors() {
       CHECK(!result.negotiationComplete); // Register application alone is sufficient here.
       CHECK(phy.anar == static_cast<uint16_t>(0x5200U | advertisement(technologies, pause)));
       CHECK((phy.bmcr & 0x1000U) != 0 && (phy.bmcr & 0x007FU) == 0x007FU);
-      CHECK(bus.vodWrites == 1 && phy.vod == 0x4A40);
+      CHECK(bus.vodWrites == (test::p25() ? 0U : 1U) && phy.vod == (test::p25() ? 0x8400 : 0x4A40));
       CHECK(bus.restarts == 1 && bus.pageLoads == 0);
       CHECK(bus.frames - first == 24); // Six saves, six atomic RMWs, six readbacks.
       CHECK(bus.locks == bus.releases);
@@ -342,7 +348,16 @@ void admission() {
       invalid.mode = LinkMode::FORCED;
       invalid.advertisement = {};
       invalid.forced = {LinkSpeed::MBPS_100, Duplex::FULL};
-      invalid.crossover.robust = false; // Force Mode requires this even with manual routing.
+      invalid.crossover.robust = false;
+      if (test::p25()) {
+        // Table 7-12 allows manual routing without robust crossover.
+        CHECK(driver.startConfigure(invalid, {}, budget(), token).inProgress());
+        CHECK(bus.calls == calls && bus.clocks == clocks);
+        CHECK(drain(driver, bus, token).ok());
+        CHECK(take(driver, token).status.ok());
+        CHECK((bus.phys[1].cr1 & 0x20U) == 0);
+        continue;
+      }
     }
     const auto rejected = driver.startConfigure(invalid, {}, budget(), token);
     CHECK(!rejected.ok() && !rejected.inProgress());
@@ -365,7 +380,7 @@ void replay() {
     initialize(driver, bus, reset);
     CHECK(bus.phys[1].anar == 0x0C61);
     CHECK((bus.phys[1].bmcr & 0x1000U) != 0);
-    CHECK(bus.phys[1].vod == 0x4A40 && bus.vodWrites == 2);
+    CHECK(bus.phys[1].vod == (test::p25() ? 0x8400 : 0x4A40) && bus.vodWrites == (test::p25() ? 0U : 2U));
     CHECK(bus.restarts == 2);
     for (const auto& frame : bus.trace) {
       if (frame.kind == FrameKind::WRITE && frame.reg == 0x04) CHECK((frame.value & 0x8000U) == 0);
@@ -638,7 +653,7 @@ void pages() {
     CHECK(result.nextPage.pages[duplicate ? 2 : 1].valid);
     CHECK(result.nextPage.pages[duplicate ? 2 : 1].raw == 0x2001);
     CHECK(bus.phys[1].anar == 0x0101 && bus.restarts == 1);
-    CHECK(bus.vodWrites == 1 && bus.pageLoads == 2);
+    CHECK(bus.vodWrites == (test::p25() ? 0U : 1U) && bus.pageLoads == 2);
     CHECK(bus.frames - startFrame == (duplicate ? 41U : 39U));
     bool sawRestart = false, sawBase = false;
     unsigned pageWrites = 0, advertisementWrites = 0;

@@ -239,3 +239,98 @@ terminal restart.
 | Documentation, metadata and whitespace | `python -B tools/check_doxygen.py`, `python -B scripts/generate_version.py check`, `git diff --check` and the new report's whitespace check | PASS, 294 generated pages and two rejected negative fixtures. Version header current. |
 | DP83825I executing host behavior, portable/package consumer and SDK link | Assessment only | NOT RUN for each layer. Phase (b) supplies the first executing 825 paths. |
 | Remote CI and physical DP83825I | First execution CI belongs to 71. Physical Q15 requires a separate fixture. | NOT RUN for each layer. |
+
+## Phase (b) implementation
+
+**IN PROGRESS, ready for phase (c).** The wrapper verified clean `main` and
+`origin/main` at `5115dd0a0e5a4d7920a0bc1a3a392223fff88df4` before this
+phase. The lead integrated the shared API, part selection, controller and
+operation contracts, native owner, examples, tests and guides. Two concurrent
+workers used the session's high-reasoning model for the independent PDF
+inventory and the disjoint compiled fixtures/runner. Both finished. The three
+sibling checkouts, revisions and conventions in the phase (a) table were
+rechecked, including the selection headers, variant/geometry tests, CLI and
+Python identity runners. The repository still has no workflow.
+
+### Source and procedure coverage
+
+The [DP83825I ledger](../../registers/dp83825i.json) assigns 18 procedures to
+60: `identify`, `mdio`, `external_reset`, `pcs_reset`, `hard_reset`, `restart`,
+`initialize`, `clock_role`, `rmii`, `follower_timing`, `clock_loss`,
+`configure_an`, `configure_forced`, `next_page`, `observe_link`, `fast_drop`,
+`link_options` and `repeater`. The 15 remaining semantic families retain
+implementation stage 61. The original PDF comparison covers 101 registers,
+570 field rows, six IEEE MMD translations and ten exceptions outside the
+detailed map. The three functional-mode recipes contain 13, 13 and 32 writes.
+The [ledger tests](../../../test/test_p25_ledger.py) independently reconstruct
+the PDF field cells and literal recipes. The Linux ID-label discrepancy and
+RCSR reset contradiction remain in the ledger.
+
+| Public route | Executable behavior and evidence |
+| --- | --- |
+| Bind, identify and discover | Appended the DP83825I enum. Only copper RMII with an explicit board role and no BASIC/ENHANCED requirement binds. A specified MDC rate above 20 MHz rejects. Probe retains both raw words or the completed prefix. Post-rejection traffic is restricted to direct ID reads. The literal identity test covers all 1,024 model/revision combinations and native factory tests count timer and clock callbacks. |
+| Initialize, reset and verify | SOR1[3] and collector RCSR[7] must both match. FIFO events survive a failed write or release. Each reset recaptures identity and straps before owned replay. NONE and verify use the default functional mode. There is no 030E=4A40 on these paths. HARD reserves the 2 ms readiness floor and a longer idle MDC period when needed. The native board test exercises a 25 ms period at 40 Hz. |
+| Interface, clock loss and link | RCSR preserves 6:5 and checks the strap inside the RMW transaction. Follower extended setup applies bit 8 then 0042=0014. A partial operation retains effects and HARD can replay the desired pair. Default timing recovery requires a separately established reset baseline and fresh binding because TI gives no inverse companion value. The leader needs clock-loss approval for isolation and pin 2 mux changes. A guarded dependent write prevents a newly observed isolation bit from being echoed. The native executor and test controllers enforce the predicate under the controller lock. |
+| Link policy and observation | All advertisement subsets, optional robust crossover, coupled pair/polarity swap, forced speeds/duplex, next pages, extended duplex and pause use the common owner. The local ANAR never sets remote fault. The link observation samples PHYSTS before BMSR. Fast link drop accepts all 32 combinations without a DP83826 threshold recipe. The RMII repeater owner requires admitted wiring and coordinated external reset. |
+| Optional controls and offline tools | Unqualified optional procedures reject before I/O or intent changes. The raw map excludes selectors, consuming reads and undocumented tuples. Fourteen compiled campaigns cover seven cases in each RMII role with offline replay and forged-evidence rejection. Older artifact shapes remain supported. |
+
+### Local verification
+
+Windows 11 AMD64, GNU 15.1.0, CMake 4.0.1, Ninja and Python 3.12.10. For the
+pinned host build, CTest and SDK links use the three process-local Git safe
+directories, local clangd PATH and CCACHE_DIR from the
+[prompt 53 build receipts](53-regression-transaction-ownership.md). The native
+source verifier checked 45 SDK files at ESP-IDF v6.1
+`fff9895c82d744c7237be8847347bdd1b07c6643`.
+
+| Layer | Result |
+| --- | --- |
+| Host Release | **PASS**. Full CTest in `build/p53-baseline` passed 1,013/1,013 in 265.34 s. After the slow-MDC reset, mixed-RCSR interruption and optional-feature admission changes, the 132 affected Release registrations in `build/p60-tests` passed. The final identity, startup and interface/profile suites performed 27,864, 5,524 and 12,084 checks respectively. |
+| Host UBSan and Python | **PASS**. The final 132 focused UBSan trap-mode registrations passed. Python discovery ran 277 tests with 57 skips in the standalone environment. Compiled CLI CTests supply the exercising fixture. The 104 ledger tests and the original-PDF comparison passed. |
+| Consumer builds | **PASS**. Fresh tests-OFF portable consumer 2/2. Git-free source-package consumer 1/1 in `build/p60-export/out`, using exported headers and sources, license, manifests and root CMake file. It links the public target and checks the 825 strap-address limit. |
+| SDK link | **PASS**. The 825 leader adapter fixture and both existing ESP32-P4 example selections linked. All three binaries identify the phase (a) SHA above with a dirty worktree. The example board gates stayed closed. |
+| Remote CI | **NOT RUN**. First-execution CI belongs to 71. |
+| DP83825I physical | **NOT RUN**. Q15 needs identified silicon, XI/RMII clock and reset measurements. Clock interruption from mux and deep power is inferred. The relation of 000C to MISR latch clearing and the inverse follower companion word remain unresolved. |
+
+The initial test build caught a signed/unsigned conversion in the timing-cut
+index. The first reused negotiation-admission test also rejected a legal
+825 forced setting with robust crossover disabled. Both were corrected and
+rerun. An 825 BIST test then reproduced token admission through the private
+loopback path. Moving the variant check to the shared procedure made both
+entry points reject the request before changing the token or accessing MDIO.
+The first reference check found development README copies with missing
+relative links inside the scratch package. The consumer was rebuilt from
+the intended code, manifest and license payload. The maintained documentation
+covers binding, identity, reset, clock, quality, physical qualification, direct
+access, CLI fixtures and native integration.
+
+```powershell
+cmake --build build/p53-baseline --parallel 6
+ctest --test-dir build/p53-baseline --output-on-failure --no-tests=error -j 1
+cmake --build build/p60-tests --parallel 7
+ctest --test-dir build/p60-tests -R '^(p25_|native_factory|native_board|native_shared|cli_fixture_transcript$|cli_processor|bist_|loopback_|lpi_|ai_(bist|lpi|loopback)|ae_(bist|lpi|loopback))' --output-on-failure --no-tests=error -j 3
+ctest --test-dir build/p55-ubsan -R '^(p25_|native_factory|native_board|native_shared|cli_fixture_transcript$|cli_processor|bist_|loopback_|lpi_|ai_(bist|lpi|loopback)|ae_(bist|lpi|loopback))' --output-on-failure --no-tests=error -j 3
+ctest --test-dir build/p60-consumer --output-on-failure --no-tests=error
+ctest --test-dir build/p60-export/out --output-on-failure --no-tests=error
+python -B -m unittest discover -s test -p 'test_*.py' -q
+python -B tools/verify_references.py
+python -B tools/verify_ledger.py
+python -B tools/check_doxygen.py
+python -B scripts/generate_version.py check
+git diff --check
+```
+
+SDK builds used `scripts/idf.cmd -C <project> -B <dir> -D IDF_TARGET=esp32p4
+-D SDKCONFIG=<dir>/sdkconfig build`. For the adapter, also pass
+`-D DP8382X_FIXTURE_VARIANT=DP83825I`. Directories below are under
+`C:/esp/build/dp8382x-loop`.
+
+| Directory | Project | Binary bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| 56l | test/esp_idf/adapter_link | 400176 | `a0b0b3c763c0199bc96527ca01651e75e76491b3f9c320e0d60da8683e187d6e` |
+| 56b | examples/esp_idf/basic | 705040 | `817fe183ee51e68a6d18b531bcab65a4f43813610e34853350aeed74e95f87ff` |
+| 56o | examples/esp_idf/owner | 583168 | `c9017bed38b002e6d2c04b69d9b7ee3f16e85a54f447c21e0d460c27c3bac27c` |
+
+Phase (c) should independently review the actual synchronized diff against
+the source tables, controller contract and offline replay. The wrapper owns
+the phase (b) commit and post-push equality verification.

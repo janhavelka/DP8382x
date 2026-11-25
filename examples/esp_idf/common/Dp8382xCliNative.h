@@ -71,7 +71,7 @@ private:
       case SnapshotKind::SETTINGS: return phy->settingsSnapshot(output.settings);
       case SnapshotKind::OPERATION: return phy->operationSnapshot(output.operation);
       case SnapshotKind::TRANSPORT: return phy->transportSnapshot(output.transport);
-      case SnapshotKind::IDENTITY: return phy->identitySnapshot(output.identity);
+      case SnapshotKind::IDENTITY: return phy->identitySnapshot(output.identity, &output.straps);
       case SnapshotKind::EVENTS: {
         EvidenceSnapshot evidence{};
         const auto status = phy->counterSnapshot(output.counters, &evidence);

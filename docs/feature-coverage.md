@@ -610,3 +610,14 @@ The feature owners below apply the [A write-action records](registers/dp83826a-p
 | `lpi` | `EEECFG3_lpi_start`, `EEECFG3_lpi_stop` |
 | `power` | `RECIPE_0428_dpd_enable` |
 | `cable` | `TDR_0411_tdr_0813`, `TDR_0411_tdr_0815`, `TDR_0411_tdr_0816`, `EEE_0416_tdr_1FA0`, `EEE_0416_tdr_1F90`, `GENCFG_tdr_0600` |
+
+## DP83825I
+
+The phase (b) implementation covers exact identity, default initialization,
+PCS/HARD/RESTART, role verification, RMII interface and manual clock mux,
+link profiles, next pages, live status and fast link drop. Each stage 60
+procedure and each remaining stage 61 family is identified in the
+[DP83825I register/field ledger](registers/dp83825i.json). Functional mode
+recipes, power and EEE, optional event/counter services, BIST, loopback, TDR,
+analog/electrical settings, wake and pin profiles require exact-part closure.
+Physical clock, link and electrical qualification are pending under Q15.

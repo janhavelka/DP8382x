@@ -1,4 +1,4 @@
-"""DP83826 campaign plans and assertions shared by every runner backend."""
+"""DP8382x campaign plans and assertions shared by every runner backend."""
 
 from dataclasses import dataclass
 from functools import cache
@@ -67,11 +67,11 @@ class Profile:
         return cls(fields["mode"], int(fields["modes"]), int(fields["speed_mbps"]), fields["duplex"],
                    int(fields["pause_sym"]), int(fields["pause_asym"]), fields["pair"], int(fields["flags"]))
 
-    def replayable(self):
+    def replayable(self, robust_optional=False):
         if self.mode == "an":
             return self.modes > 0 and (self.speed, self.duplex) == (0, "unknown") and self.pair != "unknown"
         return (self.mode == "forced" and self.modes == self.pause_sym == self.pause_asym == 0 and
-                self.pair != "unknown" and self.duplex in ("half", "full") and self.speed in (10, 100) and self.flags & 1 and
+                self.pair != "unknown" and self.duplex in ("half", "full") and self.speed in (10, 100) and (robust_optional or self.flags & 1) and
                 (self.speed == 100 or not self.flags & 4))
 
 
@@ -169,7 +169,7 @@ def validate_declaration(values):
     """Check admission inputs before I/O and again during evidence replay."""
     if (type(values) is not dict or values.keys() != DECLARATION_FIELDS or
             type(values["case"]) is not str or values["case"] not in all_cases() or
-            values["mode"] not in ("basic", "enhanced") or values["polling"] not in ("exclusive", "concurrent") or
+            values["mode"] not in ("basic", "enhanced", "none") or values["polling"] not in ("exclusive", "concurrent") or
             not all(fixture_identifier(values[key]) for key in ("board", "authorization")) or
             any(values[key] != "" and not fixture_identifier(values[key])
                 for key in ("peer", "peer_profile", "cable", "power_record")) or
@@ -286,6 +286,11 @@ class Campaign:
         self.declaration = declaration
         self.expected = expected
         self.backend = expected["backend"]
+        self.p25 = expected["variant"] == "DP83825I"
+        if self.p25 and self.feature:
+            self.baseline = ()
+        if (declaration["mode"] == "none") != self.p25:
+            raise ProtocolError("DP83825I has no BASIC or ENHANCED operating mode")
         self.a_feature = self.feature is not None and expected["variant"] in ("DP83826AI", "DP83826AE")
         self.a_control = None
         if self.a_feature and self.spec.group == "controls":
@@ -308,6 +313,8 @@ class Campaign:
 
     def feature_gate(self):
         """Return the prerequisite that prevents the selected feature from running."""
+        if self.p25:
+            return "DP83825I optional feature campaign awaits exact-part qualification"
         if (self.expected["target"], self.backend) != ("host", "sim-mdio"):
             return "qualified native feature grant and independent measurement route unavailable"
         if self.spec.id in getattr(self.feature, "MII_CASES", ()) and self.expected["interface"] != "MII":
@@ -425,12 +432,18 @@ class Campaign:
 
     def check_device(self, row):
         basic = self.declaration["mode"] == "basic"
-        id2 = PHY_ID2[self.expected["variant"]][0 if basic else 1]
+        id2 = PHY_ID2[self.expected["variant"]][0 if basic or self.p25 else 1]
         require(matches(row.fields, id1_valid=1, id1=0x2000, id2_valid=1, id2=id2,
-                        decoded_valid=1, oui=524328, model=17 if basic else 19, revision=id2 & 0xF,
-                        mode=self.declaration["mode"], identity_state="accepted", stale=0,
+                        decoded_valid=1, oui=524328, model=20 if self.p25 else 17 if basic else 19, revision=id2 & 0xF,
+                        mode="unknown" if self.p25 else self.declaration["mode"], identity_state="accepted", stale=0,
                         identity_status="OK", identity_detail=0), row,
                 f"declared {self.expected['variant']} identity is not current")
+
+    def check_role(self, row):
+        follower = self.expected["rmii_role"] == "follower"
+        require(matches(row.fields, sor1_valid=1, rcsr_valid=1, straps_stale=0) and
+                bool(int(row.fields["sor1"]) & 8) == bool(int(row.fields["rcsr"]) & 128) == follower,
+                row, "SOR1 and RCSR must both confirm the declared RMII role")
 
     def entry(self):
         first = yield from self.transport()
@@ -438,9 +451,14 @@ class Campaign:
         require(identity(local, self.expected) == identity(self.session, self.expected), local,
                 "local board and session identity disagree")
         caps = yield from self.read("capabilities")
-        require(matches(caps.fields, valid=1, modes=15, interfaces=3, copper=1, fiber=0, gigabit=0), caps,
+        require(matches(caps.fields, valid=1, modes=15, interfaces=2 if self.p25 else 3, copper=1, fiber=0, gigabit=0), caps,
                 "current exact-part capability evidence required")
-        device = yield from self.read("connection identity", DEVICE)
+        identity_fields = DEVICE
+        if self.p25:
+            identity_fields = {**DEVICE, **bits("sor1_valid rcsr_valid straps_stale"), "sor1": WORD, "rcsr": WORD}
+        device = yield from self.read("connection identity", identity_fields)
+        if self.p25:
+            self.check_role(device)
         self.check_device(device)
         health = yield from self.ready_health()
         slot = yield from self.slot()
@@ -470,7 +488,7 @@ class Campaign:
         observed = yield from self.profile("observed", cleanup)
         candidate = Profile.read(desired.fields)
         require(all(matches(row.fields, valid=1, stale=0, trust="VERIFIED") for row in (desired, observed)) and
-                candidate == Profile.read(observed.fields) and candidate.replayable(), observed,
+                candidate == Profile.read(observed.fields) and candidate.replayable(robust_optional=self.p25), observed,
                 "complete, equal and VERIFIED desired and observed profiles required", unavailable)
         return candidate
 
@@ -536,8 +554,10 @@ class Campaign:
         require(matches(row.fields, core_status="OK", core_detail=0, requested_reset=kind, effective_reset=kind,
                         reset_required=reset, reset_accepted=reset, reset_complete=reset, persistent_restored=1,
                         mutation_completed=1, mutation_possible=1, cleanup_owed=0, temporary=0, clock_invalid=0,
-                        link_valid=0, sor1_valid=1, sor2_valid=1, straps_stale=0),
+                        link_valid=0, sor1_valid=1, sor2_valid=0 if self.p25 else 1, straps_stale=0),
                 row, f"{kind} reset/replay evidence incomplete")
+        if self.p25:
+            self.check_role(row)
 
     def vod(self):
         row = yield from self.read("registers read mmd 31 0x030E")
@@ -735,7 +755,7 @@ class Campaign:
                 yield from self.passive(before)
             elif spec.id == "cold-boot":
                 yield from self.profiles(unavailable="BLOCKED")
-                if d["polling"] == "exclusive":
+                if d["polling"] == "exclusive" and not self.p25:
                     yield from self.vod()
             else:
                 saved = yield from self.profiles(unavailable="BLOCKED")
@@ -757,7 +777,7 @@ class Campaign:
                     require((yield from self.profiles()) == spec.target, self.last, "target profile readback differs")
                     if spec.resolved or spec.fault:
                         yield from self.mode_or_fault(spec.target)
-                    if spec.id == "10base-te":
+                    if spec.id == "10base-te" and not self.p25:
                         yield from self.vod()
             self.success = self.failed is None
         except AssertionFailed as error:

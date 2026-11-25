@@ -32,6 +32,7 @@ struct CachedSnapshot {
   OperationSnapshot operation{}; ///< Cached slot state, not a consumed result.
   TransportSnapshot transport{}; ///< Cached totals, including non-managed work.
   DeviceIdentity identity{};     ///< Cached identity, not a fresh failed-call result.
+  StrapEvidence straps{};          ///< Cached role observations captured by the same owner as identity.
   CounterSnapshot counters{};    ///< Cached coherent event aggregate and its validity.
   std::array<uint16_t, 6> eventWords{}; ///< Retained words, including partial history.
   uint8_t eventValidMask{0};      ///< Historical word validity in collector order.
@@ -163,6 +164,7 @@ struct Identity {
   uint32_t phyAddress{0}; ///< Declared Clause 22 address, 0 to 31.
   const char* console{"unknown"}; ///< Console transport name, e.g. uart0 or host-stdio.
   uint32_t baud{0}; ///< UART line speed in bit/s, zero when inapplicable or unknown.
+  RmiiClock rmiiClock{RmiiClock::UNSPECIFIED}; ///< Required explicit reference role for DP83825I.
 };
 
 /// @brief One fixed-memory CLI per application stream.

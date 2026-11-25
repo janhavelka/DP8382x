@@ -3,9 +3,11 @@
 With `DP8382X_BUILD_TESTS=ON`, the build produces `test/cli/dp8382x_cli_fixture`
 (`.exe` on Windows). Its stdin and stdout are byte streams. Each boot binds
 the real portable core to a Clause 22 register array, MMD aliases and a small
-fixed table of extended words. Strap address 1 answers with the revision-1
-DP83826 ID for the selected mode (default ENHANCED), address 0 returns zeros,
-and remaining addresses return all ones. I and E return identical words.
+fixed table of extended words. Strap address 1 answers with the selected part's
+ID. DP83826I/E use revision 1 and AI/AE use revision 4 in BASIC or ENHANCED
+(default). DP83825I uses `2000:A140`, with the declared RMII role checked
+against SOR1 and the RCSR read-clear word. Address 0 returns zeros and remaining
+addresses return all ones.
 Startup initializes without resetting the
 PHY and samples link once through the public core. Configuration trust stays
 `DIRTY` because the fixture has not applied and verified a desired profile.
@@ -15,7 +17,8 @@ behavior only.
 | Argument | Effect |
 | --- | --- |
 | `--identity TOKEN` | Reports a supplied firmware identity. Use 1 to 64 ASCII letters, digits, underscores, dots, colons or hyphens. Default `unknown`. |
-| `--variant DP83826I\|DP83826E\|DP83826AI\|DP83826AE` | Selects the simulated ordering grade at bind and reports it through `session`, `version` and `local board`. Default `DP83826I`. The runner supplies this option with `--fixture-variant`. |
+| `--variant DP83826I\|DP83826E\|DP83826AI\|DP83826AE\|DP83825I` | Selects the simulated ordering grade at bind and reports it through `session`, `version` and `local board`. Default `DP83826I`. The runner supplies this option with `--fixture-variant`. |
+| `--rmii-role leader\|follower` | Required for DP83825I. Sets the declared board role. The options `--sor-role` and `--rcsr-role` override each independent simulated observation for mismatch tests. The runner takes `--fixture-rmii-role` and an independent expected `--rmii-role`. Use `--operating-mode none` for its campaigns. |
 | `--partner down\|pending\|100-full\|10-half` | Selects simulated partner and link register values. Default `100-full`. |
 | `--fail-after N` | Permits N successful physical frames per simulated boot, then fails attempted frames with `MDIO_ERROR`, detail `-43`. Startup frames count. A failed write reports a possible effect. |
 | `--reboot-after N` | Reboots once after accepting N complete CLI lines, counting rejected lines and treating CRLF as one boundary. Drops output queued in the old boot and starts the new request count at 1. |
@@ -27,9 +30,10 @@ behavior only.
 | `--trace-resets` | Writes each literal reset register/value pair to stderr. Stdout remains the CLI byte stream. |
 | `--trace-writes` | Writes each simulated target address and word to stderr. Secure-ON password words are redacted. |
 | `--attest-features` | Supplies synthetic board and fixture proof for the typed command under test. Omit it to verify missing proof rejection. |
-| `--mii` | Selects an MII fixture binding for MII-only routes. |
+| `--mii` | Selects an MII fixture binding for MII-only routes. DP83825I requires RMII. |
+| `--fiber` | Requests a fiber-medium binding to exercise the pre-I/O rejection. |
 | `--hold-tdr` | Leaves the simulated manual capture pending to exercise deadline and restoration handling. |
-| `--campaign basic\|enhanced` | Selects the revision-1 mode ID and prepares a restorable owned AN profile through the real core on startup. |
+| `--campaign basic\|enhanced\|none` | Selects the part-specific mode (`none` for DP83825I) and prepares a restorable owned AN profile through the real core on startup. |
 | `--campaign-peer PROFILE` | Supplies a modeled peer from the campaign case table. In campaign mode, coherent link registers follow the modeled local and peer profiles. |
 
 The fixture intercepts exact lines containing `$pause`, `$resume`, `$tick N`

@@ -1,6 +1,9 @@
 # ESP32-P4 adapter link fixture
 
-The default build declares DP83826E. Add `-D DP8382X_FIXTURE_VARIANT=DP83826AI`
+The default build declares DP83826E. For the DP83825I build, pass
+`-D DP8382X_FIXTURE_VARIANT=DP83825I`. That configuration declares an RMII
+leader supplying the MAC reference clock. Physical clock/reset timing, MDC idle
+and the strapped ordering part require an identified board. Add `-D DP8382X_FIXTURE_VARIANT=DP83826AI`
 or `-D DP8382X_FIXTURE_VARIANT=DP83826AE` to the build command to link the
 same adapter with the corresponding revision-4 declaration. Each image keeps
 the board operation gate closed at boot. [Grade and mode checks](../../../docs/identity.md)

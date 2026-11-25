@@ -15,6 +15,7 @@ inline bool selectVariant(int argc, char** argv) {
   if (std::strcmp(argv[2], "--dp83826e") == 0) declaredVariant = DP8382x::Variant::DP83826E;
   else if (std::strcmp(argv[2], "--dp83826ai") == 0) declaredVariant = DP8382x::Variant::DP83826AI;
   else if (std::strcmp(argv[2], "--dp83826ae") == 0) declaredVariant = DP8382x::Variant::DP83826AE;
+  else if (std::strcmp(argv[2], "--dp83825i") == 0) declaredVariant = DP8382x::Variant::DP83825I;
   else return false;
   return true;
 }
@@ -23,6 +24,8 @@ inline bool selectVariant(int argc, char** argv) {
 inline bool aGrade() {
   return declaredVariant == DP8382x::Variant::DP83826AI || declaredVariant == DP8382x::Variant::DP83826AE;
 }
+// SNLS638C table 7-6: one model with no BASIC/ENHANCED mode variants.
+inline bool p25() { return declaredVariant == DP8382x::Variant::DP83825I; }
 inline uint16_t basicId2() { return aGrade() ? 0xA114 : 0xA111; }
 inline uint16_t enhancedId2() { return aGrade() ? 0xA134 : 0xA131; }
 

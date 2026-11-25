@@ -333,7 +333,7 @@ struct OperationBudget {
   uint32_t pollIntervalUs{1000}; ///< Positive policy interval after reset/completion reads.
   uint32_t maxStalledPolls{100000}; ///< Positive consecutive no-work/no-clock-advance limit.
 };
-/// @brief Copied initialization request; NONE still writes/verifies mandatory VOD.
+/// @brief Copied initialization request; NONE still performs part-specific startup verification.
 struct InitializeOptions {
   ResetKind reset{ResetKind::PCS}; ///< Selected reset.
 };
@@ -733,7 +733,7 @@ struct InterruptServiceSnapshot {
   bool recrRequested{false}; ///< Current or retained RECR request serviced in this pass.
   Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No interrupt service"}; ///< Failed refresh leaves cached values stale.
 };
-/// @brief Passive profile evidence. VERIFIED covers active advertisement/mode, routing, extension and mandatory VOD.
+/// @brief Passive profile evidence. VERIFIED covers active advertisement/mode, routing, extension and part-specific startup requirements.
 struct SettingsSnapshot {
   LinkSettings desired{}; ///< Authoritative intent copied at successful start admission.
   bool desiredValid{false}; ///< Desired intent exists; cancellation does not erase it.
@@ -793,6 +793,8 @@ struct StrapEvidence {
   uint64_t observedAtUs{0}; ///< Conservative stamp after complete current capture.
   bool timeValid{false}; ///< Complete-capture timestamp is usable.
   bool stale{true}; ///< Reset or partial recapture can mix historical/current words.
+  uint16_t rcsr{0}; ///< DP83825I direct RCSR sample, including consumed FIFO indications.
+  bool rcsrValid{false}; ///< RCSR clock-role observation is available.
 };
 /// @brief First failed stable-bit comparison, retained even if the pass is interrupted.
 struct ConfigurationMismatch {
@@ -916,11 +918,6 @@ struct PinResult {
   PinSnapshot pins{}; ///< Retained partial/current evidence at return.
 };
 
-/// @brief RMII reference direction; actual board wiring must agree.
-enum class RmiiClock : uint8_t {
-  LEADER_25MHZ, ///< 25MHz reference; PHY supplies 50MHz to MAC/peer.
-  FOLLOWER_50MHZ ///< External shared 50MHz reference; no second clock driver.
-};
 /// @brief Clock/LED1 route ownership; uncertain selector paths stay rejected.
 enum class ClockOutput : uint8_t {
   UNOWNED, ///< Preserve the existing route and another pin owner's override.
@@ -1098,7 +1095,7 @@ struct InterfaceSettings {
   bool managementClockAvailable{false}; ///< MDIO controller/reference remains usable through changes.
   bool clockChangeApproved{false}; ///< Owner approves clock removal AND reconnection; neither is implicit.
   uint8_t referenceClockMHz{0}; ///< Actual declared reference 25MHz or 50MHz, matching the requested role.
-  bool repeaterWiringAdmitted{false}; ///< Crossed data/RX_DV and single-driver clock wiring are application-owned.
+  bool repeaterWiringAdmitted{false}; ///< Crossed data/RX_DV and single clock driver confirmed; DP83825I managed pair also requires simultaneous external reset.
   bool observePin31{false}; ///< Request ENHANCED A pin 31 status (0308 bit 0) during interface verification.
 };
 /// @brief Retained interface words and intent, distinct from observed working traffic.
@@ -1425,7 +1422,7 @@ public:
   /// @note Does not release controller quarantine or prove hardware restoration.
   Status abandonCleanup() noexcept;
   /// @brief Query implemented initialization readiness without MDIO or clock access.
-  /// @return True only after identity/reset/mandatory VOD verification; never a link claim.
+  /// @return True after the declared part's identity, reset, startup and owned restoration checks pass.
   bool isInitialized() const noexcept { return _initialized; }
 
   /// @brief Admit a finite identity/stable-owned-state check without bus/clock callbacks.
@@ -2084,11 +2081,12 @@ private:
                         bool readback = false) const noexcept;
   void _nextQualityRow() noexcept;
   Status _finishQuality(Status status) noexcept;
-  enum class InterfaceStep : uint8_t { PREFLIGHT, APPLY, VERIFY, CLOCK_STATUS, COMPLETE };
+  enum class InterfaceStep : uint8_t { PREFLIGHT, APPLY, VERIFY, FOLLOWER_TIMING, CLOCK_STATUS, COMPLETE };
   InterfaceSnapshot _interface{};
   InterfaceResult _interfaceResult{};
   InterfaceStep _interfaceStep{InterfaceStep::COMPLETE};
   uint8_t _interfaceRow{0};
+  bool _p25TimingApplied{false};
   bool _interfaceWorking{false}, _interfaceDirect{false}, _interfaceTailPending{false}, _interfaceVerifyOnly{false};
   Status _validateInterface(const InterfaceSettings& settings) const noexcept;
   void _beginInterface(bool verifyOnly) noexcept;
@@ -2315,6 +2313,11 @@ private:
   Status _admitProfilePass(const IoBudget& budget, uint64_t upper) const noexcept;
   Status _admitResetStep(const IoBudget& budget, uint64_t raw) const noexcept;
   Status _admitEeeStep(const IoBudget& budget, uint64_t raw) const noexcept;
+  static Status _unsupportedFeature() noexcept {
+    return Status::Error(Err::UNSUPPORTED, "Procedure unavailable on this declared part",
+                         static_cast<int32_t>(UnsupportedDetail::FEATURE));
+  }
+  ConfigurationMismatch _clockRoleMismatch() const noexcept;
   void _invalidateResetEvidence(bool configurationLost) noexcept;
   MdioBatch _configurationBatch() const noexcept;
   Status _advanceConfiguration(Status status, bool called, const MdioBatch& batch) noexcept;

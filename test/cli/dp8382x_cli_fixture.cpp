@@ -26,7 +26,10 @@ struct Options {
   const char* identity{"unknown"};
   Variant variant{Variant::DP83826I};
   Partner partner{Partner::FULL100};
+  RmiiClock rmiiClock{RmiiClock::UNSPECIFIED};
+  std::optional<bool> sorFollower, rcsrFollower; // Independent physical samples, for mismatch cases.
   MacInterface interface{MacInterface::RMII};
+  Medium medium{Medium::COPPER};
   uint64_t failAfter{std::numeric_limits<uint64_t>::max()};
   uint64_t rebootAfter{0};
   MaintenancePolicy maintenance{MaintenancePolicy::ALLOWED};
@@ -72,6 +75,7 @@ bool parseOptions(int argc, char** argv, Options& options) {
     if (option == "--regress-after-hard") { options.regressHard = true; continue; }
     if (option == "--trace-resets") { options.traceResets = true; continue; }
     if (option == "--trace-writes") { options.traceWrites = true; continue; }
+    if (option == "--fiber") { options.medium = Medium::FIBER; continue; }
     if (option == "--mii") { options.interface = MacInterface::MII; continue; }
     if (option == "--hold-tdr") { options.holdTdr = true; continue; }
     if (option == "--attest-features") { options.attestFeatures = true; continue; }
@@ -82,8 +86,15 @@ bool parseOptions(int argc, char** argv, Options& options) {
       if (value == "DP83826I") options.variant = Variant::DP83826I;
       else if (value == "DP83826E") options.variant = Variant::DP83826E;
       else if (value == "DP83826AI") options.variant = Variant::DP83826AI;
+      else if (value == "DP83825I") options.variant = Variant::DP83825I;
       else if (value == "DP83826AE") options.variant = Variant::DP83826AE;
       else return false;
+    } else if (option == "--rmii-role" || option == "--sor-role" || option == "--rcsr-role") {
+      if (value != "leader" && value != "follower") return false;
+      const bool follower = value == "follower";
+      if (option == "--rmii-role") options.rmiiClock = follower ? RmiiClock::FOLLOWER_50MHZ : RmiiClock::LEADER_25MHZ;
+      else if (option == "--sor-role") options.sorFollower = follower;
+      else options.rcsrFollower = follower;
     } else if (option == "--partner") {
       if (value == "down") options.partner = Partner::DOWN;
       else if (value == "pending") options.partner = Partner::PENDING;
@@ -91,7 +102,7 @@ bool parseOptions(int argc, char** argv, Options& options) {
       else if (value == "10-half") options.partner = Partner::HALF10;
       else return false;
     } else if (option == "--campaign") {
-      if (value != "basic" && value != "enhanced") return false;
+      if (value != "basic" && value != "enhanced" && value != "none") return false;
       options.campaignMode = value;
     } else if (option == "--campaign-peer") {
       if (campaignPartner(value) == 0xFFFFU) return false;
@@ -101,7 +112,11 @@ bool parseOptions(int argc, char** argv, Options& options) {
     } else if (option != "--reboot-after" || !decimal(value, options.rebootAfter) ||
                options.rebootAfter == 0) return false;
   }
-  return true;
+  if (options.variant == Variant::DP83825I)
+    return options.interface == MacInterface::RMII && options.rmiiClock != RmiiClock::UNSPECIFIED &&
+           (options.campaignMode.empty() || options.campaignMode == "none");
+  return options.rmiiClock == RmiiClock::UNSPECIFIED && !options.sorFollower && !options.rcsrFollower &&
+         options.campaignMode != "none";
 }
 
 struct Bus {
@@ -118,7 +133,8 @@ struct Bus {
   std::optional<uint64_t> failOnce;
   bool holdReset{false}, regressHard{false}, traceResets{false}, linkLatchedLow{false}, isolated{false};
   bool traceWrites{false}, holdTdr{false};
-  bool campaign{false}, aGrade{false}, basic{false};
+  bool campaign{false}, aGrade{false}, basic{false}, p25{false};
+  uint16_t rcsrReset{0};
   uint16_t peer{0};
   uint64_t peerReadyUs{0};
   bool peerStartsDuringSample{false};
@@ -168,6 +184,8 @@ struct Bus {
     basic = options.campaignMode == "basic";
     aGrade = options.variant == Variant::DP83826AI || options.variant == Variant::DP83826AE;
     words[3] = aGrade ? (basic ? 0xA114 : 0xA134) : (basic ? 0xA111 : 0xA131);
+    p25 = options.variant == Variant::DP83825I;
+    if (p25) words[3] = 0xA140; // SNLS638C table 7-6.
     words[4] = 0x01E1;
     words[22] = 0x0100; // BISCR current power-mode indication.
     words[23] = options.interface == MacInterface::MII ? 0x0041 : 0x0061;
@@ -192,6 +210,12 @@ struct Bus {
     vendor[0x0461] = 0x0010;
     vendor[0x0467] = 0xA567;
     vendor[0x0468] = 0xA568;
+    if (p25) {
+      // Tables 7-26/80. Preserve asymmetric reserved/RC readback in both roles.
+      const bool follower = options.rmiiClock == RmiiClock::FOLLOWER_50MHZ;
+      vendor[0x0467] = options.sorFollower.value_or(follower) ? 0x0008 : 0;
+      words[23] = rcsrReset = options.rcsrFollower.value_or(follower) ? 0x00ED : 0x006D;
+    }
     if (aGrade) {
       // Model a sampled RMII leader or MII. SNLS783A tables 8-13/88/89.
       const bool rmii = options.interface == MacInterface::RMII;
@@ -249,6 +273,9 @@ struct Bus {
           linkLatchedLow = false;
           return static_cast<uint16_t>(word & 0xFFFBU);
         }
+        break;
+      case 23:
+        if (p25) words[address] &= 0xFFF3U;
         break;
       case 15: words[address] &= 0xFE0FU; break;
       case 18: case 19: words[address] &= 0x00FFU; break;
@@ -308,6 +335,7 @@ struct Bus {
           words[0] = 0x3100;
           words[17] = 0;
           if (aGrade) resetAControls();
+          if (p25) words[23] = rcsrReset;
           words[22] = 0x0100;
           words[24] = aGrade ? 0x0400 : 0;
           words[27] = 0x007D;
@@ -373,6 +401,11 @@ struct Bus {
     for (uint8_t i = 0; i < batch.frameCount; ++i) {
       const auto& frame = batch.frames[i];
       auto& receipt = result.frames[i];
+      if (frame.kind == FrameKind::WRITE && frame.readIndex != NO_READ_INDEX &&
+          !frame.acceptsRead(result.frames[frame.readIndex].value)) {
+        result.status = Status::Error(Err::CONFIG_MISMATCH, "Dependent write guard");
+        break;
+      }
       receipt.attempted = true;
       bus.nowUs += 2;
       const auto index = bus.frames++;
@@ -416,6 +449,8 @@ public:
     Config config{};
     config.variant = _options.variant;
     config.interface = _options.interface;
+    config.rmiiClock = _options.rmiiClock;
+    config.medium = _options.medium;
     config.phyAddress = PHY_ADDRESS;
     config.transport = {&_bus, Bus::execute, Bus::clock, {8, 4, 1}};
     if (!_driver->bind(config).ok()) return false;
@@ -461,6 +496,7 @@ public:
     identity.clock = "simulated";
     identity.variant = config.variant;
     identity.interface = config.interface;
+    identity.rmiiClock = config.rmiiClock;
     identity.phyAddress = config.phyAddress;
     _owner.emplace(*_driver, maintenance, this, externalDisposition, attestFeature);
     _processor.emplace();
@@ -707,10 +743,10 @@ private:
 
 int main(int argc, char** argv) {
   constexpr const char* usage =
-      "Usage: dp8382x_cli_fixture [--identity TOKEN] [--variant DP83826I|DP83826E|DP83826AI|DP83826AE] [--partner down|pending|100-full|10-half] "
+      "Usage: dp8382x_cli_fixture [--identity TOKEN] [--variant DP83826I|DP83826E|DP83826AI|DP83826AE|DP83825I] [--rmii-role leader|follower] [--sor-role leader|follower] [--rcsr-role leader|follower] [--partner down|pending|100-full|10-half] "
       "[--fail-after N] [--reboot-after N] [--partial-record] [--deny-maintenance|--no-maintenance] "
-      "[--hold-reset] [--regress-after-hard] [--trace-resets] [--trace-writes] [--mii] [--hold-tdr] "
-      "[--attest-features] [--campaign basic|enhanced] [--campaign-peer PROFILE]\n";
+      "[--hold-reset] [--regress-after-hard] [--trace-resets] [--trace-writes] [--mii] [--fiber] [--hold-tdr] "
+      "[--attest-features] [--campaign basic|enhanced|none] [--campaign-peer PROFILE]\n";
   if (argc == 2 && std::string_view(argv[1]) == "--help") {
     std::fputs(usage, stdout);
     return 0;

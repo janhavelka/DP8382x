@@ -139,12 +139,12 @@ void testLink() {
   }
   for (unsigned raw = 0; raw < 256U; ++raw) {
     const auto part = static_cast<Variant>(raw);
-    const bool supported = raw >= 1U && raw <= 4U;
+    const bool supported = raw >= 1U && raw <= 5U;
     CHECK(isA(part) == (raw == 3U || raw == 4U));
     CHECK(isValidVariant(part) == supported);
     uint8_t maximum = 0xFF;
     CHECK(strapAddressMax(part, maximum) == supported);
-    CHECK(maximum == (supported ? 7U : 0xFFU));
+    CHECK(maximum == (raw == 5U ? 3U : supported ? 7U : 0xFFU));
     LinkSettings settings;
     settings.advertisement.technologyMask = 1U;
     CHECK(validateLinkSettings(part, settings).ok() == supported);

@@ -29,15 +29,15 @@ constexpr PartProfile copper826(Variant variant, RegisterMap map, uint16_t revis
           INTERFACE_MII | INTERFACE_RMII, LINK_TECHNOLOGY_MASK | FEATURE_COPPER, true, 7, true};
 }
 
-// UNKNOWN rows record the frozen future map contracts and have no selectable
-// ordering part or implemented features. Admission is by declaration only.
+// UNKNOWN reserves a future map with no selectable ordering part or implemented
+// features. Admission is by declaration only.
 inline constexpr PartProfile PART_TABLE[] = {
   copper826(Variant::DP83826I, RegisterMap::DP83826, 0x0002),
   copper826(Variant::DP83826E, RegisterMap::DP83826, 0x0002),
   copper826(Variant::DP83826AI, RegisterMap::DP83826A, 0x0010),
   copper826(Variant::DP83826AE, RegisterMap::DP83826A, 0x0010),
-  {Variant::UNKNOWN, RegisterMap::DP83825, 1, {0x14, 0}, 0x0001,
-   INTERFACE_RMII, 0, false, 3, false},
+  {Variant::DP83825I, RegisterMap::DP83825, 1, {0x14, 0}, 0x0001,
+   INTERFACE_RMII, LINK_TECHNOLOGY_MASK | FEATURE_COPPER, false, 3, false},
   {Variant::UNKNOWN, RegisterMap::DP83822, 1, {0x24, 0}, 0x0001,
    INTERFACE_MII | INTERFACE_RMII | INTERFACE_RGMII, 0, false, 31, false}
 };

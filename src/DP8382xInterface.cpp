@@ -65,6 +65,20 @@ Status DP8382x::_validateInterface(const InterfaceSettings& settings) const noex
   }
   if (settings.isolate && !settings.isolationOwned) { return interfaceConfig("Isolation requires explicit ownership"); }
   const bool a=isA(_config.variant);
+  if (_config.variant==Variant::DP83825I) {
+    if (settings.rmiiClock!=_config.rmiiClock || _straps.stale || !_straps.rcsrValid ||
+        !_straps.sor1Valid || _clockRoleMismatch().valid) {
+      return interfaceConfig("DP83825I requires its observed board clock role");
+    }
+    if (settings.clockOutput!=ClockOutput::UNOWNED ||
+        (settings.isolate && _config.rmiiClock==RmiiClock::LEADER_25MHZ && !_config.clockLossApproved)) {
+      return interfaceConfig("DP83825I clock route or isolation not admitted");
+    }
+    if (!settings.txClockShift && settings.rmiiClock==RmiiClock::FOLLOWER_50MHZ &&
+        ((_straps.rcsr & 0x0100U)!=0U || (_interface.desiredValid && _interface.desired.txClockShift))) {
+      return interfaceConfig("Default follower timing requires a reset baseline");
+    }
+  }
   if (a) {
     const auto startup=checkStartupInterface(_straps,_identity.mode);
     if (!startup.ok()) { return startup; }
@@ -148,7 +162,7 @@ bool DP8382x::_interfaceRowValue(uint8_t row,uint16_t& address,uint16_t& mask,ui
   switch (row) {
     case 0: address=0x0009; mask=2; value=settings.fastRxDv?2:0; break;
     case 1: address=0x000A; mask=2; value=settings.oddNibbleDisable?2:0; break;
-    case 2: address=0x0011; mask=0x0010; value=settings.collisionFullDuplex?0x0010:0; break;
+    case 2: address=0x0011; if (_config.variant==Variant::DP83825I) { break; } mask=0x0010; value=settings.collisionFullDuplex?0x0010:0; break;
     case 3: address=0x0456; mask=8; value=settings.shortIpg?8:0; break;
     case 4:
       address=0x0302;
@@ -158,7 +172,14 @@ bool DP8382x::_interfaceRowValue(uint8_t row,uint16_t& address,uint16_t& mask,ui
       }
       break;
     case 5:
-      address=0x0017; mask=0x0020;
+      address=0x0017;
+      if (_config.variant==Variant::DP83825I) {
+        mask=settings.rmiiClock==RmiiClock::FOLLOWER_50MHZ ? 0x0113 : 0x0013;
+        value=static_cast<uint16_t>(settings.elasticityCode | (settings.revision10?0x10:0) |
+                                    (settings.txClockShift?0x0100:0));
+        break;
+      }
+      mask=0x0020;
       if (settings.interface==MacInterface::RMII) {
         mask=0x01B3; value=static_cast<uint16_t>(0x0020U|settings.elasticityCode|
             (settings.rmiiClock==RmiiClock::FOLLOWER_50MHZ?0x0080U:0U)|
@@ -210,6 +231,10 @@ MdioBatch DP8382x::_interfaceBatch() const noexcept {
     }
     return batch;
   }
+  if (_interfaceStep==InterfaceStep::FOLLOWER_TIMING) {
+    // SNLS638C 5.6 footnote 2 supplies this whole word only for shifted timing.
+    return _mmdBatch(0x0042,FrameKind::WRITE,0x0014);
+  }
   if (_interfaceStep==InterfaceStep::CLOCK_STATUS) { return _mmdBatch(0x0308,FrameKind::READ,0); }
   uint16_t address=0,mask=0,value=0; _interfaceRowValue(_interfaceRow,address,mask,value);
   MdioBatch batch;
@@ -232,7 +257,7 @@ void DP8382x::_retainInterfaceWord(uint16_t address,uint16_t value) noexcept {
   if (index<0 || (index==8 && !isA(_config.variant))) { return; }
   _interface.raw[index]=value; _interface.validMask|=static_cast<uint16_t>(1U<<index);
   if (address==0x0017U) {
-    _interface.observedInterface=(value&0x0020U)!=0U?MacInterface::RMII:MacInterface::MII;
+    _interface.observedInterface=(_config.variant==Variant::DP83825I || (value&0x0020U)!=0U)?MacInterface::RMII:MacInterface::MII;
     _interface.modeValid=true;
     // LED2 source owners share the same mode prerequisite even without a pin
     // profile. A later collector observation cannot leave their route verified.
@@ -311,6 +336,9 @@ Status DP8382x::_advanceInterface(Status status,bool called,const MdioBatch& bat
       _interfaceResult.mutationPossible|=target.completed || target.effectPossible || target.valueValid || _transport.violation!=TransportViolation::NONE;
     }
   }
+  if (_config.variant==Variant::DP83825I && _clockRoleMismatch().valid) {
+    _interfaceResult.mismatch=_clockRoleMismatch();
+  }
   if (!status.ok()) { return _finishInterface(status); }
   if (_interfaceResult.mismatch.valid) { return _finishInterface(Status::Error(Err::CONFIG_MISMATCH,"Interface readback mismatch")); }
   switch (_interfaceStep) {
@@ -325,9 +353,20 @@ Status DP8382x::_advanceInterface(Status status,bool called,const MdioBatch& bat
       if (!_interfaceVerifyOnly && (physcr&0x8000U)!=0U) { return _finishInterface(interfaceConfig("Restore PLL before interface/clock mutation")); }
       _nextInterfaceRow(); break;
     }
-    case InterfaceStep::APPLY: _interfaceStep=InterfaceStep::VERIFY; break;
+    case InterfaceStep::APPLY:
+      if (_config.variant==Variant::DP83825I && address==0x0017 && _interface.desired.txClockShift) {
+        _p25TimingApplied=false;
+        _interfaceStep=InterfaceStep::FOLLOWER_TIMING;
+      } else { _interfaceStep=InterfaceStep::VERIFY; }
+      break;
+    case InterfaceStep::FOLLOWER_TIMING:
+      _p25TimingApplied=true;
+      _interfaceStep=InterfaceStep::VERIFY; break;
     case InterfaceStep::VERIFY: {
       uint16_t target=0,mask=0,expected=0; _interfaceRowValue(_interfaceRow,target,mask,expected);
+      if (_config.variant==Variant::DP83825I && target==0x0017 && _interface.desired.txClockShift && !_p25TimingApplied) {
+        return _finishInterface(interfaceConfig("Follower setup-time companion write is unproved"));
+      }
       if ((receipt.frames[readIndex].value&mask)!=expected) {
         _interfaceResult.mismatch={true,target>0x1FU,static_cast<uint8_t>(target>0x1FU?31:0),target,mask,expected,receipt.frames[readIndex].value};
         return _finishInterface(Status::Error(Err::CONFIG_MISMATCH,"Interface readback mismatch"));
@@ -361,6 +400,7 @@ void DP8382x::_interfacePassCost(bool verifyOnly,uint32_t& frames,uint32_t& call
       callbacks+=verifyOnly?1U:2U;
     }
   }
+  if (_config.variant==Variant::DP83825I && settings.txClockShift && !verifyOnly) { frames+=4; ++callbacks; }
   if (settings.observePin31 || (!isA(_config.variant) && settings.clockOutput!=ClockOutput::UNOWNED)) {
     frames+=4; ++callbacks;
   }

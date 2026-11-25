@@ -129,7 +129,92 @@ std::vector<int32_t> eventOrder() {
     for (const auto& event : Host::state().events) ids.push_back(event.id);
     return ids;
 }
+void p25Factory() {
+    // At 40 Hz one idle MDC period exceeds the 2 ms SMI recovery time.
+    {
+        Host::reset();
+        Fixture slow;
+        slow.config.core.variant = Variant::DP83825I;
+        slow.config.core.rmiiClock = RmiiClock::LEADER_25MHZ;
+        slow.config.core.mdcHz = 40;
+        slow.create();
+        uint64_t released = 0;
+        BoardControl pins;
+        pins.context = &released;
+        pins.setReset = [](void* context, bool asserted) {
+            if (!asserted) *static_cast<uint64_t*>(context) = Host::state().nowUs;
+            return ESP_OK;
+        };
+        assert(slow.owner->prepareBoard(pins, Host::state().nowUs + 200000) == ESP_OK);
+        assert(released > 0 && slow.bus.quietUntilUs.load() >= released + 25000);
+        assert(Host::state().nowUs >= slow.bus.quietUntilUs.load() && slow.mac.frames.empty());
+        assert(slow.owner->nativePhy()->del(slow.owner->nativePhy()) == ESP_OK);
+    }
+    Host::reset(); Fixture f;
+    auto config = f.config;
+    config.core.variant = Variant::DP83825I;
+    auto* const sentinel = reinterpret_cast<Native*>(0x1234);
+    auto* output = sentinel;
+    for (auto role : {RmiiClock::UNSPECIFIED, RmiiClock::LEADER_25MHZ,
+                      RmiiClock::FOLLOWER_50MHZ, static_cast<RmiiClock>(255)}) {
+        for (auto interface : {MacInterface::RMII, MacInterface::MII, MacInterface::RGMII}) {
+            config.core.rmiiClock = role;
+            config.core.interface = interface;
+            const bool valid = interface == MacInterface::RMII &&
+                    (role == RmiiClock::LEADER_25MHZ || role == RmiiClock::FOLLOWER_50MHZ);
+            const auto creates = Host::state().timerCreates;
+            Host::state().failSemaphore = !valid;
+            if (valid) {
+                assert(Native::create(config, output) == ESP_OK && output != sentinel);
+                assert(Host::state().timerCreates == creates + 1 && output->destroy() == ESP_OK);
+                output = sentinel;
+            } else {
+                assert(Native::create(config, output) == ESP_ERR_INVALID_ARG && output == sentinel);
+                assert(Host::state().failSemaphore && Host::state().timerCreates == creates);
+            }
+            assert(f.mac.frames.empty());
+        }
+    }
+    config.core.rmiiClock = RmiiClock::LEADER_25MHZ;
+    config.core.interface = MacInterface::RMII;
+    for (unsigned invalid = 0; invalid < 3; ++invalid) {
+        auto trial = config;
+        if (invalid == 0) trial.core.medium = Medium::FIBER;
+        if (invalid == 1) trial.core.mdcHz = 20000001;
+        if (invalid == 2) trial.core.requiredMode = OperatingMode::BASIC;
+        unsigned clocks = 0;
+        Host::state().clockSample = [&](uint64_t now) { ++clocks; return now; };
+        const auto creates = Host::state().timerCreates;
+        Host::state().failSemaphore = true;
+        assert(Native::create(trial, output) == ESP_ERR_INVALID_ARG && output == sentinel);
+        assert(Host::state().failSemaphore && Host::state().timerCreates == creates && clocks == 0);
+        Host::state().clockSample = nullptr;
+    }
+    Host::state().failSemaphore = false;
+    for (bool follower : {false, true}) {
+        Host::reset(); Fixture board;
+        board.config.core.variant = Variant::DP83825I;
+        board.config.core.rmiiClock = follower ? RmiiClock::FOLLOWER_50MHZ : RmiiClock::LEADER_25MHZ;
+        board.config.core.mdcHz = 20000000;
+        board.mac.registers[3] = 0xA140;
+        board.mac.extended[0x467] = follower ? 8 : 0;
+        board.mac.registers[23] = follower ? 0xED : 0x6D;
+        board.install();
+        const auto preparedAt = Host::state().nowUs;
+        OperationToken token;
+        assert(board.owner->startInitialize({ResetKind::NONE}, {{preparedAt + 1000000, 128}, 10, 16}, token).inProgress());
+        const auto initialized = board.finish(token);
+        assert(initialized.persistentRestored && !initialized.mutationPossible && initialized.straps.rcsrValid);
+        DeviceIdentity identity; StrapEvidence straps;
+        const auto frames = board.mac.frames.size();
+        assert(board.owner->identitySnapshot(identity, &straps).ok() && board.mac.frames.size() == frames);
+        assert(identity.id2 == 0xA140 && straps.sor1Valid && !straps.sor2Valid);
+        assert(straps.rcsr == (follower ? 0xED : 0x6D) && straps.sor1 == (follower ? 8 : 0));
+        assert(board.mac.extended[0x030E] == 0x8400);
+    }
+}
 void factory() {
+    p25Factory();
     Host::reset(); Fixture f;
     auto* output = reinterpret_cast<Native*>(0x1234);
     auto invalid = f.config; invalid.core.phyAddress = 32;

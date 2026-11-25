@@ -567,10 +567,17 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
         configBusy(BusyDetail::OPERATION_ACTIVE) : Status::Error(Err::INVALID_CONFIG,
             "Reset invalidated configuration", static_cast<int32_t>(ConfigDetail::DEVICE_INVALIDATED)));
   }
+  // DP83826 must keep robust crossover while leaving forced mode. On
+  // DP83825I the selected robust value may be applied in either link mode.
+  const bool deferRobustDisable = _part->forcedRequiresRobust && !_configurationTarget().crossover.robust;
   switch (_configStep) {
     case ConfigStep::DRAIN: _setConfigStep(ConfigStep::READ_ANAR); break;
     case ConfigStep::READ_ANAR: _setConfigStep(ConfigStep::READ_BMCR); break;
     case ConfigStep::READ_BMCR:
+      if (_config.variant == Variant::DP83825I && _config.rmiiClock == RmiiClock::LEADER_25MHZ &&
+          !_config.clockLossApproved && (value & 0x0400U) != 0U) {
+        return _finishOperation(invalidSettings("Leader isolation needs clock-loss approval"));
+      }
       if (!_power.desiredValid && (value & cmd::MASK_BMCR_POWER_DOWN) != 0U) {
         return _finishOperation(Status::Error(Err::INVALID_CONFIG,
             "Power-down prevents active profile application", static_cast<int32_t>(ConfigDetail::POWER_STATE)));
@@ -583,9 +590,9 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
     case ConfigStep::READ_CR2:
       // A previous forced profile requires robust routing until AN is enabled.
       // Defer disabling it regardless of the saved hardware image's trust.
-      _setConfigStep(_configurationTarget().crossover.robust ? ConfigStep::APPLY_CR1 : ConfigStep::APPLY_PHYCR); break;
+      _setConfigStep(!deferRobustDisable ? ConfigStep::APPLY_CR1 : ConfigStep::APPLY_PHYCR); break;
     case ConfigStep::APPLY_CR1:
-      _setConfigStep(_configurationTarget().crossover.robust ? ConfigStep::APPLY_PHYCR : ConfigStep::VERIFY_ANAR); break;
+      _setConfigStep(!deferRobustDisable ? ConfigStep::APPLY_PHYCR : ConfigStep::VERIFY_ANAR); break;
     case ConfigStep::APPLY_PHYCR: _setConfigStep(ConfigStep::APPLY_CR3); break;
     case ConfigStep::APPLY_CR3: _setConfigStep(ConfigStep::APPLY_CR2); break;
     case ConfigStep::APPLY_CR2:
@@ -595,7 +602,7 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
       _setConfigStep(ConfigStep::APPLY_BMCR); break;
     case ConfigStep::APPLY_BMCR:
       _setConfigStep(_configurationTarget().mode == LinkMode::FORCED ? ConfigStep::VERIFY_CR1 :
-          (_configurationTarget().crossover.robust ? ConfigStep::VERIFY_ANAR : ConfigStep::APPLY_CR1)); break;
+          (!deferRobustDisable ? ConfigStep::VERIFY_ANAR : ConfigStep::APPLY_CR1)); break;
     case ConfigStep::VERIFY_ANAR: _setConfigStep(ConfigStep::VERIFY_CR1); break;
     case ConfigStep::VERIFY_CR1: _setConfigStep(ConfigStep::VERIFY_PHYCR); break;
     case ConfigStep::VERIFY_PHYCR: _setConfigStep(ConfigStep::VERIFY_CR3); break;

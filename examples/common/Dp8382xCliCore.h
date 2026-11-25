@@ -115,7 +115,10 @@ public:
       case SnapshotKind::SETTINGS: output.settings = _driver.settingsSnapshot(); break;
       case SnapshotKind::OPERATION: output.operation = _driver.operationSnapshot(); break;
       case SnapshotKind::TRANSPORT: output.transport = _driver.transportSnapshot(); break;
-      case SnapshotKind::IDENTITY: output.identity = _driver.identitySnapshot(); break;
+      case SnapshotKind::IDENTITY:
+        output.identity = _driver.identitySnapshot();
+        output.straps = _driver.strapSnapshot();
+        break;
       case SnapshotKind::EVENTS:
         output.counters = _driver.counterSnapshot();
         owner_detail::copyRetainedEventWords(_driver.evidenceSnapshot(), output);

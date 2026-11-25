@@ -39,7 +39,7 @@ from dp8382x_hil_soak import SoakCampaign
 TOKEN = re.compile(r"[A-Za-z0-9_.:-]{1,64}\Z")
 REVISION = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 TARGET_FIELDS = ("target", "backend", "variant", "interface", "address")
-OPTIONAL_FIELDS = ("firmware", "firmware_prefix", "tree", "sdk", "clock", "console", "baud")
+OPTIONAL_FIELDS = ("firmware", "firmware_prefix", "tree", "sdk", "clock", "console", "baud", "rmii_role")
 FEATURE_EXCHANGE_SECONDS = 2.0
 
 
@@ -66,7 +66,7 @@ class Response:
     samples: list[Record] = field(default_factory=list)
 
 
-def check_payload(record):
+def check_payload(record, variant=None):
     """Check typed operation and sequencer data consumed by the built-in plans."""
     fields = payload(record)
     if record.cmd == "registers.write" and record.primary == "INVALID_PARAM":
@@ -84,6 +84,8 @@ def check_payload(record):
                        ("requested_reset", "effective_reset")})
         checks.update({"core_status": tuple(TERMINAL_STATUS), "core_detail": (-2**31, 2**31-1),
                        "sor1": (0, 65535), "sor2": (0, 65535)})
+        if variant == "DP83825I":
+            checks.update({"rcsr_valid": ("0", "1"), "rcsr": (0, 65535)})
         exact_fields(fields, checks)
     elif record.cmd == "diagnostics.selftest":
         if record.state == "progress":
@@ -128,7 +130,7 @@ class Session:
 
     def accept(self, record):
         """Accept one decoded record, or reject it before changing case evidence."""
-        check_payload(record)
+        check_payload(record, self.expected["variant"])
         index = len(self.results)
         if not self.identity:
             # Well-formed prior traffic cannot supply the nonce for this run.
@@ -389,8 +391,12 @@ def cases_for(suite, results, pending_samples=()):
             passed = clean(record) and restored and all(fields.get(key) == value for key, value in {
                 "core_status": "OK", "core_detail": "0", "requested_reset": "none", "effective_reset": "none",
                 "reset_required": "0", "reset_accepted": "0", "reset_complete": "0", "temporary": "0",
-                "clock_invalid": "0", "link_valid": "0", "sor1_valid": "1", "sor2_valid": "1", "straps_stale": "0",
+                "clock_invalid": "0", "link_valid": "0", "sor1_valid": "1", "sor2_valid": "0" if rows[0].fields["variant"] == "DP83825I" else "1", "straps_stale": "0",
             }.items())
+            if rows[0].fields["variant"] == "DP83825I":
+                follower = rows[0].fields["rmii_role"] == "follower"
+                passed = (passed and fields.get("rcsr_valid") == "1" and
+                          bool(int(fields["sor1"]) & 8) == bool(int(fields["rcsr"]) & 128) == follower)
             restore = "PASS" if restored else "NOT RUN"
             if fields["cleanup"] not in ("none", "OK"):
                 restore = "FAIL"
@@ -855,6 +861,10 @@ def capture(args, suite, nonce, expected, declaration=None, recorded=None):
                 argv += ["--identity", args.fixture_identity]
             if args.fixture_variant:
                 argv += ["--variant", args.fixture_variant]
+            if (args.fixture_variant == "DP83825I") != bool(args.fixture_rmii_role):
+                raise FixtureError("DP83825I fixture requires an explicit --fixture-rmii-role")
+            if args.fixture_rmii_role:
+                argv += ["--rmii-role", args.fixture_rmii_role]
             baseline = ()
             feature = None
             if declaration:
@@ -1485,7 +1495,7 @@ def parser():
         command.add_argument("--soak-count", type=int, help="explicit number of campaign iterations")
         command.add_argument("--soak-duration-ms", type=int, help="single primary window for all iterations")
         command.add_argument("--max-bytes", type=byte_limit, default=MAX_TRANSCRIPT_BYTES)
-        command.add_argument("--operating-mode", choices=("basic", "enhanced"))
+        command.add_argument("--operating-mode", choices=("basic", "enhanced", "none"))
         command.add_argument("--polling", choices=("exclusive", "concurrent"))
         command.add_argument("--board", help="identified board or fixture")
         command.add_argument("--authorization", help="record authorizing this exact attachment or campaign")
@@ -1514,6 +1524,8 @@ def parser():
             command.add_argument("--fixture-identity", help="explicit simulated identity reported by the host fixture")
             command.add_argument("--fixture-variant", choices=sorted(VARIANTS),
                                  help="part bound by the compiled fixture (default DP83826I); --variant checks its output")
+            command.add_argument("--fixture-rmii-role", choices=("leader", "follower"),
+                                 help="declared and simulated DP83825I board role, checked against --rmii-role")
             command.add_argument("--fixture-deny-maintenance", action="store_true",
                                  help="exercise the compiled fixture's denied mutation route")
         elif name == "verify-transcript":

@@ -90,6 +90,7 @@ Status DP8382x::_validateInterruptSettings(const InterruptSettings& s) const noe
   return Status::Ok();
 }
 Status DP8382x::_admitInterrupt(const OperationBudget& budget,bool stop) const noexcept {
+  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   if (budget.pollIntervalUs==0U || budget.maxStalledPolls==0U) {
     return Status::Error(Err::INVALID_PARAM,"Invalid interrupt operation budget",static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
   }
@@ -371,6 +372,7 @@ Status DP8382x::_advanceInterrupt(Status status,bool called,const MdioBatch& bat
 }
 
 Status DP8382x::serviceInterrupts(InterruptServiceSnapshot& snapshot,const InterruptServiceBudget& budget) noexcept {
+  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   if (_active || _polling) { return busyIrq(BusyDetail::OPERATION_ACTIVE); }
   const auto fail=[&](Status status) noexcept {
     _interruptService.stale=true; _interruptService.morePossiblyPending=true;
