@@ -7,7 +7,7 @@
     "application": "TI SNLA266B April 2025 sections 4/4.1 and 5 (exact DP83825 VOD example and DP83825/6 compliance sequences); SNLA328 October 2019 sections 2.1 through 2.3 (DP83825 EEE advertisement, 36 us MAC wake and PCS status); SNLA261A March 2024 table 2-1 and 2.2.2 (family Secure-ON password map; example GPIOs and MAC byte names require part-specific comparison). See archive manifest for dates, URL, rights and SHA-256.",
     "identityConflict": "TI Linux 97becb13b81c314c1d17fcf2226aac9a32086f3d/drivers/net/phy/dp83822.c and TI mirror 450af1144b8caeb58724bcbae081b409f6bf5c3a/linux_drivers/dp83822.c (GPL-2.0) call A150 I and A140 S. A160 and A170 have CM/CS labels. Only the exact datasheet qualifies 2000:A140 for this declaration.",
     "driverComparison": "Zephyr bc5d59d1b6657cfeef30124b818c8fbd69da68ac/drivers/ethernet/phy/phy_ti_dp83825.c (Apache-2.0) writes role, handles one link interrupt and chooses 1 ms/50 ms delays. Treat these as framework policy.",
-    "mmd": "SNLS638C 6.3.11.1 assigns vendor 31. Tables 7-16, 7-92, 7-98..103 and 6.3.3.2 identify PCS and AN and the EEE registers; 7-92 names low offsets 0014,003C,003D. Compare the same Clause 45 roles in Linux v6.1 include/uapi/linux/mdio.h (MDIO_CTRL1/STAT1, PCS_EEE_ABLE/WK_ERR, AN_EEE_ADV/LPABLE) and mii.h (MII_BMCR/BMSR): DEVAD 3 offsets 0,1,20,22 and DEVAD 7 offsets 60,61 decimal. These independent standard names establish the low wire offsets including PCS control, not a general prefix translation. GPL-2.0 WITH Linux-syscall-note, numeric comparison only.",
+    "mmd": "SNLS638C 6.3.11.1 claims a single MMD at vendor DEVAD 31. Table 7-16 lists DEVAD 3, 7 and 31. SNLA328 section 2.1 independently identifies all three for DP83825. Tables 7-16, 7-92, 7-98..103 and 6.3.3.2 identify PCS and AN and the EEE registers; 7-92 names low offsets 0014,003C,003D. Compare the same Clause 45 roles in Linux v6.1 include/uapi/linux/mdio.h (MDIO_CTRL1/STAT1, PCS_EEE_ABLE/WK_ERR, AN_EEE_ADV/LPABLE) and mii.h (MII_BMCR/BMSR): DEVAD 3 offsets 0,1,20,22 and DEVAD 7 offsets 60,61 decimal. These independent standard names establish the low wire offsets including PCS control, not a general prefix translation. GPL-2.0 WITH Linux-syscall-note, numeric comparison only.",
     "mmdHeaders": [
       "https://raw.githubusercontent.com/torvalds/linux/v6.1/include/uapi/linux/mdio.h",
       "https://raw.githubusercontent.com/torvalds/linux/v6.1/include/uapi/linux/mii.h"
@@ -341,7 +341,7 @@
       },
       "source": "SDAA081 2.3.3 table 2-6",
       "contract": "Read vendor 0218 for MSE with powered PHY and connected partner. Threshold equality has no printed classification.",
-      "vector": "Read 0209, 020A, 020B, 033A, 033B, 033C; preserve raw words and leave exact threshold equality unclassified."
+      "vector": "For each case read vendor offset 0218 once and retain the raw MSE word. Returned words 0209, 020A, 020B, 033A, 033B and 033C respectively give Excellent, unclassified, Good, Good, unclassified and Poor."
     },
     {
       "id": "loopback",

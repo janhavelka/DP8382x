@@ -79,6 +79,7 @@ class P25LedgerTests(unittest.TestCase):
             self.skipTest("PyMuPDF is optional for original-PDF cross-checking")
         pdf = ROOT / "docs/reference/source/TI-DP83825I-SNLS638C.pdf"
         actual = []
+        detailed_headings = []
         with pymupdf.open(pdf) as document:
             section = 0
             field = None
@@ -91,7 +92,11 @@ class P25LedgerTests(unittest.TestCase):
                     words.sort()
                     left = words[0][0]
                     text = " ".join(s for x, s in words)
-                    if left < 60 and re.match(r"^7\.\d+ .*\(Offset =", text):
+                    heading = re.fullmatch(
+                        r"(7\.\d+) (.+?) \(Offset = ([0-9A-F]+)h\) \[Reset = ([0-9A-F]+h)\]", text)
+                    if left < 60 and heading:
+                        section_id, name, offset, reset = heading.groups()
+                        detailed_headings.append((section_id, name, offset.zfill(4), reset))
                         section += 1
                         field = None
                     bits = next((s for x, s in words if 68 < x < 83
@@ -108,6 +113,9 @@ class P25LedgerTests(unittest.TestCase):
             headings = re.findall(r"\n([A-F0-9]+)h\s*\n[^\n]+\nSection 7\.(\d+)", summary)
         self.assertEqual([(a.zfill(4), int(s)) for a, s in headings],
                          [(r["offset"], i) for i, r in enumerate(self.data["registers"], 1)])
+        self.assertEqual(detailed_headings,
+                         [(r["section"], r["name"], r["offset"], r["headingReset"])
+                          for r in self.data["registers"]])
         expected = [[i, f["bits"], f["name"].replace(" ", ""), f["access"], f["reset"]]
                     for i, r in enumerate(self.data["registers"], 1) for f in r["fields"]]
         self.assertEqual(actual, expected)

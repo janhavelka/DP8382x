@@ -441,3 +441,36 @@ ctest --test-dir <dir> -R '^((p25|ai|ae|e)_)?(link|negotiation)_.*$' --output-on
 Portable/package consumers, SDK link, remote CI and physical qualification
 were **NOT RUN** in this slice. Phase (c) continues with the register and
 procedure inventory, optional-feature gates and native/compiled CLI replay.
+
+## Phase (c) review of register headings and recipe-only offsets
+
+The wrapper verified `c6da85209111446a125c11c3756d4ac0649a129a` against
+`origin/main` before entry. Two read-only reviewers used the session model
+for independent source interpretation. One traced the six printed IEEE MMD
+headings to their wire addresses. The other checked the ten recipe-only
+offsets, including all 13/13/32 ordered writes in SNLS638C tables 6-5 through
+6-7 and the 17 coarse VOD rows in table 8-2. All matched the ledger.
+
+SNLS638C section 6.3.11.1 says the device supports a single MMD and gives
+vendor DEVAD 31. Table 7-16 and SNLA328 section 2.1 identify DEVAD 3, 7 and
+31. The ledger now records the conflict alongside the wire-offset evidence.
+The source comparison test now reads each detailed heading on pages 39–81
+and checks its section, name, printed offset and reset word. For example, it
+preserves the PCS control heading reset of `4000h` alongside the zero reset
+cells in table 7-98. An in-memory mutation to `0000h` failed the heading check.
+
+SDAA081 section 2.3.3, table 2-6, specifies a single MSE register at vendor
+offset `0218`. The corrected quality vector gives the expected classification
+for each returned word on either side of its two thresholds. Both exact
+threshold values retain their raw sample and have no printed classification.
+The quality procedure remains assigned to 61.
+
+Host research checks **PASS** on Windows x86-64 with Python 3.12.10.
+`python -B -m unittest discover -s test -p 'test_*ledger.py' -q` passed
+104/104, including the original PDF comparison for all 101 headings and 570
+field rows. `python -B tools/verify_ledger.py` passed all three ledger checks,
+including 33 DP83825I procedure assignments. Executing PHY tests, consumer
+builds, SDK links, remote CI and physical evidence were **NOT RUN** in this
+source-review slice. Continue phase (c) with field ownership and procedure
+dispositions at the optional-feature gates, then the native/compiled CLI
+campaigns and replay. Physical Q15 remains open.
