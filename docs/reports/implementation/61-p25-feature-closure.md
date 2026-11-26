@@ -360,3 +360,34 @@ consumers, and the three ESP32-P4 links. The closure decision still requires
 individual dispositions for Register_12/MISR latch behavior, CDCR calibration
 completion and independent DSP tuning limits. Remote CI is NOT RUN (prompt 71).
 Physical qualification is NOT RUN (Q15).
+
+## Phase (d) focused host and source checks
+
+The wrapper verified `8367db54bb34b52b6b62e76c9086a3b33a3899a5` on
+`main` and `origin/main`. Only the report and progress record had changed
+since the full Release run. The lead ran the sanitizer checks and a second
+agent ran the independent Python and documentation checks on that clean tree.
+
+**Host PASS.** GNU 15.1.0 on Windows x86-64, CMake 4.0.1 and Ninja 1.12.1.
+The Release build had `-fsanitize=undefined -fsanitize-trap=undefined`
+in both C and C++ flags. The two test targets were current. All 15 selected
+CTests passed in 0.17 seconds, including all nine DP83825I link tests.
+
+```powershell
+cmake --build build/p55-ubsan --target dp8382x_interface_tests dp8382x_link_tests --parallel 3
+ctest --test-dir build/p55-ubsan -R '^p25_(events|outputs|core|profiles|diagnostics|functional_modes|link_.*)$' --output-on-failure --no-tests=error -O build/p55-ubsan/p61d-ubsan.log
+```
+
+| Standalone check (Python 3.12.10) | Result |
+| --- | --- |
+| `python -B -m unittest discover -s test -p 'test_*.py' -q` | PASS, 221 passed and 59 skipped in 38.397 seconds. |
+| `python -B test/test_cli_coverage.py --ctest ctest build/p60-tests` | PASS, 10/10 matrix checks against the registered CTests. |
+| `python -B -m unittest discover -s test -p 'test_p25_ledger.py' -v` | PASS, 4/4 including `test_original_pdf_cells` against SNLS638C. |
+| `python -B tools/verify_ledger.py` | PASS for all ledgers, including the DP83825I's 101 tables, 570 fields and 33 procedure assignments. |
+| `python -B tools/check_doxygen.py` | PASS, 296 pages checked and both negative fixtures rejected. |
+| `python -B scripts/generate_version.py check` | PASS, generated version header current. |
+
+**Prompt 61 remains IN PROGRESS.** Phase (d) portable and exported package
+consumers and all three ESP32-P4 links remain NOT RUN. The software closure
+decision still needs the Register_12/MISR, CDCR and DSP source dispositions.
+Remote CI is NOT RUN (prompt 71). Physical qualification is NOT RUN (Q15).
