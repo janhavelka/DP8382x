@@ -332,3 +332,31 @@ recognition and electrical measurements. The unknown Register_12/MISR
 latch relationship, CDCR calibration completion and independent DSP
 tuning limits retain their separate source dispositions. Phase (d) must
 reconcile those software rows before setting the status for prompt 61.
+
+## Phase (d) Release host verification
+
+**Host PASS.** All 1,017 combined Release CTests passed in 229.44 seconds on
+Windows x86-64 at `f22446a83ec70a9c540ee32b362160d6b4307f34`. The wrapper
+verified that commit on `main` and `origin/main`. The index and worktree were
+clean at entry. The suite includes earlier-part regressions, both DP83825I
+RMII roles in `cli_hil_features`, and the serial, soak and interruption tests.
+
+The existing Ninja Release configuration had library tests and pinned SDK
+host tests enabled. The build verified the SDK inputs at ESP-IDF v6.1
+`fff9895c82d744c7237be8847347bdd1b07c6643`. GNU C++ 15.1.0, CMake 4.0.1
+and Python 3.12.10 ran the following commands from the repository root.
+
+```powershell
+$env:GIT_CONFIG_COUNT = '1'
+$env:GIT_CONFIG_KEY_0 = 'safe.directory'
+$env:GIT_CONFIG_VALUE_0 = 'C:/esp/v6.1/esp-idf'
+cmake --build build/p60-tests --parallel 4
+ctest --test-dir build/p60-tests --output-on-failure --no-tests=error -j 1 -O build/p60-tests/p61d-release.log
+```
+
+**Prompt 61 remains IN PROGRESS.** The remaining phase (d) checks cover
+focused UBSan, standalone Python and documentation, portable and source-package
+consumers, and the three ESP32-P4 links. The closure decision still requires
+individual dispositions for Register_12/MISR latch behavior, CDCR calibration
+completion and independent DSP tuning limits. Remote CI is NOT RUN (prompt 71).
+Physical qualification is NOT RUN (Q15).
