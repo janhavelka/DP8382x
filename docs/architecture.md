@@ -30,6 +30,17 @@ the rules; this guide does not duplicate operation declarations or state tables.
 
 ## Initial component
 
+For the planned DP83822 path, identity observation and board declaration
+are separate inputs. Prompt 63 owns copper identity, resets and the evidence
+collector. Prompt 64 owns MAC interface transitions, clock outputs and fixed
+RGMII shifts. Prompt 65 owns IF/HF optical configuration and explicit link
+refresh. Prompts 66 and 67 own diagnostics and power, wake and pin controls.
+The RMII transition, SFD sequence and copper cable-break profile touch
+multiple owners' settings. Each procedure must check those owners before
+mutation and retain restoration obligations after partial effects. The SDK
+adapter checks its MAC independently of generic PHY interface capability.
+[Procedure assignments and test cases](registers/dp83822.json)
+
 | Layer | Responsibility |
 | --- | --- |
 | Portable core | Identity, source-backed access, chip procedures, desired/observed/trust, operations and one destructive-evidence collector |

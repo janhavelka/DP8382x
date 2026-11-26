@@ -1,5 +1,11 @@
 # DP83826I register map guide
 
+Use the separate DP83822 map for I/H/IF/HF. It identifies each direct,
+vendor and IEEE wire address, the owner of each named field, and the exact
+values and conditions for writes outside ordinary field access. In particular,
+the DP83822 printed address 703D is DEVAD 7, wire offset 003D.
+[DP83822 register and procedure ledger](registers/dp83822.json)
+
 The `pcs_reset` and `initialize_10base` procedures now have executing
 [stage-15 consumers](initialization.md). Reset-domain uncertainty remains a source
 gate; the implementation re-identifies and conservatively restores only currently

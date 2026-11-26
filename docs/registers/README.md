@@ -1,4 +1,23 @@
-# DP83826 research ledgers
+# DP8382x research ledgers
+
+## DP83822I, H, IF and HF
+
+One family map covers all 142 register headings in SNLS505H. Each field carries
+the printed bit limits, name, access and reset, a technical interpretation and
+its procedure owner. A register's `ordinaryWriteMask` covers settings under
+the named owner and prerequisites. `neutralZeroMask` identifies bits that
+must receive zero during unrelated updates, including the BICSR1 capture
+overlay. `collector` applies to the whole read transaction. Original-table
+blanks and the two unlisted ranges remain explicit. [Family ledger](dp83822.json)
+
+Use `parts` for declared grade and media, `procedures` for implementation
+prompts and their test cases, and `gates` for competing source statements and
+the evidence needed to resolve them. `recipes` records scoped whole-word
+writes. Each cable-break step belongs to the same ordered procedure, including
+the optional EEE step. `reads` records the separately published MSE observation.
+The standard-library checker runs through `python tools/verify_ledger.py`.
+The Python tests also compare the ledger against original PDF cells when
+PyMuPDF is available. [Research report](../reports/implementation/62-p22-source-subtypes.md)
 
 ## AI/AE comparison
 

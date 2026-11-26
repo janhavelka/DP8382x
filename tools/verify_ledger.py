@@ -704,9 +704,11 @@ def main(argv: list[str] | None = None) -> int:
             if __package__:
                 from .verify_a_ledger import validate as validate_a
                 from .verify_p25_ledger import validate as validate_p25
+                from .verify_p22_ledger import verify as verify_p22
             else:
                 from verify_a_ledger import validate as validate_a
                 from verify_p25_ledger import validate as validate_p25
+                from verify_p22_ledger import verify as verify_p22
             comparison = load_ledger(DEFAULT_LEDGER.with_name("dp83826a.json"))
             procedures = load_ledger(DEFAULT_LEDGER.with_name("dp83826a-procedures.json"))
             validate_a(data, comparison, procedures)
@@ -717,6 +719,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"PASS: DP83825I {len(p25['registers'])} detailed tables, "
                   f"{sum(len(r['fields']) for r in p25['registers'])} fields and "
                   f"{len(p25['procedures'])} procedure assignments")
+            p22 = load_ledger(DEFAULT_LEDGER.with_name("dp83822.json"))
+            errors = verify_p22(p22)
+            if errors:
+                raise LedgerError("\n".join(errors))
+            print(f"PASS: DP83822 {len(p22['parts'])} declarations, {len(p22['registers'])} "
+                  f"detailed tables, {len(p22['procedures'])} procedure assignments and "
+                  f"{len(p22['recipes'])} scoped write steps")
     except (OSError, UnicodeError, ValueError, TypeError, KeyError) as error:
         print(f"FAIL: {error}", file=sys.stderr)
         return 1

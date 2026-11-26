@@ -155,3 +155,91 @@ section 6.20/.21 footnote and table 8-36 were checked separately in the PDF.
 - Compiled host, portable/exported consumer, SDK link, remote CI and physical
   evidence NOT RUN in phase (a). The next phase has all inputs needed to build
   the research ledger. Board measurements remain pending for each suffix.
+
+## Phase (b) register and procedure reconciliation
+
+**IN PROGRESS, implementation phase finished.** Entry was clean on `main`
+at `213b1a44e5cee6820a1502fe059b9a8a2637603c`. The wrapper verified the
+phase (a) push and the local comparison was 0 ahead, 0 behind. The lead
+owned subtype declarations, procedure assignments, conflict decisions,
+shared documentation and verifier integration. Two agents used the session's
+high-reasoning model independently for table extraction and test oracles.
+[Family ledger](../../registers/dp83822.json) and
+[schema guide](../../registers/README.md#dp83822i-h-if-and-hf)
+
+### Denominator and source limits
+
+The original SNLS505H tables contain **576 printed field rows**, including
+432 named fields and 144 reserved rows. Two additional ledger entries protect
+the gaps at 000B[11] and 0101[6:0]. All 142 register partitions cover 16 bits.
+Table 8-38 leaves TYPE blank for reserved 0106[11]. Six FUNCTION cells are
+blank, at tables 8-3[15:0], 8-4[15:10], 8-34[7:4], 8-50[11:4],
+8-70[15:5] and 8-71[13:0]. Where names or example settings supply some
+meaning, the field record retains those limits. Whole-register reserved
+rows occur at 0107, 0114, 0116 and 04D4–04D6.
+
+Each named field resolves to one of 31 procedures. Their owner counts are
+10 for copper core (63), two for interface/clock (64), three for fiber (65),
+10 for diagnostics/electrical (66), and six for power, wake and pins (67).
+The four part rows record temperature, package, accepted shared revision,
+interfaces, medium restrictions, and separate pending execution and fixture
+evidence. The 10 strap pins use their own four-level encodings. There are
+21 named decisions with next evidence and 11 timing records. The figure 6-1
+note requires a 100 µs minimum from stable external clock to reset release
+when that clock was absent at rail ramp. Sections 6.7 and 6.8 give separate
+1 µs clock conditions with different reset edges.
+[Original tables and figures](../../reference/source/TI-DP83822-SNLS505H.pdf)
+
+| Procedure outside the detailed table descriptions | Selected evidence and limit |
+| --- | --- |
+| RGMII FAST_RXDV timing | The 100BASE-TX footnotes pair CR1=0002 with vendor 0457=0410. TX latency 170 ns and RX latency 159 ns are typical values. Normal interface selection has no grant to write 0457. [SNLS505H §§6.20/.21](../../reference/source/TI-DP83822-SNLS505H.pdf) |
+| Copper MSE and analog PRBS | The troubleshooting guide reads channel A at vendor 0218. Its analog example writes 030B=3380 between BISCR 0108 and 3108, then uses 001B=807D to capture the counter with that example's IPG. The exact register table gives the lock and lost-sync bits at 0016[11:10]. The guide's 0017 lock reference and 3B04 expected word remain disputed. [SNLA437A §§2.3.3, 2.5.2/.3](../../reference/source/TI-DP83822-Troubleshooting-SNLA437A.pdf) |
+| PROFINET copper cable-break profile | SNLA438 table 3-3 describes the link settings. The linked TI study adds a separate 22-write program, beginning with hard reset and ending with digital restart. Step 21 optionally disables EEE. Writes include 0107=0605, 04D4=3322 and 003F=B40F. The ledger scopes every step to the entire example and assigns restoration to 66 with 63/67 coordination. TI's cable and break-machine results describe its fixture. [SNLA438](../../reference/source/TI-PROFINET-SNLA438.pdf) and [TI SNLA383, August 2023, §§2–3](https://www.ti.com/lit/an/snla383/snla383.pdf) |
+| TDR and compliance | The TDR example gives 36.31 m for location 33 hex. The amplitude tables have seven-bit samples and leave physical scaling open. For 10BASE-Te compliance the DP83822 analog example uses 7108. SNLA266B table 5-5 proposes repetitive ones for harmonics while current SNLS505H table 8-32 prohibits that use. The harmonic measurement remains gated. [SNLA253 §2.3](../../reference/source/TI-DP83822-TDR-SNLA253.pdf) and [SNLA266B §5](../../reference/source/TI-DP8382x-Compliance-SNLA266B.pdf) |
+| Wake, SFD and EEE | The ledger covers 64 pattern bytes, all four masks, offset, CRC, RXFS selector and 0800 level-clear action. SFD's 0456=000A write has its own exception. The DP83825I legacy-MAC LPI example uses a bit reserved on DP83822. The DP83822 MAC pin route belongs to 67. [SNLA261A](../../reference/source/TI-Wake-on-LAN-SNLA261A.pdf), [SNLA328](../../reference/source/TI-Energy-Efficient-Ethernet-SNLA328.pdf) and [SNLS505H §§7.3.1–3](../../reference/source/TI-DP83822-SNLS505H.pdf) |
+
+The EVM guide identifies J6 for rail selection and J13/J14 for MAC interface
+access. SPRACC8A describes an AMIC110 controller and how its PRU observes a
+PHY. Both are fixture/platform context. The source catalogue above records
+the phase (a) code comparison. Phase (b) reopened TI RTOS lines 120–237,
+updated TI Linux lines 566–606, and CycloneTCP's MMD helpers, lines 340–end.
+The RTOS MDIX helper returns void across multiple MDIO updates. Preserve
+transfer failures in the planned core. The Linux FX path still supplies
+unshifted 1 for the bit-14 mask. The independent MMD helpers preserve DEVAD
+in both selector frames. The archived vendor bytes and licenses are intact.
+Targeted searches for extra 0457 and ALCD guidance left the restoration and
+conversion gates open. [EVM guide](../../reference/source/TI-DP83822EVM-SNLU179.pdf),
+[AMIC110 example](../../reference/source/TI-MDIO-Configuration-SPRACC8A.pdf)
+and [pinned implementation comparisons](#implementation-comparisons)
+
+The three clean sibling revisions match the [phase (a) inventory](#sibling-audit).
+The re-audit covered their listed headers, source, examples, runners, tests,
+registrations and AGENTS. MB85RC supplies the per-part capability pattern,
+TMP1x2 separates absent wiring from internal controls, and TUSB32x checks
+profile incompatibility before bus access. The local repository has no CI
+workflow in this execution phase. README and CHANGELOG describe shipped
+driver behavior. This change adds source research and offline verification.
+
+### Phase (b) local checks and handoff
+
+On Windows x86-64 with Python 3.12.10 and PyMuPDF 1.27.2.2, the independent
+PDF test compared the bounds, names, access types and reset cells of all 576
+printed rows. Additional tests exercise mask polarities, collector selection,
+electrical codes, chip declarations, timings and the ordered cable-break
+trace. The ordinary verifier reads strict JSON using the standard library.
+[Verifier](../../../tools/verify_p22_ledger.py) and
+[original-table and mutation tests](../../../test/test_p22_ledger.py)
+
+| Evidence layer | Result |
+| --- | --- |
+| Host research | PASS. `python -B tools/verify_ledger.py` checked all family ledgers. `python -B -m unittest discover -s test -p 'test_p22_ledger.py' -q` passed 13/13. Discovery with `test_*ledger.py` passed 117/117. Full `test_*.py` discovery ran 293, with 234 passed and 59 fixture-dependent skips. |
+| Reference and source checks | PASS. `python -B tools/verify_references.py` verified 29 vendor artifacts, 27 extracts and 2,481 local links. `python -B tools/check_doxygen.py` verified 296 pages and rejected both negative fixtures. `python -B scripts/generate_version.py check` and tracked, staged and new-file whitespace checks passed. |
+| Executing PHY host tests, portable and exported consumers, ESP-IDF links | NOT RUN in phase (b). This checkpoint changes research data, Python verification and documentation. |
+| Remote CI and physical evidence | NOT RUN. Prompt 71 owns CI. Each declared grade needs an identified board; the two F grades also need optical evidence. |
+
+Phase (c) should run two independent read-only reviewers in parallel on the
+wrapper's actual checked commit. One should audit table cells, field semantics,
+collector and neutral masks and subtypes against the original pages. The other
+should trace feature prose, application-note sequences, omissions and
+conflicts through the procedure owners and adverse tests. Both should
+distinguish an assigned software obligation from an executing driver path.

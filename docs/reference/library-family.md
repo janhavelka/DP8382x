@@ -21,6 +21,16 @@ separate hardware evidence.
 
 ## Immutable source catalogue
 
+Prompt 62 joins the original DP83822 field tables to their procedure owners.
+Two troubleshooting operations fall outside those headings. SNLA437A §2.3.3
+reads channel A MSE at 0218. Its §2.5.2 analog PRBS example writes
+030B=3380. SNLS505H §§6.20/.21 separately use 0457=0410 for RGMII latency.
+TI's copper cable-break procedure also writes reserved DSP words and a PTP
+configuration word. Preserve the complete ordering and its optional EEE
+step when comparing traces. [Ledger](../registers/dp83822.json),
+[SNLA437A](source/TI-DP83822-Troubleshooting-SNLA437A.pdf) and
+[SNLA383 §3.1](https://www.ti.com/lit/an/snla383/snla383.pdf).
+
 All linked files were read through the connected GitHub source tool. Facts are
 restated independently; GPL implementation is not copied into MIT source.
 

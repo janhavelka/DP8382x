@@ -25,7 +25,7 @@ gates. Later variants must qualify these independently.
 | DP83826E | Declared original extended-temperature grade | SNLS647I above | Same core procedures as I. Declared-E host, SDK and physical evidence are recorded separately in the [qualification report](reports/implementation/56-e-support.md) |
 | DP83826AI / DP83826AE | Revision-4 core/link, diagnostics and optional controls | [SNLS783A, Oct 2025](reference/source/TI-DP83826AI-AE-SNLS783A.pdf) | Shared revision-4 policy and procedures. AI is rated −40 to +85 °C, AE −40 to +105 °C. Each grade needs its own qualification. |
 | DP83825I | Revision-0 RMII, copper link and exact-part features | [SNLS638C, Apr 2026](reference/source/TI-DP83825I-SNLS638C.pdf) | Declare the 25 MHz leader or 50 MHz follower. The [feature matrix](feature-coverage.md#dp83825i-procedures) maps register ownership, tested operations and open source decisions |
-| DP83822I / H / IF / HF | Family expansion reference | [SNLS505H, Jul 2026](reference/source/TI-DP83822-SNLS505H.pdf) | Interface, temperature and fiber capabilities differ by exact variant |
+| DP83822I / H / IF / HF | Revision-0 source research | [SNLS505H, Jul 2026](reference/source/TI-DP83822-SNLS505H.pdf) | One register map, four application declarations, separate copper and optical qualification. [Exact-part ledger](registers/dp83822.json) |
 
 The DP8382x name follows the family grouping used in TI's
 [compliance/debug guide](reference/source/TI-DP8382x-Compliance-SNLA266B.pdf).
@@ -34,6 +34,25 @@ It does not imply compatibility with every chip whose name starts with DP8382.
 The [implemented variant decision table](identity.md) separates declared part,
 observed ID/mode, implemented admission and hardware qualification. Both modes
 admit MII and RMII, without claiming the observed interface strap matches wiring.
+
+## DP83822 declaration and medium
+
+All four grades share the documented ID words `2000 A240`. The board supplies
+the ordering part, interface, medium and clock wiring. The observed
+operating mode stays UNKNOWN. Each grade has a 32-pin RHB VQFN package.
+
+| Part | Ambient range | Copper MAC interface | 100BASE-FX |
+| --- | --- | --- | --- |
+| DP83822I | −40 to +85 °C | MII, RMII, RGMII | Unavailable |
+| DP83822H | −40 to +125 °C | MII, RMII, RGMII | Unavailable |
+| DP83822IF | −40 to +85 °C | MII, RMII, RGMII | Forced 100, half/full duplex over MII or RMII |
+| DP83822HF | −40 to +125 °C | MII, RMII, RGMII | Forced 100, half/full duplex over MII or RMII |
+
+The FX and RGMII straps can be encoded together. Their combined operating
+conditions remain open. Each declaration still needs an executing bind test
+and physical evidence for its own media. Prompts 63–67 own copper core,
+interface and clock, fiber, diagnostics, and power/wake/pins respectively.
+[Source decisions and test cases](registers/dp83822.json)
 
 ## Identifiers appearing in software
 
