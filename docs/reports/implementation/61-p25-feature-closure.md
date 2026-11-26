@@ -423,3 +423,30 @@ ctest --test-dir build/p61-export/out --output-on-failure --no-tests=error -O bu
 SDK links and the closure decision on Register_12/MISR latch behavior, CDCR
 calibration completion and independent DSP tuning limits. Remote CI is NOT RUN
 (prompt 71). Physical qualification is NOT RUN (Q15).
+
+## Phase (d) ESP32-P4 SDK links
+
+**SDK link PASS, 3/3.** All three projects relinked their application ELF
+and produced an image on Windows x86-64 with ESP-IDF v6.1 at
+`fff9895c82d744c7237be8847347bdd1b07c6643`. Each generated identity header
+records the clean repository commit `eaf674c5d4da5f4dcc68b153efd63ae519e3816a`,
+which the wrapper verified on `main` and `origin/main`.
+
+| Application image | Build directory | Bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| `dp8382x_adapter_link.bin` | `56l` | 412544 | `375cb3bf210cab4c7b94d8818d598edebb323f8193470f4bcb21b5eb3d9348e5` |
+| `dp8382x_p4_ethernet.bin` | `56b` | 721600 | `a8e92fa0367c09a9f71049e984c52d635df2ea63100c6904325dc2a943362ea1` |
+| `dp8382x_p4_owner.bin` | `56o` | 599808 | `24a1cdb76cc240d6b51df39ac54850226dd4d534d3cca17805f9170c6937e999` |
+
+The lead ran the three `scripts/idf.cmd` commands from phase (c) with the
+same process-local Git, clangd and ccache settings. Each build directory under
+`C:/esp/build/dp8382x-loop` contains its `p61d-sdk.log`. A read-only reviewer
+checked the three ESP32-P4 configurations against their application sources.
+The adapter fixture selects `DP8382X_FIXTURE_VARIANT=DP83825I` with board
+execution disabled. The basic Ethernet and owner CLI examples link with the
+shared DP83826I board configuration and board readiness disabled.
+
+**Prompt 61 remains IN PROGRESS.** The software closure decision still requires
+individual dispositions for Register_12/MISR latch behavior, CDCR calibration
+completion and independent DSP tuning limits. Remote CI is NOT RUN (prompt 71).
+Physical qualification is NOT RUN (Q15).
