@@ -121,11 +121,19 @@ class P22LedgerTests(unittest.TestCase):
     def test_conflict_and_timing_rejections(self):
         for section, identity, key, value in (
             ("resetDomains", "phyrcr-restart", "action", "C22 001F=8000"),
+            ("resetDomains", "phyrcr-restart", "effect", "all"),
+            ("resetDomains", "bmcr-pcs", "strapAction", "relatch"),
             ("gates", "fiber-interface", "nextEvidence", ""),
             ("gates", "regcr-functions", "procedure", "unused"),
             ("timings", "SNLS505H 6.8 T4", "start", "RESET_N release"),
             ("timings", "SNLS505H 6.6 T2", "qualifier", "TYP"),
             ("timings", "SNLS505H figure 6-1 note", "value", 1),
+            ("timings", "SNLS505H 6.6 T4", "start", "power application"),
+            ("timings", "SNLS505H 6.6 T5", "qualifier", "MAX"),
+            ("timings", "SNLS505H 6.7 T2", "end", "SMI-ready for MDC preamble"),
+            ("timings", "SNLS505H 6.20 T1 RGMII TYP", "conditions", "100BASE-TX MII"),
+            ("timings", "SNLS505H 6.20 T1 MII MAX", "value", 48),
+            ("timings", "SNLS505H 6.21 T2 RMII TYP", "conditions", "FAST_RXDV footnote 2"),
         ):
             with self.subTest(section=section, identity=identity, member=key):
                 bad = deepcopy(self.ledger)
@@ -138,8 +146,10 @@ class P22LedgerTests(unittest.TestCase):
                    for r in self.registers.values() if int(r["neutralZeroMask"], 16)}
         self.assertEqual(neutral, {0x0000: 0x8200, 0x001B: 0x8000, 0x001E: 0x8000,
                                    0x001F: 0xC000, 0x0042: 0x0010, 0x0155: 0x8000,
-                                   0x04A0: 0x0800, 0x04A1: 0x00E3, 0x3000: 0x8000})
+                                   0x04A0: 0x0800, 0x04A1: 0x00FF, 0x3000: 0x8000})
         self.assertEqual(self.registers[0x04A1]["ordinaryWriteMask"], "0x1000")
+        self.assertEqual(0x101C & ~neutral[0x04A1], 0x1000)
+        self.assertEqual(self.field(0x04A1, 4, 2)["writePolicy"], "reserved")
         collectors = {address for address, reg in self.registers.items() if reg["collector"]}
         self.assertEqual(collectors, {0x01, 0x06, 0x0F, 0x10, 0x12, 0x13, 0x14,
                                       0x15, 0x16, 0x17, 0x1A, 0x1B, 0x04A1, 0x3016})
@@ -154,6 +164,45 @@ class P22LedgerTests(unittest.TestCase):
         for index in range(4):
             mask = self.field(0x04C8 + index, 15, 0)
             self.assertEqual(mask["name"], f"Mask Bytes {16 * index} to {16 * index + 15}")
+
+    def test_wol_packet_octets(self):
+        # The printed MAC suffixes count from the opposite end to SNLA261A
+        # tables 2-6 and 2-10. Compare the actual register words to packet bytes.
+        wol = next(p for p in self.ledger["procedures"] if p["id"] == "wol")["wireExamples"]
+        for words, octets, sample in (
+            ("mac04A2to04A4", "macOctets", "00 17 83 F3 A1 38"),
+            ("secureOn04A5to04A7", "secureOnOctets", "3C 41 9D 44 BB 5E"),
+            ("pattern04A8to04AB", "patternOctets", "01 23 45 67 89 AB CD EF"),
+        ):
+            expected = bytes.fromhex(sample)
+            self.assertEqual(bytes.fromhex(wol[octets].replace(":", "")), expected)
+            self.assertEqual(b"".join(int(w, 16).to_bytes(2, "little") for w in wol[words]), expected)
+        self.assertEqual(wol["mask04C8to04CB"], ["0xFF00", "0xFFFF", "0xFFFF", "0xFFFF"])
+
+    def test_fiber_debug_cases(self):
+        procs = {p["id"]: p for p in self.ledger["procedures"]}
+        sd = procs["fiber-mode"]["sdBeforeModuleInsertion"]
+        self.assertEqual((sd["pin"], sd["validHigh0465Bit0"], sd["validLow0465Bit0"]),
+                         ("LED_1/GPIO1", 0, 1))
+        faults = procs["fiber-fault"]["singleFiberLoss"]
+        self.assertEqual([(r["dutLostPath"], r["dutDisableMask"], r["dut"], r["peer"]) for r in faults],
+                         [("RX", "0x0040", "down", "may stay up"), ("TX", "0x0020", "may stay up", "down")])
+        self.assertEqual(self.field(0x16, 4, 0)["procedure"], "loopback")
+
+    def test_sfd_compatibility_and_optional_wake(self):
+        bad = deepcopy(self.ledger)
+        recipe = next(r for r in bad["recipes"] if r["id"] == "sfd-timing")
+        self.assertEqual(recipe["interfaces"], ["MII"])
+        self.assertEqual(int(recipe["value"], 16) & 0x0008, 0x0008)
+        recipe["interfaces"].append("RMII")
+        self.assertTrue(verify(bad))
+        wake = next(p for p in self.ledger["procedures"] if p["id"] == "sfd")["optionalWakeExample"]
+        self.assertEqual((wake["address"], wake["sourceWord"], wake["ordinaryWholeWord"]),
+                         ("0x04A0", "0x1080", False))
+        # CRC gate off, pattern enabled, and a previously sampled clear action:
+        # adding the optional aid must preserve the filter, leave CRC off and emit zero to bit 11.
+        neutral = int(self.registers[0x04A0]["neutralZeroMask"], 16)
+        self.assertEqual((0x0802 & ~neutral) | int(wake["enableMask"], 16), 0x0082)
 
     def test_electrical_code_vectors(self):
         # Tables 8-68 and 8-80. The published FX code D is 0.976 V and the
@@ -219,9 +268,19 @@ class P22LedgerTests(unittest.TestCase):
             recipe = next(r for r in bad["recipes"] if r["address"] == "0x0457")
             recipe[key] = value
             self.assertTrue(verify(bad))
+        # A self-consistent new mask must still respect the open programming gates.
+        for address, bit in ((0x0171, 0), (0x04A0, 6)):
+            bad = deepcopy(self.ledger)
+            reg = next(r for r in bad["registers"] if int(r["printedAddress"], 16) == address)
+            field = next(f for f in reg["fields"] if f["lsb"] == bit)
+            field["writePolicy"] = "owned-setting"
+            mask = ((1 << (field["msb"] - bit + 1)) - 1) << bit
+            reg["ordinaryWriteMask"] = f"0x{int(reg['ordinaryWriteMask'], 16) | mask:04X}"
+            self.assertTrue(verify(bad))
 
     def test_snla383_trace_and_mse_read(self):
-        for change in ("remove", "add", "swap", "optional-value", "owner", "off-table-write"):
+        for change in ("remove", "add", "swap", "optional-value", "mandatory-eee", "optional-reset",
+                       "owner", "off-table-write"):
             with self.subTest(change=change):
                 bad = deepcopy(self.ledger)
                 trace = bad["recipes"]
@@ -234,6 +293,10 @@ class P22LedgerTests(unittest.TestCase):
                     trace[pos], trace[pos + 1] = trace[pos + 1], trace[pos]
                 elif change == "optional-value":
                     trace[pos]["value"] = "0x0000"
+                elif change == "mandatory-eee":
+                    trace[pos]["optional"] = False
+                elif change == "optional-reset":
+                    trace[pos + 1]["optional"] = True
                 elif change == "owner":
                     trace[pos]["procedure"] = "eee"
                 else:

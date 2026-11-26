@@ -243,3 +243,44 @@ collector and neutral masks and subtypes against the original pages. The other
 should trace feature prose, application-note sequences, omissions and
 conflicts through the procedure owners and adverse tests. Both should
 distinguish an assigned software obligation from an executing driver path.
+
+## Phase (c) independent review
+
+Two read-only reviewers independently audited the implementation diff
+`213b1a4..2a00b46`. The wrapper verified that clean `main` matched
+`origin/main` at `2a00b46eecba2fa8e0f9a2ec1de0e3ea9d68fff8`. One reviewer
+checked the tables, subtypes, address spaces and mixed register access. The
+other traced procedures and timing through the datasheet and TI application
+notes. Both used the session's high-reasoning model for silicon interpretation.
+The lead verified the findings against the original sources and integrated the
+following changes. [Reviewed ledger](../../registers/dp83822.json)
+
+| Area | Finding and disposition |
+| --- | --- |
+| Wake interrupt selector | Table 8-88 gives the entire RXFS low byte the same event access, including reserved bits 4:2. The former neutral mask `00E3` could echo those three bits. Compose selector writes with `00FF` neutral and `1000` owned. Section 8 defines RH/W1S as a hardware event attribute here. The separate level-clear action uses RXFCFG bit 11. [SNLS505H pp. 53, 92–93](../../reference/source/TI-DP83822-SNLS505H.pdf) |
+| Packet byte order | The printed MAC byte labels count from the opposite end to the packet octets in the DP83822 examples. For destination `00:17:83:F3:A1:38`, the three ascending words are `1700 F383 38A1`. Independent checks cover all three password words, asymmetric pattern bytes and all four ignore masks. The ledger keeps the printed labels and requests on-wire qualification. [SNLA261A tables 2-6 and 2-10](../../reference/source/TI-Wake-on-LAN-SNLA261A.pdf) |
+| Interrupt enables | The §8 legend leaves the combined RC/W type of the MISR enable bytes ambiguous. Prompt 63 must preserve desired enables and treat installation after a collector read as uncertain. The gate calls for successive independent events to distinguish retention from rearming. [SNLS505H tables 8-18/19](../../reference/source/TI-DP83822-SNLS505H.pdf) |
+| SFD and minimum IPG | The 0456=000A step selects a 120 ns gap, which table 8-78 limits to MII. Preflight the interface and owners before changing a pin. Section 7.3.3 then gives an optional 04A0=1080 example before 001F=4000. Record the source word and preserve owned CRC/filter values when applying the optional aid. A supported alternative sequence for RMII/RGMII remains open. [SNLS505H pp. 27, 86](../../reference/source/TI-DP83822-SNLS505H.pdf) |
+| Optical controls | For IF/HF with wired signal detect, establish polarity before module insertion. Record which endpoint may continue indicating link after one fiber path fails with far-end fault generation or detection disabled. The guide explicitly includes reverse loopback at 0016[4]. The cases belong to 65/66 and need optical evidence separately for each F grade. [TI SNLA479, April 2025, tables 1-2, 1-5 and 2-1](https://www.ti.com/lit/pdf/snla479) |
+| Reset and interface timing | The validator now distinguishes all five reset domains and strap actions. Figures 6-1 to 6-3 distinguish power-up and reset edges for pin release and first FLP. The unstable-XI procedure also specifies a 10 µs minimum reset pulse. All six interface/direction combinations in §§6.20/.21 have their qualified latency values, including the two MII maxima. The MII transmit row carries no FAST_RXDV footnote. Management records the idle MDC cycle after reset, and 64 has the RGMII inter-frame status pins and validity condition. [SNLS505H §§6.6–6.9, 6.20–6.22, 7.4.1.4 and 7.4.2](../../reference/source/TI-DP83822-SNLS505H.pdf) |
+| Scoped writes | All 22 copper cable-break words matched the TI script. Exactly step 21 is optional. The verifier now checks that choice and independently protects the named fields restricted to selectors, specific recipes or unresolved programming rules. The regression changes both a field policy and its ordinary-write mask together. The ledger attributes break-detection and recovery criteria to TI's fixture. [TI SNLA383 §3](https://www.ti.com/lit/pdf/snla383) |
+
+The register and procedure counts remain 142 and 31. The revised ledger has
+20 timing rows and 23 named source decisions. The three sibling revisions
+and clean worktrees matched the [sibling audit](#sibling-audit). The same
+headers, implementations, CLI/runner paths and test registrations still
+support declared-part selection, independent wiring capabilities and
+validation before I/O. README and CHANGELOG continue to describe shipped
+driver behavior. Prompt 62 remains **IN PROGRESS** for phase (d).
+
+### Phase (c) checks
+
+| Evidence layer | Result on Windows 11 AMD64, Python 3.12.10, PyMuPDF 1.27.2.2 |
+| --- | --- |
+| Host research | PASS. `python -B tools/verify_ledger.py` checked all ledgers. `python -B -m unittest discover -s test -p 'test_p22_ledger.py' -v` passed 16/16, including all 576 original PDF field rows. Discovery with `test_*ledger.py` passed 120/120. Full discovery with `test_*.py` ran 296, with 237 passed and 59 fixture-dependent skips. |
+| Local documentation and integrity | PASS. `python -B tools/verify_references.py` verified 29 archived artifacts, 27 extracts and 2,488 local links. `python -B tools/check_doxygen.py` checked 296 generated pages and rejected both negative fixtures. `python -B scripts/generate_version.py check` and `git diff --check` passed. |
+| Executing DP83822 PHY host tests | NOT RUN. Runtime admission and driver procedures belong to 63–67. |
+| Portable and exported package consumers | NOT RUN in this research review. |
+| ESP-IDF links | NOT RUN in this research review. |
+| Remote CI | NOT RUN. Prompt 71 owns first-execution CI. |
+| Physical | NOT RUN for I, H, IF and HF. Q14 still requires identified optical fixtures for IF and HF. |

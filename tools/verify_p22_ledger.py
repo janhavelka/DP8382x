@@ -18,6 +18,15 @@ TABLE_ADDRESSES = (
 )
 # No field is printed for these intervals; table 8-39 does print a reserved row.
 UNLISTED = {(0x000B, 11, 11), (0x0101, 6, 0)}
+# Named R/W fields whose independent use is constrained by selector ownership,
+# recipe scope or missing programming rules. Reserved lanes are checked separately.
+PROTECTED_MASKS = {
+    0x000D: 0xC01F, 0x000E: 0xFFFF, 0x003F: 0x00F0, 0x0101: 0x0080,
+    0x0106: 0xF4CF, 0x010F: 0x0100, 0x0111: 0x000F, 0x0126: 0x7FFF,
+    0x0129: 0x00FF, 0x0130: 0x0800, 0x0171: 0x000F, 0x0173: 0xFF00,
+    0x0177: 0x1F00, 0x021D: 0x0FFF, 0x040D: 0x001F, 0x0416: 0x1F00,
+    0x0418: 0x3F00, 0x04A0: 0x0040,
+}
 FIELD_ACCESS = {
     "R", "R, RH", "R, RC", "R, RC, RH/W1S", "RC/W", "R/W", "R/W, RH",
     "R/W, W1S", "RH/W1S", "W, RH/W1S", "UNLISTED",
@@ -93,6 +102,7 @@ def check_register(reg: dict, number: int, address: int, owners: dict) -> tuple[
     ordinary = word(reg["ordinaryWriteMask"], label)
     covered = 0
     owned = 0
+    protected = 0
     # SNLS505H section 7.4.9 overlays a freeze-and-clear write on a count field.
     neutral = 0x8000 if address == 0x001B else 0
     collector = address in {0x001A, 0x001B}  # Prose adds sticky/capture semantics.
@@ -126,21 +136,24 @@ def check_register(reg: dict, number: int, address: int, owners: dict) -> tuple[
             require(field["procedure"] in owners, f"{location}: field has no assigned procedure")
             require(isinstance(field["description"], str) and field["description"].strip(),
                     f"{location}: missing field disposition")
-            require(policy in {"owned-setting", "read-only", "pulse", "protected", "status-w1s"},
+            require(policy in {"owned-setting", "read-only", "pulse", "protected"},
                     f"{location}: unknown field write policy")
         if policy == "owned-setting":
             require(access in {"R/W", "R/W, RH", "RC/W"}, f"{location}: exposed protected access")
             owned |= mask
-        elif policy in {"pulse", "status-w1s"}:
+        elif policy == "protected":
+            protected |= mask
+        # Table 8-88 puts this event access on the entire RXFS low byte,
+        # including reserved bits. Never echo a sampled event into a write.
+        if policy == "pulse" or access == "R, RC, RH/W1S":
             neutral |= mask
         collector |= "RC" in access
     require(covered == 0xFFFF, f"{label}: field inventory incomplete")
     require(owned == ordinary, f"{label}: ordinary write mask disagrees with field access")
+    require(protected == PROTECTED_MASKS.get(address, 0), f"{label}: protected field policy changed")
     require(word(reg["neutralZeroMask"], label) == neutral and not (ordinary & neutral),
             f"{label}: incorrect command/status neutral mask")
     require(reg["collector"] is collector, f"{label}: wrong destructive-read ownership")
-    if address in (0x0D, 0x0E):
-        require(ordinary == 0, f"{label}: raw selector exposed for ordinary writes")
     return len(reg["fields"]), reserved
 
 
@@ -180,31 +193,42 @@ def check_recipes(recipes: list, owners: dict) -> None:
         proc = recipe["procedure"]
         require(recipe["ordinaryWrite"] is False and (address, value, proc, owners[proc]) == exceptions[name]
                 and recipe["scope"] and recipe["source"], f"{name}: incorrect scoped recipe or owner")
+        if proc == "cable-break-profile":
+            require(recipe["optional"] is (name == "cable-break-21"), f"{name}: wrong optionality")
+        if name == "sfd-timing":
+            require(recipe["interfaces"] == ["MII"], "sfd-timing: 120 ns IPG requires MII")
 
 
 def check_source_decisions(data: dict, owners: dict) -> None:
     resets = data["resetDomains"]
-    actions = {"power-pin": "POR or RESET_N", "phyrcr-hard": "C22 001F=8000",
-               "phyrcr-restart": "C22 001F=4000", "bmcr-pcs": "C22 0000[15]=1",
-               "mmd-pcs": "DEVAD 3 offset 0000[15]=1"}
-    require(len(resets) == 5 and {r["id"]: r["action"] for r in resets} == actions,
-            "resetDomains: missing, substituted or duplicated reset mechanism")
+    domains = {
+        "power-pin": ("POR or RESET_N", "all", "relatch"),
+        "phyrcr-hard": ("C22 001F=8000", "all", "relatch"),
+        "phyrcr-restart": ("C22 001F=4000", "digital restart; registers retained", "retain"),
+        "bmcr-pcs": ("C22 0000[15]=1", "PCS; vendor registers retained", "retain"),
+        "mmd-pcs": ("DEVAD 3 offset 0000[15]=1", "MMD3, MMD7 and PCS; vendor registers retained",
+                    "no documented relatch"),
+    }
+    require(len(resets) == len(domains) and
+            {r["id"]: (r["action"], r["effect"], r["strapAction"]) for r in resets} == domains,
+            "resetDomains: incorrect reset mechanism, register domain or strap action")
     for reset in resets:
-        require(reset["effect"] and reset["source"], f"{reset['id']}: missing reset disposition")
+        require(reset["interpretation"] and reset["source"], f"{reset['id']}: missing reset disposition")
     timings = data["timings"]
     # The 6-1 note uses a different clock/reset edge pair from section 6.7 T1.
     bounds = {
         "6.6 T2": (200, "ms", "MAX", "power application", "SMI-ready for MDC preamble"),
         "6.6 T3": (200, "ms", "MAX", "power application", "hardware configuration latched"),
+        "6.6 T4": (64, "ns", "TYP", "power-up configuration latch", "strap pins switch to outputs"),
+        "6.6 T5": (1.5, "s", "TYP", "power application", "fast link pulse"),
         "6.7 T1": (1, "us", "MIN", "XI stable", "subsequent reset application"),
+        "6.7 T2": (10, "us", "MIN", "RESET_N assertion", "RESET_N release"),
         "figure 6-1 note": (100, "us", "MIN", "external clock stable", "RESET_N release"),
         "6.8 T1": (10, "us", "MIN", "RESET_N assertion", "RESET_N release"),
         "6.8 T2": (2, "ms", "MAX", "RESET_N release", "SMI-ready for MDC preamble"),
         "6.8 T3": (120, "ns", "TYP", "RESET_N release", "strap latch"),
         "6.8 T4": (64, "ns", "TYP", "reset configuration latch", "strap pins switch to outputs"),
         "6.8 T5": (1.5, "s", "TYP", "RESET_N release", "fast link pulse"),
-        "6.20 T1": (170, "ns", "TYP", "TX_CLK rising with TX_EN asserted", "start of MDI /J/ symbol"),
-        "6.21 T2": (159, "ns", "TYP", "start of MDI /J/ symbol", "RX_CLK rising with RX_DV asserted"),
     }
     indexed = {t["source"]: t for t in timings}
     require(len(indexed) == len(timings), "timings: duplicate source row")
@@ -212,11 +236,33 @@ def check_source_decisions(data: dict, owners: dict) -> None:
         row = indexed["SNLS505H " + citation]
         require(tuple(row[k] for k in ("value", "unit", "qualifier", "start", "end")) == expected
                 and row["conditions"], f"{citation}: incorrect timing bound or reference edges")
+    tx = ("TX_CLK rising with TX_EN asserted", "start of MDI /J/ symbol")
+    rx = ("start of MDI /J/ symbol", "RX_CLK rising with RX_DV asserted")
+    latencies = [
+        ("6.20 T1", "MII", 48, 56, "no FAST_RXDV footnote", tx),
+        ("6.20 T1", "RMII", 102, None, "FAST_RXDV footnote 1", tx),
+        ("6.20 T1", "RGMII", 170, None, "FAST_RXDV footnote 2", tx),
+        ("6.21 T2", "MII", 194, 218, "FAST_RXDV footnote 1", rx),
+        ("6.21 T2", "RMII", 272, None, "FAST_RXDV footnote 1", rx),
+        ("6.21 T2", "RGMII", 159, None, "FAST_RXDV footnote 2", rx),
+    ]
+    keys = {"SNLS505H " + citation for citation in bounds}
+    for citation, interface, typical, maximum, footnote, edges in latencies:
+        for qualifier, value in (("TYP", typical), ("MAX", maximum)):
+            if value is None:
+                continue
+            source = f"SNLS505H {citation} {interface} {qualifier}"
+            keys.add(source)
+            row = indexed[source]
+            expected = (value, "ns", qualifier, *edges, f"100BASE-TX {interface}, {footnote}")
+            require(tuple(row[k] for k in ("value", "unit", "qualifier", "start", "end", "conditions"))
+                    == expected, f"{source}: incorrect latency or measurement conditions")
+    require(keys == indexed.keys(), "timings: unrecognized timing row")
     gates = data["gates"]
     required = set("""reset-selection regcr-functions rmii-transition phase-width fast-rxdv-profile
         fiber-interface fiber-observation fx-control counter-threshold stray-led-name timers-and-raw-fields
         analog-bist tdr-amplitude alcd-scale cable-break-restore harmonics power-exit wol-bit-mask
-        ptp-default source-gaps eee-control""".split())
+        ptp-default source-gaps eee-control wol-mac-order misr-enable-retention""".split())
     ids = {g["id"] for g in gates}
     require(len(ids) == len(gates) and required <= ids, "gates: missing or duplicated conflict")
     for gate in gates:

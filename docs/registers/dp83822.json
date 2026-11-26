@@ -207,9 +207,10 @@
         "DP83822HF"
       ],
       "scope": "Own whole C22 and MMD transactions across bus participants. Vendor alias for standard 00..1F except the direct-only selectors. Use DEVAD 31 for vendor locations, 3/7 for their printed IEEE locations. Gate raw access to destructive data, holes and selectors.",
-      "source": "SNLS505H §§7.4.2.1–7.4.2.9, tables 8-13/14",
+      "source": "SNLS505H §§7.4.2.1–7.4.2.9, tables 8-13/14; §§6.9,7.4.2, table 7-6",
       "acceptance": "Read 703D with 0D=0007, 0E=003D, 0D=4007, read 0E. For vendor alias 0017 substitute 001F,0017,401F. Reject post-increment and indirect selector aliases.",
-      "functions": "Function 11 increments after writes only in section 7.4.2.1; function 10 is contradicted. Driver policy uses 00 then 01 for every data transfer. Address readback is an owner-only selector transaction."
+      "functions": "Function 11 increments after writes only in section 7.4.2.1; function 10 is contradicted. Driver policy uses 00 then 01 for every data transfer. Address readback is an owner-only selector transaction.",
+      "busTiming": "Board/controller constraint: keep SMI inactive for at least one MDC cycle after reset release as well as observing reset stabilization and preamble timing. MDIO is sampled on rising MDC. Section 6.9 gives 2.5 MHz typical, 25 MHz maximum, 0..10 ns PHY output delay and 10 ns minimum input setup and hold. Read turnaround Z0, write turnaround 10. Clock may stop while idle."
     },
     {
       "id": "reset",
@@ -301,7 +302,7 @@
       ],
       "scope": "PHYSCR pin, polarity, output and test, MISR1/2 enable bytes and event bytes. Only the collector reads the live words. Track RXFS[12] selection and side effects after WoL enable.",
       "source": "SNLS505H tables 8-16..19/88",
-      "acceptance": "Exercise all 16 sources, RC/W low-byte semantics, routing and read order with a failed second MISR read. MISR2[9] depends on the selector, which resets zero."
+      "acceptance": "Exercise all 16 sources, RC/W low-byte semantics, routing and read order with a failed second MISR read. MISR2[9] depends on the selector, which resets zero. After each collector read, exercise the unresolved enable-retention case separately from the consumed high-byte event."
     },
     {
       "id": "counters",
@@ -330,8 +331,9 @@
         "DP83822HF"
       ],
       "scope": "Select MII, RMII leader/follower, RGMII, FIFO threshold, enhanced RMII, reference/receive clock, sync, isolation and collision behavior. Software RMII entry and strap-selected RMII differ.",
-      "source": "SNLS505H §§7.4.1.1–.4, tables 5-1,7-3/13,8-10/11/17/23/81",
-      "acceptance": "Exercise 25 MHz MII/leader/RGMII and 50 MHz follower against the strap table. Before software RMII entry inspect 0462 owners; RCSR[5] then 0462=4300 then 001F=4000. Entered by strap, omit that recipe. Qualify lower mux restoration and reverse transition. On RMII exit restore 0462[10:8]=0 with an owned masked update, then restart (inferred). Reject incompatible input clock or pin owner before mutation."
+      "source": "SNLS505H §§7.4.1.1–.4, tables 5-1,7-3/13,8-10/11/17/23/81; §7.4.1.4 table 7-5",
+      "acceptance": "Exercise 25 MHz MII/leader/RGMII and 50 MHz follower against the strap table. Before software RMII entry inspect 0462 owners; RCSR[5] then 0462=4300 then 001F=4000. Entered by strap, omit that recipe. Qualify lower mux restoration and reverse transition. On RMII exit restore 0462[10:8]=0 with an owned masked update, then restart (inferred). Reject incompatible input clock or pin owner before mutation.",
+      "rgmiiInBand": "MAC observes RX_D[3:0] only with RX_DV low: bit 3 full duplex, bits 2:1 speed (00=10 Mb/s at 2.5 MHz, 01=100 Mb/s at 25 MHz, other codes reserved), bit 0 link. Test 0x9 for 10/full/up and 0x3 for 100/half/up, and ignore data during receive. RX_CLK can stretch when switching reference or speed. In-band MAC pins do not perform a PHY register read."
     },
     {
       "id": "clock-phase",
@@ -358,8 +360,14 @@
         "DP83822HF"
       ],
       "scope": "IF/HF forced 100BASE-FX half/full over MII/RMII. Separate CR2 enable, latched SD wiring, SD polarity and actual optical link. Explicit maintenance refresh may restart then double-read BMSR. RGMII/FX remains open.",
-      "source": "SNLS505H §§4,7.4.1.1/.2,7.4.4,7.4.6; tables 7-10/11,8-2/11/16/83/84; SNLA437A §2.3.4",
-      "acceptance": "For both F grades set bit 14 using mask/value 4000; cross SOR1[11:10] 01/10 and [9:8] 10/11. Check both duplexes, blocked I/H, separate cache/maintenance paths and no writes to CR1[6:5], PHYCR[15:14], CR3[6:5] or copper-only diagnostics."
+      "source": "SNLS505H §§4,7.4.1.1/.2,7.4.4,7.4.6; tables 7-10/11,8-2/11/16/83/84; SNLA437A §2.3.4; TI SNLA479 tables 1-1/2/5 and 2-1",
+      "acceptance": "For both F grades set bit 14 using mask/value 4000; cross SOR1[11:10] 01/10 and [9:8] 10/11. Check both duplexes, blocked I/H, separate cache/maintenance paths and no writes to CR1[6:5], PHYCR[15:14], CR3[6:5] or copper-only diagnostics. For wired SD confirm module polarity before insertion. Apply 0465[0]=1 beforehand for active-low valid signal, or 0 for active-high. Wrong polarity can invert the link indication.",
+      "sdBeforeModuleInsertion": {
+        "pin": "LED_1/GPIO1",
+        "validHigh0465Bit0": 0,
+        "validLow0465Bit0": 1,
+        "source": "SNLA479 tables 1-1, 1-5 and 2-1"
+      }
     },
     {
       "id": "fiber-fault",
@@ -371,8 +379,22 @@
         "DP83822HF"
       ],
       "scope": "Own far-end fault generation/detection disable controls and force-100 link control. Preserve reserved bits, distinguish an artificially forced link and received optical signal.",
-      "source": "SNLS505H §7.4.4 and table 8-35",
-      "acceptance": "Use mask 2060 with individual [13,6,5] choices and a nonzero prior word. Copper applicability of bit 13 is unconfirmed."
+      "source": "SNLS505H §7.4.4 and table 8-35; SNLA479 tables 1-5 and 2-1",
+      "acceptance": "Use mask 2060 with individual [13,6,5] choices and a nonzero prior word. Copper applicability of bit 13 is unconfirmed. With generation disabled (0040[6]), local RX loss can leave the peer up. With detection disabled ([5]), local TX loss can leave the local indication up after the peer goes down. Observe both ends independently.",
+      "singleFiberLoss": [
+        {
+          "dutLostPath": "RX",
+          "dutDisableMask": "0x0040",
+          "dut": "down",
+          "peer": "may stay up"
+        },
+        {
+          "dutLostPath": "TX",
+          "dutDisableMask": "0x0020",
+          "dut": "may stay up",
+          "peer": "down"
+        }
+      ]
     },
     {
       "id": "fiber-drive",
@@ -399,8 +421,8 @@
         "DP83822HF"
       ],
       "scope": "MII, PCS input/output, digital, analog and reverse loopback, external loop fixture and 100M transmit-in-MII-loopback option. Suspend conflicting AN/MDIX before local loopbacks and restore on stop.",
-      "source": "SNLS505H §7.4.8 and tables 8-1/22; SNLA437A §§2.5.2/.3",
-      "acceptance": "Compare BMCR[14] and BISCR modes 01,02,04,08,10. Check speed restriction on BISCR[6], 100-ohm copper analog termination and ignored MAC input in reverse. Reject simultaneous incompatible loops."
+      "source": "SNLS505H §7.4.8 and tables 8-1/22; SNLA437A §§2.5.2/.3; SNLA479 table 1-5",
+      "acceptance": "Compare BMCR[14] and BISCR modes 01,02,04,08,10. Check speed restriction on BISCR[6], 100-ohm copper analog termination and ignored MAC input in reverse. Reject simultaneous incompatible loops. For IF/HF on FX exercise 0016[4] reverse loopback with a peer. Other copper-loop fixtures require their own medium evidence."
     },
     {
       "id": "bist",
@@ -497,7 +519,8 @@
       "scope": "Copper PROFINET cable-break diagnostic profile under exclusive maintenance. Hard reset first, ordered DSP/FLD/filter/timer writes, optional EEE-off step, digital restart last. Changes include reserved/unlisted fields across owners 63,66,67. Use sequence-level admission and retained restoration.",
       "source": "TI SNLA383 (August 2023) §§2,3.1/3.2; compare SNLS505H tables 8-12/34/37..49/70..73/77/133..136",
       "acceptance": "Verify the 22 indexed recipe words (21 without optional 04D1). In particular 0107=0605 and 04D4=3322 are recipe-only at wholly reserved addresses. Require documented reset/restoration after partial execution; cable-break measurements require an identified break machine and partner.",
-      "evidence": "SNLA383 table 3-1 contains TI fixture measurements under the stated forced/AN copper conditions. It does not establish host execution or project measurements for any declaration."
+      "evidence": "SNLA383 table 3-1 contains TI fixture measurements under the stated forced/AN copper conditions. It does not establish host execution or project measurements for any declaration.",
+      "fixtureCriteria": "SNLA383 §3 evaluates both endpoints: detect disruption in less than 15 us and remain down throughout it. After release, stable link within 30 ms forced or 5 s AN, with no further drops. These criteria belong to the TI cable-break test."
     },
     {
       "id": "electrical",
@@ -604,7 +627,35 @@
       ],
       "scope": "Magic, Secure-ON and 64-byte pattern matching, CRC gate, indication pulse/level, packet classification, source selection and acknowledgement. Applies to all supported line speeds including FX on F parts.",
       "source": "SNLS505H §§7.3.2/.3, tables 8-19/87..131; SNLA261A §§2.1–2.2",
-      "acceptance": "Test little-endian byte pairs, byte 0/63, all four ignore masks, offset 0/12/63, all pulse widths and CRC/level indications. Use owned RXFCFG1 + 0800 to clear, e.g. 0181 to 0981. RXFS[12] resets 0; enabling WoL sets it. Keep RXFS W1S status neutral during other writes."
+      "acceptance": "Test little-endian byte pairs, byte 0/63, all four ignore masks, offset 0/12/63, all pulse widths and CRC/level indications. Use owned RXFCFG1 + 0800 to clear, e.g. 0181 to 0981. RXFS[12] resets 0; enabling WoL sets it. Compose selector writes with all eight RXFS status lanes zero, including reserved [4:2]. Section 8 defines RH/W1S for events. No software set/clear action is specified for this byte.",
+      "wireExamples": {
+        "source": "SNLA261A tables 2-6 and 2-10, DP83822 examples. Octet zero is the leftmost byte of each input. Words are in ascending register order.",
+        "macOctets": "00:17:83:F3:A1:38",
+        "mac04A2to04A4": [
+          "0x1700",
+          "0xF383",
+          "0x38A1"
+        ],
+        "secureOnOctets": "3C:41:9D:44:BB:5E",
+        "secureOn04A5to04A7": [
+          "0x413C",
+          "0x449D",
+          "0x5EBB"
+        ],
+        "patternOctets": "01:23:45:67:89:AB:CD:EF",
+        "pattern04A8to04AB": [
+          "0x2301",
+          "0x6745",
+          "0xAB89",
+          "0xEFCD"
+        ],
+        "mask04C8to04CB": [
+          "0xFF00",
+          "0xFFFF",
+          "0xFFFF",
+          "0xFFFF"
+        ]
+      }
     },
     {
       "id": "led-gpio",
@@ -634,8 +685,14 @@
       ],
       "scope": "Expose RX/TX delimiter indication, PTPPSEL pin routing, PTPCFG phase controls, IOCTRL muxes and ancillary WoL aid. Timestamp collection stays external. PTPCFG also contains DSP timer controls.",
       "source": "SNLS505H §7.3.3 and tables 8-33/34/78/81/82; SNLA437A §2.3.5",
-      "acceptance": "After selecting pins, write 0456=000A; reject incompatible min-IPG owner. Optional WoL sets RXFCFG1[7] only with owned config, bit 12 preserved and bit 11 neutral. Then restart 001F=4000. Test both branches, RXFS[12] side effect and partial restoration.",
-      "pinOwners": "Prompt 67 composes 003E/003F. Coordinate 003F[9:8] with MAC TX_ER pin assignment and [7:4] with the prompt-66 cable-break profile. The timer has no independent scale."
+      "acceptance": "Require confirmed MII and compatible IPG owner before any pin change. After routing the pins, use 0456=000A. The optional source example 04A0=1080 enables WoL with CRC gating and all packet filters off. For an owned update preserve the existing CRC/filter policy, set bit 7 and keep the clear action at bit 11 zero. If active wake filters would acquire a new effect, require their owner. Finish with 001F=4000. Test both branches, RXFS[12], partial restoration and zero mutations on unqualified interfaces.",
+      "pinOwners": "Prompt 67 composes 003E/003F. Coordinate 003F[9:8] with MAC TX_ER pin assignment and [7:4] with the prompt-66 cable-break profile. The timer has no independent scale.",
+      "optionalWakeExample": {
+        "address": "0x04A0",
+        "sourceWord": "0x1080",
+        "enableMask": "0x0080",
+        "ordinaryWholeWord": false
+      }
     }
   ],
   "recipes": [
@@ -645,7 +702,7 @@
       "value": "0x0002",
       "procedure": "clock-phase",
       "ordinaryWrite": false,
-      "scope": "FAST_RXDV test condition; opt in only when all CR1 owners accept the whole word. Precedes 0457 for the qualified RGMII figures.",
+      "scope": "100BASE-TX measurement condition for MII receive, both RMII paths and both RGMII paths. The MII transmit row has no FAST_RXDV footnote. Coordinate all CR1 owners. Only the RGMII rows add 0457=0410.",
       "source": "SNLS505H 6.20/6.21 footnotes 1/2"
     },
     {
@@ -663,8 +720,11 @@
       "value": "0x000A",
       "procedure": "sfd",
       "ordinaryWrite": false,
-      "scope": "After RX/TX SFD mux selection. Bit 3 must remain one, bit 1 is reserved. Optional compatible WoL configuration precedes 001F=4000.",
-      "source": "SNLS505H 7.3.3 and table 8-78"
+      "scope": "Preflight MII and its 120 ns minimum IPG before changing any SFD pin. Then select RX/TX SFD muxes and apply this exceptional word. Confirm an alternative with TI before any RMII or RGMII sequence.",
+      "source": "SNLS505H 7.3.3 and table 8-78",
+      "interfaces": [
+        "MII"
+      ]
     },
     {
       "id": "rmii-entry",
@@ -700,7 +760,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 1 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-02",
@@ -709,7 +770,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 2 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-03",
@@ -718,7 +780,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 3 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-04",
@@ -727,7 +790,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 4 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-05",
@@ -736,7 +800,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 5 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-06",
@@ -745,7 +810,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 6 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-07",
@@ -754,7 +820,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 7 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-08",
@@ -763,7 +830,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 8 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-09",
@@ -772,7 +840,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 9 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-10",
@@ -781,7 +850,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 10 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-11",
@@ -790,7 +860,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 11 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-12",
@@ -799,7 +870,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 12 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-13",
@@ -808,7 +880,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 13 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-14",
@@ -817,7 +890,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 14 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-15",
@@ -826,7 +900,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 15 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-16",
@@ -835,7 +910,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 16 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-17",
@@ -844,7 +920,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 17 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-18",
@@ -853,7 +930,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 18 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-19",
@@ -862,7 +940,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 19 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-20",
@@ -871,7 +950,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 20 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     },
     {
       "id": "cable-break-21",
@@ -880,7 +960,8 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Optional EEE disable; Step 21 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": true
     },
     {
       "id": "cable-break-22",
@@ -889,39 +970,50 @@
       "procedure": "cable-break-profile",
       "ordinaryWrite": false,
       "scope": "Step 22 of the copper cable-break profile. Use only as part of this source sequence under its reset and restoration gates.",
-      "source": "SNLA383 3.1"
+      "source": "SNLA383 3.1",
+      "optional": false
     }
   ],
   "resetDomains": [
     {
       "id": "power-pin",
       "action": "POR or RESET_N",
-      "effect": "All domains reset; board strap levels latched.",
-      "source": "SNLS505H §§6.6–6.8,7.5.1"
+      "effect": "all",
+      "source": "SNLS505H §§6.6–6.8,7.5.1",
+      "strapAction": "relatch",
+      "interpretation": "All domains reset; board strap levels latched."
     },
     {
       "id": "phyrcr-hard",
       "action": "C22 001F=8000",
-      "effect": "Hardware-pin equivalent, relatches straps; selected despite table 8-1.",
-      "source": "SNLS505H §7.5.1 and table 8-30; SNLA437A §2.2.6"
+      "effect": "all",
+      "source": "SNLS505H §7.5.1 and table 8-30; SNLA437A §2.2.6",
+      "strapAction": "relatch",
+      "interpretation": "Hardware-pin equivalent, relatches straps; selected despite table 8-1."
     },
     {
       "id": "phyrcr-restart",
       "action": "C22 001F=4000",
-      "effect": "Restart digital logic; register settings retained, no strap reload. Inferred interpretation of soft reset in §7.4.4.2.",
-      "source": "SNLS505H §§7.3.3,7.4.4.2 and table 8-30; SNLA437A §2.3.4"
+      "effect": "digital restart; registers retained",
+      "source": "SNLS505H §§7.3.3,7.4.4.2 and table 8-30; SNLA437A §2.3.4",
+      "strapAction": "retain",
+      "interpretation": "Restart digital logic; register settings retained, no strap reload. Inferred interpretation of soft reset in §7.4.4.2."
     },
     {
       "id": "bmcr-pcs",
       "action": "C22 0000[15]=1",
-      "effect": "PCS reset; vendor registers retained and straps unchanged. Unspecified direct PCS membership requires fresh owned-field observations.",
-      "source": "SNLS505H table 8-1"
+      "effect": "PCS; vendor registers retained",
+      "source": "SNLS505H table 8-1",
+      "strapAction": "retain",
+      "interpretation": "PCS reset; vendor registers retained and straps unchanged. Unspecified direct PCS membership requires fresh owned-field observations."
     },
     {
       "id": "mmd-pcs",
       "action": "DEVAD 3 offset 0000[15]=1",
-      "effect": "Reset MMD 3, MMD 7 and PCS, retaining vendor fields. Invalidate standard EEE observations and any PCS-dependent state.",
-      "source": "SNLS505H table 8-137"
+      "effect": "MMD3, MMD7 and PCS; vendor registers retained",
+      "source": "SNLS505H table 8-137",
+      "strapAction": "no documented relatch",
+      "interpretation": "Reset MMD 3, MMD 7 and PCS, retaining vendor fields. Invalidate standard EEE observations and any PCS-dependent state."
     }
   ],
   "timings": [
@@ -944,13 +1036,31 @@
       "source": "SNLS505H 6.6 T3"
     },
     {
-      "value": 10,
+      "value": 64,
+      "unit": "ns",
+      "qualifier": "TYP",
+      "start": "power-up configuration latch",
+      "end": "strap pins switch to outputs",
+      "conditions": "power-up, figure 6-1",
+      "source": "SNLS505H 6.6 T4"
+    },
+    {
+      "value": 1.5,
+      "unit": "s",
+      "qualifier": "TYP",
+      "start": "power application",
+      "end": "fast link pulse",
+      "conditions": "AN enabled, figure 6-1",
+      "source": "SNLS505H 6.6 T5"
+    },
+    {
+      "value": 100,
       "unit": "us",
       "qualifier": "MIN",
-      "start": "RESET_N assertion",
+      "start": "external clock stable",
       "end": "RESET_N release",
-      "conditions": "stable XI for at least 1 us during low",
-      "source": "SNLS505H 6.8 T1"
+      "conditions": "External clock absent at supply ramp. Hold RESET_N low until this interval elapses.",
+      "source": "SNLS505H figure 6-1 note"
     },
     {
       "value": 1,
@@ -962,13 +1072,22 @@
       "source": "SNLS505H 6.7 T1"
     },
     {
-      "value": 100,
+      "value": 10,
       "unit": "us",
       "qualifier": "MIN",
-      "start": "external clock stable",
+      "start": "RESET_N assertion",
       "end": "RESET_N release",
-      "conditions": "External clock absent at supply ramp. Hold RESET_N low until this interval elapses.",
-      "source": "SNLS505H figure 6-1 note"
+      "conditions": "power-up with initially unstable XI, figure 6-2",
+      "source": "SNLS505H 6.7 T2"
+    },
+    {
+      "value": 10,
+      "unit": "us",
+      "qualifier": "MIN",
+      "start": "RESET_N assertion",
+      "end": "RESET_N release",
+      "conditions": "stable XI for at least 1 us during low",
+      "source": "SNLS505H 6.8 T1"
     },
     {
       "value": 2,
@@ -1007,13 +1126,58 @@
       "source": "SNLS505H 6.8 T5"
     },
     {
+      "value": 48,
+      "unit": "ns",
+      "qualifier": "TYP",
+      "start": "TX_CLK rising with TX_EN asserted",
+      "end": "start of MDI /J/ symbol",
+      "conditions": "100BASE-TX MII, no FAST_RXDV footnote",
+      "source": "SNLS505H 6.20 T1 MII TYP"
+    },
+    {
+      "value": 56,
+      "unit": "ns",
+      "qualifier": "MAX",
+      "start": "TX_CLK rising with TX_EN asserted",
+      "end": "start of MDI /J/ symbol",
+      "conditions": "100BASE-TX MII, no FAST_RXDV footnote",
+      "source": "SNLS505H 6.20 T1 MII MAX"
+    },
+    {
       "value": 170,
       "unit": "ns",
       "qualifier": "TYP",
       "start": "TX_CLK rising with TX_EN asserted",
       "end": "start of MDI /J/ symbol",
       "conditions": "100BASE-TX RGMII, FAST_RXDV footnote 2",
-      "source": "SNLS505H 6.20 T1"
+      "source": "SNLS505H 6.20 T1 RGMII TYP"
+    },
+    {
+      "value": 102,
+      "unit": "ns",
+      "qualifier": "TYP",
+      "start": "TX_CLK rising with TX_EN asserted",
+      "end": "start of MDI /J/ symbol",
+      "conditions": "100BASE-TX RMII, FAST_RXDV footnote 1",
+      "source": "SNLS505H 6.20 T1 RMII TYP"
+    },
+    {
+      "value": 194,
+      "unit": "ns",
+      "qualifier": "TYP",
+      "start": "start of MDI /J/ symbol",
+      "end": "RX_CLK rising with RX_DV asserted",
+      "conditions": "100BASE-TX MII, FAST_RXDV footnote 1",
+      "source": "SNLS505H 6.21 T2 MII TYP"
+    },
+    {
+      "value": 218,
+      "unit": "ns",
+      "qualifier": "MAX",
+      "start": "start of MDI /J/ symbol",
+      "end": "RX_CLK rising with RX_DV asserted",
+      "conditions": "100BASE-TX MII, FAST_RXDV footnote 1",
+      "source": "SNLS505H 6.21 T2 MII MAX"
     },
     {
       "value": 159,
@@ -1022,7 +1186,16 @@
       "start": "start of MDI /J/ symbol",
       "end": "RX_CLK rising with RX_DV asserted",
       "conditions": "100BASE-TX RGMII, FAST_RXDV footnote 2",
-      "source": "SNLS505H 6.21 T2"
+      "source": "SNLS505H 6.21 T2 RGMII TYP"
+    },
+    {
+      "value": 272,
+      "unit": "ns",
+      "qualifier": "TYP",
+      "start": "start of MDI /J/ symbol",
+      "end": "RX_CLK rising with RX_DV asserted",
+      "conditions": "100BASE-TX RMII, FAST_RXDV footnote 1",
+      "source": "SNLS505H 6.21 T2 RMII TYP"
     }
   ],
   "reads": [
@@ -1186,8 +1359,8 @@
       "procedure": "sfd",
       "source": "SNLS505H §§7.3.3,7.3.4, tables 8-33/78/81/82",
       "conflict": "PTPPSEL reset 000 has no function listed and 001/010 are reserved. GENCFG bit 1 is reserved but the feature recipe writes it.",
-      "decision": "Keep default unassigned. Only the SFD sequence may apply 0456=000A, with bit 3 compatible; optional WoL sets RXFS[12].",
-      "nextEvidence": "Confirm routing after reset and qualify SFD timing/restore with both WoL choices."
+      "decision": "Keep default routing unassigned. Scope 0456=000A to MII because bit 3 selects a 120 ns minimum IPG. Optional WoL affects RXFS[12].",
+      "nextEvidence": "Confirm routing after reset and qualify SFD timing/restore with both WoL choices. Obtain a source-backed SFD setup for RMII/RGMII."
     },
     {
       "id": "source-gaps",
@@ -1204,6 +1377,22 @@
       "conflict": "04D1[3] selects bypass and [0] description also refers to enabling/ignoring standard registers. SNLA328 legacy LPI uses a DP83825-only reserved bit on this part.",
       "decision": "Keep exact vendor and MMD observations with bypass state, constrain advertising to copper AN and use the documented MAC TX_ER route. No legacy 04D1[12] grant.",
       "nextEvidence": "Verify both strap paths, AN advertisement and negotiated LPI on a capable partner."
+    },
+    {
+      "id": "wol-mac-order",
+      "procedure": "wol",
+      "source": "SNLS505H tables 8-89..91 and SNLA261A §2.2, tables 2-3/4/6/7",
+      "conflict": "The exact-part register names number the MAC bytes from the opposite end to the leftmost-first octets in the application note. Some example captions also reverse the byte labels.",
+      "decision": "Use the DP83822 input octets and literal words in wireExamples. Apply password and pattern mappings independently.",
+      "nextEvidence": "Request TI clarification of MAC byte labels and check recognition and rejection with asymmetric octets on each qualified medium."
+    },
+    {
+      "id": "misr-enable-retention",
+      "procedure": "irq",
+      "source": "SNLS505H §8 access legend and tables 8-18/19",
+      "conflict": "The low-byte enables have type RC/W. The legend defines RC and R/W separately. Enable retention after reading a live MISR is unspecified.",
+      "decision": "Keep desired enables across collector reads and track installation as uncertain. Route the event byte and partial samples through the collector. Do not infer rearm timing or a lossless interval.",
+      "nextEvidence": "Ask TI whether reading clears enable bits. On an identified fixture distinguish retained, cleared and explicitly rearmed masks using successive independent events."
     }
   ],
   "strapModes": {
@@ -1351,7 +1540,8 @@
     "registers": "TI SNLS505H, July 2026, sections 4-8, ordering addendum. Archive URL, retrieval, SHA-256 and rights are in docs/reference/source/provenance.json and docs/reference/THIRD_PARTY_NOTICES.md.",
     "supplemental": "TI SNLA253 (Aug 2016), SNLA437A (Oct 2025), SNLA266B (Apr 2025), SNLA261A (Mar 2024), SNLU179 (Aug 2016), SNLA438 (Sep 2023). Each procedure cites the applicable sections or field table. The SNLA328 (Oct 2019) programmable legacy LPI example applies specifically to DP83825I.",
     "cableBreak": "TI SNLA383, Adrian Kam, August 2023, sections 2, 3.1 and 3.2. Read 2026-11-27 from https://www.ti.com/lit/an/snla383/snla383.pdf. Copyright Texas Instruments. Numerical trace in recipes; vendor fixture is separate evidence.",
-    "implementationComparisons": "docs/reference/library-family.md and docs/reports/implementation/62-p22-source-subtypes.md identify exact repositories, revisions, file licenses and review scope. They are comparison evidence only."
+    "implementationComparisons": "docs/reference/library-family.md and docs/reports/implementation/62-p22-source-subtypes.md identify exact repositories, revisions, file licenses and review scope. They are comparison evidence only.",
+    "optical": "TI SNLA479, Gerome Cacho, April 2025, tables 1-1/2/5 and 2-1, reviewed 2026-11-27 at https://www.ti.com/lit/pdf/snla479. Copyright Texas Instruments. Used the DP83822 rows for SD, reverse loopback and asymmetric FEF outcomes."
   },
   "registers": [
     {
@@ -7098,7 +7288,7 @@
       "devad": 31,
       "offset": "0x04A1",
       "ordinaryWriteMask": "0x1000",
-      "neutralZeroMask": "0x00E3",
+      "neutralZeroMask": "0x00FF",
       "collector": true,
       "fields": [
         {
@@ -7139,7 +7329,7 @@
           "reset": "0",
           "description": "Latched SFD error. Retain in the single read-clear sample.",
           "procedure": "wol",
-          "writePolicy": "status-w1s",
+          "writePolicy": "read-only",
           "ownerNote": "The collector retains this read-clear event. Write zero to this status bit when changing the interrupt-source selector."
         },
         {
@@ -7150,7 +7340,7 @@
           "reset": "0",
           "description": "Latched bad CRC; collect before clearing.",
           "procedure": "wol",
-          "writePolicy": "status-w1s",
+          "writePolicy": "read-only",
           "ownerNote": "The collector retains this read-clear event. Write zero to this status bit when changing the interrupt-source selector."
         },
         {
@@ -7161,7 +7351,7 @@
           "reset": "0",
           "description": "1 records an invalid Secure-ON password.",
           "procedure": "wol",
-          "writePolicy": "status-w1s",
+          "writePolicy": "read-only",
           "ownerNote": "The collector retains this read-clear event. Write zero to this status bit when changing the interrupt-source selector."
         },
         {
@@ -7170,7 +7360,7 @@
           "name": "Reserved",
           "access": "R, RC, RH/W1S",
           "reset": "0",
-          "description": "Reserved. Preserve the documented partition and exclude it from ordinary field writes.",
+          "description": "Reserved. Drive zero on selector updates. The access cell includes event status and read-clear.",
           "procedure": null,
           "writePolicy": "reserved"
         },
@@ -7182,7 +7372,7 @@
           "reset": "0",
           "description": "A valid configured pattern was received.",
           "procedure": "wol",
-          "writePolicy": "status-w1s",
+          "writePolicy": "read-only",
           "ownerNote": "The collector retains this read-clear event. Write zero to this status bit when changing the interrupt-source selector."
         },
         {
@@ -7193,7 +7383,7 @@
           "reset": "0",
           "description": "A valid Magic packet was received.",
           "procedure": "wol",
-          "writePolicy": "status-w1s",
+          "writePolicy": "read-only",
           "ownerNote": "The collector retains this read-clear event. Write zero to this status bit when changing the interrupt-source selector."
         }
       ]
@@ -7215,7 +7405,7 @@
           "name": "MAC Destination Address Byte 4",
           "access": "R/W",
           "reset": "0",
-          "description": "Eight-bit destination address component for the perfect-match comparator. The byte number and lane follow this table.",
+          "description": "Printed MAC byte label retained. SNLA261A assigns packet octet 1 to this lane, counting the first octet as zero.",
           "procedure": "wol",
           "writePolicy": "owned-setting"
         },
@@ -7225,7 +7415,7 @@
           "name": "MAC Destination Address Byte 5",
           "access": "R/W",
           "reset": "0",
-          "description": "Eight-bit destination address component for the perfect-match comparator. The byte number and lane follow this table.",
+          "description": "Printed MAC byte label retained. SNLA261A assigns packet octet 0 to this lane, counting the first octet as zero.",
           "procedure": "wol",
           "writePolicy": "owned-setting"
         }
@@ -7248,7 +7438,7 @@
           "name": "MAC Destination Address Byte 2",
           "access": "R/W",
           "reset": "0",
-          "description": "Eight-bit destination address component for the perfect-match comparator. The byte number and lane follow this table.",
+          "description": "Printed MAC byte label retained. SNLA261A assigns packet octet 3 to this lane, counting the first octet as zero.",
           "procedure": "wol",
           "writePolicy": "owned-setting"
         },
@@ -7258,7 +7448,7 @@
           "name": "MAC Destination Address Byte 3",
           "access": "R/W",
           "reset": "0",
-          "description": "Eight-bit destination address component for the perfect-match comparator. The byte number and lane follow this table.",
+          "description": "Printed MAC byte label retained. SNLA261A assigns packet octet 2 to this lane, counting the first octet as zero.",
           "procedure": "wol",
           "writePolicy": "owned-setting"
         }
@@ -7281,7 +7471,7 @@
           "name": "MAC Destination Address Byte 0",
           "access": "R/W",
           "reset": "0",
-          "description": "Eight-bit destination address component for the perfect-match comparator. The byte number and lane follow this table.",
+          "description": "Printed MAC byte label retained. SNLA261A assigns packet octet 5 to this lane, counting the first octet as zero.",
           "procedure": "wol",
           "writePolicy": "owned-setting"
         },
@@ -7291,7 +7481,7 @@
           "name": "MAC Destination Address Byte 1",
           "access": "R/W",
           "reset": "0",
-          "description": "Eight-bit destination address component for the perfect-match comparator. The byte number and lane follow this table.",
+          "description": "Printed MAC byte label retained. SNLA261A assigns packet octet 4 to this lane, counting the first octet as zero.",
           "procedure": "wol",
           "writePolicy": "owned-setting"
         }

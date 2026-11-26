@@ -19,6 +19,18 @@ The standard-library checker runs through `python tools/verify_ledger.py`.
 The Python tests also compare the ledger against original PDF cells when
 PyMuPDF is available. [Research report](../reports/implementation/62-p22-source-subtypes.md)
 
+For a wake interrupt-source update, compose RXFS from the owned selector.
+Keep the complete low byte zero, including reserved event lanes [4:2].
+For packet matching, `wol.wireExamples` gives the packet octets and the
+corresponding register words. The MAC labels printed in tables 8-89 through
+8-91 count from the opposite end to TI's leftmost-first example. The password
+and pattern tables have their own byte numbering. [TI wake examples](../reference/source/TI-Wake-on-LAN-SNLA261A.pdf)
+
+Each SNLA383 step has an `optional` flag. Only the EEE-disable step may be
+omitted from that profile. The separate SFD write at 0456 selects a 120 ns
+minimum IPG and requires MII. The timing rows distinguish interface, reference
+edges and measurement conditions for 100BASE-TX transmit and receive latency.
+
 ## AI/AE comparison
 
 Start with the [A field map](dp83826a.json) and [A procedures](dp83826a-procedures.json)
