@@ -123,8 +123,8 @@ Status DP8382x::_admitFunctionalMode(const IoBudget& budget,uint64_t raw) const 
   if (_featureProcedureActive() || _configuring || _initStep!=InitStep::COMMAND ||
       _result.reset!=ResetKind::HARD || _functionalMode.desired==FunctionalMode::RETAIN) { return Status::Ok(); }
   // Reserve HARD, first clear poll, exact script and both post-command
-  // identity/SOR/RCSR passes before the initial disruptive write. Variable
-  // repeat polls and subsequent owned restoration use the same finite budget.
+  // identity/SOR/RCSR passes, then include the required link and feature replay.
+  // Additional hardware polls consume the remaining aggregate allowance.
   const bool eee=_functionalMode.desired==FunctionalMode::EXTENDED_REACH_EEE;
   const uint32_t rows=_functionalMode.desired==FunctionalMode::DEFAULT ? 0U : eee ? 32U : 13U;
   uint32_t frames=9, callbacks=5;
@@ -136,6 +136,21 @@ Status DP8382x::_admitFunctionalMode(const IoBudget& budget,uint64_t raw) const 
   }
   if (eee && _eeeControl()!=2) { frames+=5; ++callbacks; } // Optional table 7-92 RX controls.
   if (eee) { frames+=12; callbacks+=3; } // Advertisement write/read and 04D1 read.
+  if (_settings.desiredValid) {
+    const bool an = _settings.desired.mode == LinkMode::AUTONEGOTIATED;
+    frames += an ? 24U : 20U;
+    callbacks += an ? 18U : 15U;
+  }
+  if (_eee.rxClock != PcsRxClock::RETAIN) { frames += 9U; callbacks += 2U; }
+  if (_eee.desiredValid) {
+    frames += _eee.desired.enabled ? 8U : 4U;
+    callbacks += _eee.desired.enabled ? 2U : 1U;
+  }
+  _addOwnedReplayCost(frames, callbacks);
+  if (_loopRestoreTail) { frames += 9U; callbacks += 6U; }
+  if (_bistRestoreTail && _bistSavedIpgValid) { frames += 2U; callbacks += 2U; }
+  if (_bistRestoreTail && _bistSavedPacketValid) { frames += 3U; callbacks += 2U; }
+  if (_cableRestoreTail) { frames += 57U; callbacks += 14U; }
   const auto& bounds=_config.transport.bounds;
   const uint64_t floor=uint64_t{frames}*bounds.frameUs+uint64_t{callbacks}*bounds.fixedUs+
                        uint64_t{4}*bounds.clockLagUs+wait;
@@ -639,7 +654,7 @@ Status DP8382x::_setLpi(bool enabled,const LpiOptions& options,LpiResult& result
   if (upper>=budget.deadlineUs || bound>=budget.deadlineUs-upper) { return eeeTimeout(TimeoutDetail::BOUND_ADMISSION); }
 
   LpiResult next;
-  IoBudget remaining=budget;
+  IoBudget remaining{budget.deadlineUs,frameCount};
   for (uint8_t phase=0;phase<phases;++phase) {
     // Table 7-92: configure bilateral force first, request TX second. Exit
     // in reverse order. A failed entry/exit keeps the independently owned
@@ -662,7 +677,10 @@ Status DP8382x::_setLpi(bool enabled,const LpiOptions& options,LpiResult& result
     }
     bool called=false;
     _lpiWorking=true;
-    const auto status=_execute(batch,remaining,&called);
+    // Recheck the remaining mutations and readbacks at guarded callback entry.
+    const uint64_t reserve=uint64_t{static_cast<unsigned>(phases-phase)}*bounds.fixedUs+
+        uint64_t{remaining.maxFrames}*bounds.frameUs;
+    const auto status=_execute(batch,remaining,&called,false,Traffic::RAW,32,reserve);
     _lpiWorking=false;
     next.status=status;
     if (called) {

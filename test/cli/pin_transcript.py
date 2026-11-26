@@ -198,6 +198,14 @@ class PinTranscript(unittest.TestCase):
                 self.assertEqual(row.get("gate"), None if options else "board")
             self.assert_silent(rows[0], rows[-1])
 
+    def test_p25_clkout_status(self):
+        for role, wiring in (("leader", "rmii25"), ("follower", "rmii50")):
+            stream = "".join(f"controls interface {wiring} 0 0 1518 50 0 {clock} keep\n"
+                             for clock in ("led1", "clkout25")).encode()
+            rows = records(invoke(stream, "--variant", "DP83825I", "--rmii-role", role, ATTEST).stdout)
+            self.assertEqual([(r["primary"], int(r["io_cfg1"]) & 64, int(r["clk_led_status"]) & 1)
+                              for r in rows], [("OK", 64, 1), ("OK", 0, 0)])
+
     def test_p25_dsp_owner_and_register12(self):
         opts = ("--variant", "DP83825I", "--rmii-role", "follower", ATTEST)
         stream = (b"link collect register12\ncontrols analog keep keep keep keep dsp,cagc,0xc000,0x4000\n"

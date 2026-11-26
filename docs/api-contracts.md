@@ -920,16 +920,20 @@ restoration to the separately admitted owner. [A field and procedure coverage](f
 An explicit functional mode in `InitializeOptions` starts from a HARD reset.
 The default mode needs no table writes. The other three selections execute
 SNLS638C tables 6-5 to 6-7 through the same bounded initializer. A failed
-table prefix needs a new HARD allowance. Use the three-output `takeResult`
+table prefix needs a new HARD allowance. Before issuing HARD, the owner
+reserves the script, waits, link profile and owned feature restoration. Use the three-output `takeResult`
 overload to keep the frozen prefix and restart evidence. A completed table
 does not measure link reach. `EEE_PCS` targets DEVAD 3 offset 0. The PHY
-can lose IEEE state independently of the programmed vendor words.
+can lose IEEE state independently of the programmed vendor words. An
+independent read of active PCS reset freezes a pending dependent operation.
 
 Use `acquireEvidence` with `EvidenceSource::REGISTER_12` only when the
 owner intends to consume C22 000C. Normal interrupt service reads MISR1/2.
 The collector retains each successful read across a failing next frame or
 controller release. The vendor aliases share the same exclusions. The raw
 receive-error word is preserved because table 7-24 gives conflicting widths.
+A consumed down-link sample invalidates prior MSE eligibility, including when
+the following read fails. Refresh the link to qualify the next MSE acquisition.
 
 An approved alternate use of pin 2 can remove a leader's reference-clock
 output. The board must arrange a recovery route for a deep-power transition.

@@ -75,7 +75,7 @@ Status DP8382x::_validateInterruptSettings(const InterruptSettings& s) const noe
       return invalidIrq("Owned wake interrupt route requires enabled delivery");
     }
   }
-  if (_eee.desiredValid && _eee.desired.enabled && s.pin != InterruptPin::INTR_PWRDN) {
+  if (_config.variant!=Variant::DP83825I && _eee.desiredValid && _eee.desired.enabled && s.pin != InterruptPin::INTR_PWRDN) {
     return invalidIrq("Disable EEE before conflicting LED interrupt routing");
   }
   if (!s.maintenanceAdmitted || !s.pinAvailable) { return invalidIrq("Interrupt pin maintenance not admitted"); }

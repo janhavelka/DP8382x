@@ -599,10 +599,10 @@ def eee(c, saved):
         c.restoration = "PASS"
 
 
-def wake_view(enabled=False, secure=False, pulse=0, pending=False, event=False):
+def wake_view(p25, enabled=False, secure=False, pulse=0, pending=False, event=False):
     control = 0x1000 | int(not pulse) << 8 | pulse << 9 | int(enabled) * 0x81 | int(secure) << 5 | int(pending) << 11
     return dict(desired_valid=1, trust=1, stale=0, route=0, control_valid=1, control=control, enabled=int(enabled),
-                secure=int(secure), level=int(not pulse), pulse=pulse, crc=1, magic=int(enabled), match_word_mask=63,
+                secure=int(secure), level=int(not pulse), pulse=pulse, crc=1, magic=int(enabled), match_word_mask=7 if p25 and not secure else 63,
                 rxfs_valid=1, rxfs=0x1000 | int(event), misr2_valid=1, misr2=int(event) << 9)
 
 
@@ -622,7 +622,7 @@ def check_baseline(row, text, mode, a_grade=False):
     elif text == EEE_BASE:
         eee_terminal(row, False, a_grade)
     elif text in (WOL_BASE, "wol acknowledge"):
-        operation(row, WOL, wake_view(pending=text == WOL_BASE))
+        operation(row, WOL, wake_view(mode == "none", pending=text == WOL_BASE))
     else:
         raise AssertionFailed("unrecognized compiled control setup", row)
 
@@ -633,17 +633,17 @@ def wol(c):
     pulse = 2 if c.spec.id == "wol-pulse" else 0
     password = " 2a:2b:2c:2d:2e:2f" if secure else ""
     command = f"wol configure {'secure' if secure else 'magic'} status 1 {'pulse' if pulse else 'level'} {pulse} {MAC}{password}"
-    target = wake_view(True, secure, pulse)
+    target = wake_view(c.p25, True, secure, pulse)
     pending = False
     try:
-        yield from inspect(c, "wol read", WOL, wake_view(), verdict="BLOCKED")
+        yield from inspect(c, "wol read", WOL, wake_view(c.p25), verdict="BLOCKED")
         row = yield from issue_mutation(c, command, "operation")
         operation(row, WOL, target)
         yield from inspect(c, "wol read", WOL, target)
         yield from inspect(c, "wol status", WOL, target)
         pending = not pulse
         yield from inject(c, "inject-wake")
-        yield from inspect(c, "wol read", WOL, wake_view(True, secure, pulse, pending=pending, event=True))
+        yield from inspect(c, "wol read", WOL, wake_view(c.p25, True, secure, pulse, pending=pending, event=True))
         if pending:
             row = yield from c.command("wol acknowledge", "operation")
             operation(row, WOL, target)
@@ -661,7 +661,7 @@ def wol(c):
             require(clean(row), row, "current wake policy unavailable during cleanup")
             feature_fields(row, WOL)
             if int(row.fields["control"]) & 0x0800:
-                owned = wake_view(True, secure, pending=True)
+                owned = wake_view(c.p25, True, secure, pending=True)
                 del owned["rxfs"], owned["misr2"]
                 evidence(row, owned, "owned level wake cannot be proved for cleanup")
                 require(int(row.fields["rxfs"]) & 0x1000, row, "wake selector is unavailable during cleanup")
@@ -672,9 +672,9 @@ def wol(c):
     try:
         yield from persistent_guard(c)
         row = yield from c.command(WOL_BASE, "operation", True)
-        operation(row, WOL, wake_view())
-        yield from inspect(c, "wol read", WOL, wake_view(), cleanup=True)
-        yield from inspect(c, "wol status", WOL, wake_view(), cleanup=True)
+        operation(row, WOL, wake_view(c.p25))
+        yield from inspect(c, "wol read", WOL, wake_view(c.p25), cleanup=True)
+        yield from inspect(c, "wol status", WOL, wake_view(c.p25), cleanup=True)
     except AssertionFailed as error:
         cleanup_error(c, error)
     if not c.cleanup_failure:

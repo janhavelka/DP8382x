@@ -141,6 +141,14 @@ void p25ClockLossAndGuards() {
     bus.clockLossApproved = approved;
     ready(driver, bus);
     auto request = settings();
+    if (!approved) {
+      request.clockOutput=ClockOutput::LED1;
+      InterfaceResult denied;
+      const auto before=bus.calls, clock=bus.clocks;
+      CHECK(driver.configureInterface(request,denied,{1000000,256}).is(Err::INVALID_CONFIG));
+      CHECK(bus.calls==before && bus.clocks==clock);
+      request.clockOutput=ClockOutput::UNOWNED;
+    }
     request.isolationOwned = request.isolate = true;
     InterfaceResult output;
     const auto calls = bus.calls, clocks = bus.clocks;
@@ -381,6 +389,42 @@ void p25Events() {
   }
 }
 
+void p25ClockOutputAndIrq(bool follower, bool irqFirst) {
+  Controller bus;
+  Driver driver;
+  p25Board(bus,follower,follower,follower);
+  bus.clockLossApproved=true;
+  ready(driver,bus);
+  auto interface=settings();
+  interface.rmiiClock=bus.boardRole;
+  interface.referenceClockMHz=follower ? 50 : 25;
+  // 0302[6] selects CLKOUT25 availability. The pin 2 mux is independent.
+  for (auto route : {ClockOutput::CLKOUT25, ClockOutput::LED1}) {
+    interface.clockOutput=route;
+    InterfaceResult result;
+    CHECK(driver.configureInterface(interface,result,{1000000,256}).ok());
+    CHECK((result.interfaceState.raw[4]&64U)==(route==ClockOutput::LED1?64U:0U));
+    CHECK((result.interfaceState.raw[7]&1U)==(route==ClockOutput::LED1?1U:0U));
+  }
+  InterruptSettings irq;
+  irq.pin=InterruptPin::LED2;
+  irq.globalEnable=irq.pinAvailable=irq.maintenanceAdmitted=true;
+  EeeSettings eee;
+  eee.enabled=eee.maintenanceAdmitted=true;
+  OperationToken token;
+  for (bool first : {true,false}) {
+    const auto status=first==irqFirst ? driver.startConfigureInterrupts(irq,budget(),token) :
+                                        driver.startConfigureEee(eee,budget(),token);
+    CHECK(status.inProgress());
+    CHECK(drain(driver,bus,token).ok() && take(driver,token).persistentRestored);
+  }
+  CHECK(driver.startInitialize({ResetKind::HARD},budget(),token).inProgress());
+  CHECK(drain(driver,bus,token).ok() && take(driver,token).persistentRestored);
+  CHECK((bus.ext[0x305]&7U)==4 && (bus.ext[0x302]&64U)==64 && bus.mmd7[60]==2);
+  CHECK(driver.interruptSnapshot().trust==ConfigurationTrust::VERIFIED);
+  CHECK(driver.interfaceSnapshot().trust==ConfigurationTrust::VERIFIED);
+}
+
 void p25Outputs() {
   for (bool follower : {false, true}) {
     Controller bus;
@@ -388,12 +432,21 @@ void p25Outputs() {
     p25Board(bus,follower,follower,follower);
     bus.clockLossApproved=true;
     ready(driver,bus);
+    p25ClockOutputAndIrq(follower,false);
+    p25ClockOutputAndIrq(follower,true);
     // RCSR[5] is reserved on this RMII-only PHY. Test a zero readback.
     bus.words[23] &= 0xFFDF;
     PinResult result;
     PinSettings pins;
     pins.maintenanceAdmitted=pins.macStopped=pins.outputsQuiesced=true;
     pins.availableMask=5;
+    pins.pins[0].function=PinFunction::LED;
+    // LED0 source plus drive: 12 frames / four callbacks, cost 80 us.
+    const auto beforePins=bus.frames;
+    result.attemptedFrames=999;
+    bus.delayedClock=bus.clocks+2;
+    CHECK(driver.configurePins(pins,result,{bus.now+321U,12}).is(Err::OPERATION_TIMEOUT));
+    CHECK(bus.frames==beforePins && result.attemptedFrames==999 && !driver.pinsSnapshot().desiredValid);
     pins.pins[0].function=pins.pins[2].function=PinFunction::LED;
     pins.pins[2].drive=LedDrive::HIGH;
     pins.pins[2].polarity=LedPolarity::ACTIVE_HIGH;
@@ -445,6 +498,25 @@ void p25Outputs() {
     const auto evidence=driver.evidenceSnapshot();
     CHECK(evidence.samples[static_cast<unsigned>(EvidenceSource::RXFS)].eventBits==0xE1);
     CHECK(evidence.samples[static_cast<unsigned>(EvidenceSource::MISR2)].wakeSeen);
+    // Plain Magic Packet rekey, observation and HARD replay never access the password.
+    const auto first=bus.frames;
+    wake.secureOn=false;
+    wake.mac[0]=0xEE;
+    CHECK(driver.startConfigureWake(wake,budget(),token).inProgress());
+    CHECK(drain(driver,bus,token).ok()); take(driver,token);
+    WakeSnapshot observed;
+    CHECK(driver.readWakeStatus(observed,{1000000,21}).ok() && observed.credentialValidMask==7);
+    CHECK(driver.startInitialize({ResetKind::HARD},budget(),token).inProgress());
+    CHECK(drain(driver,bus,token).ok() && take(driver,token).persistentRestored);
+    for (unsigned i=first;i<bus.frames;++i) {
+      CHECK(bus.trace[i].target<0x4A5 || bus.trace[i].target>0x4A7);
+    }
+    bus.ext[0x467]^=8;
+    uint16_t strap=0;
+    bus.releaseCall=static_cast<int>(bus.calls);
+    CHECK(!driver.readMmd(31,0x467,strap,{1000000,4}).ok());
+    CHECK(driver.interruptSnapshot().trust==ConfigurationTrust::DIRTY &&
+          driver.wakeSnapshot().trust==ConfigurationTrust::DIRTY);
   }
   const uint16_t coarse[]={0x00E0,0x0DC0,0x0D80,0x0D40,0x0D00,0x0CC0,0x0C80,0x0C40,0x0C00,
                            0x0BC0,0x0B80,0x0B40,0x0B00,0x0AC0,0x0A80,0x0A40,0x0A00};

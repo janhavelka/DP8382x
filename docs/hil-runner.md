@@ -429,6 +429,9 @@ with matching `--fixture-rmii-role` and `--rmii-role` set to `leader` or
 `follower` for a compiled host campaign. Use `--reinitialize` when the
 case requires separately budgeted restoration. The controls and diagnostics
 modules declare their exact-part case sets. The campaign checks its entry
-state and reads back the restored state. Replay uses the declared variant,
-role, bounded commands and intervention receipts. A stock native feature
+state and reads back the restored state. Wake setup and replay require
+`match_word_mask=7` for plain DP83825I Magic Packet and `63` for Secure-ON.
+Older plain-mode transcripts reporting 63 fail that check because they
+accessed the password words. Replay uses the declared variant, role,
+bounded commands and intervention receipts. A stock native feature
 grant and the physical Q15 observations require board-specific evidence.

@@ -167,6 +167,14 @@ void p25MseVectors(bool follower) {
   bus.failFrame=-1;
   bus.words[1]=0;
   bus.words[16]=0;
+  EvidenceSnapshot evidence;
+  bus.failFrame=static_cast<int>(bus.frames+1);
+  CHECK(driver.acquireEvidence(evidenceBit(EvidenceSource::PHYSTS)|evidenceBit(EvidenceSource::BMSR),
+                               evidence,{1000000,2}).is(Err::MDIO_TIMEOUT));
+  start=bus.frames;
+  CHECK(driver.linkSnapshot().stale && driver.readSignalQuality(out,{1000000,4}).is(Err::RESULT_NOT_AVAILABLE));
+  CHECK(bus.frames==start && out.rawMse==0x33C);
+  bus.failFrame=-1;
   CHECK(driver.readLinkStatus(link,{1000000,32}).ok() && !link.linkUp);
   start=bus.frames;
   CHECK(driver.readSignalQuality(out,{1000000,4}).is(Err::RESULT_NOT_AVAILABLE) && bus.frames==start);
@@ -463,8 +471,54 @@ void p25DspFaults(bool follower) {
   }
 }
 
+void p25DiagnosticOwnership(bool follower) {
+  for (bool modeFirst : {false,true}) {
+    Controller bus;
+    Driver driver;
+    p25Board(bus,follower,follower,follower);
+    bus.clockLossApproved=true;
+    ready(driver,bus);
+    AnalogSettings analog;
+    analog.maintenanceAdmitted=analog.macStopped=analog.fixtureAdmitted=true;
+    analog.dspMasks[1]=analog.dspValues[1]=0x80; // 030F only
+    OperationToken token;
+    const InitializeOptions mode{ResetKind::HARD,FunctionalMode::EXTENDED_REACH_EEE};
+    CHECK((modeFirst ? driver.startInitialize(mode,budget(),token) :
+                       driver.startConfigureAnalog(analog,budget(),token)).inProgress());
+    CHECK(drain(driver,bus,token).ok()); take(driver,token);
+    const auto calls=bus.calls, clocks=bus.clocks;
+    CHECK((modeFirst ? driver.startConfigureAnalog(analog,budget(),token) :
+                       driver.startInitialize(mode,budget(),token)).is(Err::INVALID_CONFIG));
+    CHECK(bus.calls==calls && bus.clocks==clocks);
+  }
+  for (bool stopping : {false,true}) for (uint16_t change : std::array<uint16_t,2>{0x0400,0x0800}) {
+    Controller bus;
+    Driver driver;
+    p25Board(bus,follower,follower,follower);
+    ready(driver,bus);
+    CollisionOptions options;
+    options.registerOnly=options.macStopped=options.maintenanceAdmitted=true;
+    options.speed=LinkSpeed::MBPS_100;
+    OperationToken token;
+    CHECK(driver.startCollisionTest(options,budget(),token).inProgress());
+    CHECK(poll(driver,bus,token).inProgress());
+    if (stopping) {
+      CHECK(drain(driver,bus,token).ok()); take(driver,token);
+      CHECK(driver.stopCollisionTest(budget(),token).inProgress());
+    }
+    bus.words[0]|=change;
+    const auto bmcr=bus.words[0];
+    const auto before=bus.mutations;
+    CHECK(drain(driver,bus,token).is(Err::CONFIG_MISMATCH));
+    const auto result=take(driver,token);
+    CHECK(!result.electrical.controlsVerified && result.temporaryMayBeActive==stopping);
+    CHECK(bus.words[0]==bmcr && bus.mutations==before);
+  }
+}
+
 void p25Diagnostics() {
   for (bool follower : {false,true}) {
+    p25DiagnosticOwnership(follower);
     p25MseVectors(follower);
     p25LoopbackVectors(follower);
     p25BistVectors(follower);

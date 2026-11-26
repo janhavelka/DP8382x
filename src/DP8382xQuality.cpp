@@ -345,7 +345,7 @@ Status DP8382x::readSignalQuality(SignalQualitySnapshot& snapshot,const IoBudget
         _operation.cleanupOwed || _softwarePowerWord() != 0U ||
         (_power.desiredValid && (_power.desired.disablePll || _power.desired.activeSleep)) ||
         !context.valid || context.stale || !context.linkUp || context.temporaryMayBeActive ||
-        (context.rawBmcr & 0xC800U) != 0U) {
+        (context.rawBmcr & 0xCC00U) != 0U) {
       return fail(Status::Error(Err::RESULT_NOT_AVAILABLE,"DP83825I MSE requires a fresh connected link in normal power"));
     }
   }

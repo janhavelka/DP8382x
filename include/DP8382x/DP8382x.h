@@ -955,8 +955,8 @@ struct PinResult {
 /// @brief Clock/LED1 route ownership; uncertain selector paths stay rejected.
 enum class ClockOutput : uint8_t {
   UNOWNED, ///< Preserve the existing route and another pin owner's override.
-  CLKOUT25, ///< Original ENHANCED IO_CFG1[6]=0; application owns clock consumers.
-  LED1, ///< Original ENHANCED IO_CFG1[6]=1; release the CLKOUT consumer first.
+  CLKOUT25, ///< CLKOUT25 enabled (original ENHANCED and DP83825I). Application owns clock consumers.
+  LED1, ///< Disable CLKOUT25 after releasing its consumer. On DP83825I this does not select a pin 2 function.
   PLL, ///< A pin 30 PLL clock, LED0_GPIO_CFG[5:0]=0x29.
   RECOVERED ///< A pin 30 recovered 125 MHz clock, requires a live partner.
 };
@@ -1748,7 +1748,7 @@ public:
   /// @note Requires owned verified level policy. Neutral unrelated writes use one.
   /// Completed acknowledgement proves command acceptance, not an awakened host or deasserted pin.
   Status acknowledgeWake(const OperationBudget& budget, OperationToken& token) noexcept;
-  /// @brief Acquire control, six match words and collector RXFS/MISR2 once.
+  /// @brief Acquire control, owned match words and collector RXFS/MISR2 once. On DP83825I password access requires a Secure-ON profile.
   /// @param[out] snapshot Assigned only on complete success; cache retains partials on failure.
   /// @param[in] budget Exclusive deadline and finite frame allowance for the full pass.
   /// @return Terminal transport/admission status; destructive uncertainty remains in the collector.
@@ -2201,6 +2201,7 @@ private:
   void _pinPassCost(bool verifyOnly, uint32_t& frames, uint32_t& callbacks) const noexcept;
   void _wakePassCost(bool verifyOnly, uint32_t& frames, uint32_t& callbacks) const noexcept;
   void _interruptPassCost(bool verifyOnly, uint32_t& frames, uint32_t& callbacks) const noexcept;
+  void _addOwnedReplayCost(uint32_t& frames, uint32_t& callbacks) const noexcept;
   void _analogReplayCost(uint32_t& frames, uint32_t& callbacks) const noexcept;
   void _nextPinRow() noexcept;
   Status _finishPins(Status status) noexcept;
@@ -2219,6 +2220,7 @@ private:
   Status _advanceWake(Status status, bool called, const MdioBatch& batch) noexcept;
   Status _validateWake(const WakeSettings& settings) const noexcept;
   uint16_t _wakeControl() const noexcept;
+  uint8_t _wakeCredentialWords() const noexcept;
   uint8_t _wakePin() const noexcept;
   uint16_t _wakePinFunction() const noexcept;
   void _retainWakeControl(uint16_t value) noexcept;

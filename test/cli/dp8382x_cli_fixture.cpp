@@ -310,6 +310,7 @@ struct Bus {
     if (devad == 31) {
       if (offset < words.size()) return readDirect(static_cast<uint8_t>(offset));
       if (offset >= vendor.size()) return 0;
+      if (p25 && offset == 0x0308U) return static_cast<uint16_t>((vendor[offset] & 0xFFFEU) | ((vendor[0x0302] >> 6U) & 1U));
       if (!aGrade && !p25 && offset == 0x0308U) return (vendor[0x0302] & 0x0040U) != 0U ? 1U : 0U;
       const auto word = vendor[offset];
       if (offset == 0x04A1U) vendor[offset] &= 0xFF00U; // RXFS selector survives status consumption.

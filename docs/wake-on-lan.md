@@ -54,13 +54,15 @@ requires explicit maintenance and receive-traffic-quiesced admission. That is an
 application statement; detector-disable readback alone cannot prove silicon
 quiescence. Safe continuous live reconfiguration remains Q3 evidence work.
 
-1. Recheck identity and route prerequisites, then read control and all six match
-   words. Skip unchanged configuration under stable mask 17E1, including preserved
-   bit 6; there is no implicit acknowledgement.
+1. Recheck identity and route prerequisites, then read control and the owned match
+   words. On DP83825I, ordinary wake configuration uses the three MAC words.
+   A Secure-ON profile also owns the three password words. Skip unchanged
+   configuration under stable mask 17E1, preserving bit 6 and the pending
+   level indication.
 2. If a change is needed while any enable/Secure-ON/magic-match bit is set,
    harvest RXFS/MISR2, clear those three bits with W0C neutral one, and verify.
 3. Apply and verify a needed narrow pin mux while the detector is disabled.
-   Write and verify all six credential words when any credential differs.
+   Write and verify the owned credential words when any of them differs.
 4. Harvest RXFS/MISR2 before the final RXFCFG1 update, preserve reserved/unknown
    bits and compose W0C neutral one, then enable last and verify stable fields.
 5. Capture RXFS and drain the crossing MISR2 sample before establishing its
@@ -93,8 +95,10 @@ SNLA261A/DP83822 and shared TI Linux use write-one family behavior; that differe
 remains Q3, without overriding the exact-part table. Harvesting preserves evidence
 under either physical polarity, but cannot promise lossless multiplicity.
 
-`readWakeStatus` reads control and six credential words followed by one RXFS/MISR2
-harvest: 33 frames/eight callbacks. The whole pass is admitted before the first
+`readWakeStatus` reads control, the match words and one RXFS/MISR2 pair.
+The pass uses 33 frames in eight callbacks with six match words. On DP83825I
+without a Secure-ON profile it uses 21 frames in five callbacks and reports
+only the three MAC words as valid. The whole pass is admitted before the first
 frame. Ordinary output stays unchanged on failure. Cached valid words retain
 their values; failed requested words lose their current validity. Every successful
 destructive sample is retained immediately by the existing collector, even when

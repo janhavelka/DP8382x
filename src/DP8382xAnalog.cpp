@@ -44,11 +44,9 @@ bool DP8382x::_dspModeConflict(FunctionalMode mode,const AnalogSettings& setting
   if (mode==FunctionalMode::RETAIN || mode==FunctionalMode::DEFAULT) { return false; }
   const auto& masks=settings.dspMasks;
   // Every mode writes 0311/0404 as whole words. Table 6-7 also writes
-  // 0308/031C/031F/033E. A later replay cannot prove both owners' intent.
+  // 0308/030F/031C/031F/033E. A later replay cannot prove both owners' intent.
   return masks[group(DspControl::CAGC_MAPPING)]!=0U || masks[group(DspControl::LINE_DRIVER_CURRENT)]!=0U ||
-      (mode==FunctionalMode::EXTENDED_REACH_EEE &&
-       (masks[group(DspControl::LPI_FREEZE)]!=0U || masks[group(DspControl::TIMING_LOOP)]!=0U ||
-        masks[group(DspControl::LPI_FREEZE_GROUPS)]!=0U || masks[group(DspControl::THRESHOLD_SCALING)]!=0U));
+      (mode==FunctionalMode::EXTENDED_REACH_EEE && ownsDsp(settings));
 }
 
 Status DP8382x::_validateAnalog(const AnalogSettings& s) const noexcept {

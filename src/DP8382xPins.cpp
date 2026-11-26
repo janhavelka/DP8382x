@@ -514,7 +514,8 @@ Status DP8382x::configurePins(const PinSettings& settings,PinResult& result,cons
   IoBudget remaining=budget;
   while (_pinStep!=PinStep::COMPLETE) {
     const auto batch=_pinsBatch(); const auto before=_pinResult.attemptedFrames;
-    const auto reserve=isA(_config.variant) && _pinResult.transactions==0U?bound:0U;
+    const auto reserve=(isA(_config.variant) || _config.variant==Variant::DP83825I) &&
+        _pinResult.transactions==0U ? bound : 0U;
     bool called=false; const auto status=_execute(batch,remaining,&called,false,Traffic::MANAGED,32,reserve);
     _advancePins(status,called,batch);
     remaining.maxFrames-=_pinResult.attemptedFrames-before;

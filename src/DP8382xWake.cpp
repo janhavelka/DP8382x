@@ -121,6 +121,7 @@ Status DP8382x::startConfigureWake(const WakeSettings& settings,const OperationB
   }
   _beginOperation(OperationKind::WOL_CONFIGURE,budget);
   _wake.desired=settings; _wake.desiredValid=true;
+  if (_wakeCredentialWords()==3U) { _wake.credentialValidMask&=7U; }
   _wake.trust=ConfigurationTrust::DIRTY; _wake.observedStale=true;
   _wakeTailPending=false; _wakeVerifyOnly=false;
   _setWakeStep(WakeStep::IDENTIFY);
@@ -153,6 +154,10 @@ uint16_t DP8382x::_wakeControl() const noexcept {
   return static_cast<uint16_t>((settings.crcGate?0x1000U:0U)|(uint16_t{settings.pulseWidth}<<9U)|
       (settings.levelMode?0x0100U:0U)|(settings.enabled?0x0081U:0U)|
       (settings.enabled && settings.secureOn?0x0020U:0U));
+}
+uint8_t DP8382x::_wakeCredentialWords() const noexcept {
+  // SNLA261A authorizes 04A5..04A7 on DP83825I for the Secure-ON procedure.
+  return _config.variant!=Variant::DP83825I || (_wake.desiredValid && _wake.desired.secureOn) ? 6U : 3U;
 }
 uint8_t DP8382x::_wakePin() const noexcept {
   if (_wake.desired.route==WakeRoute::INTERRUPT && _interrupts.desiredValid) {
@@ -222,19 +227,20 @@ void DP8382x::_wakePassCost(bool verifyOnly,uint32_t& frames,uint32_t& callbacks
   frames=callbacks=0;
   if (!_wake.desiredValid) return;
   const auto pin=_wakePin();
+  const uint32_t words=_wakeCredentialWords();
   if (!_wakeWorking || _wakeStep==WakeStep::IDENTIFY) {
     if (_wakeWorking && _operation.kind==OperationKind::WOL_ACKNOWLEDGE) {
       frames=25; callbacks=7; // ID, control, harvest, W0C, verify, selector, MISR2
       return;
     }
-    frames=35; callbacks=10; // ID, RXFCFG1, six credentials, selector and MISR2
+    frames=11U+4U*words; callbacks=4U+words; // ID, RXFCFG1, credentials, selector and MISR2
     if (pin<4U) { frames+=pin>=2U?5U:4U; ++callbacks; }
     if (pin==1U && _identity.mode==OperatingMode::ENHANCED) { frames+=4; ++callbacks; }
     if (!_wakeWorking && !verifyOnly) {
       // Before HARD, detector/strap state and credential matches are unknown.
       // Reserve disable and final apply (harvest + RMW + readback each), all
-      // six credential writes/readbacks, and the selected mux when present.
-      frames+=76; callbacks+=18;
+      // owned credential writes/readbacks, and the selected mux when present.
+      frames+=28U+8U*words; callbacks+=6U+2U*words;
       if (pin<4U) { frames+=9; callbacks+=2; }
     }
   } else if (_wakeStep==WakeStep::HARVEST_ACK) {
@@ -248,7 +254,7 @@ void DP8382x::_wakePassCost(bool verifyOnly,uint32_t& frames,uint32_t& callbacks
     const bool applying=_wakeStep==WakeStep::HARVEST_APPLY;
     if (disable) { frames+=14; callbacks+=3; }
     if (!applying && _wakePinNeedsApply) { frames+=9; callbacks+=2; }
-    if (!applying && _wakeCredentialsChanged) { frames+=48; callbacks+=12; }
+    if (!applying && _wakeCredentialsChanged) { frames+=8U*words; callbacks+=2U*words; }
     const uint16_t control=static_cast<uint16_t>(_wake.rawControl & (disable?0x1700U:0x17A1U));
     if (applying || control!=_wakeControl()) { frames+=14; callbacks+=3; }
   } else return;
@@ -411,7 +417,7 @@ Status DP8382x::_advanceWake(Status status,bool called,const MdioBatch& batch) n
       else { _wakeWord=0; _wakeCredentialsChanged=false; _setWakeStep(WakeStep::READ_CREDENTIAL); }
       break;
     case WakeStep::READ_CREDENTIAL:
-      if (++_wakeWord<6U) { _setWakeStep(WakeStep::READ_CREDENTIAL); }
+      if (++_wakeWord<_wakeCredentialWords()) { _setWakeStep(WakeStep::READ_CREDENTIAL); }
       else if (_wakeVerifyOnly || (!_wakePinNeedsApply && !_wakeCredentialsChanged && (_wake.rawControl&0x17E1U)==static_cast<uint16_t>(_wakeControl()|(_wake.rawControl&0x0040U)))) { _setWakeStep(WakeStep::READ_SELECTOR); }
       else if ((_wake.rawControl&0x00A1U)!=0U) { _setWakeStep(WakeStep::HARVEST_DISABLE); }
       else { afterDisable(); }
@@ -420,11 +426,11 @@ Status DP8382x::_advanceWake(Status status,bool called,const MdioBatch& batch) n
     case WakeStep::DISABLE: _setWakeStep(WakeStep::VERIFY_DISABLE); break;
     case WakeStep::VERIFY_DISABLE: afterDisable(); break;
     case WakeStep::WRITE_CREDENTIAL:
-      if (++_wakeWord<6U) { _setWakeStep(WakeStep::WRITE_CREDENTIAL); }
+      if (++_wakeWord<_wakeCredentialWords()) { _setWakeStep(WakeStep::WRITE_CREDENTIAL); }
       else { _wakeWord=0; _setWakeStep(WakeStep::VERIFY_CREDENTIAL); }
       break;
     case WakeStep::VERIFY_CREDENTIAL:
-      if (++_wakeWord<6U) { _setWakeStep(WakeStep::VERIFY_CREDENTIAL); }
+      if (++_wakeWord<_wakeCredentialWords()) { _setWakeStep(WakeStep::VERIFY_CREDENTIAL); }
       else if ((_wake.rawControl&0x17E1U)==static_cast<uint16_t>(_wakeControl()|(_wake.rawControl&0x0040U))) { _setWakeStep(WakeStep::READ_SELECTOR); }
       else { _setWakeStep(WakeStep::HARVEST_APPLY); }
       break;
@@ -459,7 +465,9 @@ Status DP8382x::readWakeStatus(WakeSnapshot& snapshot,const IoBudget& budget) no
   const auto fail=[&](Status status) noexcept {
     _wake.observedStale=true; _wake.lastStatus=status; return status;
   };
-  if (budget.maxFrames<33U) { return fail(Status::Error(Err::OPERATION_TIMEOUT,"Wake observation requires33frames",static_cast<int32_t>(TimeoutDetail::FRAME_BUDGET))); }
+  const uint8_t statusPhase=1U+_wakeCredentialWords();
+  const uint32_t frames=4U*(statusPhase+1U)+1U;
+  if (budget.maxFrames<frames) { return fail(Status::Error(Err::OPERATION_TIMEOUT,"Wake observation exceeds frame budget",static_cast<int32_t>(TimeoutDetail::FRAME_BUDGET))); }
   if (_transport.clockInvalid) { return fail(Status::Error(Err::INVALID_CONFIG,"Clock contract failed",static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT))); }
   if (_stopped) { return fail(wakeBusy(BusyDetail::CONTROLLER_QUARANTINED)); }
   const auto quiet=_checkQuiet(); if (!quiet.ok()) { return fail(quiet); }
@@ -470,7 +478,7 @@ Status DP8382x::readWakeStatus(WakeSnapshot& snapshot,const IoBudget& budget) no
     return fail(Status::Error(Err::OPERATION_TIMEOUT,"Wake observation deadline expired",static_cast<int32_t>(TimeoutDetail::DEADLINE)));
   }
   const auto& bounds=_config.transport.bounds;
-  const uint64_t bound=uint64_t{8}*bounds.fixedUs+uint64_t{33}*bounds.frameUs;
+  const uint64_t bound=uint64_t{statusPhase+1U}*bounds.fixedUs+uint64_t{frames}*bounds.frameUs;
   if (upper>=budget.deadlineUs || bound>=budget.deadlineUs-upper) {
     return fail(Status::Error(Err::OPERATION_TIMEOUT,"Wake observation cannot fit",static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION)));
   }
@@ -479,20 +487,20 @@ Status DP8382x::readWakeStatus(WakeSnapshot& snapshot,const IoBudget& budget) no
   // GPIO mux. Keep its raw historical word without publishing it as refreshed.
   _wake.pinControlValid=false;
   _wake.observedStale=true;
-  for (uint8_t phase=0;phase<8U;++phase) {
-    auto batch=_mmdBatch(phase==0U?0x04A0:phase==7U?0x04A1:static_cast<uint16_t>(0x04A1U+phase),FrameKind::READ,0);
-    if (phase==7U) { batch.frameCount=5; batch.frames[4]={FrameKind::READ,0x13,0,0,NO_READ_INDEX}; }
+  for (uint8_t phase=0;phase<=statusPhase;++phase) {
+    auto batch=_mmdBatch(phase==0U?0x04A0:phase==statusPhase?0x04A1:static_cast<uint16_t>(0x04A1U+phase),FrameKind::READ,0);
+    if (phase==statusPhase) { batch.frameCount=5; batch.frames[4]={FrameKind::READ,0x13,0,0,NO_READ_INDEX}; }
     if (phase==0U) { _wake.controlValid=false; }
-    else if (phase==7U) { _wake.rxfsValid=false; _wake.misr2Valid=false; }
+    else if (phase==statusPhase) { _wake.rxfsValid=false; _wake.misr2Valid=false; }
     else { _wake.credentialValidMask&=static_cast<uint8_t>(~(1U<<(phase-1U))); }
     bool called=false;
-    const auto status=_execute(batch,remaining,&called);
+    const auto status=_execute(batch,remaining,&called,false,Traffic::RAW,32,phase==0U?bound:0U);
     if (called && completePrefix(batch,_transport.lastBatch,3)) {
       const auto word=_transport.lastBatch.frames[3].value;
       if (phase==0U) {
         _retainWakeControl(word);
         if (_wake.desiredValid && (word&0x17A1U)!=_wakeControl()) { _wake.trust=ConfigurationTrust::DIRTY; }
-      } else if (phase==7U) { _wake.rawRxfs=word; _wake.rxfsValid=true; }
+      } else if (phase==statusPhase) { _wake.rawRxfs=word; _wake.rxfsValid=true; }
       else {
         const auto index=static_cast<uint8_t>(phase-1U);
         if (index<3U) { _wake.rawMac[index]=word; } else { _wake.rawPassword[index-3U]=word; }
@@ -500,7 +508,7 @@ Status DP8382x::readWakeStatus(WakeSnapshot& snapshot,const IoBudget& budget) no
         if (_wake.desiredValid && word!=credentialWord(_wake.desired,index)) { _wake.trust=ConfigurationTrust::DIRTY; }
       }
     }
-    if (phase==7U && called && completePrefix(batch,_transport.lastBatch,4)) {
+    if (phase==statusPhase && called && completePrefix(batch,_transport.lastBatch,4)) {
       _wake.rawMisr2=_transport.lastBatch.frames[4].value; _wake.misr2Valid=true;
     }
     _wake.lastStatus=status;

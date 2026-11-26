@@ -73,6 +73,7 @@ struct Controller {
     if(target==0) { words[0]&=stickyRestart?0x7FFFU:0x7DFFU;return static_cast<uint16_t>(words[0]|(powerPin?0x0800U:0U)); }
     if(target==31)words[31]=0;
     if(declared==Variant::DP83825I && target==1)words[16]&=0xFFBF;
+    if(target==0x0308 && declared==Variant::DP83825I) return static_cast<uint16_t>((ext[target]&0xFFFEU)|((ext[0x0302]>>6U)&1U));
     if(target==0x0308 && declared!=Variant::DP83825I && (id2&15U)!=4U)return static_cast<uint16_t>((ext[0x0302]&0x0040U)!=0U?1U:0U);
     const auto value=target<32U?words[target]:ext[target];
     if(declared==Variant::DP83825I) {

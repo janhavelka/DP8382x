@@ -152,6 +152,16 @@ MdioBatch DP8382x::_electricalBatch() const noexcept {
       batch=electricalRead(0); batch.frameCount=2;
       // BMCR command neutral 8000/0200; do not enable power-down or isolation.
       batch.frames[1]={FrameKind::WRITE,0,static_cast<uint16_t>(_operation.kind==OperationKind::COLLISION_START?0x0080:0),0x717F,0};
+      if (_electrical.collision.registerOnly) {
+        // Compare under the same controller lock. Stop may retry an uncertain clear.
+        auto& write = batch.frames[1];
+        if (_operation.kind==OperationKind::COLLISION_START) {
+          write.requiredMask=0xFF80U;
+          write.requiredValue=_result.savedBmcr & 0x3100U;
+        } else {
+          write.requiredMask=0xCE00U;
+        }
+      }
       return batch;
     case ElectricalStep::COLLISION_VERIFY: return electricalRead(0);
     case ElectricalStep::SCRAMBLER_WRITE:
@@ -268,6 +278,8 @@ Status DP8382x::_advanceElectrical(Status status,bool called,const MdioBatch& ba
             (an && ((bmsr&0x0024U)!=0x0024U || (physts&1U)==0U)) || speed!=_electrical.collision.speed) {
           return _finishOperation(electricalConfig("Collision requires live MII COL mux and verified local speed"));
         }
+        _result.savedBmcr=bmcr;
+        _result.savedBmcrValid=true;
         _setElectricalStep(ElectricalStep::COLLISION_WRITE);
       } else {
         if ((receipt.frames[0].value&0x0C00U)!=0U || (receipt.frames[1].value&0x8000U)!=0U) {

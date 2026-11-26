@@ -74,8 +74,9 @@ Status DP8382x::_validateInterface(const InterfaceSettings& settings) const noex
         !_straps.sor1Valid || _clockRoleMismatch().valid) {
       return interfaceConfig("DP83825I requires its observed board clock role");
     }
-    if (settings.clockOutput!=ClockOutput::UNOWNED ||
-        (settings.isolate && _config.rmiiClock==RmiiClock::LEADER_25MHZ && !_config.clockLossApproved)) {
+    // SNLS638C tables 7-60/62 expose CLKOUT25 disable and its status.
+    if (_config.rmiiClock==RmiiClock::LEADER_25MHZ && !_config.clockLossApproved &&
+        (settings.isolate || settings.clockOutput==ClockOutput::LED1)) {
       return interfaceConfig("DP83825I clock route or isolation not admitted");
     }
     if (!settings.txClockShift && settings.rmiiClock==RmiiClock::FOLLOWER_50MHZ &&
@@ -129,7 +130,7 @@ Status DP8382x::_validateInterface(const InterfaceSettings& settings) const noex
     }
   }
   if (!a && settings.clockOutput!=ClockOutput::UNOWNED) {
-    if (_identity.mode!=OperatingMode::ENHANCED) { return interfaceConfig("Runtime CLKOUT/LED1 selection requires ENHANCED mode"); }
+    if (_config.variant!=Variant::DP83825I && _identity.mode!=OperatingMode::ENHANCED) { return interfaceConfig("Runtime CLKOUT/LED1 selection requires ENHANCED mode"); }
     if (_pins.desiredValid && _pins.desired.led1ClockOverride) {
       return interfaceConfig("Release the pin owner's clock override before interface ownership");
     }
@@ -153,7 +154,7 @@ Status DP8382x::_validateInterface(const InterfaceSettings& settings) const noex
     return interfaceConfig("Requested COL output conflicts with LED2 IRQ/WoL routing");
   }
   if (_eee.desiredValid && _eee.desired.enabled &&
-      (settings.clockOutput!=ClockOutput::UNOWNED || (settings.isolationOwned && settings.isolate))) {
+      ((_config.variant!=Variant::DP83825I && settings.clockOutput!=ClockOutput::UNOWNED) || (settings.isolationOwned && settings.isolate))) {
     return interfaceConfig("EEE clock recipe conflicts with clock-route ownership or isolation");
   }
   return Status::Ok();

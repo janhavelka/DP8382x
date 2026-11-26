@@ -1,6 +1,46 @@
 // Independent wire transcription from SNLS638C tables 6-5 through 6-7.
 // Selectors belong to one controller callback. The 001F restart is direct.
 void p25Modes() {
+  // Include identification, mode writes and the independently counted 24-frame AN replay.
+  for (auto entry : {std::pair{FunctionalMode::DEFAULT,42U}, std::pair{FunctionalMode::EXTENDED_REACH,99U},
+                     std::pair{FunctionalMode::EXTENDED_REACH_EEE,195U}}) {
+    for (unsigned shortBy : {1U,0U}) {
+      Controller bus;
+      Driver driver;
+      p25Board(bus,true,true,true);
+      ready(driver,bus);
+      OperationToken token;
+      CHECK(driver.startInitialize({ResetKind::HARD,entry.first},budget(entry.second-shortBy),token).inProgress());
+      CHECK(drain(driver,bus,token).ok()==(shortBy==0U));
+      CHECK(take(driver,token).persistentRestored==(shortBy==0U));
+      CHECK(bus.hard==(shortBy==0U?1U:0U));
+    }
+  }
+  // A completed external PCS reset observation invalidates a pending dependent operation
+  // even if the controller then fails to release. The vendor mode remains established.
+  for (bool releaseFails : {false,true}) {
+    Controller bus;
+    Driver driver;
+    p25Board(bus,true,true,true);
+    ready(driver,bus);
+    OperationToken token;
+    CHECK(driver.startInitialize({ResetKind::HARD,FunctionalMode::EXTENDED_REACH},budget(),token).inProgress());
+    CHECK(drain(driver,bus,token).ok()); take(driver,token);
+    LinkSettings policy;
+    policy.advertisement.technologyMask=2;
+    CHECK(driver.startConfigure(policy,{},budget(),token).inProgress());
+    CHECK(poll(driver,bus,token).inProgress());
+    bus.mmd3[0]=0x8000;
+    uint16_t word=0xCAFE;
+    if (releaseFails) bus.releaseCall=static_cast<int>(bus.calls);
+    const auto mutations=bus.mutations;
+    CHECK(driver.readMmd(3,0,word,{1000000,4}).ok()!=releaseFails);
+    CHECK(word==(releaseFails?0xCAFE:0x8000));
+    CHECK(driver.operationSnapshot().state==OperationState::RESULT_PENDING);
+    const auto frozen=take(driver,token);
+    CHECK(!frozen.persistentRestored && frozen.status.is(Err::INVALID_CONFIG));
+    CHECK(driver.functionalModeSnapshot().established && bus.mutations==mutations);
+  }
   using Word = std::pair<uint16_t,uint16_t>;
   constexpr Word shortScript[] = {
     {0x416,0x1F30},{0x40D,13},{0x429,0x0200},{0x30B,0x0BC0},{0x30C,17},
@@ -244,9 +284,18 @@ void p25Modes() {
     options.forceModeCode=force;
     options.partnerForceConfirmed=force==3;
     const auto start=bus.frames;
+    // The entry clock jumps to exact equality with the remaining pass bound.
+    const unsigned cost=force ? 104U : 52U;
+    bus.delayedClock=bus.clocks+2;
+    CHECK(phy.startLpi(options,lpi,{bus.now+240U+1U+cost,18}).is(Err::OPERATION_TIMEOUT));
+    CHECK(bus.frames==start && !phy.operationSnapshot().cleanupOwed);
     CHECK(phy.startLpi(options,lpi,{1000000,18}).ok());
     CHECK(bus.ext[0x4D1]==(force ? 0x70C2 : 0x10C2));
     CHECK(bus.frames-start==(force ? 18U : 9U) && phy.operationSnapshot().cleanupOwed);
+    const auto exitStart=bus.frames;
+    bus.delayedClock=bus.clocks+2;
+    CHECK(phy.stopLpi(lpi,{bus.now+240U+1U+cost,18}).is(Err::OPERATION_TIMEOUT));
+    CHECK(bus.frames==exitStart && phy.operationSnapshot().cleanupOwed);
     CHECK(phy.stopLpi(lpi,{1000000,18}).ok() && lpi.minimumNormalIfgUs==36);
     CHECK(bus.ext[0x4D1]==0x00C2 && !phy.operationSnapshot().cleanupOwed);
     if (force) {

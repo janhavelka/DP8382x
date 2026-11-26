@@ -233,3 +233,102 @@ git diff --check
 | `dp8382x_adapter_link.bin` | 411760 | `a96e54377b1f7cbcfaf051d2b2329d222928faff9e30710b49476fec687a6200` |
 | `dp8382x_p4_ethernet.bin` | 720656 | `ab9d5bdfa8e592a7e630da4bd0645d1cdadab7b805aaf6eda1c31889a8f33cd5` |
 | `dp8382x_p4_owner.bin` | 598880 | `593eb2f261f19403feac13cc25ab457ea84277e19c4e4a744280b81b37e8d212` |
+
+## Phase (c) independent review
+
+**IN PROGRESS.** The wrapper verified main and origin/main at
+`094310d7452faf5d8ed82b4d8a34c123c448ea9a`. The index and worktree were clean.
+Two independent read-only reviewers used the session's high-reasoning model
+for the silicon sequences and ownership/deadline analysis. They reviewed the
+phase (b) diff from `594e8c1` in parallel and compiled probes against its
+Release library. The lead reviewed the event, pin, wake, adapter, CLI, runner
+and field-matrix paths, integrated the fixes and registered the regressions
+in the existing executable suites. The sibling revisions and paths in
+phase (a) were rechecked. TMP1x2 supplied the bus-silent variant rejection
+convention. MB85RC supplied the separate identity, field validity and
+restoration checks. The shared MDIO collector owns destructive PHY evidence.
+
+| Finding on the committed implementation | Correction and regression |
+| --- | --- |
+| With an owned AN profile, DEFAULT, EXTENDED_REACH and EXTENDED_REACH_EEE admitted HARD with only 18, 75 and 163 total frames. Those budgets exhausted after reset, even with immediate command completion. | The owner includes the link, PCS clock, final EEE proof and owned recovery passes before HARD. In the reviewed follower fixture the three complete passes use 42, 99 and 195 frames. `p25_functional_modes` accepts the exact allowance and withholds HARD at one frame below it. Additional hardware polling uses the same deadline. |
+| A raw read of asserted PCS reset during link configuration allowed six more target writes and a successful restoration verdict. A scheduling jump immediately before bilateral LPI entry let the force write execute after the complete procedure could no longer fit. | The accepted MMD3:0000 observation terminates the pending dependent operation, even on a later release failure. The vendor mode receipt survives. Negotiated and bilateral LPI entry and exit reserve the remaining writes and verification at the callback boundary. The tests check strict deadline equality, output validity and cleanup debt. |
+| An independently owned equalizer bit changed table 6-7's 030F from 0400 to 0480 with both owners reporting success. Configuring EEE before LED2 IRQ rejected the route. The reverse order could reset the PHY and then fail IRQ restoration. | The long mode rejects any owned DSP group in its script, including the equalizer, before a callback in both orders. LED2 IRQ uses 0305 and can coexist with EEE. Both roles exercise each order and HARD replay. |
+| SNLS638C tables 7-60 and 7-62 document 0302[6] and its 0308[0] status. Phase (b) rejected both clock choices. A contradictory SOR1 observation could also leave dependent pin 2 delivery marked verified. | The interface owner applies both clock codes with masked writes and independent status readback. The leader requires approval to disable the clock. IRQ, wake and pin proof follow the observed role. The LED0 test also exercises a clock jump at the first callback and preserves the caller's previous result. `p25_outputs` and the compiled CLI exercise these paths. Physical pin behavior remains Q15. |
+| Plain Magic Packet configuration, status reads and restoration included the three password offsets. SNLA261A gives those otherwise unlisted words a Secure-ON purpose. | On DP83825I, only a Secure-ON profile accesses 04A5..04A7. The other wake profiles use three MAC words and a 21-frame observation. Secure-ON uses six words and 33 frames. A secure-to-plain rekey, status, HARD replay and both-role offline campaigns check the resulting validity mask. |
+| The register-only collision test could clear newly asserted isolation or power-down between preflight and its BMCR write. A failed collection whose first valid word indicated link down could leave an earlier MSE prerequisite current. | A same-lock BMCR predicate protects collision entry and stop, including retry after an uncertain clear. A completed contrary link or disruptive power observation invalidates MSE eligibility. `p25_diagnostics` checks untouched BMCR, retained cleanup, the read-clear prefix and zero MSE frames after the contradiction. |
+
+The original probes remain under the ignored `build/p61-c-mode` and
+`build/p61-c-diag` directories. The permanent regressions are in
+`test/p25_modes.inc`, `test/p25_profiles.inc`, `test/p25_diagnostics.inc`
+and `test/cli/pin_transcript.py`. Exact-part source inputs remain the archived
+SNLS638C, SDAA081, SNLA328 and SNLA261A cited in phase (a). The README and
+CHANGELOG already describe feature availability. The API, CLI, wake guide,
+field matrix and public clock/wake documentation now specify the corrected
+ownership and observation rules.
+
+### Phase (c) verification
+
+The first combined Release run passed 1,015 of 1,017 registrations. Its
+link-transition test caught an extra stale transition while a coherent read
+was still acquiring its own frames. Comparing the completed observation
+with the state at entry preserves one UP-to-DOWN change. A failed pass
+keeps the earlier consumed evidence. The injected serial finalization test
+also reached its six-second watchdog during overlapping checks. The final
+run used the original watchdog and link assertions. An initial test build
+caught a narrowing conversion in a new literal vector. The final vector
+uses explicit 16-bit values.
+
+Use the phase (b) Windows GNU 15.1.0, Ninja, CMake 4.0.1 and Python
+3.12.10 configurations. Host builds with pinned SDK sources require the
+process-local safe directory for `C:/esp/v6.1/esp-idf` during the build.
+For the P4 links, use the same process-local clangd, ccache and Git paths
+as the [prompt 53 build](53-regression-transaction-ownership.md).
+
+```powershell
+cmake --build build/p60-tests --parallel 4
+ctest --test-dir build/p60-tests --output-on-failure --no-tests=error -j 1
+cmake --build build/p55-ubsan --target dp8382x_interface_tests dp8382x_link_tests --parallel 3
+ctest --test-dir build/p55-ubsan -R '^p25_(events|outputs|core|profiles|diagnostics|functional_modes|link_.*)$' --output-on-failure --no-tests=error
+cmake --build build/p61-consumer
+ctest --test-dir build/p61-consumer --output-on-failure --no-tests=error
+cmake --build build/p61-export/out
+ctest --test-dir build/p61-export/out --output-on-failure --no-tests=error
+scripts/idf.cmd -C test/esp_idf/adapter_link -B C:/esp/build/dp8382x-loop/56l build
+scripts/idf.cmd -C examples/esp_idf/basic -B C:/esp/build/dp8382x-loop/56b build
+scripts/idf.cmd -C examples/esp_idf/owner -B C:/esp/build/dp8382x-loop/56o build
+```
+
+The exported consumer uses the phase (b) 29-file source package. Refresh
+each packaged file from its repository-relative path and compare all 29
+byte-for-byte before the out-of-tree build. Both consumer configurations
+have library tests disabled.
+
+| ESP-IDF v6.1 fff9895c, esp32p4 | Bytes | SHA-256 |
+| --- | ---: | --- |
+| DP83825I adapter link | 412544 | `1e12488598e1e63d7664fdcd6feb9891578e651dded39f799f0f32376a4ccb98` |
+| Basic Ethernet example | 721600 | `077efc569c66edb4369574ae51f36b78d7eda7e9ec728746af9fe35ed3fea415` |
+| Owner example | 599808 | `e5283bf6253d540ca1bb5bf531f7bf906a049735aedcdd3de6ec7df7ec376c13` |
+
+**Host PASS.** The final combined Release run passed 1,017/1,017 in
+244.83 seconds. This includes the original transition and serial watchdog
+regressions, and 37 DP83825I fixture cases on each RMII role with offline
+replay (74/74). The four reviewer probes were recompiled against the final
+Release library. The first admitted HARD budgets equalled the first successful
+budgets of 42, 99 and 195 frames. The clock-jump LPI entry issued zero frames,
+PCS reset prevented further link writes, collision preserved isolation and
+the collector's down-link sample blocked MSE. The reference verifier passed
+29 vendor payloads, 27 extracts and 2,442 local links. Whitespace passed.
+
+All three SDK links passed using the reviewed working tree based on
+`094310d`. Portable consumer 2/2, exported consumer 1/1 and focused
+UBSan 15/15 passed. Python discovery ran 280 tests with 59 skips. The
+original-PDF comparison passed all four ledger tests. The matrix passed
+10/10, Doxygen checked 296 pages and rejected both negative fixtures.
+The ledger and version checks passed.
+
+Remote CI and physical evidence are NOT RUN. Prompt 71 owns remote CI.
+Q15 still requires an identified board, clock/partner evidence, wake
+recognition and electrical measurements. The unknown Register_12/MISR
+latch relationship, CDCR calibration completion and independent DSP
+tuning limits retain their separate source dispositions. Phase (d) must
+reconcile those software rows before setting the status for prompt 61.

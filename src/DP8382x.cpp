@@ -1069,6 +1069,7 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
         _eee.pcsControl=receipt.value;
         _eee.pcsControlValid=true;
         if ((receipt.value&0x8000U)!=0U) {
+          resetObserved = true;
           _eee.advertisementValid=_eee.partnerValid=_eee.negotiatedValid=false;
           _eee.stale=true;
           if (_eee.desiredValid) { _eee.trust=ConfigurationTrust::DIRTY; }
@@ -1126,6 +1127,19 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
         if (address == 0x0467) { _straps.sor1 = receipt.value; _straps.sor1Valid = true; }
         else { _straps.rcsr = receipt.value; _straps.rcsrValid = true; }
         if (_clockRoleMismatch().valid) {
+          // Both direct wake and IRQ delivery can depend on the pin 2 clock mux.
+          if (_interrupts.desiredValid && _interrupts.desired.pin == InterruptPin::LED2) {
+            _interrupts.trust = ConfigurationTrust::DIRTY;
+            _interrupts.observedStale = true;
+          }
+          if (_wake.desiredValid && _wakePin() == 2U) {
+            _wake.trust = ConfigurationTrust::DIRTY;
+            _wake.observedStale = true;
+          }
+          if (_pins.desiredValid && _pins.desired.pins[2].function != PinFunction::UNOWNED) {
+            _pins.trust = ConfigurationTrust::DIRTY;
+            _pins.observedStale = true;
+          }
           _straps.stale = true;
           _straps.timeValid = false;
           _initialized = false;
@@ -1135,6 +1149,13 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
           _interface.observedStale = true;
           _invalidateLink();
         }
+      }
+      if (_config.variant == Variant::DP83825I && _link.valid && _link.linkUp &&
+          ((address == cmd::REG_PHYSTS && (receipt.value & 1U) == 0U) ||
+           (address == cmd::REG_BMSR && (receipt.value & 4U) == 0U) ||
+           (address == cmd::REG_BMCR && (receipt.value & 0xCC00U) != 0U) ||
+           (address == 0x0428 && (receipt.value & 4U) != 0U))) {
+        _invalidateLink();
       }
       _retainPinWord(address, receipt.value);
       _retainInterfaceWord(address, receipt.value);
@@ -2067,6 +2088,38 @@ Status DP8382x::_admitResetStep(const IoBudget& budget, uint64_t raw) const noex
   return Status::Ok();
 }
 
+void DP8382x::_addOwnedReplayCost(uint32_t& frames, uint32_t& callbacks) const noexcept {
+  const auto addPass = [&](bool owned, auto cost) {
+    if (owned) {
+      uint32_t passFrames = 0, passCallbacks = 0;
+      (this->*cost)(false, passFrames, passCallbacks);
+      frames += passFrames;
+      callbacks += passCallbacks;
+    }
+  };
+  addPass(_interface.desiredValid, &DP8382x::_interfacePassCost);
+  addPass(_quality.desiredValid, &DP8382x::_qualityPassCost);
+  addPass(_pins.desiredValid, &DP8382x::_pinPassCost);
+  addPass(_wake.desiredValid, &DP8382x::_wakePassCost);
+  addPass(_interrupts.desiredValid, &DP8382x::_interruptPassCost);
+  if (_analog.desiredValid) {
+    uint32_t analogFrames = 0, analogCallbacks = 0;
+    _analogReplayCost(analogFrames, analogCallbacks);
+    frames += analogFrames;
+    callbacks += analogCallbacks;
+  }
+  if (_autorun.desiredValid) { frames += 3U; callbacks += 2U; }
+  if (_power.desiredValid) {
+    if (_config.variant == Variant::DP83825I) {
+      frames += 13U; callbacks += 8U;
+      if (_power.desired.disablePll) { frames += 3U; callbacks += 2U; }
+      if (_power.desired.request == PowerRequest::DEEP_POWER_DOWN) { frames += 9U; callbacks += 2U; }
+    } else {
+      frames += 9U; callbacks += 7U;
+    }
+  }
+}
+
 Status DP8382x::_admitEeeStep(const IoBudget& budget, uint64_t raw) const noexcept {
   if (_config.variant == Variant::DP83825I) { return _admitFunctionalMode(budget, raw); }
   if (!_eeeRecipePending) { return Status::Ok(); }
@@ -2087,27 +2140,7 @@ Status DP8382x::_admitEeeStep(const IoBudget& budget, uint64_t raw) const noexce
     // polling consumes the remaining aggregate allowance and can time out.
     frames += 67U;
     callbacks += 29U;
-    const auto addPass = [&](bool owned, auto cost) {
-      if (owned) {
-        uint32_t passFrames = 0, passCallbacks = 0;
-        (this->*cost)(false, passFrames, passCallbacks);
-        frames += passFrames;
-        callbacks += passCallbacks;
-      }
-    };
-    addPass(_interface.desiredValid, &DP8382x::_interfacePassCost);
-    addPass(_quality.desiredValid, &DP8382x::_qualityPassCost);
-    addPass(_pins.desiredValid, &DP8382x::_pinPassCost);
-    addPass(_wake.desiredValid, &DP8382x::_wakePassCost);
-    addPass(_interrupts.desiredValid, &DP8382x::_interruptPassCost);
-    if (_analog.desiredValid) {
-      uint32_t analogFrames = 0, analogCallbacks = 0;
-      _analogReplayCost(analogFrames, analogCallbacks);
-      frames += analogFrames;
-      callbacks += analogCallbacks;
-    }
-    if (_autorun.desiredValid) { frames += 3U; callbacks += 2U; }
-    if (_power.desiredValid) { frames += 9U; callbacks += 7U; }
+    _addOwnedReplayCost(frames, callbacks);
   }
   const auto& bounds = _config.transport.bounds;
   const uint64_t floor = uint64_t{4} * bounds.clockLagUs + uint64_t{frames} * bounds.frameUs +

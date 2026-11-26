@@ -79,6 +79,11 @@ Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) n
       cmd::REG_PHYSTS, cmd::REG_BMSR};
   const bool mirrorClearedByBmsr = isA(_config.variant) || _config.variant == Variant::DP83825I;
   const auto* addresses = mirrorClearedByBmsr ? aOrder : originalOrder;
+  // The collector can invalidate the old link while consuming a prefix of this
+  // pass. Compare a complete coherent observation to the state at entry so
+  // a single up-to-down transition counts once. Failures keep the stale prefix.
+  const bool previouslyStale = _link.stale;
+  const uint32_t previousChanges = _link.changes;
   uint16_t words[10]{};
   IoBudget remaining = budget;
   _evidence.lastRequested = evidenceBit(EvidenceSource::BMSR) | evidenceBit(EvidenceSource::PHYSTS) |
@@ -178,11 +183,11 @@ Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) n
   next.observedSinceUs = raw;
   next.observedAtUs = _lastTimeUs + bounds.clockLagUs;
   next.lastRefreshStatus = Status::Ok();
-  next.change = !_link.valid ? LinkChange::FIRST_VALID : _link.stale ? LinkChange::REGAINED :
+  next.change = !_link.valid ? LinkChange::FIRST_VALID : previouslyStale ? LinkChange::REGAINED :
       sameLink(next, _link) ? LinkChange::REPEATED : LinkChange::CHANGED;
   next.observations = _link.observations;
   if (next.observations != std::numeric_limits<uint32_t>::max()) { ++next.observations; }
-  next.changes = _link.changes;
+  next.changes = previousChanges;
   if (next.change != LinkChange::REPEATED && next.changes != std::numeric_limits<uint32_t>::max()) { ++next.changes; }
   if (!next.linkUp || next.negotiation != NegotiationState::COMPLETE ||
       !next.resolvedModeValid || next.speed != LinkSpeed::MBPS_100 || next.duplex != Duplex::FULL ||

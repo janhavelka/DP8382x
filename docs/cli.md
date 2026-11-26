@@ -762,6 +762,11 @@ Use `connection initialize hard power-optimized`, `extended-reach`,
 policy. `recovery reset eee-pcs` selects the IEEE PCS reset.
 The board supplies the declared reference and disruptive-operation grants.
 
+On either role, `controls interface` clock argument `clkout25` clears
+0302[6] and `led1` sets it. The interface owner checks 0308[0] after
+selection. Disabling the output on a leader requires clock-loss approval.
+The pin 2 mux has its own control. LED2 IRQ routing can coexist with EEE.
+
 `link collect register12` reads the separate 000C latch once.
 `irq service` uses MISR1/2. `controls mse` uses prior coherent link
 evidence and returns the raw MSE and the SDAA081 class (0 unclassified,
