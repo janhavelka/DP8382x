@@ -40,6 +40,10 @@ Status DP8382x::_validateWake(const WakeSettings& settings) const noexcept {
   if (!settings.maintenanceAdmitted || !settings.receiveTrafficQuiesced) {
     return wakeConfig("Wake settings require quiesced receive traffic and maintenance admission");
   }
+  if (_config.variant==Variant::DP83825I) {
+    if (settings.route==WakeRoute::LED1) { return Status::Error(Err::UNSUPPORTED,"DP83825I has no LED1 wake route"); }
+    if (settings.route==WakeRoute::LED2) { const auto admission=_admitPin2Output(); if (!admission.ok()) { return admission; } }
+  }
   if (!isA(_config.variant) && (settings.route==WakeRoute::LED0 || settings.route==WakeRoute::LED3)) {
     return Status::Error(Err::UNSUPPORTED,"Wake pin route lacks admitted GPIO capability",static_cast<int32_t>(ConfigDetail::SOURCE_GATE));
   }
@@ -70,7 +74,7 @@ Status DP8382x::_validateWake(const WakeSettings& settings) const noexcept {
   if (!settings.pinAvailable) { return wakeConfig("Wake output requires explicit pin ownership"); }
   if (settings.route==WakeRoute::INTERRUPT) {
     if (!_interrupts.desiredValid || !_interrupts.desired.globalEnable || (_interrupts.desired.misr2Mask&2U)==0U ||
-        (_identity.mode==OperatingMode::ENHANCED && !_interrupts.desired.outputEnable) ||
+        ((_identity.mode==OperatingMode::ENHANCED || _config.variant==Variant::DP83825I) && !_interrupts.desired.outputEnable) ||
         _interrupts.desired.sharedSource!=InterruptSharedSource::WAKE ||
         ((_operation.kind==OperationKind::WOL_CONFIGURE || !_wakeWorking) && _interrupts.trust!=ConfigurationTrust::VERIFIED)) {
       return wakeConfig("Wake IRQ requires an owned enabled and verified task27 wake route");
@@ -100,7 +104,6 @@ Status DP8382x::_validateWake(const WakeSettings& settings) const noexcept {
 }
 
 Status DP8382x::startConfigureWake(const WakeSettings& settings,const OperationBudget& budget,OperationToken& token) noexcept {
-  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   auto status=wakeSyntax(settings); if (!status.ok()) { return status; }
   if (budget.pollIntervalUs==0U || budget.maxStalledPolls==0U) {
     return Status::Error(Err::INVALID_PARAM,"Invalid wake budget",static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
@@ -125,7 +128,6 @@ Status DP8382x::startConfigureWake(const WakeSettings& settings,const OperationB
 }
 
 Status DP8382x::acknowledgeWake(const OperationBudget& budget,OperationToken& token) noexcept {
-  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   if (budget.pollIntervalUs==0U || budget.maxStalledPolls==0U) {
     return Status::Error(Err::INVALID_PARAM,"Invalid wake acknowledgement budget",static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
   }
@@ -380,7 +382,10 @@ Status DP8382x::_advanceWake(Status status,bool called,const MdioBatch& batch) n
       if ((value&1U)==0U) { return _finishOperation(wakeConfig("LED1 clock output remains active")); }
       _setWakeStep(WakeStep::PIN_MUX); break;
     case WakeStep::PIN_MUX: {
-      if (_wakePin()>=2U &&
+      if (_config.variant==Variant::DP83825I && _clockRoleMismatch().valid) {
+        return _finishOperation(wakeConfig("RMII clock role changed before wake routing"));
+      }
+      if (_config.variant!=Variant::DP83825I && _wakePin()>=2U &&
           (_transport.lastBatch.frames[4].value&0x0020U)!=(_config.interface==MacInterface::RMII?0x0020U:0U)) {
         return _finishOperation(wakeConfig("Observed interface differs from LED2 wake wiring"));
       }
@@ -449,7 +454,6 @@ Status DP8382x::_advanceWake(Status status,bool called,const MdioBatch& batch) n
 }
 
 Status DP8382x::readWakeStatus(WakeSnapshot& snapshot,const IoBudget& budget) noexcept {
-  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
   if (_active || _polling) { return wakeBusy(BusyDetail::OPERATION_ACTIVE); }
   const auto fail=[&](Status status) noexcept {

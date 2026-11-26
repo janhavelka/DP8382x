@@ -57,11 +57,11 @@ inline bool decodePin(std::string_view text, PinSetting& pin) {
            static_cast<LedDrive>(drive)};
     return true;
   }
-  const int role = featureChoice(text, "keep|wake|irq|col3|col5|col6|high|tx-error|clock|low3|low5|low6|crs3|crs5|crs6");
+  const int role = featureChoice(text, "keep|wake|irq|col3|col5|col6|high|tx-error|clock|low3|low5|low6|crs3|crs5|crs6|low7");
   constexpr PinFunction roles[]{PinFunction::UNOWNED, PinFunction::WAKE, PinFunction::INTERRUPT,
       PinFunction::COLLISION3, PinFunction::COLLISION5, PinFunction::COLLISION6, PinFunction::HIGH,
       PinFunction::TX_ERROR, PinFunction::CLOCK, PinFunction::LOW3, PinFunction::LOW5, PinFunction::LOW6,
-      PinFunction::CARRIER_SENSE3, PinFunction::CARRIER_SENSE5, PinFunction::CARRIER_SENSE6};
+      PinFunction::CARRIER_SENSE3, PinFunction::CARRIER_SENSE5, PinFunction::CARRIER_SENSE6, PinFunction::LOW7};
   if (role < 0) return false;
   pin.function = roles[role];
   return true;
@@ -175,7 +175,16 @@ inline bool decodeQuality(const FeatureArgs& args, QualitySettings& settings) {
 /// @param[out] settings Typed request, including a source-gated receiver gain when named.
 /// @return True for valid field syntax.
 inline bool decodeAnalog(const FeatureArgs& args, AnalogSettings& settings) {
-  if (args[0] != "keep") {
+  if (args[0].substr(0,4) == "vod,") {
+    std::array<std::string_view,2> parts{};
+    uint32_t coarse=0;
+    if (!split(args[0].substr(4),parts) || !featureNumber(parts[0],16,coarse)) return false;
+    const int offset=featureChoice(parts[1],"-2|-1|0|1|2");
+    if (offset<0) return false;
+    settings.vodOwned=true;
+    settings.vodCoarseStep=static_cast<uint8_t>(coarse);
+    settings.vodFineStep=static_cast<int8_t>(offset-2);
+  } else if (args[0] != "keep") {
     std::array<uint32_t, 5> values{};
     if (!numbers(args[0], {0x38, 0x38, 0x18, 0x18, 63}, values) || values[0] < 0x28 ||
         values[1] < 0x28 || values[2] < 8 || values[3] < 8) return false;
@@ -196,13 +205,32 @@ inline bool decodeAnalog(const FeatureArgs& args, AnalogSettings& settings) {
     settings.mdixTerminationEnable = values[3] != 0;
   }
   const int mac = featureChoice(args[2], "keep|fast|slow");
-  const int output = featureChoice(args[3], "keep|slow|fast");
+  const int output = featureChoice(args[3], "keep|slow|fast|50ohm|25ohm");
   if (mac < 0 || output < 0) return false;
   settings.macSlewOwned = mac != 0;
   settings.macSlewCode = mac == 2 ? 0x11 : 0x10;
-  settings.ioSlewOwned = output != 0;
+  settings.impedanceOwned = output >= 3;
+  settings.impedance25Ohm = output == 4;
+  settings.ioSlewOwned = output == 1 || output == 2;
   settings.ioSlewCode = output == 2 ? 1 : 0;
-  if (args[4] != "keep") {
+  if (args[4].substr(0,4) == "dsp,") {
+    auto rest=args[4].substr(4);
+    while (!rest.empty()) {
+      const auto end=rest.find('/');
+      std::array<std::string_view,3> group{};
+      if (!split(rest.substr(0,end),group)) return false;
+      const int index=featureChoice(group[0],"lpi-freeze|equalizer|cagc|timing|current|lpi-groups|threshold");
+      uint32_t mask=0,value=0;
+      if (index<0 || !featureNumber(group[1],0xFFFF,mask) || !mask || !featureNumber(group[2],mask,value) ||
+          (value & ~mask)!=0U || settings.dspMasks[static_cast<unsigned>(index)]!=0U) return false;
+      settings.dspMasks[static_cast<unsigned>(index)]=static_cast<uint16_t>(mask);
+      settings.dspValues[static_cast<unsigned>(index)]=static_cast<uint16_t>(value);
+      if (end==std::string_view::npos) break;
+      rest.remove_prefix(end+1);
+      if (rest.empty()) return false;
+    }
+    if (args[4].size()==4) return false;
+  } else if (args[4] != "keep") {
     uint32_t gain = 0;
     if (!featureNumber(args[4], 31, gain)) return false;
     settings.receiverGainOwned = true;
@@ -257,20 +285,30 @@ inline void fields(const QualitySnapshot& s, FeatureFields& out) {
 /// @param[in] s Partial or complete core snapshot.
 /// @param[out] out Raw words with a validity mask and stable-field trust.
 inline void fields(const AnalogSnapshot& s, FeatureFields& out) {
-  out.set(" desired=%u trust=%u stale=%u valid_mask=%u vod1=%u vod2=%u vod3=%u ioctrl=%u io_cfg1=%u",
+  const char* format = (s.validMask & 0x0FE0U) != 0U ?
+      " desired=%u trust=%u stale=%u valid_mask=%u vod1=%u vod2=%u vod3=%u ioctrl=%u io_cfg1=%u"
+      " lpi_freeze=%u equalizer=%u cagc=%u timing=%u current=%u lpi_groups=%u threshold=%u" :
+      " desired=%u trust=%u stale=%u valid_mask=%u vod1=%u vod2=%u vod3=%u ioctrl=%u io_cfg1=%u";
+  out.set(format,
           unsigned(s.desiredValid), unsigned(s.trust), unsigned(s.observedStale), unsigned(s.validMask),
-          unsigned(s.raw[0]), unsigned(s.raw[1]), unsigned(s.raw[2]), unsigned(s.raw[3]), unsigned(s.raw[4]));
+          unsigned(s.raw[0]), unsigned(s.raw[1]), unsigned(s.raw[2]), unsigned(s.raw[3]), unsigned(s.raw[4]),
+          unsigned(s.raw[5]), unsigned(s.raw[6]), unsigned(s.raw[7]), unsigned(s.raw[8]), unsigned(s.raw[9]),
+          unsigned(s.raw[10]), unsigned(s.raw[11]));
 }
 
 /// @brief Format raw MSE and the independent prior link context.
 /// @param[in] s Current or cached sample. Invalid samples do not imply zero calibrated error.
 /// @param[out] out Raw measurement and provenance fields.
 inline void fields(const SignalQualitySnapshot& s, FeatureFields& out) {
-  out.set(" valid=%u stale=%u raw_mse=%u observed_valid=%u observed_us=%" PRIu64
-          " context_valid=%u context_stale=%u context_up=%u last_status=%s",
+  const char* format = s.identity.declaredVariant == Variant::DP83825I ?
+      " valid=%u stale=%u raw_mse=%u observed_valid=%u observed_us=%" PRIu64
+      " context_valid=%u context_stale=%u context_up=%u last_status=%s quality=%u" :
+      " valid=%u stale=%u raw_mse=%u observed_valid=%u observed_us=%" PRIu64
+      " context_valid=%u context_stale=%u context_up=%u last_status=%s";
+  out.set(format,
           unsigned(s.valid), unsigned(s.stale), unsigned(s.rawMse), unsigned(s.timeValid),
           s.timeValid ? s.observedAtUs : 0, unsigned(s.linkContext.valid), unsigned(s.linkContext.stale),
-          unsigned(s.linkContext.linkUp), errorName(s.lastStatus.code));
+          unsigned(s.linkContext.linkUp), errorName(s.lastStatus.code), unsigned(s.quality));
 }
 
 /// @brief Append direct owner effects and budget evidence to the observed snapshot.
@@ -378,7 +416,7 @@ Status pinFeature(Access& io, Feature feature, const FeatureArgs& args, FeatureF
     case Feature::ANALOG: {
       AnalogSettings settings{};
       if (!decodeAnalog(args, settings)) return featureInvalid();
-      if (!io.attest(1U | (settings.terminationOwned ? 2U : 0U))) return boardDenied(out);
+      if (!io.attest(1U | ((settings.terminationOwned || settings.vodOwned || settings.impedanceOwned) ? 2U : 0U))) return boardDenied(out);
       settings.maintenanceAdmitted = settings.macStopped = settings.fixtureAdmitted = true;
       settings.terminationOverrideAdmitted = settings.terminationOwned;
       return io.template start<&Core::startConfigureAnalog>(settings);

@@ -73,7 +73,7 @@ An argument or token failure rejects the entire line before dispatch.
 | `registers dump mmd <devad> <first> <last>` | | Inspect up to 32 offsets in one explicit MMD space through safe read policy. |
 | `connection initialize [reset-kind]` | `init`, `begin` | Initialize and verify owned settings. Default `none`. |
 | `connection end` | | Release through the application owner. See the teardown rule below. |
-| `recovery reset <pcs\|hard>` | | Issue the selected reset and verify owned replay. |
+| `recovery reset <pcs\|hard\|eee-pcs>` | | Issue the selected reset and verify owned replay. |
 | `recovery restart` | | Issue the circuitry restart, then verify owned state. |
 | `recovery reinitialize [reset-kind]` | | Open a new restoration operation and budget. Default `none`. |
 | `owner start initialize [reset-kind]`, `owner start verify` | | Admit the same initialization or read-only verification used by the other entry points. |
@@ -753,3 +753,34 @@ An A `eee configure` terminal includes `recipe_restart`. Values are
 `none`, `attempted`, `uncertain` and `accepted`. An accepted restart can
 precede a final MDIO failure at 0466. Retain the terminal and its cleanup
 debt together. [A procedure and field matrix](feature-coverage.md#dp83826ai-and-dp83826ae)
+
+### DP83825I revision 0
+
+Use `connection initialize hard power-optimized`, `extended-reach`,
+`extended-reach-eee` or `default` as the mode argument. For example,
+`connection initialize none retain stoppable` requests the PCS RX-clock
+policy. `recovery reset eee-pcs` selects the IEEE PCS reset.
+The board supplies the declared reference and disruptive-operation grants.
+
+`link collect register12` reads the separate 000C latch once.
+`irq service` uses MISR1/2. `controls mse` uses prior coherent link
+evidence and returns the raw MSE and the SDAA081 class (0 unclassified,
+1 excellent, 2 good, 3 poor). Refresh the link before acquiring MSE.
+`controls analog vod,7,-1 keep keep 25ohm keep` selects the 93.75%
+coarse pair, unit-specific fine offset -1 and 25-ohm MAC impedance.
+The fifth analog argument accepts `dsp,group,mask,value` and further
+slash-separated groups. Group names are `lpi-freeze`, `equalizer`, `cagc`,
+`timing`, `current`, `lpi-groups` and `threshold`. For example,
+`controls analog keep keep keep keep dsp,cagc,0xc000,0x4000` selects CAGC
+mapping 1. Masks use documented native bit positions.
+`controls pins` accepts LED sources 0 through 14 on LED0/LED2 and
+`low3`, `low5`, `high` or `low7` on pin 2. A bilateral LPI
+request uses `lpi start bilateral` after separate partner confirmation.
+For 100M compliance use `diagnostics compliance-start count100 mdi 17 3`
+for a sequence of 17 zeroes. Add flag 4 to the required flags for scrambler
+bypass. `diagnostics collision-start 100 4` verifies only the register
+control on an RMII board.
+
+On DP83825I, `eee configure on 2 0 [rx-policy]` accepts a receive policy from
+0 through 3. Bit 0 shuts down analog RX during LPI Quiet and bit 1 disables
+reception of EEE next pages. Omitting the operand uses the table 6-7 policy (1).

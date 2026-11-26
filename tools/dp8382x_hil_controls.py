@@ -36,6 +36,7 @@ CASES = {
     "mse": ("100/full AN peer and independently calibrated quality stimulus and measurement", False),
     "analog": ("calibrated differential MDI load and amplitude, impedance and slew instruments", True),
 }
+P25_CASES = {"analog", "quality", "pins", "power-deep", "eee", "lpi", "power-ieee", "power-sleep", "power-pll", "mse", "irq", "wol-magic", "wol-pulse", "wol-secure"}
 MII_CASES = {"interface-mii", "quality"}
 RMII_CASES = {"pins", "interface-rmii25", "interface-rmii50", "repeater-leader", "repeater-follower"}
 MODES = {"pins": "enhanced", "pins-basic": "basic", "interface-mii": "enhanced"}
@@ -195,6 +196,53 @@ CONTROLS = {
                       analog("0x28,0x2f,0x18,8,0 4,4,0,1 slow fast keep", vod1=10752,
                              vod2=61976, vod3=16960, ioctrl=17, io_cfg1=16384)),
 }
+
+P25_POWER = {**POWER, "power_state": (0, 5), "deep_word": WORD,
+             **bits("deep_valid deep_attempt deep_complete deep_possible")}
+
+
+def p25_control(name, role):
+    """SNLS638C field expectations for the two declared RMII roles of the offline fixture."""
+    if name in ("power-ieee", "power-pll", "power-sleep", "power-deep"):
+        base = power("normal")
+        target = power("down") if name == "power-deep" else CONTROLS[name].target
+        if name == "power-deep":
+            target = Setting("power configure deep 0 0", {**target.fields, "power_state": 5})
+        def state(setting, deep):
+            return replace(setting, fields={**setting.fields, "deep_valid": 1, "deep_word": 4 if deep else 0,
+                                            "deep_attempt": int(deep), "deep_complete": int(deep), "deep_possible": int(deep)})
+        return Control(P25_POWER, "power status", state(base, False), state(target, name == "power-deep"), live="power read")
+    if name == "pins":
+        if role == "leader":
+            # Keep the generated reference pin under the clock owner for this
+            # campaign. Only LED0 and blink are acquired, applied and restored.
+            fields = dict(phycr=0x4001, ledcfg=0, ledcfg2=0, io_cfg1=0, gpio0=0, gpio1=0, gpio2=0, gpio3=0)
+            base = pins("led,0,low,normal keep keep keep 0 keep keep keep", 7, ledcr=0, mledcr=1, **fields)
+            target = pins("led,8,high,high keep keep keep 1 keep keep keep", 7, ledcr=0x292, mledcr=0x41, **fields)
+            return Control(PINS, "controls pins-status", base, target, "terminal")
+        # LED0 uses LEDCR/LED_CFG1, LED2 uses LED_CFG2[6:4]/LED_CFG1[7:4].
+        # Preserve the model's reserved nibble, PHY address and unowned sources.
+        fields = dict(phycr=0x4001, io_cfg1=0, gpio0=0, gpio1=0, gpio2=9, gpio3=0)
+        base = pins("led,0,low,normal keep led,0,low,normal keep 0 keep keep keep", 0x11F,
+                    ledcr=0, mledcr=1, ledcfg=0x5605, ledcfg2=0, **fields)
+        target = pins("led,8,high,high keep led,14,high,high keep 1 keep keep keep", 0x11F,
+                      ledcr=0x292, mledcr=0x41, ledcfg=0x56E5, ledcfg2=0x70, **fields)
+        return Control(PINS, "controls pins-status", base, target, "terminal")
+    if name == "quality":
+        common = dict(desired=1, trust=1, stale=0, valid_mask=0xB9, fld_bound_applicable=0,
+                      fld_cfg1=0, fld_cfg2=0, physcr=0, config10=0, cr1=32)
+        base = Setting("controls quality 0 0,0,0 0,0,0,0,0 keep", dict(cr3=0x60, cr2=0, btscr=0, **common))
+        target = Setting("controls quality 0x405 0,0,1 1,8,1,1,0 keep", dict(cr3=0x465, cr2=4, btscr=0x3081, **common))
+        return Control(QUALITY, "controls quality-status", base, target)
+    if name == "analog":
+        # Table 8-2 coarse words, 0302[15:14] for 50/25 ohm. Table 8-3
+        # authorizes only a write to 030E, so bit 2 in valid_mask stays clear.
+        common = dict(desired=1, trust=1, stale=0, valid_mask=0x13, vod3=0, ioctrl=0)
+        base = Setting("controls analog vod,8,0 keep keep 50ohm keep", dict(vod1=0x0C00, vod2=16, io_cfg1=0, **common))
+        target = Setting("controls analog vod,9,-1 keep keep 25ohm keep", dict(vod1=0x0BC0, vod2=17, io_cfg1=0x4000, **common))
+        return Control(ANALOG, "controls analog-status", base, target)
+    return None
+
 
 def a_control(name, mode):
     """Independently expected A register words for the simulated entry and target profiles."""
@@ -358,7 +406,7 @@ def observe(c, spec, setting, *, cleanup=False, verdict="FAIL"):
 
 def persistent_case(c, saved):
     """Verify an explicit entry baseline, apply one profile and prove its independent restoration."""
-    spec = c.a_control or CONTROLS[c.spec.id]
+    spec = c.part_control or CONTROLS[c.spec.id]
     try:
         yield from observe(c, spec, spec.baseline, verdict="BLOCKED")
         yield from apply(c, spec, spec.target)
@@ -376,16 +424,22 @@ def persistent_case(c, saved):
         if c.spec.id == "power-pll":
             # The ordinary NORMAL command lacks the clock-loss grant. Clear PLL
             # while retaining independently proved IEEE down, then exit IEEE down.
-            current = yield from inspect(c, "power read", POWER,
+            current = yield from inspect(c, "power read", spec.schema,
                                          dict(stale=0, bmcr_valid=1, physcr_valid=1, biscr_valid=1), cleanup=True)
             if int(current.fields["physcr"]) & 0x8000:
                 evidence(current, {"indicated_down": 1, "power_state": 3},
                          "cannot select PLL exit without current IEEE down")
-                interim = (a_control("power-ieee", c.declaration["mode"]).target if c.a_feature else power("down"))
+                interim = (p25_control("power-ieee", c.expected["rmii_role"]).target if c.p25 else
+                           a_control("power-ieee", c.declaration["mode"]).target if c.a_feature else power("down"))
                 yield from apply(c, spec, interim, cleanup=True)
                 yield from observe(c, spec, interim, cleanup=True)
-        yield from apply(c, spec, spec.baseline, cleanup=True)
-        yield from observe(c, spec, spec.baseline, cleanup=True)
+        baseline = spec.baseline
+        if c.p25 and c.spec.id == "power-deep":
+            # Clearing DPDWN has its own effect receipt even after the final
+            # NORMAL observation matches the explicitly installed entry state.
+            baseline = replace(baseline, fields={**baseline.fields, "deep_attempt": 1, "deep_complete": 1, "deep_possible": 1})
+        yield from apply(c, spec, baseline, cleanup=True)
+        yield from observe(c, spec, baseline, cleanup=True)
     except AssertionFailed as error:
         cleanup_error(c, error)
     else:
@@ -400,7 +454,7 @@ def inject(c, action):
 
 def irq(c):
     """Own and stop interrupt stimulus, consuming one guarded modeled event sample."""
-    output_enable = 0x0101 if c.a_feature else int(c.declaration["mode"] == "enhanced")
+    output_enable = 0x0101 if c.a_feature else int(c.declaration["mode"] in ("enhanced", "none"))
     stable = dict(valid=1, trust=1, stale=0, physcr_valid=1, misr1_valid=1, misr2_valid=1, rxfs_valid=1)
     baseline = dict(stable, selector=1, test_active=0, physcr=8 | output_enable, misr1=0, misr2=0, rxfs=0)
     target = dict(stable, selector=2, test_active=0, physcr=10 | output_enable, misr1=32, misr2=2, rxfs=4096)
@@ -468,7 +522,7 @@ def eee_read(c, enabled, cleanup=False, verdict="FAIL"):
     expected = dict(valid=1, stale=0, trust=1, desired_valid=1, enabled=int(enabled),
                     capability_valid=1, capability=2, advertised_valid=1, advertised=2 if enabled else 0,
                     partner_valid=1, partner=2, eee_status_valid=1, eee_status=0, wake_errors_valid=1,
-                    wake_errors=0, control_valid=1, control=139 if enabled else 128,
+                    wake_errors=0, control_valid=1, control=(0xC2 if c.p25 else 139) if enabled else 128,
                     negotiated_valid=int(enabled), negotiated=int(enabled))
     row = yield from inspect(c, "eee read", EEE, expected, cleanup=cleanup, verdict=verdict)
     yield from inspect(c, "eee status", EEE, payload(row), cleanup=cleanup, verdict=verdict)
@@ -485,10 +539,11 @@ def eee_terminal(row, enabled, a_grade=False):
                              negotiated_valid=0, negotiated=0), reset=True)
 
 
-def lpi_result(row, enabled):
+def lpi_result(row, enabled, p25=False):
     require(clean(row), row, f"{row.cmd} did not complete cleanly")
-    feature_fields(row, LPI)
-    evidence(row, dict(lpi=int(enabled), readback_valid=1, control=139 | int(enabled) << 12,
+    schema = {**LPI, "min_normal_ifg_us": (36, 36)} if p25 and not enabled else LPI
+    feature_fields(row, schema)
+    evidence(row, dict(lpi=int(enabled), readback_valid=1, control=(0xC2 if p25 else 139) | int(enabled) << 12,
                        batch_primary="OK", primary_detail=0, batch_release="OK", release_detail=0,
                        attempted=9, completed=9, transactions=2, effect_completed=1, effect_possible=1),
              f"{row.cmd} did not prove the forced LPI request or its independent clear")
@@ -505,18 +560,19 @@ def eee(c, saved):
         yield from link100(c, saved)
         yield from eee_read(c, True)
         if c.spec.id == "lpi":
-            yield from inspect(c, "power read", POWER, dict(valid=0, trust=0, stale=0, power_state=1, indicated_down=0,
+            yield from inspect(c, "power read", P25_POWER if c.p25 else POWER, dict(valid=0, trust=0, stale=0, power_state=1, indicated_down=0,
                                requested_down=0, requested_sleep=0, requested_pll_off=0,
                                bmcr_valid=1, bmcr=4096, physcr_valid=1,
                                physcr=(0x010B if c.declaration["mode"] == "basic" else 0x0108) if c.a_feature else 0,
-                               biscr_valid=1, biscr=256))
+                               biscr_valid=1, biscr=256, **(dict(deep_valid=1, deep_word=0, deep_attempt=0,
+                               deep_complete=0, deep_possible=0) if c.p25 else {})))
             yield from inspect(c, "lpi status", LPI, dict(lpi=0, readback_valid=0, control=0, attempted=0,
                                completed=0, transactions=0, effect_completed=0, effect_possible=0,
                                batch_primary="RESULT_NOT_AVAILABLE", primary_detail=0,
                                batch_release="RESULT_NOT_AVAILABLE", release_detail=0))
             row = yield from issue_mutation(c, "lpi start", "terminal")
             lpi_owed = effect_possible(row)
-            lpi_result(row, True)
+            lpi_result(row, True, c.p25)
             yield from inspect(c, "lpi status", LPI, payload(row))
     except AssertionFailed as error:
         c.failed = error
@@ -527,8 +583,8 @@ def eee(c, saved):
         try:
             yield from c.guard_feature_cleanup()
             row = yield from c.command("lpi stop", cleanup=True)
-            lpi_result(row, False)
-            yield from inspect(c, "lpi status", LPI, payload(row), cleanup=True)
+            lpi_result(row, False, c.p25)
+            yield from inspect(c, "lpi status", {**LPI, "min_normal_ifg_us": (36, 36)} if c.p25 else LPI, payload(row), cleanup=True)
         except AssertionFailed as error:
             cleanup_error(c, error)
     try:
@@ -561,7 +617,7 @@ def check_baseline(row, text, mode, a_grade=False):
         direct(row, INTERFACE, {**RMII50_BASE.fields, "valid_mask": 255, "io_cfg1": 64, "clk_led_status": 1})
     elif text == IRQ_BASE:
         operation(row, IRQ, dict(valid=1, stale=0, trust=1, selector=1, test_active=0,
-                                 physcr_valid=1, physcr=(0x0108 | 1) if a_grade else 8 | int(mode == "enhanced"), misr1_valid=1, misr1=0,
+                                 physcr_valid=1, physcr=(0x0108 | 1) if a_grade else 8 | int(mode in ("enhanced", "none")), misr1_valid=1, misr1=0,
                                  misr2_valid=1, misr2=0, rxfs_valid=1, rxfs=0))
     elif text == EEE_BASE:
         eee_terminal(row, False, a_grade)
@@ -630,11 +686,13 @@ def mse(c, saved):
     yield from link100(c, saved)
     observed = int(c.last.fields["observed_us"])
     before = yield from c.transport()
-    row = yield from inspect(c, "controls mse", MSE, dict(valid=1, stale=0, raw_mse=0x1234,
+    schema = {**MSE, "quality": (0, 3)} if c.p25 else MSE
+    expected = {"quality": 3} if c.p25 else {}
+    row = yield from inspect(c, "controls mse", schema, dict(**expected, valid=1, stale=0, raw_mse=0x1234,
                              observed_valid=1, context_valid=1, context_stale=0, context_up=1, last_status="OK"))
     require(max(observed, int(before.fields["time_us"])) < int(row.fields["observed_us"]) <=
             int(row.fields["time_us"]) + 1, row, "MSE sample timestamp does not follow current link evidence")
-    yield from inspect(c, "controls mse-status", MSE, payload(row))
+    yield from inspect(c, "controls mse-status", schema, payload(row))
     after = yield from c.transport()
     require(all(int(after.fields[name]) - int(before.fields[name]) == count
                 for name, count in (("attempted", 4), ("completed", 4), ("batches", 1))),
@@ -655,7 +713,7 @@ def deep_gate(c):
 def run(c, saved):
     """Run only the selected control case under the shared campaign owner and budgets."""
     case_id = c.spec.id
-    if case_id in CONTROLS:
+    if c.part_control or case_id in CONTROLS:
         yield from persistent_case(c, saved)
     elif case_id == "irq":
         yield from irq(c)

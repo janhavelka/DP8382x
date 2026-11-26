@@ -198,6 +198,22 @@ class PinTranscript(unittest.TestCase):
                 self.assertEqual(row.get("gate"), None if options else "board")
             self.assert_silent(rows[0], rows[-1])
 
+    def test_p25_dsp_owner_and_register12(self):
+        opts = ("--variant", "DP83825I", "--rmii-role", "follower", ATTEST)
+        stream = (b"link collect register12\ncontrols analog keep keep keep keep dsp,cagc,0xc000,0x4000\n"
+                  b"controls analog-status\ncached transport\n"
+                  b"controls analog keep keep keep keep dsp,cagc,0x8000,0x8000\n"
+                  b"connection initialize hard extended-reach\ncached transport\nrecovery reset eee-pcs\n")
+        rows = [row for row in records(invoke(stream, *opts).stdout) if row["state"] == "terminal"]
+        latch, configured, cached, before, partial, overlap, after, reset = rows
+        self.assertEqual((latch["primary"], latch["register12"]), ("OK", "0"))
+        for row in (configured, cached):
+            self.assertEqual((row["primary"], row["valid_mask"]), ("OK", "128"))
+            self.assertEqual(int(row["cagc"]) & 0xc000, 0x4000)
+        self.assertEqual((partial["primary"], overlap["primary"]), ("INVALID_CONFIG", "INVALID_CONFIG"))
+        self.assert_silent(before, after)
+        self.assertEqual((reset["primary"], reset["effective_reset"]), ("OK", "eee-pcs"))
+
     def test_expanded_help_remains_complete_in_fixed_console(self):
         output = invoke(b"help\nlocal console\nhelp controls\nlocal console\n").stdout
         self.assertIn(b"<clock> <isolate>", output)

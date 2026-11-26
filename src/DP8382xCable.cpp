@@ -1,11 +1,12 @@
 /// @file DP8382xCable.cpp
-/// @brief Manual DP83826I TDR, using the shared bounded operation/restore owner.
+/// @brief Raw and source-specific TDR captures using the common operation and restoration owner.
 #include <DP8382x/DP8382x.h>
 #include <cmath>
 
 namespace DP8382x {
 namespace {
-// SNLS647I tables 8-54/56..60; GENCFG 0600 is the named SNLA428 exception.
+// SNLS638C tables 7-40/43/45..48 and SNLS647I tables 8-54/56..60.
+// The seventh address belongs exclusively to the SNLA428 recipe.
 constexpr uint16_t addresses[] = {0x0170,0x0173,0x0175,0x0176,0x0177,0x0178,0x0456};
 constexpr uint16_t masks[] = {0x7770,0xFFFF,0x380F,0x001F,0x1F00,0x0007,0x0600};
 constexpr uint8_t recipeFields[] = {0,1,2,5,6};
@@ -91,7 +92,6 @@ Status interpretCable(const CableResult& result, double delay, CableDiagnosis& d
 }
 
 Status DP8382x::_admitCable(const OperationBudget& budget, bool stop) const noexcept {
-  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   if (budget.pollIntervalUs == 0U || budget.maxStalledPolls == 0U) {
     return Status::Error(Err::INVALID_PARAM, "Invalid cable polling budget", static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
   }
@@ -109,6 +109,9 @@ Status DP8382x::startCableTest(const CableSettings& settings, const OperationBud
   if (_interface.desiredValid && _interface.desired.isolationOwned && _interface.desired.isolate) {
     return invalid("Release owned MAC isolation before manual cable capture");
   }
+  // SNLS638C 6.3.16.1 and tables 7-32/40..59 support named raw controls.
+  // The six-row SNLA428 recipe includes DP83826-only opaque writes.
+  if (_config.variant == Variant::DP83825I && settings.recipe != CableRecipe::RAW) { return _unsupportedFeature(); }
   const auto validation = validateCableSettings(settings); if (!validation.ok()) { return validation; }
   const auto admission = _admitCable(budget, false); if (!admission.ok()) { return admission; }
   if (_operation.cleanupOwed || _operation.temporaryMayBeActive) { return busyCable(BusyDetail::CLEANUP_REQUIRED); }
@@ -234,14 +237,15 @@ MdioBatch DP8382x::_cableBatch() const noexcept {
       const auto field = _cable.settings.recipe == CableRecipe::RAW ? _cableField : recipeFields[_cableField];
       return _mmdBatch(addresses[field],FrameKind::READ,0);
     }
-    // D3's complete command literal is confined to that recipe. Ordinary
-    // A commands leave RH completion/failure bits [1:0] neutral.
+    // SNLS638C table 7-32 defines only start and calibration writable.
+    // Keep calibration, completion and failure neutral in the DP83825I command.
+    // Earlier parts retain their own raw/recipe write semantics.
     case CableStep::TRIGGER: return direct(0x1E,FrameKind::WRITE,_cable.settings.recipe == CableRecipe::SNLA428 ?
-        uint16_t{0x8102} : static_cast<uint16_t>((_cable.result.prerequisiteCdcr.raw & (isA(_config.variant)?0x3FFCU:0x3FFFU)) | 0x8000U));
+        uint16_t{0x8102} : _config.variant == Variant::DP83825I ? uint16_t{0x8000} : static_cast<uint16_t>((_cable.result.prerequisiteCdcr.raw & (isA(_config.variant)?0x3FFCU:0x3FFFU)) | 0x8000U));
     case CableStep::INDEX: return _mmdBatch(0x0180,FrameKind::READ,0);
     case CableStep::AMPLITUDE: return _mmdBatch(0x0185,FrameKind::READ,0);
     case CableStep::PEAK: return _mmdBatch(0x018A,FrameKind::READ,0);
-    case CableStep::STOP_COMMAND: return direct(0x1E,FrameKind::WRITE,static_cast<uint16_t>(_cable.result.prerequisiteCdcr.raw & (isA(_config.variant)?0x3FFCU:0x3FFFU)));
+    case CableStep::STOP_COMMAND: return direct(0x1E,FrameKind::WRITE,_config.variant == Variant::DP83825I ? uint16_t{0} : static_cast<uint16_t>(_cable.result.prerequisiteCdcr.raw & (isA(_config.variant)?0x3FFCU:0x3FFFU)));
     case CableStep::RESTORE_BMCR: {
       auto batch = direct(0); batch.frameCount = 2;
       batch.frames[1] = {FrameKind::WRITE,0,static_cast<uint16_t>((_cableSavedBmcr & 0x0480U) | _softwarePowerWord()),0x317F,0}; return batch;
@@ -367,6 +371,9 @@ Status DP8382x::_advanceCable(Status status, bool called, const MdioBatch& batch
       if (_operation.kind != OperationKind::CABLE_AUTORUN_CONFIGURE && (value & 0x0100U) != 0U) { return _finishOperation(invalid("Disable autorun through its owner before manual cable test")); }
       _setCableStep(CableStep::BISCR); break;
     case CableStep::BISCR:
+      if (_config.variant == Variant::DP83825I && (value & 0x0100U) == 0U) {
+        return _finishOperation(invalid("Active sleep prevents cable configuration"));
+      }
       if ((value & 0x325FU) != 0U) { return _finishOperation(invalid("BIST or loopback active")); }
       _setCableStep(_operation.kind == OperationKind::CABLE_AUTORUN_CONFIGURE ? CableStep::CDCR : CableStep::LINK); break;
     case CableStep::LINK:

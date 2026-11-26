@@ -24,6 +24,9 @@ struct Controller {
   RmiiClock boardRole{RmiiClock::UNSPECIFIED};
   bool clockLossApproved{false};
   uint16_t sampledSor{0}, sampledRcsr{0};
+  uint8_t bistErrors{0}, bistFrozen{0};
+  unsigned cablePolls{0};
+  bool cableFails{false};
   uint64_t now{100};
   unsigned delayedClock{0};
   unsigned frames{0},calls{0},clocks{0},releases{0},mutations{0},hard{0};
@@ -42,6 +45,9 @@ struct Controller {
     words[25]=0x8001;words[22]=0x0100;words[30]=0x0102;words[23]=0x0061;
     ext[0x0303]=ext[0x0304]=ext[0x0305]=ext[0x0306]=8;
     if (declared == Variant::DP83825I) { ext[0x467] = sampledSor; words[23] = sampledRcsr; }
+    if (declared == Variant::DP83825I) { ext[0x0170] = 0x0C12; }
+    bistErrors = bistFrozen = 0;
+    cablePolls = 0;
     ext[0x030E]=0x8400;ext[0x04A1]=0x1000;ext[0x04D1]=0x0080;
   }
   Config config(uint32_t phy=1) {
@@ -67,8 +73,16 @@ struct Controller {
     if(target==0) { words[0]&=stickyRestart?0x7FFFU:0x7DFFU;return static_cast<uint16_t>(words[0]|(powerPin?0x0800U:0U)); }
     if(target==31)words[31]=0;
     if(declared==Variant::DP83825I && target==1)words[16]&=0xFFBF;
-    if(target==0x0308 && (id2&15U)!=4U)return static_cast<uint16_t>((ext[0x0302]&0x0040U)!=0U?1U:0U);
+    if(target==0x0308 && declared!=Variant::DP83825I && (id2&15U)!=4U)return static_cast<uint16_t>((ext[0x0302]&0x0040U)!=0U?1U:0U);
     const auto value=target<32U?words[target]:ext[target];
+    if(declared==Variant::DP83825I) {
+      if(target==12) words[12]&=0x00FF;
+      if(target==27) return static_cast<uint16_t>((uint32_t{bistFrozen} << 8U) | (words[27] & 0xFFU));
+      if(target==30 && (value & 0x8000U) != 0U && ++cablePolls == 2U) {
+        words[30] = cableFails ? 3U : 2U;
+        return words[30];
+      }
+    }
     if(target==18 || target==19) { words[target]&=0x00FF;words[16]&=0xFF7F; }
     if(target==20) { words[20]&=0xFF00;words[16]&=0xF7FF; }
     if(target==21) { words[21]=0;words[16]&=0xDFFF; }
@@ -83,11 +97,23 @@ struct Controller {
     const uint16_t devad=reg==14?static_cast<uint16_t>(selector&31U):uint16_t{31};
     if(devad==3 || devad==7) {
       CHECK(target<64U);if(target>=64U)return;
+      if(declared==Variant::DP83825I && devad==3 && target==0 && (value&0x8000U)!=0U) {
+        mmd3.fill(0); mmd7.fill(0); return;
+      }
       if(devad==3)mmd3[target]=value;else mmd7[target]=static_cast<uint16_t>(value^(corruptAdvertisement?1U:0U));
       return;
     }
     if(target==31 && value==0x8000) { ++hard;defaults();return; }
     if(target==0 && value==0x8000) { words[0]=0x3100;words[9]=words[10]=words[17]=0;words[23]=declared==Variant::DP83825I?sampledRcsr:0x0061;return; }
+    if (declared==Variant::DP83825I && target==27) {
+      if ((value & 0x8000U) != 0U) { bistFrozen=bistErrors; bistErrors=0; }
+      words[27]=value & 0xFFU;
+      return;
+    }
+    if (declared==Variant::DP83825I && target==22) {
+      words[22]=static_cast<uint16_t>((words[22] & 0x0F00U) | (value & 0x705FU));
+      return;
+    }
     if(target==23)CHECK((value&0x000CU)==0U);
     if(target==18 || target==19) { CHECK((value&0xFF00U)==0U);words[target]=static_cast<uint16_t>((words[target]&0xFF00U)|value);return; }
     if(target==0x04A1) {
@@ -933,9 +959,11 @@ void p25Core() {
   }
 }
 #include "p25_profiles.inc"
+#include "p25_diagnostics.inc"
+#include "p25_modes.inc"
 } // namespace
 int main(int argc,char** argv) {
-  const test::Suite suites[]={{"p25",p25Core},{"p25_profiles",p25Profiles},{"vectors",vectors},{"admission",admission},{"failures",failures},{"replay",replay},
+  const test::Suite suites[]={{"p25",p25Core},{"p25_profiles",p25Profiles},{"p25_diagnostics",p25Diagnostics},{"p25_modes",p25Modes},{"p25_events",p25Events},{"p25_outputs",p25Outputs},{"vectors",vectors},{"admission",admission},{"failures",failures},{"replay",replay},
     {"ownership",ownership},{"collector",collector},{"timing",timing},{"repeater",repeater},
     {"ai",aInterface<Variant::DP83826AI>},{"ae",aInterface<Variant::DP83826AE>}};
   return test::runSuites(argc,argv,suites);

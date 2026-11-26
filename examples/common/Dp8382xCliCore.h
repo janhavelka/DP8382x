@@ -158,7 +158,7 @@ public:
       case Action::START_VERIFY:
         return _driver.startVerify(request.budget, receipt.token);
       case Action::START_INITIALIZE:
-        return _driver.startInitialize({request.reset}, request.budget, receipt.token);
+        return _driver.startInitialize({request.reset, request.functionalMode, request.rxClock}, request.budget, receipt.token);
       case Action::POLL:
         return _driver.pollOperation(request.token, request.budget.io.maxFrames);
       case Action::CANCEL:
@@ -229,6 +229,12 @@ private:
                              static_cast<int32_t>(BusyDetail::OWNER_ADMISSION));
       }
       return _driver.abandonCleanup();
+    }
+    if (request.mask == evidenceBit(EvidenceSource::REGISTER_12)) {
+      EvidenceSnapshot evidence;
+      const auto status = _driver.acquireEvidence(request.mask, evidence, request.budget.io);
+      if (status.ok()) receipt.value = evidence.samples[static_cast<unsigned>(EvidenceSource::REGISTER_12)].raw;
+      return status;
     }
     const auto status = _driver.collectEvents(receipt.counters, request.budget.io, &receipt.batchValid);
     if (receipt.batchValid) {

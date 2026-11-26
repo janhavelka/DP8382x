@@ -624,3 +624,178 @@ mode recipes, power and EEE, event/counter services, BIST, loopback, TDR,
 analog/electrical settings, wake and pin profiles. Physical clock, link and
 electrical qualification remain open under Q15.
 [DP83825I register and procedure ledger](registers/dp83825i.json)
+
+### DP83825I procedures
+
+The API, shared CLI and executing host test below identify the owner for each ledger procedure. Q15 covers board and line measurements. The register table groups printed bit ranges by these same owners. The standalone DSP controls below name the independently programmable fields. A recipe may also write opaque fields at the cited addresses and values.
+
+| Ledger procedure | Core owner | Shared CLI entry | Host registration | Scope |
+| --- | --- | --- | --- | --- |
+| `identify` | readIdentity | `connection identity` | `p25_identity` | 2000:A140 revision 0 |
+| `mdio` | readClause22 / readMmd / modifyMmd | `registers read` | `p25_events` | Separate direct, vendor, PCS and AN namespaces |
+| `external_reset` | invalidateDeviceState | `configuration invalidate` | `p25_core` | Owner reports an external event |
+| `pcs_reset` | startInitialize | `recovery reset` | `p25_core` | BMCR command and observed clear |
+| `hard_reset` | startInitialize | `recovery reset` | `p25_core` | HARD with role recapture and controller silence |
+| `restart` | startInitialize | `recovery restart` | `p25_core` | Register-retaining circuitry restart |
+| `initialize` | startInitialize | `connection initialize` | `p25_core` | Part startup, role, profile and bounded replay |
+| `clock_role` | strapSnapshot | `connection identity` | `p25_core` | SOR1 and RCSR, both roles |
+| `rmii` | configureInterface | `controls interface` | `p25_profiles` | Revision, elasticity and RMII-only topology |
+| `follower_timing` | configureInterface | `controls interface` | `p25_profiles` | Clock-shift companion has no sourced inverse |
+| `clock_loss` | configureInterface / modifyMmd | `controls interface` | `p25_profiles` | Leader pin 2 and isolation need board consent |
+| `configure_an` | startConfigure | `configuration apply` | `p25_core` | Local ANAR and peer capability stay separate |
+| `configure_forced` | startConfigure | `configuration apply` | `p25_core` | Both speeds and duplex settings |
+| `next_page` | startConfigure | `configuration apply` | `p25_negotiation_pages` | One owner per page epoch |
+| `observe_link` | readLinkStatus | `link read` | `p25_core` | Current link with latch history |
+| `fast_drop` | startConfigureQuality | `controls quality` | `p25_profiles` | CR3 enables and collector-owned FLDS |
+| `link_options` | startConfigure | `configuration apply` | `p25_core` | Copper advertisement and pair selection |
+| `repeater` | configureInterface | `controls interface` | `p25_profiles` | Two followers with a shared external reference |
+| `functional_mode` | startInitialize / functionalModeSnapshot | `connection initialize` | `p25_functional_modes` | Default and tables 6-5 through 6-7 from HARD baseline |
+| `eee` | startConfigureEee / readEeeStatus / startInitialize | `eee configure` | `p25_functional_modes` | Table 6-7, six IEEE tuples, PCS clock and reset |
+| `legacy_lpi` | startLpi / stopLpi | `lpi start` | `p25_functional_modes` | Negotiated and bilateral application-controlled entry. MAC owns the 36 us exit interval |
+| `power` | startConfigurePower / readPowerStatus | `power configure` | `p25_functional_modes` | IEEE down, active sleep, PLL and deep-control readback. Actual current and clock recovery need Q15 |
+| `irq` | startConfigureInterrupts / serviceInterrupts | `irq service` | `p25_events` | MISR1/2 delivery only. Pin and stimulus checks in p25_outputs |
+| `counters` | collectEvents / acquireEvidence | `link collect` | `p25_events` | Register_12 separate. RECR kept raw under the width conflict |
+| `quality` | readSignalQuality | `controls mse` | `p25_diagnostics` | SDAA081 table 2-6 holds two equality gaps |
+| `loopback` | startLoopback / stopLoopback | `diagnostics loopback-start` | `p25_diagnostics` | Exact BISCR selectors, AN disabled for reverse |
+| `bist` | startBist / startBistAcquire | `diagnostics bist-start` | `p25_diagnostics` | PRBS generator, checker, freeze, capture and stop |
+| `tdr` | startCableTest / startCableAcquire | `diagnostics cable-raw` | `p25_diagnostics` | Quiet cable and first peak. CDCR calibration completion remains unresolved |
+| `led_pin` | configurePins | `controls pins` | `p25_outputs` | LED0, LED2, pin 2 mux and separate clock permission |
+| `wake` | startConfigureWake / acknowledgeWake | `wol configure` | `p25_outputs` | Disable before rekey, direct/IRQ routes and level acknowledgement |
+| `vod` | startConfigureAnalog | `controls analog` | `p25_outputs` | 17 coarse rows and unit-specific fine word. Q15 measures voltage |
+| `analog` | startConfigureAnalog / startConfigureQuality | `controls analog` | `p25_outputs` | Impedance 50/25 ohms, 001A squelch 0..8 and seven independently masked DSP groups (p25_diagnostics). See the field decisions below |
+| `compliance` | startCompliance / startCollisionTest | `diagnostics compliance-start` | `p25_diagnostics` | 10M patterns, 100M count, scrambler and RMII register-only collision. Scope and fixture verify emissions |
+
+### DP83825I register fields
+
+Each bit range joins the named field, access, reset, legal codes and constraints in the [exact register ledger](registers/dp83825i.json). Reserved ranges have no programming route. An analog assignment outside 001A and 0302 is restricted to an explicitly listed table write or left at its device setting. SNLS638C supplies no independent safe board operating range for those settings. The six IEEE rows use their DEVAD-qualified low wire offsets.
+
+| Printed offset | SNLS638C table | Field owner and bits |
+| --- | --- | --- |
+| `0000` | 7-3 | pcs_reset (15) / loopback (14) / configure_forced (13, 8) / configure_an (12, 9) / power (11) / clock_loss (10) / compliance (7) / reserved (6-0) |
+| `0001` | 7-4 | observe_link (15, 14, 13, 12, 11, 6, 5, 4, 3, 2, 1, 0) / reserved (10-7) |
+| `0002` | 7-5 | identify (15-0) |
+| `0003` | 7-6 | identify (15-10, 9-4, 3-0) |
+| `0004` | 7-7 | next_page (15) / reserved (14, 12) / configure_an (13, 11, 10, 9, 8, 7, 6, 5, 4-0) |
+| `0005` | 7-8 | next_page (15, 14) / configure_an (13, 11, 10, 9, 8, 7, 6, 5, 4-0) / reserved (12) |
+| `0006` | 7-9 | reserved (15-5) / next_page (4, 3, 2, 1, 0) |
+| `0007` | 7-10 | next_page (15, 13, 12, 11, 10-0) / reserved (14) |
+| `0008` | 7-11 | next_page (15, 14, 13, 12, 11, 10-0) |
+| `0009` | 7-12 | reserved (15-10, 9, 7, 6, 4, 3-2, 0) / tdr (8) / configure_forced (5) / link_options (1) |
+| `000A` | 7-13 | reserved (15, 14, 13-7, 6, 4, 3, 0) / link_options (5, 2, 1) |
+| `000B` | 7-14 | reserved (15-11, 9, 8, 7, 4) / fast_drop (10, 3-0) / configure_forced (6, 5) |
+| `000C` | 7-15 | irq (15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0) |
+| `000D` | 7-16 | mdio (15-14, 4-0) / reserved (13-5) |
+| `000E` | 7-17 | mdio (15-0) |
+| `000F` | 7-18 | reserved (15-9, 3-0) / fast_drop (8-4) |
+| `0010` | 7-19 | reserved (15) / observe_link (14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0) |
+| `0011` | 7-20 | power (15, 14, 13-12) / compliance (11) / reserved (10, 7-5, 4) / loopback (9-8) / irq (3, 2, 1, 0) |
+| `0012` | 7-21 | irq (15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0) |
+| `0013` | 7-22 | irq (15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0) |
+| `0014` | 7-23 | reserved (15-8) / counters (7-0) |
+| `0015` | 7-24 | counters (15-0) |
+| `0016` | 7-25 | reserved (15, 7, 5) / bist (14, 13, 12, 11, 10, 9) / power (8) / loopback (6, 4-0) |
+| `0017` | 7-26 | reserved (15-13, 12, 11, 10, 9, 6, 5) / follower_timing (8) / clock_role (7, 3, 2) / rmii (4, 1-0) |
+| `0018` | 7-27 | reserved (15-11, 8, 6-5, 3-2, 0) / led_pin (10-9, 7, 4, 1) |
+| `0019` | 7-28 | configure_forced (15, 14) / observe_link (13, 12, 11) / reserved (10-8, 6) / led_pin (7, 5) / identify (4-0) |
+| `001A` | 7-29 | reserved (15-14, 8, 6-5, 3-1) / analog (13, 12-9, 7, 0) / counters (4) |
+| `001B` | 7-30 | bist (15-8, 7-0) |
+| `001C` | 7-31 | reserved (15-11) / bist (10-0) |
+| `001E` | 7-32 | tdr (15, 14, 1, 0) / reserved (13-2) |
+| `001F` | 7-33 | hard_reset (15) / restart (14) / reserved (13, 12-0) |
+| `0025` | 7-34 | reserved (15-10, 8-7, 2-1) / led_pin (9, 6-3, 0) |
+| `0027` | 7-35 | reserved (15-4) / compliance (3-0) |
+| `0101` | 7-36 | analog (15-8, 7, 4, 3-1, 0) / reserved (6-5) |
+| `010A` | 7-37 | analog (15-8, 7-0) |
+| `0123` | 7-38 | reserved (15) / analog (14-0) |
+| `0130` | 7-39 | reserved (15) / analog (14-12, 11, 10, 9, 8, 7-0) |
+| `0170` | 7-40 | reserved (15, 11, 7, 3-0) / tdr (14, 13, 12, 10-8, 6-4) |
+| `0171` | 7-41 | reserved (15-0) |
+| `0172` | 7-42 | reserved (15-0) |
+| `0173` | 7-43 | tdr (15-8, 7-0) |
+| `0174` | 7-44 | reserved (15-0) |
+| `0175` | 7-45 | reserved (15-14, 10-5, 4) / tdr (13-11, 3-0) |
+| `0176` | 7-46 | reserved (15-5) / tdr (4-0) |
+| `0177` | 7-47 | reserved (15-13, 7-0) / tdr (12-8) |
+| `0178` | 7-48 | reserved (15-3) / tdr (2-0) |
+| `0180` | 7-49 | reserved (15-8) / tdr (7-0) |
+| `0181` | 7-50 | reserved (15-0) |
+| `0182` | 7-51 | reserved (15-0) |
+| `0183` | 7-52 | reserved (15-0) |
+| `0184` | 7-53 | reserved (15-0) |
+| `0185` | 7-54 | reserved (15-7) / tdr (6-0) |
+| `0186` | 7-55 | reserved (15-0) |
+| `0187` | 7-56 | reserved (15-0) |
+| `0188` | 7-57 | reserved (15-0) |
+| `0189` | 7-58 | reserved (15-0) |
+| `018A` | 7-59 | reserved (15-12, 10-6, 4, 3, 2, 1-0) / tdr (11, 5) |
+| `0302` | 7-60 | analog (15-14) / reserved (13, 12-9, 7, 5-0) / repeater (8) / led_pin (6) |
+| `0305` | 7-61 | reserved (15-6, 5-3) / led_pin (2-0) |
+| `0308` | 7-62 | functional_mode (15-1) / led_pin (0) |
+| `030B` | 7-63 | reserved (15-12) / vod (11-6, 5-0) |
+| `030C` | 7-64 | reserved (15-6) / vod (5-0) |
+| `030F` | 7-65 | reserved (15-11) / analog (10-8, 7, 6, 5, 4-2, 1, 0) |
+| `0311` | 7-66 | analog (15-14, 13, 8-1) / reserved (12-9, 0) |
+| `0313` | 7-67 | analog (15-8, 7-0) |
+| `031C` | 7-68 | analog (15, 14, 13-11, 10-7, 6, 5, 4, 3, 2, 1, 0) |
+| `031F` | 7-69 | analog (15-11, 10-6, 5-1) / reserved (0) |
+| `033C` | 7-70 | reserved_by_description (15-8) / reserved (7) / analog (6-0) |
+| `033E` | 7-71 | analog (15, 14-13, 12-8, 7, 6, 5, 4-0) |
+| `0404` | 7-72 | analog (15-0) |
+| `040D` | 7-73 | reserved (15-5) / analog (4-0) |
+| `0416` | 7-74 | reserved (15-13, 6, 3-2) / analog (12, 7, 5-4, 1, 0) / reserved_by_description (11-8) |
+| `0428` | 7-75 | reserved (15-6, 5, 4, 3, 1, 0) / power (2) |
+| `0429` | 7-76 | analog (15-8) / reserved (7-0) |
+| `0456` | 7-77 | reserved (15-4, 2-0) / link_options (3) |
+| `0460` | 7-78 | reserved (15-12, 11-8, 3-0) / led_pin (7-4) |
+| `0461` | 7-79 | reserved (15, 14, 13-12, 11, 10-7, 6-5, 4-0) |
+| `0467` | 7-80 | reserved (15, 11, 10, 9, 7, 6, 5, 4, 2, 1) / reserved_by_description (14) / clock_role (13, 12, 8, 3, 0) |
+| `0468` | 7-81 | reserved (15-13, 12, 10, 9, 8, 6, 5, 4, 3, 2, 1, 0) / repeater (11) / led_pin (7) |
+| `0469` | 7-82 | reserved (15-11, 10, 9, 8, 7, 3, 2, 1, 0) / led_pin (6, 5, 4) |
+| `04A0` | 7-83 | reserved (15-14, 13, 4, 3, 2, 1) / wake (12, 11, 10-9, 8, 7, 6, 5, 0) |
+| `04A1` | 7-84 | reserved (15-13, 11-8, 4, 3, 2, 1) / wake (12, 7, 6, 5, 0) |
+| `04A2` | 7-85 | wake (15-8, 7-0) |
+| `04A3` | 7-86 | wake (15-8, 7-0) |
+| `04A4` | 7-87 | wake (15-8, 7-0) |
+| `04CD` | 7-88 | analog (15-8, 7-0) |
+| `04CE` | 7-89 | reserved (15-8) / analog (7-0) |
+| `04CF` | 7-90 | analog (15-12, 11-8) / reserved_by_description (7-4, 3, 2, 1, 0) |
+| `04D0` | 7-91 | reserved (15, 14, 13-7, 6-5, 4-0) |
+| `04D1` | 7-92 | reserved (15, 11) / legacy_lpi (14-13, 12) / eee (10, 9, 8, 7-4, 3, 2, 1, 0) |
+| `04D2` | 7-93 | analog (15-14, 13, 12, 11, 10, 9-5, 4-0) |
+| `04D4` | 7-94 | reserved (15, 11, 7, 3) / analog (14-12, 10-8, 6-4, 2-0) |
+| `04D5` | 7-95 | reserved (15-10) / analog (9-7, 6-4, 3-2, 1, 0) |
+| `04D6` | 7-96 | reserved (15-10) / analog (9-7, 6-4, 3-2, 1, 0) |
+| `04D7` | 7-97 | reserved (15-10) / analog (9-7, 6-4, 3-2, 1, 0) |
+| `1000` | 7-98 | eee (15, 10) / reserved (14-11, 9-0) |
+| `1001` | 7-99 | reserved (15-12, 7, 5-0) / eee (11, 10, 9, 8, 6) |
+| `1014` | 7-100 | reserved (15-3, 0) / eee (2, 1) |
+| `1016` | 7-101 | eee (15-0) |
+| `203C` | 7-102 | reserved (15-2, 0) / eee (1) |
+| `203D` | 7-103 | reserved (15-2, 0) / eee (1) |
+
+### DP83825I address exceptions
+
+| DEVAD 31 offset | Procedure | Allowed action and source |
+| --- | --- | --- |
+| `0042` | `follower_timing` | Write exactly 0014 after 0017[8]=1 on a confirmed follower. Inverse and readback unspecified. (5.6 footnote 2) |
+| `0218` | `quality` | Read only with powered PHY and connected partner; retain equality at either threshold as unclassified. (SDAA081 2.3.3 table 2-6) |
+| `030E` | `vod` | Write only the computed fine tuning word, with admissible Offset_x; no unconditional startup value. (8-3) |
+| `0333` | `vod` | Read unit-specific trim bits 15:11 and 10:6 to compute C; no write. (8-3) |
+| `031B` | `functional_mode` | Write 0048 in the cited position of the selected mode. (6-5/6/7) |
+| `033A` | `functional_mode` | Write 579C in the cited position of the selected mode. (6-5/6/7) |
+| `033D` | `functional_mode` | Write 8110 in the cited position of the selected mode. (6-5/6/7) |
+| `04A5` | `wake` | Secure-ON password word; only under the authenticated wake configuration owner. Verify on Q15. (SNLA261A table 2-1 and 2.2.2) |
+| `04A6` | `wake` | Secure-ON password word; only under the authenticated wake configuration owner. Verify on Q15. (SNLA261A table 2-1 and 2.2.2) |
+| `04A7` | `wake` | Secure-ON password word; only under the authenticated wake configuration owner. Verify on Q15. (SNLA261A table 2-1 and 2.2.2) |
+
+### DP83825I standalone DSP controls and evidence gaps
+
+The analog owner accepts complete documented fields and preserves unowned bits under the controller lock. The CLI names each group in `controls analog`. Mode-owned words cannot also have an independent writer. The following limits follow SNLS638C tables 7-62 through 7-74.
+
+- 0308 exposes RX-disable, pre-LPI, counter and adaptation freeze controls and LPI MSE bypass. Bit 0 is observed, bit 1 is fixed, bits 3/9 are unspecified. Standalone RX clock selection and the 176/192 us timer polarity remain open.
+- 030F exposes the eight documented equalizer controls. 0311 permits coefficient selection 0/1/2 and the two coefficient sources. A standalone forced-coefficient profile lacks a documented admissible range.
+- 031C exposes gain enables, freeze choices, polarity, input and pre-cursor selection. Independent forced-gain calibration remains open. 031F exposes per-group freeze controls for the LPI freeze and wake states. Bits 5:1 have contradictory flush/wake descriptions and remain recipe-only.
+- 033E exposes bits 6:5. 0404 permits only current codes 0/4/7 (12.7/15.7/19.5 mA). Debug and bias codes lack documented operating bounds, and bit 0 has conflicting unused/burn-in descriptions.
+- 040D's 200..575 mV interval in 25 mV increments describes 16 levels for a five-bit code, with bit 3 inverted on PG1.1. Standalone threshold programming remains open pending an identified revision and code map. 0461 is reserved.
+- 0130 names bypass while its description enables the block. Its step/trigger/clear selector polarities and timer scales are unspecified. 0123 gives no standalone tuning bounds for the convergence threshold. 0101/010A, 0313, 033C, 0416, 0429, 04CD..04CF, 04D2 and 04D4..04D7 identify internal settings without a qualified standalone range. 033E[15] has no operational description, [7] is read-only and [14:13] has no coefficient-limit map. The threshold offset and coefficient limit lack a qualified standalone tuning range.
+- 04D1[2:1] controls next-page reception and analog RX shutdown during LPI Quiet. Both fields are R/W in table 7-92. The EEE owner applies the selected policy after table 6-7 writes 00C2. Bits 10:4 are named without independent field behavior and stay at the recipe values. Only bit 0 carries the R marking that conflicts with the cited recipe.

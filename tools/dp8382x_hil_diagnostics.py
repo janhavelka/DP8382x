@@ -4,7 +4,7 @@ The fixed stimuli and raw words below belong to the simulated fixture. The
 campaign's device and application gates apply before any of these commands.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 if __package__:
     from .dp8382x_hil_campaign import (
@@ -97,6 +97,19 @@ PEERS = {
     "collision-100": "an-100-full",
 }
 MII_CASES = {"collision-10", "collision-100"}
+# SNLS638C 6.3.14 needs forced speed for reverse and a terminated MDI.
+# The exact-part digital, analog and reverse selectors take effect without the
+# DP83826 opaque companions or restart. All cases exercise the common owner.
+P25_LOOPBACKS = dict(LOOPBACKS, digital=replace(LOOPBACKS["digital"], arguments="digital 100",
+                                                reset="none", hard_exit=False),
+                     analog=replace(LOOPBACKS["analog"], reset="none"),
+                     reverse=replace(LOOPBACKS["reverse"], arguments="reverse 100 6 1", reset="none", physts=5))
+P25_BISTS = dict(BISTS, digital=replace(BISTS["digital"], arguments="both saturate 123 16 1000 100 digital 0",
+                                       reset="none", hard_exit=False),
+                 analog=replace(BISTS["analog"], reset="none"))
+P25_CASES = ({"loopback-" + name for name in P25_LOOPBACKS} | {"bist-" + name for name in P25_BISTS} |
+             {"compliance-" + name for name in COMPLIANCE} |
+             {"cable-raw", "cable-autorun", "collision-10", "collision-100"})
 BASELINES = {"cable-autorun": ("diagnostics cable-autorun off",)}
 
 
@@ -234,11 +247,13 @@ def bist(c, spec):
 CABLE_ROWS = ("r1a", "r1b", "r2", "r3", "r4", "r5")
 
 
-def cable_words(token, mask, recipe, *, autorun=False):
+def cable_words(token, mask, recipe, *, autorun=False, p25=False):
     """Return the fixed raw fixture vector with per-row validity and freshness."""
-    words = "200F:0102:0006:0044:0000" if autorun else "270F:0102:0006:0044:0000"
+    cdcr = 0x0002 if p25 else 0x0102
+    flags = "200F" if autorun else "270F"
+    words = f"{flags}:{cdcr:04X}:0006:0044:0000"
     return dict(session_op=token, recipe=recipe, requested_mask=mask, complete=1, stale=int(autorun), stopped=0,
-                autorun=int(autorun), status_changed=0, prerequisite_valid=1, prerequisite=0x0102,
+                autorun=int(autorun), status_changed=0, prerequisite_valid=1, prerequisite=cdcr,
                 **{key: words if mask & (1 << index) else "00F0:0000:0000:0000:0000"
                    for index, key in enumerate(CABLE_ROWS)})
 
@@ -257,7 +272,7 @@ def cable(c, saved, raw):
 
     def observe(started):
         nonlocal measurement
-        expected = cable_words(started.op, mask, recipe)
+        expected = cable_words(started.op, mask, recipe, p25=c.p25)
         result(started, expected, **effect(1, debt=1, temporary=1))
         captured = yield from c.command("diagnostics cable-read", "operation")
         result(captured, expected, **effect(0, debt=1, temporary=1))
@@ -340,7 +355,7 @@ def autorun(c, saved):
         c.link_down(row, saved)
         capture = yield from c.command("diagnostics cable-autorun-read", "operation")
         # Raw words remain stale; the observed link loss cannot date their capture.
-        expected = cable_words(capture.op, 1, "raw", autorun=True)
+        expected = cable_words(capture.op, 1, "raw", autorun=True, p25=c.p25)
         result(capture, expected, **effect(0))
         status = yield from c.read("diagnostics cable-status")
         equal_fields(status, expected)
@@ -390,21 +405,30 @@ def replay(c, saved):
         rmii = c.expected["interface"] == "RMII"
         sor1 = (0x0010 if c.declaration["mode"] == "basic" else 0x0102) if rmii else 0
         sor2 = 0x0010 if rmii else 0
-    result(row, dict(core_status="OK", core_detail=0, requested_reset="none", effective_reset="none",
+    exact = {}
+    if c.p25:
+        follower = c.expected["rmii_role"] == "follower"
+        sor1, sor2 = (8 if follower else 0), 0
+        exact = dict(rcsr_valid=1, rcsr=(0x00ED if follower else 0x006D))
+    result(row, dict(**exact, core_status="OK", core_detail=0, requested_reset="none", effective_reset="none",
                      reset_required=0, reset_accepted=0, reset_complete=0, persistent_restored=1,
                      mutation_completed=1, mutation_possible=1, cleanup_owed=0, temporary=0,
                      clock_invalid=0, link_valid=0, sor1_valid=1, sor1=sor1,
-                     sor2_valid=1, sor2=sor2, straps_stale=0))
+                     sor2_valid=int(not c.p25), sor2=sor2, straps_stale=0))
 
 
 def electrical(c, saved, family, selection):
     compliance = family == "compliance"
     if compliance:
-        mode, pair_name, pair, pattern, reset = COMPLIANCE[selection]
-        arguments = f"{selection} {pair_name} {pattern} 3"
+        if selection == "count100":
+            # Count 19 crosses the 0027/0428 boundary. Bit 2 stays clear.
+            mode, pair_name, pair, pattern, reset = 4, "mdi", 1, 19, "hard"
+        else:
+            mode, pair_name, pair, pattern, reset = COMPLIANCE[selection]
+        arguments = f"{selection} {pair_name} {pattern} {7 if selection == 'count100' else 3}"
         chosen = dict(mode=mode, pair=pair, pattern=pattern)
     else:
-        arguments, chosen, reset = f"{selection} 3", dict(collision_mbps=int(selection)), "none"
+        arguments, chosen, reset = f"{selection} {4 if c.p25 else 3}", dict(collision_mbps=int(selection)), "none"
     active = electrical_state(**chosen, **{family: 1}, stimulus_possible=1, controls_verified=1)
     stopped = electrical_state(**chosen, stopped=1, controls_verified=int(not compliance),
                                electrical_reset_complete=int(compliance))
@@ -413,6 +437,12 @@ def electrical(c, saved, family, selection):
         result(started, active, **effect(1, debt=1, temporary=1, reset=reset))
         row = yield from c.read("diagnostics electrical-status")
         equal_fields(row, active)
+        if selection == "count100":
+            for address, word in ((0x0027, 3), (0x0428, 0x0030)):
+                row = yield from c.read(f"registers read mmd 31 {address}")
+                equal_fields(row, dict(address=address, devad=31, value=word))
+            row = yield from c.read("registers read c22 17")
+            require(int(row.fields["value"]) & 0x0800, row, "100BASE-TX scrambler bypass missing")
 
     def stop(started):
         row = yield from c.command(f"diagnostics {family}-stop", "operation", True)
@@ -464,15 +494,17 @@ def run(c, saved):
     if family in ("compliance", "calibration"):
         require(c.declaration["reinitialize"], c.last, "explicit replay authorization is required", "BLOCKED")
     if family == "loopback":
-        yield from loopback(c, LOOPBACKS[selection])
+        yield from loopback(c, (P25_LOOPBACKS if c.p25 else LOOPBACKS)[selection])
     elif family == "bist":
-        yield from bist(c, BISTS[selection])
+        yield from bist(c, (P25_BISTS if c.p25 else BISTS)[selection])
     elif c.spec.id == "cable-autorun":
         yield from autorun(c, saved)
     elif family == "cable":
         yield from cable(c, saved, selection == "raw")
     elif family in ("compliance", "collision"):
         yield from electrical(c, saved, family, selection)
+        if c.p25 and selection == "tx100" and c.failed is None and c.restoration == "PASS":
+            yield from electrical(c, saved, family, "count100")
     elif c.spec.id == "calibration-recovery":
         yield from calibration(c, saved)
     else:

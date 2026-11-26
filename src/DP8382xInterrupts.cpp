@@ -40,6 +40,10 @@ Status DP8382x::_validateInterruptSettings(const InterruptSettings& s) const noe
   const auto syntax=interruptSyntax(s); if (!syntax.ok()) { return syntax; }
   const uint8_t pin=ledIndex(s.pin);
   const bool a=isA(_config.variant);
+  if (_config.variant==Variant::DP83825I) {
+    if (pin==1U) { return Status::Error(Err::UNSUPPORTED,"DP83825I has no LED1 interrupt route"); }
+    if (pin==2U) { const auto admission=_admitPin2Output(); if (!admission.ok()) { return admission; } }
+  }
   if (!a && (pin==0U || pin==3U)) { return Status::Error(Err::UNSUPPORTED,"Read-only IRQ mux on this grade"); }
   if (_interface.desiredValid &&
       ((a && pin==0U && _interface.desired.clockOutput!=ClockOutput::UNOWNED) ||
@@ -67,7 +71,7 @@ Status DP8382x::_validateInterruptSettings(const InterruptSettings& s) const noe
     }
     if (_wake.desired.route == WakeRoute::INTERRUPT &&
         (!s.globalEnable || (s.misr2Mask & 2U) == 0U ||
-         (_identity.mode == OperatingMode::ENHANCED && !s.outputEnable))) {
+         ((_identity.mode == OperatingMode::ENHANCED || _config.variant==Variant::DP83825I) && !s.outputEnable))) {
       return invalidIrq("Owned wake interrupt route requires enabled delivery");
     }
   }
@@ -90,7 +94,6 @@ Status DP8382x::_validateInterruptSettings(const InterruptSettings& s) const noe
   return Status::Ok();
 }
 Status DP8382x::_admitInterrupt(const OperationBudget& budget,bool stop) const noexcept {
-  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   if (budget.pollIntervalUs==0U || budget.maxStalledPolls==0U) {
     return Status::Error(Err::INVALID_PARAM,"Invalid interrupt operation budget",static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
   }
@@ -306,7 +309,10 @@ Status DP8382x::_advanceInterrupt(Status status,bool called,const MdioBatch& bat
       if ((value&1U)==0U) { return _finishOperation(invalidIrq("LED1 is routed to clock output")); }
       _setInterruptStep(InterruptStep::PIN_MUX); break;
     case InterruptStep::PIN_MUX:
-      if (ledIndex(_interrupts.desired.pin)>=2U &&
+      if (_config.variant==Variant::DP83825I && _clockRoleMismatch().valid) {
+        return _finishOperation(invalidIrq("RMII clock role changed before IRQ routing"));
+      }
+      if (_config.variant!=Variant::DP83825I && ledIndex(_interrupts.desired.pin)>=2U &&
           (_transport.lastBatch.frames[4].value&0x0020U)!=(_config.interface==MacInterface::RMII?0x0020U:0U)) {
         return _finishOperation(invalidIrq("Observed interface differs from LED2 IRQ wiring"));
       }
@@ -372,7 +378,6 @@ Status DP8382x::_advanceInterrupt(Status status,bool called,const MdioBatch& bat
 }
 
 Status DP8382x::serviceInterrupts(InterruptServiceSnapshot& snapshot,const InterruptServiceBudget& budget) noexcept {
-  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   if (_active || _polling) { return busyIrq(BusyDetail::OPERATION_ACTIVE); }
   const auto fail=[&](Status status) noexcept {
     _interruptService.stale=true; _interruptService.morePossiblyPending=true;

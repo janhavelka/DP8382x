@@ -616,10 +616,10 @@ def baseline_reply(record, command, prior, admission, session):
         raise ProtocolError(f"compiled feature baseline did not complete: {command.text} ({record.primary})")
     campaign = session.campaign.current if session.soak else session.campaign
     try:
-        spec = campaign.a_control
+        spec = campaign.part_control
         if spec is not None:
             if command.text != spec.baseline.command:
-                raise ProtocolError("unsupported A-generation baseline")
+                raise ProtocolError("unsupported declared-part baseline")
             check = campaign.feature.operation if spec.form == "operation" else campaign.feature.direct
             check(record, spec.schema, spec.baseline.fields)
         else:

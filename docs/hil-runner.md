@@ -421,3 +421,14 @@ detector baseline and its subsequent acknowledgement before the nonce.
 Soak artifacts retain each setup command and its last confirmed state if
 communication ends there. Native campaigns still require their independent
 fixture grants. [Qualification cases](hardware-validation.md#feature-fixtures)
+
+### DP83825I feature campaigns
+
+Use `--fixture-variant DP83825I --variant DP83825I --operating-mode none`
+with matching `--fixture-rmii-role` and `--rmii-role` set to `leader` or
+`follower` for a compiled host campaign. Use `--reinitialize` when the
+case requires separately budgeted restoration. The controls and diagnostics
+modules declare their exact-part case sets. The campaign checks its entry
+state and reads back the restored state. Replay uses the declared variant,
+role, bounded commands and intervention receipts. A stock native feature
+grant and the physical Q15 observations require board-specific evidence.

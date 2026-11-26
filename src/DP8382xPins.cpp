@@ -19,7 +19,7 @@ Status pinSyntax(const PinSettings& settings) noexcept {
     return Status::Error(Err::INVALID_PARAM,"Invalid pin/global encoding",static_cast<int32_t>(ParamDetail::ENUM_VALUE));
   }
   for (const auto& pin:settings.pins) {
-    if (pin.function>PinFunction::CARRIER_SENSE6 || pin.source>LedSource::PRBS_ERROR ||
+    if (pin.function>PinFunction::LOW7 || pin.source>LedSource::PRBS_ERROR ||
         pin.polarity>LedPolarity::ACTIVE_HIGH || pin.drive>LedDrive::HIGH) {
       return Status::Error(Err::INVALID_PARAM,"Invalid LED encoding",static_cast<int32_t>(ParamDetail::ENUM_VALUE));
     }
@@ -67,6 +67,17 @@ Status DP8382x::_validatePins(const PinSettings& settings) const noexcept {
   }
   const bool a=isA(_config.variant);
   const bool basic=_identity.mode==OperatingMode::BASIC;
+  const bool p25 = _config.variant == Variant::DP83825I;
+  if (p25) {
+    if (settings.led1ClockOverride || settings.pins[1].function != PinFunction::UNOWNED ||
+        settings.pins[3].function != PinFunction::UNOWNED) {
+      return Status::Error(Err::UNSUPPORTED,"DP83825I provides LED0 and pin 2");
+    }
+    if (settings.pins[2].function != PinFunction::UNOWNED) {
+      const auto admission = _admitPin2Output();
+      if (!admission.ok()) { return admission; }
+    }
+  }
   if (a && settings.led1ClockOverride) { return pinConfig("IO_CFG1 bit 6 is reserved on DP83826A"); }
   if (_interface.desiredValid) {
     if (a && _interface.desired.clockOutput!=ClockOutput::UNOWNED &&
@@ -124,7 +135,8 @@ Status DP8382x::_validatePins(const PinSettings& settings) const noexcept {
       return pinConfig("COL mux codes apply only to MII LED2");
     }
     if (pin.function==PinFunction::HIGH && !(i==2U || (a && (i==0U || i==3U)))) { return pinConfig("Constant-high mux unavailable on this pin"); }
-    if (constantLow(pin.function) && (!a || i!=0U)) { return pinConfig("Constant-low encodings apply only to A LED0"); }
+    if (pin.function == PinFunction::LOW7 && !(p25 && i == 2U)) { return pinConfig("Mux 7 low requires DP83825I pin 2"); }
+    if (constantLow(pin.function) && !(p25 && i==2U && pin.function!=PinFunction::LOW6) && (!a || i!=0U)) { return pinConfig("Constant-low encodings apply only to A LED0"); }
     if (carrier(pin.function) && (!a || i!=3U || _config.interface!=MacInterface::MII)) {
       return pinConfig("CRS mux codes apply only to A MII LED3");
     }
@@ -174,7 +186,7 @@ bool DP8382x::_pinRowValue(uint8_t row,uint16_t& address,uint16_t& mask,uint16_t
       address=0x0460;
       for (uint8_t i=1;i<4U;++i) {
         if (s.pins[i].function==PinFunction::LED) {
-          const auto shift=(a?i-1U:i)*4U;
+          const auto shift=(a || _config.variant==Variant::DP83825I ? i-1U : i)*4U;
           mask|=static_cast<uint16_t>(0xFU<<shift); value|=static_cast<uint16_t>(static_cast<uint16_t>(s.pins[i].source)<<shift);
         }
       }
@@ -210,7 +222,16 @@ bool DP8382x::_pinRowValue(uint8_t row,uint16_t& address,uint16_t& mask,uint16_t
     case 6: address=0x0304; if (s.pins[1].function==PinFunction::LED) { mask=7; } break;
     case 7:
       address=0x0305;
-      if (s.pins[2].function==PinFunction::LED || collision(s.pins[2].function) || s.pins[2].function==PinFunction::HIGH) {
+      if (_config.variant==Variant::DP83825I) {
+        switch (s.pins[2].function) {
+          case PinFunction::LED: mask=7; value=1; break;
+          case PinFunction::LOW3: mask=7; value=3; break;
+          case PinFunction::LOW5: mask=7; value=5; break;
+          case PinFunction::HIGH: mask=7; value=6; break;
+          case PinFunction::LOW7: mask=7; value=7; break;
+          default: break; // IRQ and wake own their respective mux values.
+        }
+      } else if (s.pins[2].function==PinFunction::LED || collision(s.pins[2].function) || s.pins[2].function==PinFunction::HIGH) {
         mask=7; value=muxValue(s.pins[2].function);
       }
       break;
@@ -253,8 +274,8 @@ void DP8382x::_pinPassCost(bool verifyOnly,uint32_t& frames,uint32_t& callbacks)
       callbacks+=verifyOnly?1U:2U;
     }
   }
-  if (!isA(_config.variant) && settings.pins[0].function==PinFunction::LED) { frames+=4; ++callbacks; }
-  if (!isA(_config.variant) && settings.pins[3].function==PinFunction::LED) { frames+=4; ++callbacks; }
+  if (!isA(_config.variant) && _config.variant!=Variant::DP83825I && settings.pins[0].function==PinFunction::LED) { frames+=4; ++callbacks; }
+  if (!isA(_config.variant) && _config.variant!=Variant::DP83825I && settings.pins[3].function==PinFunction::LED) { frames+=4; ++callbacks; }
   if (settings.pins[1].function!=PinFunction::UNOWNED && _identity.mode==OperatingMode::ENHANCED) { frames+=4; ++callbacks; }
 }
 
@@ -273,8 +294,8 @@ void DP8382x::_beginPins(bool verifyOnly) noexcept {
     _pinStep=PinStep::INTERFACE;
   } else if (_pins.desired.pins[1].function!=PinFunction::UNOWNED && _identity.mode==OperatingMode::ENHANCED && !_pins.desired.led1ClockOverride) {
     _pinStep=PinStep::CLOCK_STATUS;
-  } else if (!isA(_config.variant) && _pins.desired.pins[0].function==PinFunction::LED) { _pinStep=PinStep::MUX0; }
-  else if (!isA(_config.variant) && _pins.desired.pins[3].function==PinFunction::LED) { _pinStep=PinStep::MUX3; }
+  } else if (!isA(_config.variant) && _config.variant!=Variant::DP83825I && _pins.desired.pins[0].function==PinFunction::LED) { _pinStep=PinStep::MUX0; }
+  else if (!isA(_config.variant) && _config.variant!=Variant::DP83825I && _pins.desired.pins[3].function==PinFunction::LED) { _pinStep=PinStep::MUX3; }
   else { _nextPinRow(); }
   if (_pinStep==PinStep::COMPLETE) { _finishPins(Status::Ok()); }
 }
@@ -302,7 +323,7 @@ void DP8382x::_retainPinWord(uint16_t address,uint16_t value) noexcept {
   if (index>=0) { _pins.raw[index]=value; _pins.validMask|=static_cast<uint16_t>(1U<<index); }
   // Raw and owner-routed reads arrive at this same boundary. Contradictory
   // mux/strap evidence withdraws IRQ/WoL proof even without a pin profile.
-  if (isA(_config.variant)) {
+  if (isA(_config.variant) || _config.variant==Variant::DP83825I) {
     const auto irq=ledIndex(_interrupts.desired.pin);
     const bool clockLost=address==0x0308U && _identity.mode==OperatingMode::ENHANCED && (value&1U)==0U;
     if (_interrupts.desiredValid && irq<4U &&
@@ -332,13 +353,17 @@ void DP8382x::_retainPinWord(uint16_t address,uint16_t value) noexcept {
   bool prerequisiteProved=!_pinsWorking;
   if (address==0x0017U && (_pins.desired.pins[2].function!=PinFunction::UNOWNED ||
       _pins.desired.pins[3].function!=PinFunction::UNOWNED)) {
-    prerequisiteMask=0x0020; prerequisiteValue=_config.interface==MacInterface::RMII?0x0020:0;
+    if (_config.variant==Variant::DP83825I) {
+      prerequisiteMask=0x0080; prerequisiteValue=_config.rmiiClock==RmiiClock::FOLLOWER_50MHZ?0x0080:0;
+    } else {
+      prerequisiteMask=0x0020; prerequisiteValue=_config.interface==MacInterface::RMII?0x0020:0;
+    }
     prerequisiteProved|=_pinStep!=PinStep::INTERFACE;
-  } else if (!isA(_config.variant) && address==0x0303U && _pins.desired.pins[0].function==PinFunction::LED) {
+  } else if (!isA(_config.variant) && _config.variant!=Variant::DP83825I && address==0x0303U && _pins.desired.pins[0].function==PinFunction::LED) {
     prerequisiteMask=7;
     prerequisiteProved|=_pinStep==PinStep::MUX3 || _pinStep==PinStep::APPLY ||
         _pinStep==PinStep::VERIFY || _pinStep==PinStep::COMPLETE || (_pinStep==PinStep::CLOCK_STATUS && _pinRow==6U);
-  } else if (!isA(_config.variant) && address==0x0306U && _pins.desired.pins[3].function==PinFunction::LED) {
+  } else if (!isA(_config.variant) && _config.variant!=Variant::DP83825I && address==0x0306U && _pins.desired.pins[3].function==PinFunction::LED) {
     prerequisiteMask=7;
     prerequisiteProved|=_pinStep==PinStep::APPLY || _pinStep==PinStep::VERIFY ||
         _pinStep==PinStep::COMPLETE || (_pinStep==PinStep::CLOCK_STATUS && _pinRow==6U);
@@ -422,15 +447,16 @@ Status DP8382x::_advancePins(Status status,bool called,const MdioBatch& batch) n
   if (!status.ok()) { return _finishPins(status); }
   if (_pinResult.mismatch.valid) { return _finishPins(Status::Error(Err::CONFIG_MISMATCH,"Pin readback mismatch")); }
   const auto prerequisiteNext=[&]() noexcept {
-    if (!isA(_config.variant) && _pins.desired.pins[0].function==PinFunction::LED) { _pinStep=PinStep::MUX0; }
-    else if (!isA(_config.variant) && _pins.desired.pins[3].function==PinFunction::LED) { _pinStep=PinStep::MUX3; }
+    if (!isA(_config.variant) && _config.variant!=Variant::DP83825I && _pins.desired.pins[0].function==PinFunction::LED) { _pinStep=PinStep::MUX0; }
+    else if (!isA(_config.variant) && _config.variant!=Variant::DP83825I && _pins.desired.pins[3].function==PinFunction::LED) { _pinStep=PinStep::MUX3; }
     else { _nextPinRow(); }
   };
   switch (_pinStep) {
     case PinStep::INTERFACE:
       // Tables 5-1/8-41: a board declaration or read-only mux default cannot
       // prove current LED2/3 availability. RC status enters the sole collector.
-      if ((receipt.frames[readIndex].value&0x0020U)!=(_config.interface==MacInterface::RMII?0x0020U:0U)) {
+      if (_config.variant==Variant::DP83825I && _clockRoleMismatch().valid) { return _finishPins(pinConfig("RMII clock role changed")); }
+      if (_config.variant!=Variant::DP83825I && (receipt.frames[readIndex].value&0x0020U)!=(_config.interface==MacInterface::RMII?0x0020U:0U)) {
         return _finishPins(pinConfig("Observed interface differs from pin-profile wiring"));
       }
       if (_pins.desired.pins[1].function!=PinFunction::UNOWNED && _identity.mode==OperatingMode::ENHANCED && !_pins.desired.led1ClockOverride) {
@@ -457,7 +483,6 @@ Status DP8382x::_advancePins(Status status,bool called,const MdioBatch& batch) n
 }
 
 Status DP8382x::configurePins(const PinSettings& settings,PinResult& result,const IoBudget& budget) noexcept {
-  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   const auto syntax=pinSyntax(settings); if (!syntax.ok()) { return syntax; }
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
   if (_active || _polling || _operation.state==OperationState::RUNNING) { return pinBusy(BusyDetail::OPERATION_ACTIVE); }

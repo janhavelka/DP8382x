@@ -138,7 +138,13 @@ private:
         status = phy.modifyMmd(request.devad, request.address, request.mask, request.value, budget, &evidence);
         break;
       case Action::MODIFY_BMCR: status = phy.modifyBasicControl(request.mask, request.value, budget, &evidence); break;
-      case Action::COLLECT_EVENTS: status = phy.collectEvents(receipt.counters, budget, &evidence); break;
+      case Action::COLLECT_EVENTS:
+        if (request.mask == evidenceBit(EvidenceSource::REGISTER_12)) {
+          EvidenceSnapshot sample;
+          status = phy.acquireEvidence(request.mask, sample, budget);
+          if (status.ok()) receipt.value = sample.samples[static_cast<unsigned>(EvidenceSource::REGISTER_12)].raw;
+        } else { status = phy.collectEvents(receipt.counters, budget, &evidence); }
+        break;
       default: return Status::Error(Err::INVALID_PARAM, "Unknown raw native action");
     }
     if (evidence.valid) {
@@ -205,7 +211,7 @@ private:
       case Action::START_CONFIGURE:
         return phy.startConfigure(request.settings, request.options, request.budget, receipt.token);
       case Action::START_VERIFY: return phy.startVerify(request.budget, receipt.token);
-      case Action::START_INITIALIZE: return phy.startInitialize({request.reset}, request.budget, receipt.token);
+      case Action::START_INITIALIZE: return phy.startInitialize({request.reset, request.functionalMode, request.rxClock}, request.budget, receipt.token);
       case Action::POLL: return phy.pollOperation(request.token, request.budget.io.maxFrames);
       case Action::CANCEL: return phy.cancel(request.token);
       case Action::TAKE: return take(phy, request.token, request.feature, receipt);

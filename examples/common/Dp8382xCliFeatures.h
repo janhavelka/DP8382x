@@ -26,6 +26,7 @@ public:
       : _backend(backend), _request(request), _receipt(receipt), _grant(grant), _context(context) {}
 
   const OperationBudget& budget() const noexcept { return _request.budget; }
+  Variant variant() const noexcept { return _request.variant; }
   bool attest(uint32_t requested) const {
     return _grant && _grant(_context, _request.feature, requested);
   }

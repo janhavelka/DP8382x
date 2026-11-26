@@ -16,6 +16,9 @@ profiles, power controls and the 27-write EEE recipe. The [coverage matrix](docs
 DP83825I accepts the documented revision-0 ID and requires an explicit RMII
 leader or follower declaration. Initialization checks both clock straps, then
 restores owned 10/100 copper settings. Its default mode needs no VOD recipe.
+The exact-part feature paths include functional mode selection, EEE, power,
+wake, LED0/LED2, interrupts, diagnostics and electrical controls. Software
+readback and simulated tests are recorded separately from board measurements.
 See [DP83825I coverage and limits](docs/feature-coverage.md#dp83825i).
 
 **Status: prompts 1-35 complete for supported procedures; prompts 37-39 add native ESP-IDF lifecycle, SDK state arbitration and notification conformance. Prompt 40 adds a native P4 Ethernet/IP application with a default-closed board gate. Deep-power-down and full primary closure remain source-blocked; hardware qualification remains future work.**

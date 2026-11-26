@@ -16,7 +16,6 @@ MdioBatch electricalRead(uint8_t reg) noexcept {
 }
 
 Status DP8382x::_admitElectrical(const OperationBudget& budget,bool stop) const noexcept {
-  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   if (budget.pollIntervalUs==0U || budget.maxStalledPolls==0U) {
     return Status::Error(Err::INVALID_PARAM,"Invalid electrical polling budget",static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
   }
@@ -52,7 +51,11 @@ Status DP8382x::startCompliance(const ComplianceOptions& options,const Operation
       (options.mode!=ComplianceMode::PATTERN10 && options.mode!=ComplianceMode::COUNT100 && options.pattern!=0U)) {
     return Status::Error(Err::INVALID_PARAM,"Invalid compliance option",static_cast<int32_t>(ParamDetail::VALUE_WIDTH));
   }
-  if (options.mode==ComplianceMode::COUNT100) { return electricalConfig("compt_reserved:100M0428 requires exact-part access evidence"); }
+  if (_config.variant!=Variant::DP83825I && options.mode==ComplianceMode::COUNT100) { return electricalConfig("compt_reserved:100M0428 requires exact-part access evidence"); }
+  const bool test100=options.mode==ComplianceMode::TX100 || options.mode==ComplianceMode::COUNT100;
+  if (options.scramblerBypass && (!test100 || _config.variant!=Variant::DP83825I)) {
+    return electricalConfig("Scrambler bypass requires a DP83825I 100BASE-TX compliance session");
+  }
   if (!options.maintenanceAdmitted || !options.macStopped || !options.fixtureAdmitted || !options.hardResetAdmitted) {
     return electricalConfig("Compliance requires stopped MAC, fixture and HARD-reset admission");
   }
@@ -60,7 +63,7 @@ Status DP8382x::startCompliance(const ComplianceOptions& options,const Operation
   _beginOperation(OperationKind::COMPLIANCE_START,budget);
   _electrical={}; _electrical.compliance=options; _electrical.complianceSession=true;
   _electricalProfile={}; _electricalProfile.mode=LinkMode::FORCED; _electricalProfile.advertisement.technologyMask=0;
-  _electricalProfile.forced={options.mode==ComplianceMode::TX100?LinkSpeed::MBPS_100:LinkSpeed::MBPS_10,Duplex::FULL};
+  _electricalProfile.forced={test100?LinkSpeed::MBPS_100:LinkSpeed::MBPS_10,Duplex::FULL};
   _electricalProfile.crossover.pairSelection=options.pair; _electricalProfile.crossover.robust=true;
   _result.reset=ResetKind::HARD; _result.commandRequired=true;
   _setElectricalStep(ElectricalStep::PREFLIGHT); token=_operation.token; return _operation.status;
@@ -76,7 +79,9 @@ Status DP8382x::startCollisionTest(const CollisionOptions& options,const Operati
   if (options.speed!=LinkSpeed::MBPS_10 && options.speed!=LinkSpeed::MBPS_100) {
     return Status::Error(Err::INVALID_PARAM,"Collision requires exact speed",static_cast<int32_t>(ParamDetail::ENUM_VALUE));
   }
-  if (!options.maintenanceAdmitted || !options.macStopped || !options.colAvailable || !options.txEnControlled || _config.interface!=MacInterface::MII) {
+  const bool registerOnly = _config.variant==Variant::DP83825I && _config.interface==MacInterface::RMII && options.registerOnly;
+  if (!options.maintenanceAdmitted || !options.macStopped || options.registerOnly!=registerOnly ||
+      (!registerOnly && (!options.colAvailable || !options.txEnControlled || _config.interface!=MacInterface::MII))) {
     return electricalConfig("Collision requires MII COL/TX_EN fixture and stopped MAC");
   }
   const auto admitted=_admitElectrical(budget,false); if (!admitted.ok()) { return admitted; }
@@ -91,6 +96,7 @@ Status DP8382x::stopCollisionTest(const OperationBudget& budget,OperationToken& 
   _setElectricalStep(ElectricalStep::COLLISION_WRITE); token=_operation.token; return _operation.status;
 }
 Status DP8382x::startCalibrationRecovery(const CalibrationOptions& options,const OperationBudget& budget,OperationToken& token) noexcept {
+  if (_config.variant==Variant::DP83825I) { return _unsupportedFeature(); }
   if (!options.maintenanceAdmitted || !options.macStopped || !options.hardResetAdmitted) {
     return electricalConfig("Calibration contingency requires stopped MAC and HARD-reset admission");
   }
@@ -105,12 +111,18 @@ void DP8382x::_setElectricalStep(ElectricalStep step) noexcept {
   _electricalWorking=true; _electricalStep=step; _configuring=false;
   _operation.nextPollValid=false;
   _operation.phase=step==ElectricalStep::PREFLIGHT?OperationPhase::PREFLIGHT:
-      step==ElectricalStep::CAL_PAIR || step==ElectricalStep::COLLISION_WRITE || step==ElectricalStep::STIMULUS_WRITE?
+      step==ElectricalStep::CAL_PAIR || step==ElectricalStep::COLLISION_WRITE || step==ElectricalStep::STIMULUS_WRITE ||
+      step==ElectricalStep::COUNT_CLEAR || step==ElectricalStep::COUNT_SELECT || step==ElectricalStep::COUNT_ENABLE ||
+      step==ElectricalStep::SCRAMBLER_WRITE?
       OperationPhase::COMMAND:OperationPhase::VERIFY;
 }
 void DP8382x::_beginComplianceActivation() noexcept {
   const auto mode=_electrical.compliance.mode;
-  if (mode==ComplianceMode::PRBS10 || mode==ComplianceMode::PATTERN10) { _setElectricalStep(ElectricalStep::STIMULUS_WRITE); }
+  if (_electrical.compliance.scramblerBypass && _electricalStep!=ElectricalStep::SCRAMBLER_VERIFY) {
+    _setElectricalStep(ElectricalStep::SCRAMBLER_WRITE);
+  } else if (mode==ComplianceMode::COUNT100) {
+    _setElectricalStep(ElectricalStep::COUNT_CLEAR);
+  } else if (mode==ComplianceMode::PRBS10 || mode==ComplianceMode::PATTERN10) { _setElectricalStep(ElectricalStep::STIMULUS_WRITE); }
   else {
     _electricalRestart=true; _result.reset=ResetKind::RESTART; _result.commandRequired=true;
     _setInitStep(InitStep::COMMAND);
@@ -121,6 +133,14 @@ MdioBatch DP8382x::_electricalBatch() const noexcept {
   switch (_electricalStep) {
     case ElectricalStep::PREFLIGHT:
       if (_operation.kind==OperationKind::COLLISION_START) {
+        if (_electrical.collision.registerOnly) {
+          // RMII has no COL output. Collect the actual speed with the shared
+          // PHYSTS-before-BMSR order; no pin mux proves this register test.
+          batch=electricalRead(0);
+          batch.frames[batch.frameCount++]={FrameKind::READ,0x10,0,0,NO_READ_INDEX};
+          batch.frames[batch.frameCount++]={FrameKind::READ,1,0,0,NO_READ_INDEX};
+          return batch;
+        }
         batch=_mmdBatch(0x0305,FrameKind::READ,0);
         constexpr uint8_t addresses[]={0,0x17,0x10,1};
         for (const auto address:addresses) { batch.frames[batch.frameCount++]={FrameKind::READ,address,0,0,NO_READ_INDEX}; }
@@ -134,11 +154,33 @@ MdioBatch DP8382x::_electricalBatch() const noexcept {
       batch.frames[1]={FrameKind::WRITE,0,static_cast<uint16_t>(_operation.kind==OperationKind::COLLISION_START?0x0080:0),0x717F,0};
       return batch;
     case ElectricalStep::COLLISION_VERIFY: return electricalRead(0);
+    case ElectricalStep::SCRAMBLER_WRITE:
+      batch=electricalRead(0x11);
+      batch.frames[batch.frameCount++]={FrameKind::WRITE,0x11,0x0800,0xF7FB,0};
+      return batch;
+    case ElectricalStep::SCRAMBLER_VERIFY: return electricalRead(0x11);
+    case ElectricalStep::COUNT_CLEAR: case ElectricalStep::COUNT_ENABLE: {
+      // SNLS638C table 7-35 is the sole exception for DEEP_PD_CFG[5:4].
+      // Stage the high count bit with enable clear before the rising edge.
+      const uint16_t high=(_electrical.compliance.pattern & 16U)!=0U ? 0x0020U : 0U;
+      const bool enable=_electricalStep==ElectricalStep::COUNT_ENABLE;
+      batch=_mmdBatch(0x0428,FrameKind::READ,0);
+      batch.frames[batch.frameCount++]={FrameKind::WRITE,0x0E,static_cast<uint16_t>(high|(enable?16U:0U)),0xFFCF,3,
+          static_cast<uint16_t>(enable?0x0034:0x0004),static_cast<uint16_t>(enable?high:0)};
+      return batch;
+    }
+    case ElectricalStep::COUNT_VERIFY_CLEAR: case ElectricalStep::COUNT_VERIFY_ENABLE:
+      return _mmdBatch(0x0428,FrameKind::READ,0);
+    case ElectricalStep::COUNT_SELECT:
+      batch=_mmdBatch(0x0027,FrameKind::READ,0);
+      batch.frames[batch.frameCount++]={FrameKind::WRITE,0x0E,static_cast<uint16_t>(_electrical.compliance.pattern&15U),0xFFE0,3};
+      return batch;
+    case ElectricalStep::COUNT_VERIFY_SELECT: return _mmdBatch(0x0027,FrameKind::READ,0);
     case ElectricalStep::STIMULUS_WRITE:
       if (_electrical.compliance.mode==ComplianceMode::PRBS10) {
         batch=electricalRead(0x16); batch.frameCount=2;
         // SNLA266B table 5-4 adapted to table 8-40: bit 8 is observed only.
-        batch.frames[1]={FrameKind::WRITE,0x16,0x7001,static_cast<uint16_t>(isA(_config.variant)?0x80E0:0x8FE0),0};
+        batch.frames[1]={FrameKind::WRITE,0x16,0x7001,static_cast<uint16_t>(_config.variant==Variant::DP83825I?0x0040:(isA(_config.variant)?0x80E0:0x8FE0)),0};
       } else {
         batch=_mmdBatch(0x0027,FrameKind::READ,0);
         batch.frames[batch.frameCount++]={FrameKind::WRITE,0x0E,static_cast<uint16_t>(0x0010U|_electrical.compliance.pattern),0xFFE0,3};
@@ -215,13 +257,14 @@ Status DP8382x::_advanceElectrical(Status status,bool called,const MdioBatch& ba
   switch (_electricalStep) {
     case ElectricalStep::PREFLIGHT:
       if (_operation.kind==OperationKind::COLLISION_START) {
+        const bool registerOnly=_electrical.collision.registerOnly;
         const auto mux=receipt.frames[3].value&7U;
-        const auto bmcr=receipt.frames[4].value,rcsr=receipt.frames[5].value;
-        const auto physts=receipt.frames[6].value,bmsr=receipt.frames[7].value;
+        const auto bmcr=receipt.frames[registerOnly?0:4].value,rcsr=receipt.frames[5].value;
+        const auto physts=receipt.frames[registerOnly?1:6].value,bmsr=receipt.frames[registerOnly?2:7].value;
         const bool an=(bmcr&0x1000U)!=0U;
         const auto speed=an?((physts&2U)!=0U?LinkSpeed::MBPS_10:LinkSpeed::MBPS_100):
             ((bmcr&0x2000U)!=0U?LinkSpeed::MBPS_100:LinkSpeed::MBPS_10);
-        if ((mux!=3U && mux!=5U && mux!=6U) || (rcsr&0x0020U)!=0U || (bmcr&0xCC80U)!=0U ||
+        if ((!registerOnly && ((mux!=3U && mux!=5U && mux!=6U) || (rcsr&0x0020U)!=0U)) || (bmcr&0xCC80U)!=0U ||
             (an && ((bmsr&0x0024U)!=0x0024U || (physts&1U)==0U)) || speed!=_electrical.collision.speed) {
           return _finishOperation(electricalConfig("Collision requires live MII COL mux and verified local speed"));
         }
@@ -246,6 +289,27 @@ Status DP8382x::_advanceElectrical(Status status,bool called,const MdioBatch& ba
       }
       return _finishOperation(Status::Ok());
     }
+    case ElectricalStep::SCRAMBLER_WRITE: _setElectricalStep(ElectricalStep::SCRAMBLER_VERIFY); break;
+    case ElectricalStep::SCRAMBLER_VERIFY:
+      if ((receipt.frames[0].value&0x0800U)==0U) { return _finishOperation(Status::Error(Err::CONFIG_MISMATCH,"Scrambler bypass readback mismatch")); }
+      _beginComplianceActivation(); break;
+    case ElectricalStep::COUNT_CLEAR: _setElectricalStep(ElectricalStep::COUNT_VERIFY_CLEAR); break;
+    case ElectricalStep::COUNT_SELECT: _setElectricalStep(ElectricalStep::COUNT_VERIFY_SELECT); break;
+    case ElectricalStep::COUNT_ENABLE: _setElectricalStep(ElectricalStep::COUNT_VERIFY_ENABLE); break;
+    case ElectricalStep::COUNT_VERIFY_CLEAR: case ElectricalStep::COUNT_VERIFY_ENABLE: {
+      const bool enabled=_electricalStep==ElectricalStep::COUNT_VERIFY_ENABLE;
+      const uint16_t expected=static_cast<uint16_t>(((_electrical.compliance.pattern&16U)<<1U)|(enabled?16U:0U));
+      if ((receipt.frames[3].value&0x0034U)!=expected) {
+        return _finishOperation(Status::Error(Err::CONFIG_MISMATCH,"100BASE-TX test enable or high count mismatch"));
+      }
+      _setElectricalStep(enabled?ElectricalStep::STIMULUS_VERIFY:ElectricalStep::COUNT_SELECT);
+      break;
+    }
+    case ElectricalStep::COUNT_VERIFY_SELECT:
+      if ((receipt.frames[3].value&0x1FU)!=(_electrical.compliance.pattern&15U)) {
+        return _finishOperation(Status::Error(Err::CONFIG_MISMATCH,"100BASE-TX test low count mismatch"));
+      }
+      _setElectricalStep(ElectricalStep::COUNT_ENABLE); break;
     case ElectricalStep::STIMULUS_WRITE:
       if (_electrical.compliance.mode==ComplianceMode::PATTERN10) { _setElectricalStep(ElectricalStep::STIMULUS_VERIFY); }
       else {
@@ -258,7 +322,7 @@ Status DP8382x::_advanceElectrical(Status status,bool called,const MdioBatch& ba
       if (_electrical.compliance.mode==ComplianceMode::PATTERN10) {
         matches=(receipt.frames[3].value&0x001FU)==(0x0010U|_electrical.compliance.pattern);
       } else {
-        const uint16_t bmcr=_electrical.compliance.mode==ComplianceMode::TX100?0x2100:0x0100;
+        const uint16_t bmcr=(_electrical.compliance.mode==ComplianceMode::TX100 || _electrical.compliance.mode==ComplianceMode::COUNT100)?0x2100:0x0100;
         matches=(receipt.frames[0].value&0xFF80U)==bmcr;
         if (_electrical.compliance.mode==ComplianceMode::PRBS10) { matches&=(receipt.frames[1].value&0x701FU)==0x7001U; }
       }

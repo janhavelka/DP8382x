@@ -157,3 +157,79 @@ NOT RUN in phase (a).** Prompt 71 owns remote CI. The historical build
 and fixture receipts remain in prompt 60. Phase (b) can begin with access
 and collector behavior. Full DP83825I software and physical qualification
 remain open.
+
+## Phase (b) implementation
+
+**IN PROGRESS.** Entry on main was the wrapper-synchronized phase (a) commit
+`594e8c158578fb9f92c623bc10a0cfc4dcab0117` with a clean index and tree.
+The lead retained the public contracts, collector, integration and matrix.
+Two parallel implementers used the session model for the timing/ownership
+and silicon register work. Their disjoint assignments covered functional
+modes, EEE and power, and diagnostics, quality and DSP controls. The exact
+source and sibling revisions in phase (a) still apply.
+
+- `DP8382x.cpp` guards both direct and indirect consuming addresses and
+  retains complete samples on partial transactions. Register_12 has its own
+  acquisition route. IRQ service uses MISR1/2. Wake and event configuration
+  share the collector; LED0/LED2 and interrupt routing respect the clock role.
+- The existing initialization owner runs the exact 13/13/32 mode scripts
+  from a hard-reset baseline and retains accepted or uncertain prefixes.
+  PCS reset, clock-stoppable policy, EEE advertisement and restart,
+  next-page reception, Quiet RX shutdown, bilateral LPI and the post-exit MAC interval have separate evidence.
+  Deep power has an explicit recovery admission and distinct control receipt.
+- The common diagnostic owners now execute the exact-part loopback, BIST,
+  TDR, 100M compliance count, scrambler and collision controls. MSE preserves
+  the raw sample, earlier link context and the two undefined classification
+  boundaries. The analog owner computes the VOD word from each unit's trim.
+  Seven standalone DSP groups and impedance use bounded masked transactions.
+- The shared CLI, native adapter declarations and Python admission/replay
+  use the declared part and RMII role. The feature matrix joins all 33 ledger
+  procedures, 101 tables, 570 fields and ten address exceptions to their
+  dispositions. Link, pin, power and electrical measurements remain Q15.
+  Register_12 versus MISR latch relationships, independent tuning ranges,
+  the CDCR calibration completion condition and access conflicts remain open
+  as recorded in the matrix. Software closure is subject to phase (c) review.
+
+### Reproducing phase (b)
+
+Windows x86-64, GNU C++ 15.1.0, Python 3.12.10, CMake 4.0.1 and Ninja.
+Use the same configured combined Release and UBSan directories as the
+preceding prompts. The pinned SDK is ESP-IDF v6.1
+`fff9895c82d744c7237be8847347bdd1b07c6643`, target esp32p4.
+The three SDK commands use `scripts/idf.cmd -C <project> -B <dir> build`
+with the existing configurations under `C:/esp/build/dp8382x-loop`.
+Use `56l` for `test/esp_idf/adapter_link` (DP83825I), `56b` for
+`examples/esp_idf/basic` and `56o` for `examples/esp_idf/owner`.
+
+```powershell
+cmake --build build/p60-tests
+ctest --test-dir build/p60-tests --output-on-failure --no-tests=error -j 2
+ctest --test-dir build/p55-ubsan -R '^p25_(events|outputs|core|profiles|diagnostics|functional_modes)$' --output-on-failure --no-tests=error
+ctest --test-dir build/p61-consumer --output-on-failure --no-tests=error
+ctest --test-dir build/p61-export/out --output-on-failure --no-tests=error
+python -B test/test_cli_coverage.py --ctest ctest build/p60-tests
+python -B -m unittest discover -s test -p 'test_*.py' -q
+python -B tools/verify_ledger.py
+python -B tools/verify_references.py
+python -B tools/check_doxygen.py
+python -B scripts/generate_version.py check
+git diff --check
+```
+
+### Phase (b) evidence
+
+| Layer | Result and scope |
+| --- | --- |
+| Host, combined Release | PASS, 1,017/1,017 CTests (140.41 s) in `build/p60-tests` with the pinned native-host SDK tests and earlier-part regressions. A prior run saw the new CLI transcript before its fixture had been rebuilt. Rebuilding the fixture and running the full suite on the final inputs resolved that failure. |
+| Host, focused | PASS. The six combined UBSan cases passed. The diagnostics and analog selection passed 20/20 in each of Release and UBSan. The diagnostic binary executed 278,724 assertions. Functional-mode tests executed 103,340 assertions. Both declared roles exercised all 37 admitted campaigns and offline replay, 74/74. |
+| Python and source checks | PASS. Discovery ran 280 tests with 59 skips; the compiled fixture and configured CTest registration checks run separately. The matrix check passed 10/10. Doxygen checked 296 pages and two negative fixtures. The reference verifier checked 29 payloads, 27 extracts and 2,441 local links. Exact ledger, version and whitespace checks passed. |
+| Portable and package consumers | PASS. Two tests in `build/p61-consumer` and one DP83825I exported-package test in `build/p61-export/out` passed with library tests disabled. The 29 exported inputs were refreshed and compared byte-for-byte to the working source. |
+| SDK link | PASS. The three esp32p4 images below linked with the pinned SDK. Each primary application binary was hashed after the final build. |
+| Remote CI | NOT RUN. Prompt 71 owns first-execution remote CI. |
+| Physical | NOT RUN. Q15 requires an identified DP83825I fixture, clock source, partner and authorization. No board, serial port or instrumentation was operated. |
+
+| ESP-IDF binary | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `dp8382x_adapter_link.bin` | 411760 | `a96e54377b1f7cbcfaf051d2b2329d222928faff9e30710b49476fec687a6200` |
+| `dp8382x_p4_ethernet.bin` | 720656 | `ab9d5bdfa8e592a7e630da4bd0645d1cdadab7b805aaf6eda1c31889a8f33cd5` |
+| `dp8382x_p4_owner.bin` | 598880 | `593eb2f261f19403feac13cc25ab457ea84277e19c4e4a744280b81b37e8d212` |

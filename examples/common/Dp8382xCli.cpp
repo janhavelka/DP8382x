@@ -120,7 +120,7 @@ const char* negotiationName(NegotiationState value) {
   return "unknown";
 }
 
-constexpr std::string_view RESET_KINDS = "none|pcs|hard|restart";
+constexpr std::string_view RESET_KINDS = "none|pcs|hard|restart|eee-pcs";
 
 const char* resetName(ResetKind reset) {
   switch (reset) {
@@ -128,6 +128,7 @@ const char* resetName(ResetKind reset) {
     case ResetKind::PCS: return "pcs";
     case ResetKind::HARD: return "hard";
     case ResetKind::RESTART: return "restart";
+    case ResetKind::EEE_PCS: return "eee-pcs";
   }
   return "unknown";
 }
@@ -391,7 +392,7 @@ const Processor::Command Processor::COMMANDS[] = {
     {"connection identity", "", 0, 0, unsigned(SnapshotKind::IDENTITY), &Processor::cached, "", "Last accepted or rejected identity"},
     {"connection probe", "", 0, 0, PROBE, &Processor::route, "", "Acquire bound identity"},
     {"connection discover", "", 0, 2, SCAN, &Processor::route, "[first last]", "Read raw IDs, never select address"},
-    {"connection initialize", "init|begin", 0, 1, INITIALIZE, &Processor::lifecycle, "[none|pcs|hard|restart]", "Initialize and replay owned settings"},
+    {"connection initialize", "init|begin", 0, 3, INITIALIZE, &Processor::lifecycle, "[reset-kind] [retain|default|power-optimized|extended-reach|extended-reach-eee] [continuous|stoppable]", "Initialize and replay owned settings"},
     {"connection end", "", 0, 0, END, &Processor::lifecycle, "", "Release through the application owner"},
     {"configuration desired", "", 0, 0, unsigned(SnapshotKind::SETTINGS), &Processor::cached, "", "Desired profile"},
     {"configuration observed", "", 0, 0, unsigned(SnapshotKind::SETTINGS), &Processor::cached, "", "Observed profile and trust"},
@@ -407,9 +408,9 @@ const Processor::Command Processor::COMMANDS[] = {
     {"link read", "", 0, 1, LINK_READ, &Processor::link, "[allowed-modes]", "Acquire coherent live link"},
     {"link partner", "", 0, 1, LINK_READ, &Processor::link, "[allowed-modes]", "Acquire local and partner advertisement"},
     {"link cached", "", 0, 1, LINK_CACHED, &Processor::link, "[allowed-modes]", "Copy last observation and apply policy mask"},
-    {"link collect", "", 0, 0, LINK_COLLECT, &Processor::link, "", "Collect six event and counter sources"},
+    {"link collect", "", 0, 1, LINK_COLLECT, &Processor::link, "[register12]", "Collect event and counter sources"},
     {"link watch", "", 2, 3, WATCH, &Processor::run, "count duration-ms [allowed-modes]", "Sample cached owner link"},
-    {"recovery reset", "", 1, 1, RESET, &Processor::lifecycle, "<pcs|hard>", "Reset and verify owned replay"},
+    {"recovery reset", "", 1, 1, RESET, &Processor::lifecycle, "<pcs|hard|eee-pcs>", "Reset and verify owned replay"},
     {"recovery restart", "", 0, 0, RESTART, &Processor::lifecycle, "", "Restart PHY circuitry and verify replay"},
     {"recovery reinitialize", "", 0, 1, REPLAY, &Processor::lifecycle, "[none|pcs|hard|restart]", "Explicit recovery with a new allowance"},
     {"owner start", "", 1, 2, OWNER_START, &Processor::lifecycle, "initialize [reset-kind] | verify", "Admit a cooperative operation"},
@@ -878,7 +879,7 @@ void Processor::lifecycle(const Command& command, const Args& args, std::size_t 
       break;
     case RESTART: reset = "restart"; break;
     case RESET:
-      if (args[0] != "pcs" && args[0] != "hard") { reply.reject("enum"); return; }
+      if (args[0] != "pcs" && args[0] != "hard" && args[0] != "eee-pcs") { reply.reject("enum"); return; }
       reset = args[0];
       break;
     case OWNER_START:
@@ -887,6 +888,16 @@ void Processor::lifecycle(const Command& command, const Args& args, std::size_t 
       else { reply.reject("enum"); return; }
       break;
     default:
+      if (count >= 2) {
+        const int mode = choice("retain|default|power-optimized|extended-reach|extended-reach-eee", args[1]);
+        if (command.flags != INITIALIZE || (mode > 0 && args[0] != "hard") || mode < 0) { reply.reject("enum"); return; }
+        request.functionalMode = static_cast<FunctionalMode>(mode);
+      }
+      if (count == 3) {
+        const int policy = choice("continuous|stoppable", args[2]);
+        if (policy < 0) { reply.reject("enum"); return; }
+        request.rxClock = static_cast<PcsRxClock>(policy + 1);
+      }
       if (count != 0) reset = args[0];
       break;
   }
@@ -936,7 +947,10 @@ void Processor::owner(const Command& command, const Args& args, std::size_t coun
 
 void Processor::link(const Command& command, const Args& args, std::size_t count, Reply& reply) {
   Request request;
-  if (count != 0 && (!unsignedNumber(args[0], request.mask) ||
+  if (command.flags == LINK_COLLECT && count != 0) {
+    if (args[0] != "register12" || _identity.variant != Variant::DP83825I) { reply.reject("enum"); return; }
+    request.mask = evidenceBit(EvidenceSource::REGISTER_12);
+  } else if (count != 0 && (!unsignedNumber(args[0], request.mask) ||
       request.mask == 0 || request.mask > LINK_TECHNOLOGY_MASK)) { reply.reject("range"); return; }
   if (command.flags == LINK_CACHED) {
     CachedSnapshot copy;
@@ -990,6 +1004,7 @@ void Processor::feature(const Command& command, const Args& args, std::size_t co
   }
   Request request;
   request.action = Action::FEATURE;
+  request.variant = _identity.variant;
   request.feature = static_cast<Feature>(command.flags);
   auto& copied = request.featureArgs;
   std::size_t offset = 0;
@@ -1387,8 +1402,12 @@ void Processor::serviceJob() {
         if (!reply.status.ok()) receipt.link.lastRefreshStatus = reply.status;
         reply.linkFields(receipt.link, request.mask);
       } else if (request.action == Action::COLLECT_EVENTS) {
-        if (!reply.status.ok()) receipt.counters.lastStatus = reply.status;
-        reply.eventFields(receipt.counters, receipt.eventValidMask, receipt.eventWords);
+        if (request.mask == evidenceBit(EvidenceSource::REGISTER_12)) {
+          if (reply.status.ok()) reply.fields(" register12=%u", unsigned(receipt.value));
+        } else {
+          if (!reply.status.ok()) receipt.counters.lastStatus = reply.status;
+          reply.eventFields(receipt.counters, receipt.eventValidMask, receipt.eventWords);
+        }
       } else if (featureCall || request.action == Action::APPLICATION) {
         reply.fields("%s", receipt.featureFields.text.data());
         reply.checkFeatureFields(receipt.featureFields);

@@ -914,3 +914,33 @@ An enabled A EEE recipe records `recipeRestartAttempted`,
 Row 26 issues the BMCR restart. Row 27 completes the recipe at 0466. A
 failure in that final transaction preserves any accepted restart and leaves
 restoration to the separately admitted owner. [A field and procedure coverage](feature-coverage.md#dp83826ai-and-dp83826ae)
+
+### DP83825I functional mode and feature ownership
+
+An explicit functional mode in `InitializeOptions` starts from a HARD reset.
+The default mode needs no table writes. The other three selections execute
+SNLS638C tables 6-5 to 6-7 through the same bounded initializer. A failed
+table prefix needs a new HARD allowance. Use the three-output `takeResult`
+overload to keep the frozen prefix and restart evidence. A completed table
+does not measure link reach. `EEE_PCS` targets DEVAD 3 offset 0. The PHY
+can lose IEEE state independently of the programmed vendor words.
+
+Use `acquireEvidence` with `EvidenceSource::REGISTER_12` only when the
+owner intends to consume C22 000C. Normal interrupt service reads MISR1/2.
+The collector retains each successful read across a failing next frame or
+controller release. The vendor aliases share the same exclusions. The raw
+receive-error word is preserved because table 7-24 gives conflicting widths.
+
+An approved alternate use of pin 2 can remove a leader's reference-clock
+output. The board must arrange a recovery route for a deep-power transition.
+A successful LPI stop leaves a MAC obligation of at least 36 microseconds of
+Normal Inter-Frame before data transmission. Firmware owns timing and
+independent readiness evidence.
+[DP83825I procedure and field map](feature-coverage.md#dp83825i-procedures)
+
+The seven `DspControl` groups use native bit positions in
+`AnalogSettings::dspMasks` and `dspValues`. An update retains already
+owned fields. Masked writes preserve adjacent settings under the same
+controller lock. In `AnalogSnapshot::validMask` bits 5 through 11 qualify
+`raw[5..11]` in group order. The VOD fine word at 030E has a write
+receipt only. No readback bit certifies it.

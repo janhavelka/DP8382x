@@ -67,6 +67,23 @@ class ControlTranscript(unittest.TestCase):
         self.terminal(rows, 8)
         self.assertEqual(int(self.terminal(rows, 9)["attempted"]) - int(self.terminal(rows, 6)["attempted"]), 5)
 
+    def test_p25_eee_rx_policy(self):
+        rows, result = self.run_controls(
+            b"configuration apply an 8 none auto 1\neee configure on 2 0 2\neee read\n"
+            b"cached transport\neee configure off 0 0 0\neee configure on 2 0 4\ncached transport\n",
+            "--variant", "DP83825I", "--rmii-role", "follower", "--trace-writes")
+        self.terminal(rows, 1)
+        self.terminal(rows, 2)
+        view = self.terminal(rows, 3)
+        self.assertEqual((view["control"], view["negotiated_valid"], view["negotiated"]), ("196", "0", "0"))
+        self.terminal(rows, 5, "INVALID_CONFIG")
+        self.terminal(rows, 6, "INVALID_PARAM")
+        self.assertEqual(self.terminal(rows, 4)["attempted"], self.terminal(rows, 7)["attempted"])
+        trace = result.stderr.splitlines()
+        table = trace.index(b"mdio-write 1f 04d1 00c2")
+        restart = trace.index(b"mdio-write 1f 001f 4000", table)
+        self.assertGreater(trace.index(b"mdio-write 1f 04d1 00c4"), restart)
+
     def test_eee_recipe_and_forced_lpi_separate_exit(self):
         rows, result = self.run_controls(
             b"configuration apply an 8 none auto 1\neee configure on 2 0\nlink read\neee read\n"

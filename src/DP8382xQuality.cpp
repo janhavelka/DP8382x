@@ -38,7 +38,7 @@ Status DP8382x::_validateQuality(const QualitySettings& settings) const noexcept
   const auto syntax=qualitySyntax(settings); if (!syntax.ok()) { return syntax; }
   const auto& fld=settings.fastDrop;
   if (_config.variant == Variant::DP83825I &&
-      (fld.rawThresholdOverride || settings.tx10.owned || settings.recoveryOwned ||
+      (fld.rawThresholdOverride || settings.tx10.shortPreamble || settings.recoveryOwned ||
        settings.tx100.scramblerBypass || settings.tx100.fifoDepthCode != 0U)) {
     return _unsupportedFeature();
   }
@@ -69,7 +69,7 @@ Status DP8382x::_validateQuality(const QualitySettings& settings) const noexcept
       (!settings.recoveryOwned && settings.linkRecovery)) {
     return qualityConfig("A requested control requires its explicit owner");
   }
-  if (settings.tx10.owned && !settings.partnerPreambleAdmitted) {
+  if (_config.variant!=Variant::DP83825I && settings.tx10.owned && !settings.partnerPreambleAdmitted) {
     return qualityConfig("10M preamble policy requires partner admission");
   }
   if (_quality.desiredValid &&
@@ -121,7 +121,7 @@ bool DP8382x::_qualityRowValue(uint8_t row,uint16_t& address,uint16_t& mask,uint
     }
     // CR2[2] controls idle RX errors. PHYSCR[11,9:8] belong to the
     // compliance and loopback procedures in SNLS638C table 7-20.
-    if (row!=4) { return false; }
+    if (row!=4 && row!=5) { return false; }
   }
   // SNLS647I 8.3.17: disable detectors before their threshold recipes; restore
   // only explicitly owned stable fields, then enable the selected cause set.
@@ -326,7 +326,6 @@ Status DP8382x::_advanceQuality(Status status,bool called,const MdioBatch& batch
 }
 
 Status DP8382x::readSignalQuality(SignalQualitySnapshot& snapshot,const IoBudget& budget) noexcept {
-  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
   if (_active || _polling || (_operation.state==OperationState::RUNNING &&
       !_qualityWorking && !_configuring && !_cableWorking && !_interruptWorking && !_powerWorking &&
@@ -339,11 +338,28 @@ Status DP8382x::readSignalQuality(SignalQualitySnapshot& snapshot,const IoBudget
   if (_stopped) { return fail(qualityBusy(BusyDetail::CONTROLLER_QUARANTINED)); }
   if (!capabilities().valid) { return fail(Status::Error(Err::NOT_INITIALIZED,"Accepted identity required for raw MSE")); }
   const auto context=_link;
+  if (_config.variant == Variant::DP83825I) {
+    // SDAA081 2.3.3 requires a powered, connected link partner. A previous
+    // diagnostic loopback or a historical coherent pass cannot qualify it.
+    if (_operation.state == OperationState::RUNNING || _operation.temporaryMayBeActive ||
+        _operation.cleanupOwed || _softwarePowerWord() != 0U ||
+        (_power.desiredValid && (_power.desired.disablePll || _power.desired.activeSleep)) ||
+        !context.valid || context.stale || !context.linkUp || context.temporaryMayBeActive ||
+        (context.rawBmcr & 0xC800U) != 0U) {
+      return fail(Status::Error(Err::RESULT_NOT_AVAILABLE,"DP83825I MSE requires a fresh connected link in normal power"));
+    }
+  }
   const auto identity=_identity;
   const auto status=_execute(_mmdBatch(0x0218,FrameKind::READ,0),budget,nullptr,false,Traffic::MANAGED);
   if (!status.ok()) { return fail(status); }
   SignalQualitySnapshot next;
   next.rawMse=_transport.lastBatch.frames[3].value;
+  if (_config.variant == Variant::DP83825I) {
+    // Table 2-6 uses strict inequalities. Both printed boundaries are gaps.
+    if (next.rawMse < 0x020AU) { next.quality = MseQuality::EXCELLENT; }
+    else if (next.rawMse > 0x033BU) { next.quality = MseQuality::POOR; }
+    else if (next.rawMse > 0x020AU && next.rawMse < 0x033BU) { next.quality = MseQuality::GOOD; }
+  }
   next.valid=true; next.stale=false; next.timeValid=true;
   next.observedAtUs=_lastTimeUs+_config.transport.bounds.clockLagUs;
   next.linkContext=context; next.identity=identity; next.lastStatus=Status::Ok();

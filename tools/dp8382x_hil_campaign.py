@@ -1,6 +1,6 @@
 """DP8382x campaign plans and assertions shared by every runner backend."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import cache
 import ipaddress
 
@@ -287,16 +287,20 @@ class Campaign:
         self.expected = expected
         self.backend = expected["backend"]
         self.p25 = expected["variant"] == "DP83825I"
-        if self.p25 and self.feature:
+        if self.p25 and self.spec.id not in getattr(self.feature, "P25_CASES", ()):
             self.baseline = ()
         if (declaration["mode"] == "none") != self.p25:
             raise ProtocolError("DP83825I has no BASIC or ENHANCED operating mode")
         self.a_feature = self.feature is not None and expected["variant"] in ("DP83826AI", "DP83826AE")
-        self.a_control = None
+        if self.p25 and self.spec.id == "power-deep":
+            self.spec = replace(self.spec, feature_mutation=True)
+        self.part_control = None
         if self.a_feature and self.spec.group == "controls":
-            self.a_control = self.feature.a_control(self.spec.id, declaration["mode"])
-            if self.a_control:
-                self.baseline = (self.a_control.baseline.command,)
+            self.part_control = self.feature.a_control(self.spec.id, declaration["mode"])
+        elif self.p25 and self.spec.group == "controls" and self.spec.id in self.feature.P25_CASES:
+            self.part_control = self.feature.p25_control(self.spec.id, expected["rmii_role"])
+        if self.part_control:
+            self.baseline = (self.part_control.baseline.command,)
         self.primary_record = None
         self.interventions = []
         self.last = None
@@ -313,16 +317,17 @@ class Campaign:
 
     def feature_gate(self):
         """Return the prerequisite that prevents the selected feature from running."""
-        if self.p25:
-            return "DP83825I optional feature campaign awaits exact-part qualification"
+        if self.p25 and self.spec.id not in getattr(self.feature, "P25_CASES", ()):
+            return "No DP83825I campaign baseline and verifier for this procedure"
         if (self.expected["target"], self.backend) != ("host", "sim-mdio"):
             return "qualified native feature grant and independent measurement route unavailable"
-        if self.spec.id in getattr(self.feature, "MII_CASES", ()) and self.expected["interface"] != "MII":
+        rmii_supported = self.p25 and self.spec.id in ("collision-10", "collision-100", "quality")
+        if self.spec.id in getattr(self.feature, "MII_CASES", ()) and self.expected["interface"] != "MII" and not rmii_supported:
             return "case requires the MII fixture"
         if self.spec.id in getattr(self.feature, "RMII_CASES", ()) and self.expected["interface"] != "RMII":
             return "case requires the RMII fixture"
         mode = getattr(self.feature, "MODES", {}).get(self.spec.id, self.declaration["mode"])
-        if self.declaration["mode"] != mode:
+        if not self.p25 and self.declaration["mode"] != mode:
             return f"case requires {mode} operating mode"
         return None
 

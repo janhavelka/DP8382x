@@ -26,6 +26,36 @@ constexpr RecipeWord A_RECIPE[] = {
   {0x033A,0x579B},{0x033C,0xEC00},{0x0317,0x1000},{0x031B,0x8848},
   {0x04F5,0x2864},{0x0000,0x3300},{0x0466,0xFD00}
 };
+// SNLS638C tables 6-5..6-7. The three recipes share the first ten
+// addresses and last two indirect writes. Only table 6-5 uses 0404=0.
+// The extra offsets are authorized solely by these ordered table rows.
+constexpr RecipeWord MODE_PREFIX[] = {
+  {0x0416,0x1F30},{0x040D,0x000D},{0x0429,0x0200},{0x030B,0x0BC0},
+  {0x030C,0x0011},{0x033C,0x0001},{0x0311,0x0000},{0x0313,0x06E3},
+  {0x033A,0x579C},{0x0404,0x0080}
+};
+constexpr RecipeWord MODE_EEE[] = {
+  {0x0130,0x4750},{0x0123,0x0800},{0x030F,0x0400},{0x04D4,0x6633},
+  {0x04D5,0x027F},{0x04D6,0x01B0},{0x04D7,0x01B0},{0x031F,0xFC36},
+  {0x031C,0x1103},{0x0101,0x0882},{0x010A,0x2010},{0x04CE,0x00FF},
+  {0x04CD,0xA5A5},{0x0308,0x0982},{0x04CF,0x231D},{0x04D0,0x0F8F},
+  {0x033E,0x861E},{0x04D1,0x00C2},{0x04D2,0x215B}
+};
+constexpr RecipeWord MODE_END[] = {{0x033D,0x8110},{0x031B,0x0048},{0x001F,0x4000}};
+
+RecipeWord modeRow(FunctionalMode mode, size_t index) noexcept {
+  if (index < std::size(MODE_PREFIX)) {
+    auto row = MODE_PREFIX[index];
+    if (row.address == 0x0404 && mode == FunctionalMode::POWER_OPTIMIZED) { row.value = 0; }
+    return row;
+  }
+  index -= std::size(MODE_PREFIX);
+  if (mode == FunctionalMode::EXTENDED_REACH_EEE) {
+    if (index < std::size(MODE_EEE)) { return MODE_EEE[index]; }
+    index -= std::size(MODE_EEE);
+  }
+  return MODE_END[index];
+}
 Status eeeConfig(const char* message) noexcept {
   return Status::Error(Err::INVALID_CONFIG,message,static_cast<int32_t>(ConfigDetail::SOURCE_GATE));
 }
@@ -48,20 +78,190 @@ bool readComplete(const MdioBatch& batch,const BatchResult& result) noexcept {
 }
 } // namespace
 
+Status DP8382x::_validateFunctionalMode(const InitializeOptions& options) const noexcept {
+  if (options.functionalMode > FunctionalMode::EXTENDED_REACH_EEE) {
+    return Status::Error(Err::INVALID_PARAM,"Invalid functional mode",static_cast<int32_t>(ParamDetail::ENUM_VALUE));
+  }
+  if (options.rxClock>PcsRxClock::STOPPABLE) {
+    return Status::Error(Err::INVALID_PARAM,"Invalid PCS RX clock",static_cast<int32_t>(ParamDetail::ENUM_VALUE));
+  }
+  if (options.rxClock!=PcsRxClock::RETAIN || options.reset==ResetKind::EEE_PCS) {
+    if (_config.variant!=Variant::DP83825I) { return _unsupportedFeature(); }
+    if (_config.rmiiClock==RmiiClock::LEADER_25MHZ && !_config.clockLossApproved &&
+        (options.rxClock==PcsRxClock::STOPPABLE || options.reset==ResetKind::EEE_PCS)) {
+      return eeeConfig("PCS reset or stoppable leader clock needs board clock-loss approval");
+    }
+  }
+  const auto desired = options.functionalMode == FunctionalMode::RETAIN ? _functionalMode.desired : options.functionalMode;
+  if (desired == FunctionalMode::RETAIN) { return Status::Ok(); }
+  if (_config.variant != Variant::DP83825I) { return _unsupportedFeature(); }
+  // Scripts have no documented inverse. Re-establish the reset baseline before
+  // selecting another mode or recovering an interrupted pass. On a retained,
+  // known mode, NONE verifies without a reset or a table replay.
+  if (options.reset != ResetKind::HARD && (options.functionalMode != FunctionalMode::RETAIN ||
+      !_functionalMode.established || (options.reset != ResetKind::NONE && options.reset != ResetKind::EEE_PCS))) {
+    return eeeConfig("DP83825I mode selection or recovery needs a HARD reset baseline");
+  }
+  if (options.reset == ResetKind::HARD && _config.rmiiClock == RmiiClock::LEADER_25MHZ && !_config.clockLossApproved) {
+    return eeeConfig("DP83825I leader mode reset requires clock-loss approval");
+  }
+  if (_analog.desiredValid && _dspModeConflict(desired,_analog.desired)) {
+    return eeeConfig("Functional mode would overwrite an owned DSP word");
+  }
+  if (desired != FunctionalMode::DEFAULT && _analog.desiredValid && (_analog.desired.amplitudeOwned || _analog.desired.vodOwned)) {
+    return eeeConfig("Functional mode and amplitude policy both own 030B/030C");
+  }
+  if (desired == FunctionalMode::EXTENDED_REACH_EEE) {
+    EeeSettings settings;
+    settings.enabled = settings.maintenanceAdmitted = true;
+    return _validateEee(settings);
+  }
+  return Status::Ok();
+}
+
+Status DP8382x::_admitFunctionalMode(const IoBudget& budget,uint64_t raw) const noexcept {
+  if (_featureProcedureActive() || _configuring || _initStep!=InitStep::COMMAND ||
+      _result.reset!=ResetKind::HARD || _functionalMode.desired==FunctionalMode::RETAIN) { return Status::Ok(); }
+  // Reserve HARD, first clear poll, exact script and both post-command
+  // identity/SOR/RCSR passes before the initial disruptive write. Variable
+  // repeat polls and subsequent owned restoration use the same finite budget.
+  const bool eee=_functionalMode.desired==FunctionalMode::EXTENDED_REACH_EEE;
+  const uint32_t rows=_functionalMode.desired==FunctionalMode::DEFAULT ? 0U : eee ? 32U : 13U;
+  uint32_t frames=9, callbacks=5;
+  uint64_t wait=_commandWaitUs();
+  if (rows) {
+    frames+=4*(rows-1)+1+1+7;
+    callbacks+=rows+1+3;
+    wait+=_operationBudget.pollIntervalUs;
+  }
+  if (eee && _eeeControl()!=2) { frames+=5; ++callbacks; } // Optional table 7-92 RX controls.
+  if (eee) { frames+=12; callbacks+=3; } // Advertisement write/read and 04D1 read.
+  const auto& bounds=_config.transport.bounds;
+  const uint64_t floor=uint64_t{frames}*bounds.frameUs+uint64_t{callbacks}*bounds.fixedUs+
+                       uint64_t{4}*bounds.clockLagUs+wait;
+  if (budget.maxFrames<frames || raw>=budget.deadlineUs || floor>=budget.deadlineUs-raw) {
+    return eeeTimeout(TimeoutDetail::BOUND_ADMISSION);
+  }
+  return Status::Ok();
+}
+
+bool DP8382x::_beginPcsPass(InitStep step) noexcept {
+  if (step==InitStep::COMMAND && _result.reset==ResetKind::EEE_PCS && !_pcsResetChecked) {
+    _setEeeStep(EeeStep::PCS_CHECK);
+    return true;
+  }
+  if (step==InitStep::APPLY && _result.reset==ResetKind::EEE_PCS && _result.commandAccepted &&
+      _eee.desiredValid && _eee.desired.enabled && !_modeAppliedThisPass) {
+    // MMD7 advertisement reset independently of vendor 04D1/table state.
+    // Reapply advertisement before the common AN profile issues BMCR[9].
+    _modeAppliedThisPass=true; _eeeResumeInit=true;
+    _setEeeStep(EeeStep::SET_ADVERTISEMENT);
+    return true;
+  }
+  if ((step==InitStep::APPLY || step==InitStep::VERIFY) && _eee.rxClock!=PcsRxClock::RETAIN && !_pcsClockChecked) {
+    _setEeeStep(step==InitStep::VERIFY ? EeeStep::PCS_VERIFY : EeeStep::PCS_CLOCK);
+    return true;
+  }
+  return false;
+}
+
+bool DP8382x::_beginFunctionalModePass() noexcept {
+  if (!_modeAppliedThisPass) {
+    _functionalMode = {_functionalMode.desired};
+    if (_functionalMode.desired != FunctionalMode::DEFAULT) {
+      _eeeRow = 0;
+      _setEeeStep(EeeStep::MODE_WRITE);
+      return true;
+    }
+    _modeAppliedThisPass = true;
+  }
+  if (!_functionalMode.established) {
+    // The common initializer has now re-read identity, SOR1 and RCSR after
+    // HARD (default mode) or after the final table restart (all other modes).
+    _functionalMode.established = true;
+    if (_functionalMode.desired == FunctionalMode::EXTENDED_REACH_EEE) {
+      _eeeOpaqueValid = _eeeResumeInit = true;
+      _setEeeStep(EeeStep::SET_ADVERTISEMENT);
+      return true;
+    }
+  }
+  return false;
+}
+
+MdioBatch DP8382x::_functionalModeBatch() const noexcept {
+  if (_eeeStep == EeeStep::MODE_WAIT) { return directRead(0x1F); }
+  const auto row = modeRow(_functionalMode.desired, _eeeRow);
+  if (row.address != 0x1F) { return _mmdBatch(row.address, FrameKind::WRITE, row.value); }
+  auto batch = directRead(0x1F);
+  batch.frames[0] = {FrameKind::WRITE,0x1F,row.value,0,NO_READ_INDEX};
+  return batch;
+}
+
+Status DP8382x::_advanceFunctionalMode(Status status,bool called,const MdioBatch& batch) noexcept {
+  if (_eeeStep == EeeStep::MODE_WAIT) {
+    if (!status.ok()) { return _finishOperation(status); }
+    const auto control = _transport.lastBatch.frames[0].value;
+    if ((control & 0x8000U) != 0) {
+      return _finishOperation(eeeConfig("Unexpected HARD reset while waiting for mode restart"));
+    }
+    if ((control & 0x4000U) != 0) { return _waitOperation(); }
+    _functionalMode.restartCleared = true;
+    _modeAppliedThisPass = true;
+    _setInitStep(InitStep::REIDENTIFY);
+    return _operation.status;
+  }
+  const bool restart = batch.frames[0].registerAddress == 0x1F;
+  if (called) {
+    const auto& target = _transport.lastBatch.frames[batch.frameCount - 1U];
+    const bool complete = _result.failingBatch.completedFrames == batch.frameCount;
+    const bool possible = target.effectPossible || target.completed || target.valueValid ||
+                          _transport.violation != TransportViolation::NONE;
+    if (complete) { ++_functionalMode.completedWrites; }
+    _functionalMode.nextWritePossible = !complete && possible;
+    _result.mutationAttempted |= target.attempted;
+    _result.mutationCompleted |= complete;
+    _result.mutationPossible |= possible;
+    if (restart && (target.attempted || possible)) {
+      _eee.recipeRestartAttempted = target.attempted;
+      _eee.recipeRestartAccepted = complete;
+      _eee.recipeRestartPossible = possible;
+      _invalidateResetEvidence(false);
+    }
+  }
+  if (!status.ok()) { return _finishOperation(status); }
+  if (restart) {
+    _setEeeStep(EeeStep::MODE_WAIT);
+    _operation.phase = OperationPhase::WAIT;
+    return _waitOperation();
+  }
+  ++_eeeRow;
+  return _operation.status;
+}
+
+Status DP8382x::takeResult(OperationToken token, OperationResult& result, FunctionalModeSnapshot& mode) noexcept {
+  const auto status = takeResult(token, result);
+  if (status.ok()) { mode = _terminalMode; }
+  return status;
+}
+
 Status DP8382x::_validateEee(const EeeSettings& settings) const noexcept {
+  if (settings.disableNextPageReception || !settings.shutdownRxDuringQuiet) {
+    if (_config.variant != Variant::DP83825I) { return _unsupportedFeature(); }
+    if (!settings.enabled) { return eeeConfig("EEE RX policy needs the enabled exact-part recipe"); }
+  }
   if (settings.enabled && _interface.desiredValid &&
-      (_interface.desired.clockOutput!=ClockOutput::UNOWNED ||
+      ((_config.variant!=Variant::DP83825I && _interface.desired.clockOutput!=ClockOutput::UNOWNED) ||
        (_interface.desired.isolationOwned && _interface.desired.isolate))) {
     return eeeConfig("EEE conflicts with explicit interface clock or isolation ownership");
   }
   if (settings.advertisement!=0U && settings.advertisement!=2U) {
     return Status::Error(Err::INVALID_PARAM,"EEE advertisement is zero or 100BASE-TX",static_cast<int32_t>(ParamDetail::VALUE_WIDTH));
   }
-  if (settings.enabled && _pins.desiredValid &&
+  if (_config.variant!=Variant::DP83825I && settings.enabled && _pins.desiredValid &&
       (_pins.desired.pins[1].function!=PinFunction::UNOWNED || _pins.desired.led1ClockOverride)) {
     return eeeConfig("EEE clock recipe conflicts with owned LED1 pin controls");
   }
-  if (settings.enabled && _wake.desiredValid && _wake.desired.route == WakeRoute::LED1) {
+  if (_config.variant!=Variant::DP83825I && settings.enabled && _wake.desiredValid && _wake.desired.route == WakeRoute::LED1) {
     return eeeConfig("EEE clock recipe conflicts with owned LED1 wake route");
   }
   if (!settings.maintenanceAdmitted) { return eeeConfig("EEE reset maintenance not admitted"); }
@@ -77,14 +277,13 @@ Status DP8382x::_validateEee(const EeeSettings& settings) const noexcept {
       _power.desired.disablePll || _power.desired.activeSleep)) {
     return eeeConfig("EEE and explicit low-power policy cannot share this recipe");
   }
-  if (_interrupts.desiredValid && _interrupts.desired.pin!=InterruptPin::INTR_PWRDN) {
+  if (_config.variant!=Variant::DP83825I && _interrupts.desiredValid && _interrupts.desired.pin!=InterruptPin::INTR_PWRDN) {
     return eeeConfig("EEE clock recipe conflicts with owned LED interrupt route");
   }
   return Status::Ok();
 }
 
 Status DP8382x::startConfigureEee(const EeeSettings& settings,const OperationBudget& budget,OperationToken& token) noexcept {
-  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   if (settings.advertisement!=0U && settings.advertisement!=2U) {
     return Status::Error(Err::INVALID_PARAM,"EEE advertisement is zero or two",static_cast<int32_t>(ParamDetail::VALUE_WIDTH));
   }
@@ -103,6 +302,19 @@ Status DP8382x::startConfigureEee(const EeeSettings& settings,const OperationBud
   if (!_otherControlsVerified(OperationKind::EEE_CONFIGURE)) { return eeeConfig("Verify other owned controls first"); }
   if (budget.io.maxFrames==0U) { return eeeTimeout(TimeoutDetail::FRAME_BUDGET); }
   if (budget.io.deadlineUs==0U) { return eeeTimeout(TimeoutDetail::DEADLINE); }
+  if (_config.variant == Variant::DP83825I) {
+    if (settings.enabled && (settings.advertisement != 2 || settings.bypassBit0 || settings.bypassBit3)) {
+      return eeeConfig("DP83825I table 6-7 requires advertisement and bypass bits clear");
+    }
+    const auto mode = settings.enabled ? FunctionalMode::EXTENDED_REACH_EEE : FunctionalMode::DEFAULT;
+    const auto admission = startInitialize({ResetKind::HARD,mode}, budget, token);
+    if (admission.inProgress()) {
+      _operation.kind = _result.kind = OperationKind::EEE_CONFIGURE;
+      _eee.desired = settings;
+      _eee.desiredValid = _eeeTailPending = true;
+    }
+    return admission;
+  }
   _beginOperation(OperationKind::EEE_CONFIGURE,budget);
   _eee.desired=settings; _eee.desiredValid=true; _eee.trust=ConfigurationTrust::DIRTY;
   _eee.stale=true; _eee.negotiatedValid=false;
@@ -114,6 +326,12 @@ Status DP8382x::startConfigureEee(const EeeSettings& settings,const OperationBud
 }
 
 uint16_t DP8382x::_eeeControl() const noexcept {
+  if (_config.variant == Variant::DP83825I) {
+    // Sections 6.3.3.2/6.3.4 govern bits 0/3. Table 7-92 gives
+    // independent RX quiet shutdown (1) and next-page reception disable (2).
+    return static_cast<uint16_t>((_eee.desired.shutdownRxDuringQuiet?2U:0U) |
+                                 (_eee.desired.disableNextPageReception?4U:0U));
+  }
   // 8.3.3.2: one disables bypass. Stage 30 owns forced TX LPI bit 12.
   return static_cast<uint16_t>((_eee.desired.bypassBit0?0U:1U)|(_eee.desired.bypassBit3?0U:8U));
 }
@@ -122,11 +340,21 @@ void DP8382x::_setEeeStep(EeeStep step) noexcept {
   _wakeWorking=false;
   _eeeWorking=true; _powerWorking=_interruptWorking=_cableWorking=_bistWorking=_loopWorking=_configuring=false;
   _eeeStep=step; _operation.nextPollValid=false;
-  _operation.phase=step==EeeStep::RECIPE || step==EeeStep::SET_ADVERTISEMENT || step==EeeStep::SET_CONTROL ?
+  _operation.phase=step==EeeStep::PCS_CLOCK || step==EeeStep::MODE_WRITE || step==EeeStep::RECIPE || step==EeeStep::SET_ADVERTISEMENT || step==EeeStep::SET_CONTROL ?
       OperationPhase::RESTORE : OperationPhase::VERIFY;
 }
 MdioBatch DP8382x::_eeeBatch() const noexcept {
   switch (_eeeStep) {
+    case EeeStep::PCS_CHECK: case EeeStep::PCS_VERIFY: return _mmdBatch(0,FrameKind::READ,0,3);
+    case EeeStep::PCS_CLOCK: {
+      auto batch=_mmdBatch(0,FrameKind::READ,0,3);
+      batch.frameCount=5;
+      const uint16_t expected=_eee.rxClock==PcsRxClock::STOPPABLE ? 0x0400 : 0;
+      batch.frames[4]={FrameKind::WRITE,0x0E,expected,0,3};
+      batch.frames[4].requiredMask=0x8000; // Never write a clock control during PCS reset.
+      return batch;
+    }
+    case EeeStep::MODE_WRITE: case EeeStep::MODE_WAIT: return _functionalModeBatch();
     case EeeStep::CAPABILITY: return _mmdBatch(0x0014,FrameKind::READ,0,3);
     case EeeStep::RECIPE: {
       const auto& row=isA(_config.variant)?A_RECIPE[_eeeRow]:RECIPE[_eeeRow];
@@ -142,6 +370,14 @@ MdioBatch DP8382x::_eeeBatch() const noexcept {
     case EeeStep::SET_CONTROL: {
       auto batch=_mmdBatch(0x04D1,FrameKind::READ,0);
       batch.frameCount=5;
+      if (_config.variant == Variant::DP83825I) {
+        // Modify only the two named RX policies after the complete table 6-7
+        // script and its restart. Under this lock require no foreign TX/force
+        // session and both bypass controls in their documented enabled state.
+        batch.frames[4]={FrameKind::WRITE,0x0E,_eeeControl(),0xFFF9,3};
+        batch.frames[4].requiredMask=0x7009;
+        return batch;
+      }
       // Only 0/3/12 have exact-part field authority; bit 1 remains opaque.
       batch.frames[4]={FrameKind::WRITE,0x0E,_eeeControl(),0xEFF6,3};
       return batch;
@@ -151,6 +387,9 @@ MdioBatch DP8382x::_eeeBatch() const noexcept {
   return {};
 }
 Status DP8382x::_advanceEee(Status status,bool called,const MdioBatch& batch) noexcept {
+  if (_eeeStep == EeeStep::MODE_WRITE || _eeeStep == EeeStep::MODE_WAIT) {
+    return _advanceFunctionalMode(status,called,batch);
+  }
   const auto last=static_cast<uint8_t>(batch.frameCount-1U);
   const bool complete=called && _result.failingBatch.completedFrames==batch.frameCount;
   if (called && batch.frames[last].kind==FrameKind::WRITE) {
@@ -164,6 +403,9 @@ Status DP8382x::_advanceEee(Status status,bool called,const MdioBatch& batch) no
     _result.mutationAttempted|=target.attempted;
     _result.mutationCompleted|=complete;
     _result.mutationPossible|=target.completed || target.effectPossible || target.valueValid || _transport.violation!=TransportViolation::NONE;
+    if (_eeeStep==EeeStep::PCS_CLOCK && _result.failingBatch.completedFrames>=4U) {
+      _eee.pcsControl=_transport.lastBatch.frames[3].value; _eee.pcsControlValid=true;
+    }
     if (_eeeStep==EeeStep::SET_CONTROL && _result.failingBatch.completedFrames>=4U) {
       _eee.control=_transport.lastBatch.frames[3].value; _eee.controlValid=true;
     }
@@ -171,7 +413,12 @@ Status DP8382x::_advanceEee(Status status,bool called,const MdioBatch& batch) no
   if (complete && batch.frames[last].kind==FrameKind::READ) {
     const auto word=_transport.lastBatch.frames[last].value;
     uint16_t mask=0,expected=0,address=0; uint8_t devad=0;
-    if (_eeeStep==EeeStep::CAPABILITY) {
+    if (_eeeStep==EeeStep::PCS_CHECK || _eeeStep==EeeStep::PCS_VERIFY) {
+      _eee.pcsControl=word; _eee.pcsControlValid=true;
+      mask=_eeeStep==EeeStep::PCS_CHECK ? 0x8000 : 0x8400;
+      expected=_eeeStep==EeeStep::PCS_VERIFY && _eee.rxClock==PcsRxClock::STOPPABLE ? 0x0400 : 0;
+      address=0; devad=3;
+    } else if (_eeeStep==EeeStep::CAPABILITY) {
       _eee.capability=word; _eee.capabilityValid=true;
       mask=0xFFFF; expected=2; address=0x0014; devad=3;
     } else if (_eeeStep==EeeStep::ADVERTISEMENT_CHECK || _eeeStep==EeeStep::VERIFY_ADVERTISEMENT) {
@@ -181,7 +428,7 @@ Status DP8382x::_advanceEee(Status status,bool called,const MdioBatch& batch) no
       address=0x003C; devad=7;
     } else if (_eeeStep==EeeStep::VERIFY_CONTROL) {
       _eee.control=word; _eee.controlValid=true;
-      mask=0x1009; expected=_eeeControl(); address=0x04D1; devad=31;
+      mask=_config.variant == Variant::DP83825I ? 0x700F : 0x1009; expected=_eeeControl(); address=0x04D1; devad=31;
     }
     if (mask!=0U && (word&mask)!=expected && !_result.mismatch.valid) {
       _result.mismatch={true,true,devad,address,mask,expected,word};
@@ -191,6 +438,14 @@ Status DP8382x::_advanceEee(Status status,bool called,const MdioBatch& batch) no
   if (!status.ok()) { return _finishOperation(status); }
   if (_result.mismatch.valid) { return _finishOperation(Status::Error(Err::CONFIG_MISMATCH,"EEE source check/readback mismatch")); }
   switch (_eeeStep) {
+    case EeeStep::PCS_CHECK:
+      _pcsResetChecked=true; _eeeWorking=false; _setInitStep(InitStep::COMMAND); break;
+    case EeeStep::PCS_CLOCK: _setEeeStep(EeeStep::PCS_VERIFY); break;
+    case EeeStep::PCS_VERIFY:
+      _pcsClockChecked=true; _eeeWorking=false;
+      _setInitStep(_operation.kind==OperationKind::VERIFY ? InitStep::VERIFY : InitStep::APPLY);
+      break;
+    case EeeStep::MODE_WRITE: case EeeStep::MODE_WAIT: break; // Dispatched before generic EEE evidence.
     case EeeStep::CAPABILITY:
       _eeeCapabilityChecked=true; _eeeWorking=false; _setInitStep(InitStep::COMMAND); break;
     case EeeStep::RECIPE:
@@ -203,7 +458,9 @@ Status DP8382x::_advanceEee(Status status,bool called,const MdioBatch& batch) no
       break;
     case EeeStep::ADVERTISEMENT_CHECK:
       _eeeRow=2; _setEeeStep(EeeStep::RECIPE); break;
-    case EeeStep::SET_ADVERTISEMENT: _setEeeStep(EeeStep::SET_CONTROL); break;
+    case EeeStep::SET_ADVERTISEMENT:
+      _setEeeStep(_config.variant == Variant::DP83825I && _eeeControl()==2 ? EeeStep::VERIFY_ADVERTISEMENT : EeeStep::SET_CONTROL);
+      break;
     case EeeStep::SET_CONTROL: _setEeeStep(EeeStep::VERIFY_ADVERTISEMENT); break;
     case EeeStep::VERIFY_ADVERTISEMENT:
       if (_eee.desired.enabled) { _setEeeStep(EeeStep::VERIFY_CONTROL); break; }
@@ -226,7 +483,6 @@ Status DP8382x::_advanceEee(Status status,bool called,const MdioBatch& batch) no
 }
 
 Status DP8382x::readEeeStatus(EeeSnapshot& snapshot,const IoBudget& budget) noexcept {
-  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
   if (_active || _polling || (_operation.state==OperationState::RUNNING &&
       (_operation.phase==OperationPhase::WAIT || _result.nextPage.requested))) {
@@ -256,7 +512,7 @@ Status DP8382x::readEeeStatus(EeeSnapshot& snapshot,const IoBudget& budget) noex
   // SNLS783A table 8-35: capture the PHYSTS fault mirror before BMSR clears it.
   constexpr uint8_t originalOrder[]={0,1,1,0x10,1,0x10,0};
   constexpr uint8_t aOrder[]={0,0x10,1,1,0x10,1,0};
-  const bool aPart=isA(_config.variant);
+  const bool aPart=isA(_config.variant) || _config.variant == Variant::DP83825I;
   const auto* direct=aPart?aOrder:originalOrder;
   constexpr uint8_t devads[]={3,3,7,7,3,31};
   constexpr uint16_t addresses[]={0x0001,0x0014,0x003C,0x003D,0x0016,0x04D1};
@@ -299,7 +555,7 @@ Status DP8382x::readEeeStatus(EeeSnapshot& snapshot,const IoBudget& budget) noex
         // A valid contradiction survives a later phase or release failure.
         if (_eee.desiredValid && ((phase==3U && (_eee.advertisement&2U)!=
             (_eee.desired.enabled?_eee.desired.advertisement:0U)) ||
-            (phase==6U && _eee.desired.enabled && (_eee.control&(_lpiSession?0x0009U:0x1009U))!=_eeeControl()))) {
+            (phase==6U && _eee.desired.enabled && (_eee.control&((_config.variant==Variant::DP83825I ? 0x000FU:0x0009U) | (_lpiSession ? 0U:0x1000U)))!=_eeeControl()))) {
           _eee.trust=ConfigurationTrust::DIRTY;
         }
       }
@@ -325,7 +581,9 @@ Status DP8382x::readEeeStatus(EeeSnapshot& snapshot,const IoBudget& budget) noex
       _eee.trust==ConfigurationTrust::VERIFIED && (_eee.capability&0xFFFDU)==0U &&
       (bookends[6]&0xDE00U)==0x1000U &&
       (finalBmsr&0x0024U)==0x0024U && (finalPhysts&0x0017U)==0x0015U &&
-      (_eee.control&0x1009U)==0x0009U;
+      !_eee.desired.disableNextPageReception &&
+      (_eee.control&(_config.variant == Variant::DP83825I ? 0x700FU : 0x1009U))==
+      (_config.variant == Variant::DP83825I ? _eeeControl() : 9U);
   _eee.negotiated=_eee.negotiatedValid && (_eee.capability&_eee.advertisement&_eee.partner&2U)!=0U;
   _eee.valid=true; _eee.stale=false; _eee.timeValid=true;
   _eee.observedAtUs=_lastTimeUs+bounds.clockLagUs; _eee.lastStatus=Status::Ok();
@@ -338,7 +596,6 @@ Status DP8382x::stopLpi(LpiResult& result,const IoBudget& budget) noexcept {
   return _setLpi(false,{},result,budget);
 }
 Status DP8382x::_setLpi(bool enabled,const LpiOptions& options,LpiResult& result,const IoBudget& budget) noexcept {
-  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
   if (_active || _polling || _operation.state==OperationState::RUNNING) { return eeeBusy(BusyDetail::OPERATION_ACTIVE); }
   if (_operation.state==OperationState::RESULT_PENDING) { return eeeBusy(BusyDetail::RESULT_PENDING); }
@@ -346,13 +603,22 @@ Status DP8382x::_setLpi(bool enabled,const LpiOptions& options,LpiResult& result
     return Status::Error(Err::INVALID_CONFIG,"Clock contract failed",static_cast<int32_t>(ConfigDetail::CLOCK_CONTRACT));
   }
   if (_stopped) { return eeeBusy(BusyDetail::CONTROLLER_QUARANTINED); }
+  const bool p25=_config.variant==Variant::DP83825I;
+  if (enabled && options.forceModeCode!=0 && options.forceModeCode!=3) {
+    return Status::Error(Err::INVALID_PARAM,"Reserved force EEE code",static_cast<int32_t>(ParamDetail::ENUM_VALUE));
+  }
+  if (enabled && options.forceModeCode!=0 && !p25) { return _unsupportedFeature(); }
+  const bool bilateral=enabled ? options.forceModeCode==3 : _lpiForceOwned;
+  if (enabled && bilateral && !options.partnerForceConfirmed) {
+    return eeeConfig("Force EEE requires an independently configured partner");
+  }
   if (enabled) {
     if (_operation.cleanupOwed || _operation.temporaryMayBeActive) { return eeeBusy(BusyDetail::CLEANUP_REQUIRED); }
     if (!options.macTxQuiesced || !options.maintenanceAdmitted) { return eeeConfig("MAC drain and LPI maintenance must be admitted"); }
     if (!_initialized || !capabilities().valid) { return Status::Error(Err::NOT_INITIALIZED,"Initialize before LPI entry"); }
     if (!_otherControlsVerified(OperationKind::NONE) || !_eeeOpaqueValid || !_eee.desiredValid || !_eee.desired.enabled ||
         _eee.desired.bypassBit0 || _eee.desired.bypassBit3 || !_eee.valid || _eee.stale || !_eee.timeValid ||
-        !_eee.negotiatedValid || !_eee.negotiated) { return eeeConfig("Verified negotiated EEE with both bypass controls disabled is required"); }
+        (!bilateral && (!_eee.negotiatedValid || !_eee.negotiated))) { return eeeConfig("Verified negotiated EEE with both bypass controls disabled is required"); }
     // 100M restriction is library policy: section 7.6 supplies timings only at 100M.
     if (!_link.valid || _link.stale || !_link.timeValid || !_link.linkUp || !_link.resolvedModeValid ||
         _link.speed!=LinkSpeed::MBPS_100) { return eeeConfig("Current resolved 100M link is required"); }
@@ -361,24 +627,38 @@ Status DP8382x::_setLpi(bool enabled,const LpiOptions& options,LpiResult& result
         (_power.rawBmcr&0x0800U)!=0U) { return eeeConfig("Current normal power with sleep and PLL policies disabled is required"); }
   } else if (!_lpiSession) { return eeeConfig("No owned forced LPI session"); }
   const auto quiet=_checkQuiet(); if (!quiet.ok()) { return quiet; }
-  if (budget.maxFrames<9U) { return eeeTimeout(TimeoutDetail::FRAME_BUDGET); }
+  const uint32_t frameCount=bilateral ? 18U : 9U;
+  const uint8_t phases=bilateral ? 4U : 2U;
+  if (budget.maxFrames<frameCount) { return eeeTimeout(TimeoutDetail::FRAME_BUDGET); }
   uint64_t raw=0,upper=0;
   _active=true; const auto clock=_sampleTime(raw,upper); _active=false;
   if (!clock.ok()) { return clock; }
   if (raw>=budget.deadlineUs) { return eeeTimeout(TimeoutDetail::DEADLINE); }
   const auto& bounds=_config.transport.bounds;
-  const uint64_t bound=uint64_t{2}*bounds.fixedUs+uint64_t{9}*bounds.frameUs;
+  const uint64_t bound=uint64_t{phases}*bounds.fixedUs+uint64_t{frameCount}*bounds.frameUs;
   if (upper>=budget.deadlineUs || bound>=budget.deadlineUs-upper) { return eeeTimeout(TimeoutDetail::BOUND_ADMISSION); }
 
   LpiResult next;
   IoBudget remaining=budget;
-  const uint16_t expected=enabled?uint16_t{0x1000}:uint16_t{0};
-  for (uint8_t phase=0;phase<2U;++phase) {
+  for (uint8_t phase=0;phase<phases;++phase) {
+    // Table 7-92: configure bilateral force first, request TX second. Exit
+    // in reverse order. A failed entry/exit keeps the independently owned
+    // force bit pair until a later stop verifies both clears.
+    const bool force=bilateral && (enabled ? phase<2 : phase>=2);
+    const bool write=(phase%2)==0;
+    const uint16_t mask=force?uint16_t{0x6000}:uint16_t{0x1000};
+    const uint16_t expected=enabled?mask:0;
     auto batch=_mmdBatch(0x04D1,FrameKind::READ,0);
-    if (phase==0U) {
+    if (write) {
       batch.frameCount=5;
-      // SNLS647I 8.3.4: only bit 12. In particular, never import neighbor bits 14:13.
-      batch.frames[4]={FrameKind::WRITE,0x0E,expected,0xEFFF,3};
+      batch.frames[4]={FrameKind::WRITE,0x0E,expected,static_cast<uint16_t>(~mask),3};
+      if (p25 && enabled) {
+        // Refuse to claim a foreign mode/old TX request or a changed bypass.
+        batch.frames[4].requiredMask=0x700F;
+        batch.frames[4].requiredValue=static_cast<uint16_t>(_eeeControl() | (bilateral && !force?0x6000U:0U));
+      } else if (force) {
+        batch.frames[4].requiredMask=0x1000; // Clear force only after TX request stopped.
+      }
     }
     bool called=false;
     _lpiWorking=true;
@@ -401,24 +681,29 @@ Status DP8382x::_setLpi(bool enabled,const LpiOptions& options,LpiResult& result
           _eee.stale=true; _eee.negotiatedValid=false;
           // Both acquisitions can disprove persistent bypass controls. Stop still
           // succeeds on bit 12 alone, but must not forgive this independent debt.
-          if (_eee.desiredValid && _eee.desired.enabled && (frame.value&0x0009U)!=_eeeControl()) {
+          if (_eee.desiredValid && _eee.desired.enabled && (frame.value&(p25?0x000FU:0x0009U))!=_eeeControl()) {
             _eee.trust=ConfigurationTrust::DIRTY;
           }
         }
       }
-      if (phase==0U) {
+      if (write) {
         const auto& target=receipt.frames[4];
-        next.mutationAttempted=target.attempted;
-        next.mutationCompleted=completed;
-        next.mutationPossible=target.completed || target.effectPossible || target.valueValid || _transport.violation!=TransportViolation::NONE;
+        next.mutationAttempted|=target.attempted;
+        next.mutationCompleted|=completed;
+        const bool possible=target.completed || target.effectPossible || target.valueValid || _transport.violation!=TransportViolation::NONE;
+        next.mutationPossible|=possible;
+        if (enabled && force && (target.attempted || possible)) { _lpiForceOwned=true; }
         if (next.mutationAttempted || next.mutationPossible) {
           _lpiSession=true; _lpi.forcedLpi=ForcedLpi::UNCERTAIN;
           _operation.cleanupOwed=_operation.temporaryMayBeActive=true;
         }
       } else if (completed) {
         next.control=receipt.frames[3].value; next.readbackValid=true;
-        if (status.ok() && (next.control&0x1000U)!=expected) {
-          next.status=Status::Error(Err::CONFIG_MISMATCH,"Forced LPI bit12 readback mismatch");
+        const uint16_t verifyMask=p25 && enabled ? 0x700F : mask;
+        const uint16_t verifyValue=p25 && enabled ?
+            static_cast<uint16_t>(_eeeControl() | (bilateral && !force ? 0x7000U : expected)) : expected;
+        if (status.ok() && (next.control&verifyMask)!=verifyValue) {
+          next.status=Status::Error(Err::CONFIG_MISMATCH,"Forced LPI control readback mismatch");
         }
       }
     }
@@ -430,7 +715,8 @@ Status DP8382x::_setLpi(bool enabled,const LpiOptions& options,LpiResult& result
   if (next.status.ok()) {
     _lpi.forcedLpi=enabled?ForcedLpi::REQUESTED:ForcedLpi::OFF;
     if (!enabled) {
-      _lpiSession=false; _operation.temporaryMayBeActive=false;
+      _lpiSession=false; _lpiForceOwned=false; _operation.temporaryMayBeActive=false;
+      if (p25) { next.minimumNormalIfgUs=36; }
       // A clear request cannot repair unrelated persistent uncertainty.
       if (_initialized && _otherControlsVerified(OperationKind::NONE)) {
         _operation.cleanupOwed=false; _cleanupOwner=OperationKind::NONE;

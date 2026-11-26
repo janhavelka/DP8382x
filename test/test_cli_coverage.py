@@ -159,6 +159,50 @@ class CliCoverageTests(unittest.TestCase):
             with self.assertRaises(AssertionError):
                 self.check_a_matrix(original + "## DP83826AI and DP83826AE" + a.replace(expected, wrong, 1))
 
+    def check_p25_matrix(self, matrix):
+        source = json.loads((ROOT / "docs/registers/dp83825i.json").read_text(encoding="utf-8"))
+        def table(heading):
+            section = matrix.split("### DP83825I " + heading + "\n", 1)[1].split("\n### ", 1)[0]
+            lines = [line.strip("|").split("|") for line in section.splitlines() if line.startswith("| `")]
+            rows = {line[0].strip(" `"): [cell.strip() for cell in line[1:]] for line in lines}
+            self.assertEqual(len(rows), len(lines))
+            return rows
+        routes = table("procedures")
+        self.assertEqual(set(routes), {p["id"] for p in source["procedures"]})
+        header = (ROOT / "include/DP8382x/DP8382x.h").read_text(encoding="utf-8")
+        cli = ROOT / "examples/common"
+        dispatch = "\n".join(path.read_text(encoding="utf-8") for path in
+                             (cli / "Dp8382xCli.cpp", *(cli / name for name in STAGE_46_TABLES)))
+        for api, command, test, scope in routes.values():
+            self.assertTrue(scope)
+            for symbol in api.split(" / "):
+                self.assertRegex(header, r"\b" + re.escape(symbol) + r"\s*\(")
+            verb, = quoted(command)
+            self.assertIn(f'"{verb}"', dispatch)
+            self.assertTrue(test.startswith("`p25_"), test)
+        words = table("register fields")
+        self.assertEqual(set(words), {r["offset"] for r in source["registers"]})
+        for reg in source["registers"]:
+            groups = {}
+            for field in reg["fields"]:
+                groups.setdefault(field["use"], []).append(field["bits"])
+            owners = " / ".join(name + " (" + ", ".join(bits) + ")" for name, bits in groups.items())
+            self.assertEqual(words[reg["offset"]], [reg["table"], owners])
+            self.assertLessEqual(set(groups), set(routes) | {"reserved", "reserved_by_description"})
+        exceptions = table("address exceptions")
+        self.assertEqual(set(exceptions), {r["wireOffset"] for r in source["recipeOnly"]})
+        for row in source["recipeOnly"]:
+            owner, action = exceptions[row["wireOffset"]]
+            self.assertEqual(quoted(owner), {row["procedure"]})
+            self.assertIn(row["source"], action)
+
+    def test_p25_field_and_procedure_join(self):
+        self.check_p25_matrix(self.matrix)
+        for old, new in (("`p25_functional_modes`", "`eee_configuration`"),
+                         ("| `0333` | `vod`", "| `0333` | `quality`")):
+            with self.assertRaises(AssertionError):
+                self.check_p25_matrix(self.matrix.replace(old, new))
+
     def test_complete_feature_and_procedure_matrix(self):
         rows = self.rows()
         self.assertEqual(len(self.features), 35)
@@ -287,6 +331,11 @@ class CliCoverageTests(unittest.TestCase):
         names = {test["name"] for test in tests if test.get("command") and not any(
             p["name"] == "DISABLED" and p["value"] for p in test["properties"])}
         self.check_registrations(names)
+        exact = self.matrix.split("### DP83825I procedures\n", 1)[1].split("\n### ", 1)[0]
+        for line in exact.splitlines():
+            if line.startswith("| `"):
+                registration, = quoted(line.split("|")[4])
+                self.assertIn(registration, names)
         for row in self.a_rows(self.matrix, "Procedures").values():
             stem, = quoted(row[4])
             for grade in ("ai", "ae"):

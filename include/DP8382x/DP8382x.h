@@ -178,6 +178,7 @@ enum class EvidenceSource : uint8_t {
   BICSR1, ///< BIST captured error byte and IPG; capture/clear is owner-only, table 8-45.
   EEE_STATUS, ///< MMD 3.1 current and latched LPI evidence; source-implied Q1.
   EEE_ERRORS, ///< MMD 3.22 read-clear wake-error word; source-implied Q1.
+  REGISTER_12, ///< DP83825I C22 000C upper-byte latches, consumed separately from MISR IRQ service (SNLS638C table 7-15).
   COUNT ///< Number of supported sources, not a readable source.
 };
 
@@ -187,8 +188,8 @@ enum class EvidenceSource : uint8_t {
 constexpr uint32_t evidenceBit(EvidenceSource source) noexcept {
   return source < EvidenceSource::COUNT ? uint32_t{1} << static_cast<uint8_t>(source) : 0U;
 }
-/// @brief Every currently supported destructive source; no automatic polling.
-constexpr uint32_t ALL_EVIDENCE = (uint32_t{1} << static_cast<uint8_t>(EvidenceSource::COUNT)) - 1U;
+/// @brief All common destructive sources. On DP83825I explicitly add REGISTER_12 to consume its separate latch.
+constexpr uint32_t ALL_EVIDENCE = evidenceBit(EvidenceSource::REGISTER_12) - 1U;
 
 /// @brief Context for MISR2[9] at consumption; a later selector cannot relabel history.
 enum class InterruptSharedSource : uint8_t {
@@ -313,7 +314,8 @@ enum class ResetKind : uint8_t {
   NONE, ///< Apply mandatory initialization without issuing reset.
   PCS, ///< Reset PCS registers, retaining vendor registers.
   HARD, ///< Reset all registers; eligible straps may resample (Q5 open).
-  RESTART ///< Restart PHY circuitry, retaining register configuration.
+  RESTART, ///< Restart PHY circuitry, retaining register configuration.
+  EEE_PCS ///< DP83825I MMD3:0000[15] resets IEEE MMD3/MMD7 and PCS. Vendor programming remains.
 };
 /// @brief Observable procedure phase; waits never retain a controller lock.
 enum class OperationPhase : uint8_t {
@@ -333,9 +335,33 @@ struct OperationBudget {
   uint32_t pollIntervalUs{1000}; ///< Positive policy interval after reset/completion reads.
   uint32_t maxStalledPolls{100000}; ///< Positive consecutive no-work/no-clock-advance limit.
 };
+/// @brief Exact DP83825I functional modes in SNLS638C section 6.4.
+enum class FunctionalMode : uint8_t {
+  RETAIN, ///< Keep current ownership. An owned mode is replayed on HARD.
+  DEFAULT, ///< HARD defaults, with no table writes.
+  POWER_OPTIMIZED, ///< Table 6-5, nominal 130 m.
+  EXTENDED_REACH, ///< Table 6-6, nominal 150 m.
+  EXTENDED_REACH_EEE ///< Table 6-7 with 100BASE-TX EEE advertisement.
+};
+/// @brief Evidence for the last admitted DP83825I mode pass, separate from link readiness.
+struct FunctionalModeSnapshot {
+  FunctionalMode desired{FunctionalMode::RETAIN}; ///< RETAIN means this binding owns no mode.
+  uint8_t completedWrites{0}; ///< Accepted table writes in order, including the final restart.
+  bool nextWritePossible{false}; ///< First unconfirmed row could have affected silicon.
+  bool restartCleared{false}; ///< Restart command cleared on a successful poll.
+  bool established{false}; ///< Baseline, complete script and role observed after restart.
+};
+/// @brief DP83825I MMD3:0000[10] RX-clock policy during LPI.
+enum class PcsRxClock : uint8_t {
+  RETAIN, ///< Preserve current ownership.
+  CONTINUOUS, ///< RX clock may not stop during LPI.
+  STOPPABLE ///< Application permits RX clock to stop during LPI.
+};
 /// @brief Copied initialization request; NONE still performs part-specific startup verification.
 struct InitializeOptions {
   ResetKind reset{ResetKind::PCS}; ///< Selected reset.
+  FunctionalMode functionalMode{FunctionalMode::RETAIN}; ///< Explicit DP83825I selection requires HARD. EEE requires owned AN.
+  PcsRxClock rxClock{PcsRxClock::RETAIN}; ///< Explicit ownership of 3:0000[10]; leader STOPPABLE needs board clock-loss approval.
 };
 /// @brief SNLS647I 8.3.14 paths; the historical MII name also admits RMII.
 enum class LoopbackMode : uint8_t {
@@ -353,10 +379,10 @@ struct LoopbackOptions {
   LinkSpeed speed{LinkSpeed::MBPS_100}; ///< Required 10/100 speed; internal paths use full duplex.
   bool transmitOnLine{false}; ///< Only MII 100; enable after BMCR 14, clear before disabling it (table 8-40).
   bool maintenanceAdmitted{false}; ///< Owner quiesced normal MAC/SDK traffic and admits disruption.
-  bool termination100Ohm{false}; ///< Required for ANALOG; electrical setup stays with application.
+  bool termination100Ohm{false}; ///< Required for ANALOG and DP83825I REVERSE. The application supplies the terminations.
   bool partnerReady{false}; ///< Required for REVERSE; live link is also checked.
   bool externalFixture{false}; ///< Required for EXTERNAL; no internal path proof is implied.
-  bool allowHardResetExit{false}; ///< Required for DIGITAL, including eligible strap resampling.
+  bool allowHardResetExit{false}; ///< Permits the DP83826 digital-loop HARD exit and strap resampling. DP83825I uses a regular stop.
   uint8_t reverseFifoDepth{0}; ///< REVERSE code 0/1/2/3 means 4/5/6/8 nibbles; otherwise zero.
 };
 /// @brief Retained session observations, not measured packet or electrical results.
@@ -604,7 +630,7 @@ enum class ConfigurationTrust : uint8_t {
 enum class PowerRequest : uint8_t {
   NORMAL, ///< Clear software power-down once; a pin can still block wake.
   IEEE_POWER_DOWN, ///< Assert BMCR 11; no separate actual-state register exists.
-  DEEP_POWER_DOWN ///< Source-gated: no proved exit/clock-ready procedure; rejects before I/O.
+  DEEP_POWER_DOWN ///< DP83825I IEEE down then 0428[2], requiring an independent recovery route.
 };
 /// @brief Complete opt-in policy. SNLS647I 8.3.6 and tables 8-19/35/40.
 struct PowerSettings {
@@ -614,6 +640,7 @@ struct PowerSettings {
   bool maintenanceAdmitted{false}; ///< Application permits link/power disruption.
   bool clockLossApproved{false}; ///< Application permits loss of PHY-generated clocks.
   bool managementClockAvailable{false}; ///< Board guarantees the reference/MDIO access needed through transition.
+  bool recoveryAvailable{false}; ///< Board can recover the PHY and its reference if management access is lost.
 };
 /// @brief Read indications only, not measured clock, supply or partner readiness.
 enum class PowerState : uint8_t {
@@ -621,7 +648,8 @@ enum class PowerState : uint8_t {
   NORMAL_INDICATED, ///< BMCR 11=0 and BISCR 8=1; no clock/partner qualification.
   ACTIVE_SLEEP_INDICATED, ///< BMCR 11=0 and BISCR 8=0 under enabled active-sleep policy.
   POWER_DOWN_INDICATED, ///< BMCR 11=1, a software/pin OR rather than actual-state proof.
-  WAKE_BLOCKED_OR_UNCONFIRMED ///< Owner requested normal but BMCR 11 remains high.
+  WAKE_BLOCKED_OR_UNCONFIRMED, ///< Owner requested normal but BMCR 11 remains high.
+  DEEP_POWER_DOWN_INDICATED ///< DP83825I down controls read back asserted. Physical power requires independent evidence.
 };
 /// @brief Passive power intent and independently valid raw evidence.
 struct PowerSnapshot {
@@ -632,6 +660,11 @@ struct PowerSnapshot {
   uint16_t rawBmcr{0}; ///< Latest returned BMCR.
   uint16_t rawPhyscr{0}; ///< Latest returned PHYSCR.
   uint16_t rawBiscr{0}; ///< Latest collector-routed BISCR.
+  uint16_t rawDeep{0}; ///< DP83825I vendor 0428 observed control word.
+  bool deepValid{false}; ///< The deep control read returned a valid word.
+  bool deepWriteAttempted{false}; ///< Latest power pass attempted its 0428 target write.
+  bool deepWriteCompleted{false}; ///< The controller confirmed completion of that target.
+  bool deepWritePossible{false}; ///< The 0428 target could have changed despite an error.
   bool bmcrValid{false}; ///< Raw BMCR validity, including partial acquisitions.
   bool physcrValid{false}; ///< Raw PHYSCR validity.
   bool biscrValid{false}; ///< Raw BISCR validity.
@@ -826,7 +859,7 @@ enum class PinFunction : uint8_t {
   COLLISION3, ///< LED2 table 8-76 COL code 3, MII only.
   COLLISION5, ///< LED2 table 8-76 COL code 5, MII only.
   COLLISION6, ///< LED2 table 8-76 COL code 6, MII only.
-  HIGH, ///< LED2 constant-high mux 7.
+  HIGH, ///< Constant high, mux 6 on DP83825I pin 2 or mux 7 on supported DP83826 pins.
   TX_ERROR, ///< Pin 31 figure/table contradiction; source-gated, never guessed.
   CLOCK, ///< Clock selection belongs to the interface owner.
   LOW3, ///< Constant low through documented mux code 3.
@@ -834,7 +867,8 @@ enum class PinFunction : uint8_t {
   LOW6, ///< Constant low through documented mux code 6.
   CARRIER_SENSE3, ///< MII CRS on A pin 29 through mux code 3.
   CARRIER_SENSE5, ///< MII CRS on A pin 29 through mux code 5.
-  CARRIER_SENSE6 ///< MII CRS on A pin 29 through mux code 6.
+  CARRIER_SENSE6, ///< MII CRS on A pin 29 through mux code 6.
+  LOW7 ///< Constant low on DP83825I pin 2 through mux code 7.
 };
 /// @brief Source encodings from SNLS647I tables 8-49/85; reserved 15 is rejected.
 enum class LedSource : uint8_t {
@@ -926,6 +960,16 @@ enum class ClockOutput : uint8_t {
   PLL, ///< A pin 30 PLL clock, LED0_GPIO_CFG[5:0]=0x29.
   RECOVERED ///< A pin 30 recovered 125 MHz clock, requires a live partner.
 };
+/// @brief DP83825I DSP subcontrols, indexed in AnalogSettings::dspMasks and dspValues.
+enum class DspControl : uint8_t {
+  LPI_FREEZE, ///< 0308[15:10,7:4] LPI loop freeze and MSE bypass.
+  EQUALIZER, ///< 030F[7:0] equalizer freeze and threshold selections.
+  CAGC_MAPPING, ///< 0311[15:13] gain mapping and coefficient source. Mapping codes 0..2.
+  TIMING_LOOP, ///< 031C[15:14,6:0] forcing, freeze and detector controls.
+  LINE_DRIVER_CURRENT, ///< 0404[7:5] codes 0,4,7 indicate 12.7,15.7,19.5 mA.
+  LPI_FREEZE_GROUPS, ///< 031F named LPI loop control bits.
+  THRESHOLD_SCALING ///< 033E named threshold scaling controls.
+};
 /// @brief Persistent exact-part electrical intent; SNLS647I tables 8-73/79..81/86.
 struct AnalogSettings {
   bool amplitudeOwned{false}; ///< Own both 100M VOD words; legal split-code transition is mandatory.
@@ -949,14 +993,21 @@ struct AnalogSettings {
   bool macStopped{false}; ///< MAC drained/stopped; does not imply analog transmitter disabled.
   bool fixtureAdmitted{false}; ///< Identified load/board/measurement conditions accepted by owner.
   bool terminationOverrideAdmitted{false}; ///< Explicit departure from initialization 4A40 permitted by owner.
+  bool vodOwned{false}; ///< DP83825I whole-word VOD procedure, SNLS638C tables 8-2/3.
+  uint8_t vodCoarseStep{8}; ///< 0..16 selects 50..150 percent in steps of 6.25 percent.
+  int8_t vodFineStep{0}; ///< Signed table 8-3 offset, -2..2. Unit trim must yield a representable word.
+  bool impedanceOwned{false}; ///< Own DP83825I IO_CFG[15:14].
+  bool impedance25Ohm{false}; ///< False selects 50 ohms, true selects 25 ohms.
+  std::array<uint16_t,7> dspMasks{}; ///< DP83825I ownership masks indexed by DspControl. Multi-bit fields require full masks.
+  std::array<uint16_t,7> dspValues{}; ///< Native register bits within the corresponding mask. Changes require an admitted analog fixture.
 };
 /// @brief Passive electrical profile proof; partial words do not establish a complete profile.
 struct AnalogSnapshot {
   AnalogSettings desired{}; ///< Last fully admitted desired settings.
   bool desiredValid{false}; ///< Explicit persistent ownership exists.
   ConfigurationTrust trust{ConfigurationTrust::UNKNOWN}; ///< Whole owned-mask verification.
-  std::array<uint16_t,5> raw{}; ///< VOD1,VOD2,VOD3,IOCTRL,IO_CFG1.
-  uint8_t validMask{0}; ///< Valid retained words; aggregate may still be stale.
+  std::array<uint16_t,12> raw{}; ///< VOD1/2/3, IOCTRL, IO_CFG and the seven DspControl words.
+  uint16_t validMask{0}; ///< Valid retained reads. DP83825I 030E is a recipe write and has no readback bit.
   bool observedStale{true}; ///< Freshness and timestamp validity are independent.
   bool timeValid{false}; ///< Freshness and timestamp validity are independent.
   uint64_t observedAtUs{0}; ///< Complete verification upper bound, microseconds.
@@ -968,7 +1019,7 @@ enum class ComplianceMode : uint8_t {
   NLP10, ///< Table 5-2 forced 10/full normal link pulses.
   PRBS10, ///< Table 5-4 PCS/BIST with owned BISCR 701F=7001.
   PATTERN10, ///< Table 5-5 COMPT exception: 0010|pattern 0..D.
-  COUNT100 ///< Typed count 0..31; 0428 source gate rejects before I/O.
+  COUNT100 ///< DP83825I five-bit count 0..31 from 0428[5] and 0027[3:0], table 7-35.
 };
 /// @brief Explicit compliance fixture admission; dwell belongs to the application.
 struct ComplianceOptions {
@@ -979,6 +1030,7 @@ struct ComplianceOptions {
   bool macStopped{false}; ///< No production traffic during the test.
   bool fixtureAdmitted{false}; ///< Operator accepted termination/probes/reference conditions.
   bool hardResetAdmitted{false}; ///< Reset may change clocks/straps; owner prepares the whole shared bus.
+  bool scramblerBypass{false}; ///< DP83825I 100BASE-TX compliance only, restored on exit.
 };
 /// @brief MII collision test admission; external TX_EN drives the actual timing stimulus.
 struct CollisionOptions {
@@ -987,6 +1039,7 @@ struct CollisionOptions {
   bool macStopped{false}; ///< Owner excludes production traffic.
   bool colAvailable{false}; ///< Board mux and external generator admitted by owner.
   bool txEnControlled{false}; ///< Board mux and external generator admitted by owner.
+  bool registerOnly{false}; ///< DP83825I RMII BMCR control only, without an observable COL pin.
 };
 /// @brief One calibration contingency; does not prove resistor calibration accuracy.
 struct CalibrationOptions {
@@ -1061,6 +1114,13 @@ struct QualitySnapshot {
   bool fldMaximumApplicable{false}; ///< Source recipe and footnote 5 conditions only; physical timing still unmeasured.
   Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No quality configuration"}; ///< Latest pass outcome.
 };
+/// @brief DP83825I classification from SDAA081 table 2-6. Boundary gaps retain the raw sample.
+enum class MseQuality : uint8_t {
+  UNCLASSIFIED, ///< No exact-part classification is available for this sample.
+  EXCELLENT, ///< Below 020Ah.
+  GOOD, ///< Above 020Ah and below 033Bh.
+  POOR ///< Above 033Bh.
+};
 /// @brief Raw MSE observation with cached link context; no SNR or calibrated units.
 struct SignalQualitySnapshot {
   uint16_t rawMse{0}; ///< DEVAD 31:0218 word; 0225 alternative remains source-gated.
@@ -1071,6 +1131,7 @@ struct SignalQualitySnapshot {
   LinkSnapshot linkContext{}; ///< Previously cached context, not a simultaneous link measurement.
   DeviceIdentity identity{}; ///< Cached identity at sample acquisition; no new probe.
   Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No MSE acquisition"}; ///< Last read/invalidation status.
+  MseQuality quality{MseQuality::UNCLASSIFIED}; ///< DP83825I thresholds, meaningful only for a valid sample.
 };
 /// @brief Complete interface/compatibility intent; board declarations are not measurements.
 struct InterfaceSettings {
@@ -1208,6 +1269,8 @@ enum class ForcedLpi : uint8_t {
 struct LpiOptions {
   bool macTxQuiesced{false}; ///< Application has stopped and drained MAC transmission.
   bool maintenanceAdmitted{false}; ///< Application owns dwell and post-exit readiness.
+  uint8_t forceModeCode{0}; ///< DP83825I negotiated (0) or bilateral force (3). Encodings 1 and 2 are reserved.
+  bool partnerForceConfirmed{false}; ///< Application confirms the peer independently selected force code 3.
 };
 /// @brief Diagnostic output of one admitted bounded call; published even on failure.
 struct LpiResult {
@@ -1224,6 +1287,7 @@ struct LpiResult {
   uint8_t completedFrames{0}; ///< Valid completed prefixes, at most nine frames.
   uint8_t transactions{0}; ///< Actual callbacks, at most two.
   const char* warning{nullptr}; ///< Static warning when forced LPI may remain active.
+  uint32_t minimumNormalIfgUs{0}; ///< MAC Normal Inter-Frame interval before data after a DP83825I stop (SNLA328).
 };
 /// @brief Passive session and last-call evidence; callers retain earlier result copies.
 struct LpiSnapshot {
@@ -1233,11 +1297,13 @@ struct LpiSnapshot {
 
 /// @brief Explicit EEE intent; defaults do not activate the feature.
 struct EeeSettings {
-  bool enabled{false}; ///< Select the exact-part recipe (18 original or 27 A writes). Disable uses HARD and replay.
+  bool enabled{false}; ///< Select the exact-part recipe (18 original, 27 A or 32 DP83825I mode writes). Disable uses HARD and replay.
   uint16_t advertisement{0x0002}; ///< Only 0 or 2 (100BASE-TX EEE); no other technologies.
   bool bypassBit0{false}; ///< Capability bypass control at EEECFG3 bit 0; true encodes zero.
   bool bypassBit3{false}; ///< Capability bypass control at EEECFG3 bit 3; true encodes zero.
   bool maintenanceAdmitted{false}; ///< Application admits link disruption and shared-bus silence.
+  bool disableNextPageReception{false}; ///< DP83825I 04D1[2]. Disable reception of EEE next pages when true.
+  bool shutdownRxDuringQuiet{true}; ///< DP83825I 04D1[1]. Disable analog RX during LPI Quiet. Default matches table 6-7.
 };
 /// @brief EEE policy and bounded observation; source-implied fields await physical Q1.
 struct EeeSnapshot {
@@ -1253,7 +1319,7 @@ struct EeeSnapshot {
   uint16_t partner{0}; ///< Raw MMD 7.61.
   uint16_t status{0}; ///< Raw MMD 3.1; bits 11:10 latched, 9:8 current (source-implied).
   uint16_t wakeErrors{0}; ///< Raw saturating RC MMD 3.22; FFFF is a lower bound.
-  uint16_t control{0}; ///< Vendor 04D1; only mask 1009 has admitted field meaning.
+  uint16_t control{0}; ///< Vendor 04D1 observation. Decode only fields sourced for the declared part.
   bool capabilityValid{false}; ///< Latest capability word returned successfully.
   bool advertisementValid{false}; ///< Latest local word returned successfully.
   bool partnerValid{false}; ///< Latest partner word returned successfully.
@@ -1263,6 +1329,9 @@ struct EeeSnapshot {
   bool negotiatedValid{false}; ///< Complete coherent AN 100/full observation and known controls.
   bool negotiated{false}; ///< Local/partner EEE100 advertised; does not prove current LPI.
   Status lastStatus{}; ///< Latest operation or acquisition outcome.
+  PcsRxClock rxClock{PcsRxClock::RETAIN}; ///< Persistent MMD3:0000[10] ownership.
+  uint16_t pcsControl{0}; ///< Most recent independently returned MMD3:0000 word.
+  bool pcsControlValid{false}; ///< Clock/reset information belongs to the current observation epoch.
   bool recipeRestartAttempted{false}; ///< The current EEE recipe reached the restart write.
   bool recipeRestartAccepted{false}; ///< The backend reported a completed recipe restart.
   bool recipeRestartPossible{false}; ///< Restart may have taken effect, including an uncertain write.
@@ -1710,9 +1779,19 @@ public:
   LpiSnapshot lpiSnapshot() const noexcept { return _lpi; }
 
 
+  /// @brief Copy exact-part mode evidence without bus or clock access.
+  /// @return Last desired mode and table prefix. Electrical reach needs a separate measurement.
+  FunctionalModeSnapshot functionalModeSnapshot() const noexcept { return _functionalMode; }
+  /// @brief Take a terminal operation with the frozen mode evidence from that operation.
+  /// @param[in] token Pending result token.
+  /// @param[out] result Common operation receipt, updated only on success.
+  /// @param[out] mode Mode prefix at termination, updated only on success.
+  /// @return Same status and ownership transfer as the two-argument takeResult.
+  Status takeResult(OperationToken token, OperationResult& result, FunctionalModeSnapshot& mode) noexcept;
+
   /// @brief Start one bounded power-policy/transition operation; bus and clock silent.
   /// @param settings Copied complete intent. Maintenance and management clock admission required;
-  /// clock-loss approval required for IEEE down or PLL changes. DPD remains source-gated.
+  /// clock-loss approval required for IEEE down or PLL changes. DP83825I deep down requires a recovery route.
   /// @param budget Aggregate deadline/frame/stall bounds; no partner-dependent sleep wait.
   /// @param[out] token New lifetime token only on admission; unchanged on rejection.
   /// @return IN_PROGRESS or local validation/ownership error. Poll uses one complete batch;
@@ -1720,7 +1799,7 @@ public:
   /// @note Other owned persistent controls must stay verified through completion.
   /// SNLS647I 8.3.6/table 8-19/35/40. Isolation is preserved. No GPIO/rail operation.
   Status startConfigurePower(const PowerSettings& settings, const OperationBudget& budget, OperationToken& token) noexcept;
-  /// @brief Acquire BMCR/PHYSCR/BISCR once in one three-frame owned batch.
+  /// @brief Acquire BMCR/PHYSCR/BISCR and the applicable DP83825I deep-power control under one allowance.
   /// @param[out] snapshot Unchanged on failure; passive snapshot retains partial words as stale.
   /// @param budget Aggregate terminal allowance; no resampling or partner wait.
   /// @return OK or transport/admission error. BISCR uses the existing collector.
@@ -1974,7 +2053,7 @@ public:
   Status modifyMmd(uint32_t devad, uint32_t registerAddress, uint32_t mask,
                    uint32_t value, const IoBudget& budget, bool* invoked = nullptr) noexcept;
   /// @brief Explicitly acquire destructive words through the sole private collector.
-  /// @param[in] sourceMask Nonzero subset of ALL_EVIDENCE; no implicit sources.
+  /// @param[in] sourceMask Common ALL_EVIDENCE bits and optional DP83825I REGISTER_12. No implicit sources.
   /// @param[out] evidence Assigned only when every requested read/release succeeds on time.
   /// @param[in] budget Aggregate deadline and frames; complete requested count admitted first.
   /// @param[out] invoked Optional flag set true if this call invokes the transport for any batch.
@@ -2045,10 +2124,13 @@ private:
   enum class PinStep : uint8_t { INTERFACE, CLOCK_STATUS, MUX0, MUX3, APPLY, VERIFY, COMPLETE };
   enum class AnalogStep : uint8_t { PREFLIGHT, SNAPSHOT, BRIDGE_WRITE, BRIDGE_VERIFY, APPLY, VERIFY, COMPLETE };
   AnalogSnapshot _analog{};
+  uint16_t _vodTrimWord{0}, _appliedVodTrim{0};
+  bool _vodTrimAccepted{false};
   AnalogStep _analogStep{AnalogStep::COMPLETE};
   uint8_t _analogRow{0};
   bool _analogWorking{false}, _analogTailPending{false}, _analogVerifyOnly{false};
-  std::array<uint16_t,5> _analogWords{};
+  std::array<uint16_t,12> _analogWords{};
+  bool _dspModeConflict(FunctionalMode mode, const AnalogSettings& settings) const noexcept;
   Status _validateAnalog(const AnalogSettings& settings) const noexcept;
   void _beginAnalog(bool verifyOnly) noexcept;
   MdioBatch _analogBatch() const noexcept;
@@ -2059,7 +2141,9 @@ private:
   void _nextAnalogRow() noexcept;
   Status _finishAnalog(Status status) noexcept;
   uint16_t _analogVod3() const noexcept;
-  enum class ElectricalStep : uint8_t { PREFLIGHT, COLLISION_WRITE, COLLISION_VERIFY, STIMULUS_WRITE, STIMULUS_VERIFY, CAL_READ, CAL_PAIR, COMPLETE };
+  enum class ElectricalStep : uint8_t { PREFLIGHT, COLLISION_WRITE, COLLISION_VERIFY, STIMULUS_WRITE, STIMULUS_VERIFY,
+    COUNT_CLEAR, COUNT_VERIFY_CLEAR, COUNT_SELECT, COUNT_VERIFY_SELECT, COUNT_ENABLE, COUNT_VERIFY_ENABLE,
+    SCRAMBLER_WRITE, SCRAMBLER_VERIFY, CAL_READ, CAL_PAIR, COMPLETE };
   ElectricalSnapshot _electrical{};
   ElectricalStep _electricalStep{ElectricalStep::COMPLETE};
   bool _electricalWorking{false}, _electricalRestart{false};
@@ -2141,12 +2225,20 @@ private:
   void _retainWakeWord(uint16_t address, uint16_t value) noexcept;
   MdioBatch _wakeControlBatch(uint16_t mask, uint16_t value, bool acknowledge) const noexcept;
   enum class EeeStep : uint8_t { CAPABILITY, RECIPE, ADVERTISEMENT_CHECK, SET_ADVERTISEMENT,
-    SET_CONTROL, VERIFY_ADVERTISEMENT, VERIFY_CONTROL };
+    SET_CONTROL, VERIFY_ADVERTISEMENT, VERIFY_CONTROL, MODE_WRITE, MODE_WAIT, PCS_CHECK, PCS_CLOCK, PCS_VERIFY };
+  FunctionalModeSnapshot _functionalMode{}, _terminalMode{};
+  bool _modeAppliedThisPass{false}, _pcsClockChecked{false}, _pcsResetChecked{false};
+  Status _admitFunctionalMode(const IoBudget& budget, uint64_t raw) const noexcept;
+  Status _validateFunctionalMode(const InitializeOptions& options) const noexcept;
+  bool _beginFunctionalModePass() noexcept;
+  MdioBatch _functionalModeBatch() const noexcept;
+  Status _advanceFunctionalMode(Status status, bool called, const MdioBatch& batch) noexcept;
   EeeSnapshot _eee{};
   EeeStep _eeeStep{EeeStep::CAPABILITY};
   uint8_t _eeeRow{1};
   LpiSnapshot _lpi{};
   bool _lpiSession{false};
+  bool _lpiForceOwned{false};
   bool _lpiWorking{false};
   Status _setLpi(bool enabled, const LpiOptions& options, LpiResult& result, const IoBudget& budget) noexcept;
   bool _eeeWorking{false};
@@ -2161,7 +2253,7 @@ private:
   Status _advanceEee(Status status, bool called, const MdioBatch& batch) noexcept;
   uint16_t _eeeControl() const noexcept;
   enum class PowerStep : uint8_t { READ_BMCR, READ_PHYSCR, CLEAR_PLL, VERIFY_CLEAR_PLL,
-    POLICY, VERIFY_POLICY, BMCR, VERIFY_BMCR, PLL, VERIFY_PLL, BISCR };
+    POLICY, VERIFY_POLICY, BMCR, VERIFY_BMCR, PLL, VERIFY_PLL, BISCR, READ_DEEP, CLEAR_DEEP, VERIFY_CLEAR_DEEP, SET_DEEP, VERIFY_DEEP };
   PowerStep _powerStep{PowerStep::READ_BMCR};
   PowerSnapshot _power{};
   bool _powerWorking{false}, _powerTailPending{false}, _powerVerifyOnly{false}, _powerPreparingReset{false}, _powerPreparationDone{false};
@@ -2170,6 +2262,7 @@ private:
   Status _validatePower(const PowerSettings& settings) const noexcept;
   void _setPowerStep(PowerStep step) noexcept;
   MdioBatch _powerBatch() const noexcept;
+  Status _advancePowerPreflight() noexcept;
   Status _advancePower(Status status, bool called, const MdioBatch& batch) noexcept;
   void _retainPowerWord(uint8_t address, uint16_t value) noexcept;
   void _observePower() noexcept;
@@ -2309,6 +2402,7 @@ private:
   void _beginOperation(OperationKind kind, const OperationBudget& budget) noexcept;
   Status _finishOperation(Status status, bool freshObservation = false) noexcept;
   Status _yieldOperation(uint64_t raw) noexcept;
+  bool _beginPcsPass(InitStep step) noexcept;
   void _setInitStep(InitStep step) noexcept;
   Status _finishInitSettings() noexcept;
   Status _waitOperation() noexcept;
@@ -2323,6 +2417,7 @@ private:
     return Status::Error(Err::UNSUPPORTED, "Procedure unavailable on this declared part",
                          static_cast<int32_t>(UnsupportedDetail::FEATURE));
   }
+  Status _admitPin2Output() const noexcept;
   ConfigurationMismatch _clockRoleMismatch() const noexcept;
   void _invalidateResetEvidence(bool configurationLost) noexcept;
   MdioBatch _configurationBatch() const noexcept;

@@ -123,9 +123,9 @@ struct Bus {
   struct MmdWord { uint16_t devad, offset, value; };
   std::array<uint16_t, 32> words{};
   std::array<uint16_t, 0x0500> vendor{};
-  std::array<MmdWord, 5> extended{{
+  std::array<MmdWord, 6> extended{{
       {3, 0x0001, 0x0000}, {3, 0x0014, 0x0002}, {3, 0x0016, 0x0000},
-      {7, 0x003C, 0x0000}, {7, 0x003D, 0x0002},
+      {7, 0x003C, 0x0000}, {7, 0x003D, 0x0002}, {3, 0x0000, 0},
   }};
   uint16_t selector{0}, offset{0};
   uint8_t bistErrors{0}, bistCaptured{0}, tdrPolls{0};
@@ -192,7 +192,7 @@ struct Bus {
     words[25] = 0x8001;
     words[27] = 0x007D;
     words[28] = 0x05EE;
-    words[30] = 0x0102; // A pre-existing TDR done bit alone does not prove freshness.
+    words[30] = p25 ? 0x0002 : 0x0102; // A pre-existing TDR done bit alone does not prove freshness.
     vendor[0x0025] = 0x0001;
     vendor[0x002A] = 0x7998;
     vendor[0x0117] = 0x8147;
@@ -201,6 +201,7 @@ struct Bus {
     vendor[0x0180] = 6;
     vendor[0x0185] = 68;
     vendor[0x0218] = 0x1234;
+    if (p25) vendor[0x0333] = 0x520B;
     vendor[0x0305] = 0x000B;
     vendor[0x030B] = 0x3C00;
     vendor[0x030C] = 0x0410;
@@ -253,7 +254,11 @@ struct Bus {
       const auto forced = (words[0] & 0x2000U) != 0U ?
           ((words[0] & 0x0100U) != 0U ? 0x0100U : 0x0080U) :
           ((words[0] & 0x0100U) != 0U ? 0x0040U : 0x0020U);
-      const bool up = nowUs >= peerReadyUs && (negotiation ? common != 0U : !an && peer == forced);
+      // The exact-I reverse test forces speed after observing a live AN peer.
+      // Model the capable peer recovering that forced physical link.
+      const bool reversePeer = p25 && !an && (words[22] & 0x1FU) == 16U &&
+                               (peer & 1U) != 0U && (peer & forced) != 0U;
+      const bool up = nowUs >= peerReadyUs && (negotiation ? common != 0U : !an && (peer == forced || reversePeer));
       const bool complete = up && negotiation;
       const bool speed10 = (common & 0x0180U) == 0U;
       const bool full = (common & 0x0100U) != 0U || (speed10 && (common & 0x0040U) != 0U);
@@ -278,6 +283,7 @@ struct Bus {
         if (p25) words[address] &= 0xFFF3U;
         break;
       case 15: words[address] &= 0xFE0FU; break;
+      case 12: if (p25) words[address] &= 0x00FFU; break;
       case 18: case 19: words[address] &= 0x00FFU; break;
       case 20: words[address] &= 0xFF00U; break;
       case 21: words[address] = 0; break;
@@ -290,7 +296,7 @@ struct Bus {
       case 30:
         if ((word & 0x8000U) != 0U && !holdTdr) {
           if (tdrPolls++ == 0U) word &= 0xFFFDU;
-          else words[address] = word = 0x0102;
+          else words[address] = word = p25 ? 0x0002 : 0x0102;
         }
         break;
       default: break;
@@ -304,7 +310,7 @@ struct Bus {
     if (devad == 31) {
       if (offset < words.size()) return readDirect(static_cast<uint8_t>(offset));
       if (offset >= vendor.size()) return 0;
-      if (!aGrade && offset == 0x0308U) return (vendor[0x0302] & 0x0040U) != 0U ? 1U : 0U;
+      if (!aGrade && !p25 && offset == 0x0308U) return (vendor[0x0302] & 0x0040U) != 0U ? 1U : 0U;
       const auto word = vendor[offset];
       if (offset == 0x04A1U) vendor[offset] &= 0xFF00U; // RXFS selector survives status consumption.
       return word;
@@ -340,7 +346,7 @@ struct Bus {
           words[24] = aGrade ? 0x0400 : 0;
           words[27] = 0x007D;
           words[28] = 0x05EE;
-          words[30] = 0x0102;
+          words[30] = p25 ? 0x0002 : 0x0102;
           vendor[0x0027] = 0;
           vendor[0x030E] = 0x8400;
           vendor[0x04D1] = 0x0080;
@@ -356,7 +362,7 @@ struct Bus {
         if ((value & 0x8000U) != 0U) { bistCaptured = bistErrors; bistErrors = 0; }
       } else if (address == 30) {
         // CDCR[1:0] are hardware status on A. Command writes cannot erase them.
-        words[address] = aGrade ? static_cast<uint16_t>((value & 0xFFFCU) | (words[address] & 3U)) : value;
+        words[address] = (aGrade || p25) ? static_cast<uint16_t>((value & 0xFFFCU) | (words[address] & 3U)) : value;
         if ((value & 0x8000U) != 0U) tdrPolls = 0;
       } else {
         // The AN restart bit clears independently of the modeled partner.
@@ -371,6 +377,13 @@ struct Bus {
         if ((value & 0x0080U) != 0U) vendor[0x04A1] |= 0x1000U;
       }
       vendor[target] = value;
+      return;
+    }
+    if (p25 && devad == 3U && target == 0U && (value & 0x8000U)) {
+      for (auto& reg : extended) {
+        if (reg.devad == 3U && reg.offset != 20U) reg.value = 0;
+        if (reg.devad == 7U && reg.offset == 60U) reg.value = 0;
+      }
       return;
     }
     for (auto& reg : extended) {
@@ -450,6 +463,7 @@ public:
     config.variant = _options.variant;
     config.interface = _options.interface;
     config.rmiiClock = _options.rmiiClock;
+    config.clockLossApproved = _options.attestFeatures; // Isolated simulated reference and recovery route.
     config.medium = _options.medium;
     config.phyAddress = PHY_ADDRESS;
     config.transport = {&_bus, Bus::execute, Bus::clock, {8, 4, 1}};

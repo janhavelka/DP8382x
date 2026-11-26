@@ -28,7 +28,7 @@ inline unsigned mbps(LinkSpeed value) noexcept {
 
 // Required fixture declarations depend on the selected path; irrelevant
 // declarations are rejected so a stale option cannot authorize a new mode.
-inline bool loopOptions(LoopbackMode mode, LinkSpeed selectedSpeed, uint32_t flags,
+inline bool loopOptions(Variant variant, LoopbackMode mode, LinkSpeed selectedSpeed, uint32_t flags,
                         uint32_t fifo, LoopbackOptions& options) noexcept {
   if (selectedSpeed == LinkSpeed::UNKNOWN || (mode != LoopbackMode::REVERSE && fifo != 0U)) return false;
   switch (mode) {
@@ -42,20 +42,20 @@ inline bool loopOptions(LoopbackMode mode, LinkSpeed selectedSpeed, uint32_t fla
       if (flags != 0U) return false;
       break;
     case LoopbackMode::DIGITAL:
-      if (flags != HARD_EXIT || selectedSpeed != LinkSpeed::MBPS_100) return false;
+      if ((flags != HARD_EXIT && !(variant == Variant::DP83825I && flags == 0)) || selectedSpeed != LinkSpeed::MBPS_100) return false;
       break;
     case LoopbackMode::ANALOG:
       if (flags != TERMINATED) return false;
       break;
     case LoopbackMode::REVERSE:
-      if (flags != PEER_READY) return false;
+      if (flags != (variant == Variant::DP83825I ? (PEER_READY | TERMINATED) : PEER_READY)) return false;
       break;
     case LoopbackMode::EXTERNAL:
       if (flags != EXTERNAL_PATH) return false;
       break;
   }
-  options = {mode, selectedSpeed, flags == LINE_TRANSMIT, true, flags == TERMINATED,
-             flags == PEER_READY, flags == EXTERNAL_PATH, flags == HARD_EXIT, static_cast<uint8_t>(fifo)};
+  options = {mode, selectedSpeed, flags == LINE_TRANSMIT, true, (flags & TERMINATED) != 0,
+             (flags & PEER_READY) != 0, flags == EXTERNAL_PATH, flags == HARD_EXIT, static_cast<uint8_t>(fifo)};
   return true;
 }
 
@@ -147,7 +147,7 @@ Status startBist(Access& io, const FeatureArgs& args) {
   if (options.useLoopback) {
     constexpr LoopbackMode paths[] = {LoopbackMode::EXTERNAL, LoopbackMode::DIGITAL, LoopbackMode::ANALOG,
                                       LoopbackMode::EXTERNAL};
-    if (!loopOptions(paths[path], selectedSpeed, flags, 0, options.loopback)) return featureInvalid();
+    if (!loopOptions(io.variant(), paths[path], selectedSpeed, flags, 0, options.loopback)) return featureInvalid();
   } else {
     if (flags != 0U) return featureInvalid();
     options.loopback.speed = selectedSpeed;
@@ -207,7 +207,7 @@ Status diagnosticFeature(Access& io, Feature feature, const FeatureArgs& args, F
       if (mode < 0 || (args.size() > 2U && !featureNumber(args[2], 31, flags)) ||
           (args.size() > 3U && !featureNumber(args[3], 3, fifo))) return featureInvalid();
       LoopbackOptions options;
-      if (!loopOptions(static_cast<LoopbackMode>(mode), speed(args[1]), flags, fifo, options)) return featureInvalid();
+      if (!loopOptions(io.variant(), static_cast<LoopbackMode>(mode), speed(args[1]), flags, fifo, options)) return featureInvalid();
       if (!io.attest(flags)) return featureDenied();
       return io.template start<&Core::startLoopback>(options);
     }
@@ -280,21 +280,19 @@ Status diagnosticFeature(Access& io, Feature feature, const FeatureArgs& args, F
       const int pair = featureChoice(args[1], "mdi|mdix");
       uint32_t pattern = 0, flags = 0;
       if (mode < 0 || pair < 0 || !featureNumber(args[2], mode == 4 ? 31U : mode == 3 ? 13U : 0U, pattern) ||
-          !featureNumber(args[3], 3, flags) || flags != 3) return featureInvalid();
-      if (mode == 4) return Status::Error(Err::INVALID_CONFIG, "Source gate: exact-part COMPT configuration at 0428",
-                                          static_cast<int32_t>(ConfigDetail::SOURCE_GATE));
+          !featureNumber(args[3], 7, flags) || (flags & 3U) != 3U) return featureInvalid();
       if (!io.attest(flags)) return featureDenied();
       const ComplianceOptions options{static_cast<ComplianceMode>(mode), pair == 0 ? PairSelection::MDI : PairSelection::MDIX,
-                                      static_cast<uint8_t>(pattern), true, true, true, true};
+                                      static_cast<uint8_t>(pattern), true, true, true, true, (flags & 4U) != 0U};
       return io.template start<&Core::startCompliance>(options);
     }
     case Feature::COMPLIANCE_STOP: return io.template start<&Core::stopCompliance>();
     case Feature::COLLISION_START: {
       const auto selectedSpeed = speed(args[0]);
       uint32_t flags = 0;
-      if (selectedSpeed == LinkSpeed::UNKNOWN || !featureNumber(args[1], 3, flags) || flags != 3) return featureInvalid();
+      if (selectedSpeed == LinkSpeed::UNKNOWN || !featureNumber(args[1], 7, flags) || (flags != 3 && flags != 4)) return featureInvalid();
       if (!io.attest(flags)) return featureDenied();
-      return io.template start<&Core::startCollisionTest>(CollisionOptions{selectedSpeed, true, true, true, true});
+      return io.template start<&Core::startCollisionTest>(CollisionOptions{selectedSpeed, true, true, flags == 3, flags == 3, flags == 4});
     }
     case Feature::COLLISION_STOP: return io.template start<&Core::stopCollisionTest>();
     case Feature::CALIBRATION_RECOVER: {

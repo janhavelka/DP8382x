@@ -112,6 +112,16 @@ class CompiledFeatureTests(unittest.TestCase):
         self.assertEqual(runner.verify(path), data)
         return result, data, path.with_suffix(".txt").read_bytes()
 
+    def test_p25_feature_replay(self):
+        for role in ("leader", "follower"):
+            args = ("--fixture-variant", "DP83825I", "--variant", "DP83825I", "--operating-mode", "none",
+                    "--fixture-rmii-role", role, "--rmii-role", role, "--interface", "RMII")
+            for name, (_, module) in feature_modules().items():
+                if name in module.P25_CASES:
+                    with self.subTest(role=role, case=name):
+                        result, data, raw = self.run_case(name, "-p25-" + role, args)
+                        self.assertEqual((result, data["verdict"]), (0, "PASS"), (data["issues"], data["cases"]))
+
     def test_complete_cases_and_every_required_field(self):
         mutations = 0
         for name, (_, module) in feature_modules().items():

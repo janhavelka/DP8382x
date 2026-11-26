@@ -767,3 +767,13 @@ when a coherent sample shows link up with autonegotiation in progress. The MAC
 stays down until the PHY resolves the link. This applies at start and on later
 polls. The option defaults to false.
 See [application ownership](ethercat-integration.md).
+
+### DP83825I feature operations
+
+The stopped PHY owner forwards typed diagnostic and control calls through
+the same core operation slot as the portable driver. An explicit functional
+mode uses `Phy::startInitialize` and its HARD-reset admission. Select
+`ResetKind::EEE_PCS` for the independent DEVAD 3 reset. Confirm the
+declared RMII role, reference continuity, consumer permissions and recovery
+route before requesting clock or power changes. The examples' board grants
+remain application inputs. [Exact-part operations](feature-coverage.md#dp83825i-procedures)

@@ -86,7 +86,10 @@ struct Request {
   LinkSettings settings{};    ///< Typed link intent for START_CONFIGURE.
   ConfigureOptions options{}; ///< Bounded negotiation policy for START_CONFIGURE.
   ResetKind reset{ResetKind::NONE}; ///< Requested initialization/reset kind.
+  PcsRxClock rxClock{PcsRxClock::RETAIN}; ///< Optional DP83825I PCS clock ownership.
+  FunctionalMode functionalMode{FunctionalMode::RETAIN}; ///< Optional exact-part HARD initialization table.
   Feature feature{Feature::NONE}; ///< Typed command selector retained through terminal delivery.
+  Variant variant{Variant::UNKNOWN}; ///< Declared CLI board variant used for exact feature syntax.
   FeatureArgs featureArgs{}; ///< Copied arguments for the initial feature call only.
   ApplicationCommand application{ApplicationCommand::STATUS}; ///< Selector for APPLICATION.
 };

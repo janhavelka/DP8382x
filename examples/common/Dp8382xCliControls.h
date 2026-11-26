@@ -21,7 +21,9 @@ enum class ControlProof : uint32_t {
   TX_DRAIN = 1U << 9U, ///< Application has stopped and drained transmit traffic.
   LED0_PIN = 1U << 10U, ///< Application releases pin 30 and owns the pin 21 role.
   LED3_PIN = 1U << 11U, ///< Application releases pin 29 and owns the pin 21 role.
-  CRS_UNUSED = 1U << 12U ///< MII carrier sense has no active board consumer.
+  CRS_UNUSED = 1U << 12U, ///< MII carrier sense has no active board consumer.
+  POWER_RECOVERY = 1U << 13U, ///< An independent authorized route can recover the reference and management access.
+  PARTNER_FORCE_LPI = 1U << 14U ///< Independent evidence that the partner selected bilateral force code 3.
 };
 
 namespace control_detail {
@@ -77,14 +79,20 @@ inline void format(const InterruptServiceSnapshot& view, FeatureFields& out) noe
 /// @param[in] view Copied core snapshot.
 /// @param[out] out Bounded record fields.
 inline void format(const PowerSnapshot& view, FeatureFields& out) noexcept {
+  char deep[96]{};
+  if (view.deepValid || view.deepWriteAttempted || view.deepWritePossible) {
+    std::snprintf(deep,sizeof(deep)," deep_valid=%u deep_word=%u deep_attempt=%u deep_complete=%u deep_possible=%u",
+                  unsigned(view.deepValid),unsigned(view.rawDeep),unsigned(view.deepWriteAttempted),
+                  unsigned(view.deepWriteCompleted),unsigned(view.deepWritePossible));
+  }
   out.set(" valid=%u trust=%u stale=%u power_state=%u requested_down=%u indicated_down=%u"
           " requested_sleep=%u requested_pll_off=%u"
-          " bmcr_valid=%u bmcr=%u physcr_valid=%u physcr=%u biscr_valid=%u biscr=%u",
+          " bmcr_valid=%u bmcr=%u physcr_valid=%u physcr=%u biscr_valid=%u biscr=%u%s",
           unsigned(view.desiredValid), unsigned(view.trust), unsigned(view.observedStale), unsigned(view.state),
           unsigned(view.requestedPowerDown), unsigned(view.observedBmcrPowerDown),
           unsigned(view.desired.activeSleep), unsigned(view.desired.disablePll), unsigned(view.bmcrValid),
           unsigned(view.rawBmcr), unsigned(view.physcrValid), unsigned(view.rawPhyscr), unsigned(view.biscrValid),
-          unsigned(view.rawBiscr));
+          unsigned(view.rawBiscr), deep);
 }
 
 /// @brief Encode EEE fields and independent validity, without a physical readiness claim.
@@ -120,12 +128,16 @@ inline void format(const WakeSnapshot& view, FeatureFields& out) noexcept {
 /// @param[in] view Latest admitted result or default if the call was rejected before a batch.
 /// @param[out] out Bounded record fields. Control is usable only when readback_valid.
 inline void format(const LpiResult& view, FeatureFields& out) noexcept {
+  char interval[36]{};
+  if (view.minimumNormalIfgUs) {
+    std::snprintf(interval,sizeof(interval)," min_normal_ifg_us=%u",unsigned(view.minimumNormalIfgUs));
+  }
   out.set(" lpi=%u readback_valid=%u control=%u batch_primary=%s primary_detail=%" PRId32
           " batch_release=%s release_detail=%" PRId32 " attempted=%u completed=%u"
-          " transactions=%u effect_completed=%u effect_possible=%u", unsigned(view.forcedLpi),
+          " transactions=%u effect_completed=%u effect_possible=%u%s", unsigned(view.forcedLpi),
           unsigned(view.readbackValid), unsigned(view.control), errorName(view.primary.code), view.primary.detail,
           errorName(view.release.code), view.release.detail, unsigned(view.attemptedFrames), unsigned(view.completedFrames),
-          unsigned(view.transactions), unsigned(view.mutationCompleted), unsigned(view.mutationPossible));
+          unsigned(view.transactions), unsigned(view.mutationCompleted), unsigned(view.mutationPossible), interval);
 }
 
 template<class Access>
@@ -207,22 +219,24 @@ Status controlFeature(Access& io, Feature feature, const FeatureArgs& args, Feat
       const int request = featureChoice(args[0], "normal|down|deep");
       if (request < 0 || !featureNumber(args[1], 1, sleep) || !featureNumber(args[2], 1, pll))
         return featureInvalid();
-      const bool clockLoss = request == 1 && approve(io, ControlProof::CLOCK_LOSS);
-      const bool clockAvailable = request != 2 && approve(io, ControlProof::MANAGEMENT_CLOCK);
+      const bool clockLoss = approve(io, ControlProof::CLOCK_LOSS);
+      const bool clockAvailable = approve(io, ControlProof::MANAGEMENT_CLOCK);
+      const bool recovery = approve(io, ControlProof::POWER_RECOVERY);
       if ((request == 1 && !clockLoss) || (request != 2 && !clockAvailable)) return featureDenied();
       return io.template start<&Core::startConfigurePower>(PowerSettings{static_cast<PowerRequest>(request),
-          sleep != 0, pll != 0, true, clockLoss, clockAvailable});
+          sleep != 0, pll != 0, true, clockLoss, clockAvailable, recovery});
     }
     case Feature::POWER_STATUS: return observe<PowerSnapshot, &Core::powerSnapshot, true>(io, out);
     case Feature::POWER_READ: return observe<PowerSnapshot, &Core::readPowerStatus, false>(io, out);
     case Feature::EEE_CONFIGURE: {
-      uint32_t advertisement{}, bypass{};
+      uint32_t advertisement{}, bypass{}, rxPolicy{1};
       const int enabled = featureChoice(args[0], "off|on");
       if (enabled < 0 || !featureNumber(args[1], 2, advertisement) || advertisement == 1 ||
-          !featureNumber(args[2], 3, bypass)) return featureInvalid();
+          !featureNumber(args[2], 3, bypass) || (args.size()==4 && !featureNumber(args[3], 3, rxPolicy)))
+        return featureInvalid();
       if (!io.attest(0)) return featureDenied();
       return io.template start<&Core::startConfigureEee>(EeeSettings{enabled != 0, static_cast<uint16_t>(advertisement),
-          (bypass & 1U) != 0, (bypass & 2U) != 0, true});
+          (bypass & 1U) != 0, (bypass & 2U) != 0, true, (rxPolicy & 2U)!=0, (rxPolicy & 1U)!=0});
     }
     case Feature::EEE_STATUS: return observe<EeeSnapshot, &Core::eeeSnapshot, true>(io, out);
     case Feature::EEE_READ: return observe<EeeSnapshot, &Core::readEeeStatus, false>(io, out);
@@ -238,7 +252,10 @@ Status controlFeature(Access& io, Feature feature, const FeatureArgs& args, Feat
     case Feature::LPI_START: {
       LpiResult result{};
       if (!approve(io, ControlProof::TX_DRAIN)) return featureDenied();
-      const auto status = io.template direct<&Core::startLpi>(LpiOptions{true, true}, result);
+      const bool force = args.size() == 1;
+      if (force && args[0] != "bilateral") return featureInvalid();
+      if (force && !approve(io, ControlProof::PARTNER_FORCE_LPI)) return featureDenied();
+      const auto status = io.template direct<&Core::startLpi>(LpiOptions{true, true, static_cast<uint8_t>(force ? 3 : 0), force}, result);
       format(result, out);
       return status;
     }

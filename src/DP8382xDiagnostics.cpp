@@ -26,6 +26,14 @@ MdioBatch updateWord(uint8_t address, uint16_t preserve, uint16_t value) noexcep
   batch.frames[1] = {FrameKind::WRITE, address, value, preserve, 0};
   return batch;
 }
+// SNLS638C 6.3.14. DP83825I digital loopback uses the BISCR selector
+// alone; earlier parts own an opaque recipe and need HARD on exit.
+bool digitalRecipe(Variant variant, LoopbackMode mode) noexcept {
+  return variant != Variant::DP83825I && mode == LoopbackMode::DIGITAL;
+}
+bool forceLoopSpeed(Variant variant, LoopbackMode mode) noexcept {
+  return mode != LoopbackMode::EXTERNAL && (variant == Variant::DP83825I || mode != LoopbackMode::REVERSE);
+}
 bool nearEnd(LoopbackMode mode) noexcept {
   return mode != LoopbackMode::REVERSE && mode != LoopbackMode::EXTERNAL;
 }
@@ -85,7 +93,6 @@ Status DP8382x::startLoopback(const LoopbackOptions& options, const OperationBud
 }
 Status DP8382x::_startLoopback(const LoopbackOptions& options, const OperationBudget& budget,
                               OperationToken& token, bool lineBist) noexcept {
-  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   if (_interface.desiredValid && _interface.desired.isolationOwned && _interface.desired.isolate) {
     return rejected("Release owned MAC isolation before diagnostic traffic");
   }
@@ -100,9 +107,11 @@ Status DP8382x::_startLoopback(const LoopbackOptions& options, const OperationBu
   if (!options.maintenanceAdmitted || options.reverseFifoDepth > 3U ||
       (options.mode != LoopbackMode::REVERSE && options.reverseFifoDepth != 0U) ||
       (options.mode == LoopbackMode::PCS_INPUT && options.speed != LinkSpeed::MBPS_10) ||
-      (options.mode == LoopbackMode::DIGITAL && (options.speed != LinkSpeed::MBPS_100 || !options.allowHardResetExit)) ||
+      (options.mode == LoopbackMode::DIGITAL && (options.speed != LinkSpeed::MBPS_100 ||
+       (digitalRecipe(_config.variant, options.mode) && !options.allowHardResetExit))) ||
       (options.mode == LoopbackMode::ANALOG && !options.termination100Ohm) ||
-      (options.mode == LoopbackMode::REVERSE && !options.partnerReady) ||
+      (options.mode == LoopbackMode::REVERSE && (!options.partnerReady ||
+       (_config.variant == Variant::DP83825I && !options.termination100Ohm))) ||
       (options.mode == LoopbackMode::EXTERNAL && !options.externalFixture && !lineBist) ||
       (options.transmitOnLine && (options.mode != LoopbackMode::MII || options.speed != LinkSpeed::MBPS_100))) {
     return rejected("Loopback speed, maintenance or fixture prerequisite missing");
@@ -138,14 +147,13 @@ Status DP8382x::_startLoopback(const LoopbackOptions& options, const OperationBu
   _loopProfile.forced = {options.speed, Duplex::FULL};
   _loopProfile.crossover.pairSelection = PairSelection::MDI;
   _loopProfile.crossover.robust = true;
-  _result.loopback = {options.mode, options.speed, false, false, options.mode == LoopbackMode::DIGITAL, 0, false};
+  _result.loopback = {options.mode, options.speed, false, false, digitalRecipe(_config.variant, options.mode), 0, false};
   _setLoopStep(LoopStep::READ_BMCR);
   token = _operation.token;
   return _operation.status;
 }
 
 Status DP8382x::stopLoopback(const OperationBudget& budget, OperationToken& token) noexcept {
-  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   const auto polling = validBudget(budget); if (!polling.ok()) { return polling; }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (_active || _polling || _operation.state == OperationState::RUNNING) { return busyLoop(BusyDetail::OPERATION_ACTIVE); }
@@ -157,7 +165,7 @@ Status DP8382x::stopLoopback(const OperationBudget& budget, OperationToken& toke
   _beginOperation(OperationKind::LOOPBACK_STOP, budget);
   _loopback.controlsVerified = false;
   const auto& options = _loopback.options;
-  _result.loopback = {options.mode, options.speed, false, false, options.mode == LoopbackMode::DIGITAL, 0, false};
+  _result.loopback = {options.mode, options.speed, false, false, digitalRecipe(_config.variant, options.mode), 0, false};
   _loopRestoreTail = true;
   _setLoopStep(LoopStep::IDENTIFY_STOP);
   token = _operation.token;
@@ -180,22 +188,25 @@ void DP8382x::_setLoopStep(LoopStep step) noexcept {
   if (step >= LoopStep::STOP_BMCR && step <= LoopStep::RESTORE_FIFO) { _operation.phase = OperationPhase::RESTORE; }
 }
 void DP8382x::_beginLoopbackActivation() noexcept {
-  if (_loopback.options.mode == LoopbackMode::DIGITAL) { _setLoopStep(LoopStep::DIGITAL_BMCR); }
+  if (digitalRecipe(_config.variant, _loopback.options.mode)) { _setLoopStep(LoopStep::DIGITAL_BMCR); }
   else if (_loopback.options.mode == LoopbackMode::REVERSE) { _setLoopStep(LoopStep::SET_FIFO); }
   else if (_loopback.options.mode == LoopbackMode::MII) { _setLoopStep(LoopStep::SET_MII); }
   else { _setLoopStep(LoopStep::SET_BISCR); }
 }
 void DP8382x::_beginLoopbackRestore() noexcept {
   _loopWorking = false;
-  _result.reset = _loopback.options.mode == LoopbackMode::DIGITAL ? ResetKind::HARD : ResetKind::NONE;
+  _result.reset = digitalRecipe(_config.variant, _loopback.options.mode) ? ResetKind::HARD : ResetKind::NONE;
   _result.commandRequired = _result.reset == ResetKind::HARD;
   _setInitStep(InitStep::IDENTIFY);
 }
 
 MdioBatch DP8382x::_loopbackBatch() const noexcept {
   const auto& options = _loopback.options;
-  // SNLS783A table 8-41 assigns bits 11:8 to lock, sync loss, activity and power.
-  const uint16_t preserve=isA(_config.variant)?0xF0FFU:0xFFFFU;
+  // Table 7-25 of SNLS638C admits only the loop/transmit selections and
+  // BIST controls. Bits 11:8 report lock, loss, activity and normal power.
+  // SNLS783A table 8-41 also makes those four bits read-only.
+  const uint16_t preserve = _config.variant == Variant::DP83825I ? 0x705FU :
+      (isA(_config.variant) ? 0xF0FFU : 0xFFFFU);
   switch (_loopStep) {
     case LoopStep::IDENTIFY_STOP: {
       auto batch = readWord(2); batch.frameCount = 2; batch.frames[1] = {FrameKind::READ, 3, 0, 0, NO_READ_INDEX}; return batch;
@@ -208,10 +219,10 @@ MdioBatch DP8382x::_loopbackBatch() const noexcept {
     // Table 8-19 commands neutral 0; never echo the power-pin OR bit into software.
     case LoopStep::CLEAR_BMCR: case LoopStep::STOP_BMCR: return updateWord(0, 0x35FF, _softwarePowerWord());
     case LoopStep::CLEAR_BISCR: case LoopStep::STOP_BISCR: return updateWord(0x16, static_cast<uint16_t>(0xFFA0U & preserve), 0);
-    case LoopStep::SET_FIFO: return updateWord(0x11, 0xFCFF, static_cast<uint16_t>(uint16_t{options.reverseFifoDepth} << 8U));
+    case LoopStep::SET_FIFO: return updateWord(0x11, _config.variant == Variant::DP83825I ? 0xFCFB : 0xFCFF, static_cast<uint16_t>(uint16_t{options.reverseFifoDepth} << 8U));
     case LoopStep::DIGITAL_BMCR: return writeWord(0, static_cast<uint16_t>(0x2100U | _softwarePowerWord()));
     case LoopStep::SET_BISCR:
-      if (options.mode == LoopbackMode::DIGITAL) { return writeWord(0x16, isA(_config.variant)?0x0004:0x0104); }
+      if (digitalRecipe(_config.variant, options.mode)) { return writeWord(0x16, isA(_config.variant)?0x0004:0x0104); }
       return updateWord(0x16, static_cast<uint16_t>(0xFFA0U & preserve), static_cast<uint16_t>(selector(options) | (options.transmitOnLine ? 0x0040U : 0U)));
     case LoopStep::SET_MII: return updateWord(0, 0x35FF, 0x4000);
     case LoopStep::DIGITAL_0122: return _mmdBatch(0x0122, FrameKind::WRITE, 0x2000);
@@ -222,7 +233,7 @@ MdioBatch DP8382x::_loopbackBatch() const noexcept {
     // extras (preflight required zero), owned power intent and neutral reset/restart.
     case LoopStep::RESTORE_BMCR: return updateWord(0, 0x317F, static_cast<uint16_t>((_loopSavedBmcr & 0x0480) | _softwarePowerWord()));
     case LoopStep::RESTORE_BISCR: return updateWord(0x16, static_cast<uint16_t>(0x8FA0U & preserve), static_cast<uint16_t>(_loopSavedBiscr & 0x705F));
-    case LoopStep::RESTORE_FIFO: return updateWord(0x11, 0xFCFF, static_cast<uint16_t>(_loopSavedPhyscr & 0x0300));
+    case LoopStep::RESTORE_FIFO: return updateWord(0x11, _config.variant == Variant::DP83825I ? 0xFCFB : 0xFCFF, static_cast<uint16_t>(_loopSavedPhyscr & 0x0300));
   }
   return {};
 }
@@ -266,8 +277,8 @@ Status DP8382x::_advanceLoopback(Status status, bool called, const MdioBatch& ba
       uint16_t mask = 0, expected = 0;
       switch (_loopStep) {
         case LoopStep::VERIFY_BMCR:
-          mask = nearEnd(options.mode) ? 0x7100 : 0x4000;
-          expected = nearEnd(options.mode) ? static_cast<uint16_t>(
+          mask = forceLoopSpeed(_config.variant, options.mode) ? 0x7100 : 0x4000;
+          expected = forceLoopSpeed(_config.variant, options.mode) ? static_cast<uint16_t>(
               (options.speed == LinkSpeed::MBPS_100 ? 0x2100U : 0x0100U) |
               (options.mode == LoopbackMode::MII ? 0x4000U : 0U)) : uint16_t{0};
           break;
@@ -309,6 +320,9 @@ Status DP8382x::_advanceLoopback(Status status, bool called, const MdioBatch& ba
       if ((value & 0xC000U) != 0U) { return _finishOperation(rejected("Reset already active")); }
       _setLoopStep(LoopStep::READ_BISCR); break;
     case LoopStep::READ_BISCR:
+      if (_config.variant == Variant::DP83825I && (value & 0x0100U) == 0U) {
+        return _finishOperation(rejected("Active sleep prevents loopback"));
+      }
       if ((value & 0x325FU) != 0U) { return _finishOperation(rejected("BIST or loopback already active")); }
       _setLoopStep(LoopStep::READ_PHYSCR); break;
     case LoopStep::READ_PHYSCR:
@@ -322,14 +336,14 @@ Status DP8382x::_advanceLoopback(Status status, bool called, const MdioBatch& ba
     }
     case LoopStep::CLEAR_BMCR: _setLoopStep(LoopStep::CLEAR_BISCR); break;
     case LoopStep::CLEAR_BISCR:
-      if (nearEnd(options.mode)) { _beginConfiguration(false); }
+      if (forceLoopSpeed(_config.variant, options.mode)) { _beginConfiguration(false); }
       else { _beginLoopbackActivation(); }
       break;
     case LoopStep::SET_FIFO: _setLoopStep(LoopStep::SET_BISCR); break;
     case LoopStep::DIGITAL_BMCR: _setLoopStep(LoopStep::SET_BISCR); break;
     case LoopStep::SET_BISCR:
-      if (options.mode == LoopbackMode::DIGITAL) { _setLoopStep(LoopStep::DIGITAL_0122); }
-      else if (options.mode == LoopbackMode::ANALOG || options.mode == LoopbackMode::REVERSE) { _setLoopStep(LoopStep::RESTART); }
+      if (digitalRecipe(_config.variant, options.mode)) { _setLoopStep(LoopStep::DIGITAL_0122); }
+      else if (_config.variant != Variant::DP83825I && (options.mode == LoopbackMode::ANALOG || options.mode == LoopbackMode::REVERSE)) { _setLoopStep(LoopStep::RESTART); }
       else { _setLoopStep(LoopStep::VERIFY_BMCR); }
       break;
     // Table 8-40 permits BISCR 6 only while BMCR 14 is set. Establish MII
@@ -418,7 +432,6 @@ Status DP8382x::startBist(const BistOptions& options, const OperationBudget& bud
   return status;
 }
 Status DP8382x::_admitBistOperation(const OperationBudget& budget, bool stop) const noexcept {
-  if (_config.variant == Variant::DP83825I) { return _unsupportedFeature(); }
   const auto polling = validBudget(budget); if (!polling.ok()) { return polling; }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (_active || _polling || _operation.state == OperationState::RUNNING) { return busyLoop(BusyDetail::OPERATION_ACTIVE); }
@@ -451,7 +464,7 @@ Status DP8382x::stopBist(const OperationBudget& budget, OperationToken& token) n
   _result.bist.session = _bist.token;
   _result.bist.mode = _bist.options.mode;
   _result.loopback = {_loopback.options.mode, _loopback.options.speed, false, false,
-                     _loopback.options.mode == LoopbackMode::DIGITAL, 0, false};
+                     digitalRecipe(_config.variant, _loopback.options.mode), 0, false};
   _bist.active = _loopback.controlsVerified = false;
   _bist.stale = true;
   _loopRestoreTail = _bistRestoreTail = true;
@@ -481,9 +494,9 @@ MdioBatch DP8382x::_bistBatch() const noexcept {
       batch.frameCount = 2; batch.frames[1] = {FrameKind::READ, 0x1B, 0, 0, NO_READ_INDEX}; return batch;
     }
     case BistStep::LINK: return readWord(0x10);
-    case BistStep::ENABLE: return updateWord(0x16, isA(_config.variant)?0x80FF:0x8FFF, controls);
+    case BistStep::ENABLE: return updateWord(0x16, _config.variant == Variant::DP83825I ? 0x005F : (isA(_config.variant) ? 0x80FF : 0x8FFF), controls);
     case BistStep::VERIFY_ENABLE: case BistStep::BEFORE: case BistStep::AFTER: case BistStep::VERIFY_DISABLE: return readWord(0x16);
-    case BistStep::DISABLE: return updateWord(0x16, isA(_config.variant)?0x80FF:0x8FFF, 0);
+    case BistStep::DISABLE: return updateWord(0x16, _config.variant == Variant::DP83825I ? 0x005F : (isA(_config.variant) ? 0x80FF : 0x8FFF), 0);
     case BistStep::RESTORE_IPG: return writeWord(0x1B, _bistSavedIpg);
     case BistStep::RESTORE_PACKET: return updateWord(0x1C, 0xF800, _bistSavedPacket);
   }

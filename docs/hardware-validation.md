@@ -267,3 +267,16 @@ observe IRQ and wake line levels independently, and correlate EEE/LPI with
 the partner. Strap11 EMC and analog amplitude need the specified instruments
 and conditions. Both grades have physical status **NOT RUN**.
 [Per-feature cases and gates](feature-coverage.md#dp83826ai-and-dp83826ae)
+
+### DP83825I Q15 fixture evidence
+
+Record the part marking, revision and both independent RMII role samples.
+On a leader, identify the consumers of the PHY clock before moving pin 2,
+resetting, isolating or entering deep power. A deep-power trial needs a
+separate recovery and observation path. Measure the actual MAC wake interval
+and EEE partner response. For Secure-ON, use synthetic credentials and
+capture independent packet recognition, IRQ/level or pulse indication and
+acknowledgement. Do not infer a relation between 000C and MISR from fixture
+software. For VOD, record the unit's trim, termination, load and measured
+amplitude. Record cable velocity before converting TDR output to distance.
+These physical observations remain pending.

@@ -459,7 +459,7 @@ public:
   Status modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget& budget,
                             RawBatchReceipt* receipt = nullptr) noexcept;
   /// @brief Explicit stopped destructive acquisition through the sole core collector.
-  /// @param[in] sourceMask Nonzero subset of ALL_EVIDENCE.
+  /// @param[in] sourceMask Common evidence mask, optionally including REGISTER_12 on DP83825I.
   /// @param[out] output Assigned on aggregate success; consumed prefixes remain cached on error.
   /// @param[in] budget Complete acquisition allowance.
   /// @return Core status or BUSY; ordinary raw reads cannot bypass this collector.

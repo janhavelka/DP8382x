@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add exact DP83825I functional mode recipes, IEEE PCS clock/reset, EEE/LPI
+  and power transitions. Add its IRQ and counter collection, LED and wake
+  routes, loopback, PRBS, TDR, MSE, compliance and unit-trimmed VOD controls.
+  The shared CLI and host fixture exercise both declared RMII clock roles.
+
 - Add DP83825I revision-0 identity, RMII clock-role checks, reset and verified
   link, interface and fast link-drop settings. A guarded MDIO write can now
   stop on a prerequisite read while holding the controller lock. The compiled

@@ -6,5 +6,5 @@ FEATURE(QUALITY, "controls quality", 4, 4, START, "<fld> <tx100> <tx10> <recover
 FEATURE(QUALITY_STATUS, "controls quality-status", 0, 0, CACHED, "", "Cached quality policy and raw stable readback")
 FEATURE(MSE, "controls mse", 0, 0, READ, "", "Read one raw MSE word and copy earlier link context")
 FEATURE(MSE_STATUS, "controls mse-status", 0, 0, CACHED, "", "Cached raw MSE and its freshness")
-FEATURE(ANALOG, "controls analog", 5, 5, START, "<amplitudes> <termination> <mac-slew> <io-slew> <receiver-gain>", "Apply owned amplitude, termination and I/O slew codes")
+FEATURE(ANALOG, "controls analog", 5, 5, START, "<amplitudes|vod,step,offset> <termination> <mac-slew> <io-slew|50ohm|25ohm> <receiver-gain|dsp,group,mask,value[/...]>", "Apply owned amplitude, termination and I/O slew codes")
 FEATURE(ANALOG_STATUS, "controls analog-status", 0, 0, CACHED, "", "Cached analog setting validity and raw words")
