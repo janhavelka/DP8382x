@@ -391,3 +391,35 @@ ctest --test-dir build/p55-ubsan -R '^p25_(events|outputs|core|profiles|diagnost
 consumers and all three ESP32-P4 links remain NOT RUN. The software closure
 decision still needs the Register_12/MISR, CDCR and DSP source dispositions.
 Remote CI is NOT RUN (prompt 71). Physical qualification is NOT RUN (Q15).
+
+## Phase (d) consumer verification
+
+Both Release configurations passed on clean Windows x86-64 `main` at
+`2e1a79ad3b6e47bfa029ba966e866e6c4088553a`, verified equal to
+`origin/main` by the wrapper. Both used GNU C++ 15.1.0, CMake 4.0.1
+and Ninja 1.12.1 with library tests disabled.
+
+| Consumer | Result |
+| --- | --- |
+| Portable, in-tree source | PASS, 2/2 in 0.02 s. The separate consumer project built against the public target and ran `portable_consumer` and `portable_cable_consumer`. |
+| Exported DP83825I source package | PASS, 1/1 in 0.04 s. The application linked the rebuilt package and checked strap address maximum 3, accepted 100BASE-TX full duplex and rejected empty and invalid technology masks. |
+
+The lead refreshed the export while a second agent checked the portable
+consumer in its own build directory. The export inventory matched all 29
+expected paths. These comprised the root CMake file, both manifests, LICENSE, every header
+under `include/` and every C++ source and header under `src/`. Each copy
+matched the repository file byte-for-byte before the package build.
+
+```powershell
+cmake -S test/consumer -B build/p61-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF
+cmake --build build/p61-consumer
+ctest --test-dir build/p61-consumer --output-on-failure --no-tests=error -O build/p61-consumer/p61d-consumer.log
+cmake -S build/p61-export/application -B build/p61-export/out -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF -DDP8382X_BUILD_PINNED_IDF_TESTS=OFF
+cmake --build build/p61-export/out --parallel 4
+ctest --test-dir build/p61-export/out --output-on-failure --no-tests=error -O build/p61-export/out/p61d-export.log
+```
+
+**Prompt 61 remains IN PROGRESS.** Phase (d) still needs the three ESP32-P4
+SDK links and the closure decision on Register_12/MISR latch behavior, CDCR
+calibration completion and independent DSP tuning limits. Remote CI is NOT RUN
+(prompt 71). Physical qualification is NOT RUN (Q15).
