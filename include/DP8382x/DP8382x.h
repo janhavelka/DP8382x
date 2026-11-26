@@ -188,7 +188,7 @@ enum class EvidenceSource : uint8_t {
 constexpr uint32_t evidenceBit(EvidenceSource source) noexcept {
   return source < EvidenceSource::COUNT ? uint32_t{1} << static_cast<uint8_t>(source) : 0U;
 }
-/// @brief All common destructive sources. On DP83825I explicitly add REGISTER_12 to consume its separate latch.
+/// @brief All common destructive sources. Explicitly add REGISTER_12 to read DP83825I C22 000C. Its effect on MISR1 history is unknown.
 constexpr uint32_t ALL_EVIDENCE = evidenceBit(EvidenceSource::REGISTER_12) - 1U;
 
 /// @brief Context for MISR2[9] at consumption; a later selector cannot relabel history.

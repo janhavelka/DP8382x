@@ -450,3 +450,72 @@ shared DP83826I board configuration and board readiness disabled.
 individual dispositions for Register_12/MISR latch behavior, CDCR calibration
 completion and independent DSP tuning limits. Remote CI is NOT RUN (prompt 71).
 Physical qualification is NOT RUN (Q15).
+
+## Phase (d) final disposition
+
+**BLOCKED on full DP83825I revision-0 software coverage.** Phase (d) finished
+on 2026-11-27. All 33 ledger procedures, 101 tables, 570 fields and ten
+address exceptions have entries in the matrix. The three decisions below concern remaining fields in the IRQ, TDR
+and analog procedures. The verified IRQ service, cable diagnostics
+and analog controls remain available on both declared RMII roles.
+[Procedure and field matrix](../../feature-coverage.md#dp83825i-procedures)
+
+| Procedure | Verified behavior | Evidence needed for closure |
+| --- | --- | --- |
+| `irq` | SNLS638C tables 7-15 and 7-19 through 7-22 distinguish C22 000C from MISR1/2 at 0012/0013. Service samples PHYSTS then MISR1/2. On a failed MISR2 read, `p25_events` retains the first event byte. An explicit 000C acquisition retains raw 815A and events 8100 even if controller release fails. | Table 7-15 assigns RC events to [15:8] and R/W enables to [7:0]. The IRQ owner programs MISR1/2. TI leaves open whether writes to either enable byte affect the other, and whether reading one event byte clears the other. Keep 000C out of routine service. Obtain the exact-part alias and cross-clear rules before promising 000C enable coverage. If the enables are distinct, implement their configuration and readback through the same owner, with partial-read and failed-write tests. |
+| `tdr` | Section 6.3.16.1 and table 7-32 document manual cable measurement at CDCR[15]. `p25_diagnostics` checks the exact 8000 command, fresh done/fail observations and first-peak data. The cable owner rejects an observed active calibration. | CDCR[14] starts resistor calibration. Bits [1:0] report **cable measurement** completion and failure. Obtain the exact-part trigger prerequisites, completion indication or guaranteed wait, and safe action after an interrupted start. Then implement and test the bounded procedure and its recovery. The shared calibration recovery entry rejects DP83825I. |
+| `analog` | `p25_diagnostics` exercises the seven allowed DSP masks, preservation of neighboring bits, rejected encodings and ownership conflicts with mode recipes. Tables 6-5 through 6-7 authorize the specific complete recipe words. | For independent tuning, table 7-62 omits the polarity of the 176/192 µs timer at 0308[8]. Table 7-65 names the FFE timer at 030F[10:8] without its code-to-time map. Table 7-73 gives 16 levels (200–575 mV in 25 mV steps) for 32 possible 040D codes and describes a bit-3 inversion on PG1.1. Obtain the legal maps, timing units, applicable silicon revision and operating limits for the named controls. Add independent literal, invalid-code and restore tests for each admitted encoding. Opaque recipe words have no established standalone programming contract. |
+
+Two read-only reviewers used the session's high-reasoning model in parallel
+to check the interrupt and calibration/DSP evidence. Both inspected the
+original SNLS638C tables. The lead compared their results with the ledger,
+production owners and executing tests. A targeted TI datasheet and E2E
+lookup for DP83825I with `cfg_rescal_en`, `0x0C`/MISR1 and the DSP timer
+and threshold addresses yielded no exact-part clarification of these gates.
+The source comparison in phase (a) records the limited scope of the pinned
+Linux and Zephyr implementations. Q15 remains the separate physical gate
+for identified boards, clocks, cable, partner, wake and electrical evidence.
+[TI SNLS638C](../../reference/source/TI-DP83825I-SNLS638C.pdf) ·
+[DSP field dispositions](../../feature-coverage.md#dp83825i-standalone-dsp-controls-and-evidence-gaps)
+
+The executing paths are in `src/DP8382xInterrupts.cpp` and
+`src/DP8382x.cpp` (collector), `src/DP8382xCable.cpp` and
+`src/DP8382xElectrical.cpp` (cable and calibration), and
+`src/DP8382xAnalog.cpp` (DSP masks and mode conflicts). The literal
+vectors are in `test/p25_profiles.inc` and `test/p25_diagnostics.inc`.
+
+The wrapper verified clean `main` and `origin/main` at
+`f748cec3b978e09accf6f962bd66f2667d9f56f8` (0 ahead, 0 behind).
+Only the report and progress record changed between reviewed code `f22446a`
+and that checkpoint. The sibling sources listed in phase (a) remained clean
+at the recorded revisions. This final check corrected the CLI guide and two
+code comments that implied independent physical latches. It also corrected
+the field matrix's description of the seven DSP groups and recorded the
+open enable-byte relationship in the ledger. The README and CHANGELOG
+already describe the implemented subset.
+
+| Evidence layer | Phase (d) result on Windows x86-64 |
+| --- | --- |
+| Host | PASS. Full Release 1,017/1,017 at `f22446a` and focused UBSan 15/15 at `8367db5`. After the comment edits, the final Release rebuild and all 26 registrations matching `^p25_` passed. The final original-PDF checks passed 4/4, the configured CLI matrix 10/10, the full ledger and version checks passed, and Doxygen checked 296 pages and rejected both negative fixtures. |
+| Portable consumer | PASS. Final Release rebuild and CTest passed 2/2 with library tests off. |
+| Exported consumer | PASS. All 29 package files matched the final working sources byte-for-byte. Release rebuild and CTest passed 1/1 with library tests off. |
+| SDK link | PASS. The three ESP32-P4 links at `eaf674c` used ESP-IDF v6.1 `fff9895c`. The hashes and exact configurations appear in the SDK section above. |
+| Remote CI | NOT RUN. Prompt 71 owns the first-execution CI check. |
+| Physical | NOT RUN. Q15 requires authorized, identified fixtures. |
+
+Reproduce the final host selection with the process-local Git setting in
+the Release section above, then run the source and consumer commands in
+their respective phase (d) sections. The final reference check passed for
+29 vendor payloads, 27 extracts and 2,445 local links. The whitespace
+check passed. The final host log is
+`build/p60-tests/p61d-disposition.log`.
+
+```powershell
+cmake --build build/p60-tests --parallel 4
+ctest --test-dir build/p60-tests -R '^p25_' -j 1 --output-on-failure --no-tests=error -O build/p60-tests/p61d-disposition.log
+python -B tools/verify_references.py
+git diff --check
+```
+
+Prompt 61 retains ownership of these software gaps. Prompt 62 can use the
+existing family ledger schema and exact-part contracts independently.

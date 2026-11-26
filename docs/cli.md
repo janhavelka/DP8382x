@@ -767,8 +767,9 @@ On either role, `controls interface` clock argument `clkout25` clears
 selection. Disabling the output on a leader requires clock-loss approval.
 The pin 2 mux has its own control. LED2 IRQ routing can coexist with EEE.
 
-`link collect register12` reads the separate 000C latch once.
-`irq service` uses MISR1/2. `controls mse` uses prior coherent link
+`link collect register12` reads C22 000C once and consumes its upper-byte
+events. The effect on MISR1 history is unknown. `irq service` uses MISR1/2.
+`controls mse` uses prior coherent link
 evidence and returns the raw MSE and the SDAA081 class (0 unclassified,
 1 excellent, 2 good, 3 poor). Refresh the link before acquiring MSE.
 `controls analog vod,7,-1 keep keep 25ohm keep` selects the 93.75%

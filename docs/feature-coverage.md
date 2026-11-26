@@ -621,8 +621,10 @@ Both declared RMII roles have compiled fixture and offline replay evidence.
 
 The ledger assigns 15 further procedures to prompt 61, including functional
 mode recipes, power and EEE, event/counter services, BIST, loopback, TDR,
-analog/electrical settings, wake and pin profiles. Physical clock, link and
-electrical qualification remain open under Q15.
+analog/electrical settings, wake and pin profiles. Full revision-0 software
+coverage is blocked on the 000C enable relationship, CDCR resistor calibration
+and independent DSP controls with incomplete encodings. Q15 separately covers
+physical clock, link and electrical qualification.
 [DP83825I register and procedure ledger](registers/dp83825i.json)
 
 ### DP83825I procedures
@@ -653,12 +655,12 @@ The API, shared CLI and executing host test below identify the owner for each le
 | `eee` | startConfigureEee / readEeeStatus / startInitialize | `eee configure` | `p25_functional_modes` | Table 6-7, six IEEE tuples, PCS clock and reset |
 | `legacy_lpi` | startLpi / stopLpi | `lpi start` | `p25_functional_modes` | Negotiated and bilateral application-controlled entry. MAC owns the 36 us exit interval |
 | `power` | startConfigurePower / readPowerStatus | `power configure` | `p25_functional_modes` | IEEE down, active sleep, PLL and deep-control readback. Actual current and clock recovery need Q15 |
-| `irq` | startConfigureInterrupts / serviceInterrupts | `irq service` | `p25_events` | MISR1/2 delivery only. Pin and stimulus checks in p25_outputs |
+| `irq` | startConfigureInterrupts / serviceInterrupts | `irq service` | `p25_events` | MISR1/2 configuration and service. Table 7-15 lists eight 000C enables. Their relationship to MISR1 and independent programming remain OPEN. Pin and stimulus checks in p25_outputs |
 | `counters` | collectEvents / acquireEvidence | `link collect` | `p25_events` | Register_12 separate. RECR kept raw under the width conflict |
 | `quality` | readSignalQuality | `controls mse` | `p25_diagnostics` | SDAA081 table 2-6 holds two equality gaps |
 | `loopback` | startLoopback / stopLoopback | `diagnostics loopback-start` | `p25_diagnostics` | Exact BISCR selectors, AN disabled for reverse |
 | `bist` | startBist / startBistAcquire | `diagnostics bist-start` | `p25_diagnostics` | PRBS generator, checker, freeze, capture and stop |
-| `tdr` | startCableTest / startCableAcquire | `diagnostics cable-raw` | `p25_diagnostics` | Quiet cable and first peak. CDCR calibration completion remains unresolved |
+| `tdr` | startCableTest / startCableAcquire | `diagnostics cable-raw` | `p25_diagnostics` | Quiet cable and first peak. Table 7-32 assigns CDCR[1:0] to cable measurement. Resistor calibration via [14] remains OPEN pending its completion, timing and recovery rules |
 | `led_pin` | configurePins | `controls pins` | `p25_outputs` | LED0, LED2, pin 2 mux and separate clock permission |
 | `wake` | startConfigureWake / acknowledgeWake | `wol configure` | `p25_outputs` | Disable before rekey, direct/IRQ routes and level acknowledgement |
 | `vod` | startConfigureAnalog | `controls analog` | `p25_outputs` | 17 coarse rows and unit-specific fine word. Q15 measures voltage |
@@ -667,7 +669,7 @@ The API, shared CLI and executing host test below identify the owner for each le
 
 ### DP83825I register fields
 
-Each bit range joins the named field, access, reset, legal codes and constraints in the [exact register ledger](registers/dp83825i.json). Reserved ranges have no programming route. An analog assignment outside 001A and 0302 is restricted to an explicitly listed table write or left at its device setting. SNLS638C supplies no independent safe board operating range for those settings. The six IEEE rows use their DEVAD-qualified low wire offsets.
+Each bit range joins the named field, access, reset, legal codes and constraints in the [exact register ledger](registers/dp83825i.json). The owner column includes open fields. Reserved ranges have no programming route. The analog owner accepts the documented squelch and impedance settings and the seven masked DSP groups described below. Other DSP settings follow an exact recipe or retain their device values. The six IEEE rows use their DEVAD-qualified low wire offsets.
 
 | Printed offset | SNLS638C table | Field owner and bits |
 | --- | --- | --- |
@@ -794,7 +796,7 @@ The analog owner accepts complete documented fields and preserves unowned bits u
 
 - 0302[6] controls CLKOUT25 availability. `configureInterface` verifies 0308[0] under either declared role. The separate pin 2 mux controls the bonded output. `p25_outputs` checks both encodings, reset replay and LED2 interrupt delivery with EEE.
 - 0308 exposes RX-disable, pre-LPI, counter and adaptation freeze controls and LPI MSE bypass. Bit 0 is observed, bit 1 is fixed, bits 3/9 are unspecified. Standalone RX clock selection and the 176/192 us timer polarity remain open.
-- 030F exposes the eight documented equalizer controls. 0311 permits coefficient selection 0/1/2 and the two coefficient sources. A standalone forced-coefficient profile lacks a documented admissible range.
+- 030F exposes the eight low equalizer bits. Table 7-65 names an FFE timer at [10:8] and omits its time scale and code map. Independent timer selection remains OPEN. At 0311 table 7-66 permits CAGC gain mapping 0/1/2 and two coefficient sources. A standalone forced-coefficient profile lacks a documented admissible range.
 - 031C exposes gain enables, freeze choices, polarity, input and pre-cursor selection. Independent forced-gain calibration remains open. 031F exposes per-group freeze controls for the LPI freeze and wake states. Bits 5:1 have contradictory flush/wake descriptions and remain recipe-only.
 - 033E exposes bits 6:5. 0404 permits only current codes 0/4/7 (12.7/15.7/19.5 mA). Debug and bias codes lack documented operating bounds, and bit 0 has conflicting unused/burn-in descriptions.
 - 040D's 200..575 mV interval in 25 mV increments describes 16 levels for a five-bit code, with bit 3 inverted on PG1.1. Standalone threshold programming remains open pending an identified revision and code map. 0461 is reserved.

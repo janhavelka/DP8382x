@@ -323,7 +323,7 @@
         "implementationStage": 61
       },
       "source": "7-15/19..22/84, SDAA081",
-      "contract": "MISR1/2 deliver IRQ source bits and consume status despite R notation. Register 000C has RC upper byte and offers similar enables. Latch sharing with MISR1 is unknown. Use MISR1/2 for service, one collector and no ordinary reads of 000C. PHYSCR selects pin/polarity/enable/test.",
+      "contract": "MISR1/2 deliver IRQ source bits and consume status despite R notation. Register 000C has RC events in [15:8] and R/W enables in [7:0]. The datasheet leaves both latch sharing and enable aliasing with MISR1 unspecified. Configure and service MISR1/2 through the IRQ owner. Collect 000C only on explicit request. Independent programming of its enable byte remains open. PHYSCR selects pin/polarity/enable/test.",
       "vector": "Inject distinct upper bytes in MISR1/2. Fail the second read and keep the first. Never service 000C as an additional independent source. Release interrupt test under a finite cleanup budget."
     },
     {

@@ -404,7 +404,7 @@ int evidenceIndex(uint16_t address, uint16_t devad = 31) noexcept {
 // Sourced occurrence bits only. Ambiguous current/RC words remain raw evidence.
 uint16_t eventMask(uint16_t address) noexcept {
   switch (address) {
-    case 0x000C: // DP83825I table 7-15, independent of MISR1.
+    case 0x000C: // DP83825I table 7-15. Latch sharing with MISR1 is unknown.
     case cmd::REG_MISR1: case cmd::REG_MISR2: return 0xFF00; // Tables 8-36/37; exclude enables.
     case cmd::REG_FLDS: return cmd::MASK_FLDS_CAUSES;
     case cmd::REG_ANER: return cmd::MASK_ANER_PAGE;
