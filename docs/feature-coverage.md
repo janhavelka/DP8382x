@@ -1,5 +1,10 @@
 # DP83826 feature coverage
 
+For DP83822I/H/IF/HF, `p22_straps` exercises the offline SOR1/SOR2
+decoder against the reset defaults, per-pin encodings and reserved or
+incomplete captures. Live acquisition and copper startup are pending in
+prompt 63. [DP83822 implementation record](reports/implementation/63-p22-copper-core.md)
+
 The DP83826AI/AE software covers the 21 procedures assigned to prompt 58.
 The exact IDs, grade-specific executing tests and limits are in the
 [implementation record](reports/implementation/58-a-core-link.md). Prompt 59

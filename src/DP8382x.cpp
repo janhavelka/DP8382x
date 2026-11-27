@@ -429,6 +429,67 @@ MdioBatch DP8382x::_mmdBatch(uint16_t address, FrameKind kind, uint16_t value, u
   return makeMmdBatch(address, kind, value, devad);
 }
 
+bool decodeDp83822Straps(const StrapEvidence& capture, Dp83822Straps& output) noexcept {
+  if (capture.stale || !capture.sor1Valid || !capture.sor2Valid) { return false; }
+
+  // Tables 8-84/85 store mode numbers minus one, not the two function bits in table 7-10.
+  const auto mode = [](uint16_t word, unsigned shift) {
+    return ((static_cast<unsigned>(word) >> shift) & 3U) + 1U;
+  };
+  const auto middle = [](unsigned pinMode) { return pinMode == 2U || pinMode == 3U; };
+  const auto col = mode(capture.sor1, 10);
+  const auto rxD0 = mode(capture.sor1, 12);
+  const auto rxD1 = mode(capture.sor1, 14);
+  const auto rxD2 = mode(capture.sor2, 0);
+  const auto rxD3 = mode(capture.sor2, 2);
+  const auto rxEr = mode(capture.sor1, 8);
+  const auto rxDv = mode(capture.sor1, 4);
+  const auto led0 = mode(capture.sor1, 0);
+
+  Dp83822Straps decoded;
+  decoded.phyAddress = static_cast<uint8_t>(
+      (col >= 3U ? 1U : 0U) | (rxD0 >= 3U ? 2U : 0U) | (rxD1 >= 3U ? 4U : 0U) |
+      (rxD2 >= 3U ? 8U : 0U) | (rxD3 >= 3U ? 16U : 0U));
+  const bool fiber = middle(col);
+  decoded.medium = fiber ? Medium::FIBER : Medium::COPPER;
+  decoded.autoMdix = !fiber && rxEr >= 3U;
+  decoded.signalDetect = fiber && rxEr >= 3U;
+  decoded.eeeEnabled = middle(rxD1);
+  decoded.fastLinkDrop = middle(rxD2);
+  decoded.crsMode = static_cast<uint8_t>(mode(capture.sor1, 6));
+
+  // Table 7-13 gives RGMII priority over RMII_EN and reserves RGMII with XI_50.
+  const bool xi50 = rxDv == 2U || rxDv == 4U;
+  if (middle(rxEr)) {
+    if (!xi50) { decoded.interface = MacInterface::RGMII; }
+  } else if (rxDv >= 3U) {
+    decoded.interface = MacInterface::RMII;
+    decoded.rmiiClock = xi50 ? RmiiClock::FOLLOWER_50MHZ : RmiiClock::LEADER_25MHZ;
+  } else if (!xi50) {
+    decoded.interface = MacInterface::MII;
+  }
+
+  // LED_0 supplies AN_0 only in functional modes. Retain other strap evidence in test mode.
+  decoded.led0TestMode = middle(led0);
+  decoded.autonegotiation = !fiber && !middle(rxD3);
+  if (!decoded.led0TestMode) {
+    const bool hundred = fiber || !middle(rxD0);
+    const bool full = led0 == 4U;
+    if (decoded.autonegotiation) {
+      decoded.technologyMask = LINK_10_HALF;
+      if (full) { decoded.technologyMask |= LINK_10_FULL; }
+      if (hundred) { decoded.technologyMask |= LINK_100_HALF; }
+      if (hundred && full) { decoded.technologyMask |= LINK_100_FULL; }
+    } else if (hundred) {
+      decoded.technologyMask = full ? LINK_100_FULL : LINK_100_HALF;
+    } else {
+      decoded.technologyMask = full ? LINK_10_FULL : LINK_10_HALF;
+    }
+  }
+  output = decoded;
+  return true;
+}
+
 bool strapAddressMax(Variant variant, uint8_t& maximum) noexcept {
   const auto* part = detail::findPart(variant);
   if (!part) { return false; }

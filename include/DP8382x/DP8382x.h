@@ -829,6 +829,30 @@ struct StrapEvidence {
   uint16_t rcsr{0}; ///< DP83825I direct RCSR sample, including consumed FIFO indications.
   bool rcsrValid{false}; ///< RCSR was captured; a stale operation result can retain the pre-reset word.
 };
+
+/// @brief DP83822 settings sampled at strap latch-in (SNLS505H tables 7-10..13).
+struct Dp83822Straps {
+  uint8_t phyAddress{0}; ///< Address 0..31 selected by COL and RX_D0..3.
+  Medium medium{Medium::COPPER}; ///< COL FX_EN selection. Live medium requires CR2[14].
+  MacInterface interface{MacInterface::UNKNOWN}; ///< UNKNOWN for a reserved XI_50/interface combination.
+  RmiiClock rmiiClock{RmiiClock::UNSPECIFIED}; ///< Clock role for a strapped RMII interface only.
+  bool autonegotiation{false}; ///< Copper AN_EN strap. FX always selects forced operation.
+  uint8_t technologyMask{0}; ///< Advertised LINK_* bits or a single forced speed/duplex bit. Zero for LED_0 test modes.
+  bool autoMdix{false}; ///< RX_ER selected automatic crossover on copper.
+  bool signalDetect{false}; ///< RX_ER selected the LED_1 signal-detect function with FX_EN set.
+  bool eeeEnabled{false}; ///< RX_D1 EEE_EN strap value.
+  bool fastLinkDrop{false}; ///< RX_D2 FLD_EN strap value.
+  bool led0TestMode{false}; ///< LED_0 was strapped in prohibited mode 2 or 3. LED_1 requires board evidence.
+  uint8_t crsMode{0}; ///< CRS strap mode 1..4 selecting LED behavior in table 7-12.
+};
+
+/// @brief Decode a pair of DP83822 strap latches without MDIO or clock access.
+/// @param[in] capture DEVAD 31 offsets 0467h and 0468h from the same DP83822 capture epoch.
+/// @param[out] output Latched selections on success. A reserved interface and an observed LED_0 test mode are reported independently.
+/// @return True for two valid words in a non-stale capture. On false the output retains its prior value.
+/// @note The caller identifies the part. Live configuration, board wiring and LED_1 strap legality require separate evidence.
+bool decodeDp83822Straps(const StrapEvidence& capture, Dp83822Straps& output) noexcept;
+
 /// @brief First failed stable-bit comparison, retained even if the pass is interrupted.
 struct ConfigurationMismatch {
   bool valid{false}; ///< Remaining fields describe an actual comparison.

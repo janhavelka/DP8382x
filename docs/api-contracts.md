@@ -50,6 +50,15 @@ detail is introduced. A 64-bit object-lifetime token needs no exhaustion branch.
 
 ## Identity, capabilities and link intent
 
+`decodeDp83822Straps(capture, output)` accepts a current pair of valid SOR
+words captured from a known DP83822. It performs no I/O. An incomplete or
+stale capture returns false and preserves the caller's output. On success
+a reserved clock/interface selection yields `MacInterface::UNKNOWN`.
+LED_0 modes 2 and 3 set `led0TestMode` and leave the technology mask zero.
+Other fields still report the latched selections. LED_1 modes 2 and 3 also
+select a test mode, but neither latch records that pin. Board evidence is
+required. [Exact-part strap tables](reference/source/TI-DP83822-SNLS505H.pdf)
+
 [Config.h](../include/DP8382x/Config.h) defines shipped variant/interface/link
 values and pure validation. [DP8382x.h](../include/DP8382x/DP8382x.h) now ships
 IdentityAcceptance, DeviceIdentity, Capabilities, readIdentity, identitySnapshot

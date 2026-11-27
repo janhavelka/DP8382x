@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add offline decoding of DP83822 strap captures, including address, medium,
+  advertised or forced modes, interface and RMII clock role.
+
 - Add exact DP83825I functional mode recipes, IEEE PCS clock/reset, EEE/LPI
   and power transitions. Add its IRQ and counter collection, LED and wake
   routes, loopback, PRBS, TDR, MSE, compliance and unit-trimmed VOD controls.

@@ -753,11 +753,123 @@ void testScan() {
   CHECK(active.readIdentityAt(31, id1, id2, BUDGET, &invoked).detail == static_cast<int32_t>(BusyDetail::CLEANUP_REQUIRED));
   CHECK(!invoked && owned.callbacks == calls);
 }
+void testP22Straps() {
+  StrapEvidence sample;
+  sample.sor1Valid = true;
+  sample.sor2Valid = true;
+  sample.stale = false;
+  Dp83822Straps decoded{};
+  const auto decode = [&](uint16_t sor1, uint16_t sor2) {
+    sample.sor1 = sor1;
+    sample.sor2 = sor2;
+    CHECK(decodeDp83822Straps(sample, decoded));
+  };
+
+  // SNLS505H tables 8-84/85 give latch mode numbers; table 7-10 supplies pin functions.
+  decode(0x0FC3, 0x0000);
+  CHECK(decoded.phyAddress == 1 && decoded.medium == Medium::COPPER);
+  CHECK(decoded.interface == MacInterface::MII && decoded.rmiiClock == RmiiClock::UNSPECIFIED);
+  CHECK(decoded.autonegotiation && decoded.technologyMask == 0x0F && decoded.autoMdix);
+  CHECK(!decoded.signalDetect && !decoded.eeeEnabled && !decoded.fastLinkDrop);
+  CHECK(!decoded.led0TestMode && decoded.crsMode == 4);
+
+  struct AddressCase { uint16_t sor1, sor2; uint8_t address; bool eee, fld; };
+  const AddressCase addresses[] = {
+    {0, 0, 0, false, false}, {0x0C00, 0, 1, false, false},
+    {0x2000, 0, 2, false, false}, {0x3000, 0, 2, false, false},
+    {0x4000, 0, 0, true, false}, {0x8000, 0, 4, true, false},
+    {0xC000, 0, 4, false, false}, {0, 1, 0, false, true},
+    {0, 2, 8, false, true}, {0, 3, 8, false, false},
+    {0, 8, 16, false, false}, {0, 12, 16, false, false},
+    {0xFC00, 0x000F, 31, false, false}
+  };
+  for (const auto& row : addresses) {
+    decode(row.sor1, row.sor2);
+    CHECK(decoded.phyAddress == row.address);
+    CHECK(decoded.eeeEnabled == row.eee && decoded.fastLinkDrop == row.fld);
+  }
+
+  // Table 7-11: AN_EN and AN_1 use different pins from the two-bit LED_0 mode.
+  struct LinkCase { uint16_t sor1, sor2; bool an; uint8_t mask; };
+  const LinkCase copper[] = {
+    {0x1000, 4, false, 1}, {0x1003, 4, false, 2},
+    {0, 4, false, 4}, {3, 4, false, 8},
+    {0x2000, 12, true, 1}, {0x2003, 12, true, 3},
+    {0x3000, 12, true, 5}, {0x3003, 12, true, 15},
+    {0x2003, 8, false, 2}, {0x3000, 8, false, 4}
+  };
+  for (const auto& row : copper) {
+    decode(row.sor1, row.sor2);
+    CHECK(decoded.medium == Medium::COPPER && decoded.autonegotiation == row.an);
+    CHECK(decoded.technologyMask == row.mask && !decoded.led0TestMode);
+  }
+  // COL modes 2/3 select FX. AN_EN and AN_1 are don't-care; RX_ER now selects SD.
+  decode(0x0400, 0);
+  CHECK(decoded.medium == Medium::FIBER && decoded.phyAddress == 0);
+  CHECK(!decoded.autonegotiation && decoded.technologyMask == 4);
+  CHECK(!decoded.signalDetect && !decoded.autoMdix);
+  decode(0x1B03, 4);
+  CHECK(decoded.medium == Medium::FIBER && decoded.phyAddress == 1);
+  CHECK(!decoded.autonegotiation && decoded.technologyMask == 8);
+  CHECK(decoded.signalDetect && !decoded.autoMdix);
+
+  // All eight rows of the RGMII_EN/RMII_EN/XI_50 truth table (7-13).
+  struct InterfaceCase { uint16_t sor1; MacInterface interface; RmiiClock clock; bool autoMdix; };
+  const InterfaceCase interfaces[] = {
+    {0, MacInterface::MII, RmiiClock::UNSPECIFIED, false},
+    {0x0010, MacInterface::UNKNOWN, RmiiClock::UNSPECIFIED, false},
+    {0x0320, MacInterface::RMII, RmiiClock::LEADER_25MHZ, true},
+    {0x0330, MacInterface::RMII, RmiiClock::FOLLOWER_50MHZ, true},
+    {0x0100, MacInterface::RGMII, RmiiClock::UNSPECIFIED, false},
+    {0x0110, MacInterface::UNKNOWN, RmiiClock::UNSPECIFIED, false},
+    {0x0220, MacInterface::RGMII, RmiiClock::UNSPECIFIED, true},
+    {0x0230, MacInterface::UNKNOWN, RmiiClock::UNSPECIFIED, true}
+  };
+  for (const auto& row : interfaces) {
+    decode(row.sor1, 0);
+    CHECK(decoded.interface == row.interface && decoded.rmiiClock == row.clock);
+    CHECK(decoded.autoMdix == row.autoMdix && !decoded.signalDetect);
+  }
+
+  // Reserved high SOR2 and SOR1[3:2] do not describe a LED_1 strap.
+  struct LedCase { uint16_t sor1; uint8_t crsMode; bool testMode; uint8_t mask; };
+  const LedCase leds[] = {
+    {0x000C, 1, false, 5}, {0x004D, 2, true, 0},
+    {0x008E, 3, true, 0}, {0x00CF, 4, false, 15}
+  };
+  for (const auto& row : leds) {
+    decode(row.sor1, 0xFFF0);
+    CHECK(decoded.led0TestMode == row.testMode && decoded.crsMode == row.crsMode);
+    CHECK(decoded.technologyMask == row.mask && decoded.phyAddress == 0);
+  }
+
+  // A partial or historical capture cannot replace the caller's previous decoded result.
+  for (const bool stale : {false, true}) {
+    for (const bool firstValid : {false, true}) {
+      for (const bool secondValid : {false, true}) {
+        if (!stale && firstValid && secondValid) { continue; }
+        auto incomplete = sample;
+        incomplete.stale = stale;
+        incomplete.sor1Valid = firstValid;
+        incomplete.sor2Valid = secondValid;
+        incomplete.sor1 = 0xAB21;
+        incomplete.sor2 = 0x000A;
+        CHECK(!decodeDp83822Straps(incomplete, decoded));
+        CHECK(decoded.phyAddress == 0 && decoded.medium == Medium::COPPER);
+        CHECK(decoded.interface == MacInterface::MII && decoded.rmiiClock == RmiiClock::UNSPECIFIED);
+        CHECK(decoded.technologyMask == 15 && decoded.autonegotiation && !decoded.autoMdix);
+        CHECK(!decoded.signalDetect && !decoded.eeeEnabled && !decoded.fastLinkDrop);
+        CHECK(!decoded.led0TestMode && decoded.crsMode == 4);
+      }
+    }
+  }
+}
 } // namespace
 
 int main(int argc, char** argv) {
   const test::Suite suites[] = {
-    {"p25", testP25Identity}, {"decode", testDecode}, {"policy", testPolicy}, {"failures", testFailures},
+    {"p22_straps", testP22Straps}, {"p25", testP25Identity}, {"decode", testDecode},
+    {"policy", testPolicy}, {"failures", testFailures},
     {"lifecycle", testLifecycle}, {"ownership", testOwnership}, {"scan", testScan}
   };
   return test::runVariantSuites(argc, argv, suites);

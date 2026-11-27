@@ -184,3 +184,43 @@ ctest --test-dir build/p63-baseline -R '^((e_|ai_|ae_|p25_)?(identity|reset|link
 | SDK links | NOT RUN for this assessment. |
 | Remote CI | NOT RUN. Assigned to prompt 71. |
 | Physical | NOT RUN on any grade. The outstanding observations include reset/strap retention, successive MISR events and the RECR threshold. |
+
+## Phase (b) offline strap decoding
+
+The first implementation slice covers the decoding part of `straps` for
+all four DP83822 declarations. `decodeDp83822Straps` converts two current
+latches to pin functions without any bus access. Each two-bit field gives
+a mode number. Each pin has its own mapping from that number to functions.
+The decoder preserves the independent observations when LED_0 selects a
+test mode or XI_50 selects a reserved interface. A partial or stale pair
+cannot replace a prior result. LED_1 requires board evidence, and live
+copper startup still requires an independent CR2[14] read. Tables 7-10
+through 7-13 and 8-84/85 on PDF pages 49–51 and 90–91 supply the vectors.
+[Original tables](../../reference/source/TI-DP83822-SNLS505H.pdf)
+
+The wrapper verified a clean assessment checkpoint at
+`571751e833abd139c699a81df0493f58ce0280d0`. The lead owned the API,
+decoder and integration. One agent independently checked the PDF and
+reopened the three siblings' files listed above. Their revisions and clean
+status matched phase (a). TUSB32x's distinction between declared and
+observed values applies to this decoder. A second agent wrote the literal
+test vectors in `test/identity.cpp`. Both used the session model to check
+the per-pin encodings against the original tables.
+
+| Evidence | Slice result |
+| --- | --- |
+| Host | PASS, Windows x86-64, GNU 15.1.0 Release. Built `dp8382x_identity_tests` and `dp8382x_header_checks` in the phase (a) Ninja tree. The selection below passed 21/21, including all eight interface input combinations, the literal defaults and all seven stale/incomplete flag combinations. |
+| Portable consumer | PASS, tests-OFF Release build of `test/consumer`. Both existing consumer CTests passed. |
+| Exported package, SDK link, remote CI, physical | NOT RUN for this slice. CI belongs to prompt 71. Physical evidence remains pending per suffix. |
+
+```powershell
+cmake --build build/p63-baseline --parallel 4 --target dp8382x_header_checks dp8382x_identity_tests
+ctest --test-dir build/p63-baseline -R '^(p22_straps|(e_|ai_|ae_|p25_)?identity(_.*)?|dp8382x_identity_tests_failure_path)$' --output-on-failure --no-tests=error -j 3
+cmake -S test/consumer -B build/p63-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DDP8382X_BUILD_TESTS=OFF
+cmake --build build/p63-consumer --parallel 4
+ctest --test-dir build/p63-consumer --output-on-failure --no-tests=error
+```
+
+Continue phase (b) with exact-part identity and rejection fences. Keep startup
+and maintenance guarded while implementing live strap capture, CR2 medium
+verification and the remaining map-specific paths.
