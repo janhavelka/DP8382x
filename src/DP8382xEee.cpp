@@ -85,7 +85,7 @@ Status DP8382x::_validateFunctionalMode(const InitializeOptions& options) const 
   if (options.rxClock>PcsRxClock::STOPPABLE) {
     return Status::Error(Err::INVALID_PARAM,"Invalid PCS RX clock",static_cast<int32_t>(ParamDetail::ENUM_VALUE));
   }
-  if (options.rxClock!=PcsRxClock::RETAIN || options.reset==ResetKind::EEE_PCS) {
+  if (options.rxClock!=PcsRxClock::RETAIN || (options.reset==ResetKind::EEE_PCS && !isDp83822(_config.variant))) {
     if (_config.variant!=Variant::DP83825I) { return _unsupportedFeature(); }
     if (_config.rmiiClock==RmiiClock::LEADER_25MHZ && !_config.clockLossApproved &&
         (options.rxClock==PcsRxClock::STOPPABLE || options.reset==ResetKind::EEE_PCS)) {
@@ -260,6 +260,7 @@ Status DP8382x::takeResult(OperationToken token, OperationResult& result, Functi
 }
 
 Status DP8382x::_validateEee(const EeeSettings& settings) const noexcept {
+  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   if (settings.disableNextPageReception || !settings.shutdownRxDuringQuiet) {
     if (_config.variant != Variant::DP83825I) { return _unsupportedFeature(); }
     if (!settings.enabled) { return eeeConfig("EEE RX policy needs the enabled exact-part recipe"); }
@@ -498,6 +499,7 @@ Status DP8382x::_advanceEee(Status status,bool called,const MdioBatch& batch) no
 }
 
 Status DP8382x::readEeeStatus(EeeSnapshot& snapshot,const IoBudget& budget) noexcept {
+  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
   if (_active || _polling || (_operation.state==OperationState::RUNNING &&
       (_operation.phase==OperationPhase::WAIT || _result.nextPage.requested))) {
@@ -611,6 +613,7 @@ Status DP8382x::stopLpi(LpiResult& result,const IoBudget& budget) noexcept {
   return _setLpi(false,{},result,budget);
 }
 Status DP8382x::_setLpi(bool enabled,const LpiOptions& options,LpiResult& result,const IoBudget& budget) noexcept {
+  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
   if (_active || _polling || _operation.state==OperationState::RUNNING) { return eeeBusy(BusyDetail::OPERATION_ACTIVE); }
   if (_operation.state==OperationState::RESULT_PENDING) { return eeeBusy(BusyDetail::RESULT_PENDING); }

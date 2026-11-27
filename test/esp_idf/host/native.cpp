@@ -263,6 +263,40 @@ void p25NativeIsolationGuard() {
     }
 }
 void factory() {
+    for (auto grade : {Variant::DP83822I, Variant::DP83822H, Variant::DP83822IF, Variant::DP83822HF}) {
+        Host::reset();
+        Fixture f;
+        f.config.core.variant = grade;
+        f.config.core.dp83822Led1Mode = 4;
+        f.config.core.phyAddress = 1;
+        f.config.core.mdcHz = 40;
+        f.mac.registers[3] = 0xA240;
+        f.mac.extended[0x0467] = 0x0FE3; // Address 1, copper RMII, 25 MHz.
+        f.create();
+        uint64_t assertedAt = 0, releasedAt = 0;
+        BoardControl pins;
+        std::array<uint64_t*, 2> times{{&releasedAt, &assertedAt}};
+        pins.context = &times;
+        pins.setReset = [](void* p, bool asserted) {
+            auto& t = *static_cast<std::array<uint64_t*, 2>*>(p);
+            *t[asserted ? 1 : 0] = Host::state().nowUs;
+            return ESP_OK;
+        };
+        pins.assertionUs = 9;
+        assert(f.owner->prepareBoard(pins, 400000) == ESP_ERR_INVALID_ARG);
+        assert(!assertedAt && f.mac.frames.empty());
+        pins.assertionUs = 10;
+        pins.maxPolls = 1024;
+        assert(f.owner->prepareBoard(pins, 400000) == ESP_OK);
+        assert(assertedAt >= 200000 && releasedAt >= assertedAt + 10);
+        assert(f.bus.quietUntilUs >= releasedAt + 25000 && f.mac.frames.empty());
+        assert(f.owner->install(f.handle) == ESP_OK);
+        OperationToken token;
+        assert(f.owner->startInitialize({ResetKind::NONE}, {{800000, 128}, 10, 16}, token).inProgress());
+        const auto result = f.finish(token);
+        assert(result.identity.declaredVariant == grade && result.persistentRestored && !result.mutationPossible);
+        assert(f.mac.extended[0x030E] == 0x8400);
+    }
     p25Factory();
     p25NativeIsolationGuard();
     Host::reset(); Fixture f;
@@ -270,7 +304,7 @@ void factory() {
     for (auto grade : {Variant::DP83822I, Variant::DP83822H, Variant::DP83822IF, Variant::DP83822HF}) {
         auto probeOnly = f.config;
         probeOnly.core.variant = grade;
-        assert(Native::create(probeOnly, output) == ESP_ERR_NOT_SUPPORTED);
+        assert(Native::create(probeOnly, output) == ESP_ERR_INVALID_ARG);
         assert(output == reinterpret_cast<Native*>(0x1234) && f.mac.frames.empty() && Host::state().timerCreates == 0);
     }
     auto invalid = f.config; invalid.core.phyAddress = 32;

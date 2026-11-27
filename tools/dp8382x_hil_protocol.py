@@ -24,7 +24,7 @@ SYNTAX_REASONS = frozenset("empty command topic arity enum number nonce token_co
 _IDENTITY_FIELDS = frozenset("nonce library firmware tree sdk target backend clock variant interface address".split())
 _CONSOLE_FIELDS = frozenset({"console", "baud"})
 _IDENTITY_REQUIRED = frozenset({"target", "backend", "variant", "interface", "address"})
-_IDENTITY_OPTIONAL = frozenset({"firmware", "firmware_prefix", "tree", "sdk", "clock", "console", "baud", "rmii_role"})
+_IDENTITY_OPTIONAL = frozenset({"firmware", "firmware_prefix", "tree", "sdk", "clock", "console", "baud", "rmii_role", "medium"})
 _FIELD = re.compile(rb"([a-z][a-z0-9_]*)=([A-Za-z0-9_.:-]+)")
 _COMMAND = re.compile(r"[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)?", re.ASCII)
 _TOKEN = re.compile(r"[A-Za-z0-9_.:-]{1,64}", re.ASCII)
@@ -32,12 +32,14 @@ _DECIMAL = re.compile(r"0|-?[1-9][0-9]*", re.ASCII)
 _REVISION = re.compile(r"[0-9a-f]{7,64}", re.ASCII)
 _PAGES = re.compile(r"(?:[0-9A-F]{4}|----)+", re.ASCII)
 _TREES = {"clean", "dirty", "unknown"}
-_INTERFACES = {"MII", "RMII"}
+_INTERFACES = {"MII", "RMII", "RGMII"}
+DP83822 = frozenset({"DP83822I", "DP83822H", "DP83822IF", "DP83822HF"})
 # SNLS647I and SNLS783A PHYIDR2: BASIC then ENHANCED. AI and AE have
 # indistinguishable wire words. The firmware/board declaration binds the grade.
 PHY_ID2 = {"DP83826I": (0xA111, 0xA131), "DP83826E": (0xA111, 0xA131),
            "DP83826AI": (0xA114, 0xA134), "DP83826AE": (0xA114, 0xA134),
            "DP83825I": (0xA140,)}  # SNLS638C table 7-6, no BASIC/ENHANCED distinction.
+PHY_ID2.update(dict.fromkeys(DP83822, (0xA240,)))
 VARIANTS = frozenset(PHY_ID2)
 
 
@@ -123,6 +125,11 @@ def _keys(fields: dict[str, str], payload: frozenset[str] = frozenset()) -> None
 
 
 def _rmii_declaration(fields):
+    if fields.get("variant") in DP83822:
+        if fields.get("medium") != "copper":
+            raise ProtocolError("DP83822 copper evidence requires its declared medium")
+    elif "medium" in fields or fields.get("interface") == "RGMII":
+        raise ProtocolError("unexpected medium or RGMII declaration for this part")
     if fields.get("variant") == "DP83825I":
         if fields.get("interface") != "RMII" or fields.get("rmii_role") not in ("leader", "follower"):
             raise ProtocolError("DP83825I requires RMII and an explicit leader or follower role")
@@ -135,6 +142,8 @@ def _wire_identity(fields: dict[str, str]) -> None:
     required = _IDENTITY_FIELDS | _CONSOLE_FIELDS if has_console else _IDENTITY_FIELDS
     if fields.get("variant") == "DP83825I":
         required = required | {"rmii_role"}
+    if fields.get("variant") in DP83822:
+        required = required | {"medium"}
     _keys(fields, required)
     _rmii_declaration(fields)
     for name in ("nonce", "firmware", "sdk", "target", "backend", "clock"):
@@ -210,7 +219,7 @@ def identity(record: Record, expected: dict[str, object]) -> dict[str, object]:
     """Return verified observed identity, with explicit exact, prefix, or unverified strength."""
     validate_expected_identity(expected)
     observed = observed_identity(record)
-    for name in ("target", "backend", "variant", "interface", "address", "tree", "sdk", "clock", "console", "baud", "rmii_role"):
+    for name in ("target", "backend", "variant", "interface", "address", "tree", "sdk", "clock", "console", "baud", "rmii_role", "medium"):
         value = expected.get(name)
         if value is not None and observed.get(name) != value:
             raise ProtocolError(f"firmware identity mismatch: {name}")

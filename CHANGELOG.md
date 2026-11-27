@@ -3,7 +3,11 @@
 ## Unreleased
 
 - Add portable identity probes for board-declared DP83822I/H/IF/HF on copper
-  MII, RMII and RGMII. Startup and feature access remain gated.
+  MII, RMII and RGMII. Copper initialization checks both strap latches,
+  the board's LED_1 declaration and the live CR2 medium. Add copper reset,
+  link configuration and observation, interrupt service and counter collection.
+  The native adapter uses the DP83822 200 ms POR and 10-microsecond reset pulse limits.
+  The shared CLI and offline runner distinguish each declared grade.
 
 - Add bounded live capture and offline decoding of DP83822 strap latches,
   including address, strapped medium, advertised or forced modes, interface

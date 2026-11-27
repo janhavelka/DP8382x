@@ -61,6 +61,7 @@ bool prefixComplete(const MdioBatch& batch,const BatchResult& receipt,uint8_t la
 }
 
 Status DP8382x::_validatePins(const PinSettings& settings) const noexcept {
+  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   const auto syntax=pinSyntax(settings); if (!syntax.ok()) { return syntax; }
   if (!settings.maintenanceAdmitted || !settings.macStopped || !settings.outputsQuiesced) {
     return pinConfig("Pin changes require stopped MAC and quiesced output admission");

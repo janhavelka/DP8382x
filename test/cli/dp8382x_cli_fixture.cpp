@@ -76,6 +76,7 @@ bool parseOptions(int argc, char** argv, Options& options) {
     if (option == "--trace-resets") { options.traceResets = true; continue; }
     if (option == "--trace-writes") { options.traceWrites = true; continue; }
     if (option == "--fiber") { options.medium = Medium::FIBER; continue; }
+    if (option == "--rgmii") { options.interface = MacInterface::RGMII; continue; }
     if (option == "--mii") { options.interface = MacInterface::MII; continue; }
     if (option == "--hold-tdr") { options.holdTdr = true; continue; }
     if (option == "--attest-features") { options.attestFeatures = true; continue; }
@@ -86,6 +87,10 @@ bool parseOptions(int argc, char** argv, Options& options) {
       if (value == "DP83826I") options.variant = Variant::DP83826I;
       else if (value == "DP83826E") options.variant = Variant::DP83826E;
       else if (value == "DP83826AI") options.variant = Variant::DP83826AI;
+      else if (value == "DP83822I") options.variant = Variant::DP83822I;
+      else if (value == "DP83822H") options.variant = Variant::DP83822H;
+      else if (value == "DP83822IF") options.variant = Variant::DP83822IF;
+      else if (value == "DP83822HF") options.variant = Variant::DP83822HF;
       else if (value == "DP83825I") options.variant = Variant::DP83825I;
       else if (value == "DP83826AE") options.variant = Variant::DP83826AE;
       else return false;
@@ -115,7 +120,10 @@ bool parseOptions(int argc, char** argv, Options& options) {
   if (options.variant == Variant::DP83825I)
     return options.interface == MacInterface::RMII && options.rmiiClock != RmiiClock::UNSPECIFIED &&
            (options.campaignMode.empty() || options.campaignMode == "none");
-  return options.rmiiClock == RmiiClock::UNSPECIFIED && !options.sorFollower && !options.rcsrFollower &&
+  if (isDp83822(options.variant))
+    return options.medium == Medium::COPPER && options.rmiiClock == RmiiClock::UNSPECIFIED &&
+           !options.sorFollower && !options.rcsrFollower && (options.campaignMode.empty() || options.campaignMode == "none");
+  return options.interface != MacInterface::RGMII && options.rmiiClock == RmiiClock::UNSPECIFIED && !options.sorFollower && !options.rcsrFollower &&
          options.campaignMode != "none";
 }
 
@@ -133,7 +141,7 @@ struct Bus {
   std::optional<uint64_t> failOnce;
   bool holdReset{false}, regressHard{false}, traceResets{false}, linkLatchedLow{false}, isolated{false};
   bool traceWrites{false}, holdTdr{false};
-  bool campaign{false}, aGrade{false}, basic{false}, p25{false};
+  bool campaign{false}, aGrade{false}, basic{false}, p25{false}, p22{false};
   uint16_t rcsrReset{0};
   uint16_t peer{0};
   uint64_t peerReadyUs{0};
@@ -165,7 +173,7 @@ struct Bus {
     vendor[0x0308] = 0x0002;
     vendor[0x0456] = 0x0008;
     vendor[0x04A0] = basic ? 0x1000 : 0x1081;
-    vendor[0x04A1] = 0x1000;
+    vendor[0x04A1] = p22 ? 0 : 0x1000;
     for (unsigned address = 0x04A2; address <= 0x04A7; ++address) vendor[address] = 0;
   }
 
@@ -184,6 +192,8 @@ struct Bus {
     basic = options.campaignMode == "basic";
     aGrade = options.variant == Variant::DP83826AI || options.variant == Variant::DP83826AE;
     words[3] = aGrade ? (basic ? 0xA114 : 0xA134) : (basic ? 0xA111 : 0xA131);
+    p22 = isDp83822(options.variant);
+    if (p22) words[3] = 0xA240;
     p25 = options.variant == Variant::DP83825I;
     if (p25) words[3] = 0xA140; // SNLS638C table 7-6.
     words[4] = 0x01E1;
@@ -217,6 +227,11 @@ struct Bus {
       vendor[0x0467] = options.sorFollower.value_or(follower) ? 0x0008 : 0;
       words[23] = rcsrReset = options.rcsrFollower.value_or(follower) ? 0x00ED : 0x006D;
     }
+    if (p22) {
+      vendor[0x0467] = options.interface == MacInterface::MII ? 0x0FC3 :
+                       options.interface == MacInterface::RMII ? 0x0FE3 : 0x0DC3;
+      vendor[0x0468] = 0;
+    }
     if (aGrade) {
       // Model a sampled RMII leader or MII. SNLS783A tables 8-13/88/89.
       const bool rmii = options.interface == MacInterface::RMII;
@@ -226,7 +241,7 @@ struct Bus {
     }
     // Inject a pending indication at fixture entry only. HARD reloads the A strap profile.
     vendor[0x04A0] = aGrade ? static_cast<uint16_t>(vendor[0x04A0] | 0x0800U) : 0x1881;
-    vendor[0x04A1] = 0x1000;
+    vendor[0x04A1] = p22 ? 0 : 0x1000;
     vendor[0x04D1] = 0x0080;
     if (options.partner == Partner::DOWN) return;
     if (options.partner == Partner::PENDING) {
@@ -260,8 +275,9 @@ struct Bus {
                                (peer & 1U) != 0U && (peer & forced) != 0U;
       const bool up = nowUs >= peerReadyUs && (negotiation ? common != 0U : !an && (peer == forced || reversePeer));
       const bool complete = up && negotiation;
-      const bool speed10 = (common & 0x0180U) == 0U;
-      const bool full = (common & 0x0100U) != 0U || (speed10 && (common & 0x0040U) != 0U);
+      const auto resolved = p22 && !an ? forced : common;
+      const bool speed10 = (resolved & 0x0180U) == 0U;
+      const bool full = (resolved & 0x0100U) != 0U || (speed10 && (resolved & 0x0040U) != 0U);
       words[1] = static_cast<uint16_t>((up ? 4U : 0U) | (complete ? 0x20U : 0U));
       words[5] = complete ? peer : 0;
       words[6] = complete ? 1 : 0;
@@ -280,7 +296,7 @@ struct Bus {
         }
         break;
       case 23:
-        if (p25) words[address] &= 0xFFF3U;
+        if (p25 || p22) words[address] &= 0xFFF3U;
         break;
       case 15: words[address] &= 0xFE0FU; break;
       case 12: if (p25) words[address] &= 0x00FFU; break;
@@ -341,6 +357,11 @@ struct Bus {
         if (value == 0x8000U) {
           words[0] = 0x3100;
           words[17] = 0;
+          if (p22) {
+            words[9] = words[10] = words[11] = words[18] = words[19] = 0;
+            words[25] = 0x8001;
+            vendor[0x04A1] = 0;
+          }
           if (aGrade) resetAControls();
           if (p25) words[23] = rcsrReset;
           words[22] = 0x0100;
@@ -377,10 +398,11 @@ struct Bus {
         value = static_cast<uint16_t>((value & 0xF7FFU) | (value & vendor[target] & 0x0800U));
         if ((value & 0x0080U) != 0U) vendor[0x04A1] |= 0x1000U;
       }
+      if (p22 && target == 0x04A1U) value = (value & 0x1000U) | ((value | vendor[target]) & 0x00E3U);
       vendor[target] = value;
       return;
     }
-    if (p25 && devad == 3U && target == 0U && (value & 0x8000U)) {
+    if ((p22 || p25) && devad == 3U && target == 0U && (value & 0x8000U)) {
       for (auto& reg : extended) {
         if (reg.devad == 3U && reg.offset != 20U) reg.value = 0;
         if (reg.devad == 7U && reg.offset == 60U) reg.value = 0;
@@ -466,6 +488,7 @@ public:
     config.rmiiClock = _options.rmiiClock;
     config.clockLossApproved = _options.attestFeatures; // Isolated simulated reference and recovery route.
     config.medium = _options.medium;
+    if (isDp83822(config.variant)) config.dp83822Led1Mode = 1;
     config.phyAddress = PHY_ADDRESS;
     config.transport = {&_bus, Bus::execute, Bus::clock, {8, 4, 1}};
     if (!_driver->bind(config).ok()) return false;
@@ -758,9 +781,9 @@ private:
 
 int main(int argc, char** argv) {
   constexpr const char* usage =
-      "Usage: dp8382x_cli_fixture [--identity TOKEN] [--variant DP83826I|DP83826E|DP83826AI|DP83826AE|DP83825I] [--rmii-role leader|follower] [--sor-role leader|follower] [--rcsr-role leader|follower] [--partner down|pending|100-full|10-half] "
+      "Usage: dp8382x_cli_fixture [--identity TOKEN] [--variant DP83826I|DP83826E|DP83826AI|DP83826AE|DP83825I|DP83822I|DP83822H|DP83822IF|DP83822HF] [--rmii-role leader|follower] [--sor-role leader|follower] [--rcsr-role leader|follower] [--partner down|pending|100-full|10-half] "
       "[--fail-after N] [--reboot-after N] [--partial-record] [--deny-maintenance|--no-maintenance] "
-      "[--hold-reset] [--regress-after-hard] [--trace-resets] [--trace-writes] [--mii] [--fiber] [--hold-tdr] "
+      "[--hold-reset] [--regress-after-hard] [--trace-resets] [--trace-writes] [--mii|--rgmii] [--fiber] [--hold-tdr] "
       "[--attest-features] [--campaign basic|enhanced|none] [--campaign-peer PROFILE]\n";
   if (argc == 2 && std::string_view(argv[1]) == "--help") {
     std::fputs(usage, stdout);

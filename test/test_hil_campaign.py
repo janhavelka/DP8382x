@@ -232,6 +232,20 @@ class CompiledCampaignTests(unittest.TestCase):
             self.assertIn("identity mismatch: variant", " ".join(data["issues"]))
             self.assertEqual(len(data["commands"]), 1)
 
+    def test_p22_copper_campaign_receipts(self):
+        for name, grade, interface in (("observe", "DP83822I", "RGMII"),
+                                       ("hard", "DP83822H", "RMII"),
+                                       ("forced-10-half", "DP83822HF", "MII"),
+                                       ("an-100-full", "DP83822IF", "RMII")):
+            with self.subTest(grade=grade, case=name):
+                args = ("--fixture-variant", grade, "--variant", grade, "--medium", "copper",
+                        "--interface", interface, "--operating-mode", "none")
+                result, data, raw = self.run_case(name, "-822-" + grade, args)
+                self.assertEqual((result, data["verdict"]), (0, "PASS"), (data["issues"], data["cases"]))
+                self.assertEqual(replay(data, decoded(raw)), "PASS")
+                self.assertEqual(data["identity"]["medium"], "copper")
+                self.assertNotIn("registers read mmd 31 0x030E", data["commands"])
+
     def test_p25_roles_and_exact_part_replay(self):
         for role, other in (("leader", "follower"), ("follower", "leader")):
             args = ("--fixture-variant", "DP83825I", "--variant", "DP83825I", "--operating-mode", "none",

@@ -207,10 +207,10 @@ struct EvidenceSample {
   bool samplesSaturated{false}; ///< Sticky: the retained sample count could no longer advance.
   uint16_t eventBits{0}; ///< Sticky sourced event bits, separate from current raw controls/status.
   bool coalesced{false}; ///< Event occurrence seen; hardware latches cannot prove multiplicity.
-  uint64_t sampledSum{0}; ///< FCSCR low-byte sum only; RECR arithmetic is source-gated and remains zero.
+  uint64_t sampledSum{0}; ///< FCSCR low-byte sum or DP83822 RECR full-word sum.
   bool sumSaturated{false}; ///< Sticky arithmetic overflow; sampledSum is then a lower bound.
-  bool counterSaturated{false}; ///< Sticky FCSCR FF sample: hardware stopped counting at saturation.
-  bool counterLowerBound{false}; ///< FCSCR sum has saturation, lost-history or discontinuity evidence.
+  bool counterSaturated{false}; ///< Hardware saturated at FCSCR FF or DP83822 RECR FFFF.
+  bool counterLowerBound{false}; ///< Count sum has saturation, lost-history or discontinuity evidence.
   bool discontinuous{false}; ///< Reset/external or configuration uncertainty crossed retained history.
   uint64_t observedAtUs{0}; ///< Conservative completion bound in the binding clock domain.
   bool valid{false}; ///< At least one independently valid word has been retained.
@@ -246,7 +246,7 @@ struct CounterSnapshot {
   uint16_t rawMisr1{0}; ///< Current returned events plus enables, not lifetime OR.
   uint16_t rawMisr2{0}; ///< Current events/enables; bit 0200 remains polarity-or-WoL.
   uint16_t rawFcscr{0}; ///< Full returned false-carrier word including reserved bits.
-  uint16_t rawRecr{0}; ///< Raw receive-error word; width/saturation conflict forbids arithmetic.
+  uint16_t rawRecr{0}; ///< Raw receive-error word. DP83822 counts all 16 bits.
   uint16_t misr1Events{0}; ///< This pass's high-byte MISR1 events, with named cmd masks.
   uint16_t misr2Events{0}; ///< This pass's high-byte MISR2 events; shared source is unclassified.
   uint16_t fldCauses{0}; ///< This pass's FLDS causes under mask 01F0.
@@ -315,7 +315,7 @@ enum class ResetKind : uint8_t {
   PCS, ///< Reset PCS registers, retaining vendor registers.
   HARD, ///< Reset all registers; eligible straps may resample (Q5 open).
   RESTART, ///< Restart PHY circuitry, retaining register configuration.
-  EEE_PCS ///< DP83825I MMD3:0000[15] resets IEEE MMD3/MMD7 and PCS. Vendor programming remains.
+  EEE_PCS ///< DP83825I and DP83822 MMD3:0000[15] resets IEEE MMD3/MMD7 and PCS. Vendor programming remains.
 };
 /// @brief Observable procedure phase; waits never retain a controller lock.
 enum class OperationPhase : uint8_t {
@@ -745,6 +745,8 @@ struct InterruptSnapshot {
   InterruptSharedSource selector{InterruptSharedSource::UNKNOWN}; ///< Current attribution context; unknown through transitions.
   bool testMayBeActive{false}; ///< Accepted/uncertain stimulus until explicit clear or reset restoration.
   Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No interrupt configuration"}; ///< Last policy/stimulus outcome.
+  bool misr1EnablesKnown{false}; ///< DP83822 MISR1 mask installation known after a confirmed write, uncertain after read.
+  bool misr2EnablesKnown{false}; ///< DP83822 MISR2 mask installation known after a confirmed write, uncertain after read.
 };
 /// @brief Bounds for a single owner service pass, never an unlimited drain.
 struct InterruptServiceBudget {
@@ -761,7 +763,7 @@ struct InterruptServiceSnapshot {
   EvidenceSample misr1{}; ///< Latest word plus sample identity and retained history.
   EvidenceSample misr2{}; ///< Latest word plus sample identity, history and selector context.
   EvidenceSample fcscr{}; ///< Optional half-full sample and qualified lower-bound accumulation.
-  EvidenceSample recr{}; ///< Optional raw half-full sample; arithmetic remains gated.
+  EvidenceSample recr{}; ///< Raw sample requested by a RECR event. Only DP83822 accumulates its full width.
   bool fcscrRequested{false}; ///< Current or retained FCSCR request serviced in this pass.
   bool recrRequested{false}; ///< Current or retained RECR request serviced in this pass.
   Status lastStatus{Err::RESULT_NOT_AVAILABLE,0,"No interrupt service"}; ///< Failed refresh leaves cached values stale.
@@ -828,6 +830,17 @@ struct StrapEvidence {
   bool stale{true}; ///< Reset or partial recapture can mix historical/current words.
   uint16_t rcsr{0}; ///< DP83825I direct RCSR sample, including consumed FIFO indications.
   bool rcsrValid{false}; ///< RCSR was captured; a stale operation result can retain the pre-reset word.
+};
+
+/// @brief Independent live DP83822 CR2[14] observation from SNLS505H table 8-11.
+struct Dp83822Medium {
+  uint16_t cr2{0}; ///< Raw completed CR2 read, including on release failure.
+  bool valid{false}; ///< A complete word was returned in this observation.
+  bool stale{true}; ///< Incomplete acquisition or invalidated device epoch.
+  uint64_t observedAtUs{0}; ///< Conservative completion time in microseconds when current.
+  /// @brief Decode the FX enable bit in a valid CR2 word.
+  /// @return FIBER for bit 14 set, COPPER for bit 14 clear.
+  Medium medium() const noexcept { return (cr2 & 0x4000U) ? Medium::FIBER : Medium::COPPER; }
 };
 
 /// @brief DP83822 settings sampled at strap latch-in (SNLS505H tables 7-10..13).
@@ -1104,6 +1117,7 @@ struct Tx100Settings {
   bool scramblerBypass{false}; ///< Coordinated test/partner use, never normal default policy.
   uint8_t fifoDepthCode{0}; ///< Far-end loopback FIFO: codes 0/1/2/3 select 4/5/6/8 nibbles.
   bool rxErrorDuringIdle{false}; ///< CR2[2], independent of odd-nibble and GENCFG IPG.
+  bool forceFarEndDrop{false}; ///< DP83822 100BASE-TX far-end link drop control, explicitly owned.
 };
 /// @brief Owned 10BASE-Te controls; SNLS647I tables 8-44/51.
 struct Tx10Settings {
@@ -2010,6 +2024,15 @@ public:
   /// @note Uses vendor MMD selectors. Active medium and LED_1 strap mode require separate evidence.
   Status captureDp83822Straps(const IoBudget& budget, bool* invoked = nullptr) noexcept;
 
+  /// @brief Sample active DP83822 medium after accepted identity under the idle owner.
+  /// @param[in] budget Exclusive absolute microsecond deadline and at least one Clause 22 frame.
+  /// @param[out] invoked Optional terminal callback receipt, cleared on local denial.
+  /// @return Transport or admission status. A completed word survives a late or failed release as stale.
+  Status observeDp83822Medium(const IoBudget& budget, bool* invoked = nullptr) noexcept;
+  /// @brief Copy the most recent live CR2 evidence under the owner, without I/O.
+  /// @return Independent raw word, freshness and completion time.
+  Dp83822Medium dp83822MediumSnapshot() const noexcept { return _dp83822Medium; }
+
   /// @brief Return the cached strap capture under the application owner without I/O.
   /// @return Independently valid SOR words for this binding and reset epoch.
   StrapEvidence strapSnapshot() const noexcept { return _straps; }
@@ -2132,7 +2155,7 @@ public:
   /// @return Same admission/errors as acquireEvidence; partial receipts remain immediately cached.
   /// @pre Serialized exact-part diagnostic owner, including all other controller users.
   /// @note Tables 8-33..39. No implicit RXFS read, drain, retry or counter reset.
-  /// FCSCR FF is a lower bound; RECR remains raw under Q16. No MDIO-health accounting claim.
+  /// FCSCR FF and DP83822 RECR FFFF indicate saturation. Other maps retain RECR under Q16. No MDIO-health accounting claim.
   Status collectEvents(CounterSnapshot& snapshot, const IoBudget& budget,
                        bool* invoked = nullptr) noexcept;
   /// @brief Copy last complete event/counter aggregate without bus/clock callbacks.
@@ -2306,7 +2329,7 @@ private:
   enum class InterruptStep : uint8_t {
     IDENTIFY, PIN_CLOCK, PIN_MUX, PIN_APPLY, PIN_VERIFY, CHECK_TEST, DISABLE, DRAIN,
     SELECT, VERIFY_SELECT, CROSSING, MASK1, MASK2, OUTPUT, ENABLE,
-    VERIFY1, VERIFY2, VERIFY_CONTROL, TEST_WRITE, TEST_VERIFY
+    VERIFY1, VERIFY2, VERIFY_CONTROL, TEST_WRITE, TEST_VERIFY, INSTALL1, INSTALL2
   };
   InterruptStep _interruptStep{InterruptStep::IDENTIFY};
   InterruptSnapshot _interrupts{};
@@ -2375,6 +2398,7 @@ private:
   const detail::PartProfile* _part{nullptr};
   Config _config{};
   StrapEvidence _straps{};
+  Dp83822Medium _dp83822Medium{};
   HealthSnapshot _health{};
   TransportSnapshot _transport{};
   EvidenceSnapshot _evidence{};
@@ -2401,7 +2425,7 @@ private:
   uint16_t _pageEventRaw{0};
   enum class InitStep : uint8_t {
     IDENTIFY, SOR1, SOR2, CHECK_RESET, CHECK_PHYRCR, COMMAND, WAIT_EXISTING, WAIT_PHYRCR, WAIT_COMMAND,
-    REIDENTIFY, RESOR1, RESOR2, APPLY, VERIFY
+    REIDENTIFY, RESOR1, RESOR2, APPLY, VERIFY, COPPER_MEDIUM, RECHECK_MEDIUM, CHECK_MMD3, WAIT_MMD3
   };
   OperationSnapshot _operation{};
   OperationResult _result{};
@@ -2419,7 +2443,7 @@ private:
   bool _timeValid{false};
   uint64_t _lastTimeUs{0};
   Status _sampleTime(uint64_t& raw, uint64_t& upper) noexcept;
-  enum class Traffic : uint8_t { RAW, MANAGED, DP83822_STRAP_CAPTURE };
+  enum class Traffic : uint8_t { RAW, MANAGED, DP83822_OBSERVATION, DP83822_COPPER, DP83822_MANAGED };
   Traffic _operationTraffic() const noexcept;
   bool _featureProcedureActive() const noexcept;
   Status _execute(MdioBatch batch, const IoBudget& budget, bool* called = nullptr,
@@ -2432,6 +2456,11 @@ private:
   void _invalidateEvidence() noexcept;
   void _markEvidenceDiscontinuous() noexcept;
   void _invalidateLink() noexcept;
+  Status _admitDp83822Observation() const noexcept;
+  Status _dp83822BoardStatus() const noexcept;
+  Status _dp83822CopperReady() const noexcept;
+  MdioBatch _dp83822StrapBatch() const noexcept;
+  void _retainDp83822Straps(const MdioBatch& batch, Status status) noexcept;
   Status _dp83822FeatureGate() const noexcept;
   Status _checkMutation() noexcept;
   Status _checkToken(OperationToken token) const noexcept;
@@ -2457,6 +2486,8 @@ private:
   }
   Status _admitPin2Output() const noexcept;
   ConfigurationMismatch _clockRoleMismatch() const noexcept;
+  void _invalidateDp83822Copper() noexcept;
+  void _invalidateDp83822Pcs() noexcept;
   void _invalidateResetEvidence(bool configurationLost) noexcept;
   MdioBatch _configurationBatch() const noexcept;
   Status _advanceConfiguration(Status status, bool called, const MdioBatch& batch) noexcept;

@@ -156,7 +156,12 @@ void grammar() {
   Identity identity;
   for (auto grade : {Variant::DP83822I, Variant::DP83822H, Variant::DP83822IF, Variant::DP83822HF}) {
     identity.variant = grade;
+    Processor p22;
+    identity.interface = MacInterface::RGMII;
+    assert(p22.setup(platform, identity));
+    identity.medium = Medium::FIBER;
     assert(!s.cli.setup(platform, identity));
+    identity.medium = Medium::COPPER;
   }
   identity.variant = Variant::UNKNOWN;
   identity.firmware = "bad identity\n";

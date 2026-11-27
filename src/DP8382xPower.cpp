@@ -21,6 +21,7 @@ uint16_t DP8382x::_softwarePowerWord() const noexcept {
   return _power.desiredValid && _power.requestedPowerDown ? uint16_t{0x0800} : uint16_t{0};
 }
 Status DP8382x::_validatePower(const PowerSettings& s) const noexcept {
+  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   if (s.request>PowerRequest::DEEP_POWER_DOWN) {
     return Status::Error(Err::INVALID_PARAM,"Invalid power request",static_cast<int32_t>(ParamDetail::ENUM_VALUE));
   }
@@ -284,6 +285,7 @@ Status DP8382x::_advancePower(Status status,bool called,const MdioBatch& batch) 
   return _operation.status;
 }
 Status DP8382x::readPowerStatus(PowerSnapshot& snapshot,const IoBudget& budget) noexcept {
+  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   // _execute enforces the same OP14/raw-read guards and collector ownership.
   if (_active || _polling) { return Status::Error(Err::BUSY,"Power owner active",static_cast<int32_t>(BusyDetail::OPERATION_ACTIVE)); }
   const bool p25=_config.variant==Variant::DP83825I;

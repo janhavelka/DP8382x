@@ -55,7 +55,13 @@ One eight-frame batch reads SOR1 and SOR2 under one lock. A local rejection
 preserves the previous snapshot. Once the callback runs, `strapSnapshot()`
 contains only words returned in the completed prefix of that attempt. A
 failed or late batch marks them stale and has no valid capture timestamp.
-Only success publishes a current pair. Current medium requires CR2[14].
+Only success publishes a current pair. `observeDp83822Medium` independently
+reads Clause 22 CR2[14] under the same owner after identity acceptance.
+`dp83822MediumSnapshot()` exposes the raw word and its validity and staleness.
+An admitted failure replaces the current observation. Startup checks both
+sources against declared copper and checks interface, address, test straps
+and an explicitly declared RMII clock role. An absent LED_1 attestation
+allows the standalone probe and observations. Initialize requires mode 1 or 4.
 
 `decodeDp83822Straps(capture, output)` accepts a current pair of valid SOR
 words captured from a known DP83822. It performs no I/O. An incomplete or

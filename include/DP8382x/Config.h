@@ -97,6 +97,7 @@ struct Advertisement {
   uint8_t technologyMask{0}; ///< Nonempty LINK_* subset for active AN.
   bool symmetricPause{false}; ///< ANAR symmetric pause request.
   bool asymmetricPause{false}; ///< ANAR asymmetric pause request.
+  bool remoteFault{false}; ///< Advertise a local fault on DP83822 ANAR[13].
 };
 
 /// @brief Forced link intent; both fields must be known when active.
@@ -109,8 +110,9 @@ struct ForcedLinkSettings {
 struct CrossoverSettings {
   PairSelection pairSelection{PairSelection::AUTOMATIC}; ///< Routing policy.
   bool robust{true};       ///< Required for forced mode on original DP83826I/E.
-  bool swapPair{false};    ///< Coupled CR3 port mirror; must equal swapPolarity.
-  bool swapPolarity{false};///< Both true select table 8-30 mirror 0060; single-bit requests reject.
+  bool swapPair{false};    ///< CR3 pair swap. Coupled to polarity on DP83825/26.
+  bool swapPolarity{false};///< CR3 polarity swap. Independent on DP83822.
+  bool fast{false}; ///< DP83822 fast Auto-MDIX for matched forced 100 Mbit/s peers.
 };
 
 /// @brief Persistent desired link settings, not verified hardware state.
@@ -120,6 +122,10 @@ struct LinkSettings {
   ForcedLinkSettings forced{};           ///< Active only for forced mode.
   CrossoverSettings crossover{};         ///< Coupled routing intent.
   bool extendedFullDuplex{false};        ///< CR2[5] opt-in; incompatible with forced 10, no partner preflight.
+  bool fastAutoNegotiation{false}; ///< Enable DP83822 fast AN with a matched peer.
+  uint8_t fastAutoNegotiationCode{0}; ///< DP83822 CR1[3:2] timer code 0..2.
+  bool fastParallelDetect{false}; ///< DP83822 CR2[6]. Robust or fast Auto-MDIX can also set this bit.
+  bool peerFastModeConfirmed{false}; ///< Application confirms compatible peer settings for requested fast operation.
 };
 
 /// @brief Identify an A-generation declaration without probing the PHY.
@@ -152,12 +158,15 @@ inline constexpr bool isValidPhyAddress(uint32_t phyAddress) noexcept {
   return phyAddress <= 31U;
 }
 
+/// @cond INTERNAL
+namespace detail {
 /// @brief Check typed link intent without I/O, clock access or mutation.
 /// @param[in] settings Desired settings; every enum is checked, including inactive fields.
+/// @param[in] dp83822 Allow independent CR3 swap controls.
 /// @return OK for pure legal intent, INVALID_PARAM/ENUM_VALUE for invalid enum
 /// storage, or INVALID_CONFIG/LINK_COMBINATION for inconsistent fields.
 /// @note OK does not establish silicon state or clear later source/board gates.
-inline constexpr Status validateLinkSettings(const LinkSettings& settings) noexcept {
+inline constexpr Status validateLinkIntent(const LinkSettings& settings, bool dp83822) noexcept {
   if ((settings.mode != LinkMode::AUTONEGOTIATED && settings.mode != LinkMode::FORCED) ||
       (settings.forced.speed != LinkSpeed::UNKNOWN &&
        settings.forced.speed != LinkSpeed::MBPS_10 &&
@@ -177,7 +186,13 @@ inline constexpr Status validateLinkSettings(const LinkSettings& settings) noexc
     return Status::Error(Err::INVALID_CONFIG, "Invalid technology mask",
                          static_cast<int32_t>(ConfigDetail::LINK_COMBINATION));
   }
-  if (settings.crossover.swapPair != settings.crossover.swapPolarity) {
+  if (!dp83822 && (settings.advertisement.remoteFault || settings.crossover.fast ||
+      settings.fastAutoNegotiation || settings.fastAutoNegotiationCode || settings.fastParallelDetect ||
+      settings.peerFastModeConfirmed)) {
+    return Status::Error(Err::INVALID_CONFIG, "Fast options or fault advertisement require DP83822",
+                         static_cast<int32_t>(ConfigDetail::LINK_COMBINATION));
+  }
+  if (!dp83822 && settings.crossover.swapPair != settings.crossover.swapPolarity) {
     return Status::Error(Err::INVALID_CONFIG, "Port mirror requires both CR3 controls",
                          static_cast<int32_t>(ConfigDetail::LINK_COMBINATION));
   }
@@ -194,11 +209,21 @@ inline constexpr Status validateLinkSettings(const LinkSettings& settings) noexc
       (settings.extendedFullDuplex && settings.forced.speed == LinkSpeed::MBPS_10) ||
       settings.advertisement.technologyMask != 0U ||
       settings.advertisement.symmetricPause ||
-      settings.advertisement.asymmetricPause) {
+      settings.advertisement.asymmetricPause || settings.advertisement.remoteFault) {
     return Status::Error(Err::INVALID_CONFIG, "Invalid forced link combination",
                          static_cast<int32_t>(ConfigDetail::LINK_COMBINATION));
   }
   return Status::Ok();
+}
+
+} // namespace detail
+/// @endcond
+
+/// @brief Validate common link settings under original-map rules.
+/// @param[in] settings Application link intent.
+/// @return Local validation status, without I/O.
+inline constexpr Status validateLinkSettings(const LinkSettings& settings) noexcept {
+  return detail::validateLinkIntent(settings, false);
 }
 
 /// @brief Validate link intent including the declared part's forced-mode requirements.
@@ -333,11 +358,12 @@ struct Config {
   bool clockLossApproved{false}; ///< DP83825I leader owner permits an explicitly requested clock interruption.
   Medium medium{Medium::COPPER}; ///< Application-declared medium, validated before callbacks.
   uint32_t mdcHz{0}; ///< Optional declared controller rate in Hz. Zero uses the board's timing contract.
+  uint8_t dp83822Led1Mode{0}; ///< Board-attested LED_1 strap level 1..4. Zero allows observation only.
   /// @brief Get the minimum SMI silence after a pin-equivalent reset.
-  /// @return Microseconds from observed release; includes a declared DP83825I MDC period.
+  /// @return Microseconds from observed release; includes a declared DP83825I or DP83822 MDC period.
   /// @note With an undeclared rate the board supplies the idle MDC cycle itself.
   constexpr uint32_t hardResetQuietUs() const noexcept {
-    if (variant == Variant::DP83825I && mdcHz > 0 && mdcHz < 500) {
+    if ((variant == Variant::DP83825I || isDp83822(variant)) && mdcHz > 0 && mdcHz < 500) {
       return (1000000U + mdcHz - 1U) / mdcHz;
     }
     return 2000U;

@@ -1,5 +1,21 @@
 # Initialization and reset operations
 
+DP83822I/H/IF/HF copper initialization checks revision 0, captures SOR1/SOR2
+under one controller lock, reads CR2[14], and checks the board declaration.
+NONE also reads BMCR, PHYRCR and MMD 3 offset 0000 for active resets.
+With an empty owned profile this takes 17 frames and writes only MMD selectors.
+VERIFY checks all three reset registers. HARD writes C22 1F = 8000, enforces
+SMI silence, then reacquires identity, straps and live medium. C22 1F = 4000
+restarts digital logic while retaining registers. The mapping to the prose
+"soft reset" in section 7.4.4.2 is inferred. BMCR[15] resets PCS. MMD 3
+0000[15] resets MMD 3, MMD 7 and PCS. Both retain vendor registers and
+startup rechecks the copper configuration before replay. Cancelled or
+uncertain commands retain their cleanup obligation. On the native adapter
+allow 200 ms from power-on, at least 10 microseconds of RESET_N assertion, and 2 ms
+from release to SMI readiness plus any longer declared idle MDC period.
+The application owns clock stability, preamble and board evidence.
+[SNLS505H timing and reset tables](reference/source/TI-DP83822-SNLS505H.pdf)
+
 DP83825I checks the declared ID followed by vendor 31:0467 and direct
 RCSR (17h). `strapSnapshot()` and the operation result retain SOR1 and RCSR
 with separate validity flags. NONE, PCS, HARD and RESTART use this part's

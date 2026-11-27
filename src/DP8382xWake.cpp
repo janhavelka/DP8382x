@@ -36,6 +36,7 @@ bool completePrefix(const MdioBatch& batch,const BatchResult& result,uint8_t las
 }
 
 Status DP8382x::_validateWake(const WakeSettings& settings) const noexcept {
+  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   const auto syntax=wakeSyntax(settings); if (!syntax.ok()) { return syntax; }
   if (!settings.maintenanceAdmitted || !settings.receiveTrafficQuiesced) {
     return wakeConfig("Wake settings require quiesced receive traffic and maintenance admission");
@@ -129,6 +130,7 @@ Status DP8382x::startConfigureWake(const WakeSettings& settings,const OperationB
 }
 
 Status DP8382x::acknowledgeWake(const OperationBudget& budget,OperationToken& token) noexcept {
+  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   if (budget.pollIntervalUs==0U || budget.maxStalledPolls==0U) {
     return Status::Error(Err::INVALID_PARAM,"Invalid wake acknowledgement budget",static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
   }

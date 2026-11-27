@@ -37,6 +37,18 @@ bool qualityPrefix(const MdioBatch& batch,const BatchResult& receipt,uint8_t las
 Status DP8382x::_validateQuality(const QualitySettings& settings) const noexcept {
   const auto syntax=qualitySyntax(settings); if (!syntax.ok()) { return syntax; }
   const auto& fld=settings.fastDrop;
+  const bool dp83822=isDp83822(_config.variant);
+  if (dp83822 && (fld.rawThresholdOverride || settings.tx10.shortPreamble ||
+      settings.tx100.scramblerBypass || settings.tx100.fifoDepthCode!=0U || settings.tx100.rxErrorDuringIdle)) {
+    return _unsupportedFeature();
+  }
+  if (settings.tx100.forceFarEndDrop) {
+    if (!dp83822) { return _unsupportedFeature(); }
+    if (!settings.tx100.owned || !_settings.desiredValid ||
+        _settings.desired.mode!=LinkMode::FORCED || _settings.desired.forced.speed!=LinkSpeed::MBPS_100) {
+      return qualityConfig("Far-end link drop requires ownership and forced 100BASE-TX");
+    }
+  }
   if (_config.variant == Variant::DP83825I &&
       (fld.rawThresholdOverride || settings.tx10.shortPreamble || settings.recoveryOwned ||
        settings.tx100.scramblerBypass || settings.tx100.fifoDepthCode != 0U)) {
@@ -56,7 +68,7 @@ Status DP8382x::_validateQuality(const QualitySettings& settings) const noexcept
   if (!settings.maintenanceAdmitted || !settings.macStopped) {
     return qualityConfig("Quality mutation requires maintenance admission and stopped MAC traffic");
   }
-  if (fld.causeMask!=0U && (!fld.owned || (_config.variant!=Variant::DP83825I && _config.interface!=MacInterface::MII))) {
+  if (fld.causeMask!=0U && (!fld.owned || (!dp83822 && _config.variant!=Variant::DP83825I && _config.interface!=MacInterface::MII))) {
     return qualityConfig("Nonzero Fast Link Drop causes require owned MII policy");
   }
   if (!fld.rawThresholdOverride && (fld.windowCode!=1U || fld.errorThreshold!=1U || fld.descramblerThreshold!=8U)) {
@@ -69,7 +81,7 @@ Status DP8382x::_validateQuality(const QualitySettings& settings) const noexcept
       (!settings.recoveryOwned && settings.linkRecovery)) {
     return qualityConfig("A requested control requires its explicit owner");
   }
-  if (_config.variant!=Variant::DP83825I && settings.tx10.owned && !settings.partnerPreambleAdmitted) {
+  if (!dp83822 && _config.variant!=Variant::DP83825I && settings.tx10.owned && !settings.partnerPreambleAdmitted) {
     return qualityConfig("10M preamble policy requires partner admission");
   }
   if (_quality.desiredValid &&
@@ -94,6 +106,10 @@ Status DP8382x::startConfigureQuality(const QualitySettings& settings,const Oper
   if (_stopped) { return qualityBusy(BusyDetail::CONTROLLER_QUARANTINED); }
   if (_operation.cleanupOwed || _operation.temporaryMayBeActive) { return qualityBusy(BusyDetail::CLEANUP_REQUIRED); }
   if (!_initialized || !capabilities().valid) { return Status::Error(Err::NOT_INITIALIZED,"Initialize before quality configuration"); }
+  if (isDp83822(_config.variant)) {
+    const auto ready=_dp83822CopperReady();
+    if (!ready.ok()) { return ready; }
+  }
   const auto valid=_validateQuality(settings); if (!valid.ok()) { return valid; }
   if (!_otherControlsVerified(OperationKind::QUALITY_CONFIGURE)) { return qualityConfig("Verify other owned controls before quality changes"); }
   if (budget.io.maxFrames==0U || budget.io.deadlineUs==0U) {
@@ -112,6 +128,15 @@ bool DP8382x::_qualityRowValue(uint8_t row,uint16_t& address,uint16_t& mask,uint
   const auto& settings=_quality.desired;
   const auto& fld=settings.fastDrop;
   mask=value=0;
+  if (isDp83822(_config.variant)) {
+    // SNLS505H tables 8-10..12/26. This map has no 0117/0131 threshold
+    // sequence and its 10BASE-Te settings are all at direct address 001A.
+    if (row==4 && settings.tx100.owned) {
+      address=0x000A; mask=0x8000; value=settings.tx100.forceFarEndDrop?0x8000:0;
+      return true;
+    }
+    if (row!=5 && row!=7 && row!=8) { return false; }
+  }
   if (_config.variant == Variant::DP83825I) {
     // SNLS638C 6.3.16.2 and table 7-14 permit every combination. Only CR3
     // belongs to this procedure; the DP83826 threshold recipe does not apply.
@@ -197,7 +222,8 @@ MdioBatch DP8382x::_qualityBatch() const noexcept {
   MdioBatch batch;
   if (_qualityStep==QualityStep::PREFLIGHT) {
     // Preserve mirror/status before destructive FLDS and RCSR observations.
-    constexpr uint8_t addresses[]={0,0x11,0x17,0x10,0x0F};
+    const uint8_t modeRegister=isDp83822(_config.variant)?0x0A:0x17;
+    const uint8_t addresses[]={0,0x11,modeRegister,0x10,0x0F};
     batch.frameCount=5;
     for (uint8_t i=0;i<5U;++i) { batch.frames[i]={FrameKind::READ,addresses[i],0,0,NO_READ_INDEX}; }
     return batch;
@@ -215,12 +241,13 @@ MdioBatch DP8382x::_qualityBatch() const noexcept {
     const auto read=static_cast<uint8_t>(batch.frameCount-1U);
     batch.frames[batch.frameCount++]={FrameKind::WRITE,address<=0x1FU?static_cast<uint8_t>(address):uint8_t{0x0E},
         value,static_cast<uint16_t>(~(mask|neutral)),read};
+    if (isDp83822(_config.variant) && address==0x000A) { batch.frames[batch.frameCount-1U].requiredMask=0x4000; }
   }
   return batch;
 }
 
 void DP8382x::_retainQualityWord(uint16_t address,uint16_t value) noexcept {
-  if (_config.variant!=Variant::DP83825I && address==0x0017U && _quality.desiredValid && _quality.desired.fastDrop.owned &&
+  if (!isDp83822(_config.variant) && _config.variant!=Variant::DP83825I && address==0x0017U && _quality.desiredValid && _quality.desired.fastDrop.owned &&
       _quality.desired.fastDrop.causeMask!=0U && (value&0x0020U)!=0U) {
     _quality.trust=ConfigurationTrust::DIRTY; _quality.observedStale=true; _quality.fldMaximumApplicable=false;
     if (_qualityWorking && !_result.mismatch.valid) {
@@ -242,7 +269,7 @@ void DP8382x::_retainQualityWord(uint16_t address,uint16_t value) noexcept {
   if (!_qualityRowValue(row,target,mask,expected,true)) { return; }
   bool proved=!_qualityWorking || (_qualityStep!=QualityStep::PREFLIGHT &&
       (_qualityVerifyOnly || row<_qualityRow || (row==_qualityRow && _qualityStep==QualityStep::VERIFY)));
-  if (index==0 && _qualityWorking && !_qualityVerifyOnly && _qualityStep!=QualityStep::PREFLIGHT &&
+  if (!isDp83822(_config.variant) && index==0 && _qualityWorking && !_qualityVerifyOnly && _qualityStep!=QualityStep::PREFLIGHT &&
       (_qualityRow>0U && _qualityRow<8U)) { expected=0; proved=true; }
   if ((value&mask)==expected) { return; }
   _quality.trust=ConfigurationTrust::DIRTY; _quality.observedStale=true; _quality.fldMaximumApplicable=false;
@@ -261,7 +288,7 @@ Status DP8382x::_finishQuality(Status status) noexcept {
   _quality.observedStale=!status.ok();
   const auto& fld=_quality.desired.fastDrop;
   // 7.6 footnote 5: SNR/MLT3/descrambler maxima also require RX-error or energy.
-  _quality.fldMaximumApplicable=_config.variant!=Variant::DP83825I && status.ok() && fld.owned && fld.causeMask!=0U && !fld.rawThresholdOverride &&
+  _quality.fldMaximumApplicable=!isDp83822(_config.variant) && _config.variant!=Variant::DP83825I && status.ok() && fld.owned && fld.causeMask!=0U && !fld.rawThresholdOverride &&
       ((fld.causeMask&0x0406U)==0U || (fld.causeMask&0x0009U)!=0U) &&
       ((fld.causeMask&4U)==0U || _quality.raw[1]==0x0417U);
   if (status.ok()) { _quality.timeValid=true; _quality.observedAtUs=_lastTimeUs+_config.transport.bounds.clockLagUs; }
@@ -305,7 +332,12 @@ Status DP8382x::_advanceQuality(Status status,bool called,const MdioBatch& batch
       const auto bmcr=receipt.frames[0].value,physcr=receipt.frames[1].value;
       if ((bmcr&0x8200U)!=0U) { return _finishQuality(qualityConfig("Reset/restart is active")); }
       if (!_qualityVerifyOnly && (physcr&0x8004U)!=0U) { return _finishQuality(qualityConfig("Restore PLL or interrupt stimulus before quality mutation")); }
-      if (_config.variant!=Variant::DP83825I && _quality.desired.fastDrop.causeMask!=0U && (receipt.frames[2].value&0x0020U)!=0U) {
+      if (isDp83822(_config.variant)) {
+        if ((receipt.frames[2].value&0x4000U)!=0U) { return _finishQuality(qualityConfig("CR2 reports an active fiber medium")); }
+        if (_quality.desired.tx100.forceFarEndDrop && (bmcr&0x3000U)!=0x2000U) {
+          return _finishQuality(qualityConfig("Far-end link drop requires observed forced 100BASE-TX"));
+        }
+      } else if (_config.variant!=Variant::DP83825I && _quality.desired.fastDrop.causeMask!=0U && (receipt.frames[2].value&0x0020U)!=0U) {
         return _finishQuality(qualityConfig("Observed RMII mode cannot enable Fast Link Drop"));
       }
       _nextQualityRow(); break;

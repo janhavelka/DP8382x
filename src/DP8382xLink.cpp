@@ -32,6 +32,11 @@ void DP8382x::_invalidateLink() noexcept {
 
 Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) noexcept {
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
+  const bool p22 = isDp83822(_config.variant);
+  if (p22) {
+    const auto ready = _dp83822CopperReady();
+    if (!ready.ok()) { return ready; }
+  }
   if (_active || _polling || (_operation.state == OperationState::RUNNING &&
       ((!_configuring && !_cableWorking && _operation.phase == OperationPhase::WAIT) || _result.nextPage.requested))) {
     // ANER has one destructive consumer during the typed next-page epoch.
@@ -77,7 +82,7 @@ Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) n
   constexpr uint8_t aOrder[] = {cmd::REG_PHYSTS, cmd::REG_BMSR, cmd::REG_BMSR,
       cmd::REG_BMCR, cmd::REG_ANAR, cmd::REG_ALNPAR, cmd::REG_ANER, cmd::REG_PHYCR,
       cmd::REG_PHYSTS, cmd::REG_BMSR};
-  const bool mirrorClearedByBmsr = isA(_config.variant) || _config.variant == Variant::DP83825I;
+  const bool mirrorClearedByBmsr = isA(_config.variant) || _config.variant == Variant::DP83825I || p22;
   const auto* addresses = mirrorClearedByBmsr ? aOrder : originalOrder;
   // The collector can invalidate the old link while consuming a prefix of this
   // pass. Compare a complete coherent observation to the state at entry so
@@ -94,7 +99,8 @@ Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) n
     for (uint8_t i = 0; i < batch.frameCount; ++i) {
       batch.frames[i] = {FrameKind::READ, addresses[offset + i], 0, 0, NO_READ_INDEX};
     }
-    const auto status = _execute(batch, remaining, nullptr, false, Traffic::MANAGED, 32, offset == 0U ? bound : 0U);
+    const auto status = _execute(batch, remaining, nullptr, false,
+                                 p22 ? Traffic::DP83822_MANAGED : Traffic::MANAGED, 32, offset == 0U ? bound : 0U);
     if (!status.ok()) { return fail(status); }
     if (mirrorClearedByBmsr && !_initialized) {
       return fail(Status::Error(Err::INVALID_CONFIG, "Reset observed during link acquisition",
@@ -136,7 +142,12 @@ Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) n
       _settings.cr2Valid && _settings.desiredValid;
   const bool extension = extensionKnown && (_settings.rawCr2 & cmd::MASK_CR2_EXTENDED_DUPLEX) != 0U;
   if (next.linkUp && !overridden && (next.rawBmcr & cmd::MASK_BMCR_RESET) == 0U) {
-    if (!an) {
+    if (p22 && !an) {
+      // SNLS505H table 8-16 reports the live copper mode even when forced.
+      next.speed = (next.rawPhystsFinal & 2U) != 0U ? LinkSpeed::MBPS_10 : LinkSpeed::MBPS_100;
+      next.duplex = (next.rawPhystsFinal & 4U) != 0U ? Duplex::FULL : Duplex::HALF;
+      next.resolvedModeValid = true;
+    } else if (!an) {
       // PHYSTS low mode bits are explicitly not a forced-mode oracle.
       next.speed = (next.rawBmcr & cmd::MASK_BMCR_SPEED) != 0U ? LinkSpeed::MBPS_100 : LinkSpeed::MBPS_10;
       next.duplex = (next.rawBmcr & cmd::MASK_BMCR_DUPLEX) != 0U ? Duplex::FULL : Duplex::HALF;
@@ -173,7 +184,7 @@ Status DP8382x::readLinkStatus(LinkSnapshot& snapshot, const IoBudget& budget) n
       }
     }
   }
-  if (an && next.resolvedModeValid &&
+  if ((an || p22) && next.resolvedModeValid &&
       ((next.rawPhystsFirst ^ next.rawPhystsFinal) & (cmd::MASK_PHYSTS_SPEED | cmd::MASK_PHYSTS_DUPLEX)) != 0U) {
     return fail(Status::Error(Err::BUSY, "Resolved mode changed during observation", static_cast<int32_t>(BusyDetail::OBSERVATION_CHANGED)));
   }

@@ -17,7 +17,7 @@ struct ResetWire {
   struct Phy {
     uint16_t id1{0x2000}, id2{test::enhancedId2()}, bmcr{0x3100}, phyrcr{0};
     uint16_t sor1{0x1234}, sor2{0x5678}, vod{0x8400}, led{0};
-    uint16_t selector{0}, address{0};
+    uint16_t selector{0}, address{0}, cr2{0};
     unsigned resetReads{0};
   };
   std::array<Phy, 32> phys{};
@@ -36,6 +36,7 @@ struct ResetWire {
       if (!stickyReset) phy.phyrcr = 0;
       return phy.phyrcr;
     }
+    if (reg == 0x0A) return phy.cr2;
     if (reg == 0x02) return phy.id1;
     if (reg == 0x03) return phy.id2;
     if (reg == 0x18) return phy.led;
@@ -723,11 +724,141 @@ void access() {
   CHECK(driver.readIdentity(identity, io).ok() && bus.frames == rejectedAt + 4);
   CHECK(driver.readMmd(31, 0x030E, word, io).ok() && word == 0x4A40);
 }
+// SNLS505H tables 8-1, 8-11, 8-30, 8-84/85 and 8-137.
+void p22Startup() {
+  for (auto grade : {Variant::DP83822I, Variant::DP83822H, Variant::DP83822IF, Variant::DP83822HF}) {
+    for (auto iface : {MacInterface::MII, MacInterface::RMII, MacInterface::RGMII}) {
+      for (auto kind : {ResetKind::NONE, ResetKind::HARD, ResetKind::PCS, ResetKind::RESTART, ResetKind::EEE_PCS}) {
+        Controller bus;
+        Driver driver;
+        auto c = bus.config();
+        c.variant = grade; c.interface = iface; c.dp83822Led1Mode = 4;
+        auto& phy = bus.phys[1];
+        phy.id2 = 0xA240; phy.sor2 = 0;
+        phy.sor1 = iface == MacInterface::MII ? 0x0FC3 : iface == MacInterface::RMII ? 0x0FE3 : 0x0DC3;
+        CHECK(driver.bind(c).ok());
+        const auto token = start(driver, kind);
+        CHECK(drain(driver, bus, token).ok());
+        const auto result = take(driver, token);
+        CHECK(result.persistentRestored && result.commandAccepted == (kind != ResetKind::NONE));
+        const auto probe = [&](unsigned at) {
+          wire(bus, at, FrameKind::READ, 2); wire(bus, at + 1, FrameKind::READ, 3);
+          indirect(bus, at + 2, 0x467, false); indirect(bus, at + 6, 0x468, false);
+          wire(bus, at + 10, FrameKind::READ, 0x0A);
+        };
+        probe(0);
+        wire(bus, 11, FrameKind::READ, 0); wire(bus, 12, FrameKind::READ, 31);
+        auto pcs = [&](unsigned at, bool write) {
+          wire(bus, at, FrameKind::WRITE, 13, 3); wire(bus, at + 1, FrameKind::WRITE, 14, 0);
+          wire(bus, at + 2, FrameKind::WRITE, 13, 0x4003);
+          wire(bus, at + 3, write ? FrameKind::WRITE : FrameKind::READ, 14, write ? 0x8000 : 0);
+        };
+        pcs(13, false);
+        unsigned end = 17;
+        if (kind != ResetKind::NONE) {
+          if (kind == ResetKind::EEE_PCS) { pcs(end, true); pcs(end + 4, false); end += 8; }
+          else {
+            const uint8_t reg = kind == ResetKind::PCS ? 0 : 31;
+            wire(bus, end, FrameKind::WRITE, reg, kind == ResetKind::RESTART ? 0x4000 : 0x8000);
+            wire(bus, end + 1, FrameKind::READ, reg);
+            end += 2;
+          }
+          probe(end);
+          end += 11;
+        }
+        CHECK(bus.frames == end && result.identity.mode == OperatingMode::UNKNOWN);
+        const auto callbacks = bus.calls, clocks = bus.clocks;
+        const auto medium = driver.dp83822MediumSnapshot();
+        CHECK(driver.isInitialized() && medium.valid && !medium.stale && medium.medium() == Medium::COPPER);
+        CHECK(bus.calls == callbacks && bus.clocks == clocks);
+      }
+    }
+  }
+
+  // A digital restart retains registers, but neither an accepted command nor a
+  // cancelled wait establishes operational readiness. Verify must detect live reset.
+  for (const auto kind : {ResetKind::PCS, ResetKind::RESTART, ResetKind::EEE_PCS, ResetKind::HARD}) {
+    Controller bus;
+    Driver driver;
+    auto c = bus.config(); c.variant = Variant::DP83822I; c.interface = MacInterface::MII; c.dp83822Led1Mode = 1;
+    bus.phys[1].id2 = 0xA240; bus.phys[1].sor1 = 0x0FC3; bus.phys[1].sor2 = 0;
+    CHECK(driver.bind(c).ok());
+    auto token = start(driver, ResetKind::NONE);
+    CHECK(drain(driver, bus, token).ok() && take(driver, token).persistentRestored);
+    CHECK(driver.startVerify(budget(), token).inProgress());
+    bus.stickyReset = true;
+    bus.phys[1].phyrcr = 0x4000;
+    CHECK(drain(driver, bus, token).is(Err::INVALID_CONFIG));
+    CHECK(!take(driver, token).persistentRestored && !driver.isInitialized());
+    bus.phys[1].phyrcr = 0;
+    bus.stickyReset = false;
+    token = start(driver, ResetKind::NONE);
+    CHECK(drain(driver, bus, token).ok() && take(driver, token).persistentRestored);
+    token = start(driver, kind);
+    toCommand(driver, bus, token);
+    CHECK(driver.pollOperation(token).inProgress());
+    CHECK(driver.cancel(token).ok());
+    const auto interrupted = take(driver, token);
+    CHECK(interrupted.commandAccepted && interrupted.cleanupOwed && !driver.isInitialized());
+    CHECK(driver.strapSnapshot().stale == (kind == ResetKind::HARD));
+  }
+
+  for (unsigned scenario = 0; scenario < 13; ++scenario) {
+    Controller bus;
+    Driver driver;
+    auto c = bus.config();
+    c.variant = Variant::DP83822IF; c.interface = MacInterface::MII; c.dp83822Led1Mode = 1;
+    auto& phy = bus.phys[1];
+    phy.id2 = 0xA240; phy.sor1 = 0x0FC3; phy.sor2 = 0;
+    if (scenario < 3) c.dp83822Led1Mode = static_cast<uint8_t>(scenario);
+    if (scenario == 1) c.dp83822Led1Mode = 3;
+    if (scenario == 3 || scenario == 5) phy.sor1 = 0x0BC3; // COL mode 3: FX at address 1.
+    if (scenario == 4 || scenario == 5) phy.cr2 = 0x4000;
+    if (scenario == 6) phy.sor1 = 0x0FC1; // LED_0 test mode.
+    if (scenario == 7) phy.sor1 = 0x0FE3; // RMII.
+    if (scenario == 8) phy.sor2 = 3;      // Address 9.
+    if (scenario == 9) bus.failFrame = 10; // CR2 target.
+    if (scenario == 10) bus.failFrame = 8; // SOR1 completed.
+    CHECK(driver.bind(c).ok());
+    if (scenario < 3) {
+      OperationToken token{42};
+      CHECK(driver.startInitialize({ResetKind::HARD}, budget(), token).is(Err::INVALID_CONFIG));
+      CHECK(token.value == 42 && !bus.calls && !bus.clocks);
+      continue;
+    }
+    if (scenario <= 10) {
+      const auto token = start(driver, ResetKind::HARD);
+      const auto status = drain(driver, bus, token);
+      CHECK(status.is(scenario >= 9 ? Err::MDIO_TIMEOUT : Err::CONFIG_MISMATCH));
+      const auto result = take(driver, token);
+      CHECK(!result.mutationPossible && bus.frames <= 11 && !driver.isInitialized());
+      if (scenario == 4 || scenario == 5) {
+        CHECK(result.mismatch.valid && result.mismatch.registerAddress == 0x0A && result.mismatch.mask == 0x4000);
+      }
+      CHECK(driver.strapSnapshot().sor1Valid);
+      if (scenario == 10) CHECK(driver.strapSnapshot().stale && !driver.strapSnapshot().sor2Valid);
+      continue;
+    }
+    DeviceIdentity id;
+    CHECK(driver.readIdentity(id, {10000, 2}).ok());
+    bool invoked = true;
+    CHECK(!driver.observeDp83822Medium({10000, 0}, &invoked).ok() && !invoked);
+    CHECK(driver.observeDp83822Medium({10000, 1}, &invoked).ok() && invoked);
+    CHECK(driver.dp83822MediumSnapshot().medium() == Medium::COPPER);
+    phy.cr2 = 0x4080;
+    if (scenario == 11) bus.releaseBatch = static_cast<int>(bus.calls);
+    else bus.lateBatch = static_cast<int>(bus.calls);
+    const auto status = driver.observeDp83822Medium({10000, 1}, &invoked);
+    CHECK(invoked && status.is(scenario == 11 ? Err::MDIO_ERROR : Err::OPERATION_TIMEOUT));
+    const auto medium = driver.dp83822MediumSnapshot();
+    CHECK(medium.valid && medium.stale && medium.cr2 == 0x4080 && medium.medium() == Medium::FIBER);
+  }
+}
 } // namespace
 
 int main(int argc, char** argv) {
   const test::Suite suites[] = {
-    {"traces", traces}, {"floor", floor}, {"failures", failures},
+    {"p22_startup", p22Startup}, {"traces", traces}, {"floor", floor}, {"failures", failures},
     {"timing", timing}, {"external", external}, {"ownership", ownership}, {"access", access}
   };
   return test::runVariantSuites(argc, argv, suites);

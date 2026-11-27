@@ -41,7 +41,37 @@ uint16_t advertisementWord(const LinkSettings& settings) noexcept {
   // SNLS647I table 8-23: API abilities occupy bits 0..3; wire abilities 5..8.
   return static_cast<uint16_t>(0x0001U | (uint16_t{settings.advertisement.technologyMask} << 5U) |
       (settings.advertisement.symmetricPause ? cmd::MASK_ANAR_SYMMETRIC_PAUSE : 0U) |
-      (settings.advertisement.asymmetricPause ? cmd::MASK_ANAR_ASYM_PAUSE : 0U));
+      (settings.advertisement.asymmetricPause ? cmd::MASK_ANAR_ASYM_PAUSE : 0U) |
+      (settings.advertisement.remoteFault ? cmd::MASK_ANAR_REMOTE_FAULT : 0U));
+}
+
+uint16_t cr1Mask(Variant variant) noexcept {
+  return isDp83822(variant) ? uint16_t{0x007C} : cmd::MASK_CR1_ROBUST_MDIX;
+}
+
+uint16_t cr1Word(const LinkSettings& settings) noexcept {
+  // SNLS505H table 8-10. The timer codes are encodings, not durations in us.
+  return static_cast<uint16_t>((settings.crossover.robust ? cmd::MASK_CR1_ROBUST_MDIX : 0U) |
+      (settings.crossover.fast ? 0x0040U : 0U) | (settings.fastAutoNegotiation ? 0x0010U : 0U) |
+      (uint16_t{settings.fastAutoNegotiationCode} << 2U));
+}
+
+uint16_t swapWord(const CrossoverSettings& crossover) noexcept {
+  return static_cast<uint16_t>((crossover.swapPair ? cmd::MASK_CR3_PAIR_SWAP : 0U) |
+      (crossover.swapPolarity ? cmd::MASK_CR3_POLARITY_SWAP : 0U));
+}
+
+uint16_t cr2Mask(Variant variant) noexcept {
+  return isDp83822(variant) ? uint16_t{0x0060} : cmd::MASK_CR2_EXTENDED_DUPLEX;
+}
+
+uint16_t cr2Word(Variant variant, const LinkSettings& settings) noexcept {
+  // SNLS505H table 8-11. Fast or robust Auto-MDIX sets the parallel-detect
+  // bit in hardware. Verify its effective value separately from owner intent.
+  const bool fast = isDp83822(variant) &&
+      (settings.fastParallelDetect || settings.crossover.fast || settings.crossover.robust);
+  return static_cast<uint16_t>((fast ? 0x0040U : 0U) |
+      (settings.extendedFullDuplex ? cmd::MASK_CR2_EXTENDED_DUPLEX : 0U));
 }
 
 uint16_t modeWord(const LinkSettings& settings) noexcept {
@@ -143,6 +173,10 @@ Status DP8382x::restartAutoNegotiation(const IoBudget& budget) noexcept {
   }
   if (_operation.cleanupOwed || _operation.temporaryMayBeActive) { return configBusy(BusyDetail::CLEANUP_REQUIRED); }
   if (!_initialized || !capabilities().valid) { return Status::Error(Err::NOT_INITIALIZED, "Initialize before negotiation restart"); }
+  if (isDp83822(_config.variant)) {
+    const auto ready = _dp83822CopperReady();
+    if (!ready.ok()) { return ready; }
+  }
   if (!_settings.desiredValid || _settings.desired.mode != LinkMode::AUTONEGOTIATED ||
       !_otherControlsVerified(OperationKind::NONE) || !_settings.bmcrValid ||
       (_settings.rawBmcr & 0xFD00U) != 0x1000U) {
@@ -162,7 +196,8 @@ Status DP8382x::restartAutoNegotiation(const IoBudget& budget) noexcept {
   bool called = false;
   const bool observedStale = _settings.observedStale;
   _configuring = true;
-  auto status = _execute(batch, budget, &called, false, Traffic::MANAGED);
+  auto status = _execute(batch, budget, &called, false,
+                         isDp83822(_config.variant) ? Traffic::DP83822_MANAGED : Traffic::MANAGED);
   _configuring = false;
   if (!called) { return status; }
   const auto& receipt = _transport.lastBatch;
@@ -232,7 +267,7 @@ Status DP8382x::modifyBasicControl(uint32_t mask, uint32_t value, const IoBudget
 }
 
 Status validateLinkSettings(Variant variant, const LinkSettings& settings) noexcept {
-  const auto syntax = validateLinkSettings(settings);
+  const auto syntax = detail::validateLinkIntent(settings, isDp83822(variant));
   if (!syntax.ok()) { return syntax; }
   const auto* part = detail::findPart(variant);
   if (!part) {
@@ -240,6 +275,20 @@ Status validateLinkSettings(Variant variant, const LinkSettings& settings) noexc
   }
   if (part->forcedRequiresRobust && settings.mode == LinkMode::FORCED && !settings.crossover.robust) {
     return invalidSettings("Declared part requires robust crossover in forced mode");
+  }
+  if (isDp83822(variant)) {
+    if (settings.fastAutoNegotiationCode > 2U ||
+        (!settings.fastAutoNegotiation && settings.fastAutoNegotiationCode != 0U) ||
+        (settings.fastAutoNegotiation && settings.mode != LinkMode::AUTONEGOTIATED)) {
+      return invalidSettings("Fast negotiation requires AN and a defined timer selection");
+    }
+    if (settings.crossover.fast && (settings.mode != LinkMode::FORCED ||
+        settings.forced.speed != LinkSpeed::MBPS_100 || settings.crossover.pairSelection != PairSelection::AUTOMATIC)) {
+      return invalidSettings("Fast Auto-MDIX requires automatic routing and forced 100BASE-TX");
+    }
+    if ((settings.fastAutoNegotiation || settings.crossover.fast) != settings.peerFastModeConfirmed) {
+      return invalidSettings("Fast mode requires confirmation of matching partner settings");
+    }
   }
   return Status::Ok();
 }
@@ -274,6 +323,14 @@ Status DP8382x::startConfigure(const LinkSettings& settings, const ConfigureOpti
   if (!capabilities().valid) {
     return Status::Error(Err::NOT_INITIALIZED, "Fresh accepted identity is required");
   }
+  if (isDp83822(_config.variant)) {
+    const auto ready = _dp83822CopperReady();
+    if (!ready.ok()) { return ready; }
+    if (_quality.desiredValid && _quality.desired.tx100.forceFarEndDrop &&
+        (settings.mode != LinkMode::FORCED || settings.forced.speed != LinkSpeed::MBPS_100)) {
+      return invalidSettings("Far-end link drop requires forced 100BASE-TX");
+    }
+  }
   if (_eee.desiredValid && _eee.desired.enabled &&
       (settings.mode != LinkMode::AUTONEGOTIATED || options.nextPages.pageCount != 0U)) {
     return invalidSettings("Disable EEE before forced mode or host next pages");
@@ -307,6 +364,10 @@ Status DP8382x::startVerify(const OperationBudget& budget, OperationToken& token
   }
   if (_operation.temporaryMayBeActive) { return configBusy(BusyDetail::CLEANUP_REQUIRED); }
   if (!_initialized || !capabilities().valid) { return Status::Error(Err::NOT_INITIALIZED, "Initialize before verifying"); }
+  if (isDp83822(_config.variant)) {
+    const auto ready = _dp83822CopperReady();
+    if (!ready.ok()) { return ready; }
+  }
   if (_settings.desiredValid) {
     const auto valid = validateLinkSettings(_config.variant, _settings.desired);
     if (!valid.ok()) { return valid; }
@@ -365,6 +426,16 @@ void DP8382x::_setConfigStep(ConfigStep step) noexcept {
 MdioBatch DP8382x::_configurationBatch() const noexcept {
   // Every RMW is one terminal controller transaction; no selector/read word
   // survives a batch. Table 8-23 reserves 14/12/9 and prohibits local RF13.
+  if (isDp83822(_config.variant) && (_configStep == ConfigStep::DRAIN || _configStep == ConfigStep::WAIT_BASE ||
+      _configStep == ConfigStep::WAIT_PAGE || _configStep == ConfigStep::WAIT_COMPLETE)) {
+    // Tables 8-7/16. ANER clears the PHYSTS page indication and BMSR clears
+    // the remote fault indication. Capture the mirror before either source.
+    auto batch = readRegister(cmd::REG_PHYSTS);
+    batch.frameCount = 2;
+    const uint8_t source = _configStep == ConfigStep::WAIT_COMPLETE ? cmd::REG_BMSR : uint8_t{cmd::REG_ANER};
+    batch.frames[1] = {FrameKind::READ, source, 0, 0, NO_READ_INDEX};
+    return batch;
+  }
   switch (_configStep) {
     case ConfigStep::DRAIN: case ConfigStep::WAIT_BASE: case ConfigStep::WAIT_PAGE: return readRegister(cmd::REG_ANER);
     case ConfigStep::READ_ANAR: case ConfigStep::VERIFY_ANAR: case ConfigStep::VERIFY_CLEAR: return readRegister(cmd::REG_ANAR);
@@ -374,15 +445,17 @@ MdioBatch DP8382x::_configurationBatch() const noexcept {
     case ConfigStep::READ_CR3: case ConfigStep::VERIFY_CR3: return readRegister(cmd::REG_CR3);
     case ConfigStep::READ_CR2: case ConfigStep::VERIFY_CR2: return readRegister(cmd::REG_CR2);
     case ConfigStep::APPLY_CR1:
-      return updateRegister(cmd::REG_CR1, static_cast<uint16_t>(~cmd::MASK_CR1_ROBUST_MDIX),
-          _configurationTarget().crossover.robust ? cmd::MASK_CR1_ROBUST_MDIX : 0);
+      return updateRegister(cmd::REG_CR1, static_cast<uint16_t>(~cr1Mask(_config.variant)), cr1Word(_configurationTarget()));
     case ConfigStep::APPLY_PHYCR:
       return updateRegister(cmd::REG_PHYCR, static_cast<uint16_t>(~routingMask(_configurationTarget())), routingWord(_configurationTarget()));
     case ConfigStep::APPLY_CR3:
-      return updateRegister(cmd::REG_CR3, static_cast<uint16_t>(~MIRROR_MASK), _configurationTarget().crossover.swapPair ? MIRROR_MASK : 0);
-    case ConfigStep::APPLY_CR2:
-      return updateRegister(cmd::REG_CR2, static_cast<uint16_t>(~cmd::MASK_CR2_EXTENDED_DUPLEX),
-          _configurationTarget().extendedFullDuplex ? cmd::MASK_CR2_EXTENDED_DUPLEX : 0);
+      return updateRegister(cmd::REG_CR3, static_cast<uint16_t>(~MIRROR_MASK), swapWord(_configurationTarget().crossover));
+    case ConfigStep::APPLY_CR2: {
+      auto batch = updateRegister(cmd::REG_CR2, static_cast<uint16_t>(~cr2Mask(_config.variant)),
+                                  cr2Word(_config.variant, _configurationTarget()));
+      if (isDp83822(_config.variant)) { batch.frames[1].requiredMask = 0x4000; }
+      return batch;
+    }
     case ConfigStep::APPLY_ANAR:
       return updateRegister(cmd::REG_ANAR, ANAR_PRESERVE, static_cast<uint16_t>(advertisementWord(_configurationTarget()) |
           (_result.nextPage.requested ? cmd::MASK_ANAR_NEXT_PAGE : 0U)));
@@ -465,11 +538,18 @@ void DP8382x::_observeConfiguration() noexcept {
     observed.advertisement.technologyMask = static_cast<uint8_t>((_settings.rawAnar & cmd::MASK_ANAR_TECHNOLOGY) >> 5U);
     observed.advertisement.symmetricPause = (_settings.rawAnar & cmd::MASK_ANAR_SYMMETRIC_PAUSE) != 0U;
     observed.advertisement.asymmetricPause = (_settings.rawAnar & cmd::MASK_ANAR_ASYM_PAUSE) != 0U;
+    observed.advertisement.remoteFault = isDp83822(_config.variant) && (_settings.rawAnar & cmd::MASK_ANAR_REMOTE_FAULT) != 0U;
   } else {
     observed.forced.speed = (_settings.rawBmcr & cmd::MASK_BMCR_SPEED) != 0U ? LinkSpeed::MBPS_100 : LinkSpeed::MBPS_10;
     observed.forced.duplex = (_settings.rawBmcr & cmd::MASK_BMCR_DUPLEX) != 0U ? Duplex::FULL : Duplex::HALF;
   }
   observed.crossover.robust = (_settings.rawCr1 & cmd::MASK_CR1_ROBUST_MDIX) != 0U;
+  if (isDp83822(_config.variant)) {
+    observed.crossover.fast = (_settings.rawCr1 & 0x0040U) != 0U;
+    observed.fastAutoNegotiation = (_settings.rawCr1 & 0x0010U) != 0U;
+    observed.fastAutoNegotiationCode = static_cast<uint8_t>((_settings.rawCr1 >> 2U) & 3U);
+    observed.fastParallelDetect = (_settings.rawCr2 & 0x0040U) != 0U;
+  }
   observed.crossover.pairSelection = (_settings.rawPhycr & cmd::MASK_PHYCR_AUTO_MDIX) != 0U ? PairSelection::AUTOMATIC :
       ((_settings.rawPhycr & cmd::MASK_PHYCR_FORCE_MDIX) != 0U ? PairSelection::MDIX : PairSelection::MDI);
   observed.crossover.swapPair = (_settings.rawCr3 & cmd::MASK_CR3_PAIR_SWAP) != 0U;
@@ -495,8 +575,9 @@ void DP8382x::_retainOwnedMode(uint16_t value) noexcept {
 Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatch& batch) noexcept {
   const auto completedStep = _configStep;
   const auto& receipt = _transport.lastBatch;
-  const uint16_t value = receipt.frames[0].value;
-  const bool readValid = called && _result.failingBatch.completedFrames != 0U;
+  const uint8_t sample = batch.frames[0].registerAddress == cmd::REG_PHYSTS ? 1U : 0U;
+  const uint16_t value = receipt.frames[sample].value;
+  const bool readValid = called && _result.failingBatch.completedFrames > sample;
   // A completed page load remains evidence if release or the deadline fails.
   if (called && _configStep == ConfigStep::LOAD_PAGE && _result.failingBatch.completedFrames == 2U) {
     ++_result.nextPage.transmittedPages;
@@ -524,18 +605,17 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
       }
     };
     if (_configStep == ConfigStep::VERIFY_CR1) {
-      compare(cmd::REG_CR1, cmd::MASK_CR1_ROBUST_MDIX,
-          _configurationTarget().crossover.robust ? cmd::MASK_CR1_ROBUST_MDIX : 0, _settings.rawCr1, _settings.cr1Valid);
+      compare(cmd::REG_CR1, cr1Mask(_config.variant), cr1Word(_configurationTarget()), _settings.rawCr1, _settings.cr1Valid);
     }
     if (_configStep == ConfigStep::VERIFY_PHYCR) {
       compare(cmd::REG_PHYCR, routingMask(_configurationTarget()), routingWord(_configurationTarget()), _settings.rawPhycr, _settings.phycrValid);
     }
     if (_configStep == ConfigStep::VERIFY_CR3) {
-      compare(cmd::REG_CR3, MIRROR_MASK, _configurationTarget().crossover.swapPair ? MIRROR_MASK : 0, _settings.rawCr3, _settings.cr3Valid);
+      compare(cmd::REG_CR3, MIRROR_MASK, swapWord(_configurationTarget().crossover), _settings.rawCr3, _settings.cr3Valid);
     }
     if (_configStep == ConfigStep::VERIFY_CR2) {
-      compare(cmd::REG_CR2, cmd::MASK_CR2_EXTENDED_DUPLEX,
-          _configurationTarget().extendedFullDuplex ? cmd::MASK_CR2_EXTENDED_DUPLEX : 0, _settings.rawCr2, _settings.cr2Valid);
+      compare(cmd::REG_CR2, cr2Mask(_config.variant), cr2Word(_config.variant, _configurationTarget()),
+              _settings.rawCr2, _settings.cr2Valid);
     }
     if (_configStep == ConfigStep::VERIFY_ANAR || _configStep == ConfigStep::VERIFY_CLEAR) {
       _settings.rawAnar = value;
@@ -557,6 +637,10 @@ Status DP8382x::_advanceConfiguration(Status status, bool called, const MdioBatc
   }
   if (!status.ok()) {
     return _finishOperation(status);
+  }
+  if (isDp83822(_config.variant) && readValid && batch.frames[0].registerAddress == cmd::REG_CR2 &&
+      (value & 0x4000U) != 0U) {
+    return _finishOperation(invalidSettings("CR2 reports an active fiber medium"));
   }
   // Shared retention already invalidated identity/configuration. Stop before
   // advancing or re-establishing trust, including a reset consumed by the RMW

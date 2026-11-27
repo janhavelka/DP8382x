@@ -75,7 +75,7 @@ int choice(std::string_view choices, std::string_view value) {
 }
 
 const char* interfaceName(MacInterface value) {
-  return value == MacInterface::RMII ? "RMII" : "MII";
+  return value == MacInterface::RGMII ? "RGMII" : value == MacInterface::RMII ? "RMII" : "MII";
 }
 
 const char* variantName(Variant variant) {
@@ -85,6 +85,10 @@ const char* variantName(Variant variant) {
     case Variant::DP83826AI: return "DP83826AI";
     case Variant::DP83826AE: return "DP83826AE";
     case Variant::DP83825I: return "DP83825I";
+    case Variant::DP83822I: return "DP83822I";
+    case Variant::DP83822H: return "DP83822H";
+    case Variant::DP83822IF: return "DP83822IF";
+    case Variant::DP83822HF: return "DP83822HF";
     default: return "unknown";
   }
 }
@@ -180,8 +184,12 @@ const char* pairName(PairSelection pair) {
 }
 
 unsigned profileFlags(const LinkSettings& profile) {
-  return unsigned(profile.crossover.robust) | (unsigned(profile.crossover.swapPair) << 1U) |
-      (unsigned(profile.extendedFullDuplex) << 2U);
+  const auto& cross = profile.crossover;
+  const unsigned swap = cross.swapPair && cross.swapPolarity ? 2U : cross.swapPair ? 8U : cross.swapPolarity ? 16U : 0U;
+  return unsigned(cross.robust) | swap | (unsigned(profile.extendedFullDuplex) << 2U) |
+      (unsigned(profile.advertisement.remoteFault) << 5U) | (unsigned(cross.fast) << 6U) |
+      (unsigned(profile.fastAutoNegotiation) << 7U) | (unsigned(profile.fastAutoNegotiationCode) << 8U) |
+      (unsigned(profile.fastParallelDetect) << 10U) | (unsigned(profile.peerFastModeConfirmed) << 11U);
 }
 
 bool validTerminal(Status status) {
@@ -440,8 +448,10 @@ bool Processor::setup(const Platform& platform, const Identity& identity) {
       (identity.variant == Variant::DP83825I &&
        (identity.interface != MacInterface::RMII ||
         (identity.rmiiClock != RmiiClock::LEADER_25MHZ && identity.rmiiClock != RmiiClock::FOLLOWER_50MHZ))) ||
-      (identity.variant != Variant::UNKNOWN && (!isValidVariant(identity.variant) || isDp83822(identity.variant))) ||
-      (identity.interface != MacInterface::RMII && identity.interface != MacInterface::MII)) return false;
+      identity.medium != Medium::COPPER ||
+      (identity.variant != Variant::UNKNOWN && !isValidVariant(identity.variant)) ||
+      (identity.interface != MacInterface::RMII && identity.interface != MacInterface::MII &&
+       !(isDp83822(identity.variant) && identity.interface == MacInterface::RGMII))) return false;
   const std::string_view tree(identity.tree);
   if ((tree != "clean" && tree != "dirty" && tree != "unknown") ||
       (std::string_view(identity.firmware) == "unknown" && tree != "unknown")) return false;
@@ -632,7 +642,8 @@ void Processor::help(const Command&, const Args& args, std::size_t count, Reply&
       human("  C22 offsets 0..31. MMD takes an explicit DEVAD and 16-bit offset.\r\n"
             "  Dumps skip protected registers. Writes require maintenance.\r\n"
             "  BMCR allows mask 0x3100.\r\n");
-      if (_identity.variant == Variant::DP83825I) human("  DP83825I raw LED programming is unavailable.\r\n");
+      if (isDp83822(_identity.variant)) human("  DP83822 raw reads require verified copper startup. Use typed configuration for writes.\r\n");
+      else if (_identity.variant == Variant::DP83825I) human("  DP83825I raw LED programming is unavailable.\r\n");
       else human(isA(_identity.variant) ? "  A LEDCR 0x18 is read-only through raw access. Use controls pins.\r\n" :
             "  I/E LEDCR 0x18 or 31:0x18 allows bits 0x0692.\r\n");
     }
@@ -688,9 +699,13 @@ void Processor::profileHelp() {
       "  Flags: 1 robust, 2 coupled pair/polarity mirror, 4 extended full duplex.\r\n"
       "  DP83826I/E/AI/AE forced mode requires robust. Extended duplex excludes forced 10 and native half duplex.\r\n",
       unsigned(CONFIG[MODES].min), unsigned(CONFIG[MODES].max), CONFIG[PAUSE].enumValues.data(),
-      CONFIG[PAIR].enumValues.data(), unsigned(CONFIG[FLAGS].min), unsigned(CONFIG[FLAGS].max),
+      CONFIG[PAIR].enumValues.data(), unsigned(CONFIG[FLAGS].min), isDp83822(_identity.variant) ? 4095U : unsigned(CONFIG[FLAGS].max),
       CONFIG[SPEED].enumValues.data(), CONFIG[DUPLEX].enumValues.data(), CONFIG[PAIR].enumValues.data());
   human(lines);
+  if (isDp83822(_identity.variant)) {
+    human("  DP83822 flags: 8 swap pair only, 16 polarity only, 32 advertise fault, 64 fast MDIX, 128 fast AN,\r\n"
+          "  256/512 AN timer code 1/2, 1024 fast parallel detect, 2048 matched peer confirmed.\r\n");
+  }
 }
 
 void Processor::identity(const Command& command, const Args& args, std::size_t, Reply& reply) {
@@ -707,6 +722,7 @@ void Processor::identity(const Command& command, const Args& args, std::size_t, 
                _identity.sdk, _identity.target, _identity.backend, _identity.clock,
                variantName(_identity.variant),
                interfaceName(_identity.interface), _identity.phyAddress, _identity.console, _identity.baud);
+  if (isDp83822(_identity.variant)) reply.appendFields(" medium=copper");
   if (_identity.variant == Variant::DP83825I)
     reply.appendFields(" rmii_role=%s", _identity.rmiiClock == RmiiClock::LEADER_25MHZ ? "leader" : "follower");
 }
@@ -1064,9 +1080,19 @@ bool Processor::parseProfile(const Args& args, std::size_t count, Request& reque
   if (pair < 0) return false;
   profile.crossover.pairSelection = static_cast<PairSelection>(pair);
   uint32_t flags = 0;
-  if (!unsignedNumber(args[4], flags) || flags > CONFIG[FLAGS].max) return false;
+  const auto maximum = isDp83822(_identity.variant) ? 4095U : CONFIG[FLAGS].max;
+  if (!unsignedNumber(args[4], flags) || flags > maximum) return false;
+  const auto swap = flags & 0x1AU;
+  if (swap != 0 && swap != 2 && swap != 8 && swap != 16) return false;
   profile.crossover.robust = (flags & 1U) != 0;
-  profile.crossover.swapPair = profile.crossover.swapPolarity = (flags & 2U) != 0;
+  profile.crossover.swapPair = swap == 2 || swap == 8;
+  profile.crossover.swapPolarity = swap == 2 || swap == 16;
+  profile.advertisement.remoteFault = (flags & 32U) != 0;
+  profile.crossover.fast = (flags & 64U) != 0;
+  profile.fastAutoNegotiation = (flags & 128U) != 0;
+  profile.fastAutoNegotiationCode = static_cast<uint8_t>((flags >> 8U) & 3U);
+  profile.fastParallelDetect = (flags & 1024U) != 0;
+  profile.peerFastModeConfirmed = (flags & 2048U) != 0;
   profile.extendedFullDuplex = (flags & 4U) != 0;
   return true;
 }

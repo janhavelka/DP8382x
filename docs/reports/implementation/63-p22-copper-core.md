@@ -308,3 +308,46 @@ ctest --test-dir build/p63-baseline -R '^(p22_.*|(e_|ai_|ae_|p25_)?(identity|res
 Continue phase (b) with the separate current-medium observation and
 strap/board checks before permitting copper writes. The native adapter,
 CLI and subsequent copper operations retain their gates.
+
+## Phase (b) copper implementation
+
+Entry was clean on `main` at `a9cdb23c7d53db998a4f9054d059323cde6acdfd`, equal to the locally tracked upstream after wrapper synchronization. The [sibling audit](#sibling-audit) still applies at the listed clean revisions. Two implementation agents used the session model for separate register-level tasks, one for configuration and quality, the other for link, interrupt and counter evidence. The lead integrated the shared contracts, startup, native adapter, CLI, runner, tests and documentation. Independent review is pending.
+
+| Procedure | Implemented behavior and executing evidence |
+| --- | --- |
+| Identity, straps, management | The revision-0 A240 probe preserves the declared suffix. A single hold captures the two strap words. A separate CR2 read records the live medium. Startup requires current matching interface, address and copper evidence, plus board LED_1 mode 1 or 4. A live fiber mismatch retains the CR2 word and mask 4000h. Tests cover I/H/IF/HF on MII/RMII/RGMII, stale and partial observations, namespaces and interrupted indirect transfers. See `p22_identity_*`, `p22_straps`, `p22_startup` and `p22_collector`. |
+| Reset | NONE checks all three reset registers. The two PHYRCR commands distinguish pin-equivalent hard reset from retained-register restart. Hard reset rechecks identity and samples relatched straps. PCS and MMD3 resets preserve vendor registers and recheck copper state. Native board preparation uses the 200 ms POR allowance, 10-microsecond pulse floor, 2 ms release allowance and declared idle MDC time. Tests exercise the five startup choices, raw command traces, failure prefixes and board admission. The prose soft-reset interpretation remains inferred. See `p22_startup` and `native_factory`. |
+| Copper link, negotiation and MDIX | Forced and advertised profiles use the DP83822 masks, including ANAR remote fault, independent CR3 swap bits, CR1 robust/fast MDIX, fast AN and effective CR2 parallel detection. The owner supplies peer compatibility for fast profiles. Link tests use independent PHYSTS words 0001/0005/0003/0007 and check consistency across destructive reads. Typed tests cover forced speeds and duplex, pause, next pages, flaps and read failures. See `p22_copper_*` and `p22_link`. |
+| Link loss | DP83822 TP10CR and fast-drop fields use their own masks and read effects. Tests exercise all legal squelch codes, reject reserved codes, preserve interrupted writes and check the cause mapping. The 26-family preamble and threshold recipes remain outside these paths. See `p22_copper_*`. |
+| IRQ and counters | One collector retains consumed prefixes, including MISR1/2, polarity, FIFO and PRBS sync loss. It also records the passive LPI words. RXFS selector writes keep W1S fields zero. Installation verifies and rewrites the interrupt masks before enabling delivery. Later consuming reads withdraw confidence in installed masks. Tests include retained and cleared mask models, failure and release boundaries, 8-bit FCS and 16-bit receive-error saturation, vendor FIFO and MMD7 partner traces. The RECR half-full threshold and hardware MISR enable/rearm behavior remain open. See `p22_collector`. |
+
+The native factory, shared CLI and offline runner accept declared copper operation. Twelve compiled fixture sessions check declaration and replay. Four campaign receipts cover observation, hard reset, forced 10/half and advertised 100/full. Host fixture transcripts use simulated firmware identity. Interface timing, fiber, diagnostic stimulus and optional features keep their separate procedure gates. Qualification requires an identified physical fixture per suffix. [Copper source dispositions](../../registers/dp83822.json) and [original tables](../../reference/source/TI-DP83822-SNLS505H.pdf).
+
+| Local evidence | Phase (b) result |
+| --- | --- |
+| Windows x86-64, GCC 15.1.0, Ninja, Release | PASS 265/265 focused core, original-family, CLI, runner and campaign CTests. Release UBSan with trap-on-error passed all 28 DP83822 CTests. |
+| Python, sources and documentation | Python 3.12 discovery ran 298 tests, 237 passed and 61 skipped. The compiled fixture suites also ran under CTest with their executable supplied. Ledger and generated version passed. Doxygen checked 300 generated pages and rejected both negative fixtures. |
+| Portable and packaged consumers | PASS 2/2 separate tests-OFF consumers and 1/1 source-package consumer using 29 refreshed and byte-compared input files. |
+| ESP-IDF | PASS 2/2 native factory host tests built against pinned SDK sources. PASS 3/3 ESP32-P4 image links using v6.1 `fff9895c82d744c7237be8847347bdd1b07c6643`. These are the existing adapter-link, basic and owner images. |
+| Remote CI and physical | NOT RUN. Prompt 71 owns remote CI. All sessions here used simulated transports. |
+
+Reproduce from the repository root with the existing build configurations below. For the native host adapter and SDK links use the scoped environment and project arguments in the [SDK link receipt](61-p25-feature-closure.md#phase-d-esp32-p4-sdk-links). The SDK build paths end in `56l`, `56b` and `56o`. Logs under `build/p63-baseline` include `p63b-56*.log`, `p63b-native-final.log`, `final-copper.log` and `python-final.log`.
+
+```powershell
+cmake --build build/p63-baseline --parallel 6
+ctest --test-dir build/p63-baseline -R '^(p22_.*|(e_|ai_|ae_|p25_)?(identity|reset|link|interrupt|forced|quality|negotiation|events|cli_processor)(_.*)?|cli_hil_(campaign|runner)|cli_(fixture|control|diagnostic|pin|selftest)_transcript)$' -j 3 --output-on-failure --no-tests=error
+cmake --build build/p63b-ubsan --target dp8382x_identity_tests dp8382x_reset_tests dp8382x_quality_tests dp8382x_link_tests dp8382x_interrupt_tests --parallel 4
+ctest --test-dir build/p63b-ubsan -R '^p22_' --output-on-failure --no-tests=error
+cmake --build build/p60-tests --target dp8382x_native_host_tests --parallel 4
+ctest --test-dir build/p60-tests -R '^(e_)?native_factory$' --output-on-failure --no-tests=error
+cmake --build build/p63-consumer
+ctest --test-dir build/p63-consumer --output-on-failure --no-tests=error
+cmake --build build/p63-export/out
+ctest --test-dir build/p63-export/out --output-on-failure --no-tests=error
+python -B -m unittest discover -s test -p "test_*.py" -v
+python -B tools/check_doxygen.py
+python -B tools/verify_references.py
+python -B tools/verify_ledger.py
+python -B scripts/generate_version.py check
+git diff --check
+```

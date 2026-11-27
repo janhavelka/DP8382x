@@ -39,6 +39,10 @@ Status serviceBudgetError() noexcept {
 Status DP8382x::_validateInterruptSettings(const InterruptSettings& s) const noexcept {
   const auto syntax=interruptSyntax(s); if (!syntax.ok()) { return syntax; }
   const uint8_t pin=ledIndex(s.pin);
+  // SNLS505H table 8-17 routes IRQ through INT/PWDN_N. GPIO mux 4 is TX timestamp.
+  if (isDp83822(_config.variant) && s.pin!=InterruptPin::INTR_PWRDN) {
+    return Status::Error(Err::UNSUPPORTED,"DP83822 requires its dedicated interrupt pin");
+  }
   const bool a=isA(_config.variant);
   if (_config.variant==Variant::DP83825I) {
     if (pin==1U) { return Status::Error(Err::UNSUPPORTED,"DP83825I has no LED1 interrupt route"); }
@@ -98,6 +102,10 @@ Status DP8382x::_admitInterrupt(const OperationBudget& budget,bool stop) const n
     return Status::Error(Err::INVALID_PARAM,"Invalid interrupt operation budget",static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
   }
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
+  if (isDp83822(_config.variant)) {
+    const auto ready = _dp83822CopperReady();
+    if (!ready.ok()) { return ready; }
+  }
   if (_active || _polling || _operation.state==OperationState::RUNNING) { return busyIrq(BusyDetail::OPERATION_ACTIVE); }
   if (_operation.state==OperationState::RESULT_PENDING) { return busyIrq(BusyDetail::RESULT_PENDING); }
   if (_transport.clockInvalid) {
@@ -165,6 +173,7 @@ void DP8382x::_interruptPassCost(bool verifyOnly,uint32_t& frames,uint32_t& call
     // Mask delivery, drain, select/read/cross, set both masks, enable last,
     // then read both masks and PHYSCR. The pin preflight resolved replay.
     frames=23; callbacks=12;
+    if (isDp83822(_config.variant)) { frames+=2; callbacks+=2; }
     if (_interruptPinRestore) { frames+=9; callbacks+=2; }
     return;
   }
@@ -172,9 +181,13 @@ void DP8382x::_interruptPassCost(bool verifyOnly,uint32_t& frames,uint32_t& call
   if (check && _interruptStep!=InterruptStep::IDENTIFY) return;
   if (check && _operation.kind==OperationKind::INTERRUPT_TEST_STOP) { frames=5; callbacks=3; return; }
   if (check && _operation.kind==OperationKind::INTERRUPT_TEST_START) { frames=6; callbacks=4; }
-  else if (verifyOnly) { frames=10; callbacks=6; } // ID, selector, crossing, MISR1/2, PHYSCR
+  else if (verifyOnly) {
+    // On DP83822 the crossing read itself verifies MISR2 before a possible clear.
+    frames=isDp83822(_config.variant)?9U:10U; callbacks=isDp83822(_config.variant)?5U:6U;
+  }
   else {
     frames=25; callbacks=13; // ID and complete mask/delivery pass
+    if (isDp83822(_config.variant)) { frames+=2; callbacks+=2; }
     if (check && _operation.kind==OperationKind::INTERRUPT_CONFIGURE) { ++frames; ++callbacks; } // CHECK_TEST
     // A prior reset invalidates live mux evidence. The WoL tail restores a
     // shared IRQ mux once, otherwise reserve this owner's RMW plus verification.
@@ -210,6 +223,13 @@ MdioBatch DP8382x::_interruptBatch() const noexcept {
     case InterruptStep::VERIFY_SELECT: return _mmdBatch(0x04A1,FrameKind::READ,0);
     case InterruptStep::MASK1: return updateIrq(0x12,0,_interrupts.desired.misr1Mask);
     case InterruptStep::MASK2: return updateIrq(0x13,0,_interrupts.desired.misr2Mask);
+    case InterruptStep::INSTALL1: case InterruptStep::INSTALL2: {
+      const bool first = _interruptStep==InterruptStep::INSTALL1;
+      MdioBatch batch; batch.frameCount=1;
+      batch.frames[0]={FrameKind::WRITE, static_cast<uint8_t>(first?0x12:0x13),
+                       first?_interrupts.desired.misr1Mask:_interrupts.desired.misr2Mask,0,NO_READ_INDEX};
+      return batch;
+    }
     case InterruptStep::OUTPUT: return updateIrq(0x11,static_cast<uint16_t>(~(_interruptControlMask()|0x0004U)),
                                                 static_cast<uint16_t>(_interruptControlValue()&~0x0002U));
     case InterruptStep::ENABLE: return updateIrq(0x11,0xFFFD,static_cast<uint16_t>(_interruptControlValue()&0x0002U));
@@ -230,6 +250,12 @@ Status DP8382x::_advanceInterrupt(Status status,bool called,const MdioBatch& bat
     _result.mutationAttempted|=receipt.attempted;
     _result.mutationCompleted|=complete;
     _result.mutationPossible|=possible;
+    if (isDp83822(_config.variant) && (batch.frames[last].registerAddress==0x12 || batch.frames[last].registerAddress==0x13)) {
+      auto& known = batch.frames[last].registerAddress==0x12 ? _interrupts.misr1EnablesKnown : _interrupts.misr2EnablesKnown;
+      // The preceding MISR read already withdrew installation confidence.
+      // Trust the requested byte only through a sound, completed mask write.
+      known = complete && _transport.violation==TransportViolation::NONE;
+    }
     if (testing && (receipt.attempted || possible)) {
       _interruptTestSession=true; _interrupts.testMayBeActive=true;
       _operation.cleanupOwed=_operation.temporaryMayBeActive=true;
@@ -257,6 +283,9 @@ Status DP8382x::_advanceInterrupt(Status status,bool called,const MdioBatch& bat
         address=static_cast<uint16_t>(0x0303U+ledIndex(_interrupts.desired.pin)); mask=7; expected=4; break;
       case InterruptStep::VERIFY1:
         _interrupts.rawMisr1=value; _interrupts.misr1Valid=true; mask=0x00FF; expected=_interrupts.desired.misr1Mask; break;
+      case InterruptStep::CROSSING:
+        if (!isDp83822(_config.variant) || !_interruptVerifyOnly) { break; }
+        [[fallthrough]];
       case InterruptStep::VERIFY2:
         _interrupts.rawMisr2=value; _interrupts.misr2Valid=true; mask=0x00FF; expected=_interrupts.desired.misr2Mask; break;
       case InterruptStep::VERIFY_SELECT:
@@ -346,15 +375,31 @@ Status DP8382x::_advanceInterrupt(Status status,bool called,const MdioBatch& bat
       _interrupts.selector=_interrupts.desired.sharedSource;
       _setInterruptStep(_interruptVerifyOnly?InterruptStep::VERIFY1:InterruptStep::MASK1); break;
     case InterruptStep::MASK1: _setInterruptStep(InterruptStep::MASK2); break;
-    case InterruptStep::MASK2: _setInterruptStep(InterruptStep::OUTPUT); break;
+    case InterruptStep::MASK2:
+      _setInterruptStep(isDp83822(_config.variant)?InterruptStep::VERIFY1:InterruptStep::OUTPUT); break;
+    case InterruptStep::INSTALL1: _setInterruptStep(InterruptStep::INSTALL2); break;
+    case InterruptStep::INSTALL2: _setInterruptStep(InterruptStep::OUTPUT); break;
     case InterruptStep::OUTPUT: _setInterruptStep(InterruptStep::ENABLE); break;
-    case InterruptStep::ENABLE: _setInterruptStep(InterruptStep::VERIFY1); break;
-    case InterruptStep::VERIFY1: _setInterruptStep(InterruptStep::VERIFY2); break;
-    case InterruptStep::VERIFY2: _setInterruptStep(InterruptStep::VERIFY_CONTROL); break;
+    case InterruptStep::ENABLE:
+      _setInterruptStep(isDp83822(_config.variant)?InterruptStep::VERIFY_CONTROL:InterruptStep::VERIFY1); break;
+    case InterruptStep::VERIFY1:
+      _setInterruptStep(isDp83822(_config.variant) && _interruptVerifyOnly ?
+                        InterruptStep::VERIFY_CONTROL:InterruptStep::VERIFY2); break;
+    case InterruptStep::VERIFY2:
+      // DP83822 RC/W readback may clear the masks. Only an explicit application
+      // installs them again, with global delivery off and no intervening MISR read.
+      _setInterruptStep(isDp83822(_config.variant) && !_interruptVerifyOnly ?
+                        InterruptStep::INSTALL1:InterruptStep::VERIFY_CONTROL); break;
     case InterruptStep::VERIFY_CONTROL:
       if (_operation.kind==OperationKind::INTERRUPT_CONFIGURE &&
           !_otherControlsVerified(OperationKind::INTERRUPT_CONFIGURE)) {
         return _finishOperation(invalidIrq("Other owned controls lost verification"));
+      }
+      // SNLS505H tables 8-18/19 label even the low enable bytes RC/W.
+      // Readback proves the sampled bytes, but cannot establish installed masks.
+      if (isDp83822(_config.variant) && (!_interrupts.misr1EnablesKnown || !_interrupts.misr2EnablesKnown)) {
+        _interrupts.trust=ConfigurationTrust::DIRTY; _interrupts.observedStale=true;
+        return _finishOperation(invalidIrq("MISR enable retention after read is unspecified"));
       }
       _interrupts.trust=ConfigurationTrust::VERIFIED; _interrupts.observedStale=false;
       _interrupts.timeValid=true; _interrupts.observedAtUs=_lastTimeUs+_config.transport.bounds.clockLagUs;

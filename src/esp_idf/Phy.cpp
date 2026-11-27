@@ -230,7 +230,8 @@ void Phy::recordCore(Status status, bool cleanup) noexcept {
 }
 
 esp_err_t Phy::create(const PhyConfig& config, Phy*& output) noexcept {
-  if (isDp83822(config.core.variant)) return ESP_ERR_NOT_SUPPORTED;
+  if (isDp83822(config.core.variant) &&
+      (config.core.dp83822Led1Mode != 1U && config.core.dp83822Led1Mode != 4U)) return ESP_ERR_INVALID_ARG;
   if (!config.mac || !config.bus || !config.bus->mutex ||
       !config.mac->read_phy_reg || !config.mac->write_phy_reg || !config.mac->stop ||
       !config.mac->set_mediator || !config.mac->init || !config.mac->deinit ||
@@ -349,7 +350,8 @@ BatchResult Phy::execute(void* context, const MdioBatch& batch, const IoBudget& 
 }
 
 esp_err_t Phy::prepareBoard(const BoardControl& board, uint64_t deadlineUs) noexcept {
-  if (!board.setReset || board.assertionUs < 25U || !board.maxPolls || !board.pinCallbackUs)
+  const bool p22 = isDp83822(_config.core.variant);
+  if (!board.setReset || board.assertionUs < (p22 ? 10U : 25U) || !board.maxPolls || !board.pinCallbackUs)
     return ESP_ERR_INVALID_ARG;
   if (!enter()) return ESP_ERR_INVALID_STATE;
   if (_installAttempted || _phase != Phase::STOPPED || _notifying) { leave(); return ESP_ERR_INVALID_STATE; }
@@ -360,7 +362,7 @@ esp_err_t Phy::prepareBoard(const BoardControl& board, uint64_t deadlineUs) noex
   auto& bus = *_config.bus;
   const uint64_t lag = _config.core.transport.bounds.clockLagUs;
   uint64_t porDue = 0;
-  const bool porKnown = addTime(board.powerOnAtUs, 50000U + lag, porDue);
+  const bool porKnown = addTime(board.powerOnAtUs, (p22 ? 200000U : 50000U) + lag, porDue);
   // A reported power event withdraws this owner's earlier reset proof and
   // publishes the new POR silence even when this call is rejected below
   // (expired allowance, quarantine or another reservation). The floor merges

@@ -9,13 +9,16 @@ inline void retainSampleCount(EvidenceSample& sample) noexcept {
   else { ++sample.samples; }
 }
 
-// SNLS647I table 8-38: FF saturates in hardware; software must not wrap either.
-inline void retainFalseCarriers(EvidenceSample& sample, uint8_t count) noexcept {
-  sample.counterSaturated = sample.counterSaturated || count == 0xFFU;
+// SNLS505H tables 8-20/21: the 8- and 16-bit counters stop at different limits.
+inline void retainCounter(EvidenceSample& sample, uint16_t count, uint16_t limit) noexcept {
+  sample.counterSaturated = sample.counterSaturated || count == limit;
   if (count > std::numeric_limits<uint64_t>::max() - sample.sampledSum) {
     sample.sampledSum = std::numeric_limits<uint64_t>::max();
     sample.sumSaturated = true;
   } else { sample.sampledSum += count; }
   sample.counterLowerBound = sample.counterLowerBound || sample.counterSaturated || sample.sumSaturated;
+}
+inline void retainFalseCarriers(EvidenceSample& sample, uint8_t count) noexcept {
+  retainCounter(sample, count, 0x00FFU);
 }
 } // namespace DP8382x::detail

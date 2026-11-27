@@ -6,9 +6,11 @@ The portable probe retains partial reads and permits an explicit retry.
 A successful probe also admits `captureDp83822Straps` for both strap words.
 `strapSnapshot()` exposes word validity, staleness and the completion timestamp.
 The probe reports documented 10/100 modes and interfaces. Only
-the IF and HF declarations report fiber capability. Startup, raw register
-access, the collector and native adapter remain unavailable for these
-declarations. The probe requires board-established SMI readiness and a
+the IF and HF declarations report fiber capability. With current identity,
+`observeDp83822Medium` reads CR2 in one frame. The owner can inspect
+`dp83822MediumSnapshot()` without I/O, including a stale raw word after
+a release or deadline failure. Set `Config::dp83822Led1Mode` to the board's
+functional strap level (1 or 4) for copper initialization. The probe requires board-established SMI readiness and a
 declared MDC rate of at most 25 MHz, or zero to use the board timing
 contract. [SNLS505H sections 4, 6.9 and tables 8-3/4](reference/source/TI-DP83822-SNLS505H.pdf)
 

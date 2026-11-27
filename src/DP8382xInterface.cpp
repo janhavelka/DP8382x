@@ -54,6 +54,7 @@ bool interfacePrefix(const MdioBatch& batch,const BatchResult& receipt,uint8_t l
 }
 
 Status DP8382x::_validateInterface(const InterfaceSettings& settings) const noexcept {
+  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   const auto syntax=interfaceSyntax(settings); if (!syntax.ok()) { return syntax; }
   if (settings.interface!=MacInterface::MII && settings.interface!=MacInterface::RMII) {
     return Status::Error(Err::UNSUPPORTED,"This interface procedure supports declared MII/RMII only");

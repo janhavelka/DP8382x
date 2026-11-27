@@ -132,7 +132,7 @@ struct BoardControl {
   esp_err_t (*setReset)(void*, bool){nullptr};
   uint64_t powerOnAtUs{0}; ///< Actual power-on sample in esp_timer us; event no later than sample+clockLagUs. Zero is valid.
   uint64_t clockStableAtUs{0}; ///< Stable REF_CLK event sample with the same clockLagUs bound; uninterrupted thereafter.
-  uint32_t assertionUs{100}; ///< At least 25 us; board RC pulse qualification remains external.
+  uint32_t assertionUs{100}; ///< Minimum 10 us on DP83822, 25 us on other maps. Board RC qualification remains external.
   uint32_t maxPolls{100000}; ///< Finite wait cap, including a frozen clock.
   /// Positive per-invocation RESET_N callback allowance in microseconds, including scheduling.
   /// The default is application policy. Supply a qualified bound for the actual GPIO implementation.

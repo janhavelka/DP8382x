@@ -92,6 +92,7 @@ Status interpretCable(const CableResult& result, double delay, CableDiagnosis& d
 }
 
 Status DP8382x::_admitCable(const OperationBudget& budget, bool stop) const noexcept {
+  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   if (budget.pollIntervalUs == 0U || budget.maxStalledPolls == 0U) {
     return Status::Error(Err::INVALID_PARAM, "Invalid cable polling budget", static_cast<int32_t>(ParamDetail::BUDGET_RANGE));
   }

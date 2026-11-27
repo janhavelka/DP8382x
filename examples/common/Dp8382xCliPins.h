@@ -152,7 +152,10 @@ inline bool decodeQuality(const FeatureArgs& args, QualitySettings& settings) {
     if ((causes & ~0x040FU) != 0) return false;
     fld.causeMask = static_cast<uint16_t>(causes);
   }
-  if (args[1] != "keep") {
+  if (args[1] == "far-drop" || args[1] == "far-keep-link") {
+    settings.tx100.owned = true;
+    settings.tx100.forceFarEndDrop = args[1] == "far-drop";
+  } else if (args[1] != "keep") {
     std::array<uint32_t, 3> values{};
     if (!numbers(args[1], {1, 3, 1}, values)) return false;
     settings.tx100 = {true, values[0] != 0, static_cast<uint8_t>(values[1]), values[2] != 0};
@@ -393,6 +396,7 @@ Status pinFeature(Access& io, Feature feature, const FeatureArgs& args, FeatureF
     }
     case Feature::QUALITY: {
       QualitySettings settings{};
+      if ((args[1] == "far-drop" || args[1] == "far-keep-link") && !isDp83822(io.variant())) return featureInvalid();
       if (!decodeQuality(args, settings)) return featureInvalid();
       if (!io.attest(settings.tx10.owned ? 1U : 0U)) return boardDenied(out);
       settings.maintenanceAdmitted = settings.macStopped = true;

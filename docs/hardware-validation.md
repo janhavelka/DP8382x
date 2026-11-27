@@ -280,3 +280,17 @@ acknowledgement. Do not infer a relation between 000C and MISR from fixture
 software. For VOD, record the unit's trim, termination, load and measured
 amplitude. Record cable velocity before converting TDR output to distance.
 These physical observations remain pending.
+
+## DP83822 copper fixtures
+
+Record the exact I, H, IF or HF marking, revision, address, interface and
+reference-clock wiring for each board. Record LED_1 resistor/strap mode and
+both SOR words. Capture live CR2[14] separately. Measure power, clock and
+RESET_N against SNLS505H sections 6.6 through 6.9. Check measured link and FLD
+against the identified partner at each forced or advertised speed/duplex.
+For interrupt retention, stimulate identified sources twice around a MISR
+read and record the pin, both raw words and any deliberate intervening mask
+writes. Record RECR half-full events alongside raw counts. The printed
+threshold and read effects require independent evidence. IF and HF each
+need separate optical Q14 evidence under prompt 65. Physical qualification
+and unattended fixture authorization remain pending.

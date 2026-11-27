@@ -26,7 +26,7 @@ from dp8382x_hil_campaign import (
 )
 from dp8382x_hil_fixture import FixtureError, FixtureProcess
 from dp8382x_hil_protocol import (
-    PHY_ID2, TERMINAL_STATUS, U32_MAX, U64_MAX, VARIANTS, Decoder, ProtocolError, Record,
+    DP83822, PHY_ID2, TERMINAL_STATUS, U32_MAX, U64_MAX, VARIANTS, Decoder, ProtocolError, Record,
     identity, integer, observed_identity, validate_expected_identity,
 )
 from dp8382x_hil_serial import (
@@ -39,7 +39,7 @@ from dp8382x_hil_soak import SoakCampaign
 TOKEN = re.compile(r"[A-Za-z0-9_.:-]{1,64}\Z")
 REVISION = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 TARGET_FIELDS = ("target", "backend", "variant", "interface", "address")
-OPTIONAL_FIELDS = ("firmware", "firmware_prefix", "tree", "sdk", "clock", "console", "baud", "rmii_role")
+OPTIONAL_FIELDS = ("firmware", "firmware_prefix", "tree", "sdk", "clock", "console", "baud", "rmii_role", "medium")
 FEATURE_EXCHANGE_SECONDS = 2.0
 
 
@@ -80,7 +80,7 @@ def check_payload(record, variant):
         flags = ("reset_required reset_accepted reset_complete persistent_restored mutation_completed "
                  "mutation_possible cleanup_owed temporary clock_invalid link_valid sor1_valid sor2_valid straps_stale")
         checks = {name: ("0", "1") for name in flags.split()}
-        checks.update({name: ("none", "pcs", "hard", "restart", "unknown") for name in
+        checks.update({name: ("none", "pcs", "hard", "restart", "eee-pcs", "unknown") for name in
                        ("requested_reset", "effective_reset")})
         checks.update({"core_status": tuple(TERMINAL_STATUS), "core_detail": (-2**31, 2**31-1),
                        "sor1": (0, 65535), "sor2": (0, 65535)})
@@ -227,7 +227,7 @@ def check_feature_envelope(record):
         checks = {**bits("mutation_completed mutation_possible cleanup_owed temporary persistent_restored "
                          "reset_accepted reset_complete"), "core_status": tuple(TERMINAL_STATUS),
                   "core_detail": (-2**31, 2**31 - 1),
-                  "effective_reset": ("none", "pcs", "hard", "restart", "unknown")}
+                  "effective_reset": ("none", "pcs", "hard", "restart", "eee-pcs", "unknown")}
         fields = {key: record.fields[key] for key in checks if key in record.fields}
         exact_fields(fields, checks)
         if record.primary == "OK" and (fields["core_status"], fields["core_detail"]) != ("OK", "0"):
@@ -866,6 +866,8 @@ def capture(args, suite, nonce, expected, declaration=None, recorded=None):
                 raise FixtureError("DP83825I fixture requires an explicit --fixture-rmii-role")
             if args.fixture_rmii_role:
                 argv += ["--rmii-role", args.fixture_rmii_role]
+            if args.fixture_variant in DP83822 and expected["interface"] in ("MII", "RGMII"):
+                argv.append("--mii" if expected["interface"] == "MII" else "--rgmii")
             baseline = ()
             feature = None
             if declaration:
@@ -882,7 +884,7 @@ def capture(args, suite, nonce, expected, declaration=None, recorded=None):
                         if not args.fixture_deny_maintenance:
                             baseline = session.campaign.baseline
                 argv += ["--campaign", declaration["mode"], "--campaign-peer", peer]
-                if expected["interface"] == "MII":
+                if expected["interface"] == "MII" and args.fixture_variant not in DP83822:
                     argv.append("--mii")
                 if args.fixture_deny_maintenance:
                     argv.append("--deny-maintenance")

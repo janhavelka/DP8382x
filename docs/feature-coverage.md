@@ -6,8 +6,13 @@ and preserves partial and rejected reads. Each row checks the live strap
 capture, all eight transfer failure positions, late completion and failed
 release. For all four grades, `p22_straps` exercises the offline decoder
 against the reset defaults, per-pin encodings and reserved or incomplete
-captures. Active-medium verification and copper startup are pending.
-The SDK factory and CLI still reject these declarations. [DP83822 implementation record](reports/implementation/63-p22-copper-core.md)
+captures. `p22_startup` checks the live CR2 medium, board and latch
+agreement, reset words, and readiness. Twelve `p22_copper_*` rows exercise
+forced and negotiated profiles, 10BASE-Te, crossover and fast link drop.
+`p22_link` and `p22_collector` exercise link flaps, counter saturation and
+interrupt service across the same twelve declarations. An IRQ policy
+installation writes its masks after readback while delivery is disabled.
+A consuming read withdraws confidence in the installed enable byte. [DP83822 implementation record](reports/implementation/63-p22-copper-core.md)
 
 The DP83826AI/AE software covers the 21 procedures assigned to prompt 58.
 The exact IDs, grade-specific executing tests and limits are in the

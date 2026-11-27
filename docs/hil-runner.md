@@ -435,3 +435,13 @@ Older plain-mode transcripts reporting 63 fail that check because they
 accessed the password words. Replay uses the declared variant, role,
 bounded commands and intervention receipts. A stock native feature
 grant and the physical Q15 observations require board-specific evidence.
+
+## DP83822 simulated copper
+
+Use the same exact ordering grade for `--fixture-variant` and `--variant`,
+specify `--medium copper`, and select MII, RMII or RGMII. For campaigns use
+`--operating-mode none`. The fixture sets LED_1 mode 1 and uses the matching
+strap literals at address 1. The runner can replay the correlated session
+and grade-specific PHYIDR2, initialization and link evidence with
+`verify-artifacts`. Optional feature campaigns require their own DP83822
+baseline and verifier.

@@ -6,12 +6,12 @@ import ipaddress
 
 if __package__:
     from .dp8382x_hil_protocol import (
-        COMMON_FIELDS, PHY_ID2, TERMINAL_STATUS, U32_MAX, U64_MAX, ProtocolError, identity, integer,
+        COMMON_FIELDS, DP83822, PHY_ID2, TERMINAL_STATUS, U32_MAX, U64_MAX, ProtocolError, identity, integer,
     )
     from .dp8382x_hil_serial import fixture_identifier
 else:
     from dp8382x_hil_protocol import (
-        COMMON_FIELDS, PHY_ID2, TERMINAL_STATUS, U32_MAX, U64_MAX, ProtocolError, identity, integer,
+        COMMON_FIELDS, DP83822, PHY_ID2, TERMINAL_STATUS, U32_MAX, U64_MAX, ProtocolError, identity, integer,
     )
     from dp8382x_hil_serial import fixture_identifier
 
@@ -286,11 +286,12 @@ class Campaign:
         self.declaration = declaration
         self.expected = expected
         self.backend = expected["backend"]
+        self.p22 = expected["variant"] in DP83822
         self.p25 = expected["variant"] == "DP83825I"
         if self.p25 and self.spec.id not in getattr(self.feature, "P25_CASES", ()):
             self.baseline = ()
-        if (declaration["mode"] == "none") != self.p25:
-            raise ProtocolError("DP83825I has no BASIC or ENHANCED operating mode")
+        if (declaration["mode"] == "none") != (self.p25 or self.p22):
+            raise ProtocolError("operating mode disagrees with declared register map")
         self.a_feature = self.feature is not None and expected["variant"] in ("DP83826AI", "DP83826AE")
         if self.p25 and self.spec.id == "power-deep":
             self.spec = replace(self.spec, feature_mutation=True)
@@ -317,6 +318,8 @@ class Campaign:
 
     def feature_gate(self):
         """Return the prerequisite that prevents the selected feature from running."""
+        if self.p22:
+            return "DP83822 feature campaign needs its exact-part baseline and verifier"
         if self.p25 and self.spec.id not in getattr(self.feature, "P25_CASES", ()):
             return "No DP83825I campaign baseline and verifier for this procedure"
         if (self.expected["target"], self.backend) != ("host", "sim-mdio"):
@@ -437,10 +440,10 @@ class Campaign:
 
     def check_device(self, row):
         basic = self.declaration["mode"] == "basic"
-        id2 = PHY_ID2[self.expected["variant"]][0 if basic or self.p25 else 1]
+        id2 = PHY_ID2[self.expected["variant"]][0 if basic or self.p25 or self.p22 else 1]
         require(matches(row.fields, id1_valid=1, id1=0x2000, id2_valid=1, id2=id2,
-                        decoded_valid=1, oui=524328, model=20 if self.p25 else 17 if basic else 19, revision=id2 & 0xF,
-                        mode="unknown" if self.p25 else self.declaration["mode"], identity_state="accepted", stale=0,
+                        decoded_valid=1, oui=524328, model=(id2 >> 4) & 63, revision=id2 & 0xF,
+                        mode="unknown" if self.p25 or self.p22 else self.declaration["mode"], identity_state="accepted", stale=0,
                         identity_status="OK", identity_detail=0), row,
                 f"declared {self.expected['variant']} identity is not current")
 
@@ -456,7 +459,8 @@ class Campaign:
         require(identity(local, self.expected) == identity(self.session, self.expected), local,
                 "local board and session identity disagree")
         caps = yield from self.read("capabilities")
-        require(matches(caps.fields, valid=1, modes=15, interfaces=2 if self.p25 else 3, copper=1, fiber=0, gigabit=0), caps,
+        require(matches(caps.fields, valid=1, modes=15, interfaces=7 if self.p22 else 2 if self.p25 else 3, copper=1,
+                        fiber=int(self.expected["variant"] in ("DP83822IF", "DP83822HF")), gigabit=0), caps,
                 "current exact-part capability evidence required")
         identity_fields = DEVICE
         if self.p25:
@@ -486,14 +490,22 @@ class Campaign:
                 "rejection changed cached owner, transport, application or PHY evidence")
 
     def profile(self, scope, cleanup=False):
-        return (yield from self.read("configuration " + scope, CONFIG, cleanup=cleanup))
+        schema = {**CONFIG, "flags": (0, 4095)} if self.p22 else CONFIG
+        return (yield from self.read("configuration " + scope, schema, cleanup=cleanup))
 
     def profiles(self, cleanup=False, unavailable="FAIL"):
         desired = yield from self.profile("desired", cleanup)
         observed = yield from self.profile("observed", cleanup)
         candidate = Profile.read(desired.fields)
+        expected_readback = candidate
+        if self.p22:
+            # Peer attestation lives with intent. Robust/fast MDIX also sets CR2[6].
+            flags = candidate.flags & ~2048
+            if flags & (1 | 64):
+                flags |= 1024
+            expected_readback = replace(candidate, flags=flags)
         require(all(matches(row.fields, valid=1, stale=0, trust="VERIFIED") for row in (desired, observed)) and
-                candidate == Profile.read(observed.fields) and candidate.replayable(robust_optional=self.p25), observed,
+                expected_readback == Profile.read(observed.fields) and candidate.replayable(robust_optional=self.p25 or self.p22), observed,
                 "complete, equal and VERIFIED desired and observed profiles required", unavailable)
         return candidate
 
@@ -600,11 +612,12 @@ class Campaign:
         if profile.mode == "an":
             local = int(f["anar"])
             # SNLS638C table 7-7 requires the local remote-fault bit to be zero.
-            local_mask = 0x2DFF if self.p25 else 0x0DFF
+            local_mask = 0x2DFF if self.p25 or self.p22 else 0x0DFF
+            remote_fault = 0x2000 if self.p22 and profile.flags & 32 else 0
             complete = bool(current & 32)
             require(matches(f, advertised_valid=1, advertised_modes=profile.modes,
                             negotiation="complete" if complete else "in_progress") and
-                    (local & local_mask) == (1 | profile.modes << 5 | profile.pause_sym << 10 | profile.pause_asym << 11),
+                    (local & local_mask) == (1 | profile.modes << 5 | profile.pause_sym << 10 | profile.pause_asym << 11 | remote_fault),
                     row, "local advertisement or AN state differs from readback")
         else:
             require(matches(f, negotiation="disabled", advertised_valid=0, advertised_modes=0, partner_valid=0,
@@ -762,7 +775,7 @@ class Campaign:
                 yield from self.passive(before)
             elif spec.id == "cold-boot":
                 yield from self.profiles(unavailable="BLOCKED")
-                if d["polling"] == "exclusive" and not self.p25:
+                if d["polling"] == "exclusive" and not (self.p25 or self.p22):
                     yield from self.vod()
             else:
                 saved = yield from self.profiles(unavailable="BLOCKED")
@@ -784,7 +797,7 @@ class Campaign:
                     require((yield from self.profiles()) == spec.target, self.last, "target profile readback differs")
                     if spec.resolved or spec.fault:
                         yield from self.mode_or_fault(spec.target)
-                    if spec.id == "10base-te" and not self.p25:
+                    if spec.id == "10base-te" and not (self.p25 or self.p22):
                         yield from self.vod()
             self.success = self.failed is None
         except AssertionFailed as error:

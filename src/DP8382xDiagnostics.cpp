@@ -93,6 +93,7 @@ Status DP8382x::startLoopback(const LoopbackOptions& options, const OperationBud
 }
 Status DP8382x::_startLoopback(const LoopbackOptions& options, const OperationBudget& budget,
                               OperationToken& token, bool lineBist) noexcept {
+  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   if (_interface.desiredValid && _interface.desired.isolationOwned && _interface.desired.isolate) {
     return rejected("Release owned MAC isolation before diagnostic traffic");
   }
@@ -400,6 +401,7 @@ BistSnapshot DP8382x::bistSnapshot() const noexcept {
 }
 Status DP8382x::startBist(const BistOptions& options, const OperationBudget& budget,
                          OperationToken& token) noexcept {
+  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   if (options.mode > BistMode::GENERATOR_CHECKER || options.counterMode > BistCounterMode::WRAP ||
       options.loopback.mode > LoopbackMode::EXTERNAL) {
     return Status::Error(Err::INVALID_PARAM, "Invalid BIST mode", static_cast<int32_t>(ParamDetail::ENUM_VALUE));

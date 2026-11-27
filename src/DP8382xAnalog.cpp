@@ -50,6 +50,7 @@ bool DP8382x::_dspModeConflict(FunctionalMode mode,const AnalogSettings& setting
 }
 
 Status DP8382x::_validateAnalog(const AnalogSettings& s) const noexcept {
+  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   const auto syntax=analogSyntax(s); if (!syntax.ok()) { return syntax; }
   const bool p25 = _config.variant==Variant::DP83825I;
   for (size_t i=0;i<std::size(dspAllowed);++i) {

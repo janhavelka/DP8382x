@@ -14,7 +14,9 @@ using Driver = ::DP8382x::DP8382x;
 // tables 8-20..27/35/44. Revision 4 mirrors the BMSR fault before clearing.
 constexpr uint8_t originalTrace[] = {1, 1, 16, 0, 4, 5, 6, 25, 1, 16};
 // SNLS638C table 7-19 also places remote fault in PHYSTS before BMSR clears it.
-bool bmsrClearsRemoteFault() { return test::aGrade() || test::p25(); }
+MacInterface p22Interface = MacInterface::MII;
+bool p22() { return isDp83822(test::declaredVariant); }
+bool bmsrClearsRemoteFault() { return test::aGrade() || test::p25() || p22(); }
 constexpr uint8_t faultMirrorTrace[] = {16, 1, 1, 0, 4, 5, 6, 25, 16, 1};
 
 // Script positions are physical reads, including destructive reads. No device
@@ -36,7 +38,8 @@ struct Controller {
   Config config(uint32_t phy = 1) noexcept {
     Config result;
     result.variant = test::declaredVariant;
-    result.interface = MacInterface::RMII;
+    result.interface = p22() ? p22Interface : MacInterface::RMII;
+    if (p22()) result.dp83822Led1Mode = 1;
     if (test::p25()) result.rmiiClock = RmiiClock::LEADER_25MHZ;
     result.phyAddress = phy;
     result.transport = {this, execute, clock, {8, 4, 1}};
@@ -50,11 +53,15 @@ struct Controller {
   }
   uint16_t read(uint8_t reg) noexcept {
     if (reg == 2) return 0x2000;
-    if (reg == 3) return test::p25() ? 0xA140 : test::enhancedId2();
+    if (reg == 3) return p22() ? 0xA240 : test::p25() ? 0xA140 : test::enhancedId2();
     if (reg == 0 && !sampling) words[0] = static_cast<uint16_t>(words[0] & 0x7DFFU);
     if (reg == 31) words[31] = 0;
     if (reg == 23 && test::p25()) return 0x0061; // RMII leader, no pending FIFO events.
     if (reg == 14 && selector == 0x401F) {
+      if (p22() && address == 0x0467) {
+        return p22Interface == MacInterface::MII ? 0x0FC3 : p22Interface == MacInterface::RMII ? 0x0FE3 : 0x0DC3;
+      }
+      if (p22() && address == 0x0468) return 0;
       if (address == 0x030E) return vod;
       if (address == 0x0467) return 0x1234;
       if (address == 0x0468) return 0x5678;
@@ -666,13 +673,52 @@ void ownership() {
     }
   }
 }
+void p22Link() {
+  for (const auto variant : {Variant::DP83822I, Variant::DP83822H, Variant::DP83822IF, Variant::DP83822HF}) {
+    test::declaredVariant = variant;
+    for (const auto interface : {MacInterface::MII, MacInterface::RMII, MacInterface::RGMII}) {
+      p22Interface = interface;
+      readPlan();
+      coherence();
+      pause();
+      budgets();
+      failures();
+      Controller bus; Driver driver; initialize(driver, bus);
+      LinkSnapshot result;
+      // SNLS505H table 8-16: in forced mode the live mode still comes from PHYSTS[2:0].
+      struct Mode { uint16_t physts, bmcr; LinkSpeed speed; Duplex duplex; };
+      const Mode modes[] = {{1, 0x0100, LinkSpeed::MBPS_100, Duplex::HALF},
+          {5, 0, LinkSpeed::MBPS_100, Duplex::FULL}, {3, 0x2100, LinkSpeed::MBPS_10, Duplex::HALF},
+          {7, 0x2000, LinkSpeed::MBPS_10, Duplex::FULL}};
+      for (const auto& mode : modes) {
+        bus.words[0] = mode.bmcr;
+        up(bus, mode.physts);
+        CHECK(refresh(driver, bus, result).ok() && result.linkUp && result.resolvedModeValid);
+        CHECK(result.speed == mode.speed && result.duplex == mode.duplex);
+        CHECK(!result.pauseValid && result.negotiation == NegotiationState::DISABLED);
+      }
+      bus.finalStatusXor = 2;
+      CHECK(refresh(driver, bus, result).is(Err::BUSY));
+      CHECK(driver.linkSnapshot().stale);
+      bus.finalStatusXor = 0; bus.down = true;
+      const auto healthy = driver.healthSnapshot();
+      CHECK(refresh(driver, bus, result).ok() && !result.linkUp && !result.resolvedModeValid);
+      CHECK(driver.healthSnapshot().totalSuccess == healthy.totalSuccess + 2);
+      CHECK(driver.healthSnapshot().totalFailures == healthy.totalFailures);
+      bus.failFrame = static_cast<int>(bus.frames + 7);
+      CHECK(refresh(driver, bus, result).is(Err::MDIO_TIMEOUT) && driver.linkSnapshot().stale);
+      CHECK(driver.healthSnapshot().totalFailures == healthy.totalFailures + 1);
+      CHECK(driver.healthSnapshot().lastError.detail == -19019);
+    }
+  }
+}
 } // namespace
 
 int main(int argc, char** argv) {
   const test::Suite suites[] = {
     {"read_plan", readPlan}, {"transitions", transitions}, {"coherence", coherence},
     {"pause", pause}, {"forced", forced}, {"failures", failures},
-    {"budgets", budgets}, {"clocks", clocks}, {"ownership", ownership}
+    {"budgets", budgets}, {"clocks", clocks}, {"ownership", ownership}, {"p22_link", p22Link}
   };
   return test::runVariantSuites(argc, argv, suites);
 }

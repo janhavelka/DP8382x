@@ -25,6 +25,7 @@ struct Controller {
   unsigned frames{0},calls{0},clocks{0},releases{0},mutations{0},hard{0};
   std::array<unsigned,2048> firstFrame{};
   uint16_t capability{2}; bool corruptAdvertisement{false};
+  bool peerPages{false}; // Inject one base event and the peer's final next page.
   int failFrame{-1},releaseCall{-1},corruptFrame{-1},lateCall{-1},regressCall{-1},invalidCall{-1},badReceiptCall{-1};
   uint16_t corruptMask{1};
   bool acceptedFailure{true},locked{false},powerPin{false},stickyRestart{false};
@@ -41,6 +42,7 @@ struct Controller {
   }
   Config config(uint32_t phy=1) {
     Config c;c.variant=declared;c.interface=boardInterface;c.phyAddress=phy;
+    if (isDp83822(declared)) c.dp83822Led1Mode=1;
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
   static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context);++b.clocks;return b.now; }
@@ -87,6 +89,7 @@ struct Controller {
       CHECK(value==0x1000 || value==0);
       ext[target]=static_cast<uint16_t>((ext[target]&0x00FFU)|value);return;
     }
+    if (peerPages && ((target==0 && (value&0x0200U)!=0U) || target==7)) words[6]=0x000F;
     if(target<32U)words[target]=value;else ext[target]=value;
   }
   static BatchResult execute(void* context,const MdioBatch& batch,const IoBudget& budget) noexcept {
@@ -96,7 +99,14 @@ struct Controller {
     CHECK(batch.frameCount<=budget.maxFrames);b.locked=true;const auto call=b.calls++;CHECK(call<b.firstFrame.size());b.firstFrame[call]=b.frames;
     for(uint8_t i=0;i<batch.frameCount;++i) {
       const auto& q=batch.frames[i];auto& f=r.frames[i];uint16_t value=q.value;
-      if(q.readIndex!=NO_READ_INDEX) { CHECK(q.readIndex<i && r.frames[q.readIndex].valueValid);value=static_cast<uint16_t>((r.frames[q.readIndex].value&q.preserveMask)|q.value); }
+      if(q.readIndex!=NO_READ_INDEX) {
+        CHECK(q.readIndex<i && r.frames[q.readIndex].valueValid);
+        if (!q.acceptsRead(r.frames[q.readIndex].value)) {
+          r.status=Status::Error(Err::CONFIG_MISMATCH,"Read prerequisite changed");
+          break;
+        }
+        value=static_cast<uint16_t>((r.frames[q.readIndex].value&q.preserveMask)|q.value);
+      }
       const uint16_t target=q.registerAddress==14 && (b.selector&0x4000U)!=0U?b.address:uint16_t{q.registerAddress};
       const uint16_t devad=q.registerAddress==14 && (b.selector&0x4000U)!=0U?static_cast<uint16_t>(b.selector&31U):uint16_t{31};
       CHECK(b.frames<b.trace.size());const auto frame=b.frames++;b.trace[frame]={q.kind,q.registerAddress,value,target,devad,b.now};
@@ -167,6 +177,197 @@ OperationResult configured(Driver& d,Controller& b,const QualitySettings& s) {
   return r;
 }
 bool semantic(const Wire& w) { return w.kind==FrameKind::WRITE && w.reg!=13 && !(w.reg==14 && w.target==14); }
+
+MacInterface p22Interface=MacInterface::MII;
+
+void startP22(Driver& driver,Controller& bus) {
+  bus.boardInterface=p22Interface;
+  bus.id2=0xA240;
+  bus.ext[0x0467]=p22Interface==MacInterface::MII ? 0x0FC3 :
+      p22Interface==MacInterface::RMII ? 0x0FF3 : 0x0DC3;
+  initialized(driver,bus);
+  CHECK(driver.isInitialized() && bus.mutations==0);
+}
+
+OperationToken p22StartPolicy(Driver& driver,bool quality) {
+  OperationToken token;
+  if (quality) {
+    QualitySettings target;
+    target.maintenanceAdmitted=target.macStopped=target.fastDrop.owned=target.tx10.owned=true;
+    target.fastDrop.causeMask=0x0409; target.tx10.squelchCode=5;
+    CHECK(driver.startConfigureQuality(target,budget(),token).inProgress());
+  } else {
+    LinkSettings target;
+    target.advertisement={15,true,false,true};
+    target.crossover.swapPolarity=true;
+    CHECK(driver.startConfigure(target,{},budget(),token).inProgress());
+  }
+  return token;
+}
+
+void p22InterruptPolicy(bool quality) {
+  Controller baseline; Driver normal; startP22(normal,baseline);
+  const auto first=baseline.frames,firstCall=baseline.calls;
+  const auto good=p22StartPolicy(normal,quality);
+  CHECK(drain(normal,baseline,good).ok() && take(normal,good).persistentRestored);
+  const auto frames=baseline.frames-first,calls=baseline.calls-firstCall;
+  CHECK(frames==(quality?13U:24U));
+  unsigned firstWrite=0;
+  while (firstWrite<frames && baseline.trace[first+firstWrite].kind==FrameKind::READ) ++firstWrite;
+  CHECK(firstWrite<frames);
+  for (unsigned cut=0;cut<frames;++cut) {
+    Controller bus; Driver driver; startP22(driver,bus);
+    bus.failFrame=static_cast<int>(bus.frames+cut);
+    const auto token=p22StartPolicy(driver,quality);
+    CHECK(drain(driver,bus,token).is(Err::MDIO_TIMEOUT));
+    const auto failed=take(driver,token);
+    CHECK(failed.status.detail==-33033 && !failed.persistentRestored);
+    CHECK(failed.cleanupOwed==(cut>=firstWrite) && bus.calls==bus.releases);
+    const auto count=bus.calls, clocks=bus.clocks;
+    if (quality) CHECK(driver.qualitySnapshot().observedStale);
+    else CHECK(driver.settingsSnapshot().observedStale);
+    CHECK(count==bus.calls && clocks==bus.clocks);
+  }
+  for (unsigned cut=0;cut<calls;++cut) {
+    Controller bus; Driver driver; startP22(driver,bus);
+    bus.releaseCall=static_cast<int>(bus.calls+cut);
+    const auto token=p22StartPolicy(driver,quality);
+    CHECK(drain(driver,bus,token).is(Err::MDIO_ERROR));
+    const auto failed=take(driver,token);
+    CHECK(failed.failingBatch.release.detail==-37 && !failed.persistentRestored);
+  }
+  // A sampled copper declaration can be contradicted by a later CR2 read.
+  // Neither policy issues its first write after that new observation.
+  {
+    Controller fx; Driver driver; startP22(driver,fx);
+    fx.words[10]=0x4000;
+    const auto token=p22StartPolicy(driver,quality);
+    CHECK(!drain(driver,fx,token).ok());
+    CHECK(!take(driver,token).cleanupOwed && fx.mutations==0);
+  }
+  Controller bus; Driver driver; startP22(driver,bus);
+  auto token=p22StartPolicy(driver,quality);
+  for (unsigned step=0;step<calls && !bus.mutations;++step) CHECK(poll(driver,bus,token).inProgress());
+  CHECK(bus.mutations==1);
+  const auto count=bus.calls;
+  CHECK(driver.cancel(token).ok() && bus.calls==count);
+  CHECK(take(driver,token).cleanupOwed);
+  CHECK(driver.startInitialize({ResetKind::NONE},budget(),token).inProgress() && drain(driver,bus,token).ok());
+  CHECK(take(driver,token).persistentRestored && !driver.operationSnapshot().cleanupOwed);
+  if (quality) CHECK((bus.words[11]&0x040FU)==0x0409 && (bus.words[26]&0x1E00U)==0x0A00);
+  else CHECK((bus.words[4]&0xADFFU)==0x25E1 && (bus.words[11]&0x0060U)==0x40);
+}
+
+void p22Copper() {
+  // SNLS505H tables 8-1, 8-5..12, 8-16, 8-25/26. Inspect literal bus
+  // targets and data, independently of command constants and register maps.
+  Controller bus; Driver driver;
+  startP22(driver,bus);
+  if (!driver.isInitialized()) return;
+  OperationToken token;
+  LinkSettings profile;
+  profile.crossover.robust=false;
+  for (uint8_t mask=1;mask<=15;++mask) {
+    profile.advertisement={mask,(mask&1U)!=0,(mask&2U)!=0,(mask&4U)!=0};
+    profile.fastAutoNegotiation=profile.peerFastModeConfirmed=true;
+    profile.fastAutoNegotiationCode=static_cast<uint8_t>(mask%3);
+    profile.crossover.swapPair=(mask&1U)!=0;
+    profile.crossover.swapPolarity=(mask&2U)!=0;
+    profile.fastParallelDetect=(mask&8U)!=0;
+    CHECK(driver.startConfigure(profile,{},budget(),token).inProgress());
+    CHECK(drain(driver,bus,token).ok() && take(driver,token).persistentRestored);
+    const auto snap=driver.settingsSnapshot();
+    CHECK(snap.trust==ConfigurationTrust::VERIFIED && snap.observedValid);
+    CHECK(snap.observed.advertisement.remoteFault==profile.advertisement.remoteFault);
+    CHECK(snap.observed.crossover.swapPolarity==profile.crossover.swapPolarity &&
+          snap.observed.crossover.swapPair==profile.crossover.swapPair);
+    CHECK(bus.words[4]==static_cast<uint16_t>((static_cast<unsigned>(mask)<<5U)|1U|((mask&1U)?0x0400U:0U)|
+          ((mask&2U)?0x0800U:0U)|((mask&4U)?0x2000U:0U)));
+    CHECK((bus.words[9]&0x007C)==static_cast<uint16_t>(0x0010U|((mask%3U)<<2U)));
+    CHECK((bus.words[10]&0x0060)==((mask&8U)?0x0040:0));
+    CHECK((bus.words[11]&0x0060)==(((mask&1U)?0x0020:0)|((mask&2U)?0x0040:0)));
+  }
+  profile={};
+  profile.advertisement.technologyMask=15;
+  bus.peerPages=true; bus.words[5]=0xC101; bus.words[8]=0x7801;
+  ConfigureOptions pages;
+  pages.nextPages.pageCount=1; pages.nextPages.pages[0]={1,true,true};
+  CHECK(driver.startConfigure(profile,pages,budget(),token).inProgress());
+  CHECK(drain(driver,bus,token).ok());
+  const auto page=take(driver,token);
+  CHECK(page.nextPage.complete && page.nextPage.basePage==0xC101 && page.nextPage.receivedPages==1 &&
+        page.nextPage.pages[0].valid && page.nextPage.pages[0].raw==0x7801 && bus.words[7]==0x3001);
+  CHECK((bus.words[4]&0x8000U)==0U && (bus.words[10]&0x0040U)!=0U);
+  const auto firstRestart=bus.frames;
+  CHECK(driver.restartAutoNegotiation({1000000,3}).ok());
+  CHECK(bus.frames-firstRestart==3U && bus.trace[firstRestart+1].kind==FrameKind::WRITE &&
+        bus.trace[firstRestart+1].reg==0 && bus.trace[firstRestart+1].value==0x1200);
+  pages.nextPages.pages[0]={4,true,false}; // Missing unformatted page after remote-fault message.
+  const auto prior=bus.calls;
+  CHECK(driver.startConfigure(profile,pages,budget(),token).is(Err::INVALID_CONFIG) && bus.calls==prior);
+
+  for (unsigned invalid=0;invalid<4;++invalid) {
+    auto request=profile;
+    request.fastAutoNegotiation=true; request.peerFastModeConfirmed=true;
+    if (invalid==0) request.fastAutoNegotiationCode=3;
+    if (invalid==1) request.peerFastModeConfirmed=false;
+    if (invalid==2) request.crossover.fast=true;
+    if (invalid==3) { request.fastAutoNegotiation=false; request.fastAutoNegotiationCode=1; }
+    const auto calls=bus.calls,clocks=bus.clocks;
+    CHECK(driver.startConfigure(request,{},budget(),token).is(Err::INVALID_CONFIG));
+    CHECK(bus.calls==calls && bus.clocks==clocks);
+  }
+  profile={}; profile.mode=LinkMode::FORCED; profile.crossover.robust=false;
+  for (const auto speed : {LinkSpeed::MBPS_10,LinkSpeed::MBPS_100}) {
+    for (const auto duplex : {Duplex::HALF,Duplex::FULL}) {
+      profile.forced={speed,duplex};
+      for (const auto route : {PairSelection::MDI,PairSelection::MDIX,PairSelection::AUTOMATIC}) {
+        profile.crossover.pairSelection=route;
+        profile.crossover.fast=profile.peerFastModeConfirmed=(route==PairSelection::AUTOMATIC && speed==LinkSpeed::MBPS_100);
+        CHECK(driver.startConfigure(profile,{},budget(),token).inProgress());
+        CHECK(drain(driver,bus,token).ok() && take(driver,token).persistentRestored);
+        CHECK((bus.words[0]&0x3100U)==((speed==LinkSpeed::MBPS_100?0x2000U:0U)|(duplex==Duplex::FULL?0x100U:0U)));
+        CHECK((bus.words[9]&0x7CU)==(profile.crossover.fast?0x40U:0U));
+        CHECK((bus.words[25]&0xC000U)==(route==PairSelection::MDI?0U:route==PairSelection::MDIX?0x4000U:0xC000U));
+      }
+    }
+  }
+  QualitySettings quality;
+  quality.maintenanceAdmitted=quality.macStopped=true;
+  quality.fastDrop.owned=quality.tx10.owned=quality.tx100.owned=quality.recoveryOwned=true;
+  quality.linkRecovery=quality.tx100.forceFarEndDrop=true;
+  quality.tx10.lowerThreshold=quality.tx10.nlpDisable=quality.tx10.jabberDisable=true;
+  for (unsigned causes=0;causes<32;++causes) {
+    quality.fastDrop.causeMask=static_cast<uint16_t>((causes&15U)|((causes&16U)?0x0400U:0U));
+    quality.tx10.squelchCode=static_cast<uint8_t>(causes%9U);
+    bus.words[26]=0x0010; bus.words[16]|=0x1000;
+    const auto first=bus.frames;
+    configured(driver,bus,quality);
+    CHECK((bus.words[10]&0x8000U)!=0 && (bus.words[9]&0x0080U)!=0);
+    CHECK((bus.words[11]&0x040FU)==quality.fastDrop.causeMask);
+    CHECK(bus.words[26]==static_cast<uint16_t>(0x2081U|((causes%9U)<<9U)));
+    for (unsigned i=first;i<bus.frames;++i) {
+      const auto& frame=bus.trace[i];
+      CHECK(frame.reg!=13 && frame.reg!=14);
+      if (frame.kind==FrameKind::WRITE)
+        CHECK(frame.reg==0x1A || frame.reg==0x0A || frame.reg==9 || frame.reg==11);
+      if (frame.kind==FrameKind::READ && frame.reg==0x1A)
+        CHECK(i>first && bus.trace[i-1].kind==FrameKind::READ && bus.trace[i-1].reg==0x10);
+    }
+  }
+  const auto calls=bus.calls,clocks=bus.clocks;
+  for (uint8_t code=9;code<=15;++code) {
+    quality.tx10.squelchCode=code;
+    CHECK(driver.startConfigureQuality(quality,budget(),token).is(Err::INVALID_PARAM));
+  }
+  quality.tx10.squelchCode=0; quality.fastDrop.rawThresholdOverride=true;
+  CHECK(driver.startConfigureQuality(quality,budget(),token).is(Err::UNSUPPORTED));
+  profile.forced.speed=LinkSpeed::MBPS_10; profile.crossover.fast=profile.peerFastModeConfirmed=false;
+  CHECK(driver.startConfigure(profile,{},budget(),token).is(Err::INVALID_CONFIG));
+  CHECK(calls==bus.calls && clocks==bus.clocks);
+  p22InterruptPolicy(false);
+  p22InterruptPolicy(true);
+}
 unsigned writes(const Controller& b,unsigned first,uint16_t target) {
   unsigned n=0;for(unsigned i=first;i<b.frames;++i)if(semantic(b.trace[i]) && b.trace[i].target==target)++n;return n;
 }
@@ -686,6 +887,19 @@ template<Variant grade> void aQuality() {
 }
 } // namespace
 int main(int argc,char** argv) {
+  if (argc==4 && std::strcmp(argv[1],"p22_copper")==0) {
+    if (std::strcmp(argv[2],"I")==0) test::declaredVariant=Variant::DP83822I;
+    else if (std::strcmp(argv[2],"H")==0) test::declaredVariant=Variant::DP83822H;
+    else if (std::strcmp(argv[2],"IF")==0) test::declaredVariant=Variant::DP83822IF;
+    else if (std::strcmp(argv[2],"HF")==0) test::declaredVariant=Variant::DP83822HF;
+    else return 2;
+    if (std::strcmp(argv[3],"MII")==0) p22Interface=MacInterface::MII;
+    else if (std::strcmp(argv[3],"RMII")==0) p22Interface=MacInterface::RMII;
+    else if (std::strcmp(argv[3],"RGMII")==0) p22Interface=MacInterface::RGMII;
+    else return 2;
+    const test::Suite exact[]={{"p22_copper",p22Copper}};
+    return test::runSuites(2,argv,exact);
+  }
   const test::Suite suites[]={{"vectors",vectors},{"admission",admission},{"failures",failures},{"replay",replay},
     {"collector",collector},{"ownership",ownership},{"timing",timing},{"raw",raw},
     {"ai",aQuality<Variant::DP83826AI>},{"ae",aQuality<Variant::DP83826AE>}};

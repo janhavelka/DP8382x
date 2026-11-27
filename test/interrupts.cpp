@@ -7,6 +7,8 @@
 namespace {
 using namespace DP8382x;
 using Driver = ::DP8382x::DP8382x;
+MacInterface p22Interface{MacInterface::MII};
+bool p22ClearsEnables{false};
 struct Wire { FrameKind kind; uint8_t reg; uint16_t value, target; };
 
 // Independent literal SNLS647I model. MISR reads clear only their event byte;
@@ -24,17 +26,26 @@ struct Controller {
   uint16_t corruptMask{1};
   int injectFrame{-1}; uint16_t injectMisr1{0},injectMisr2{0};
   int identityChangeFrame{-1}; unsigned mutationsAtIdentityChange{0};
-  bool acceptedFailure{true},locked{false},enhancedMii{false};
+  bool acceptedFailure{true},locked{false},enhancedMii{false},clearEnables{false};
+  uint16_t wakeErrors{0}, lpiStatus{0}, eeePartner{0};
   Driver* competitor{nullptr}; unsigned excluded{0};
-  Controller() { defaults(); }
+  Controller() {
+    if (isDp83822(test::declaredVariant)) { id2=0xA240; clearEnables=p22ClearsEnables; }
+    defaults();
+  }
   void defaults() {
     words.fill(0);ext.fill(0);words[0]=0x3100;words[4]=0x01E1;
     words[25]=0x8001;words[22]=0x0100;words[30]=0x0102;
     words[23]=(id2==test::basicId2() || enhancedMii)?0U:0x0020U;
     ext[0x030E]=test::aGrade()?0x4A40:0x8400;ext[0x04A1]=0x1000;
+    if (id2==0xA240) {
+      ext[0x0467]=p22Interface==MacInterface::MII?0x0FC3:p22Interface==MacInterface::RMII?0x0FE3:0x0DC3;
+      ext[0x04A1]=0;
+    }
   }
   Config config(uint32_t phy=1) {
     Config c;c.variant=test::declaredVariant;c.interface=(id2==test::basicId2() || enhancedMii)?MacInterface::MII:MacInterface::RMII;c.phyAddress=phy;
+    if (isDp83822(c.variant)) { c.interface=p22Interface; c.dp83822Led1Mode=1; }
     c.transport={this,execute,clock,{8,4,1}};return c;
   }
   static uint64_t clock(void* context) noexcept { auto& b=*static_cast<Controller*>(context);++b.clocks;return b.now; }
@@ -44,16 +55,17 @@ struct Controller {
     if(target==0)words[0]&=0x7DFF;
     if(target==31)words[31]=0;
     const auto value=target<32U?words[target]:ext[target];
-    if(target==18 || target==19) { words[target]&=0x00FF;words[16]&=0xFF7F; }
+    if(target==18 || target==19) { words[target]&=clearEnables?0:0x00FF;words[16]&=0xFF7F; }
     if(target==20) { words[20]&=0xFF00;words[16]&=0xF7FF; }
     if(target==21) { words[21]=0;words[16]&=0xDFFF; }
     if(target==23)words[23]&=0xFFF3;
+    if(target==22 && id2==0xA240)words[22]&=0xFBFF;
     if(target==0x04A1)ext[target]&=0xFF00;
     return value;
   }
   void write(uint8_t reg,uint16_t value) {
-    if(reg==13) { CHECK(value==0x001F || value==0x401F);selector=value;return; }
-    if(reg==14 && selector==0x001F) { address=value;return; }
+    if(reg==13) { CHECK(value==0x001F || value==0x401F || value==3 || value==0x4003 || value==7 || value==0x4007);selector=value;return; }
+    if(reg==14 && (selector==0x001F || selector==3 || selector==7)) { address=value;return; }
     const uint16_t target=reg==14?address:uint16_t{reg};++mutations;
     if(target==31 && value==0x8000) { ++hard;defaults();return; }
     if(target==18 || target==19) { CHECK((value&0xFF00U)==0U);words[target]=static_cast<uint16_t>((words[target]&0xFF00U)|value);return; }
@@ -78,6 +90,12 @@ struct Controller {
       f.attempted=true;const bool failed=static_cast<int>(frame)==b.failFrame;
       if(!failed || b.acceptedFailure) {
         if(q.kind==FrameKind::WRITE)b.write(q.registerAddress,value);
+        else if (q.registerAddress==14 && b.selector==0x4003) {
+            CHECK(b.address==0 || b.address==1 || b.address==0x0016);
+            if (b.address==1) { f.value=b.lpiStatus; }
+            else if (b.address==0x0016) { f.value=b.wakeErrors; b.wakeErrors=0; }
+        }
+          else if (q.registerAddress==14 && b.selector==0x4007) { CHECK(b.address==0x003D); f.value=b.eeePartner; }
         else { f.value=b.read(target);if(static_cast<int>(frame)==b.corruptFrame)f.value^=b.corruptMask; }
       }
       if(static_cast<int>(frame)==b.injectFrame) { b.words[18]|=b.injectMisr1;b.words[19]|=b.injectMisr2; }
@@ -800,9 +818,180 @@ void aRoutes() {
     }
   }
 }
+void p22PassiveEvidence() {
+  // Tables 8-22/27/138. No generator command or capture write accompanies
+  // these observations. The LPI received/status fields are plain R on this part.
+  const auto diagnostic=evidenceBit(EvidenceSource::BISCR)|evidenceBit(EvidenceSource::BICSR1)|
+                        evidenceBit(EvidenceSource::EEE_STATUS);
+  for (int cut=-1;cut<6;++cut) {
+    Controller b; Driver d; ready(d,b); b.words[22]=0x3F00; b.words[27]=0xFE7D; b.lpiStatus=0x0E40;
+    const auto start=b.frames, writes=b.mutations;
+    uint16_t raw=0xA55A;
+    for (uint8_t reg : {uint8_t{22},uint8_t{27}}) {
+      CHECK(!d.readClause22(reg,raw,{1000000,1}).ok() && !d.readMmd(31,reg,raw,{1000000,4}).ok());
+    }
+    CHECK(!d.readMmd(3,1,raw,{1000000,4}).ok() && raw==0xA55A && b.frames==start);
+    if (cut>=0) b.failFrame=static_cast<int>(start)+cut;
+    EvidenceSnapshot out;
+    const auto status=d.acquireEvidence(diagnostic,out,{1000000,6});
+    CHECK(status.ok()==(cut<0) && b.mutations==writes);
+    const auto e=d.evidenceSnapshot();
+    const auto& checker=e.samples[static_cast<unsigned>(EvidenceSource::BISCR)];
+    const auto& count=e.samples[static_cast<unsigned>(EvidenceSource::BICSR1)];
+    const auto& lpi=e.samples[static_cast<unsigned>(EvidenceSource::EEE_STATUS)];
+    if (cut>=0) {
+      CHECK(status.detail==-27027 && b.frames==start+static_cast<unsigned>(cut)+1);
+      CHECK(!out.samples[static_cast<unsigned>(EvidenceSource::EEE_STATUS)].valid);
+      CHECK(checker.historyLost==(cut==0));
+      CHECK(!count.historyLost && !lpi.historyLost);
+    }
+    if (cut<0 || cut>=1) CHECK(checker.raw==0x3F00 && checker.eventBits==0x0400 && (b.words[22]&0x0400)==0);
+    if (cut<0 || cut>=2) CHECK(count.raw==0xFE7D && count.sampledSum==0 && b.words[27]==0xFE7D);
+    if (cut<0) {
+      CHECK(lpi.raw==0x0E40 && lpi.eventBits==0 && lpi.observedOnes==0x0E40 && b.lpiStatus==0x0E40);
+      CHECK(b.trace[start].reg==22 && b.trace[start+1].reg==27 && b.trace[start+2].value==3 &&
+            b.trace[start+3].value==1 && b.trace[start+4].value==0x4003 && b.trace[start+5].reg==14);
+    }
+  }
+  // Four-frame C22-MMD transactions use different DEVADs for the vendor
+  // FIFO alias and the standard partner word. Cut each selector/data frame.
+  for (bool fifo : {false,true}) for (int cut=-1;cut<4;++cut) {
+    Controller b; Driver d; ready(d,b); b.eeePartner=2; b.words[23]=0x006C;
+    const auto start=b.frames, calls=b.calls, writes=b.mutations;
+    if (cut>=0) b.failFrame=static_cast<int>(start)+cut;
+    EvidenceSnapshot e; uint16_t word=0xA55A;
+    auto status=fifo ? d.acquireEvidence(evidenceBit(EvidenceSource::RCSR),e,{1000000,4}) :
+                       d.readMmd(7,0x003D,word,{1000000,4});
+    const auto size=cut<0?4U:static_cast<unsigned>(cut)+1;
+    CHECK(status.ok()==(cut<0) && b.frames==start+size && b.calls==calls+1 && b.mutations==writes);
+    const uint16_t request[]={uint16_t(fifo?31:7),uint16_t(fifo?0x0017:0x003D),uint16_t(fifo?0x401F:0x4007)};
+    for (unsigned i=0;i<size;++i) {
+      const auto& w=b.trace[start+i];
+      CHECK(w.reg==(i%2==0?13:14) && w.kind==(i==3?FrameKind::READ:FrameKind::WRITE));
+      if (i<3) CHECK(w.value==request[i]);
+    }
+    if (fifo) {
+      const auto sample=d.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::RCSR)];
+      CHECK(sample.historyLost==(cut==3));
+      if (cut<0) CHECK(sample.raw==0x006C && sample.eventBits==0x000C);
+    } else { CHECK(word==(cut<0?2:0xA55A)); }
+  }
+}
+
+void p22Collector() {
+  for (const auto variant : {Variant::DP83822I, Variant::DP83822H, Variant::DP83822IF, Variant::DP83822HF}) {
+    test::declaredVariant=variant;
+    for (const auto interface : {MacInterface::MII, MacInterface::RMII, MacInterface::RGMII}) {
+      for (bool clears : {false,true}) {
+        p22Interface=interface; p22ClearsEnables=clears;
+        p22PassiveEvidence();
+        failures();
+        serviceFailures();
+        for (unsigned bank=0;bank<2;++bank) for (unsigned bit=0;bit<8;++bit) {
+          Controller maskBus; Driver masks; ready(masks,maskBus);
+          auto s=settings();
+          s.misr1Mask=static_cast<uint16_t>(bank==0?1U<<bit:0);
+          s.misr2Mask=static_cast<uint16_t>(bank==1?1U<<bit:0);
+          configured(masks,maskBus,s);
+          CHECK(maskBus.words[18]==s.misr1Mask && maskBus.words[19]==s.misr2Mask);
+          const auto writes=maskBus.mutations; OperationToken verify;
+          CHECK(masks.startVerify(budget(),verify).inProgress());
+          const auto verdict=drain(masks,maskBus,verify);
+          CHECK(verdict.is(Err::INVALID_CONFIG));
+          const auto proof=take(masks,verify);
+          CHECK(proof.status.detail==static_cast<int32_t>(ConfigDetail::SOURCE_GATE) && !proof.persistentRestored);
+          CHECK(proof.interrupts.trust==ConfigurationTrust::DIRTY && !proof.interrupts.misr1EnablesKnown &&
+                !proof.interrupts.misr2EnablesKnown && maskBus.mutations==writes);
+        }
+        Controller b; Driver d;
+        ready(d,b);
+        auto policy=settings();
+        for (auto bad : {InterruptPin::LED0,InterruptPin::LED1,InterruptPin::LED2,InterruptPin::LED3}) {
+          OperationToken t; policy.pin=bad; const auto calls=b.calls, clocks=b.clocks;
+          CHECK(d.startConfigureInterrupts(policy,budget(),t).is(Err::UNSUPPORTED));
+          CHECK(calls==b.calls && clocks==b.clocks);
+        }
+        policy.pin=InterruptPin::INTR_PWRDN;
+        policy.sharedSource=clears?InterruptSharedSource::POLARITY:InterruptSharedSource::WAKE;
+        policy.misr1Mask=0xA5; policy.misr2Mask=0x5A; policy.activeLow=clears;
+        b.words[19]=0x0200; b.ext[0x04A1]=0x00FF;
+        const auto first=b.frames;
+        configured(d,b,policy);
+        bool selectorWritten=false;
+        for (unsigned i=first;i<b.frames;++i) {
+          const auto& w=b.trace[i];
+          if (w.kind==FrameKind::WRITE && w.target==0x04A1) {
+            CHECK(w.value==(clears?0:0x1000)); selectorWritten=true;
+          }
+          CHECK(w.target<0x0303 || w.target>0x0306);
+        }
+        CHECK(selectorWritten && d.interruptSnapshot().selector==policy.sharedSource);
+        CHECK(misr2(d.evidenceSnapshot()).sharedAmbiguous);
+        CHECK((b.words[17]&0xF)==(clears?0xB:3));
+        CHECK(b.words[18]==0xA5 && b.words[19]==0x5A);
+        CHECK(d.interruptSnapshot().misr1EnablesKnown && d.interruptSnapshot().misr2EnablesKnown);
+        OperationToken t;
+        CHECK(d.startInterruptTest(budget(),t).inProgress() && drain(d,b,t).ok());
+        CHECK(take(d,t).temporaryMayBeActive && (b.words[17]&4U)!=0);
+        CHECK(d.stopInterruptTest(budget(),t).inProgress() && drain(d,b,t).ok());
+        CHECK(!take(d,t).temporaryMayBeActive && (b.words[17]&4U)==0);
+        for (unsigned bank=0;bank<2;++bank) for (unsigned bit=0;bit<8;++bit) {
+          const auto event=static_cast<uint16_t>(0x100U<<bit);
+          b.words[18]=static_cast<uint16_t>((bank==0?event:0)|0xA5);
+          b.words[19]=static_cast<uint16_t>((bank==1?event:0)|0x5A);
+          b.words[20]=0xABFF; b.words[21]=0xFFFF;
+          InterruptServiceSnapshot s;
+          CHECK(d.serviceInterrupts(s,serviceBudget()).ok());
+          CHECK(s.fcscrRequested==(bank==0 && bit==1));
+          CHECK(s.recrRequested==(bank==0 && bit==0));
+          CHECK((s.misr1.raw&0xFF00)==(bank==0?event:0) && (s.misr2.raw&0xFF00)==(bank==1?event:0));
+          if (s.fcscrRequested) { CHECK(s.fcscr.sampledSum==255 && s.fcscr.counterSaturated); }
+          if (s.recrRequested) { CHECK(s.recr.sampledSum==65535 && s.recr.counterSaturated); }
+          if (bank==1 && bit==1) { CHECK(clears?s.misr2.polaritySeen:s.misr2.wakeSeen); }
+        }
+        const auto irq=d.interruptSnapshot();
+        CHECK(irq.trust==ConfigurationTrust::DIRTY && !irq.misr1EnablesKnown && !irq.misr2EnablesKnown);
+        CHECK(irq.desired.misr1Mask==0xA5 && irq.desired.misr2Mask==0x5A);
+        CHECK(irq.rawMisr1==0x00A5 && irq.rawMisr2==0x805A);
+        CHECK(b.words[18]==(clears?0:0xA5) && b.words[19]==(clears?0:0x5A));
+        b.words[15]=0xA5F5; CounterSnapshot counters;
+        CHECK(d.collectEvents(counters,{1000000,6}).ok() && counters.fldCauses==0x01F0);
+        b.words[23]=0x000C; b.wakeErrors=65535; b.ext[0x04A1]|=0x00FF; EvidenceSnapshot e;
+        const auto start=b.frames;
+        uint16_t raw=0xA55A;
+        CHECK(!d.readClause22(23,raw,{1000000,1}).ok() && !d.readMmd(31,23,raw,{1000000,4}).ok() && raw==0xA55A);
+        const auto sources=evidenceBit(EvidenceSource::RCSR)|evidenceBit(EvidenceSource::RXFS)|evidenceBit(EvidenceSource::EEE_ERRORS);
+        CHECK(d.acquireEvidence(sources,e,{b.now+65,12}).is(Err::OPERATION_TIMEOUT));
+        CHECK(d.acquireEvidence(sources,e,{1000000,11}).is(Err::OPERATION_TIMEOUT));
+        CHECK(b.frames==start);
+        CHECK(d.acquireEvidence(sources,e,{1000000,12}).ok());
+        CHECK(e.samples[static_cast<unsigned>(EvidenceSource::RCSR)].eventBits==0x000C);
+        CHECK(e.samples[static_cast<unsigned>(EvidenceSource::RXFS)].eventBits==0x00E3);
+        CHECK(e.samples[static_cast<unsigned>(EvidenceSource::EEE_ERRORS)].sampledSum==65535);
+        CHECK(e.samples[static_cast<unsigned>(EvidenceSource::EEE_ERRORS)].counterSaturated);
+        const uint16_t requests[3][3]={{0x001F,0x0017,0x401F},{0x001F,0x04A1,0x401F},{0x0003,0x0016,0x4003}};
+        for (unsigned n=0;n<3;++n) for (unsigned i=0;i<4;++i) {
+          const auto& frame=b.trace[start+4*n+i];
+          CHECK(frame.reg==(i%2==0?13:14) && frame.kind==(i<3?FrameKind::WRITE:FrameKind::READ));
+          if (i<3) { CHECK(frame.value==requests[n][i]); }
+        }
+        const auto samples=e.samples[static_cast<unsigned>(EvidenceSource::MISR1)].samples;
+        b.words[18]=0x8101; b.words[19]=0x4200;
+        if (clears) b.failFrame=static_cast<int>(b.frames+2);
+        else b.releaseCall=static_cast<int>(b.calls);
+        InterruptServiceSnapshot sentinel;
+        CHECK(!d.serviceInterrupts(sentinel,serviceBudget()).ok() && !sentinel.valid);
+        const auto partial=d.evidenceSnapshot();
+        CHECK(partial.samples[static_cast<unsigned>(EvidenceSource::MISR1)].samples==samples+1);
+        CHECK(partial.samples[static_cast<unsigned>(EvidenceSource::MISR1)].raw==0x8101);
+        CHECK(d.interruptServiceSnapshot().stale && d.interruptSnapshot().trust==ConfigurationTrust::DIRTY);
+      }
+    }
+  }
+}
 } // namespace
 int main(int argc,char** argv) {
-  const test::Suite suites[]={{"a_routes",aRoutes},{"policy",policy},{"service",service},{"attribution",attribution},
+  const test::Suite suites[]={{"p22_collector",p22Collector},{"a_routes",aRoutes},{"policy",policy},{"service",service},{"attribution",attribution},
     {"service_failures",serviceFailures},{"failures",failures},{"pins",pins},{"stimulus",stimulus},{"replay",replay},{"ownership",ownership}};
   return test::runVariantSuites(argc,argv,suites);
 }

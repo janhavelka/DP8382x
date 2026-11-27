@@ -790,3 +790,17 @@ control on an RMII board.
 On DP83825I, `eee configure on 2 0 [rx-policy]` accepts a receive policy from
 0 through 3. Bit 0 shuts down analog RX during LPI Quiet and bit 1 disables
 reception of EEE next pages. Omitting the operand uses the table 6-7 policy (1).
+
+## DP83822 copper
+
+The board and session records identify the ordering grade, declared interface,
+address and `medium=copper`. The observed A240 identity has UNKNOWN operating
+mode. Profile flag values 1, 2 and 4 retain their existing meanings. Select
+8 for pair swap alone or 16 for polarity swap alone. Use 32 to advertise
+a local fault, 64 for fast Auto-MDIX, 128 for fast AN and 256 or 512 for
+fast AN timer code 1 or 2. Code 0 needs neither timer flag. Fast MDIX and
+fast AN require 2048 to confirm a compatible peer. Value 1024 requests
+fast parallel detection. Observed flags report the effective CR2[6] bit,
+which robust or fast MDIX also sets. The peer declaration remains in desired
+settings. For forced 100 Mbit/s the TX100 token in `controls quality` accepts
+`far-drop` or `far-keep-link`. See the [copper matrix](feature-coverage.md).

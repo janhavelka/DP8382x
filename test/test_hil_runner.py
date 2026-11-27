@@ -246,6 +246,30 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("duplicate record", message)
         self.assertEqual((self.path / "late.txt").read_bytes(), b"".join(rows + rows[-1:]))
 
+    def test_dp83822_compiled_identity_and_copper_replay(self):
+        if FIXTURE is None:
+            self.skipTest("compiled fixture supplied by cli_hil_runner CTest")
+        for grade in ("DP83822I", "DP83822H", "DP83822IF", "DP83822HF"):
+            for interface in ("MII", "RMII", "RGMII"):
+                name = f"{grade}-{interface}"
+                options = ["--variant", grade, "--medium", "copper", "--interface", interface,
+                           "--backend", "sim-mdio", "--target", "host", "--address", 1]
+                with self.subTest(name=name):
+                    status, _, error = invoke("run-fixture", FIXTURE, "--suite", "fixture-operations",
+                                              *options, "--fixture-variant", grade, "--run", name,
+                                              "--nonce", NONCE, "--out-dir", self.path)
+                    self.assertEqual(status, 0, error)
+                    manifest = self.path / f"{name}.json"
+                    self.assertEqual(invoke("verify-artifacts", manifest)[0], 0)
+                    self.assertEqual(runner.verify(manifest)["identity"]["medium"], "copper")
+        for variant, interface, medium in (("DP83822IF", "MII", "fiber"), ("DP83822H", "RMII", ""),
+                                           ("DP83826I", "RGMII", ""), ("DP83822", "MII", "copper")):
+            expected = {**EXPECTED_CONTEXT, "variant": variant, "interface": interface}
+            if medium:
+                expected["medium"] = medium
+            with self.assertRaises(runner.ProtocolError):
+                runner.validate_expected_identity(expected)
+
     def test_selftest_generation_matches_firmware_grade(self):
         if FIXTURE is None:
             self.skipTest("compiled fixture supplied by cli_hil_runner CTest")

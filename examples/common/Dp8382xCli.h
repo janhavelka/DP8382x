@@ -168,6 +168,7 @@ struct Identity {
   const char* console{"unknown"}; ///< Console transport name, e.g. uart0 or host-stdio.
   uint32_t baud{0}; ///< UART line speed in bit/s, zero when inapplicable or unknown.
   RmiiClock rmiiClock{RmiiClock::UNSPECIFIED}; ///< Required explicit reference role for DP83825I.
+  Medium medium{Medium::COPPER}; ///< Declared PHY medium reported in DP83822 session identity.
 };
 
 /// @brief One fixed-memory CLI per application stream.
