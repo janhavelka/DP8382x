@@ -284,3 +284,36 @@ driver behavior. Prompt 62 remains **IN PROGRESS** for phase (d).
 | ESP-IDF links | NOT RUN in this research review. |
 | Remote CI | NOT RUN. Prompt 71 owns first-execution CI. |
 | Physical | NOT RUN for I, H, IF and HF. Q14 still requires identified optical fixtures for IF and HF. |
+
+## Phase (d) final verification
+
+**COMPLETE for revision-0 source research on DP83822I, H, IF and HF.**
+On 2026-11-27 the wrapper verified the reviewed commit
+`be3e5ff92aaef7e8c18672335c2244f555a929d0` on `origin/main`. Phase (d)
+started there with a clean worktree and index, 0 ahead and 0 behind.
+
+The original SNLS505H tables account for 142 registers, 432 named fields
+and 144 reserved rows. The ledger also protects the two unlisted bit ranges.
+All named fields, 28 scoped write steps and one off-table read map to the
+31 procedures owned by prompts 63–67. The ledger records 20 timing rows
+and a next evidence step for each of its 23 source decisions. Each suffix
+has its own admission tests to implement and its own physical evidence to
+collect. All four declarations expect ID words `2000 A240`. The application
+supplies the suffix from the board's bill of materials.
+
+Two read-only reviewers used the session's high-reasoning model. One traced
+the assignments and outstanding decisions to their owners. The other
+reopened the sibling sources and checks listed in the phase (a) audit and
+confirmed all three revisions and clean worktrees. README and CHANGELOG
+describe shipped behavior. This phase updates the report and progress row.
+
+| Evidence layer | Final local result on Windows 11 AMD64, Python 3.12.10, PyMuPDF 1.27.2.2 |
+| --- | --- |
+| Host research | PASS. `python -B tools/verify_ledger.py` verified the family ledgers. `python -B -m unittest discover -s test -p 'test_p22_ledger.py' -v` passed 16/16, including the field-by-field comparison with all 576 original PDF rows. The archived PDF matched the SHA-256 in phase (a). |
+| Python regression | PASS. Discovery with `-p 'test_*ledger.py' -q` passed 120/120. Full discovery with `-p 'test_*.py' -v` ran 296 tests, with 237 passes and 59 fixture-dependent skips. |
+| Documentation and integrity | PASS. `python -B tools/verify_references.py` checked 29 vendor artifacts, 27 extracts and 2,488 local links. `python -B tools/check_doxygen.py` checked 296 pages and rejected both negative fixtures. `python -B scripts/generate_version.py check` and `git diff --check` passed. |
+| Executing DP83822 PHY host tests | NOT RUN. Prompts 63–67 own runtime admission, implementation and tests. |
+| Portable and exported package consumers | NOT RUN. This phase changed documentation only. |
+| ESP-IDF links | NOT RUN. This phase changed no SDK inputs. |
+| Remote CI | NOT RUN. Prompt 71 owns the first-execution CI checkpoint. |
+| Physical | NOT RUN for each of I, H, IF and HF. IF and HF each require an identified optical fixture for Q14. |
