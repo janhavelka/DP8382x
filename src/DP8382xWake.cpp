@@ -460,6 +460,7 @@ Status DP8382x::_advanceWake(Status status,bool called,const MdioBatch& batch) n
 }
 
 Status DP8382x::readWakeStatus(WakeSnapshot& snapshot,const IoBudget& budget) noexcept {
+  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND,"No transport binding"); }
   if (_active || _polling) { return wakeBusy(BusyDetail::OPERATION_ACTIVE); }
   const auto fail=[&](Status status) noexcept {

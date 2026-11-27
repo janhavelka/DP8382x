@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add portable identity probes for board-declared DP83822I/H/IF/HF on copper
+  MII, RMII and RGMII. Startup and feature access remain gated.
+
 - Add offline decoding of DP83822 strap captures, including address, medium,
   advertised or forced modes, interface and RMII clock role.
 

@@ -1976,6 +1976,8 @@ public:
   /// @note SNLS647I tables 8-21/22: declared DP83826I/E, OUI 080028, model 11/13,
   /// revision 1. Shared IDs cannot identify I/E suffix. Partial/rejected evidence
   /// stays in identitySnapshot; never combine words from different calls.
+  /// SNLS505H tables 8-3/4: DP83822I/H/IF/HF accept 2000 A240 with UNKNOWN
+  /// operating mode. Board declaration supplies the suffix and medium.
   /// @pre Bound, serialized owner with clock/power/reset readiness established.
   /// Uses the ordinary raw-read guard; no reset, scan, write or retry is performed.
   Status readIdentity(DeviceIdentity& identity, const IoBudget& budget, bool* invoked = nullptr) noexcept;
@@ -2421,6 +2423,7 @@ private:
   void _invalidateEvidence() noexcept;
   void _markEvidenceDiscontinuous() noexcept;
   void _invalidateLink() noexcept;
+  Status _dp83822FeatureGate() const noexcept;
   Status _checkMutation() noexcept;
   Status _checkToken(OperationToken token) const noexcept;
   bool _otherControlsVerified(OperationKind owner) const noexcept;

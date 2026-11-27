@@ -30,7 +30,7 @@ the rules; this guide does not duplicate operation declarations or state tables.
 
 ## Initial component
 
-For the planned DP83822 path, identity observation and board declaration
+For the DP83822 portable identity probe, observed ID and board declaration
 are separate inputs. Prompt 63 owns copper identity, resets and the evidence
 collector. Prompt 64 owns MAC interface transitions, clock outputs and fixed
 RGMII shifts. Prompt 65 owns IF/HF optical configuration and explicit link

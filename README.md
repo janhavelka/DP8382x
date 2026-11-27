@@ -13,6 +13,10 @@ Both A grades also have typed diagnostics, IRQ and wake routes, LED and GPIO
 profiles, power controls and the 27-write EEE recipe. The [coverage matrix](docs/feature-coverage.md#dp83826ai-and-dp83826ae) records the supported paths and open silicon gates.
 [Device coverage](docs/variants.md)
 
+The portable core can probe revision-0 DP83822I, H, IF and HF on a
+board-declared copper interface. The returned identity retains the declared
+suffix. Copper startup and native adapter support are pending. [Identity guide](docs/identity.md)
+
 DP83825I accepts the documented revision-0 ID and requires an explicit RMII
 leader or follower declaration. Initialization checks both clock straps, then
 restores owned 10/100 copper settings. Its default mode needs no VOD recipe.

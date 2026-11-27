@@ -1,6 +1,9 @@
 # DP83826 feature coverage
 
-For DP83822I/H/IF/HF, `p22_straps` exercises the offline SOR1/SOR2
+Twelve `p22_identity_*` tests cover each DP83822I/H/IF/HF declaration on
+copper MII, RMII and RGMII. The portable identity probe accepts revision 0
+and preserves partial and rejected reads. The SDK factory and CLI reject
+these probe-only declarations. For all four grades, `p22_straps` exercises the offline SOR1/SOR2
 decoder against the reset defaults, per-pin encodings and reserved or
 incomplete captures. Live acquisition and copper startup are pending in
 prompt 63. [DP83822 implementation record](reports/implementation/63-p22-copper-core.md)

@@ -154,6 +154,11 @@ void grammar() {
   Stream s;
   const Platform platform{&s, Stream::write, Stream::read, nullptr};
   Identity identity;
+  for (auto grade : {Variant::DP83822I, Variant::DP83822H, Variant::DP83822IF, Variant::DP83822HF}) {
+    identity.variant = grade;
+    assert(!s.cli.setup(platform, identity));
+  }
+  identity.variant = Variant::UNKNOWN;
   identity.firmware = "bad identity\n";
   assert(!s.cli.setup(platform, identity));
   assert(s.cli.feed("ver\n") == 0);

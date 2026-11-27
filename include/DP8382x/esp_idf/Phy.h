@@ -206,7 +206,8 @@ public:
   /// @brief Allocate owner/gate/fence and bind locally; no MDIO, GPIO or SDK install.
   /// @param[in] config Explicit address 0..31, MAC, shared bus and positive bounds.
   /// @param[out] output Assigned only on ESP_OK; unchanged on validation/allocation failure.
-  /// @return ESP_OK, INVALID_ARG, NO_MEM or the actual fence creation error.
+  /// @return ESP_ERR_NOT_SUPPORTED for a DP83822 identity-only core binding. Otherwise
+  /// ESP_OK, INVALID_ARG, NO_MEM or the actual fence creation error.
   static esp_err_t create(const PhyConfig& config, Phy*& output) noexcept;
   /// @brief Owners cannot be copied; callbacks retain this object's address.
   Phy(const Phy&) = delete;

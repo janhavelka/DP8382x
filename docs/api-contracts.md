@@ -66,13 +66,15 @@ and capabilities. The [identity guide](identity.md) documents current acquisitio
 partial evidence, negative-evidence maintenance admission and invalidation.
 These declarations are maintained in the header, not duplicated as future APIs.
 
-`isValidVariant` accepts `DP83826I` and `DP83826E`. A binding copies the
+`isValidVariant` accepts the four DP83826 grades, DP83825I and the four
+DP83822 grades. DP83822 bindings admit the two-word identity probe on a
+declared copper interface. A binding copies the
 declared ordering part and selects its private profile. Other casts and
 `UNKNOWN` reject before callbacks. `isValidPhyAddress` accepts the protocol
 range 0..31. `strapAddressMax(variant, maximum)` returns 7 for either
-original part and preserves the output on an unknown declaration.
+original part, 3 for DP83825I and 31 for DP83822. An unknown declaration preserves the output.
 
-Current source acceptance is explicitly OUI `0x080028`, model `0x11` BASIC or
+DP83826I/E source acceptance is explicitly OUI `0x080028`, model `0x11` BASIC or
 `0x13` ENHANCED, revision **1 only**, under a private exact-part accepted-revision lookup. This is the
 bounded admission decision supported by SNLS647I tables 8-21/22 and the audited
 TI filter, not a claim that other revisions do not exist. A new revision needs

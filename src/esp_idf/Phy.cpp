@@ -230,6 +230,7 @@ void Phy::recordCore(Status status, bool cleanup) noexcept {
 }
 
 esp_err_t Phy::create(const PhyConfig& config, Phy*& output) noexcept {
+  if (isDp83822(config.core.variant)) return ESP_ERR_NOT_SUPPORTED;
   if (!config.mac || !config.bus || !config.bus->mutex ||
       !config.mac->read_phy_reg || !config.mac->write_phy_reg || !config.mac->stop ||
       !config.mac->set_mediator || !config.mac->init || !config.mac->deinit ||

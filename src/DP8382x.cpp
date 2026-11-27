@@ -509,10 +509,16 @@ Status DP8382x::bind(const Config& config) noexcept {
   if (!isValidPhyAddress(config.phyAddress)) { return configError(ConfigDetail::ADDRESS_RANGE); }
   if (config.medium != Medium::COPPER) {
     if (config.medium != Medium::FIBER) { return configError(ConfigDetail::ENUM_VALUE); }
+    if ((part->featureMask & detail::FEATURE_FIBER) != 0U) {
+      if (config.interface == MacInterface::RGMII) { return configError(ConfigDetail::SOURCE_GATE); }
+      return Status::Error(Err::UNSUPPORTED, "Fiber procedure unavailable",
+                           static_cast<int32_t>(UnsupportedDetail::FEATURE));
+    }
     return Status::Error(Err::UNSUPPORTED, "Fiber unavailable on declared part",
                          static_cast<int32_t>(UnsupportedDetail::MEDIUM));
   }
-  if (config.variant == Variant::DP83825I && config.mdcHz > 20000000U) {
+  if ((config.variant == Variant::DP83825I && config.mdcHz > 20000000U) ||
+      (part->map == detail::RegisterMap::DP83822 && config.mdcHz > 25000000U)) {
     return configError(ConfigDetail::TRANSPORT);
   }
   const auto& transport = config.transport;
@@ -715,7 +721,7 @@ Status DP8382x::_readIdentity(DeviceIdentity& identity, const IoBudget& budget, 
     observed.acceptance = status.ok() ? IdentityAcceptance::ACCEPTED : IdentityAcceptance::REJECTED;
     observed.stale = false;
   }
-  if (_config.variant == Variant::DP83825I && !status.ok()) { _identityRejection = status; }
+  if ((_config.variant == Variant::DP83825I || isDp83822(_config.variant)) && !status.ok()) { _identityRejection = status; }
   observed.admissionStatus = status;
   if (!status.ok() || (_identity.decodedValid && observed.decodedValid &&
       (_identity.id1 != observed.id1 || _identity.id2 != observed.id2))) {
@@ -738,10 +744,18 @@ Capabilities DP8382x::capabilities() const noexcept {
   // SNLS647I table 4-3 and 8.4.1: both identity modes support MII and RMII.
   // No fixture availability or incomplete typed-feature implementation is inferred.
   return {true, static_cast<uint8_t>(_part->featureMask & LINK_TECHNOLOGY_MASK),
-          _part->interfaceMask, (_part->featureMask & detail::FEATURE_COPPER) != 0U, false, false, _config.variant};
+          _part->interfaceMask, (_part->featureMask & detail::FEATURE_COPPER) != 0U,
+          (_part->featureMask & detail::FEATURE_FIBER) != 0U, false, _config.variant};
+}
+
+Status DP8382x::_dp83822FeatureGate() const noexcept {
+  if (!_identityRejection.ok()) { return _identityRejection; }
+  return Status::Error(Err::UNSUPPORTED, "DP83822 procedure unavailable",
+                       static_cast<int32_t>(UnsupportedDetail::FEATURE));
 }
 
 Status DP8382x::_checkMutation() noexcept {
+  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (_active || _polling || _operation.state == OperationState::RUNNING) { return busy(BusyDetail::OPERATION_ACTIVE); }
   const auto quiet = _checkQuiet();
@@ -936,6 +950,7 @@ Status DP8382x::acquireEvidence(uint32_t sourceMask, EvidenceSnapshot& evidence,
                                const IoBudget& budget, bool* invoked) noexcept {
   if (invoked) *invoked = false;
   const bool p25 = _config.variant == Variant::DP83825I;
+  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   if (p25 && !_identityRejection.ok()) { return _identityRejection; }
   const auto allowed = ALL_EVIDENCE | (p25 ? evidenceBit(EvidenceSource::REGISTER_12) : 0U);
   if (sourceMask == 0U || (sourceMask & ~allowed) != 0U) { return paramError(ParamDetail::ACCESS_POLICY); }
@@ -1482,6 +1497,11 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
       _operation.phase == OperationPhase::WAIT)))) { return busy(BusyDetail::OPERATION_ACTIVE); }
   if (_transport.clockInvalid) { return configError(ConfigDetail::CLOCK_CONTRACT); }
   if (_stopped) { return busy(BusyDetail::CONTROLLER_QUARANTINED); }
+  // Only the two-word ID probe has a live DP83822 procedure at this checkpoint.
+  if (isDp83822(_config.variant) &&
+      !(batch.frameCount == 2 && batch.frames[0].kind == FrameKind::READ &&
+        batch.frames[0].registerAddress == cmd::REG_PHYIDR1 && batch.frames[1].kind == FrameKind::READ &&
+        batch.frames[1].registerAddress == cmd::REG_PHYIDR2)) { return _dp83822FeatureGate(); }
   if ((isA(_config.variant) || _config.variant == Variant::DP83825I) && !_identityRejection.ok()) {
     // A rejected device may be reprobed. Even selector writes for a stable
     // MMD observation must wait for a matching declaration and identity.
@@ -1599,6 +1619,7 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
 
 Status DP8382x::startInitialize(const InitializeOptions& options, const OperationBudget& budget,
                                 OperationToken& token) noexcept {
+  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   if (options.reset > ResetKind::EEE_PCS) { return paramError(ParamDetail::ENUM_VALUE); }
   if (budget.pollIntervalUs == 0U || budget.maxStalledPolls == 0U) { return paramError(ParamDetail::BUDGET_RANGE); }
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }

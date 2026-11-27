@@ -17,7 +17,11 @@ enum class Variant : uint8_t {
   DP83826E, ///< Original extended temperature grade, shares I identity words.
   DP83826AI, ///< A industrial grade, declared independently of the revision-4 ID.
   DP83826AE, ///< A extended grade, sharing both mode-dependent IDs with AI.
-  DP83825I ///< RMII-only industrial part, SNLS638C table 7-6.
+  DP83825I, ///< RMII-only industrial part, SNLS638C table 7-6.
+  DP83822I, ///< Industrial copper grade, declared by the board.
+  DP83822H, ///< High-temperature copper grade, declared by the board.
+  DP83822IF, ///< Industrial copper/fiber grade, sharing the revision-0 ID.
+  DP83822HF ///< High-temperature copper/fiber grade, sharing the revision-0 ID.
 };
 
 /// @brief Observed PHY identity mode; it is never a software selector.
@@ -38,7 +42,7 @@ enum class MacInterface : uint8_t {
 /// @brief Requested physical medium for this binding.
 enum class Medium : uint8_t {
   COPPER, ///< Twisted-pair 10/100 operation.
-  FIBER   ///< Representable for admission; no currently selectable part supports it.
+  FIBER   ///< 100BASE-FX medium. Live fiber operation requires its own procedure.
 };
 
 /// @brief API technology bits, distinct from ANAR wire positions.
@@ -125,12 +129,20 @@ inline constexpr bool isA(Variant variant) noexcept {
   return variant == Variant::DP83826AI || variant == Variant::DP83826AE;
 }
 
+/// @brief Check whether the declared ordering part uses the SNLS505H map.
+/// @param[in] variant Application declaration, independent of the observed shared ID.
+/// @return True for DP83822I, H, IF or HF.
+inline constexpr bool isDp83822(Variant variant) noexcept {
+  return variant == Variant::DP83822I || variant == Variant::DP83822H ||
+         variant == Variant::DP83822IF || variant == Variant::DP83822HF;
+}
+
 /// @brief Check exact supported part membership without I/O or a clock.
 /// @param[in] variant Declared ordering part, including possible invalid casts.
-/// @return True for a selectable DP83826 I/E, AI/AE or DP83825I ordering part.
+/// @return True for an ordering part selectable for portable identity observation.
 inline constexpr bool isValidVariant(Variant variant) noexcept {
   return variant == Variant::DP83826I || variant == Variant::DP83826E || isA(variant) ||
-         variant == Variant::DP83825I;
+         variant == Variant::DP83825I || isDp83822(variant);
 }
 
 /// @brief Check Clause 22 PHY-address width without narrowing the input.

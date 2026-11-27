@@ -224,3 +224,52 @@ ctest --test-dir build/p63-consumer --output-on-failure --no-tests=error
 Continue phase (b) with exact-part identity and rejection fences. Keep startup
 and maintenance guarded while implementing live strap capture, CR2 medium
 verification and the remaining map-specific paths.
+
+## Phase (b) portable identity
+
+The portable core admits a two-read Clause 22 identity probe for each
+board-declared copper DP83822I, H, IF and HF on MII, RMII and RGMII. All
+twelve combinations accept `2000 A240` with UNKNOWN operating mode.
+Capabilities describe silicon by declared grade. Only IF and HF report
+fiber. For fiber bindings the core distinguishes absent hardware on I/H,
+a pending procedure on IF/HF, and the open IF/HF RGMII source question.
+The declared MDC maximum is 25 MHz. [SNLS505H section 4, section 6.9
+and tables 8-3/4](../../reference/source/TI-DP83822-SNLS505H.pdf)
+
+The test matrix covers addresses 0 and 31, both single-word zero and
+ones cases, OUI and model mismatches, all 15 unaccepted revisions, a
+partial second read, and a successful retry. Each row checks startup,
+raw access, link settings, wake observation and collector rejection with
+zero clock and MDIO callbacks. The native factory and shared CLI reject
+these declarations until board preparation and runtime operations exist.
+
+The wrapper verified the previous strap checkpoint at
+`c27806fc474a66d1612a2ac36aa489c0568f9534` on main, equal to origin/main.
+The lead owned the contracts, admission, integrations and report. One agent
+wrote literal identity tests and a read-only agent audited portable and
+native access, the original PDF and the sibling sources listed in phase (a).
+Both used the session model for silicon and admission reasoning. All three
+sibling revisions and clean states matched phase (a).
+
+| Evidence | Slice result |
+| --- | --- |
+| Host | PASS on Windows x86-64, GNU 15.1.0, Release/Ninja. 44/44 identity, strap, foundation and CLI tests. The two native factory regressions passed with the pinned SDK host harness. |
+| Portable consumer | PASS, 2/2 from the tests-OFF Release consumer. Exported package consumer NOT RUN this slice. |
+| SDK link | PASS, 3/3 existing ESP32-P4 images, ESP-IDF v6.1 `fff9895c82d744c7237be8847347bdd1b07c6643`. Adapter fixture (DP83825I), basic and owner applications (DP83826I) linked against the changed inputs. The first attempts encountered SDK checkout ownership and clangd activation errors. Reusing the prompt 53 process-local Git, cached clangd and ccache settings resolved both. Logs are in `build/p63-baseline/final-idf-{56l,56b,56o}.log`. |
+| Research and docs | PASS, ledger verifier, 16/16 DP83822 ledger tests, Doxygen (298 pages and two rejected negative fixtures), generated version, local reference and whitespace checks. |
+| Remote CI and physical | NOT RUN. CI belongs to prompt 71. Each suffix still requires independent physical evidence. |
+
+```powershell
+cmake --build build/p63-baseline --parallel 4 --target dp8382x_identity_tests dp8382x_foundation_tests dp8382x_header_checks dp8382x_cli_tests
+ctest --test-dir build/p63-baseline -R '^(p22_.*|(e_|ai_|ae_|p25_)?identity(_.*)?|foundation_.*|cli_processor_.*|dp8382x_identity_tests_failure_path)$' --output-on-failure --no-tests=error -j 3
+cmake --build build/p60-tests --target dp8382x_native_host_tests --parallel 4
+ctest --test-dir build/p60-tests -R '^(e_)?native_factory$' --output-on-failure --no-tests=error
+cmake --build build/p63-consumer --parallel 3
+ctest --test-dir build/p63-consumer --output-on-failure --no-tests=error
+```
+
+The SDK commands and scoped environment are in the [prior SDK link
+receipt](61-p25-feature-closure.md#phase-d-esp32-p4-sdk-links). Continue phase
+(b) with bounded live SOR1/SOR2 reads and a separate CR2[14] observation.
+Test partial capture, stale evidence, strap/active-medium disagreement and
+board prerequisites before admitting copper startup or any feature write.

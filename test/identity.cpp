@@ -3,6 +3,7 @@
 
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 
 namespace {
@@ -482,7 +483,7 @@ void testLifecycle() {
     acceptedCapabilities(driver);
     CHECK(bus.callbacks == calls);
   }
-  for (const auto variant : {Variant::UNKNOWN, static_cast<Variant>(6), static_cast<Variant>(255)}) {
+  for (const auto variant : {Variant::UNKNOWN, static_cast<Variant>(10), static_cast<Variant>(255)}) {
     auto config = bus.config();
     config.variant = variant;
     const auto clocks = bus.clocks;
@@ -753,6 +754,151 @@ void testScan() {
   CHECK(active.readIdentityAt(31, id1, id2, BUDGET, &invoked).detail == static_cast<int32_t>(BusyDetail::CLEANUP_REQUIRED));
   CHECK(!invoked && owned.callbacks == calls);
 }
+MacInterface p22Interface = MacInterface::UNKNOWN;
+
+// While this map admits only identity reads, cover both the general access
+// policy and the typed paths that can bypass the raw register allowlist.
+void checkP22IdentityFence(Controller& bus, Driver& driver) {
+  const auto calls = bus.callbacks, clocks = bus.clocks;
+  uint16_t word = 0xCAFE;
+  bool invoked = true;
+  CHECK(!driver.readClause22(0, word, {10000, 1}, &invoked).ok() && !invoked);
+  CHECK(!driver.readMmd(31, 0x0467, word, {10000, 4}, &invoked).ok() && !invoked);
+  CHECK(word == 0xCAFE);
+  CHECK(!driver.modifyBasicControl(0x1000, 0x1000, {10000, 2}, &invoked).ok() && !invoked);
+  EvidenceSnapshot evidence;
+  evidence.lastRequested = 0xCAFE;
+  CHECK(!driver.acquireEvidence(evidenceBit(EvidenceSource::MISR1), evidence, {10000, 1}, &invoked).ok() && !invoked);
+  CHECK(evidence.lastRequested == 0xCAFE);
+  WakeSnapshot wake;
+  wake.timeValid = true;
+  CHECK(!driver.readWakeStatus(wake, {10000, 64}).ok() && wake.timeValid);
+  LinkSnapshot link;
+  link.valid = true;
+  CHECK(!driver.readLinkStatus(link, {10000, 64}).ok() && link.valid);
+  OperationToken token{123};
+  LinkSettings settings;
+  settings.advertisement.technologyMask = 0x0F;
+  const auto configure = driver.startConfigure(settings, {{10000, 64}, 10, 16}, token);
+  CHECK(!configure.ok() && !configure.inProgress() && token.value == 123);
+  for (auto reset : {ResetKind::NONE, ResetKind::PCS, ResetKind::HARD, ResetKind::RESTART, ResetKind::EEE_PCS}) {
+    const auto status = driver.startInitialize({reset}, {{10000, 64}, 10, 16}, token);
+    CHECK(!status.ok() && !status.inProgress() && token.value == 123);
+  }
+  CHECK(bus.callbacks == calls && bus.clocks == clocks);
+}
+
+// SNLS505H tables 8-3/4. Each CTest row declares its own suffix and
+// interface. Both are board inputs when all twelve rows observe the same ID.
+void testP22Identity() {
+  const auto variant = test::declaredVariant;
+  uint8_t maximum = 0;
+  CHECK(isValidVariant(variant) && strapAddressMax(variant, maximum) && maximum == 31);
+  for (uint8_t phy : {uint8_t{0}, uint8_t{31}}) {
+    Controller bus;
+    Driver driver;
+    auto config = bus.config(phy);
+    config.interface = p22Interface;
+    config.mdcHz = 25000000;
+    CHECK(driver.bind(config).ok() && bus.callbacks == 0 && bus.clocks == 0);
+    checkP22IdentityFence(bus, driver);
+    bus.first[phy] = 0x2000;
+    bus.second[phy] = 0xA240;
+    auto output = sentinel();
+    CHECK(driver.readIdentity(output, BUDGET).ok());
+    literalTrace(bus, phy);
+    CHECK(output.id1Valid && output.id2Valid && output.decodedValid && !output.stale);
+    CHECK(output.id1 == 0x2000 && output.id2 == 0xA240 && output.oui == 0x080028);
+    CHECK(output.model == 0x24 && output.revision == 0 && output.mode == OperatingMode::UNKNOWN);
+    CHECK(output.acceptance == IdentityAcceptance::ACCEPTED && output.declaredVariant == variant);
+    const auto calls = bus.callbacks, clocks = bus.clocks;
+    CHECK(sameIdentity(driver.identitySnapshot(), output));
+    const auto caps = driver.capabilities();
+    CHECK(caps.valid && caps.declaredVariant == variant && caps.interfaceMask == 7);
+    CHECK(caps.linkModeMask == 0x0F && caps.copper && !caps.gigabit);
+    CHECK(caps.fiber == (variant == Variant::DP83822IF || variant == Variant::DP83822HF));
+    CHECK(bus.callbacks == calls && bus.clocks == clocks);
+    checkP22IdentityFence(bus, driver);
+  }
+
+  Controller bus;
+  Driver driver;
+  auto config = bus.config();
+  config.interface = p22Interface;
+  auto rejectConfig = [&](Config invalid) {
+    CHECK(!driver.bind(invalid).ok() && bus.callbacks == 0 && bus.clocks == 0);
+  };
+  auto invalid = config;
+  invalid.phyAddress = 32;
+  rejectConfig(invalid);
+  invalid = config;
+  for (auto mode : {OperatingMode::BASIC, OperatingMode::ENHANCED, static_cast<OperatingMode>(0xFE)}) {
+    invalid.requiredMode = mode;
+    rejectConfig(invalid);
+  }
+  invalid = config;
+  invalid.medium = Medium::FIBER;
+  const auto fiber = driver.bind(invalid);
+  if (variant == Variant::DP83822I || variant == Variant::DP83822H) {
+    CHECK(fiber.is(Err::UNSUPPORTED) && fiber.detail == static_cast<int32_t>(UnsupportedDetail::MEDIUM));
+  } else if (p22Interface == MacInterface::RGMII) {
+    CHECK(fiber.is(Err::INVALID_CONFIG) && fiber.detail == static_cast<int32_t>(ConfigDetail::SOURCE_GATE));
+  } else {
+    CHECK(fiber.is(Err::UNSUPPORTED) && fiber.detail == static_cast<int32_t>(UnsupportedDetail::FEATURE));
+  }
+  invalid.medium = static_cast<Medium>(0xFE);
+  rejectConfig(invalid);
+  invalid = config;
+  invalid.interface = static_cast<MacInterface>(0xFE);
+  rejectConfig(invalid);
+  invalid = config;
+  invalid.mdcHz = 25000001;
+  rejectConfig(invalid);
+  CHECK(driver.bind(config).ok());
+
+  auto rejectId = [&](uint16_t first, uint16_t second, Err code, IdentityDetail detail) {
+    bus.first[1] = first;
+    bus.second[1] = second;
+    auto output = sentinel();
+    const auto calls = bus.callbacks, launches = bus.launches;
+    const auto status = driver.readIdentity(output, BUDGET);
+    CHECK(status.is(code) && status.detail == static_cast<int32_t>(detail));
+    CHECK(bus.callbacks == calls + 1 && bus.launches == launches + 2);
+    CHECK(bus.lastRequest.frameCount == 2 && bus.lastRequest.phyAddress == 1);
+    CHECK(bus.lastRequest.frames[0].kind == FrameKind::READ && bus.lastRequest.frames[0].registerAddress == 2);
+    CHECK(bus.lastRequest.frames[1].kind == FrameKind::READ && bus.lastRequest.frames[1].registerAddress == 3);
+    CHECK(sameIdentity(output, sentinel()));
+    const auto saved = driver.identitySnapshot();
+    CHECK(saved.acceptance == IdentityAcceptance::REJECTED && saved.declaredVariant == variant);
+    CHECK(saved.id1Valid && saved.id1 == first && saved.id2Valid && saved.id2 == second);
+    noCapabilities(driver);
+    checkP22IdentityFence(bus, driver);
+  };
+  rejectId(0, 0xA240, Err::DEVICE_NOT_FOUND, IdentityDetail::ZERO_ID);
+  rejectId(0x2000, 0, Err::DEVICE_NOT_FOUND, IdentityDetail::ZERO_ID);
+  rejectId(0xFFFF, 0xA240, Err::DEVICE_NOT_FOUND, IdentityDetail::ONES_ID);
+  rejectId(0x2000, 0xFFFF, Err::DEVICE_NOT_FOUND, IdentityDetail::ONES_ID);
+  rejectId(0x2001, 0xA240, Err::DEVICE_MISMATCH, IdentityDetail::WRONG_OUI);
+  rejectId(0x2000, 0xA640, Err::DEVICE_MISMATCH, IdentityDetail::WRONG_OUI);
+  rejectId(0x2000, 0xA111, Err::DEVICE_MISMATCH, IdentityDetail::WRONG_MODEL);
+  rejectId(0x2000, 0xA140, Err::DEVICE_MISMATCH, IdentityDetail::WRONG_MODEL);
+  for (uint16_t second = 0xA241; second <= 0xA24F; ++second) {
+    rejectId(0x2000, second, Err::DEVICE_MISMATCH, IdentityDetail::REVISION_NOT_ACCEPTED);
+  }
+
+  bus.second[1] = 0xA240;
+  bus.failAt = 1;
+  auto output = sentinel();
+  CHECK(driver.readIdentity(output, BUDGET).is(Err::MDIO_TIMEOUT) && sameIdentity(output, sentinel()));
+  const auto partial = driver.identitySnapshot();
+  CHECK(partial.id1Valid && partial.id1 == 0x2000 && !partial.id2Valid && partial.stale);
+  CHECK(partial.acceptance == IdentityAcceptance::UNASSESSED && !partial.decodedValid);
+  checkP22IdentityFence(bus, driver);
+  bus.failAt = -1;
+  CHECK(driver.readIdentity(output, BUDGET).ok() && output.declaredVariant == variant);
+  checkP22IdentityFence(bus, driver);
+}
+
 void testP22Straps() {
   StrapEvidence sample;
   sample.sor1Valid = true;
@@ -872,5 +1018,18 @@ int main(int argc, char** argv) {
     {"policy", testPolicy}, {"failures", testFailures},
     {"lifecycle", testLifecycle}, {"ownership", testOwnership}, {"scan", testScan}
   };
+  if (argc == 4 && std::strcmp(argv[1], "p22_identity") == 0) {
+    if (std::strcmp(argv[2], "I") == 0) test::declaredVariant = Variant::DP83822I;
+    else if (std::strcmp(argv[2], "H") == 0) test::declaredVariant = Variant::DP83822H;
+    else if (std::strcmp(argv[2], "IF") == 0) test::declaredVariant = Variant::DP83822IF;
+    else if (std::strcmp(argv[2], "HF") == 0) test::declaredVariant = Variant::DP83822HF;
+    else return 2;
+    if (std::strcmp(argv[3], "MII") == 0) p22Interface = MacInterface::MII;
+    else if (std::strcmp(argv[3], "RMII") == 0) p22Interface = MacInterface::RMII;
+    else if (std::strcmp(argv[3], "RGMII") == 0) p22Interface = MacInterface::RGMII;
+    else return 2;
+    const test::Suite p22[] = {{"p22_identity", testP22Identity}};
+    return test::runSuites(2, argv, p22);
+  }
   return test::runVariantSuites(argc, argv, suites);
 }

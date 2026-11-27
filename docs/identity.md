@@ -1,5 +1,15 @@
 # Exact identity and foundational capabilities
 
+DP83822I, H, IF and HF accept the same two words, `2000 A240`, at
+revision 0. Declare copper, MII/RMII/RGMII, and UNKNOWN operating mode.
+The portable probe retains partial reads and permits an explicit retry.
+A successful probe reports documented 10/100 modes and interfaces. Only
+the IF and HF declarations report fiber capability. Startup, raw register
+access, the collector and native adapter remain unavailable for these
+declarations. The probe requires board-established SMI readiness and a
+declared MDC rate of at most 25 MHz, or zero to use the board timing
+contract. [SNLS505H sections 4, 6.9 and tables 8-3/4](reference/source/TI-DP83822-SNLS505H.pdf)
+
 DP83825I requires ID1 `2000` and ID2 `A140` (SNLS638C table 7-6).
 Its model is 20, revision is zero, and the operating-mode field stays
 `UNKNOWN`. The two other revision-1 models, the A grades and the Linux label

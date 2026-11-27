@@ -440,7 +440,7 @@ bool Processor::setup(const Platform& platform, const Identity& identity) {
       (identity.variant == Variant::DP83825I &&
        (identity.interface != MacInterface::RMII ||
         (identity.rmiiClock != RmiiClock::LEADER_25MHZ && identity.rmiiClock != RmiiClock::FOLLOWER_50MHZ))) ||
-      (identity.variant != Variant::UNKNOWN && !isValidVariant(identity.variant)) ||
+      (identity.variant != Variant::UNKNOWN && (!isValidVariant(identity.variant) || isDp83822(identity.variant))) ||
       (identity.interface != MacInterface::RMII && identity.interface != MacInterface::MII)) return false;
   const std::string_view tree(identity.tree);
   if ((tree != "clean" && tree != "dirty" && tree != "unknown") ||

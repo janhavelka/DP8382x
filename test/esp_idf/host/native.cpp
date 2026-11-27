@@ -267,6 +267,12 @@ void factory() {
     p25NativeIsolationGuard();
     Host::reset(); Fixture f;
     auto* output = reinterpret_cast<Native*>(0x1234);
+    for (auto grade : {Variant::DP83822I, Variant::DP83822H, Variant::DP83822IF, Variant::DP83822HF}) {
+        auto probeOnly = f.config;
+        probeOnly.core.variant = grade;
+        assert(Native::create(probeOnly, output) == ESP_ERR_NOT_SUPPORTED);
+        assert(output == reinterpret_cast<Native*>(0x1234) && f.mac.frames.empty() && Host::state().timerCreates == 0);
+    }
     auto invalid = f.config; invalid.core.phyAddress = 32;
     assert(Native::create(invalid, output) == ESP_ERR_INVALID_ARG && output == reinterpret_cast<Native*>(0x1234));
     invalid = f.config; invalid.core.variant = static_cast<Variant>(255);
