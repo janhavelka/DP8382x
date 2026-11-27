@@ -1039,6 +1039,17 @@ void testP22Straps() {
     CHECK(decoded.eeeEnabled == row.eee && decoded.fastLinkDrop == row.fld);
   }
 
+  // Table 7-10 modes 1 and 4 select each address bit while retaining copper.
+  // SOR1 carries COL, RX_D0 and RX_D1. SOR2 carries RX_D2 and RX_D3.
+  constexpr uint16_t sor1ByLowAddress[] = {
+    0x0000, 0x0C00, 0x3000, 0x3C00, 0xC000, 0xCC00, 0xF000, 0xFC00
+  };
+  constexpr uint16_t sor2ByHighAddress[] = {0x0000, 0x0003, 0x000C, 0x000F};
+  for (unsigned address = 0; address < 32; ++address) {
+    decode(sor1ByLowAddress[address % 8], sor2ByHighAddress[address / 8]);
+    CHECK(decoded.phyAddress == address && decoded.medium == Medium::COPPER);
+  }
+
   // Table 7-11: AN_EN and AN_1 use different pins from the two-bit LED_0 mode.
   struct LinkCase { uint16_t sor1, sor2; bool an; uint8_t mask; };
   const LinkCase copper[] = {

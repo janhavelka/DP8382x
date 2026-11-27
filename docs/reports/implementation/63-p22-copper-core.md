@@ -1,5 +1,8 @@
 # Prompt 63 · DP83822 copper identity, reset and link
 
+**COMPLETE for revision-0 copper core software.** The [final verification](#phase-d-final-verification)
+records the results for I, H, IF and HF and the limits on interrupt and counter evidence.
+
 ## Phase (a) assessment
 
 **IN PROGRESS.** Phase (b) can implement revision-0 copper operation on
@@ -392,3 +395,58 @@ Reproduce with the phase (b) commands above. Rerun the compiled replay checks
 with `ctest --test-dir build/p63-baseline -R '^cli_hil_(runner|campaign)$' -j 2 --output-on-failure --no-tests=error`.
 The host, UBSan, Python, replay and SDK logs are under `build/p63-baseline`
 with prefix `p63c-`. Prompt 63 remains in progress for phase (d).
+
+## Phase (d) final verification
+
+On 2026-11-28 the wrapper verified that `main` and `origin/main` both pointed
+to `836223268034b7612b33ddc4f5f929d7078beb61`, the reviewed implementation.
+The worktree and index were clean at entry. Two agents used the session model
+for independent work. One checked the ten procedures against the original tables,
+tests and the three clean [sibling revisions](#sibling-audit). The other built
+the pinned native host adapter and three SDK applications. The lead ran the
+portable checks, closed an address-test gap and integrated both receipts.
+
+| Ledger procedures | Copper acceptance and executing evidence |
+| --- | --- |
+| `identity`, `straps` | All twelve declared grade/interface combinations accept revision 0 and preserve the board's suffix. The identity rows check rejection and retry. The strap test already checked the five address bits individually and the unstrapped default of 1. It now decodes all 32 copper addresses from independent SOR1/SOR2 words based on tables 7-10 and 8-84/85. |
+| `management`, `reset` | `p22_collector` checks C22, vendor and IEEE selector/data traces, destructive access and partial reads. `p22_startup` checks all twelve combinations across NONE, HARD, PCS, RESTART and EEE_PCS, including the live medium check before writes. The native factory tests exercise POR, RESET_N and idle MDC timing with simulated clocks for each grade. |
+| `copper-link`, `negotiation`, `mdix`, `link-loss` | The twelve `p22_copper_*` rows exercise all 15 nonempty advertised ability masks, four forced speed/duplex settings, crossover, next pages, 10BASE-Te squelch and 32 combinations of fast-drop causes. `p22_link` checks PHYSTS 0001/0005/0003/0007, pause, flaps, deadlines and the distinction between link down and MDIO failure. The CLI uses `configuration apply`, `controls quality` and `link read`. |
+| `irq`, `counters` | `p22_collector` exercises all 16 interrupt sources under both possible enable-retention behaviors, RXFS selector writes, saturated counts and partial acquisitions. `irq configure`, `irq service` and `link collect` use the same owner. A consuming read preserves desired masks and withdraws confidence in installation. The collector reports the actual receive-error threshold event. |
+
+The archived SNLS505H PDF still matches the phase (a) SHA-256.
+The ledger's two open observations require TI clarification or independent
+measurements on identified silicon. Successive interrupts must establish
+MISR enable retention and rearm behavior. An observed threshold crossing must
+establish the numeric RECR threshold. The section 7.4.4.2 soft-reset name
+remains an inference. Reset selection uses the register and command word.
+[Source decisions](../../registers/dp83822.json) · [Original tables](../../reference/source/TI-DP83822-SNLS505H.pdf)
+
+| Layer | Local result on Windows 11 x86-64 |
+| --- | --- |
+| Host behavior and simulated CLI | PASS. GCC 15.1.0, Release, CMake 4.0.1, Ninja 1.12.1. All 636 registered CTests passed, including original-family regressions, compiled runner, campaign and interruption tests. After the address-test addition, all 48 identity and DP83822 registrations passed again. Release UBSan trap passed all 28 DP83822 registrations on the final test source. |
+| Offline Python and research | PASS. Python 3.12.10 discovery ran 299 tests, with 238 passes and 61 fixture-dependent skips. The exact-part ledger suite passed 16/16, including its comparison to all 576 printed field rows. The family ledger verifier passed. |
+| Portable and source-package consumers | PASS. Both tests-OFF build-tree consumers passed. All 29 inputs in the source package matched the worktree by SHA-256. A fresh tests-OFF Ninja build of its existing DP83825I application passed 1/1. |
+| Pinned native host | PASS. The first native build encountered Git checkout ownership on the SDK pin check. The documented process-local settings allowed verification of all 45 SDK files. Both factory tests and ten board regressions passed (12/12). The factory exercises the four declared DP83822 grades on simulated copper RMII. |
+| ESP32-P4 SDK links | PASS. ESP-IDF v6.1 `fff9895c82d744c7237be8847347bdd1b07c6643` relinked three images with clean firmware identity `8362232`. The existing DP83825I adapter-link image was 421376 bytes. The DP83826I basic and owner images were 732432 and 610656 bytes. |
+| Documentation and integrity | PASS. Doxygen checked 300 generated pages and rejected both negative fixtures. The generated version, reference payloads, Markdown links and final diff whitespace passed. |
+| Remote CI | NOT RUN. Prompt 71 owns the remote checkpoint. |
+| Physical qualification | NOT RUN on I, H, IF or HF. Each suffix requires its own identified board, strap, link and event evidence. |
+
+Use the phase (b) build and Python commands above and the [SDK commands and scoped environment](61-p25-feature-closure.md#phase-d-esp32-p4-sdk-links).
+For the final package check, configure `build/p63-export/application` into
+`build/p63-export/p63d-out` with Release, Ninja and `DP8382X_BUILD_TESTS=OFF`,
+then build and run CTest there. These commands reproduce the host selections.
+
+```powershell
+ctest --test-dir build/p63-baseline -j 4 --output-on-failure --no-tests=error
+ctest --test-dir build/p63-baseline -R '(identity|^p22_)' -j 3 --output-on-failure --no-tests=error
+ctest --test-dir build/p63b-ubsan -R '^p22_' --output-on-failure --no-tests=error
+ctest --test-dir build/p60-tests -R '^((e_)?native_factory|native_board_[a-z_]+)$' --output-on-failure --no-tests=error
+```
+
+The local logs are in `build/p63-baseline/p63d-*`. README, CHANGELOG, the
+API, variant, CLI and fixture guides describe the reviewed copper behavior.
+The coverage guide now records the full address test. Prompt 64 owns MAC
+interface and clock programming, 65 owns fiber and optical Q14 for IF and HF,
+66 owns diagnostics and electrical features, and 67 owns optional controls.
+The wrapper records the completion commit and verifies its upstream SHA after this run.

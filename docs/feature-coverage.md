@@ -5,9 +5,9 @@ copper MII, RMII and RGMII. The portable identity probe accepts revision 0
 and preserves partial and rejected reads. Each row checks the live strap
 capture, all eight transfer failure positions, late completion and failed
 release. For all four grades, `p22_straps` exercises the offline decoder
-against the reset defaults, per-pin encodings and reserved or incomplete
-captures. `p22_startup` checks the live CR2 medium, board and latch
-agreement, reset words, and readiness. Twelve `p22_copper_*` rows exercise
+against all 32 copper addresses, the reset defaults, per-pin encodings and
+reserved or incomplete captures. `p22_startup` checks the live CR2 medium,
+board and latch agreement, reset words, and readiness. Twelve `p22_copper_*` rows exercise
 forced and negotiated profiles, 10BASE-Te, crossover and fast link drop.
 `p22_link` and `p22_collector` exercise link flaps, counter saturation and
 interrupt service across the same twelve declarations. An IRQ policy
