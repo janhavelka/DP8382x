@@ -125,6 +125,14 @@ command/read pair. A possible clear without returned data retains history loss.
 No FCSCR accumulation rules transfer to BIST. Cached [BIST views](bist.md) and
 formatting never reread counters.
 
+On DP83822 copper, the collector sums the low eight bits of FCSCR and the
+full 16-bit samples from RECR and MMD 3/0016 (EEE wake errors). Saturation,
+uncertain consumption and reset discontinuities leave lower bounds. A later
+PHYSTS or BMSR sample that contradicts the cached link marks that snapshot
+stale, including a completed read followed by a failed batch release. The
+next complete link acquisition can publish the new state.
+[DP83822 counter and link dispositions](registers/dp83822.json)
+
 EEE status and wake errors extend this collector in stage 29. The wake-error word
 is retained raw; saturation or history loss cannot become an exact accumulated
 physical rate. Reset marks prior host evidence discontinuous. [EEE](eee.md)

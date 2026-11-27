@@ -207,9 +207,9 @@ struct EvidenceSample {
   bool samplesSaturated{false}; ///< Sticky: the retained sample count could no longer advance.
   uint16_t eventBits{0}; ///< Sticky sourced event bits, separate from current raw controls/status.
   bool coalesced{false}; ///< Event occurrence seen; hardware latches cannot prove multiplicity.
-  uint64_t sampledSum{0}; ///< FCSCR low-byte sum or DP83822 RECR full-word sum.
+  uint64_t sampledSum{0}; ///< FCSCR low-byte sum, or the DP83822 full-word sum for RECR or MMD 3/0016 wake errors.
   bool sumSaturated{false}; ///< Sticky arithmetic overflow; sampledSum is then a lower bound.
-  bool counterSaturated{false}; ///< Hardware saturated at FCSCR FF or DP83822 RECR FFFF.
+  bool counterSaturated{false}; ///< Sample reached FF for FCSCR or FFFF for DP83822 RECR or wake errors.
   bool counterLowerBound{false}; ///< Count sum has saturation, lost-history or discontinuity evidence.
   bool discontinuous{false}; ///< Reset/external or configuration uncertainty crossed retained history.
   uint64_t observedAtUs{0}; ///< Conservative completion bound in the binding clock domain.

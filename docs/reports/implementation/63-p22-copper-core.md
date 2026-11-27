@@ -351,3 +351,44 @@ python -B tools/verify_ledger.py
 python -B scripts/generate_version.py check
 git diff --check
 ```
+
+## Phase (c) independent review
+
+On 2026-11-28 the worktree and index were clean on `main` at
+`4a2ddf17ff5164cb8bbfcf25bca966ec97b07305`. The wrapper verified equality
+with `origin/main` and the local comparison returned 0 ahead, 0 behind.
+Two parallel read-only reviewers used the session's high-reasoning model for
+reset and configuration ownership, and for link and destructive register
+semantics. Both finished. The lead reviewed integration, the native board
+timing, and the compiled CLI and Python replay paths. The review covered
+the changes since `571751e`, including the earlier strap and identity commits.
+The [sibling audit](#sibling-audit) paths and three clean revisions still
+match. Their explicit capability rows, declaration checks and independent
+test registration apply here. A240 still requires a board-declared suffix.
+
+| Finding | Correction and evidence |
+| --- | --- |
+| A raw CR2 read between cooperative polls could reveal fiber after admission. HARD could still issue its command and NONE could publish readiness. A raw strap read could also contradict the saved pair. | The core checks current board proof at reset submission and before completing startup. A changed SOR1 or SOR2 retains the observed word and invalidates the pair. A changed ID word withdraws identity until a new two-word probe. `p22_startup` interrupts HARD and NONE with live FX, either changed latch or revision 1. It checks effects, readiness and the returned mismatch. SNLS505H tables 8-3/4, 8-11, 8-30 and 8-84/85. |
+| A later PHYSTS or BMSR read could contradict a current cached link. | The collector marks conflicting link, mode or negotiation evidence stale. `p22_link` exercises up/down transitions in both directions, including a down sample followed by failed release, and counts callbacks around cached reads. Tables 8-2 and 8-16. |
+| Changing a link profile after installing an IRQ policy could always fail. Its verification tail consumed the two MISR enable bytes whose post-read retention is unknown. A separate raw PHYSCR read could also contradict the installed control while trust stayed VERIFIED. | A mutating link profile reuses the budgeted IRQ installation procedure for its owned masks. Read-only verification still reports the retention gate. A direct or vendor-alias control read retains the raw word and withdraws trust on contradiction. `p22_collector` exercises both possible mask-retention models after IRQ service, verifies the actual mask bytes and checks both PHYSCR read paths. Tables 8-17 through 8-19. |
+| Offline replay could accept a successful reset with incompatible strap words, or a saved profile with flag combinations that the CLI cannot restore. | The runner and campaign share an independent board check for address, functional LED_0, copper and interface. Tests alter actual compiled receipts, including FX at the correct address and a reserved interface encoding. Saved-profile tests cover timer codes, fast MDIX and peer confirmation. Tables 7-10 through 7-13, 8-10 and 8-84/85. |
+
+The sources are the [original SNLS505H PDF](../../reference/source/TI-DP83822-SNLS505H.pdf)
+with the phase (a) hash, the [exact-part procedure ledger](../../registers/dp83822.json)
+and the [pinned TI implementation comparison](../../reference/library-family.md#ti-rtos-dp83822-concrete-behavior).
+The public counter contract now includes the full-word sum for MMD 3/0016
+wake errors from table 8-140.
+
+| Local layer | Stage (c) receipt |
+| --- | --- |
+| Windows x86-64 host, GCC 15.1.0, Ninja Release | PASS 265/265 focused CTests using the phase (b) selection. Release UBSan trap passed 28/28 DP83822 registrations. The pinned native factory host tests passed 2/2. |
+| Offline runner | PASS. After moving the strap check into the common protocol module, the first runner import exposed an extra closing parenthesis. It was corrected. Both compiled runner/campaign CTests passed on the final files. Python 3.12 discovery ran 299 tests with 61 skips for fixture-dependent cases. |
+| Portable and package consumers | PASS 2/2 tests-OFF build-tree consumers and 1/1 source-package consumer. All 29 files in the existing package were compared with the worktree after refreshing changed inputs. |
+| ESP32-P4 SDK links | PASS 3/3 with ESP-IDF v6.1 `fff9895c`. The existing adapter-link, basic and owner images were 421376, 732432 and 610656 bytes respectively. DP83822 factory execution used simulated hardware on the host. |
+| Documentation and sources | Doxygen passed 300 pages and two rejected negative fixtures. Reference integrity, the register ledger, generated version and whitespace checks passed. |
+| Remote CI and physical qualification | NOT RUN. CI belongs to prompt 71. Each grade still needs identified fixture evidence, including real mask retention/rearm and the RECR threshold. |
+
+Reproduce with the phase (b) commands above. Rerun the compiled replay checks
+with `ctest --test-dir build/p63-baseline -R '^cli_hil_(runner|campaign)$' -j 2 --output-on-failure --no-tests=error`.
+The host, UBSan, Python, replay and SDK logs are under `build/p63-baseline`
+with prefix `p63c-`. Prompt 63 remains in progress for phase (d).

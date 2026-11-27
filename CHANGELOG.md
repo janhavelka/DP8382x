@@ -7,7 +7,9 @@
   the board's LED_1 declaration and the live CR2 medium. Add copper reset,
   link configuration and observation, interrupt service and counter collection.
   The native adapter uses the DP83822 200 ms POR and 10-microsecond reset pulse limits.
-  The shared CLI and offline runner distinguish each declared grade.
+  The shared CLI and offline runner distinguish each declared grade. Copper
+  operations withdraw readiness on contradictory board observations and
+  reinstall owned interrupt enables after a link-profile change.
 
 - Add bounded live capture and offline decoding of DP83822 strap latches,
   including address, strapped medium, advertised or forced modes, interface

@@ -124,6 +124,20 @@ def _keys(fields: dict[str, str], payload: frozenset[str] = frozenset()) -> None
                             f"missing={sorted(missing)}, extra={sorted(extra)}")
 
 
+def copper_straps_match(sor1, sor2, interface, address):
+    """Check a DP83822 strap pair against its functional copper board declaration."""
+    # SNLS505H tables 7-10..13 and 8-84/85. Each field encodes pin mode minus one.
+    col, rx_er, rx_dv = (sor1 >> 10) & 3, (sor1 >> 8) & 3, (sor1 >> 4) & 3
+    address_pins = (col, sor1 >> 12, sor1 >> 14, sor2, sor2 >> 2)
+    strapped_address = sum(1 << bit for bit, pin in enumerate(address_pins) if pin & 2)
+    if rx_er in (1, 2):
+        strapped_interface = "RGMII" if rx_dv in (0, 2) else None
+    else:
+        strapped_interface = ("MII", None, "RMII", "RMII")[rx_dv]
+    return (col in (0, 3) and (sor1 & 3) in (0, 3) and
+            address == strapped_address and interface == strapped_interface)
+
+
 def _rmii_declaration(fields):
     if fields.get("variant") in DP83822:
         if fields.get("medium") != "copper":

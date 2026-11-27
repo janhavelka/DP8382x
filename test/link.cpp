@@ -709,6 +709,29 @@ void p22Link() {
       CHECK(refresh(driver, bus, result).is(Err::MDIO_TIMEOUT) && driver.linkSnapshot().stale);
       CHECK(driver.healthSnapshot().totalFailures == healthy.totalFailures + 1);
       CHECK(driver.healthSnapshot().lastError.detail == -19019);
+      for (const auto source : {EvidenceSource::PHYSTS, EvidenceSource::BMSR}) {
+        for (bool releaseFails : {false, true}) {
+          Controller independent;
+          Driver observer;
+          initialize(observer, independent);
+          up(independent);
+          CHECK(refresh(observer, independent, result).ok() && result.linkUp);
+          independent.down = true;
+          if (releaseFails) independent.releaseFailCall = static_cast<int>(independent.calls);
+          EvidenceSnapshot acquired;
+          CHECK(observer.acquireEvidence(evidenceBit(source), acquired, {1000000, 1}).ok() == !releaseFails);
+          const auto calls = independent.calls, clocks = independent.clocks;
+          const auto cached = observer.linkSnapshot();
+          CHECK(cached.stale && cached.linkUp && cached.observedAtUs == result.observedAtUs);
+          CHECK(calls == independent.calls && clocks == independent.clocks);
+          if (!releaseFails) {
+            CHECK(refresh(observer, independent, result).ok() && !result.linkUp);
+            up(independent);
+            CHECK(observer.acquireEvidence(evidenceBit(source), acquired, {1000000, 1}).ok());
+            CHECK(observer.linkSnapshot().stale && !observer.linkSnapshot().linkUp);
+          }
+        }
+      }
     }
   }
 }

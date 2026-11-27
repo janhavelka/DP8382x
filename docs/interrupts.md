@@ -191,3 +191,15 @@ analyzer/MCU timestamp capture: measure active polarity, assertion/deassertion,
 level versus edge behavior, events during service, test start/clear and reset.
 Record physical fixture identity and admitted maintenance; do not drive a pin
 still owned by clock, COL or power-down circuitry. Q9 is NOT RUN.
+
+## DP83822 copper
+
+MISR1 and MISR2 have read-clear events in the high byte. SNLS505H tables
+8-18/19 label the low enable bytes RC/W. After a consuming read the driver
+retains the sampled bytes and desired masks and withdraws confidence in the
+installed enables. A read-only verification can therefore finish with
+`SOURCE_GATE`. An explicit link-profile change or initialization restores an
+owned IRQ policy with delivery disabled, checks both sampled masks, writes the
+two enables again, then enables delivery. A contradictory PHYSCR observation
+also withdraws policy trust. Physical rearm behavior remains unqualified.
+[Source dispositions](registers/dp83822.json)

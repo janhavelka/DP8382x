@@ -27,7 +27,7 @@ from dp8382x_hil_campaign import (
 from dp8382x_hil_fixture import FixtureError, FixtureProcess
 from dp8382x_hil_protocol import (
     DP83822, PHY_ID2, TERMINAL_STATUS, U32_MAX, U64_MAX, VARIANTS, Decoder, ProtocolError, Record,
-    identity, integer, observed_identity, validate_expected_identity,
+    copper_straps_match, identity, integer, observed_identity, validate_expected_identity,
 )
 from dp8382x_hil_serial import (
     IDLE_POLL, INJECTED_BACKEND, READ_CHUNK, ReplyTimeout, SerialError, SerialPort, bounded_call, native_port,
@@ -399,6 +399,13 @@ def cases_for(suite, results, pending_samples=()):
                 passed = (passed and fields.get("rcsr_valid") == "1" and
                           bool(int(fields["sor1"]) & 8) == bool(int(fields["rcsr"]) & 128) == follower)
             restore = "PASS" if restored else "NOT RUN"
+            if rows[0].fields["variant"] in DP83822 and restored:
+                board = rows[0].fields
+                if not (fields.get("sor1_valid") == fields.get("sor2_valid") == "1" and
+                        fields.get("straps_stale") == "0" and
+                        copper_straps_match(int(fields["sor1"]), int(fields["sor2"]),
+                                            board["interface"], int(board["address"]))):
+                    passed, restore = False, "FAIL"
             if fields["cleanup"] not in ("none", "OK"):
                 restore = "FAIL"
             cases.append(case("initialize", record, passed, "bounded initialization and persistent replay", restore))

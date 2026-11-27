@@ -954,6 +954,20 @@ void p22Collector() {
         CHECK(irq.desired.misr1Mask==0xA5 && irq.desired.misr2Mask==0x5A);
         CHECK(irq.rawMisr1==0x00A5 && irq.rawMisr2==0x805A);
         CHECK(b.words[18]==(clears?0:0xA5) && b.words[19]==(clears?0:0x5A));
+        LinkSettings link;
+        link.advertisement.technologyMask = LINK_100_FULL;
+        CHECK(d.startConfigure(link, {}, budget(), t).inProgress() && drain(d,b,t).ok());
+        const auto restored = take(d,t);
+        CHECK(restored.persistentRestored && !restored.cleanupOwed);
+        CHECK(restored.interrupts.trust == ConfigurationTrust::VERIFIED &&
+              restored.interrupts.misr1EnablesKnown && restored.interrupts.misr2EnablesKnown);
+        CHECK(b.words[18]==0xA5 && b.words[19]==0x5A);
+        b.words[17] = 0;
+        uint16_t control = 0xFFFF;
+        CHECK((clears ? d.readClause22(17, control, {1000000, 1}) :
+                        d.readMmd(31, 17, control, {1000000, 4})).ok());
+        CHECK(control == 0 && d.interruptSnapshot().rawPhyscr == 0);
+        CHECK(d.interruptSnapshot().trust == ConfigurationTrust::DIRTY);
         b.words[15]=0xA5F5; CounterSnapshot counters;
         CHECK(d.collectEvents(counters,{1000000,6}).ok() && counters.fldCauses==0x01F0);
         b.words[23]=0x000C; b.wakeErrors=65535; b.ext[0x04A1]|=0x00FF; EvidenceSnapshot e;

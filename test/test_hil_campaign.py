@@ -16,7 +16,7 @@ from unittest.mock import patch
 from test_hil_runner import NONCE, REVISION, runner
 from test_hil_serial import Port, arguments as serial_arguments, device_identity, invoke
 from dp8382x_hil_artifacts import EvidenceError, aggregate
-from dp8382x_hil_campaign import CASES
+from dp8382x_hil_campaign import CASES, Profile
 from dp8382x_hil_protocol import Decoder, PREFIX, ProtocolError
 
 
@@ -75,6 +75,16 @@ def assert_required_fields(test, name, data, raw, replay_fn=replay, include_setu
 
 
 class PlanTests(unittest.TestCase):
+    def test_p22_saved_profiles_can_be_restored_through_the_cli(self):
+        for mode, speed, flags, allowed in (
+                ("an", 0, 128 + 512 + 2048, True), ("forced", 100, 64 + 2048, True),
+                ("forced", 10, 64 + 2048, False), ("forced", 100, 32, False),
+                ("an", 0, 128, False), ("an", 0, 2048, False), ("an", 0, 256, False),
+                ("an", 0, 128 + 768 + 2048, False), ("an", 0, 24, False)):
+            profile = Profile(mode, 8 if mode == "an" else 0, speed,
+                              "unknown" if mode == "an" else "full", flags=flags)
+            self.assertEqual(profile.replayable(robust_optional=True, p22=True), allowed, profile)
+
     def test_guide_lists_the_exact_cases(self):
         guide = (ROOT / "docs" / "hardware-validation.md").read_text(encoding="utf-8")
         original = guide.split("## Feature fixtures", 1)[0]
@@ -245,6 +255,13 @@ class CompiledCampaignTests(unittest.TestCase):
                 self.assertEqual(replay(data, decoded(raw)), "PASS")
                 self.assertEqual(data["identity"]["medium"], "copper")
                 self.assertNotIn("registers read mmd 31 0x030E", data["commands"])
+                if name == "hard":
+                    for field, value in (("sor1", 0x0BE3), ("sor1", 0x0FC3), ("sor1", 0x0FE1),
+                                         ("sor1", 0x0DE3 | 0x10), ("sor2", 2), ("sor2", 8)):
+                        records = decoded(raw)
+                        reset = next(r for r in records if r.cmd == "recovery.reset" and r.state == "terminal")
+                        reset.fields[field] = str(value)
+                        self.assertNotEqual(replay(data, records), "PASS", (field, value))
 
     def test_p25_roles_and_exact_part_replay(self):
         for role, other in (("leader", "follower"), ("follower", "leader")):

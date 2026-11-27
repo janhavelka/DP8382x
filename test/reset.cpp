@@ -803,6 +803,45 @@ void p22Startup() {
     CHECK(driver.strapSnapshot().stale == (kind == ResetKind::HARD));
   }
 
+  // The owner may observe a changed board between cooperative polls.
+  for (const auto kind : {ResetKind::NONE, ResetKind::HARD}) {
+    for (unsigned change = 0; change < 4; ++change) {
+      Controller bus; Driver driver;
+      auto c = bus.config(); c.variant = Variant::DP83822IF; c.interface = MacInterface::MII; c.dp83822Led1Mode = 1;
+      auto& phy = bus.phys[1];
+      phy.id2 = 0xA240; phy.sor1 = 0x0FC3; phy.sor2 = 0;
+      CHECK(driver.bind(c).ok());
+      auto token = start(driver, ResetKind::NONE);
+      CHECK(drain(driver, bus, token).ok() && take(driver, token).persistentRestored);
+      token = start(driver, kind);
+      if (kind == ResetKind::HARD) { toCommand(driver, bus, token); }
+      else {
+        for (unsigned i = 0; i < 3; ++i) { CHECK(driver.pollOperation(token).inProgress()); }
+        CHECK(driver.operationSnapshot().phase == OperationPhase::QUIESCE);
+      }
+      uint16_t raw = 0;
+      if (change == 0) {
+        phy.cr2 = 0x4000;
+        CHECK(driver.readClause22(10, raw, {1000000, 1}).ok() && raw == 0x4000);
+      } else if (change < 3) {
+        phy.sor1 = 0x0BC3; phy.sor2 = 3;
+        CHECK(driver.readMmd(31, change == 1 ? 0x0467 : 0x0468, raw, {1000000, 4}).ok());
+        const auto pair = driver.strapSnapshot();
+        CHECK(pair.stale && pair.sor1Valid == (change == 1) && pair.sor2Valid == (change == 2));
+      } else {
+        phy.id2 = 0xA241;
+        CHECK(driver.readClause22(3, raw, {1000000, 1}).ok() && raw == 0xA241);
+        CHECK(driver.identitySnapshot().stale && !driver.capabilities().valid);
+      }
+      const auto frames = bus.frames;
+      CHECK(!drain(driver, bus, token).ok());
+      const auto stopped = take(driver, token);
+      CHECK(!driver.isInitialized() && !stopped.mutationPossible && !stopped.persistentRestored);
+      if (kind == ResetKind::HARD) CHECK(bus.frames == frames);
+      if (change == 0) CHECK(stopped.mismatch.valid && stopped.mismatch.observed == 0x4000);
+    }
+  }
+
   for (unsigned scenario = 0; scenario < 13; ++scenario) {
     Controller bus;
     Driver driver;

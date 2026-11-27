@@ -445,3 +445,8 @@ strap literals at address 1. The runner can replay the correlated session
 and grade-specific PHYIDR2, initialization and link evidence with
 `verify-artifacts`. Optional feature campaigns require their own DP83822
 baseline and verifier.
+
+DP83822 reset replay checks the returned strap words for functional LED_0,
+copper mode, PHY address and MAC interface. A campaign that may change
+configuration also requires a saved profile the CLI can restore, including
+valid fast-mode flags and peer confirmation.

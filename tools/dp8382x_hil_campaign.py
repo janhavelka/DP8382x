@@ -6,12 +6,12 @@ import ipaddress
 
 if __package__:
     from .dp8382x_hil_protocol import (
-        COMMON_FIELDS, DP83822, PHY_ID2, TERMINAL_STATUS, U32_MAX, U64_MAX, ProtocolError, identity, integer,
+        COMMON_FIELDS, DP83822, PHY_ID2, TERMINAL_STATUS, U32_MAX, U64_MAX, ProtocolError, copper_straps_match, identity, integer,
     )
     from .dp8382x_hil_serial import fixture_identifier
 else:
     from dp8382x_hil_protocol import (
-        COMMON_FIELDS, DP83822, PHY_ID2, TERMINAL_STATUS, U32_MAX, U64_MAX, ProtocolError, identity, integer,
+        COMMON_FIELDS, DP83822, PHY_ID2, TERMINAL_STATUS, U32_MAX, U64_MAX, ProtocolError, copper_straps_match, identity, integer,
     )
     from dp8382x_hil_serial import fixture_identifier
 
@@ -67,7 +67,16 @@ class Profile:
         return cls(fields["mode"], int(fields["modes"]), int(fields["speed_mbps"]), fields["duplex"],
                    int(fields["pause_sym"]), int(fields["pause_asym"]), fields["pair"], int(fields["flags"]))
 
-    def replayable(self, robust_optional=False):
+    def replayable(self, robust_optional=False, p22=False):
+        if p22:
+            swap = self.flags & 0x1A
+            timer = (self.flags >> 8) & 3
+            fast_an, fast_mdix = bool(self.flags & 128), bool(self.flags & 64)
+            if (swap not in (0, 2, 8, 16) or timer == 3 or (timer and not fast_an) or
+                    (fast_an and self.mode != "an") or (self.flags & 32 and self.mode != "an") or
+                    (fast_mdix and (self.mode, self.speed, self.pair) != ("forced", 100, "auto")) or
+                    bool(self.flags & 2048) != (fast_an or fast_mdix)):
+                return False
         if self.mode == "an":
             return self.modes > 0 and (self.speed, self.duplex) == (0, "unknown") and self.pair != "unknown"
         return (self.mode == "forced" and self.modes == self.pause_sym == self.pause_asym == 0 and
@@ -505,7 +514,8 @@ class Campaign:
                 flags |= 1024
             expected_readback = replace(candidate, flags=flags)
         require(all(matches(row.fields, valid=1, stale=0, trust="VERIFIED") for row in (desired, observed)) and
-                expected_readback == Profile.read(observed.fields) and candidate.replayable(robust_optional=self.p25 or self.p22), observed,
+                expected_readback == Profile.read(observed.fields) and
+                candidate.replayable(robust_optional=self.p25 or self.p22, p22=self.p22), observed,
                 "complete, equal and VERIFIED desired and observed profiles required", unavailable)
         return candidate
 
@@ -575,6 +585,10 @@ class Campaign:
                 row, f"{kind} reset/replay evidence incomplete")
         if self.p25:
             self.check_role(row)
+        elif self.p22:
+            require(copper_straps_match(int(row.fields["sor1"]), int(row.fields["sor2"]),
+                                        self.expected["interface"], self.expected["address"]),
+                    row, "latched straps disagree with functional copper, interface or PHY address")
 
     def vod(self):
         row = yield from self.read("registers read mmd 31 0x030E")

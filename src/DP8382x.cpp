@@ -1350,6 +1350,14 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
       continue; // Distinct MMD namespace; never alias BMSR/BISCR or vendor state.
     }
     if (target && frame.kind == FrameKind::READ && completed) {
+      if (isDp83822(_config.variant) && !_identity.stale &&
+          ((address == cmd::REG_PHYIDR1 && receipt.value != _identity.id1) ||
+           (address == cmd::REG_PHYIDR2 && receipt.value != _identity.id2))) {
+        // One contradictory ID word withdraws the old binding evidence. Only
+        // the typed two-word acquisition can publish a new accepted identity.
+        _invalidateResetEvidence(true);
+        _identityRejection = _identity.admissionStatus = configError(ConfigDetail::DEVICE_INVALIDATED);
+      }
       // Any valid direct or vendor-alias observation can reveal active reset.
       // Retain it before later frame/release failure, regardless of feature owner.
       if (address == cmd::REG_BMCR && (receipt.value & 0x8000U) != 0U) {
@@ -1394,11 +1402,37 @@ void DP8382x::_retainEvidence(const MdioBatch& batch, const BatchResult& result,
           _invalidateLink();
         }
       }
+      if (isDp83822(_config.variant) && !_straps.stale &&
+          ((address == 0x0467 && receipt.value != _straps.sor1) ||
+           (address == 0x0468 && receipt.value != _straps.sor2))) {
+        // A changed latch disproves the saved pair, even on a failed release.
+        // Only an atomic capture of both latches can establish a new pair.
+        _straps = {};
+        if (address == 0x0467) { _straps.sor1 = receipt.value; _straps.sor1Valid = true; }
+        else { _straps.sor2 = receipt.value; _straps.sor2Valid = true; }
+        if (_operation.state == OperationState::RUNNING) { _result.straps = _straps; }
+        _invalidateDp83822Copper();
+      }
+      if (isDp83822(_config.variant) && address == cmd::REG_PHYSCR && !(_interruptWorking && _polling)) {
+        _interrupts.rawPhyscr = receipt.value;
+        _interrupts.physcrValid = true;
+        const uint16_t expected = _interruptControlValue() | (_interruptTestSession ? 4U : 0U);
+        if (_interrupts.desiredValid && ((receipt.value ^ expected) & 0x000FU) != 0U) {
+          _interrupts.trust = ConfigurationTrust::DIRTY;
+          _interrupts.observedStale = true;
+        }
+      }
       if (_config.variant == Variant::DP83825I && _link.valid && _link.linkUp &&
           ((address == cmd::REG_PHYSTS && (receipt.value & 1U) == 0U) ||
            (address == cmd::REG_BMSR && (receipt.value & 4U) == 0U) ||
            (address == cmd::REG_BMCR && (receipt.value & 0xCC00U) != 0U) ||
            (address == 0x0428 && (receipt.value & 4U) != 0U))) {
+        _invalidateLink();
+      }
+      if (isDp83822(_config.variant) && _link.valid && !_link.stale &&
+          ((address == cmd::REG_PHYSTS && ((receipt.value ^ _link.rawPhystsFinal) & 0x0017U)) ||
+           (address == cmd::REG_BMSR && ((receipt.value ^ _link.rawBmsrFinal) & 0x0024U)) ||
+           (address == cmd::REG_BMCR && _link.linkUp && (receipt.value & 0xCC00U)))) {
         _invalidateLink();
       }
       _retainPinWord(address, receipt.value);
@@ -1692,7 +1726,8 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
       _operation.kind == OperationKind::VERIFY || _operation.kind == OperationKind::CONFIGURE ||
       _operation.kind == OperationKind::QUALITY_CONFIGURE || _operation.kind == OperationKind::INTERRUPT_CONFIGURE ||
       _operation.kind == OperationKind::INTERRUPT_TEST_START || _operation.kind == OperationKind::INTERRUPT_TEST_STOP);
-  if (isDp83822(_config.variant) && operation && (_configuring || _qualityWorking || _interruptWorking)) {
+  if (isDp83822(_config.variant) && operation &&
+      (_configuring || _qualityWorking || _interruptWorking || _initStep == InitStep::COMMAND)) {
     const auto board = _dp83822BoardStatus();
     if (!board.ok()) { return board; }
   }
@@ -1827,6 +1862,10 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
         _dp83822Medium = {result.frames[i].value, true, !status.ok(), status.ok() ? upper : 0};
       }
       if (_dp83822Medium.stale || _dp83822Medium.medium() != Medium::COPPER) {
+        if (_operation.state == OperationState::RUNNING && _dp83822Medium.valid &&
+            _dp83822Medium.medium() == Medium::FIBER && !_result.mismatch.valid) {
+          _result.mismatch = {true, false, 0, cmd::REG_CR2, 0x4000, 0, _dp83822Medium.cr2};
+        }
         _invalidateDp83822Copper();
       }
     }
@@ -2109,7 +2148,11 @@ Status DP8382x::_finishOperation(Status status, bool freshObservation) noexcept 
     _interruptTailPending = false;
     _result.persistentRestored = false;
     _interrupts.trust = ConfigurationTrust::DIRTY; _interrupts.observedStale = true;
-    _interruptVerifyOnly = _operation.kind == OperationKind::VERIFY || _operation.kind == OperationKind::CONFIGURE || _operation.kind == OperationKind::WOL_CONFIGURE;
+    // A DP83822 MISR read may clear installed enables. A mutating profile
+    // operation restores its owned masks through the budgeted installation pass.
+    _interruptVerifyOnly = _operation.kind == OperationKind::VERIFY ||
+        (_operation.kind == OperationKind::CONFIGURE && !isDp83822(_config.variant)) ||
+        _operation.kind == OperationKind::WOL_CONFIGURE;
     if (!_interruptVerifyOnly) { _initialized = false; }
     _setInterruptStep(InterruptStep::IDENTIFY);
     return _operation.status;
@@ -2315,6 +2358,10 @@ void DP8382x::_setInitStep(InitStep step) noexcept {
 
 // Continue with the common link and feature restoration after any map-specific VOD work.
 Status DP8382x::_finishInitSettings() noexcept {
+  if (isDp83822(_config.variant)) {
+    const auto board = _dp83822BoardStatus();
+    if (!board.ok()) { return _finishOperation(board); }
+  }
   if (_result.mismatch.valid && _operation.kind != OperationKind::VERIFY) {
     return _finishOperation(Status::Error(Err::CONFIG_MISMATCH, "VOD_CFG3 verification failed"));
   }

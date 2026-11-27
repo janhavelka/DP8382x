@@ -262,6 +262,15 @@ class RunnerTests(unittest.TestCase):
                     manifest = self.path / f"{name}.json"
                     self.assertEqual(invoke("verify-artifacts", manifest)[0], 0)
                     self.assertEqual(runner.verify(manifest)["identity"]["medium"], "copper")
+                    if grade == "DP83822IF" and interface == "MII":
+                        raw = manifest.with_suffix(".txt").read_bytes()
+                        changed = raw.replace(b"sor1=4035 ", b"sor1=3011 ")  # COL mode 3 selects FX.
+                        self.assertNotEqual(changed, raw)
+                        source = self.path / "fx-straps.input"
+                        source.write_bytes(changed)
+                        status, _, error = invoke("verify-transcript", source, "--suite", "fixture-operations",
+                                                  "--nonce", NONCE, *options, "--out-dir", self.path, "--run", "fx")
+                        self.assertEqual(status, 1, error)
         for variant, interface, medium in (("DP83822IF", "MII", "fiber"), ("DP83822H", "RMII", ""),
                                            ("DP83826I", "RGMII", ""), ("DP83822", "MII", "copper")):
             expected = {**EXPECTED_CONTEXT, "variant": variant, "interface": interface}
