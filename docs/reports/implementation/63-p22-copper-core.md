@@ -273,3 +273,38 @@ receipt](61-p25-feature-closure.md#phase-d-esp32-p4-sdk-links). Continue phase
 (b) with bounded live SOR1/SOR2 reads and a separate CR2[14] observation.
 Test partial capture, stale evidence, strap/active-medium disagreement and
 board prerequisites before admitting copper startup or any feature write.
+
+## Phase (b) live strap capture
+
+The wrapper verified `508f5d43b15d0ace17a3aaabf2d3720956b5afee` equal to
+`origin/main`. The tree and index were clean. The lead owned the API and
+implementation. One agent independently checked the original PDF and the
+three sibling revisions and paths listed in phase (a), all still clean.
+Another wrote the literal vectors in `test/identity.cpp`. Both used the
+session model for the MDIO semantics and partial-transfer cases.
+
+After identity acceptance, `captureDp83822Straps` reads vendor MMD 31
+offsets 0467h and 0468h under one hold. Each read selects the address and
+nonincrementing data mode. Only an in-budget success with successful
+release publishes a current pair. A failed callback replaces the previous
+capture with the returned words from its own completed prefix. A local
+denial preserves the previous snapshot. SOR1 can report strapped FX on a
+copper binding. Startup still needs a CR2[14] observation and board
+evidence for LED_1. [SNLS505H §7.4.2.5 and tables 8-11, 8-84/85](../../reference/source/TI-DP83822-SNLS505H.pdf)
+
+| Evidence | Result for this slice |
+| --- | --- |
+| Host | PASS, Windows x86-64, GCC 15.1.0 Release/Ninja. All 62 selected CTests passed, including twelve grade/interface rows checking the eight selector/data frame cuts, frame and deadline boundaries, stale evidence, external reset, failed release and retry. |
+| Portable and source-package consumers | PASS, 2/2 in `build/p63-consumer` and 1/1 in `build/p63-export/out`. The tests-OFF DP83825I package consumer used 29 byte-checked working-tree inputs at the paths in the phase 61 export. |
+| SDK links | PASS, all three existing ESP32-P4 images linked with ESP-IDF v6.1 `fff9895c` using the phase 61 commands and scoped environment above. Logs are `build/p63-baseline/capture-56{l,b,o}.log`. |
+| Research and documentation | PASS, ledger verifier, 16/16 exact-part ledger tests, Doxygen (298 pages and two rejected negative fixtures) and generated version check. |
+| Remote CI and physical | NOT RUN. Prompt 71 owns CI. Each suffix still needs physical qualification. |
+
+```powershell
+cmake --build build/p63-baseline --parallel 4 --target dp8382x_header_checks dp8382x_identity_tests dp8382x_reset_tests dp8382x_cli_tests
+ctest --test-dir build/p63-baseline -R '^(p22_.*|(e_|ai_|ae_|p25_)?(identity|reset)(_.*)?|cli_processor_.*|dp8382x_identity_tests_failure_path)$' --output-on-failure --no-tests=error -j 3 --output-log build/p63-baseline/capture-test.log
+```
+
+Continue phase (b) with the separate current-medium observation and
+strap/board checks before permitting copper writes. The native adapter,
+CLI and subsequent copper operations retain their gates.

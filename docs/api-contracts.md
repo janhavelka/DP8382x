@@ -50,6 +50,13 @@ detail is introduced. A 64-bit object-lifetime token needs no exhaustion branch.
 
 ## Identity, capabilities and link intent
 
+`captureDp83822Straps` requires a fresh accepted identity and an idle owner.
+One eight-frame batch reads SOR1 and SOR2 under one lock. A local rejection
+preserves the previous snapshot. Once the callback runs, `strapSnapshot()`
+contains only words returned in the completed prefix of that attempt. A
+failed or late batch marks them stale and has no valid capture timestamp.
+Only success publishes a current pair. Current medium requires CR2[14].
+
 `decodeDp83822Straps(capture, output)` accepts a current pair of valid SOR
 words captured from a known DP83822. It performs no I/O. An incomplete or
 stale capture returns false and preserves the caller's output. On success

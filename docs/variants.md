@@ -25,7 +25,7 @@ gates. Later variants must qualify these independently.
 | DP83826E | Declared original extended-temperature grade | SNLS647I above | Same core procedures as I. Declared-E host, SDK and physical evidence are recorded separately in the [qualification report](reports/implementation/56-e-support.md) |
 | DP83826AI / DP83826AE | Revision-4 core/link, diagnostics and optional controls | [SNLS783A, Oct 2025](reference/source/TI-DP83826AI-AE-SNLS783A.pdf) | Shared revision-4 policy and procedures. AI is rated −40 to +85 °C, AE −40 to +105 °C. Each grade needs its own qualification. |
 | DP83825I | Revision-0 RMII, copper link and exact-part features | [SNLS638C, Apr 2026](reference/source/TI-DP83825I-SNLS638C.pdf) | Declare the 25 MHz leader or 50 MHz follower. The [feature matrix](feature-coverage.md#dp83825i-procedures) maps register ownership, tested operations and open source decisions |
-| DP83822I / H / IF / HF | Portable revision-0 identity probe and offline strap decoding | [SNLS505H, Jul 2026](reference/source/TI-DP83822-SNLS505H.pdf) | One register map, four board-declared grades, separate copper and optical qualification. [Exact-part ledger](registers/dp83822.json) |
+| DP83822I / H / IF / HF | Portable revision-0 identity probe, strap capture and decoding | [SNLS505H, Jul 2026](reference/source/TI-DP83822-SNLS505H.pdf) | One register map, four board-declared grades, separate copper and optical qualification. [Exact-part ledger](registers/dp83822.json) |
 
 The DP8382x name follows the family grouping used in TI's
 [compliance/debug guide](reference/source/TI-DP8382x-Compliance-SNLA266B.pdf).

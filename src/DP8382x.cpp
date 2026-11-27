@@ -748,6 +748,48 @@ Capabilities DP8382x::capabilities() const noexcept {
           (_part->featureMask & detail::FEATURE_FIBER) != 0U, false, _config.variant};
 }
 
+Status DP8382x::captureDp83822Straps(const IoBudget& budget, bool* invoked) noexcept {
+  if (invoked) { *invoked = false; }
+  if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
+  if (!isDp83822(_config.variant)) {
+    return Status::Error(Err::UNSUPPORTED, "DP83822 straps required", static_cast<int32_t>(UnsupportedDetail::FEATURE));
+  }
+  if (_active || _polling || _operation.state == OperationState::RUNNING) { return busy(BusyDetail::OPERATION_ACTIVE); }
+  if (_operation.state == OperationState::RESULT_PENDING) { return busy(BusyDetail::RESULT_PENDING); }
+  if (_operation.cleanupOwed || _operation.temporaryMayBeActive) { return busy(BusyDetail::CLEANUP_REQUIRED); }
+  if (!_identity.admissionStatus.ok()) { return _identity.admissionStatus; }
+  if (_identity.stale) { return configError(ConfigDetail::DEVICE_INVALIDATED); }
+
+  // SNLS505H tables 8-84/85. Each latch gets a full nonincrementing selection.
+  auto batch = _mmdBatch(0x0467, FrameKind::READ, 0);
+  const auto second = _mmdBatch(0x0468, FrameKind::READ, 0);
+  for (uint8_t i = 0; i < second.frameCount; ++i) { batch.frames[batch.frameCount++] = second.frames[i]; }
+  if (budget.maxFrames < batch.frameCount) { return timeout(TimeoutDetail::FRAME_BUDGET); }
+  if (budget.deadlineUs == 0U) { return timeout(TimeoutDetail::DEADLINE); }
+  bool called = false;
+  const auto status = _execute(batch, budget, &called, false, Traffic::DP83822_STRAP_CAPTURE);
+  if (invoked) { *invoked = called; }
+  if (!called) { return status; }
+
+  const auto& receipt = _transport.lastBatch;
+  const auto prefix = auditFrames(batch, receipt, false, 0, 0);
+  _straps = {};
+  if (prefix.completed >= 4U) {
+    _straps.sor1 = receipt.frames[3].value;
+    _straps.sor1Valid = true;
+  }
+  if (prefix.completed == 8U) {
+    _straps.sor2 = receipt.frames[7].value;
+    _straps.sor2Valid = true;
+  }
+  if (status.ok()) {
+    _straps.observedAtUs = _lastTimeUs + _config.transport.bounds.clockLagUs;
+    _straps.timeValid = true;
+    _straps.stale = false;
+  }
+  return status;
+}
+
 Status DP8382x::_dp83822FeatureGate() const noexcept {
   if (!_identityRejection.ok()) { return _identityRejection; }
   return Status::Error(Err::UNSUPPORTED, "DP83822 procedure unavailable",
@@ -1497,8 +1539,8 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
       _operation.phase == OperationPhase::WAIT)))) { return busy(BusyDetail::OPERATION_ACTIVE); }
   if (_transport.clockInvalid) { return configError(ConfigDetail::CLOCK_CONTRACT); }
   if (_stopped) { return busy(BusyDetail::CONTROLLER_QUARANTINED); }
-  // Only the two-word ID probe has a live DP83822 procedure at this checkpoint.
-  if (isDp83822(_config.variant) &&
+  // Bind the strap exception to its typed caller. Raw MMD and feature paths stay gated.
+  if (isDp83822(_config.variant) && traffic != Traffic::DP83822_STRAP_CAPTURE &&
       !(batch.frameCount == 2 && batch.frames[0].kind == FrameKind::READ &&
         batch.frames[0].registerAddress == cmd::REG_PHYIDR1 && batch.frames[1].kind == FrameKind::READ &&
         batch.frames[1].registerAddress == cmd::REG_PHYIDR2)) { return _dp83822FeatureGate(); }

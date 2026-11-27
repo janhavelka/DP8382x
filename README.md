@@ -15,7 +15,8 @@ profiles, power controls and the 27-write EEE recipe. The [coverage matrix](docs
 
 The portable core can probe revision-0 DP83822I, H, IF and HF on a
 board-declared copper interface. The returned identity retains the declared
-suffix. Copper startup and native adapter support are pending. [Identity guide](docs/identity.md)
+suffix. After a successful probe, the owner can capture both strap latches
+in one bounded MDIO batch. Copper startup and native adapter support are pending. [Identity guide](docs/identity.md)
 
 DP83825I accepts the documented revision-0 ID and requires an explicit RMII
 leader or follower declaration. Initialization checks both clock straps, then

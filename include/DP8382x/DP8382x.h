@@ -2001,6 +2001,15 @@ public:
   /// @return Invalid until a fresh identity is accepted; no link/settings/qualification claim.
   Capabilities capabilities() const noexcept;
 
+  /// @brief Capture both DP83822 strap latches under one controller lock.
+  /// @pre Serialized idle owner, fresh accepted DP83822 identity and board-established SMI readiness.
+  /// @param[in] budget Exclusive absolute deadline in microseconds and at least eight MDIO frames.
+  /// @param[out] invoked Optional flag set when the terminal batch callback runs.
+  /// @return OK publishes a current pair in strapSnapshot(). A local denial preserves the cache.
+  /// A failed callback retains only the completed words from this attempt as stale evidence.
+  /// @note Uses vendor MMD selectors. Active medium and LED_1 strap mode require separate evidence.
+  Status captureDp83822Straps(const IoBudget& budget, bool* invoked = nullptr) noexcept;
+
   /// @brief Return the cached strap capture under the application owner without I/O.
   /// @return Independently valid SOR words for this binding and reset epoch.
   StrapEvidence strapSnapshot() const noexcept { return _straps; }
@@ -2410,7 +2419,7 @@ private:
   bool _timeValid{false};
   uint64_t _lastTimeUs{0};
   Status _sampleTime(uint64_t& raw, uint64_t& upper) noexcept;
-  enum class Traffic : uint8_t { RAW, MANAGED };
+  enum class Traffic : uint8_t { RAW, MANAGED, DP83822_STRAP_CAPTURE };
   Traffic _operationTraffic() const noexcept;
   bool _featureProcedureActive() const noexcept;
   Status _execute(MdioBatch batch, const IoBudget& budget, bool* called = nullptr,

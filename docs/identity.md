@@ -3,7 +3,9 @@
 DP83822I, H, IF and HF accept the same two words, `2000 A240`, at
 revision 0. Declare copper, MII/RMII/RGMII, and UNKNOWN operating mode.
 The portable probe retains partial reads and permits an explicit retry.
-A successful probe reports documented 10/100 modes and interfaces. Only
+A successful probe also admits `captureDp83822Straps` for both strap words.
+`strapSnapshot()` exposes word validity, staleness and the completion timestamp.
+The probe reports documented 10/100 modes and interfaces. Only
 the IF and HF declarations report fiber capability. Startup, raw register
 access, the collector and native adapter remain unavailable for these
 declarations. The probe requires board-established SMI readiness and a

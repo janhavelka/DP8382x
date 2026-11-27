@@ -756,8 +756,7 @@ void testScan() {
 }
 MacInterface p22Interface = MacInterface::UNKNOWN;
 
-// While this map admits only identity reads, cover both the general access
-// policy and the typed paths that can bypass the raw register allowlist.
+// Check that identity and strap capture leave unrelated raw and typed paths gated.
 void checkP22IdentityFence(Controller& bus, Driver& driver) {
   const auto calls = bus.callbacks, clocks = bus.clocks;
   uint16_t word = 0xCAFE;
@@ -788,9 +787,114 @@ void checkP22IdentityFence(Controller& bus, Driver& driver) {
   CHECK(bus.callbacks == calls && bus.clocks == clocks);
 }
 
+void testP22LiveStraps() {
+  constexpr IoBudget captureBudget{10000, 8};
+  Controller bus;
+  Driver driver;
+  auto config = bus.config(31);
+  config.interface = p22Interface;
+  bool invoked = true;
+  auto rejectCapture = [&] {
+    const auto calls = bus.callbacks, clocks = bus.clocks;
+    invoked = true;
+    CHECK(!driver.captureDp83822Straps(captureBudget, &invoked).ok() && !invoked);
+    CHECK(bus.callbacks == calls && bus.clocks == clocks);
+  };
+  rejectCapture();
+  auto other = config;
+  other.variant = Variant::DP83826I;
+  other.interface = MacInterface::MII;
+  CHECK(driver.bind(other).ok());
+  rejectCapture();
+  CHECK(driver.bind(config).ok());
+  rejectCapture();
+  DeviceIdentity id;
+  bus.first[31] = 0x2000;
+  bus.second[31] = 0xA241;
+  CHECK(driver.readIdentity(id, BUDGET).is(Err::DEVICE_MISMATCH));
+  rejectCapture();
+  bus.second[31] = 0xA240;
+  CHECK(driver.readIdentity(id, BUDGET).ok());
+
+  // Source distinct words after each address and data-mode selection.
+  // 1B03/0004 latches FX even though the bound medium is copper.
+  bus.onFrame = [](test::FakeController& model, const IoBudget&) noexcept {
+    const auto phy = model.lastRequest.phyAddress;
+    if (model.selector[phy] == 0x401F) {
+      model.readValue = model.address[phy] == 0x0467 ? 0x1B03 : 0x0004;
+    }
+  };
+  const auto calls = bus.callbacks, locks = bus.acquisitions, releases = bus.releases;
+  // 2 us clock lag plus 9 us fixed and 5 us per frame gives a 51 us reserve.
+  CHECK(driver.captureDp83822Straps({bus.now + 51, 8}, &invoked).detail ==
+        static_cast<int32_t>(TimeoutDetail::BOUND_ADMISSION));
+  CHECK(!invoked && bus.callbacks == calls);
+  CHECK(driver.captureDp83822Straps({bus.now + 52, 8}, &invoked).ok() && invoked);
+  CHECK(bus.callbacks == calls + 1 && bus.acquisitions == locks + 1 && bus.releases == releases + 1);
+  CHECK(bus.traceCount == 8 && !bus.locked);
+  const uint16_t writes[] = {0x001F, 0x0467, 0x401F, 0, 0x001F, 0x0468, 0x401F, 0};
+  for (unsigned i = 0; i < 8; ++i) {
+    const auto& frame = bus.trace[i];
+    CHECK(frame.phy == 31 && frame.reg == (i % 2 == 0 ? 0x0D : 0x0E));
+    CHECK(frame.kind == (i % 4 == 3 ? FrameKind::READ : FrameKind::WRITE));
+    CHECK(frame.value == writes[i]);
+  }
+  const auto clocks = bus.clocks;
+  const auto current = driver.strapSnapshot();
+  CHECK(current.sor1Valid && current.sor1 == 0x1B03 && current.sor2Valid && current.sor2 == 4);
+  CHECK(!current.stale && current.timeValid && current.observedAtUs == bus.now + 2);
+  Dp83822Straps pins;
+  CHECK(decodeDp83822Straps(current, pins) && pins.medium == Medium::FIBER);
+  CHECK(bus.callbacks == calls + 1 && bus.clocks == clocks);
+  checkP22IdentityFence(bus, driver);
+  const auto preflightClocks = bus.clocks;
+  CHECK(driver.captureDp83822Straps({10000, 7}, &invoked).detail ==
+        static_cast<int32_t>(TimeoutDetail::FRAME_BUDGET));
+  CHECK(!invoked);
+  CHECK(driver.captureDp83822Straps({0, 8}, &invoked).detail == static_cast<int32_t>(TimeoutDetail::DEADLINE));
+  CHECK(!invoked && bus.callbacks == calls + 1 && bus.clocks == preflightClocks);
+  CHECK(!driver.strapSnapshot().stale && driver.strapSnapshot().observedAtUs == current.observedAtUs);
+
+  for (int cut = 0; cut < 8; ++cut) {
+    bus.failAt = cut;
+    const auto launches = bus.launches, released = bus.releases;
+    const auto status = driver.captureDp83822Straps(captureBudget, &invoked);
+    CHECK(invoked && status.is(Err::MDIO_TIMEOUT) && status.detail == -700 - cut);
+    CHECK(bus.launches == launches + static_cast<unsigned>(cut + 1) && bus.traceCount == static_cast<unsigned>(cut + 1));
+    CHECK(!bus.locked && bus.releases == released + 1);
+    const auto partial = driver.strapSnapshot();
+    CHECK(partial.stale && !partial.timeValid && !partial.sor2Valid);
+    CHECK(partial.sor1Valid == (cut >= 4));
+    if (partial.sor1Valid) CHECK(partial.sor1 == 0x1B03);
+    CHECK(!decodeDp83822Straps(partial, pins));
+    bus.failAt = -1;
+    CHECK(driver.captureDp83822Straps(captureBudget).ok());
+  }
+  bus.expireAfter = 7;
+  CHECK(driver.captureDp83822Straps({bus.now + 100, 8}, &invoked).is(Err::OPERATION_TIMEOUT));
+  const auto late = driver.strapSnapshot();
+  CHECK(invoked && late.stale && !late.timeValid && late.sor1Valid && late.sor2Valid);
+  bus.expireAfter = -1;
+  CHECK(driver.captureDp83822Straps(captureBudget).ok());
+  CHECK(driver.invalidateDeviceState(InvalidationReason::EXTERNAL_RESET).ok());
+  rejectCapture();
+  CHECK(driver.strapSnapshot().stale && !driver.strapSnapshot().timeValid);
+  auto strapStep = bus.onFrame;
+  bus.onFrame = Controller::step;
+  CHECK(driver.readIdentity(id, BUDGET).ok());
+  bus.onFrame = strapStep;
+  bus.releaseFail = true;
+  const auto failedRelease = driver.captureDp83822Straps(captureBudget, &invoked);
+  CHECK(invoked && failedRelease.is(Err::MDIO_ERROR) && failedRelease.detail == -901);
+  const auto historical = driver.strapSnapshot();
+  CHECK(historical.sor1Valid && historical.sor2Valid && historical.stale && !historical.timeValid);
+  CHECK(!decodeDp83822Straps(historical, pins) && bus.quarantined);
+}
+
 // SNLS505H tables 8-3/4. Each CTest row declares its own suffix and
 // interface. Both are board inputs when all twelve rows observe the same ID.
 void testP22Identity() {
+  testP22LiveStraps();
   const auto variant = test::declaredVariant;
   uint8_t maximum = 0;
   CHECK(isValidVariant(variant) && strapAddressMax(variant, maximum) && maximum == 31);
