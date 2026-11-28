@@ -16,6 +16,20 @@ Status configError(ConfigDetail detail) noexcept {
                        static_cast<int32_t>(detail));
 }
 
+// Table 7-13. A reserved strap decode (UNKNOWN) cannot match an explicit row.
+Dp83822BootInterface bootRow(MacInterface interface, RmiiClock role) noexcept {
+  switch (interface) {
+    case MacInterface::MII: return Dp83822BootInterface::MII_25MHZ;
+    case MacInterface::RGMII: return Dp83822BootInterface::RGMII_25MHZ;
+    case MacInterface::RMII:
+      if (role == RmiiClock::LEADER_25MHZ) { return Dp83822BootInterface::RMII_LEADER_25MHZ; }
+      if (role == RmiiClock::FOLLOWER_50MHZ) { return Dp83822BootInterface::RMII_FOLLOWER_50MHZ; }
+      break;
+    case MacInterface::UNKNOWN: break;
+  }
+  return Dp83822BootInterface::AS_WIRED;
+}
+
 Status paramError(ParamDetail detail) noexcept {
   return Status::Error(Err::INVALID_PARAM, "Invalid call argument",
                        static_cast<int32_t>(detail));
@@ -549,6 +563,19 @@ Status DP8382x::bind(const Config& config) noexcept {
   if (config.interface == MacInterface::UNKNOWN) { return configError(ConfigDetail::INTERFACE_REQUIRED); }
   if (config.rmiiClock != RmiiClock::UNSPECIFIED && config.rmiiClock != RmiiClock::LEADER_25MHZ &&
       config.rmiiClock != RmiiClock::FOLLOWER_50MHZ) { return configError(ConfigDetail::ENUM_VALUE); }
+  if (config.dp83822BootInterface != Dp83822BootInterface::AS_WIRED) {
+    if (!isDp83822(config.variant) || config.dp83822BootInterface > Dp83822BootInterface::RGMII_25MHZ) {
+      return configError(ConfigDetail::ENUM_VALUE);
+    }
+    if (config.interface == MacInterface::RMII && config.rmiiClock == RmiiClock::UNSPECIFIED) {
+      return Status::Error(Err::INVALID_CONFIG, "Declare the intended DP83822 RMII clock role");
+    }
+    const bool bootXi50 = config.dp83822BootInterface == Dp83822BootInterface::RMII_FOLLOWER_50MHZ;
+    const bool targetXi50 = bootRow(config.interface, config.rmiiClock) == Dp83822BootInterface::RMII_FOLLOWER_50MHZ;
+    if (bootXi50 != targetXi50) {
+      return Status::Error(Err::INVALID_CONFIG, "DP83822 boot and target require different XI frequencies");
+    }
+  }
   if (config.variant == Variant::DP83825I && config.rmiiClock == RmiiClock::UNSPECIFIED) {
     return configError(ConfigDetail::INTERFACE_REQUIRED);
   }
@@ -856,11 +883,17 @@ Status DP8382x::_dp83822BoardStatus() const noexcept {
   if (_dp83822Medium.medium() != _config.medium) {
     return Status::Error(Err::CONFIG_MISMATCH, "CR2 reports active fiber on a copper declaration");
   }
-  if (pins.led0TestMode || pins.medium != _config.medium ||
-      pins.interface != _config.interface || pins.phyAddress != _config.phyAddress ||
-      (_config.interface == MacInterface::RMII && _config.rmiiClock != RmiiClock::UNSPECIFIED &&
-       pins.rmiiClock != _config.rmiiClock)) {
+  const bool matchesWiring = pins.interface == _config.interface &&
+      (_config.interface != MacInterface::RMII || _config.rmiiClock == RmiiClock::UNSPECIFIED ||
+       pins.rmiiClock == _config.rmiiClock);
+  const bool matchesBoot = _config.dp83822BootInterface == Dp83822BootInterface::AS_WIRED
+      ? matchesWiring : bootRow(pins.interface, pins.rmiiClock) == _config.dp83822BootInterface;
+  if (pins.led0TestMode || pins.medium != _config.medium || pins.phyAddress != _config.phyAddress || !matchesBoot) {
     return Status::Error(Err::CONFIG_MISMATCH, "DP83822 straps or active medium disagree with board");
+  }
+  if (!matchesWiring) {
+    return Status::Error(Err::UNSUPPORTED, "DP83822 boot interface requires a software transition",
+                         static_cast<int32_t>(UnsupportedDetail::FEATURE));
   }
   return Status::Ok();
 }

@@ -18,6 +18,9 @@ board-declared copper interface. The returned identity retains the declared
 suffix. After a successful probe, the owner can capture both strap latches
 in one bounded MDIO batch and read CR2 to observe the active medium.
 Copper startup requires a board declaration for LED_1 strap mode 1 or 4.
+Boards can declare the expected boot interface separately from the intended
+MAC wiring. Startup reports when the target still needs a software transition.
+[DP83822 boot declaration](docs/interface-clock.md#dp83822-boot-interface)
 The portable and native paths support copper reset, 10/100 configuration,
 link observation and interrupt service. The portable PHY supports MII, RMII
 and RGMII. The ESP32-P4 adapter accepts MII and RMII. [Identity guide](docs/identity.md)

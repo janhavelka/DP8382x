@@ -251,3 +251,43 @@ Then implement RCSR collection and interface/clock programming, interruption,
 restoration and CLI/runner evidence from the matrix above. Keep the native
 MAC check on any new cooperative interface entry. The wrapper owns the
 checked commit and upstream verification.
+
+## Phase (b) portable boot interface
+
+The wrapper verified the native admission checkpoint at
+`4bb6509c7f6feefa069a73ddfe3d714d399e0e6f` on both `main` and
+`origin/main`. The worktree and index were clean at entry. This slice of
+`mac-interface` implements the expected boot row for a copper binding.
+`clock-phase` and runtime interface programming remain in progress.
+
+SNLS505H table 7-13 (printed pp. 50–51) gives a 25 MHz XI for MII, RGMII
+and RMII leader, and 50 MHz for RMII follower. RGMII takes priority over
+RMII_EN. The explicit declaration models a board with a fixed XI reference.
+Bind rejects clock-frequency crossings before installing the new configuration.
+Existing boards default to `AS_WIRED`. The cached strap snapshot continues
+to reflect the words actually read. An unexpected boot row fails the board
+check even when the observed interface happens to match the target. A correct
+boot row requiring a transition reaches a separate `UNSUPPORTED/FEATURE`
+gate before reset or configuration writes. This keeps native readiness closed
+until the portable owner can establish and verify the target.
+[Board declaration](../../interface-clock.md#dp83822-boot-interface)
+
+The lead owned the public type, bind and startup checks, integration and
+guides. One agent implemented the independent literal matrix in
+`test/reset.cpp`. A second, read-only agent checked the original table, native
+readiness and the six paths per peer in the phase (a) audit. TMP1x2, TUSB32x
+and MB85RC remained clean at the revisions recorded there. The session model
+was used for the cross-product tests and silicon interpretation. Both agents
+finished.
+
+| Layer | Windows x86-64, GCC 15.1.0, Ninja Release |
+| --- | --- |
+| Host | PASS. Rebuilt reset, quality, identity, interrupt and link test targets in `build/p63-baseline`. CTest with `-R '^p22_\|^reset_'` passed 34/34. The four-grade test varies declared boot row, target, observed SOR words and NONE/HARD startup. It verifies the 11-frame rejection trace, retained straps, initialized state and zero-callback bind failures. The native host build verified 45 pinned SDK inputs. Both `e_native_factory` and `native_factory` passed in `build/p60-tests`. |
+| Portable/package consumers | PASS. Both tests-OFF consumers passed in `build/p63-consumer`. Copied the 29 source-package paths from the prompt 63 export list, byte-checked each against the working tree and built a fresh tests-OFF application in `build/p64-boot-export/out`. Its 1/1 CTest checks the public default, a compatible DP83822IF MII-to-RMII leader declaration and rejection of a 50 MHz target. |
+| Documentation | PASS. Doxygen verified 300 pages and two negative fixtures. README, changelog and the interface guide document board admission. |
+| SDK link / remote CI / physical | NOT RUN in this slice. The supported DP83822 P4 link remains due. Prompt 71 owns remote CI. Clock and transition measurements require an identified authorized fixture. |
+
+Continue phase (b) with RCSR access through the shared FIFO collector. Trace
+both direct and vendor-31 reads, including failed releases and the dependent
+RMW write, before enabling the runtime transition. Keep the explicit boot row
+as the identity of the expected board across HARD recovery.

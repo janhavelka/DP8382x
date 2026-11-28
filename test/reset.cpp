@@ -724,8 +724,115 @@ void access() {
   CHECK(driver.readIdentity(identity, io).ok() && bus.frames == rejectedAt + 4);
   CHECK(driver.readMmd(31, 0x030E, word, io).ok() && word == 0x4A40);
 }
+void p22BootInterface() {
+  using Boot = Dp83822BootInterface;
+  struct Row {
+    Boot boot;
+    MacInterface interface;
+    RmiiClock clock;
+    uint16_t sor1;
+  };
+  // SNLS505H tables 7-13 and 8-84. COL mode 4 selects copper address 1.
+  constexpr Row rows[] = {
+    {Boot::MII_25MHZ, MacInterface::MII, RmiiClock::UNSPECIFIED, 0x0FC3},
+    {Boot::RMII_LEADER_25MHZ, MacInterface::RMII, RmiiClock::LEADER_25MHZ, 0x0FE3},
+    {Boot::RMII_FOLLOWER_50MHZ, MacInterface::RMII, RmiiClock::FOLLOWER_50MHZ, 0x0FF3},
+    {Boot::RGMII_25MHZ, MacInterface::RGMII, RmiiClock::UNSPECIFIED, 0x0DC3}
+  };
+  for (const auto grade : {Variant::DP83822I, Variant::DP83822H, Variant::DP83822IF, Variant::DP83822HF}) {
+    for (const auto& boot : rows) {
+      for (const auto& target : rows) {
+        for (const auto kind : {ResetKind::NONE, ResetKind::HARD}) {
+          Controller bus;
+          Driver driver;
+          auto config = bus.config();
+          config.variant = grade;
+          config.dp83822Led1Mode = 1;
+          config.dp83822BootInterface = boot.boot;
+          config.interface = target.interface;
+          config.rmiiClock = target.clock;
+          const bool boot50 = boot.clock == RmiiClock::FOLLOWER_50MHZ;
+          const bool target50 = target.clock == RmiiClock::FOLLOWER_50MHZ;
+          if (boot50 != target50) {
+            CHECK(!driver.bind(config).ok() && !driver.isBound());
+            CHECK(bus.calls == 0 && bus.clocks == 0);
+            continue;
+          }
+          CHECK(driver.bind(config).ok());
+          auto& phy = bus.phys[1];
+          phy.id2 = 0xA240;
+          phy.sor2 = 0;
+          // Vary the actual straps independently of both declarations.
+          for (const auto& observed : rows) {
+            phy.sor1 = observed.sor1;
+            const auto before = bus.frames;
+            const auto token = start(driver, kind);
+            const auto status = drain(driver, bus, token);
+            const auto result = take(driver, token);
+            if (observed.boot == boot.boot && boot.boot == target.boot) {
+              CHECK(status.ok() && driver.isInitialized() && result.persistentRestored);
+              CHECK(result.commandAccepted == (kind == ResetKind::HARD));
+            } else {
+              if (observed.boot != boot.boot) {
+                CHECK(status.is(Err::CONFIG_MISMATCH));
+              } else {
+                CHECK(status.is(Err::UNSUPPORTED) && status.detail == static_cast<int32_t>(UnsupportedDetail::FEATURE));
+              }
+              CHECK(!driver.isInitialized() && !result.mutationPossible && !result.commandAccepted);
+              CHECK(!result.persistentRestored && !result.cleanupOwed);
+              wire(bus, before, FrameKind::READ, 2);
+              wire(bus, before + 1, FrameKind::READ, 3);
+              indirect(bus, before + 2, 0x0467, false);
+              indirect(bus, before + 6, 0x0468, false);
+              wire(bus, before + 10, FrameKind::READ, 0x0A);
+              CHECK(bus.frames == before + 11);
+            }
+            Dp83822Straps straps;
+            CHECK(decodeDp83822Straps(driver.strapSnapshot(), straps));
+            CHECK(straps.interface == observed.interface && straps.rmiiClock == observed.clock);
+          }
+        }
+      }
+    }
+  }
+
+  Controller bus;
+  Driver driver;
+  auto config = bus.config();
+  config.variant = Variant::DP83822I;
+  config.dp83822Led1Mode = 1;
+  config.interface = MacInterface::MII;
+  config.dp83822BootInterface = Boot::MII_25MHZ;
+  bus.phys[1].id2 = 0xA240;
+  bus.phys[1].sor1 = 0x0FC3;
+  bus.phys[1].sor2 = 0;
+  CHECK(driver.bind(config).ok());
+  const auto token = start(driver, ResetKind::NONE);
+  CHECK(drain(driver, bus, token).ok() && take(driver, token).persistentRestored);
+  const auto calls = bus.calls, clocks = bus.clocks;
+  for (const auto other : {Variant::DP83826I, Variant::DP83826E, Variant::DP83826AI,
+                           Variant::DP83826AE, Variant::DP83825I}) {
+    auto invalid = config;
+    invalid.variant = other;
+    invalid.dp83822Led1Mode = 0;
+    invalid.interface = MacInterface::RMII;
+    invalid.rmiiClock = RmiiClock::LEADER_25MHZ;
+    CHECK(!driver.bind(invalid).ok());
+  }
+  auto invalid = config;
+  invalid.dp83822BootInterface = static_cast<Boot>(0xFF);
+  CHECK(!driver.bind(invalid).ok());
+  invalid = config;
+  invalid.interface = MacInterface::RMII;
+  invalid.rmiiClock = RmiiClock::UNSPECIFIED;
+  CHECK(!driver.bind(invalid).ok());
+  CHECK(driver.isInitialized() && driver.capabilities().valid && driver.strapSnapshot().sor1 == 0x0FC3);
+  CHECK(bus.calls == calls && bus.clocks == clocks);
+}
+
 // SNLS505H tables 8-1, 8-11, 8-30, 8-84/85 and 8-137.
 void p22Startup() {
+  p22BootInterface();
   for (auto grade : {Variant::DP83822I, Variant::DP83822H, Variant::DP83822IF, Variant::DP83822HF}) {
     for (auto iface : {MacInterface::MII, MacInterface::RMII, MacInterface::RGMII}) {
       for (auto kind : {ResetKind::NONE, ResetKind::HARD, ResetKind::PCS, ResetKind::RESTART, ResetKind::EEE_PCS}) {

@@ -65,6 +65,15 @@ enum class RmiiClock : uint8_t {
   FOLLOWER_50MHZ, ///< External shared 50MHz reference; no second clock driver.
   UNSPECIFIED ///< No board role declared. Invalid for DP83825I.
 };
+
+/// @brief Expected DP83822 power-up or hard-reset interface, SNLS505H table 7-13.
+enum class Dp83822BootInterface : uint8_t {
+  AS_WIRED, ///< Compare the straps with Config::interface and any declared RMII role.
+  MII_25MHZ, ///< MII with a 25 MHz reference at XI.
+  RMII_LEADER_25MHZ, ///< RMII with a 25 MHz XI reference and 50 MHz PHY clock output.
+  RMII_FOLLOWER_50MHZ, ///< RMII with an external 50 MHz CMOS reference at XI.
+  RGMII_25MHZ ///< RGMII with a 25 MHz reference at XI.
+};
 /// @brief Requested link speed; UNKNOWN is not a valid active forced speed.
 enum class LinkSpeed : uint8_t {
   UNKNOWN, ///< Not selected.
@@ -359,6 +368,10 @@ struct Config {
   Medium medium{Medium::COPPER}; ///< Application-declared medium, validated before callbacks.
   uint32_t mdcHz{0}; ///< Optional declared controller rate in Hz. Zero uses the board's timing contract.
   uint8_t dp83822Led1Mode{0}; ///< Board-attested LED_1 strap level 1..4. Zero allows observation only.
+  /// @brief Expected DP83822 strap row. An explicit row requires compatible fixed XI wiring
+  /// and an explicit role for an RMII target. Startup returns UNSUPPORTED when a change
+  /// from the observed boot interface to the intended wiring still needs programming.
+  Dp83822BootInterface dp83822BootInterface{Dp83822BootInterface::AS_WIRED};
   /// @brief Get the minimum SMI silence after a pin-equivalent reset.
   /// @return Microseconds from observed release; includes a declared DP83825I or DP83822 MDC period.
   /// @note With an undeclared rate the board supplies the idle MDC cycle itself.

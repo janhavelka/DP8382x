@@ -1,5 +1,27 @@
 # Clock, interface and repeater configuration
 
+## DP83822 boot interface
+
+`Config::interface` describes the intended MAC wiring. On DP83822I/H/IF/HF
+copper boards, `Config::dp83822BootInterface` defaults to `AS_WIRED`.
+Startup compares the boot straps with the intended interface and checks the
+RMII role when one is declared. To check a specific boot row, set the field
+to `MII_25MHZ`, `RMII_LEADER_25MHZ`, `RMII_FOLLOWER_50MHZ` or
+`RGMII_25MHZ`. With an explicit boot row, declare `Config::rmiiClock` for
+an RMII target. This binding assumes a fixed XI reference. Only the follower
+row uses a 50 MHz CMOS input. A boot row and target that need different input
+frequencies fail at bind before any clock or MDIO callback.
+
+Startup checks the observed strap row, address, medium and LED modes before
+issuing a software reset. An unexpected row returns `CONFIG_MISMATCH`.
+When the observed row is correct but the target requires programming, startup
+returns `UNSUPPORTED` and leaves the driver uninitialized. The owner can
+still inspect the captured words with `strapSnapshot()` and
+`decodeDp83822Straps`. Those words describe the boot configuration.
+[SNLS505H table 7-13](reference/source/TI-DP83822-SNLS505H.pdf)
+
+## DP83825 and DP83826 clocks
+
 For DP83825I, set `Config::interface` to `RMII` and `rmiiClock` to
 `LEADER_25MHZ` or `FOLLOWER_50MHZ`. The two confirmations are SOR1[3]
 and RCSR[7]. Both clear means leader, both set means follower. Every RCSR
