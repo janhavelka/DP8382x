@@ -805,7 +805,7 @@ Capabilities DP8382x::capabilities() const noexcept {
 Status DP8382x::_admitDp83822Observation() const noexcept {
   if (!_bound) { return Status::Error(Err::NOT_BOUND, "No transport binding"); }
   if (!isDp83822(_config.variant)) {
-    return Status::Error(Err::UNSUPPORTED, "DP83822 straps required", static_cast<int32_t>(UnsupportedDetail::FEATURE));
+    return Status::Error(Err::UNSUPPORTED, "Observation requires a DP83822", static_cast<int32_t>(UnsupportedDetail::FEATURE));
   }
   if (_active || _polling || _operation.state == OperationState::RUNNING) { return busy(BusyDetail::OPERATION_ACTIVE); }
   if (_operation.state == OperationState::RESULT_PENDING) { return busy(BusyDetail::RESULT_PENDING); }
@@ -868,6 +868,20 @@ Status DP8382x::observeDp83822Medium(const IoBudget& budget, bool* invoked) noex
   if (!budget.deadlineUs) { return timeout(TimeoutDetail::DEADLINE); }
   return _execute(directBatch(cmd::REG_CR2, FrameKind::READ), budget, invoked, false,
                   Traffic::DP83822_OBSERVATION);
+}
+
+Status DP8382x::readDp83822Interface(MacInterface& output, const IoBudget& budget, bool* invoked) noexcept {
+  if (invoked) { *invoked = false; }
+  const auto admission = _admitDp83822Observation();
+  if (!admission.ok()) { return admission; }
+  const auto ready = _dp83822CopperReady();
+  if (!ready.ok()) { return ready; }
+  if (!budget.maxFrames) { return timeout(TimeoutDetail::FRAME_BUDGET); }
+  if (!budget.deadlineUs) { return timeout(TimeoutDetail::DEADLINE); }
+  const auto status = _execute(directBatch(cmd::REG_RCSR, FrameKind::READ), budget, invoked, false,
+                               Traffic::DP83822_COPPER);
+  if (status.ok()) { output = _interface.observedInterface; }
+  return status;
 }
 
 Status DP8382x::_dp83822BoardStatus() const noexcept {
@@ -2574,6 +2588,10 @@ Status DP8382x::_anchorQuiet() noexcept {
 void DP8382x::_invalidateDp83822Copper() noexcept {
   _initialized = false;
   _invalidateLink();
+  _interface.modeValid = false;
+  _interface.validMask = 0;
+  _interface.observedStale = true;
+  if (_interface.desiredValid) { _interface.trust = ConfigurationTrust::DIRTY; }
   _settings.observedStale = true;
   _quality.observedStale = true;
   _interrupts.observedStale = true;

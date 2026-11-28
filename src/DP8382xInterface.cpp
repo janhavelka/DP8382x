@@ -263,7 +263,13 @@ void DP8382x::_retainInterfaceWord(uint16_t address,uint16_t value) noexcept {
   if (index<0 || (index==8 && !isA(_config.variant))) { return; }
   _interface.raw[index]=value; _interface.validMask|=static_cast<uint16_t>(1U<<index);
   if (address==0x0017U) {
-    _interface.observedInterface=(_config.variant==Variant::DP83825I || (value&0x0020U)!=0U)?MacInterface::RMII:MacInterface::MII;
+    // SNLS505H table 8-23 gives RGMII priority even when RMII_EN is set.
+    if (isDp83822(_config.variant) && (value & 0x0200U) != 0U) {
+      _interface.observedInterface = MacInterface::RGMII;
+    } else {
+      _interface.observedInterface = (_config.variant == Variant::DP83825I || (value & 0x0020U) != 0U)
+          ? MacInterface::RMII : MacInterface::MII;
+    }
     _interface.modeValid=true;
     // LED2 source owners share the same mode prerequisite even without a pin
     // profile. A later collector observation cannot leave their route verified.

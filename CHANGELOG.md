@@ -10,7 +10,8 @@
   Its ESP32-P4 factory and stopped interface control report RGMII as unsupported.
   A DP83822 copper binding can declare its expected boot interface and clock
   role separately. Startup distinguishes a strap mismatch from a board that
-  needs interface programming.
+  needs interface programming. Add a one-frame live interface read and decode
+  RGMII precedence for both direct and vendor-31 RCSR observations.
   The shared CLI and offline runner distinguish each declared grade. Copper
   operations withdraw readiness on contradictory board observations and
   reinstall owned interrupt enables after a link-profile change.

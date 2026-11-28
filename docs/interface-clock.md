@@ -20,6 +20,19 @@ still inspect the captured words with `strapSnapshot()` and
 `decodeDp83822Straps`. Those words describe the boot configuration.
 [SNLS505H table 7-13](reference/source/TI-DP83822-SNLS505H.pdf)
 
+On initialized DP83822 copper, `readDp83822Interface(mode, budget)` reads
+Clause 22 register 0x17 once. Bit 9 selects RGMII. With bit 9 clear, bit 5
+selects RMII when set and MII when clear. The caller receives the mode on
+success. For the vendor-31 alias, request `EvidenceSource::RCSR` through
+`acquireEvidence` with at least four frames. The owner selects and reads the
+word in one controller hold. Both paths retain the raw word in
+`interfaceSnapshot().raw[5]` and accumulate the consumed overflow and
+underflow indications in `evidenceSnapshot()`, including a completed read
+followed by release failure. Inspecting either cache costs no frames. A
+contradictory board strap or active medium invalidates the cached mode and
+preserves the historical word. Electrical timing and working MAC traffic
+require separate evidence. [SNLS505H §7.4.2.1 and table 8-23](reference/source/TI-DP83822-SNLS505H.pdf)
+
 ## DP83825 and DP83826 clocks
 
 For DP83825I, set `Config::interface` to `RMII` and `rmiiClock` to

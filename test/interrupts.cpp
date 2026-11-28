@@ -874,13 +874,100 @@ void p22PassiveEvidence() {
       const auto sample=d.evidenceSnapshot().samples[static_cast<unsigned>(EvidenceSource::RCSR)];
       CHECK(sample.historyLost==(cut==3));
       if (cut<0) CHECK(sample.raw==0x006C && sample.eventBits==0x000C);
+      const auto interface = d.interfaceSnapshot();
+      CHECK(interface.modeValid == (cut < 0));
+      if (cut < 0) CHECK(interface.raw[5] == 0x006C && interface.observedInterface == MacInterface::RMII);
     } else { CHECK(word==(cut<0?2:0xA55A)); }
   }
+}
+
+void p22InterfaceObservation() {
+  // SNLS505H table 8-23. RGMII[9] takes precedence over RMII[5].
+  struct Row { uint16_t raw; MacInterface expected; };
+  const Row rows[] = {{0x004D, MacInterface::MII}, {0x006D, MacInterface::RMII},
+                      {0x024D, MacInterface::RGMII}, {0x026D, MacInterface::RGMII}};
+  const auto fifo = static_cast<unsigned>(EvidenceSource::RCSR);
+  for (const auto& row : rows) for (bool alias : {false, true}) {
+    for (bool failRelease : {false, true}) {
+      Controller bus;
+      Driver driver;
+      ready(driver, bus);
+      bus.words[23] = row.raw;
+      const auto first = bus.frames, calls = bus.calls, writes = bus.mutations;
+      const unsigned cost = alias ? 4U : 1U;
+      MacInterface mode = MacInterface::UNKNOWN;
+      EvidenceSnapshot evidence;
+      bool invoked = true;
+      const auto observe = [&](unsigned frames) {
+        const IoBudget allowance{1000000, frames};
+        return alias ? driver.acquireEvidence(evidenceBit(EvidenceSource::RCSR), evidence, allowance, &invoked)
+                     : driver.readDp83822Interface(mode, allowance, &invoked);
+      };
+      CHECK(observe(cost - 1).is(Err::OPERATION_TIMEOUT));
+      CHECK(!invoked && bus.calls == calls && bus.frames == first && bus.words[23] == row.raw);
+      CHECK(mode == MacInterface::UNKNOWN && !evidence.samples[fifo].valid);
+      if (failRelease) bus.releaseCall = static_cast<int>(calls);
+      const auto result = observe(cost);
+      CHECK(failRelease ? result.is(Err::MDIO_ERROR) : result.ok());
+      CHECK(invoked && bus.calls == calls + 1 && bus.frames == first + cost);
+      CHECK(bus.releases == bus.calls && !bus.locked && bus.mutations == writes);
+      const auto& read = bus.trace[first + cost - 1];
+      CHECK(read.kind == FrameKind::READ && read.reg == (alias ? 0x0E : 0x17) && read.target == 0x17);
+      if (alias) {
+        const uint16_t selectors[] = {0x001F, 0x0017, 0x401F};
+        for (unsigned i = 0; i < 3; ++i) {
+          const auto& write = bus.trace[first + i];
+          CHECK(write.kind == FrameKind::WRITE && write.reg == (i == 1 ? 0x0E : 0x0D));
+          CHECK(write.value == selectors[i]);
+        }
+      }
+      CHECK(mode == (!alias && !failRelease ? row.expected : MacInterface::UNKNOWN));
+      CHECK(evidence.samples[fifo].valid == (alias && !failRelease));
+      const auto clocks = bus.clocks;
+      const auto interface = driver.interfaceSnapshot();
+      const auto sample = driver.evidenceSnapshot().samples[fifo];
+      CHECK(interface.modeValid && (interface.validMask & 0x20U) && interface.raw[5] == row.raw);
+      CHECK(interface.observedInterface == row.expected && !interface.desiredValid);
+      CHECK(sample.samples == 1 && sample.raw == row.raw && sample.eventBits == 0x000C);
+      CHECK(bus.words[23] == (row.raw & 0xFFF3U) && bus.calls == calls + 1 && bus.clocks == clocks);
+    }
+  }
+  Controller bus;
+  Driver driver;
+  ready(driver, bus);
+  uint16_t raw = 0xA55A;
+  const auto calls = bus.calls, clocks = bus.clocks;
+  for (uint32_t address : {0x0DU, 0x0EU, 0x17U}) {
+    CHECK(!driver.readMmd(31, address, raw, {1000000, 4}).ok());
+    CHECK(!driver.readClause22(address, raw, {1000000, 1}).ok());
+  }
+  CHECK(raw == 0xA55A && bus.calls == calls && bus.clocks == clocks);
+  bus.words[23] = 0x026D;
+  bus.failFrame = static_cast<int>(bus.frames);
+  MacInterface mode = MacInterface::UNKNOWN;
+  CHECK(driver.readDp83822Interface(mode, {1000000, 1}).is(Err::MDIO_TIMEOUT));
+  const auto sample = driver.evidenceSnapshot().samples[fifo];
+  CHECK(mode == MacInterface::UNKNOWN && !driver.interfaceSnapshot().modeValid);
+  CHECK(!sample.valid && sample.historyLost && bus.words[23] == 0x0261);
+
+  bus.failFrame = -1;
+  CHECK(driver.readDp83822Interface(mode, {1000000, 1}).ok() && mode == MacInterface::RGMII);
+  bus.words[10] |= 0x4000;
+  CHECK(driver.observeDp83822Medium({1000000, 1}).ok());
+  const auto historical = driver.interfaceSnapshot();
+  CHECK(!historical.modeValid && (historical.validMask & 0x20U) == 0 && historical.raw[5] == 0x0261);
+  const auto mediumCalls = bus.calls;
+  bool invoked = true;
+  mode = MacInterface::UNKNOWN;
+  CHECK(!driver.readDp83822Interface(mode, {1000000, 1}, &invoked).ok());
+  CHECK(!invoked && bus.calls == mediumCalls && mode == MacInterface::UNKNOWN);
 }
 
 void p22Collector() {
   for (const auto variant : {Variant::DP83822I, Variant::DP83822H, Variant::DP83822IF, Variant::DP83822HF}) {
     test::declaredVariant=variant;
+    p22Interface = MacInterface::MII;
+    p22InterfaceObservation();
     for (const auto interface : {MacInterface::MII, MacInterface::RMII, MacInterface::RGMII}) {
       for (bool clears : {false,true}) {
         p22Interface=interface; p22ClearsEnables=clears;

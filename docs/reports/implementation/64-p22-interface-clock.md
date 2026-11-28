@@ -291,3 +291,32 @@ Continue phase (b) with RCSR access through the shared FIFO collector. Trace
 both direct and vendor-31 reads, including failed releases and the dependent
 RMW write, before enabling the runtime transition. Keep the explicit boot row
 as the identity of the expected board across HARD recovery.
+
+## Phase (b) live RCSR observation
+
+The wrapper verified the boot-interface checkpoint
+`817f057598552a3493d7108055b61e9a51c26ddc` on both branches. The worktree
+and index were clean on entry. This slice implements a one-frame direct
+read for initialized DP83822 copper. The existing four-frame vendor alias
+and the direct read share the same FIFO collector and mode decoder. Both
+now honor the priority of RCSR[9] over [5] in SNLS505H table 8-23. A board
+invalidation withdraws current interface words while retaining their raw
+history. [Application contract](../../interface-clock.md#dp83822-boot-interface)
+
+The lead owned the public API, implementation, guides and integration. One
+agent checked the register table, raw access policy and the phase (a)
+sibling paths and conventions at the same three clean revisions. Another
+implemented independent literal tests in `test/interrupts.cpp`. Both used
+the session model for register interpretation and failure coverage.
+
+| Layer | Local evidence on Windows x86-64, GCC 15.1.0, Ninja Release |
+| --- | --- |
+| Host | PASS. Built `dp8382x_interrupt_tests`, `dp8382x_interface_tests` and `dp8382x_reset_tests` in `build/p63-baseline`. CTest with `-R '^(p22_collector$\|p22_startup$\|p25_core$\|interface_\|interrupt_\|reset_)'` passed 26/26. The four-grade collector checks every mode-bit combination on both paths, literal frames in a single hold, cut prefixes, failed release, insufficient frames, passive caches and CR2 board invalidation. Log in `build/p63-baseline/p64-rcsr.log`. |
+| Portable/package consumers | PASS. Rebuilt `build/p63-consumer` with tests OFF and passed both CTests. Copied and byte-checked all 29 source-package files into `build/p64-rcsr-export/package`. A fresh tests-OFF application linked the new method and checked unbound rejection and unchanged output (1/1 CTest). |
+| Documentation | PASS. Doxygen verified 300 pages and two negative fixtures. |
+| SDK link / remote CI / physical | NOT RUN in this slice. The DP83822-declared P4 link and fixture measurements remain pending. |
+
+Continue phase (b) with the typed dependent RCSR write in a single hold,
+including neutral FIFO bits, cut-prefix receipts and all fixed shift vectors.
+Keep raw writes and unimplemented mode transitions gated. The wrapper owns
+the checked commit and upstream verification.

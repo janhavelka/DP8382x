@@ -2029,6 +2029,16 @@ public:
   /// @param[out] invoked Optional terminal callback receipt, cleared on local denial.
   /// @return Transport or admission status. A completed word survives a late or failed release as stale.
   Status observeDp83822Medium(const IoBudget& budget, bool* invoked = nullptr) noexcept;
+  /// @brief Sample the live DP83822 MAC interface and collect FIFO indications from RCSR.
+  /// @pre Serialized, idle owner with initialized copper, current board evidence and no cleanup owed.
+  /// @param[out] output MII, RMII or RGMII, assigned only on successful completion and release.
+  /// @param[in] budget Exclusive absolute deadline in microseconds and at least one MDIO frame.
+  /// @param[out] invoked Optional flag set when the terminal batch callback runs.
+  /// @return OK, admission error or terminal transport, clock or deadline failure.
+  /// @note SNLS505H table 8-23. One direct 0x17 read consumes FIFO flags [3:2].
+  /// A completed read updates evidenceSnapshot() and interfaceSnapshot() even on release failure.
+  /// Reading the mode does not verify the interface profile or change the declared boot straps.
+  Status readDp83822Interface(MacInterface& output, const IoBudget& budget, bool* invoked = nullptr) noexcept;
   /// @brief Copy the most recent live CR2 evidence under the owner, without I/O.
   /// @return Independent raw word, freshness and completion time.
   Dp83822Medium dp83822MediumSnapshot() const noexcept { return _dp83822Medium; }
