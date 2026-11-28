@@ -54,9 +54,13 @@ bool interfacePrefix(const MdioBatch& batch,const BatchResult& receipt,uint8_t l
 }
 
 Status DP8382x::_validateInterface(const InterfaceSettings& settings) const noexcept {
-  if (isDp83822(_config.variant)) { return _dp83822FeatureGate(); }
   const auto syntax=interfaceSyntax(settings); if (!syntax.ok()) { return syntax; }
-  if (settings.interface!=MacInterface::MII && settings.interface!=MacInterface::RMII) {
+  const bool p22 = isDp83822(_config.variant);
+  if (p22 && settings.interface != MacInterface::RGMII) { return _dp83822FeatureGate(); }
+  if (!p22 && (settings.rgmiiRxShift || settings.rgmiiTxShift)) {
+    return interfaceConfig("Fixed RGMII shifts require a DP83822 RGMII profile");
+  }
+  if (!p22 && settings.interface!=MacInterface::MII && settings.interface!=MacInterface::RMII) {
     return Status::Error(Err::UNSUPPORTED,"This interface procedure supports declared MII/RMII only");
   }
   if (settings.interface!=_config.interface) { return interfaceConfig("Profile must match application-declared interface wiring"); }
@@ -65,6 +69,17 @@ Status DP8382x::_validateInterface(const InterfaceSettings& settings) const noex
     return interfaceConfig("Interface and clock transition requires stopped consumers and stable admitted clocks");
   }
   if (settings.isolate && !settings.isolationOwned) { return interfaceConfig("Isolation requires explicit ownership"); }
+  if (p22) {
+    if (settings.referenceClockMHz != 25U || settings.rmiiClock != RmiiClock::LEADER_25MHZ ||
+        settings.txClockShift || settings.revision10 || settings.elasticityCode != 0U ||
+        settings.maxFrameBytes != 1518U || settings.clockTolerancePpm != 50U ||
+        settings.rxDv || settings.repeater || settings.repeaterWiringAdmitted || settings.fastRxDv ||
+        settings.oddNibbleDisable || settings.collisionFullDuplex || settings.shortIpg ||
+        settings.clockOutput != ClockOutput::UNOWNED || settings.isolationOwned || settings.observePin31) {
+      return interfaceConfig("DP83822 fixed shifts require a 25 MHz RGMII shift-only profile");
+    }
+    return _dp83822BoardStatus();
+  }
   const bool a=isA(_config.variant);
   if (_config.variant==Variant::DP83825I) {
     // SNLS638C figure 6-4 feeds both repeater PHYs from the same oscillator.
@@ -163,6 +178,15 @@ Status DP8382x::_validateInterface(const InterfaceSettings& settings) const noex
 
 bool DP8382x::_interfaceRowValue(uint8_t row,uint16_t& address,uint16_t& mask,uint16_t& value) const noexcept {
   const auto& settings=_interface.desired; mask=value=0;
+  if (isDp83822(_config.variant)) {
+    if (row != 5U) { return false; }
+    // SNLS505H table 8-23. Verification includes the required live RGMII mode.
+    address = 0x0017;
+    mask = 0x1A00;
+    value = static_cast<uint16_t>(0x0200U | (settings.rgmiiRxShift ? 0x1000U : 0U) |
+                                  (settings.rgmiiTxShift ? 0U : 0x0800U));
+    return true;
+  }
   // SNLS647I 8-19/28/29/35/41/73/84. Fields are owned independently of
   // power, link routing, IRQ, and LED masks in the same registers.
   switch (row) {
@@ -226,6 +250,7 @@ void DP8382x::_beginInterface(bool verifyOnly) noexcept {
   const auto valid=_validateInterface(_interface.desired);
   if (!valid.ok()) { _finishInterface(valid); return; }
   _interfaceStep=InterfaceStep::PREFLIGHT;
+  if (isDp83822(_config.variant)) { _nextInterfaceRow(); }
 }
 MdioBatch DP8382x::_interfaceBatch() const noexcept {
   if (_interfaceStep==InterfaceStep::PREFLIGHT) {
@@ -244,6 +269,15 @@ MdioBatch DP8382x::_interfaceBatch() const noexcept {
   if (_interfaceStep==InterfaceStep::CLOCK_STATUS) { return _mmdBatch(0x0308,FrameKind::READ,0); }
   uint16_t address=0,mask=0,value=0; _interfaceRowValue(_interfaceRow,address,mask,value);
   MdioBatch batch;
+  if (isDp83822(_config.variant) && _interfaceStep == InterfaceStep::APPLY) {
+    // Sample the live mode and compose its two fixed shifts under one hold.
+    // Emit zero for the reserved read-only bits and read-clear FIFO flags.
+    batch = _mmdBatch(address, FrameKind::READ, 0);
+    batch.frames[4] = {FrameKind::WRITE, 0x0E, static_cast<uint16_t>(value & 0x1800U),
+                       0x07F3, 3, 0x0200, 0x0200};
+    batch.frameCount = 5;
+    return batch;
+  }
   if (address<=0x1FU) { batch.frameCount=1; batch.frames[0]={FrameKind::READ,static_cast<uint8_t>(address),0,0,NO_READ_INDEX}; }
   else { batch=_mmdBatch(address,FrameKind::READ,0); }
   if (_interfaceStep==InterfaceStep::APPLY) {
@@ -343,9 +377,13 @@ Status DP8382x::_advanceInterface(Status status,bool called,const MdioBatch& bat
     }
     if (batch.frames[last].kind==FrameKind::WRITE) {
       const auto& target=receipt.frames[last];
+      const bool guardPassed = !readValid || batch.frames[last].acceptsRead(receipt.frames[readIndex].value);
       _interfaceResult.mutationAttempted|=target.attempted;
-      _interfaceResult.mutationCompleted|=interfacePrefix(batch,receipt,last);
+      _interfaceResult.mutationCompleted|=guardPassed && interfacePrefix(batch,receipt,last);
       _interfaceResult.mutationPossible|=target.completed || target.effectPossible || target.valueValid || _transport.violation!=TransportViolation::NONE;
+      if (!guardPassed && isDp83822(_config.variant)) {
+        _interfaceResult.mismatch = {true, true, 31, address, 0x0200, 0x0200, receipt.frames[readIndex].value};
+      }
     }
   }
   if (_config.variant==Variant::DP83825I && _clockRoleMismatch().valid) {
@@ -402,6 +440,11 @@ Status DP8382x::_advanceInterface(Status status,bool called,const MdioBatch& bat
 }
 
 void DP8382x::_interfacePassCost(bool verifyOnly,uint32_t& frames,uint32_t& callbacks) const noexcept {
+  if (isDp83822(_config.variant)) {
+    frames = verifyOnly ? 1U : 6U;
+    callbacks = verifyOnly ? 1U : 2U;
+    return;
+  }
   const auto& settings=_interface.desired;
   frames=settings.clockOutput==ClockOutput::RECOVERED?3U:2U; callbacks=1;
   for (uint8_t row=0;row<INTERFACE_ROWS;++row) {
@@ -448,9 +491,10 @@ Status DP8382x::configureInterface(const InterfaceSettings& settings,InterfaceRe
   IoBudget remaining=budget;
   while (_interfaceStep!=InterfaceStep::COMPLETE) {
     const auto batch=_interfaceBatch(); const auto before=_interfaceResult.attemptedFrames;
-    const auto reserve=_interfaceStep==InterfaceStep::PREFLIGHT?bound:0U;
+    const auto reserve=_interfaceResult.transactions==0U?bound:0U;
     bool called=false;
-    const auto status=_execute(batch,remaining,&called,false,Traffic::MANAGED,32,reserve);
+    const auto traffic=isDp83822(_config.variant)?Traffic::DP83822_MANAGED:Traffic::MANAGED;
+    const auto status=_execute(batch,remaining,&called,false,traffic,32,reserve);
     _advanceInterface(status,called,batch);
     remaining.maxFrames-=_interfaceResult.attemptedFrames-before;
   }

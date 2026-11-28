@@ -21,7 +21,9 @@ Copper startup requires a board declaration for LED_1 strap mode 1 or 4.
 Boards can declare the expected boot interface separately from the intended
 MAC wiring. Startup reports when the target still needs a software transition.
 On initialized copper, `readDp83822Interface` samples the live MAC interface
-and retains the FIFO flags consumed by the same read.
+and retains the FIFO flags consumed by the same read. On a strapped RGMII
+board, `configureInterface` programs and verifies independent fixed 3.5 ns
+RX and TX shifts.
 [DP83822 boot declaration](docs/interface-clock.md#dp83822-boot-interface)
 The portable and native paths support copper reset, 10/100 configuration,
 link observation and interrupt service. The portable PHY supports MII, RMII

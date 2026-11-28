@@ -12,6 +12,8 @@
   role separately. Startup distinguishes a strap mismatch from a board that
   needs interface programming. Add a one-frame live interface read and decode
   RGMII precedence for both direct and vendor-31 RCSR observations.
+  Add fixed RX and TX shift programming, readback and reset replay on
+  strapped copper RGMII boards.
   The shared CLI and offline runner distinguish each declared grade. Copper
   operations withdraw readiness on contradictory board observations and
   reinstall owned interrupt enables after a link-profile change.

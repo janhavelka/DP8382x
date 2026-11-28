@@ -1774,7 +1774,7 @@ Status DP8382x::_execute(MdioBatch batch, const IoBudget& budget, bool* called,
       _operation.kind == OperationKind::QUALITY_CONFIGURE || _operation.kind == OperationKind::INTERRUPT_CONFIGURE ||
       _operation.kind == OperationKind::INTERRUPT_TEST_START || _operation.kind == OperationKind::INTERRUPT_TEST_STOP);
   if (isDp83822(_config.variant) && operation &&
-      (_configuring || _qualityWorking || _interruptWorking || _initStep == InitStep::COMMAND)) {
+      (_configuring || _qualityWorking || _interruptWorking || _interfaceWorking || _initStep == InitStep::COMMAND)) {
     const auto board = _dp83822BoardStatus();
     if (!board.ok()) { return board; }
   }
@@ -2453,7 +2453,7 @@ Status DP8382x::_admitProfilePass(const IoBudget& budget, uint64_t upper) const 
   uint32_t frames = 0, callbacks = 0;
   if (_qualityWorking && _qualityStep == QualityStep::PREFLIGHT) {
     _qualityPassCost(_qualityVerifyOnly, frames, callbacks);
-  } else if (_interfaceWorking && _interfaceStep == InterfaceStep::PREFLIGHT) {
+  } else if (_interfaceWorking && _interfaceResult.transactions == 0U) {
     _interfacePassCost(_interfaceVerifyOnly, frames, callbacks);
   } else if (_pinsWorking && _pinResult.transactions == 0U) {
     _pinPassCost(_pinsVerifyOnly, frames, callbacks);

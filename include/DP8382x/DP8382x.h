@@ -1173,7 +1173,7 @@ struct SignalQualitySnapshot {
 };
 /// @brief Complete interface/compatibility intent; board declarations are not measurements.
 struct InterfaceSettings {
-  MacInterface interface{MacInterface::UNKNOWN}; ///< Must equal the binding's declared MII/RMII wiring.
+  MacInterface interface{MacInterface::UNKNOWN}; ///< Must equal the binding's declared MAC wiring.
   RmiiClock rmiiClock{RmiiClock::LEADER_25MHZ}; ///< RMII reference direction; dormant default in MII.
   bool txClockShift{false}; ///< RCSR[8], admitted only in RMII follower mode.
   bool revision10{false}; ///< True selects RMII 1.0; false selects RMII 1.2.
@@ -1200,6 +1200,8 @@ struct InterfaceSettings {
   /// requires two followers on a common external 50 MHz clock and simultaneous external reset.
   bool repeaterWiringAdmitted{false};
   bool observePin31{false}; ///< Request ENHANCED A pin 31 status (0308 bit 0) during interface verification.
+  bool rgmiiRxShift{false}; ///< DP83822 RGMII only. Delay RX clock by 3.5 ns when true, align when false.
+  bool rgmiiTxShift{false}; ///< DP83822 RGMII only. Delay TX clock by 3.5 ns when true, align when false.
 };
 /// @brief Retained interface words and intent, distinct from observed working traffic.
 struct InterfaceSnapshot {
@@ -1765,6 +1767,8 @@ public:
   /// @note SNLS647I 8-19/28/29/35/41/73/84. RCSR reads consume RC through the
   /// single collector. Failed accepted writes leave OP-9 debt; restoration uses
   /// a separately admitted startInitialize. No clock-source switch or retry is automatic.
+  /// On DP83822, only a strapped copper RGMII board with a 25 MHz reference is
+  /// admitted. Own both fixed shifts. Allow six frames across two controller holds.
   Status configureInterface(const InterfaceSettings& settings, InterfaceResult& result, const IoBudget& budget) noexcept;
   /// @brief Copy retained interface intent/evidence without bus or clock callbacks.
   /// @return Stable-field trust, never proof of working clock, MAC or repeater traffic.

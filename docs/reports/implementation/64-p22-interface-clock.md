@@ -320,3 +320,34 @@ Continue phase (b) with the typed dependent RCSR write in a single hold,
 including neutral FIFO bits, cut-prefix receipts and all fixed shift vectors.
 Keep raw writes and unimplemented mode transitions gated. The wrapper owns
 the checked commit and upstream verification.
+
+## Phase (b) fixed RGMII shifts
+
+The wrapper verified `ebf8143b3ced8ede7645e14f4eeb2c4f5183e790` on
+`main` and `origin/main`. The worktree and index were clean at entry.
+For `clock-phase`, the portable interface owner now configures fixed RX and
+TX shifts on initialized, strapped DP83822 copper RGMII boards. An
+independent source check reopened SNLS505H table 8-23 and the three clean
+sibling revisions and paths in the phase (a) audit. A second agent added
+the literal traces in `test/interrupts.cpp`. Both used the session model
+for silicon and failure-prefix reasoning. The lead integrated the API,
+driver, guides and checks. [Fixed shift contract](../../interface-clock.md#fixed-rgmii-shifts)
+
+The dependent target write requires a live RCSR[9] in the same hold.
+The wire word preserves writable bits under 07F3h, emits zero for the
+read-only reserved and read-clear fields, and sets the two owned bits under
+1800h. The subsequent direct read verifies mask 1A00h. Both reads feed the
+existing FIFO collector. HARD replay uses the same procedure after the board
+checks. A five-frame allowance fails before the consuming read.
+
+| Layer | Evidence on Windows x86-64, GCC 15.1.0, Ninja Release |
+| --- | --- |
+| Host | PASS. Built the interrupt, interface, reset and CLI fixture targets in `build/p63-baseline`. The final 27/27 CTests passed, including `p22_collector` and `cli_control_transcript`. The collector tests all 16 prior/target pairs per grade, cut prefixes with and without effects, live-mode rejection, corrupt readback, failed releases and HARD replay. Log in `build/p63-baseline/p64-shifts-final.log`. The CLI transcript is an existing regression. Exposing the shifts through the CLI remains due. |
+| Portable and package consumers | PASS. Rebuilt both tests-OFF consumers in `build/p63-consumer` (2/2). Copied and SHA-256 checked all 29 exported paths from the working tree. A fresh tests-OFF application set the two public shift fields and exercised unbound rejection in `build/p64-shifts-export/out` (1/1). |
+| Source and documentation | PASS. The 16 exact-part Python ledger tests, family ledger verifier, generated version check and Doxygen check passed (300 pages and two negative fixtures). |
+| SDK link / remote CI / physical | NOT RUN in this slice. A DP83822-declared P4 MII or RMII link remains due. Scope measurements of both shifts remain open per grade. |
+
+Continue phase (b) with the independent MII TXCPSR phase control in table
+8-36, including the distinct apply action, all 16 codes and interrupted
+write handling. RMII mode transitions and companion controls, GPIO clock
+routing, CLI/runner coverage and SDK linking remain open.

@@ -40,6 +40,7 @@ struct Controller {
     ext[0x030E]=test::aGrade()?0x4A40:0x8400;ext[0x04A1]=0x1000;
     if (id2==0xA240) {
       ext[0x0467]=p22Interface==MacInterface::MII?0x0FC3:p22Interface==MacInterface::RMII?0x0FE3:0x0DC3;
+      if (p22Interface==MacInterface::RGMII) words[23]=0x0241;
       ext[0x04A1]=0;
     }
   }
@@ -68,6 +69,10 @@ struct Controller {
     if(reg==14 && (selector==0x001F || selector==3 || selector==7)) { address=value;return; }
     const uint16_t target=reg==14?address:uint16_t{reg};++mutations;
     if(target==31 && value==0x8000) { ++hard;defaults();return; }
+    if(target==23 && id2==0xA240) {
+      // Table 8-23. Retain hardware-owned RO and FIFO status bits on writes.
+      words[23]=static_cast<uint16_t>((words[23]&0xE00CU)|(value&0x1FF3U));return;
+    }
     if(target==18 || target==19) { CHECK((value&0xFF00U)==0U);words[target]=static_cast<uint16_t>((words[target]&0xFF00U)|value);return; }
     if(target==0x04A1) {
       CHECK(value==0x1000 || value==0);
@@ -83,7 +88,12 @@ struct Controller {
     CHECK(call<b.callFirst.size());b.callFirst[call]=b.frames;
     for(uint8_t i=0;i<batch.frameCount;++i) {
       const auto& q=batch.frames[i];auto& f=r.frames[i];uint16_t value=q.value;
-      if(q.readIndex!=NO_READ_INDEX) { CHECK(q.readIndex<i && r.frames[q.readIndex].valueValid);value=static_cast<uint16_t>((r.frames[q.readIndex].value&q.preserveMask)|q.value); }
+      if(q.readIndex!=NO_READ_INDEX) {
+        CHECK(q.readIndex<i && r.frames[q.readIndex].valueValid);
+        const auto sampled=r.frames[q.readIndex].value;
+        if(!q.acceptsRead(sampled)) { r.status=Status::Error(Err::CONFIG_MISMATCH,"Dependent write guard");break; }
+        value=static_cast<uint16_t>((sampled&q.preserveMask)|q.value);
+      }
       const uint16_t target=q.registerAddress==14 && b.selector==0x401F?b.address:uint16_t{q.registerAddress};
       CHECK(b.frames<b.trace.size());const auto frame=b.frames++;b.trace[frame]={q.kind,q.registerAddress,value,target};
       if(static_cast<int>(frame)==b.identityChangeFrame) { b.id2=test::basicId2();b.mutationsAtIdentityChange=b.mutations; }
@@ -126,7 +136,8 @@ Status drain(Driver& d,Controller& b,OperationToken t) {
 }
 OperationResult take(Driver& d,OperationToken t) { OperationResult r;CHECK(d.takeResult(t,r).ok());return r; }
 void ready(Driver& d,Controller& b) {
-  b.words[23]=b.config().interface==MacInterface::RMII?0x0020U:0U;
+  const auto mode=b.config().interface;
+  b.words[23]=mode==MacInterface::RGMII?0x0241U:mode==MacInterface::RMII?0x0020U:0U;
   CHECK(d.bind(b.config()).ok());OperationToken t;CHECK(d.startInitialize({ResetKind::NONE},budget(),t).inProgress());CHECK(drain(d,b,t).ok());take(d,t);
 }
 InterruptSettings settings() {
@@ -963,11 +974,158 @@ void p22InterfaceObservation() {
   CHECK(!invoked && bus.calls == mediumCalls && mode == MacInterface::UNKNOWN);
 }
 
+void p22RgmiiShifts() {
+  struct Shift { bool rx, tx; uint16_t bits; };
+  // SNLS505H table 8-23. The reset shift field (0000h) delays TX only.
+  const Shift shifts[]={{false,false,0x0800},{true,false,0x1800},{false,true,0x0000},{true,true,0x1000}};
+  const auto fifo=static_cast<unsigned>(EvidenceSource::RCSR);
+  InterfaceSettings settings;
+  settings.interface=MacInterface::RGMII;
+  settings.maintenanceAdmitted=settings.macStopped=settings.pinsAvailable=true;
+  settings.referenceClockStable=settings.managementClockAvailable=settings.clockChangeApproved=true;
+  settings.referenceClockMHz=25;
+  for (const auto& prior:shifts) for (const auto& target:shifts) {
+    Controller bus;
+    Driver driver;
+    ready(driver,bus);
+    bus.words[23]=static_cast<uint16_t>(0xA76FU|prior.bits);
+    settings.rgmiiRxShift=target.rx;
+    settings.rgmiiTxShift=target.tx;
+    const auto first=bus.frames, calls=bus.calls;
+    InterfaceResult result;
+    CHECK(driver.configureInterface(settings,result,{1000000,6}).ok());
+    CHECK(result.verified && result.mutationAttempted && result.mutationCompleted && result.mutationPossible);
+    CHECK(result.transactions==2 && result.attemptedFrames==6 && result.completedFrames==6);
+    CHECK(bus.calls==calls+2 && bus.releases==bus.calls && !bus.locked);
+    CHECK(bus.frames==first+6 && bus.callFirst[calls]==first && bus.callFirst[calls+1]==first+5);
+    const uint16_t selectors[]={0x001F,0x0017,0x401F};
+    for (unsigned i=0;i<3;++i) {
+      const auto& frame=bus.trace[first+i];
+      CHECK(frame.kind==FrameKind::WRITE && frame.reg==(i==1 ? 14 : 13) && frame.value==selectors[i]);
+    }
+    CHECK(bus.trace[first+3].kind==FrameKind::READ && bus.trace[first+3].reg==14 && bus.trace[first+3].target==23);
+    const auto& write=bus.trace[first+4];
+    CHECK(write.kind==FrameKind::WRITE && write.reg==14 && write.target==23 && write.value==(0x0763U|target.bits));
+    CHECK(bus.trace[first+5].kind==FrameKind::READ && bus.trace[first+5].reg==23);
+    const auto clocks=bus.clocks;
+    const auto sample=driver.evidenceSnapshot().samples[fifo];
+    const auto state=driver.interfaceSnapshot();
+    CHECK(state.trust==ConfigurationTrust::VERIFIED && state.desiredValid && state.modeValid && !state.observedStale);
+    CHECK(state.desired.rgmiiRxShift==target.rx && state.desired.rgmiiTxShift==target.tx);
+    CHECK(state.observedInterface==MacInterface::RGMII && state.raw[5]==(0xA763U|target.bits));
+    CHECK(sample.valid && sample.samples==2 && sample.eventBits==0x000C && sample.raw==state.raw[5]);
+    CHECK(bus.clocks==clocks && bus.calls==calls+2);
+  }
+  settings.rgmiiRxShift=true;
+  settings.rgmiiTxShift=false;
+  for (unsigned cut=0;cut<6;++cut) for (bool accepted:{false,true}) {
+    Controller bus;
+    Driver driver;
+    ready(driver,bus);
+    bus.words[23]=0x024D;
+    const auto first=bus.frames;
+    bus.failFrame=static_cast<int>(first+cut);
+    bus.acceptedFailure=accepted;
+    InterfaceResult result;
+    CHECK(driver.configureInterface(settings,result,{1000000,6}).is(Err::MDIO_TIMEOUT));
+    CHECK(result.completedFrames==cut && result.attemptedFrames==cut+1 && !result.verified);
+    CHECK(result.mutationAttempted==(cut>=4) && result.mutationCompleted==(cut==5));
+    const bool changed=cut==5 || (cut==4 && accepted);
+    CHECK(result.mutationPossible==changed && driver.operationSnapshot().cleanupOwed==changed);
+    CHECK(bus.frames==first+cut+1 && bus.releases==bus.calls && !bus.locked);
+    const Wire expectedPrefix[]={
+      {FrameKind::WRITE,13,0x001F,13},{FrameKind::WRITE,14,0x0017,14},
+      {FrameKind::WRITE,13,0x401F,13},{FrameKind::READ,14,0,23},
+      {FrameKind::WRITE,14,0x1A41,23},{FrameKind::READ,23,0,23}
+    };
+    for (unsigned i=0;i<=cut;++i) {
+      const auto& actual=bus.trace[first+i];
+      const auto& expected=expectedPrefix[i];
+      CHECK(actual.kind==expected.kind && actual.reg==expected.reg && actual.target==expected.target);
+      if (actual.kind==FrameKind::WRITE) CHECK(actual.value==expected.value);
+    }
+    CHECK((bus.words[23]&0x1800U)==(changed?0x1800U:0U));
+    const auto sample=driver.evidenceSnapshot().samples[fifo];
+    CHECK(sample.eventBits==(cut>=4?0x000CU:0U));
+    if (cut==3 && accepted) CHECK(sample.historyLost);
+  }
+  constexpr uint16_t readbackFaults[]={0x0200,0x0800,0x1000};
+  for (const auto flipped:readbackFaults) {
+    Controller bus;
+    Driver driver;
+    ready(driver,bus);
+    bus.corruptFrame=static_cast<int>(bus.frames+5);
+    bus.corruptMask=flipped;
+    InterfaceResult result;
+    CHECK(driver.configureInterface(settings,result,{1000000,6}).is(Err::CONFIG_MISMATCH));
+    CHECK(result.mismatch.valid && result.mismatch.registerAddress==0x17 && (result.mismatch.mask&flipped));
+    CHECK(!result.verified && result.mutationCompleted && driver.operationSnapshot().cleanupOwed);
+  }
+  for (unsigned boundary=0;boundary<2;++boundary) {
+    Controller bus;
+    Driver driver;
+    ready(driver,bus);
+    bus.words[23]=0x024D;
+    bus.releaseCall=static_cast<int>(bus.calls+boundary);
+    InterfaceResult result;
+    CHECK(driver.configureInterface(settings,result,{1000000,6}).is(Err::MDIO_ERROR));
+    CHECK(result.primary.ok() && result.release.is(Err::MDIO_ERROR) && !result.verified);
+    CHECK(result.mutationCompleted && result.mutationPossible && driver.operationSnapshot().cleanupOwed);
+    CHECK(result.completedFrames==5+boundary && driver.evidenceSnapshot().samples[fifo].eventBits==0x000C);
+  }
+  {
+    Controller bus;
+    Driver driver;
+    ready(driver,bus);
+    CHECK(bus.words[23]==0x0241); // Booted in RGMII, reset shifts align RX and delay TX.
+    InterfaceResult result;
+    CHECK(driver.configureInterface(settings,result,{1000000,6}).ok());
+    const auto first=bus.frames;
+    OperationToken token;
+    CHECK(driver.startInitialize({ResetKind::HARD},budget(),token).inProgress());
+    CHECK(drain(driver,bus,token).ok());
+    CHECK(take(driver,token).persistentRestored && driver.isInitialized());
+    unsigned shiftWrites=0;
+    bool resetSeen=false;
+    for (unsigned i=first;i<bus.frames;++i) {
+      const auto& frame=bus.trace[i];
+      if (frame.kind==FrameKind::WRITE && frame.target==31 && frame.value==0x8000) resetSeen=true;
+      if (frame.kind==FrameKind::WRITE && frame.target==23) {
+        ++shiftWrites;
+        CHECK(resetSeen && frame.reg==14 && frame.value==0x1A41);
+        CHECK(i+1<bus.frames && bus.trace[i+1].kind==FrameKind::READ && bus.trace[i+1].reg==23);
+      }
+    }
+    CHECK(resetSeen && shiftWrites==1 && bus.words[23]==0x1A41);
+    CHECK(driver.interfaceSnapshot().trust==ConfigurationTrust::VERIFIED);
+  }
+  Controller bus;
+  Driver driver;
+  ready(driver,bus);
+  const auto first=bus.frames, calls=bus.calls, writes=bus.mutations;
+  InterfaceResult result;
+  CHECK(driver.configureInterface(settings,result,{1000000,5}).is(Err::OPERATION_TIMEOUT));
+  auto invalid=settings;
+  invalid.macStopped=false;
+  CHECK(!driver.configureInterface(invalid,result,{1000000,6}).ok());
+  invalid=settings;
+  invalid.txClockShift=true; // RMII follower control.
+  CHECK(!driver.configureInterface(invalid,result,{1000000,6}).ok());
+  CHECK(!driver.interfaceSnapshot().desiredValid && bus.calls==calls && bus.frames==first);
+  bus.words[23]=0x006D; // Unexpected live RMII overrides the boot assumption.
+  CHECK(driver.configureInterface(settings,result,{1000000,6}).is(Err::CONFIG_MISMATCH));
+  CHECK(!result.mutationAttempted && !result.mutationPossible && !driver.operationSnapshot().cleanupOwed);
+  CHECK(bus.calls==calls+1 && bus.frames==first+4 && bus.mutations==writes && bus.words[23]==0x0061);
+  CHECK(driver.evidenceSnapshot().samples[fifo].eventBits==0x000C);
+}
+
 void p22Collector() {
   for (const auto variant : {Variant::DP83822I, Variant::DP83822H, Variant::DP83822IF, Variant::DP83822HF}) {
     test::declaredVariant=variant;
     p22Interface = MacInterface::MII;
     p22InterfaceObservation();
+    p22Interface = MacInterface::RGMII;
+    p22RgmiiShifts();
     for (const auto interface : {MacInterface::MII, MacInterface::RMII, MacInterface::RGMII}) {
       for (bool clears : {false,true}) {
         p22Interface=interface; p22ClearsEnables=clears;

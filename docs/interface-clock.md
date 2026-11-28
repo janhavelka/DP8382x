@@ -33,6 +33,28 @@ contradictory board strap or active medium invalidates the cached mode and
 preserves the historical word. Electrical timing and working MAC traffic
 require separate evidence. [SNLS505H §7.4.2.1 and table 8-23](reference/source/TI-DP83822-SNLS505H.pdf)
 
+### Fixed RGMII shifts
+
+On an initialized copper board wired and strapped for RGMII, set
+`InterfaceSettings::interface` to `RGMII` and `referenceClockMHz` to 25.
+Set `rgmiiRxShift` and `rgmiiTxShift` independently. True requests a
+3.5 ns delay on that path. False requests aligned clock and data. Keep
+the other control fields at their defaults. The application must attest
+maintenance admission, a stopped MAC, available pins, stable reference,
+available management clock and approval for the clock change.
+
+`configureInterface` requires six frames and two callbacks within one
+deadline. The first hold selects vendor-31 register 0017 in nonincrementing
+mode, collects the FIFO status and updates the shift bits only if the
+sample still selects RGMII. The second hold reads Clause 22 register 17h
+to verify mode and both shifts. RCSR[12:11] at reset is 00, which leaves
+RX aligned and TX delayed. The collector retains FIFO events from either
+read. A failed or uncertain target write leaves the admitted settings
+available for recovery. Inspect `InterfaceResult::mutationPossible` and
+the operation's cleanup status. A separately admitted initialization
+reapplies the owned shifts after rechecking the board. Physical timing on
+each grade awaits measurement. [SNLS505H table 8-23](reference/source/TI-DP83822-SNLS505H.pdf)
+
 ## DP83825 and DP83826 clocks
 
 For DP83825I, set `Config::interface` to `RMII` and `rmiiClock` to
