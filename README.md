@@ -19,7 +19,8 @@ suffix. After a successful probe, the owner can capture both strap latches
 in one bounded MDIO batch and read CR2 to observe the active medium.
 Copper startup requires a board declaration for LED_1 strap mode 1 or 4.
 The portable and native paths support copper reset, 10/100 configuration,
-link observation and interrupt service. [Identity guide](docs/identity.md)
+link observation and interrupt service. The portable PHY supports MII, RMII
+and RGMII. The ESP32-P4 adapter accepts MII and RMII. [Identity guide](docs/identity.md)
 
 DP83825I accepts the documented revision-0 ID and requires an explicit RMII
 leader or follower declaration. Initialization checks both clock straps, then

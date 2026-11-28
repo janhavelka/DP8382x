@@ -206,8 +206,8 @@ public:
   /// @brief Allocate owner/gate/fence and bind locally; no MDIO, GPIO or SDK install.
   /// @param[in] config Explicit address 0..31, MAC, shared bus and positive bounds.
   /// @param[out] output Assigned only on ESP_OK; unchanged on validation/allocation failure.
-  /// @return ESP_ERR_NOT_SUPPORTED for a DP83822 core binding. Otherwise
-  /// ESP_OK, INVALID_ARG, NO_MEM or the actual fence creation error.
+  /// @return ESP_ERR_NOT_SUPPORTED for an attested DP83822 requesting RGMII on ESP32-P4.
+  /// Other outcomes are ESP_OK, ESP_ERR_INVALID_ARG, ESP_ERR_NO_MEM or the fence creation error.
   static esp_err_t create(const PhyConfig& config, Phy*& output) noexcept;
   /// @brief Owners cannot be copied; callbacks retain this object's address.
   Phy(const Phy&) = delete;
@@ -505,6 +505,7 @@ public:
   /// @param[in] budget The procedure's absolute allowance.
   /// @param[in,out] inputs Typed input and the call's output. Each procedure owns its validity rules.
   /// @return Terminal core or owner admission status. Releases the gate before return.
+  /// A DP83822 RGMII interface request returns UNSUPPORTED before MDIO and preserves the output.
   /// @note Requires fresh accepted identity for live features. LPI stop retains
   /// its core cleanup admission so it can release a previous stimulus.
   /// @pre The application has granted maintenance before a disruptive call.
@@ -521,7 +522,12 @@ public:
         return Status::Error(Err::NOT_INITIALIZED, "Fresh accepted PHY identity required for typed feature");
       }
     }
-    const auto status = (_core.*Method)(inputs..., budget);
+    Status status;
+    if constexpr (sameProcedure<Method, &DP8382x::configureInterface>()) {
+      status = configureStoppedInterface(inputs..., budget);
+    } else {
+      status = (_core.*Method)(inputs..., budget);
+    }
     refreshAgreement();
     leave();
     return status;
@@ -660,6 +666,8 @@ private:
   template<class Call> Status stoppedRaw(RawBatchReceipt* receipt, Call call) noexcept;
   void unexpectedStart(bool startPosted) noexcept;
   bool stoppedAdmission() const noexcept;
+  Status configureStoppedInterface(const InterfaceSettings& settings, InterfaceResult& result,
+                                   const IoBudget& budget) noexcept;
   enum class ControlEntry : uint8_t { NONE, AUTONEGO, SPEED, DUPLEX, PAUSE };
   enum class ControlCompletion : uint8_t { NONE, SDK, FLOW };
   bool admittedControl(ControlEntry entry) const noexcept;

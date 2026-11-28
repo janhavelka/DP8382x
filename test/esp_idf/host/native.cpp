@@ -262,6 +262,55 @@ void p25NativeIsolationGuard() {
         }
     }
 }
+void p22MacInterfaceAdmission(Fixture& fixture) {
+    auto config = fixture.config;
+    config.core.interface = MacInterface::RGMII;
+    auto* const sentinel = reinterpret_cast<Native*>(0x1234);
+    auto* output = sentinel;
+    unsigned clocks = 0;
+    Host::state().clockSample = [&](uint64_t now) { ++clocks; return now; };
+    for (bool pinned : {false, true}) {
+        config.pinnedP4Mac = pinned;
+        Host::state().failSemaphore = true;
+        assert(Native::create(config, output) == ESP_ERR_NOT_SUPPORTED);
+        assert(output == sentinel && Host::state().failSemaphore);
+        assert(!clocks && !Host::state().timerCreates && fixture.mac.frames.empty());
+    }
+    Host::state().failSemaphore = false;
+    Host::state().clockSample = nullptr;
+    config.core.interface = MacInterface::MII;
+    assert(Native::create(config, output) == ESP_OK && output != sentinel);
+    assert(output->destroy() == ESP_OK && fixture.mac.frames.empty());
+}
+
+void p22StoppedInterfaceAdmission(Fixture& fixture) {
+    using Core = ::DP8382x::DP8382x;
+    const auto frames = fixture.mac.frames.size();
+    Capabilities capabilities;
+    assert(fixture.owner->capabilitiesSnapshot(capabilities).ok());
+    assert(capabilities.valid && capabilities.interfaceMask == 7);
+    InterfaceSettings settings;
+    settings.interface = MacInterface::RGMII;
+    settings.maintenanceAdmitted = settings.macStopped = settings.pinsAvailable = true;
+    settings.referenceClockStable = settings.managementClockAvailable = settings.clockChangeApproved = true;
+    settings.referenceClockMHz = 25;
+    InterfaceResult output;
+    output.attemptedFrames = 123;
+    output.verified = true;
+    const IoBudget budget{Host::state().nowUs + 100000, 128};
+    unsigned clocks = 0;
+    Host::state().clockSample = [&](uint64_t now) { ++clocks; return now; };
+    const auto rejected = fixture.owner->callFeature<&Core::configureInterface>(budget, settings, output);
+    Host::state().clockSample = nullptr;
+    assert(rejected.is(Err::UNSUPPORTED));
+    const std::string diagnostic = rejected.msg;
+    assert(diagnostic.find("P4") != std::string::npos && diagnostic.find("RGMII") != std::string::npos);
+    assert(output.attemptedFrames == 123 && output.verified);
+    InterfaceSnapshot retained;
+    assert(fixture.owner->featureSnapshot<&Core::interfaceSnapshot>(retained).ok());
+    assert(!retained.desiredValid && clocks == 0 && fixture.mac.frames.size() == frames);
+}
+
 void factory() {
     for (auto grade : {Variant::DP83822I, Variant::DP83822H, Variant::DP83822IF, Variant::DP83822HF}) {
         Host::reset();
@@ -272,6 +321,7 @@ void factory() {
         f.config.core.mdcHz = 40;
         f.mac.registers[3] = 0xA240;
         f.mac.extended[0x0467] = 0x0FE3; // Address 1, copper RMII, 25 MHz.
+        p22MacInterfaceAdmission(f);
         f.create();
         uint64_t assertedAt = 0, releasedAt = 0;
         BoardControl pins;
@@ -296,6 +346,7 @@ void factory() {
         const auto result = f.finish(token);
         assert(result.identity.declaredVariant == grade && result.persistentRestored && !result.mutationPossible);
         assert(f.mac.extended[0x030E] == 0x8400);
+        p22StoppedInterfaceAdmission(f);
     }
     p25Factory();
     p25NativeIsolationGuard();

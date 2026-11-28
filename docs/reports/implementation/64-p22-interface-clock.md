@@ -192,3 +192,62 @@ python tools/verify_ledger.py
 
 Phase (b) can proceed with both assigned software procedures. The wrapper
 owns this planning checkpoint and upstream verification.
+
+## Phase (b) ESP32-P4 interface admission
+
+The wrapper verified clean `main` and `origin/main` at
+`0f73f32f929a36bc756e6d39383170b9ecdba002`. This slice implements the
+native MAC admission requirement of `mac-interface`. Both portable
+procedures remain in progress.
+
+At ESP-IDF v6.1 `fff9895c`, lines 905 and 922 of
+`components/esp_eth/src/mac/esp_eth_mac_esp.c` implement MII and RMII.
+Line 1001 guards the RGMII case with `SOC_EMAC_SUPPORT_1000M`, absent in
+`components/soc/esp32p4/include/soc/soc_caps.h`. The component manifest
+selects ESP32-P4. The factory now reports `ESP_ERR_NOT_SUPPORTED` before
+allocating the owner, gate or fence for an LED_1-attested DP83822 RGMII
+request. The installed, stopped interface entry checks its existing owner
+and identity requirements, then rejects RGMII before invoking the portable
+procedure. The capability snapshot continues to report interface mask 7.
+[Native API and guide](../../esp-idf.md)
+
+The lead implemented the native gate and updated its public Doxygen, README,
+changelog and adapter guide. One agent added regressions in
+`test/esp_idf/host/native.cpp`. In parallel, a read-only agent checked the
+SDK and reopened the three clean peer revisions and paths in the phase (a)
+sibling table. Their explicit declaration checks and pre-I/O rejection tests
+apply here. Both used the session model to trace native ownership and finished.
+
+Windows x86-64 Release, GCC 15.1.0, Ninja. With the process-local SDK Git
+setting from [prompt 61](61-p25-feature-closure.md#phase-d-esp32-p4-sdk-links),
+run the following from the repository root.
+
+```powershell
+cmake --build build/p60-tests --parallel 4 --target dp8382x_native_host_tests dp8382x_native_host_100hz_tests dp8382x_native_host_333hz_tests dp8382x_native_cli_tests
+ctest --test-dir build/p60-tests -R '^((e_)?native_factory(_(100|333)hz)?|native_cli_.*|native_board_.*|native_feature_.*)$' -j 3 --output-on-failure --no-tests=error
+python tools/check_doxygen.py
+python tools/verify_references.py
+git diff --check
+```
+
+- Host PASS. The build verified 45 pinned SDK inputs. All 47 selected CTests
+  passed, including all four factory registrations. For each I/H/IF/HF
+  declaration the factory test rejects RGMII under both MAC attestations
+  with the output sentinel, clock count, frame trace and unconsumed mutex
+  failure intact. It creates an MII owner, initializes an RMII owner and
+  verifies the P4-specific stopped diagnostic, preserved result and desired
+  state, and zero additional clock samples or MDIO frames.
+- SDK link PASS for the existing DP83826I RMII owner regression. Using the
+  scoped SDK environment from prompt 61, `scripts\idf.cmd -C examples/esp_idf/owner -B C:\esp\build\dp8382x-loop\56o build`
+  linked a 611072-byte image from `0f73f32` plus working changes. SHA-256
+  `55529c82875593c55033cd84b98f0cf1308f8f76b7cdf7b04709376f459bc275`.
+  The DP83822-declared supported-interface image is still due.
+- Doxygen PASS for 300 pages and two negative fixtures. Portable/package
+  consumers, remote CI and physical qualification NOT RUN in this slice.
+
+Continue phase (b) with the portable board declaration and independent
+bind/startup tests for expected boot straps versus intended copper wiring.
+Then implement RCSR collection and interface/clock programming, interruption,
+restoration and CLI/runner evidence from the matrix above. Keep the native
+MAC check on any new cooperative interface entry. The wrapper owns the
+checked commit and upstream verification.

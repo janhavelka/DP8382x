@@ -27,6 +27,10 @@ NativeStatus terminalReceipt(int64_t receipt, const char* message) noexcept {
   return {{}, static_cast<esp_err_t>(receipt)};
 }
 Status busy() noexcept { return Status::Error(Err::BUSY, "Native owner is unavailable", static_cast<int32_t>(BusyDetail::OWNER_ADMISSION)); }
+bool unavailableOnP4(Variant variant, MacInterface interface) noexcept {
+  // The v6.1 EMAC RGMII path requires SOC_EMAC_SUPPORT_1000M, absent on P4.
+  return isDp83822(variant) && interface == MacInterface::RGMII;
+}
 Status busDenied(bool quarantined) noexcept {
   return Status::Error(Err::BUSY, "Shared controller unavailable", quarantined ?
     static_cast<int32_t>(BusyDetail::CONTROLLER_QUARANTINED) : static_cast<int32_t>(BusyDetail::OWNER_ADMISSION));
@@ -232,6 +236,7 @@ void Phy::recordCore(Status status, bool cleanup) noexcept {
 esp_err_t Phy::create(const PhyConfig& config, Phy*& output) noexcept {
   if (isDp83822(config.core.variant) &&
       (config.core.dp83822Led1Mode != 1U && config.core.dp83822Led1Mode != 4U)) return ESP_ERR_INVALID_ARG;
+  if (unavailableOnP4(config.core.variant, config.core.interface)) return ESP_ERR_NOT_SUPPORTED;
   if (!config.mac || !config.bus || !config.bus->mutex ||
       !config.mac->read_phy_reg || !config.mac->write_phy_reg || !config.mac->stop ||
       !config.mac->set_mediator || !config.mac->init || !config.mac->deinit ||
@@ -610,6 +615,12 @@ void Phy::refreshAgreement() noexcept {
 }
 bool Phy::stoppedAdmission() const noexcept {
   return _installed && _phase == Phase::STOPPED && !_notifying && !_frameworkStopOwed;
+}
+Status Phy::configureStoppedInterface(const InterfaceSettings& settings, InterfaceResult& result,
+                                      const IoBudget& budget) noexcept {
+  if (unavailableOnP4(_config.core.variant, settings.interface))
+    return Status::Error(Err::UNSUPPORTED, "ESP32-P4 EMAC does not support RGMII");
+  return _core.configureInterface(settings, result, budget);
 }
 bool Phy::admittedControl(ControlEntry entry) const noexcept {
   return _phase == Phase::CONTROL && _controlEntry == entry && _controlTask == xTaskGetCurrentTaskHandle() &&

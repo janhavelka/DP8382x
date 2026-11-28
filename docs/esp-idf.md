@@ -1,5 +1,16 @@
 # Native ESP-IDF PHY owner
 
+For DP83822I, H, IF and HF on copper, declare MII or RMII and the board's
+functional LED_1 strap mode (1 or 4). With that strap declaration, a request
+for RGMII at `Phy::create` returns `ESP_ERR_NOT_SUPPORTED` before allocation
+and leaves the output pointer intact. On an initialized, stopped owner,
+`callFeature<&DP8382x::configureInterface>` rejects an RGMII target with
+`Err::UNSUPPORTED` before clock sampling or MDIO and preserves the result.
+The pinned P4 EMAC implements MII and RMII. Its SDK RGMII path requires
+`SOC_EMAC_SUPPORT_1000M`, which P4 lacks. This limit applies with either
+value of `pinnedP4Mac`. The portable PHY capability mask remains 7 for all
+four grades. [Portable interface contract](interface-clock.md)
+
 The DP83825I factory takes the same explicit RMII direction, copper medium
 and controller timing contract as the portable binding. MAC clock wiring and
 the physical idle MDC cycle are board responsibilities. `prepareBoard`

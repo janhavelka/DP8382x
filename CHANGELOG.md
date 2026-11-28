@@ -7,6 +7,7 @@
   the board's LED_1 declaration and the live CR2 medium. Add copper reset,
   link configuration and observation, interrupt service and counter collection.
   The native adapter uses the DP83822 200 ms POR and 10-microsecond reset pulse limits.
+  Its ESP32-P4 factory and stopped interface control report RGMII as unsupported.
   The shared CLI and offline runner distinguish each declared grade. Copper
   operations withdraw readiness on contradictory board observations and
   reinstall owned interrupt enables after a link-profile change.
